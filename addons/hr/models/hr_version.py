@@ -183,14 +183,10 @@ class HrVersion(models.Model):
         tracking=True,
     )
     date_start = fields.Date(
-        compute="_compute_dates",
-        groups="hr.group_hr_manager",
-        search="_search_date_start",
+        compute="_compute_dates", store=True, groups="hr.group_hr_manager"
     )
     date_end = fields.Date(
-        compute="_compute_dates",
-        groups="hr.group_hr_manager",
-        search="_search_date_end",
+        compute="_compute_dates", store=True, groups="hr.group_hr_manager"
     )
     is_current = fields.Boolean(
         compute="_compute_date_state", groups="hr.group_hr_manager"
@@ -755,12 +751,6 @@ class HrVersion(models.Model):
                 version.date_end = date_version_end
             else:
                 version.date_end = version.contract_date_end
-
-    def _search_date_start(self, operator, value):
-        return [("contract_date_start", operator, value)]
-
-    def _search_date_end(self, operator, value):
-        return [("contract_date_end", operator, value)]
 
     def _inverse_resource_calendar_id(self):
         for employee, versions in self.grouped("employee_id").items():

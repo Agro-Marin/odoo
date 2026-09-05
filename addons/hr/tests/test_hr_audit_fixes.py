@@ -240,7 +240,7 @@ class TestHrAuditRound2(TestHrCommon):
         )
 
         self.assertNotIn(
-            "employee_bank_account_ids",
+            "bank_account_ids",
             self.env["res.users"].SELF_WRITEABLE_FIELDS,
         )
 
@@ -248,7 +248,7 @@ class TestHrAuditRound2(TestHrCommon):
         with self.assertRaises(AccessError):
             user_self.write(
                 {
-                    "employee_bank_account_ids": [
+                    "bank_account_ids": [
                         (
                             0,
                             0,

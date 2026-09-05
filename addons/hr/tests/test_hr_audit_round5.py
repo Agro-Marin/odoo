@@ -1,0 +1,272 @@
+from datetime import datetime
+from unittest.mock import patch
+
+from odoo import Command, fields
+from odoo.exceptions import ValidationError
+from odoo.tests import Form
+
+from odoo.addons.hr.tests.common import TestHrCommon
+from odoo.addons.mail.tests.common import mail_new_test_user
+
+
+class TestCalendarSyncWritesTheResourceOnce(TestHrCommon):
+    def test_an_employee_write_reaches_the_resource_through_the_version_only(self):
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Round 5", "company_id": self.env.company.id}
+        )
+        Resource = self.env.registry["resource.resource"]
+        original_write = Resource.write
+        calendar_writes = []
+
+        def counting_write(resources, vals):
+            if "calendar_id" in vals:
+                calendar_writes.append(vals["calendar_id"])
+            return original_write(resources, vals)
+
+        with patch.object(Resource, "write", counting_write):
+            self.employee.write({"resource_calendar_id": calendar.id})
+        self.assertEqual(calendar_writes, [calendar.id])
+        self.assertEqual(self.employee.resource_id.calendar_id, calendar)
+        self.assertEqual(self.employee.version_id.resource_calendar_id, calendar)
+
+
+class TestArchiveOfAMixedSelection(TestHrCommon):
+    def test_an_already_archived_employee_in_the_selection_still_opens_the_wizard(
+        self,
+    ):
+        active, archived = self.env["hr.employee"].create(
+            [{"name": "Still here"}, {"name": "Already gone"}]
+        )
+        archived.with_context(no_wizard=True).action_archive()
+
+        action = (active | archived).action_archive()
+
+        self.assertFalse(active.active)
+        self.assertEqual(action["res_model"], "hr.departure.wizard")
+        self.assertEqual(action["context"], {"active_id": active.id})
+
+
+class TestDepartureWizardForAnHrOfficer(TestHrCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.leaving = cls.env["hr.employee"].create(
+            {"name": "Leaving", "contract_date_start": "2026-01-01"}
+        )
+
+    def _wizard(self, user):
+        return (
+            self.env["hr.departure.wizard"]
+            .with_user(user)
+            .with_context(active_ids=self.leaving.ids, employee_termination=True)
+        )
+
+    def test_an_officer_opens_the_wizard_and_registers_the_departure(self):
+        Wizard = self._wizard(self.res_users_hr_officer)
+        defaults = Wizard.default_get(["departure_date", "employee_ids"])
+        self.assertEqual(defaults["departure_date"], fields.Date.today())
+
+        wizard = Wizard.create(
+            {"departure_reason_id": self.env.ref("hr.departure_resigned").id}
+        )
+        self.assertFalse(wizard.set_date_end)
+        wizard.action_register_departure()
+
+        self.assertFalse(self.leaving.active)
+        self.assertEqual(
+            self.leaving.sudo().departure_reason_id,
+            self.env.ref("hr.departure_resigned"),
+        )
+        self.assertFalse(self.leaving.sudo().contract_date_end)
+
+    def test_a_manager_still_closes_the_contract_by_default(self):
+        wizard = self._wizard(self.res_users_hr_manager).create(
+            {"departure_reason_id": self.env.ref("hr.departure_resigned").id}
+        )
+        self.assertTrue(wizard.set_date_end)
+        wizard.action_register_departure()
+        self.assertEqual(self.leaving.sudo().contract_date_end, wizard.departure_date)
+
+
+class TestPrivateAddressOnCreate(TestHrCommon):
+    def test_create_keeps_the_private_address_values(self):
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Home",
+                "private_street": "12 Rue Confidentielle",
+                "private_city": "Brussels",
+                "private_zip": "1000",
+            }
+        )
+        home = employee.private_address_id
+        self.assertEqual(employee.private_street, "12 Rue Confidentielle")
+        self.assertEqual(home.city, "Brussels")
+        self.assertEqual(home.zip, "1000")
+        self.assertEqual(home.type, "private")
+        self.assertEqual(home.parent_id, employee.work_contact_id)
+
+    def test_a_batch_create_lands_each_address_on_its_own_employee(self):
+        first, second = self.env["hr.employee"].create(
+            [
+                {"name": "First", "private_street": "First street"},
+                {"name": "Second"},
+            ]
+        )
+        self.assertEqual(first.private_street, "First street")
+        self.assertFalse(second.private_street)
+        self.assertTrue(second.private_address_id)
+        self.assertNotEqual(first.private_address_id, second.private_address_id)
+
+    def test_an_unsaved_form_creates_no_partner(self):
+        user = mail_new_test_user(
+            self.env, login="round5_form", groups="base.group_user", name="Draft"
+        )
+        Partner = self.env["res.partner"]
+        before = Partner.search_count([])
+
+        form = Form(self.env["hr.employee"])
+        form.name = "Draft"
+        form.user_id = user
+        self.assertFalse(form.private_street)
+        self.assertEqual(Partner.search_count([]), before)
+
+        employee = form.save()
+        self.assertTrue(employee.private_address_id)
+        self.assertEqual(employee.private_address_id.parent_id, user.partner_id)
+        self.assertEqual(Partner.search_count([]), before + 1)
+
+
+class TestPublicProfileCreateDate(TestHrCommon):
+    def test_create_date_is_the_employees_not_the_current_versions(self):
+        employee = self.env["hr.employee"].create({"name": "Dated"})
+        self.env.flush_all()
+        hired_on = datetime(2020, 1, 2, 3, 4, 5)
+        self.env.cr.execute(
+            "UPDATE hr_employee SET create_date = %s WHERE id = %s",
+            (hired_on, employee.id),
+        )
+        self.env.invalidate_all()
+
+        public = self.env["hr.employee.public"].browse(employee.id)
+        self.assertEqual(public.create_date, hired_on)
+        self.assertNotEqual(employee.version_id.create_date, hired_on)
+
+
+class TestSelfWritableFieldsAreRealFields(TestHrCommon):
+    def test_display_name_is_not_self_writable(self):
+        self.assertNotIn("display_name", self.env["res.users"].SELF_WRITEABLE_FIELDS)
+
+
+class TestContractTemplateWizard(TestHrCommon):
+    def test_loading_a_template_records_which_template_was_applied(self):
+        template = self.env["hr.version"].create(
+            {"name": "Round 5 template", "wage": 1234}
+        )
+        wizard = (
+            self.env["hr.version.wizard"]
+            .with_context(active_id=self.employee.id)
+            .create({"contract_template_id": template.id})
+        )
+        wizard.action_load_template()
+        self.assertEqual(self.employee.wage, 1234)
+        self.assertEqual(self.employee.version_id.contract_template_id, template)
+
+
+class TestNewEmployeeSeesItsOwnVersion(TestHrCommon):
+    def test_inherited_fields_read_back_on_an_unsaved_employee(self):
+        department = self.env["hr.department"].create({"name": "Round 5"})
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Round 5", "tz": "Asia/Tokyo", "company_id": self.env.company.id}
+        )
+        draft = self.env["hr.employee"].new(
+            {
+                "name": "Draft",
+                "department_id": department.id,
+                "resource_calendar_id": calendar.id,
+            }
+        )
+        self.assertTrue(draft.version_id)
+        self.assertEqual(draft.department_id, department)
+        self.assertEqual(draft.resource_calendar_id, calendar)
+        self.assertFalse(draft.version_id.id)
+
+
+class TestVersionDatesSearchAgreesWithCompute(TestHrCommon):
+    def test_a_version_without_a_contract_is_found_by_its_start_date(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "No contract", "date_version": "2026-03-01"}
+        )
+        version = employee.version_id
+        self.assertEqual(str(version.date_start), "2026-03-01")
+        self.assertFalse(version.contract_date_start)
+        found = self.env["hr.version"].search([("date_start", "=", "2026-03-01")])
+        self.assertIn(version, found)
+
+    def test_the_end_date_follows_the_next_version(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "Two versions", "date_version": "2026-01-01"}
+        )
+        first = employee.version_id
+        self.assertFalse(first.date_end)
+        employee.create_version({"date_version": "2026-06-01"})
+        self.assertEqual(str(first.date_end), "2026-05-31")
+        self.assertIn(
+            first, self.env["hr.version"].search([("date_end", "=", "2026-05-31")])
+        )
+
+
+class TestFixedSalaryAllocationIsValidated(TestHrCommon):
+    def _employee_with_account(self):
+        employee = self.env["hr.employee"].create({"name": "Paid"})
+        account = self.env["res.partner.bank"].create(
+            {"acc_number": "R5-0001", "partner_id": employee.work_contact_id.id}
+        )
+        employee.bank_account_ids = [Command.link(account.id)]
+        return employee, account
+
+    def test_a_negative_fixed_amount_is_rejected(self):
+        employee, account = self._employee_with_account()
+        with self.assertRaises(ValidationError):
+            employee.salary_distribution = {
+                str(account.id): {"amount": -500, "amount_is_percentage": False}
+            }
+
+    def test_a_non_numeric_fixed_amount_is_rejected(self):
+        employee, account = self._employee_with_account()
+        with self.assertRaises(ValidationError):
+            employee.salary_distribution = {
+                str(account.id): {"amount": "abc", "amount_is_percentage": False}
+            }
+
+    def test_a_fixed_amount_of_zero_or_more_is_accepted(self):
+        employee, account = self._employee_with_account()
+        employee.salary_distribution = {
+            str(account.id): {"amount": 0, "amount_is_percentage": False}
+        }
+        employee.salary_distribution = {
+            str(account.id): {"amount": 1500.5, "amount_is_percentage": False}
+        }
+
+
+class TestBatchedCreateAttachesEveryVersion(TestHrCommon):
+    def test_every_employee_owns_exactly_its_own_version(self):
+        employees = self.env["hr.employee"].create(
+            [{"name": f"Batch {i}", "department_id": False} for i in range(5)]
+        )
+        for employee in employees:
+            self.assertEqual(employee.version_ids, employee.current_version_id)
+            self.assertEqual(employee.version_id.employee_id, employee)
+            self.assertEqual(employee.version_id.company_id, employee.company_id)
+
+    def test_overlapping_contract_dates_are_still_rejected_at_create(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "Overlap", "contract_date_start": "2026-01-01"}
+        )
+        with self.assertRaises(ValidationError):
+            employee.create_version(
+                {
+                    "date_version": "2026-06-01",
+                    "contract_date_start": "2026-03-01",
+                    "contract_date_end": "2026-12-31",
+                }
+            )

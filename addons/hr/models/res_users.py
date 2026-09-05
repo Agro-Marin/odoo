@@ -31,7 +31,6 @@ HR_WRITABLE_FIELDS = [
     "private_email",
     "barcode",
     "tag_ids",
-    "display_name",
     "emergency_contact",
     "emergency_phone",
     "job_title",
@@ -140,13 +139,6 @@ class ResUsers(models.Model):
     )
     km_home_work = fields.Integer(
         related="employee_id.km_home_work", readonly=False, related_sudo=False
-    )
-    employee_bank_account_ids = fields.Many2many(
-        "res.partner.bank",
-        related="employee_id.bank_account_ids",
-        string="Employee's Bank Accounts",
-        related_sudo=False,
-        readonly=False,
     )
     emergency_contact = fields.Char(
         related="employee_id.emergency_contact", readonly=False, related_sudo=False

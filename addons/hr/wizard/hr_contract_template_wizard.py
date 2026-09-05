@@ -23,9 +23,9 @@ class HrContractTemplateWizard(models.TransientModel):
         if not employee_id or not self.contract_template_id:
             return
         employee = self.env["hr.employee"].browse(employee_id)
-        val_list = self.env["hr.version"]._prepare_vals_from_contract_template(
+        template_vals = self.env["hr.version"]._prepare_vals_from_contract_template(
             self.contract_template_id
         )
-        employee.write(val_list)
-        employee.version_id.contract_template_id = self.contract_template_id
-        return
+        employee.write(
+            {**template_vals, "contract_template_id": self.contract_template_id.id}
+        )

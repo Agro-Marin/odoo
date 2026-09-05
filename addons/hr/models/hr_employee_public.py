@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.orm.primitives import LOG_ACCESS_COLUMNS
 
 
 class HrEmployeePublic(models.Model):
@@ -208,7 +209,9 @@ class HrEmployeePublic(models.Model):
             + ",".join(
                 (
                     f"v.{name}"
-                    if name in version_fields and version_fields[name].store
+                    if name in version_fields
+                    and version_fields[name].store
+                    and name not in LOG_ACCESS_COLUMNS
                     else f"e.{name}"
                 )
                 for name in self._get_field_names_public()

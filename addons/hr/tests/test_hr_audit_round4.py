@@ -869,9 +869,7 @@ class TestSelfWriteDoesNotEscalateThroughRelations(TestHrCommon):
 
     def test_a_self_writable_m2m_cannot_delete_a_comodel_record(self):
         with self.assertRaises(AccessError):
-            self._write_as_self(
-                {"tag_ids": [Command.delete(self.existing_tag.id)]}
-            )
+            self._write_as_self({"tag_ids": [Command.delete(self.existing_tag.id)]})
         self.env.invalidate_all()
         self.assertTrue(
             self.existing_tag.exists(),

@@ -12,7 +12,6 @@ from odoo import api, fields, models, tools
 from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import localize_standard, timezone
-from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_is_zero
 from odoo.tools import SQL, Query, convert, email_normalize, format_time
 
@@ -221,7 +220,6 @@ class HrEmployee(models.Model):
         "employee_id",
         string="Employee Versions",
         groups="hr.group_hr_user",
-        required=True,
     )
     versions_count = fields.Integer(
         compute="_compute_versions_count",
@@ -236,7 +234,6 @@ class HrEmployee(models.Model):
             ("out_of_working_hour", "Off-Hours"),
         ],
         compute="_compute_hr_presence_state",
-        default="out_of_working_hour",
     )
     last_activity = fields.Date(
         compute="_compute_last_activity_and_time",
@@ -338,7 +335,6 @@ class HrEmployee(models.Model):
     birthday_public_display_string = fields.Char(
         "Public Date of Birth",
         compute="_compute_birthday_public_display_string",
-        default="hidden",
     )
     identification_id = fields.Char(
         string="Identification No",
@@ -523,7 +519,6 @@ class HrEmployee(models.Model):
     )
     has_multiple_bank_accounts = fields.Boolean(
         compute="_compute_has_multiple_bank_accounts",
-        default=False,
         groups="hr.group_hr_user",
     )
     salary_distribution = fields.Json(
@@ -706,6 +701,16 @@ class HrEmployee(models.Model):
                             "Each amount percentage must be a number between 0 and 100."
                         )
                     )
+                if not is_percentage and (
+                    isinstance(amount, bool)
+                    or not isinstance(amount, (float, int))
+                    or amount < 0
+                ):
+                    raise ValidationError(
+                        self.env._(
+                            "Each fixed amount must be a number of zero or more."
+                        )
+                    )
                 if is_percentage:
                     check_total = True
                     total += amount
@@ -774,8 +779,11 @@ class HrEmployee(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         vals_per_company = defaultdict(list)
+        private_address_vals = {}
         for idx, caller_vals in enumerate(vals_list):
-            vals = dict(caller_vals)
+            vals, address_vals = self._split_private_address_vals(caller_vals)
+            if address_vals:
+                private_address_vals[idx] = address_vals
             if vals.get("user_id"):
                 user = self.env["res.users"].browse(vals["user_id"])
                 vals.update(self._sync_user(user, bool(vals.get("image_1920"))))
@@ -798,6 +806,9 @@ class HrEmployee(models.Model):
         employees.filtered(
             lambda e: not e.work_contact_id
         ).sudo()._create_work_contacts()
+        for employee in employees:
+            if address_vals := private_address_vals.get(index_per_employee[employee]):
+                employee.write(address_vals)
         if self.env.context.get("salary_simulation"):
             return employees
         employees.sudo()._generate_missing_avatars()
@@ -827,13 +838,33 @@ class HrEmployee(models.Model):
 
     @api.model
     def _create(self, data_list):
-        versions = [vals["stored"].pop("version_id", None) for vals in data_list]
+        version_ids = [vals["stored"].pop("version_id", None) for vals in data_list]
         result = super()._create(data_list)
-        for employee, version_id, vals in zip(result, versions, data_list, strict=True):
-            version = self.env["hr.version"].browse(version_id)
-            version.employee_id = employee.id
-            inherited = (vals.get("inherited") or {}).get("hr.version", {})
-            version.write({**inherited, "employee_id": employee.id})
+        pairs = [
+            (version_id, employee.id)
+            for version_id, employee in zip(version_ids, result, strict=True)
+            if version_id
+        ]
+        if not pairs:
+            return result
+        versions = self.env["hr.version"].browse([pair[0] for pair in pairs])
+        versions.flush_recordset()
+        self.env.cr.execute(
+            SQL(
+                "UPDATE hr_version AS v SET employee_id = p.employee_id,"
+                " write_date = %s, write_uid = %s"
+                " FROM (VALUES %s) AS p(id, employee_id) WHERE v.id = p.id",
+                fields.Datetime.now(),
+                self.env.uid,
+                SQL(", ").join(
+                    SQL("(%s, %s)", version_id, employee_id)
+                    for version_id, employee_id in pairs
+                ),
+            )
+        )
+        versions.invalidate_recordset(["employee_id", "write_date", "write_uid"])
+        versions.modified(["employee_id"])
+        versions._check_fields(["employee_id"])
         return result
 
     def write(self, vals):
@@ -906,8 +937,6 @@ class HrEmployee(models.Model):
                     Markup("<b>Modified on the Version '%s'</b>")
                     % employee.version_id.display_name
                 )
-        if res and "resource_calendar_id" in vals:
-            self._update_resource_calendars()
         return res
 
     @api.model
@@ -920,6 +949,23 @@ class HrEmployee(models.Model):
         return bool(
             field and field.inherited and field.related_field.model_name == "hr.version"
         )
+
+    @api.model
+    def _is_private_address_field(self, fname):
+        field = self._fields.get(fname)
+        return bool(
+            field and field.related and field.related.startswith("private_address_id.")
+        )
+
+    @api.model
+    def _split_private_address_vals(self, vals):
+        employee_vals, address_vals = {}, {}
+        for fname, value in vals.items():
+            target = (
+                address_vals if self._is_private_address_field(fname) else employee_vals
+            )
+            target[fname] = value
+        return employee_vals, address_vals
 
     @api.model
     def _split_employee_and_version_vals(self, vals):
@@ -1144,25 +1190,44 @@ class HrEmployee(models.Model):
             new_current_version = latest_version_by_employee.get(
                 employee.id
             ) or earliest_version_by_employee.get(employee.id, no_version)
+            if not new_current_version and not employee.id:
+                new_current_version = employee.version_ids[:1]
             if employee.current_version_id != new_current_version:
                 employee.current_version_id = new_current_version
 
     @api.depends("work_contact_id")
     def _compute_private_address_id(self):
         Partner = self.env["res.partner"].sudo()
-        for employee in self:
-            if employee.private_address_id:
-                continue
+        unresolved = self.filtered(lambda e: not e.private_address_id)
+        existing_by_contact = {}
+        for home in Partner.search(
+            [
+                ("parent_id", "in", unresolved.work_contact_id.ids),
+                ("type", "=", "private"),
+            ],
+            order="id",
+        ):
+            existing_by_contact.setdefault(home.parent_id, home)
+        to_create = []
+        for employee in unresolved:
             contact = employee.work_contact_id
             if not contact:
                 employee.private_address_id = False
-                continue
-            existing = Partner.search(
-                [("parent_id", "=", contact.id), ("type", "=", "private")], limit=1
+            elif contact in existing_by_contact:
+                employee.private_address_id = existing_by_contact[contact]
+            elif not employee.id:
+                employee.private_address_id = False
+            else:
+                to_create.append(employee)
+        if to_create:
+            homes = Partner.create(
+                [
+                    {"parent_id": employee.work_contact_id.id, "type": "private"}
+                    for employee in to_create
+                ]
             )
-            employee.private_address_id = existing or Partner.create(
-                {"parent_id": contact.id, "type": "private"}
-            )
+            for employee, home in zip(to_create, homes, strict=True):
+                employee.private_address_id = home
 
     @api.depends("parent_id")
     def _compute_coach_id(self):
@@ -2119,8 +2184,8 @@ class HrEmployee(models.Model):
             return super().get_views(views, options)
         raise RedirectWarning(
             message=self.env._(
-                """You are not allowed to access "Employee" (hr.employee) records.
-                We can redirect you to the public employee list."""
+                'You are not allowed to access "Employee" (hr.employee) records.\n'
+                "We can redirect you to the public employee list."
             ),
             action=self.env.ref("hr.hr_employee_public_action").id,
             button_text=self.env._("Employees profile"),
@@ -2274,7 +2339,7 @@ class HrEmployee(models.Model):
                     "res_model": "hr.departure.wizard",
                     "view_mode": "form",
                     "target": "new",
-                    "context": {"active_id": self.id},
+                    "context": {"active_id": archived_employees.id},
                     "views": [[False, "form"]],
                 }
         return res
@@ -2573,87 +2638,101 @@ class HrEmployee(models.Model):
             )
         )
 
+    def _fold_version_windows(self, start, stop, fallback, per_window, combine):
+        self.check_singleton()
+        employee_tz = self._get_employee_tz()
+        windows = list(self._get_version_windows(start, stop, employee_tz))
+        if not windows:
+            return fallback(self._get_fallback_calendar(), employee_tz)
+        result = None
+        for index, window in enumerate(windows):
+            part = per_window(index, window, employee_tz)
+            result = part if result is None else combine(result, part)
+        return result
+
     def _get_attendance_intervals(self, start, stop, lunch=False):
         self.check_singleton()
         if not lunch:
             return self._get_expected_attendances(start, stop)
-        employee_tz = self._get_employee_tz()
-        windows = list(self._get_version_windows(start, stop, employee_tz))
-        if not windows:
-            return self._get_fallback_calendar()._attendance_intervals_batch(
-                start, stop, self.resource_id, lunch=True
-            )[self.resource_id.id]
-        duration_data = Intervals()
-        for _version, window_start, window_stop, calendar in windows:
-            duration_data |= calendar._attendance_intervals_batch(
-                window_start,
-                window_stop,
-                resources=self.resource_id,
-                lunch=True,
-            )[self.resource_id.id]
-        return duration_data
+        resource = self.resource_id
+
+        def fallback(calendar, _tz):
+            return calendar._attendance_intervals_batch(
+                start, stop, resource, lunch=True
+            )[resource.id]
+
+        def per_window(_index, window, _tz):
+            _version, window_start, window_stop, calendar = window
+            return calendar._attendance_intervals_batch(
+                window_start, window_stop, resources=resource, lunch=True
+            )[resource.id]
+
+        return self._fold_version_windows(
+            start, stop, fallback, per_window, lambda a, b: a | b
+        )
 
     def _get_expected_attendances(self, date_from, date_to):
         self.check_singleton()
-        employee_tz = self._get_employee_tz()
-        windows = list(self._get_version_windows(date_from, date_to, employee_tz))
-        if not windows:
-            return self._get_fallback_calendar()._work_intervals_batch(
+        resource = self.resource_id
+        company_domain = [("company_id", "in", [False, self.company_id.id])]
+
+        def fallback(calendar, tz):
+            return calendar._work_intervals_batch(
                 date_from,
                 date_to,
-                tz=employee_tz,
-                resources=self.resource_id,
+                tz=tz,
+                resources=resource,
                 compute_leaves=True,
-                domain=[("company_id", "in", [False, self.company_id.id])],
-            )[self.resource_id.id]
-        duration_data = Intervals()
-        for index, (version, window_start, window_stop, calendar) in enumerate(windows):
+                domain=company_domain,
+            )[resource.id]
+
+        def per_window(index, window, tz):
+            version, window_start, window_stop, calendar = window
             if index == 0:
                 window_start = max(
                     date_from,
-                    self._combine_tz(
-                        version.contract_date_start, time.min, employee_tz
-                    ),
+                    self._combine_tz(version.contract_date_start, time.min, tz),
                 )
-            duration_data |= calendar._work_intervals_batch(
+            return calendar._work_intervals_batch(
                 window_start,
                 window_stop,
-                tz=employee_tz,
-                resources=self.resource_id,
+                tz=tz,
+                resources=resource,
                 compute_leaves=True,
-                domain=[
-                    ("company_id", "in", [False, self.company_id.id]),
-                    ("time_type", "=", "leave"),
-                ],
-            )[self.resource_id.id]
-        return duration_data
+                domain=[*company_domain, ("time_type", "=", "leave")],
+            )[resource.id]
+
+        return self._fold_version_windows(
+            date_from, date_to, fallback, per_window, lambda a, b: a | b
+        )
 
     def _get_calendar_attendances(self, date_from, date_to):
         self.check_singleton()
-        employee_tz = self._get_employee_tz()
-        windows = list(self._get_version_windows(date_from, date_to, employee_tz))
-        if not windows:
-            return (
-                self._get_fallback_calendar()
-                .with_context(employee_timezone=employee_tz)
-                .get_work_duration_data(
-                    date_from,
-                    date_to,
-                    domain=[("company_id", "in", [False, self.company_id.id])],
-                )
+
+        def fallback(calendar, tz):
+            return calendar.with_context(employee_timezone=tz).get_work_duration_data(
+                date_from,
+                date_to,
+                domain=[("company_id", "in", [False, self.company_id.id])],
             )
-        duration_data = {"days": 0, "hours": 0}
-        for version, window_start, window_stop, calendar in windows:
-            version_duration_data = calendar.with_context(
-                employee_timezone=employee_tz
-            ).get_work_duration_data(
+
+        def per_window(_index, window, tz):
+            version, window_start, window_stop, calendar = window
+            return calendar.with_context(employee_timezone=tz).get_work_duration_data(
                 window_start,
                 window_stop,
                 domain=[("company_id", "in", [False, version.company_id.id])],
             )
-            duration_data["days"] += version_duration_data["days"]
-            duration_data["hours"] += version_duration_data["hours"]
-        return duration_data
+
+        def combine(total, part):
+            return {
+                "days": total["days"] + part["days"],
+                "hours": total["hours"] + part["hours"],
+            }
+
+        return self._fold_version_windows(
+            date_from, date_to, fallback, per_window, combine
+        )
 
     @api.model
     def get_import_templates(self):
@@ -2749,13 +2828,3 @@ class HrEmployee(models.Model):
             trusted.allow_out_payment = False
         if work_contact_id:
             to_move.partner_id = work_contact_id
-
-    def _update_resource_calendars(self):
-        resources_per_calendar_id = defaultdict(lambda: self.env["resource.resource"])
-        for employee in self:
-            if employee.version_id == employee.current_version_id:
-                resources_per_calendar_id[employee.resource_calendar_id.id] += (
-                    employee.resource_id
-                )
-        for calendar_id, resources in resources_per_calendar_id.items():
-            resources.write({"calendar_id": calendar_id})

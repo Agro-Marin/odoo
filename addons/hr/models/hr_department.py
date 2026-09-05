@@ -261,7 +261,7 @@ class HrDepartment(models.Model):
             "res_model": "hr.department",
             "views": [[False, "kanban"], [False, "list"], [False, "form"]],
             "domain": [["id", "in", self._get_child_departments().ids]],
-            "name": "Child departments",
+            "name": self.env._("Child departments"),
         }
 
     def get_department_hierarchy(self):

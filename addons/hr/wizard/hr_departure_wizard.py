@@ -8,7 +8,7 @@ class HrDepartureWizard(models.TransientModel):
 
     def _default_departure_date(self):
         if len(active_ids := self.env.context.get("active_ids", [])) == 1:
-            employee = self.env["hr.employee"].browse(active_ids[0])
+            employee = self.env["hr.employee"].browse(active_ids[0]).sudo()
             departure_date = employee and employee._get_departure_date()
         else:
             departure_date = False
@@ -57,7 +57,7 @@ class HrDepartureWizard(models.TransientModel):
 
     set_date_end = fields.Boolean(
         string="Set Contract End Date",
-        default=lambda self: self.env.user.has_group("hr.group_hr_user"),
+        default=lambda self: self.env.user.has_group("hr.group_hr_manager"),
         help="Set the end date on the current contract.",
     )
 
@@ -108,7 +108,7 @@ class HrDepartureWizard(models.TransientModel):
         if any(
             version.contract_date_start
             and version.contract_date_start > self.departure_date
-            for version in versions
+            for version in versions.sudo()
         ):
             raise UserError(
                 self.env._(
