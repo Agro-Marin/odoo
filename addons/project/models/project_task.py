@@ -391,7 +391,10 @@ class ProjectTask(models.Model):
         context={"active_test": False},
         tracking=3,
         default=_default_user_ids,
-        domain="[('share', '=', False), ('active', '=', True)]",
+        domain="""[
+            ('share', '=', False), ('active', '=', True),
+            '|', ('company_id', '=?', company_id), ('company_ids', 'in', company_id),
+        ]""",
         falsy_value_label=_lt("👤 Unassigned"),
     )
     tag_ids = fields.Many2many("project.tags", string="Tags")

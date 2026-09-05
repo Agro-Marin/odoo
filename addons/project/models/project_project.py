@@ -110,6 +110,10 @@ class ProjectProject(models.Model):
         default=lambda self: self.env.user,
         tracking=True,
         falsy_value_label=_lt("👤 Unassigned"),
+        domain="""[
+            ('share', '=', False),
+            '|', ('company_id', '=?', company_id), ('company_ids', 'in', company_id),
+        ]""",
     )
     alias_id = fields.Many2one(
         help="Internal email associated with this project. Incoming emails are automatically synchronized "

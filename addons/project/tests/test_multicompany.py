@@ -7,6 +7,7 @@ from lxml import etree
 from odoo import Command, fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form, TransactionCase
+from odoo.tools.safe_eval import safe_eval
 
 
 class TestMultiCompanyCommon(TransactionCase):
@@ -759,3 +760,56 @@ class TestMultiCompanyProject(TestMultiCompanyCommon):
             task.date_assign = fields.Datetime.now()
             self.assertEqual(task.queue_time_hours, 3.0)
             self.assertEqual(task.queue_time_days, 0.375)
+
+    def _eval_field_domain(self, model: str, fname: str, record) -> list:
+        """Resolve a field's view domain the way the web client does."""
+        domain = self.env[model]._fields[fname].domain
+        if not isinstance(domain, str):
+            return list(domain or [])
+        return safe_eval(
+            domain,
+            {
+                "company_id": record.company_id.id,
+                "project_id": record.project_id.id
+                if "project_id" in record._fields
+                else False,
+                "uid": self.env.uid,
+                "id": record.id,
+            },
+        )
+
+    def test_assignee_domain_is_limited_to_the_project_company(self) -> None:
+        """Managers and assignees must be pickable only within the company.
+
+        Nothing constrained this before: `project.project.user_id` carried no
+        domain at all and `project.task.user_ids` only filtered out shared and
+        archived users, so both dropdowns offered users who cannot even see
+        the record they would be assigned to.
+        """
+        project = self.Project.create(
+            {"name": "Company A project", "company_id": self.company_a.id}
+        )
+        task = self.env["project.task"].create(
+            {"name": "Company A task", "project_id": project.id}
+        )
+        self.assertEqual(task.company_id, self.company_a)
+
+        manager_domain = self._eval_field_domain("project.project", "user_id", project)
+        assignee_domain = self._eval_field_domain("project.task", "user_ids", task)
+
+        self.assertFalse(
+            self.user_employee_company_b.filtered_domain(manager_domain),
+            "A user outside the project company must not be offered as manager.",
+        )
+        self.assertTrue(
+            self.user_employee_company_a.filtered_domain(manager_domain),
+            "A user of the project company must still be offered as manager.",
+        )
+        self.assertFalse(
+            self.user_employee_company_b.filtered_domain(assignee_domain),
+            "A user outside the task company must not be offered as assignee.",
+        )
+        self.assertTrue(
+            self.user_employee_company_a.filtered_domain(assignee_domain),
+            "A user of the task company must still be offered as assignee.",
+        )
