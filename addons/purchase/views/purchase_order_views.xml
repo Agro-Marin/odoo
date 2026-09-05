@@ -571,6 +571,7 @@
                         name="action_acknowledge"
                         string="Acknowledge"
                         type="object"
+                        data-hotkey="a"
                         invisible="acknowledged or state != 'done'" />
                     <!-- 6. Print -->
                     <button
