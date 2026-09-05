@@ -3,3 +3,4 @@ from . import test_stock_lot
 from . import test_expiry_extra
 from . import test_expiry_audit_2026_08
 from . import test_module_icon
+from . import test_package_barcode_report
