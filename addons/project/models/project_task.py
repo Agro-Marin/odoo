@@ -1259,7 +1259,10 @@ class ProjectTask(models.Model):
         self.check_singleton()
         return self.repeat_interval > 0 and (
             self.repeat_type != "until"
-            or (self.repeat_until and self.repeat_until > fields.Date.today())
+            or (
+                self.repeat_until
+                and self.repeat_until > fields.Date.context_today(self)
+            )
         )
 
     @api.depends("recurrence_id")
@@ -2043,7 +2046,7 @@ class ProjectTask(models.Model):
             vals["state"] = "in_progress"
 
         if "repeat_until" in fields and not vals.get("repeat_until"):
-            vals["repeat_until"] = Date.today() + timedelta(days=7)
+            vals["repeat_until"] = Date.context_today(self) + timedelta(days=7)
 
         if "partner_id" in vals and not vals["partner_id"]:
             project_id = vals.get("project_id")
@@ -2883,7 +2886,7 @@ class ProjectTask(models.Model):
                 [
                     ("id", "in", self.milestone_id.ids),
                     ("is_reached", "=", False),
-                    ("deadline", "<", fields.Date.today()),
+                    ("deadline", "<", "today"),
                 ]
             )
         )
@@ -2904,7 +2907,7 @@ class ProjectTask(models.Model):
                 "any",
                 [
                     ("is_reached", "=", False),
-                    ("deadline", "<", fields.Date.today()),
+                    ("deadline", "<", "today"),
                 ],
             ),
         ]
