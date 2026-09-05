@@ -286,8 +286,7 @@ class ApprovalDashboard(models.Model):
 
             if last_period_count > 0:
                 trend = round(
-                    ((this_period_count - last_period_count) / last_period_count)
-                    * 100,
+                    ((this_period_count - last_period_count) / last_period_count) * 100,
                     1,
                 )
                 display_val = abs(trend)
@@ -513,9 +512,7 @@ class ApprovalDashboard(models.Model):
         requests_7d = sum(count for day, count in request_days if day >= days_7_ago)
         requests_per_day_7d = round(requests_7d / 7, 2)
 
-        requests_15d = sum(
-            count for day, count in request_days if day >= days_15_ago
-        )
+        requests_15d = sum(count for day, count in request_days if day >= days_15_ago)
         requests_per_day_15d = round(requests_15d / 15, 2)
 
         requests_30d = sum(count for _day, count in request_days)
@@ -533,28 +530,18 @@ class ApprovalDashboard(models.Model):
             ["__count"],
         )
 
-        approvals_7d = sum(
-            count for day, count in approval_days if day >= days_7_ago
-        )
+        approvals_7d = sum(count for day, count in approval_days if day >= days_7_ago)
         approvals_per_day_7d = round(approvals_7d / 7, 2)
 
-        approvals_15d = sum(
-            count for day, count in approval_days if day >= days_15_ago
-        )
+        approvals_15d = sum(count for day, count in approval_days if day >= days_15_ago)
         approvals_per_day_15d = round(approvals_15d / 15, 2)
 
         approvals_30d = sum(count for _day, count in approval_days)
         approvals_per_day_30d = round(approvals_30d / 30, 2)
 
-        avg_7d = self._calculate_avg_response_time_sql(
-            days_7_ago_utc, today_end_utc
-        )
-        avg_15d = self._calculate_avg_response_time_sql(
-            days_15_ago_utc, today_end_utc
-        )
-        avg_30d = self._calculate_avg_response_time_sql(
-            days_30_ago_utc, today_end_utc
-        )
+        avg_7d = self._calculate_avg_response_time_sql(days_7_ago_utc, today_end_utc)
+        avg_15d = self._calculate_avg_response_time_sql(days_15_ago_utc, today_end_utc)
+        avg_30d = self._calculate_avg_response_time_sql(days_30_ago_utc, today_end_utc)
 
         ninety_days_ago = today_utc - timedelta(days=90)
 
