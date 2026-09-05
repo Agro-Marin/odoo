@@ -362,7 +362,9 @@ test("One app installed, database expired", async () => {
     expect(".oe_instance_register").toHaveText(
         "This database has expired. Register your subscription or buy a subscription.",
     );
-    expect(".o_blockUI").toHaveCount(1, { message: "UI should be blocked" });
+    expect(".o_expired_subscription_overlay").toHaveCount(1, {
+        message: "UI should be blocked",
+    });
 
     expect(".database_expiration_panel").toHaveClass("alert-danger", {
         message: "Color should be red",
@@ -385,7 +387,9 @@ test("One app installed, database expired", async () => {
     expect(".oe_instance_register").toHaveText(
         "Thank you, your registration was successful! Your database is valid until November 9, 2019.",
     );
-    expect(".o_blockUI").toHaveCount(0, { message: "UI should no longer be blocked" });
+    expect(".o_expired_subscription_overlay").toHaveCount(0, {
+        message: "UI should no longer be blocked",
+    });
 });
 
 test("One app installed, renew", async () => {

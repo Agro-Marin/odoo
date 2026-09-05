@@ -210,11 +210,9 @@ export class SubscriptionManager {
 
 class ExpiredSubscriptionBlockUI extends Component {
     static props = {};
-    // TODO the "o_blockUI" div in there seems useless (it has 0 height and thus displays and does nothing)
     static template = xml`
         <t t-if="subscription.daysLeft &lt;= 0">
-            <div class="o_blockUI"/>
-            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1100" class="d-flex align-items-center justify-content-center">
+            <div class="o_expired_subscription_overlay position-absolute top-0 start-0 end-0 bottom-0 d-flex align-items-center justify-content-center">
                 <ExpirationPanel t-if="!subscription.sysadmin.replace"/>
                 <!-- Only daysLeft and the message's existence belong here.
                      Who may SEE a message is showMessage's job: it already
