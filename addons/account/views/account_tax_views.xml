@@ -178,7 +178,7 @@
                         context="{'group_by':'type_tax_use'}" />
                     <filter
                         string="Tax Scope"
-                        name="taxapp"
+                        name="taxscope"
                         context="{'group_by':'tax_scope'}" />
                     <filter
                         string="Fiscal Position"
