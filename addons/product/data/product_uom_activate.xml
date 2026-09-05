@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <function model="uom.uom" name="write">
+        <value
+            eval="[ref('uom.product_uom_km'), ref('uom.product_uom_mile'), ref('uom.product_uom_square_foot')]" />
+        <value eval="{'active': True}" />
+    </function>
+
+</odoo>

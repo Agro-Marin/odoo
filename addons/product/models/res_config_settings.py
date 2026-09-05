@@ -34,6 +34,42 @@ class ResConfigSettings(models.TransientModel):
         default="0",
         config_parameter="product.volume_in_cubic_feet",
     )
+    product_odometer_in_mi = fields.Selection(
+        selection=[
+            ("0", "Kilometers"),
+            ("1", "Miles"),
+        ],
+        string="Odometer unit of measure",
+        default="0",
+        config_parameter="product.odometer_in_mi",
+    )
+    product_area_in_square_ft = fields.Selection(
+        selection=[
+            ("0", "Square Meters"),
+            ("1", "Square Feet"),
+        ],
+        string="Area unit of measure",
+        default="0",
+        config_parameter="product.area_in_square_ft",
+    )
+    product_power_in_hp = fields.Selection(
+        selection=[
+            ("0", "kW"),
+            ("1", "HP"),
+        ],
+        string="Power unit of measure",
+        default="0",
+        config_parameter="product.power_in_hp",
+    )
+    product_fuel_efficiency_in_mpg = fields.Selection(
+        selection=[
+            ("0", "km/L"),
+            ("1", "MPG"),
+        ],
+        string="Fuel efficiency unit of measure",
+        default="0",
+        config_parameter="product.fuel_efficiency_in_mpg",
+    )
     module_loyalty = fields.Boolean(
         string="Promotions, Coupons, Gift Card & Loyalty Program",
     )

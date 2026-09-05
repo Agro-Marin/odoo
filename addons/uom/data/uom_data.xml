@@ -213,4 +213,45 @@
         <field name="relative_factor" eval="1.0" />
     </record>
 
+    <!-- POWER -->
+    <record id="product_uom_wat" model="uom.uom">
+        <field name="name">W</field>
+        <field name="relative_factor" eval="1.0" />
+    </record>
+
+    <record id="product_uom_kw" model="uom.uom">
+        <field name="name">kW</field>
+        <field name="relative_uom_id" ref="uom.product_uom_wat" />
+        <field name="relative_factor" eval="1000" />
+    </record>
+
+    <record id="product_uom_mw" model="uom.uom">
+        <field name="name">MW</field>
+        <field name="relative_uom_id" ref="uom.product_uom_wat" />
+        <field name="relative_factor" eval="1000000" />
+    </record>
+
+    <record id="product_uom_hp" model="uom.uom">
+        <field name="name">HP</field>
+        <field name="relative_uom_id" ref="uom.product_uom_wat" />
+        <field name="relative_factor" eval="745.69987158227" />
+    </record>
+
+    <!-- FUEL EFFICIENCY -->
+    <record id="product_uom_km_per_liter" model="uom.uom">
+        <field name="name">km/L</field>
+        <field name="relative_factor" eval="1" />
+    </record>
+
+    <!--
+        relative_factor is how much bigger this unit is than its reference, so
+        MPG must carry 1 mi / 1 US gal expressed in km/l: 1.609344 / 3.785411784
+        = 0.425143707430272. The seed shipped the reciprocal, 2.3521458.
+    -->
+    <record id="product_uom_miles_per_galon" model="uom.uom">
+        <field name="name">MPG</field>
+        <field name="relative_uom_id" ref="uom.product_uom_km_per_liter" />
+        <field name="relative_factor" eval="1.609344 / 3.785411784" />
+    </record>
+
 </odoo>

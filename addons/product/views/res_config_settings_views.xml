@@ -26,6 +26,46 @@
                             class="o_light_label"
                             widget="radio" />
                     </setting>
+                    <setting
+                        id="product_odometer_in_mi"
+                        string="Odometer"
+                        help="Define your odometer unit of measure">
+                        <field
+                            name="product_odometer_in_mi"
+                            class="o_light_label"
+                            widget="radio"
+                            options="{'horizontal': true}" />
+                    </setting>
+                    <setting
+                        id="product_area_in_square_ft"
+                        string="Area"
+                        help="Define your area unit of measure">
+                        <field
+                            name="product_area_in_square_ft"
+                            class="o_light_label"
+                            widget="radio"
+                            options="{'horizontal': true}" />
+                    </setting>
+                    <setting
+                        id="product_power_in_hp"
+                        string="Power"
+                        help="Define your power unit of measure">
+                        <field
+                            name="product_power_in_hp"
+                            class="o_light_label"
+                            widget="radio"
+                            options="{'horizontal': true}" />
+                    </setting>
+                    <setting
+                        id="product_fuel_efficiency_in_mpg"
+                        string="Fuel Efficiency"
+                        help="Define your fuel efficiency unit of measure">
+                        <field
+                            name="product_fuel_efficiency_in_mpg"
+                            class="o_light_label"
+                            widget="radio"
+                            options="{'horizontal': true}" />
+                    </setting>
                 </block>
             </xpath>
         </field>

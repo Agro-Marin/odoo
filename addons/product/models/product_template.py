@@ -1336,6 +1336,54 @@ class ProductTemplate(models.Model):
             "product.weight_in_lbs", "uom.product_uom_lb", "uom.product_uom_kgm"
         )
 
+    @api.model
+    def _get_odometer_uom_id_from_ir_config_parameter(self):
+        return self._get_uom_id_from_ir_config_parameter(
+            "product.odometer_in_mi",
+            "uom.product_uom_mile",
+            "uom.product_uom_km",
+        )
+
+    @api.model
+    def _get_odometer_uom_name_from_ir_config_parameter(self):
+        return self._get_odometer_uom_id_from_ir_config_parameter().display_name
+
+    @api.model
+    def _get_area_uom_id_from_ir_config_parameter(self):
+        return self._get_uom_id_from_ir_config_parameter(
+            "product.area_in_square_ft",
+            "uom.product_uom_square_foot",
+            "uom.product_uom_square_meter",
+        )
+
+    @api.model
+    def _get_area_uom_name_from_ir_config_parameter(self):
+        return self._get_area_uom_id_from_ir_config_parameter().display_name
+
+    @api.model
+    def _get_power_uom_id_from_ir_config_parameter(self):
+        return self._get_uom_id_from_ir_config_parameter(
+            "product.power_in_hp",
+            "uom.product_uom_hp",
+            "uom.product_uom_kw",
+        )
+
+    @api.model
+    def _get_power_uom_name_from_ir_config_parameter(self):
+        return self._get_power_uom_id_from_ir_config_parameter().display_name
+
+    @api.model
+    def _get_fuel_efficiency_uom_id_from_ir_config_parameter(self):
+        return self._get_uom_id_from_ir_config_parameter(
+            "product.fuel_efficiency_in_mpg",
+            "uom.product_uom_miles_per_galon",
+            "uom.product_uom_km_per_liter",
+        )
+
+    @api.model
+    def _get_fuel_efficiency_uom_name_from_ir_config_parameter(self):
+        return self._get_fuel_efficiency_uom_id_from_ir_config_parameter().display_name
+
     def _get_related_fields_variant_template(self):
         return [
             "barcode",

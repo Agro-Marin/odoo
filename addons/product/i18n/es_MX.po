@@ -1,0 +1,96 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* product
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-05 00:00+0000\n"
+"PO-Revision-Date: 2026-09-05 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.res_config_settings_view_form
+msgid "Area"
+msgstr "Área"
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_res_config_settings__product_area_in_square_ft
+msgid "Area unit of measure"
+msgstr "Unidad de medida de área"
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.res_config_settings_view_form
+msgid "Define your area unit of measure"
+msgstr "Define tu unidad de medida de área"
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.res_config_settings_view_form
+msgid "Define your fuel efficiency unit of measure"
+msgstr "Define tu unidad de medida de eficiencia de combustible"
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.res_config_settings_view_form
+msgid "Define your odometer unit of measure"
+msgstr "Define tu unidad de medida de odómetro"
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.res_config_settings_view_form
+msgid "Define your power unit of measure"
+msgstr "Define tu unidad de medida de potencia"
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.res_config_settings_view_form
+msgid "Fuel Efficiency"
+msgstr "Eficiencia de Combustible"
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_res_config_settings__product_fuel_efficiency_in_mpg
+msgid "Fuel efficiency unit of measure"
+msgstr "Unidad de medida de eficiencia de combustible"
+
+#. module: product
+#: model:ir.model.fields.selection,name:product.selection__res_config_settings__product_odometer_in_mi__0
+msgid "Kilometers"
+msgstr "Kilómetros"
+
+#. module: product
+#: model:ir.model.fields.selection,name:product.selection__res_config_settings__product_odometer_in_mi__1
+msgid "Miles"
+msgstr "Millas"
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.res_config_settings_view_form
+msgid "Odometer"
+msgstr "Odómetro"
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_res_config_settings__product_odometer_in_mi
+msgid "Odometer unit of measure"
+msgstr "Unidad de medida de odómetro"
+
+#. module: product
+#: model_terms:ir.ui.view,arch_db:product.res_config_settings_view_form
+msgid "Power"
+msgstr "Potencia"
+
+#. module: product
+#: model:ir.model.fields,field_description:product.field_res_config_settings__product_power_in_hp
+msgid "Power unit of measure"
+msgstr "Unidad de medida de potencia"
+
+#. module: product
+#: model:ir.model.fields.selection,name:product.selection__res_config_settings__product_area_in_square_ft__1
+msgid "Square Feet"
+msgstr "Pies Cuadrados"
+
+#. module: product
+#: model:ir.model.fields.selection,name:product.selection__res_config_settings__product_area_in_square_ft__0
+msgid "Square Meters"
+msgstr "Metros Cuadrados"

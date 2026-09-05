@@ -1,6 +1,6 @@
 {
     "name": "Units of measure",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Sales/Sales",
     "description": """
 This is the base module for managing Units of measure.

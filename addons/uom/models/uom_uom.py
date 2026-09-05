@@ -593,12 +593,12 @@ class UomUom(models.Model):
         Any module's master data counts, not just this one's. The query used to
         be pinned to `module = "uom"`, but sixteen modules ship `uom.uom`
         records -- `l10n_mx`, `l10n_in`, `l10n_cl`, `hr_timesheet`,
-        `hr_expense`, `point_of_sale`, several enterprise `l10n_*`, and
-        AgroMarin's own `uom_extended`. None of them were protected, so a leaf
-        unit from any of them deleted cleanly and took its xml id with it:
-        `env.ref("uom_extended.product_uom_mw")` then raised for every module
-        built on it. The descendant guard in `_unlink_except_master_data`
-        blocked the cascade, never the direct delete.
+        `hr_expense`, `point_of_sale` and several enterprise `l10n_*`. None of
+        them were protected, so a leaf unit from any of them deleted cleanly
+        and took its xml id with it: `env.ref("uom.product_uom_mw")` then
+        raised for every module built on it. The descendant guard in
+        `_unlink_except_master_data` blocked the cascade, never the direct
+        delete.
         """
         linked_model_data = (
             self.env["ir.model.data"]

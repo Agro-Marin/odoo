@@ -1,6 +1,6 @@
 {
     "name": "Products & Pricelists",
-    "version": "1.4",
+    "version": "1.5",
     "category": "Sales/Sales",
     "description": """
 This is the base module for managing products and pricelists in Odoo.
@@ -31,6 +31,7 @@ Print product labels with barcode.
     ],
     "data": [
         "data/product_data.xml",
+        "data/product_uom_activate.xml",
         "security/product_security.xml",
         "security/ir.model.access.csv",
         "wizard/product_label_layout_views.xml",

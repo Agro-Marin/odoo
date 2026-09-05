@@ -399,3 +399,33 @@ msgstr ""
 #: model:uom.uom,name:uom.product_uom_meter
 msgid "m"
 msgstr ""
+
+#. module: uom
+#: model:uom.uom,name:uom.product_uom_wat
+msgid "W"
+msgstr ""
+
+#. module: uom
+#: model:uom.uom,name:uom.product_uom_kw
+msgid "kW"
+msgstr ""
+
+#. module: uom
+#: model:uom.uom,name:uom.product_uom_mw
+msgid "MW"
+msgstr ""
+
+#. module: uom
+#: model:uom.uom,name:uom.product_uom_hp
+msgid "HP"
+msgstr ""
+
+#. module: uom
+#: model:uom.uom,name:uom.product_uom_km_per_liter
+msgid "km/L"
+msgstr ""
+
+#. module: uom
+#: model:uom.uom,name:uom.product_uom_miles_per_galon
+msgid "MPG"
+msgstr ""
