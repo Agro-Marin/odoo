@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from odoo import fields
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
@@ -8,8 +11,10 @@ class TestOrderMergeMixin(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.SaleOrder = cls.env["sale.order"]
+        cls.PurchaseOrder = cls.env["purchase.order"]
         cls.partner_a = cls.env["res.partner"].create({"name": "Partner A"})
         cls.partner_b = cls.env["res.partner"].create({"name": "Partner B"})
+        cls.product = cls.env["product.product"].create({"name": "Merge Product"})
 
     def _order(self, partner, date_order=None):
         vals = {"partner_id": partner.id}
@@ -64,3 +69,58 @@ class TestOrderMergeMixin(TransactionCase):
             any(confirmed.name in line for line in captured.output),
             "the excluded confirmed order's name must appear in the log",
         )
+
+    def test_collapse_matches_does_not_bridge_non_matching_lines(self):
+        """Two lines that individually match a third line's date, but not
+        each other's, must not be folded together through it."""
+        now = fields.Datetime.now()
+        date_a = now
+        date_b = now + timedelta(hours=36)  # outside the 24h threshold of a
+        date_source = now + timedelta(hours=18)  # inside threshold of both
+
+        target = self.PurchaseOrder.create({"partner_id": self.partner_a.id})
+        Line = self.env["purchase.order.line"]
+        line_a = Line.create(
+            {
+                "order_id": target.id,
+                "product_id": self.product.id,
+                "product_qty": 1.0,
+                "price_unit": 100.0,
+                "date_commitment": date_a,
+            }
+        )
+        line_b = Line.create(
+            {
+                "order_id": target.id,
+                "product_id": self.product.id,
+                "product_qty": 1.0,
+                "price_unit": 100.0,
+                "date_commitment": date_b,
+            }
+        )
+        self.assertFalse(
+            target._merge_lines_match_date(line_a, line_b),
+            "test setup invalid: line_a and line_b must not match each other",
+        )
+
+        source = self.PurchaseOrder.create({"partner_id": self.partner_a.id})
+        Line.create(
+            {
+                "order_id": source.id,
+                "product_id": self.product.id,
+                "product_qty": 1.0,
+                "price_unit": 100.0,
+                "date_commitment": date_source,
+            }
+        )
+
+        (target | source).action_merge()
+
+        remaining = target.line_ids.filtered(lambda ln: not ln.display_type)
+        self.assertEqual(
+            len(remaining),
+            2,
+            "line_a and line_b must stay distinct; only one may absorb the "
+            "source line's quantity",
+        )
+        self.assertEqual(sorted(remaining.mapped("product_qty")), [1.0, 2.0])
