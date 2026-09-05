@@ -73,7 +73,7 @@
                 <separator />
                 <filter
                     string="Templates"
-                    context="{'render_task_templates': True}"
+                    context="{'render_task_templates': True, 'default_is_template': True}"
                     name="templates"
                     domain="['|', ('has_template_ancestor', '=', True), ('project_id.is_template', '=', True)]" />
                 <group>

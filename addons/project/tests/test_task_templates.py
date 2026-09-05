@@ -1,3 +1,7 @@
+import ast
+
+from lxml import etree
+
 from odoo.addons.project.tests.test_project_base import TestProjectCommon
 
 
@@ -148,4 +152,31 @@ class TestTaskTemplates(TestProjectCommon):
             ),
             task | child,
             "The search should find the non template task and its child",
+        )
+
+    def test_templates_filter_defaults_new_tasks_to_templates(self) -> None:
+        """The Templates filter must also make "New" create a template.
+
+        `render_task_templates` only rewrites the search domain
+        (`project_task_model_mixin.js`), so without a default the task created
+        from the filtered view is a regular one and the filter hides it again
+        the moment it is saved.
+        """
+        search_view = self.env.ref("project.view_task_search_form_base")
+        arch = etree.fromstring(search_view.arch)
+        (templates_filter,) = arch.xpath("//filter[@name='templates']")
+        context = ast.literal_eval(templates_filter.get("context"))
+
+        self.assertTrue(
+            context.get("default_is_template"),
+            "The Templates filter must default new tasks to templates.",
+        )
+        defaults = (
+            self.env["project.task"]
+            .with_context(**context)
+            .default_get(["is_template"])
+        )
+        self.assertTrue(
+            defaults.get("is_template"),
+            "A task created under the Templates filter must be a template.",
         )
