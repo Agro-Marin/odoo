@@ -2854,6 +2854,7 @@ class AccountMoveLine(models.Model):
         return context
 
     @api.model
+    @api.model
     def _prepare_reconciliation_exchange_difference(self, context, partials):
         exchange_lines_to_fix = self.env["account.move.line"]
         amounts_list = []
