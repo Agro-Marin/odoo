@@ -116,7 +116,7 @@ export class BottomSheet extends Component {
      */
     closeParams = undefined;
     /** @type {(() => void)[]} */
-    animationCleanups = [];
+    cleanups = [];
     /** @type {boolean} */
     skipsAnimation = false;
 
@@ -210,7 +210,7 @@ export class BottomSheet extends Component {
             }
         });
         onWillUnmount(() => {
-            for (const cleanup of this.animationCleanups.splice(0)) {
+            for (const cleanup of this.cleanups.splice(0)) {
                 cleanup();
             }
             router.releaseEphemeral(this.historyMarker);
@@ -242,7 +242,7 @@ export class BottomSheet extends Component {
         if (this.skipsAnimation) {
             this.state.isSnappingEnabled = true;
         } else {
-            this.animationCleanups.push(
+            this.cleanups.push(
                 onSheetAnimation(
                     this.sheetRef.el,
                     SLIDE_IN_ANIMATION,
@@ -327,7 +327,7 @@ export class BottomSheet extends Component {
     setupEventHandlers() {
         const scrollRail = this.scrollRailRef.el;
         scrollRail.addEventListener("scroll", this.throttledOnScroll);
-        this.animationCleanups.push(() =>
+        this.cleanups.push(() =>
             scrollRail.removeEventListener("scroll", this.throttledOnScroll),
         );
     }
@@ -388,7 +388,7 @@ export class BottomSheet extends Component {
                 onAnimationDone,
                 slideOutFallbackDelay(this.containerRef.el),
             );
-            this.animationCleanups.push(() => {
+            this.cleanups.push(() => {
                 browser.clearTimeout(fallbackTimer);
                 dispose();
             });

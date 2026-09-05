@@ -81,13 +81,10 @@ const scssErrorNotificationService = {
      * @returns {ScssErrorDisplayService | undefined}
      */
     start(env, services) {
+        if (browser.location.origin === "null" || !canActOnScssErrors()) {
+            return;
+        }
         const origin = getOrigin();
-        if (browser.location.origin === "null") {
-            return;
-        }
-        if (!canActOnScssErrors()) {
-            return;
-        }
         const assets = [...document.styleSheets].filter(
             (sheet) =>
                 sheet.href?.includes("/web") &&

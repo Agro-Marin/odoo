@@ -1499,46 +1499,6 @@ test("remove namespace with backspace", async () => {
     expect(".o_command_palette .o_namespace").toHaveText("@");
 });
 
-test("generate new session id when opened", async () => {
-    expect.assertions(4);
-
-    let lastSessionId;
-    CommandPalette.lastSessionId = 0;
-    await mountWithCleanup(MainComponentsContainer);
-    const providers = [
-        {
-            provide: (env, { sessionId }) => {
-                lastSessionId = sessionId;
-                return [];
-            },
-        },
-    ];
-    const config = {
-        providers,
-    };
-    getService("dialog").add(CommandPalette, {
-        config,
-    });
-
-    await animationFrame();
-    expect(lastSessionId).toBe(0);
-
-    await click(".o_command_palette_search input");
-    await edit("a");
-    await runAllTimers();
-    expect(lastSessionId).toBe(0);
-
-    await contains(getFixture()).click();
-    await animationFrame();
-    expect(lastSessionId).toBe(0);
-
-    getService("dialog").add(CommandPalette, {
-        config,
-    });
-    await animationFrame();
-    expect(lastSessionId).toBe(1);
-});
-
 test("checks that href is correctly used", async () => {
     await mountWithCleanup(MainComponentsContainer);
     const providers = [
@@ -1784,6 +1744,34 @@ test("the highlighted command follows the list it is an index into", async () =>
 
     palette.state.commands = palette.state.commands.slice(0, 1);
     expect(palette.selectedCommand).toBe(null);
+});
+
+test("a search that fails is reported, not swallowed", async () => {
+    expect.errors(1);
+    await mountWithCleanup(MainComponentsContainer);
+    getService("dialog").add(CommandPalette, {
+        config: {
+            providers: [
+                {
+                    provide: (env, { searchValue }) =>
+                        searchValue
+                            ? /** @type {any} */ (undefined)
+                            : [{ name: "cmd a", action: () => {} }],
+                },
+            ],
+        },
+    });
+    await animationFrame();
+    expect(queryAllTexts(".o_command_name")).toEqual(["cmd a"]);
+
+    await click(".o_command_palette_search input");
+    await edit("a");
+    await runAllTimers();
+    await animationFrame();
+
+    expect(".o_command_palette").toHaveCount(1);
+    expect(".fa-circle-notch").toHaveCount(0);
+    expect.verifyErrors([/Cannot read properties of undefined/]);
 });
 
 test("one command that cannot render loses its row, not the palette", async () => {

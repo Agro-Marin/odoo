@@ -79,7 +79,7 @@ export function useActiveElement(refName) {
 
                 if (firstTabableEl) {
                     if (!el.contains(document.activeElement)) {
-                        firstTabableEl?.focus();
+                        firstTabableEl.focus();
                     }
                 } else if (isFocusable(el) && el !== document.activeElement) {
                     el.focus();

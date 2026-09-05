@@ -1,11 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, EventBus } from "@odoo/owl";
+import { EventBus } from "@odoo/owl";
 import { CommandPaletteEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 
-import { CommandPalette } from "./command_palette.js";
+import { CommandPalette, DefaultFooter } from "./command_palette.js";
 /** @import { CommandPaletteConfig } from "./command_palette.js" */
 /** @import { HotkeyOptions } from "@web/core/hotkeys/hotkey_service" */
 
@@ -64,26 +64,6 @@ commandSetupRegistry.addValidation({
     placeholder: { type: [String, Object], optional: true },
     "*": true,
 });
-
-class DefaultFooter extends Component {
-    static template = "web.DefaultFooter";
-    static props = {
-        switchNamespace: { type: Function },
-    };
-    /**
-     * @returns {{ namespace: string, name: any }[]}
-     */
-    get elements() {
-        return commandSetupRegistry
-            .getEntries()
-            .map((el) => ({ namespace: el[0], name: el[1].name }))
-            .filter((el) => el.name);
-    }
-
-    onClick(/** @type {string} */ namespace) {
-        this.props.switchNamespace(namespace);
-    }
-}
 
 class CommandService {
     /**
@@ -233,18 +213,12 @@ class CommandService {
                 {
                     ...options.hotkeyOptions,
                     global: registration.global,
-                    isAvailable: (/** @type {any[]} */ ...args) => {
-                        let available = true;
-                        if (registration.isAvailable) {
-                            available = registration.isAvailable(...args);
-                        }
-                        if (available && options.hotkeyOptions?.isAvailable) {
-                            available = options.hotkeyOptions?.isAvailable(
-                                .../** @type {[any]} */ (args),
-                            );
-                        }
-                        return available;
-                    },
+                    isAvailable: (/** @type {any[]} */ ...args) =>
+                        (registration.isAvailable?.(...args) ?? true) &&
+                        (options.hotkeyOptions?.isAvailable?.(
+                            .../** @type {[any]} */ (args),
+                        ) ??
+                            true),
                 },
             );
         }

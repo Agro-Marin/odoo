@@ -60,11 +60,6 @@ export class MainComponentsContainer extends Component {
      * @param {[string, {Component: typeof Component, props?: Object}]} C
      */
     handleComponentError(error, C) {
-        const index = this.Components.entries.indexOf(C);
-        if (index !== -1) {
-            this.Components.entries.splice(index, 1);
-            this.render();
-        }
         if (mainComponents.contains(C[0])) {
             mainComponents.remove(C[0]);
         }

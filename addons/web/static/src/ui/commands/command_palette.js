@@ -16,6 +16,7 @@ import { isMacOS, isMobileOS } from "@web/core/browser/feature_detection";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { CommandPaletteEvent } from "@web/core/events";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { ErrorHandler } from "@web/core/utils/components";
 import { KeepLast, Race } from "@web/core/utils/concurrency";
@@ -27,6 +28,8 @@ import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 /** @import { Command } from "./command_service.js" */
+
+const commandSetupRegistry = registry.category("command_setup");
 
 const DEFAULT_PLACEHOLDER = _t("Search...");
 const DEFAULT_EMPTY_MESSAGE = _t("No result found");
@@ -160,10 +163,29 @@ export class DefaultCommandItem extends Component {
     static props = { ...COMMAND_ITEM_PROPS };
 }
 
+export class DefaultFooter extends Component {
+    static template = "web.DefaultFooter";
+    static props = {
+        switchNamespace: { type: Function },
+    };
+    /**
+     * @returns {{ namespace: string, name: any }[]}
+     */
+    get elements() {
+        return commandSetupRegistry
+            .getEntries()
+            .map(([namespace, { name }]) => ({ namespace, name }))
+            .filter((el) => el.name);
+    }
+
+    onClick(/** @type {string} */ namespace) {
+        this.props.switchNamespace(namespace);
+    }
+}
+
 export class CommandPalette extends Component {
     static template = "web.CommandPalette";
     static components = { Dialog, ErrorHandler };
-    static lastSessionId = 0;
     static props = {
         bus: { type: EventBus, optional: true },
         close: Function,
@@ -176,8 +198,6 @@ export class CommandPalette extends Component {
     race;
     /** @type {KeepLast<PromiseSettledResult<CommandItem[]>[]>} */
     keepLast;
-    /** @type {number} */
-    _sessionId;
     /** @type {typeof DefaultCommandItem} */
     DefaultCommandItem;
     /** @type {Document | HTMLElement} */
@@ -192,7 +212,6 @@ export class CommandPalette extends Component {
      * isLoading: boolean,
      * namespace: string,
      * placeholder: string,
-     * revision: number,
      * searchValue: string,
      * selectedIndex: number }}
      */
@@ -238,7 +257,6 @@ export class CommandPalette extends Component {
         this.adoptBrokenCommandsOf(this.props.config);
         this.race = new Race();
         this.keepLast = new KeepLast();
-        this._sessionId = CommandPalette.lastSessionId++;
         this.DefaultCommandItem = DefaultCommandItem;
         this.activeElement = useService("ui").activeElement;
         this.inputRef = useAutofocus();
@@ -272,7 +290,6 @@ export class CommandPalette extends Component {
          * hiddenCount: number;
          * selectedIndex: number;
          * isLoading: boolean;
-         * revision: number;
          * FooterComponent: any;
          * }}
          */
@@ -285,7 +302,6 @@ export class CommandPalette extends Component {
             hiddenCount: 0,
             selectedIndex: -1,
             isLoading: false,
-            revision: 0,
             FooterComponent: undefined,
         });
 
@@ -307,7 +323,6 @@ export class CommandPalette extends Component {
 
     /** @returns {Array<{commands: DisplayedCommand[], name: string, keyId: string}>} */
     get commandsByCategory() {
-        void this.state.revision;
         const categories = [];
         const byCategory = groupCommandsByCategory(
             this.state.commands,
@@ -364,7 +379,7 @@ export class CommandPalette extends Component {
 
     /**
      * @param {string} namespace
-     * @param {{ searchValue?: string, activeElement?: Element, sessionId?: number }} [options]
+     * @param {{ searchValue?: string, activeElement?: Element }} [options]
      */
     async setCommands(namespace, options = {}) {
         let categoryKeys = ["default"];
@@ -449,14 +464,13 @@ export class CommandPalette extends Component {
             return;
         }
         this.brokenCommands.add(key);
-        const position = this.state.commands.indexOf(command);
-        if (position !== -1) {
-            this.state.commands.splice(position, 1);
-            this.state.commands.forEach((c, index) => {
-                c.index = index;
-            });
+        if (this.state.commands.includes(command)) {
+            this.state.commands = markRaw(
+                this.state.commands
+                    .filter((c) => c !== command)
+                    .map((c, index) => ({ ...c, index })),
+            );
             this.selectCommand(this.state.commands.length ? 0 : -1);
-            this.state.revision++;
         }
         reportUncaught(error);
     }
@@ -567,7 +581,6 @@ export class CommandPalette extends Component {
             await this.setCommands(this.state.namespace, {
                 searchValue,
                 activeElement: /** @type {Element} */ (this.activeElement),
-                sessionId: this._sessionId,
             });
         } finally {
             this.state.isLoading = false;
@@ -596,10 +609,11 @@ export class CommandPalette extends Component {
      * @returns {Promise<any>}
      */
     trackSearch(promise) {
-        const tracked = promise.catch(() => {
+        const tracked = promise.catch((error) => {
             if (this.searchValuePromise === tracked) {
                 this.searchValuePromise = null;
             }
+            reportUncaught(error);
         });
         return tracked;
     }
