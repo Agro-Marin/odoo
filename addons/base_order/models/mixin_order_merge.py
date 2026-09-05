@@ -176,12 +176,12 @@ class MixinOrderMerge(models.AbstractModel):
 
     def _merge_metadata(self, target, sources):
         all_origins = [target.origin] + list(sources.mapped("origin"))
-        target.origin = ", ".join(filter(None, all_origins))
+        target.origin = ", ".join(dict.fromkeys(filter(None, all_origins)))
         self._merge_metadata_refs(target, sources)
 
     def _merge_metadata_refs(self, target, sources):
         all_refs = [target.partner_ref] + list(sources.mapped("partner_ref"))
-        target.partner_ref = ", ".join(filter(None, all_refs))
+        target.partner_ref = ", ".join(dict.fromkeys(filter(None, all_refs)))
 
     def _merge_post_messages(self, target, sources):
         source_names = ", ".join(sources.mapped("name"))
