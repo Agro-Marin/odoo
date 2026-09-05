@@ -1,7 +1,10 @@
+import logging
 from collections import defaultdict
 
 from odoo import _, models
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 DATE_MATCH_THRESHOLD_SECONDS = 86400
 
@@ -12,6 +15,13 @@ class MixinOrderMerge(models.AbstractModel):
 
     def action_merge(self):
         orders_to_merge = self._merge_get_eligible_orders()
+        excluded = self - orders_to_merge
+        if excluded:
+            _logger.info(
+                "Merge selection excluded %s non-draft order(s): %s",
+                len(excluded),
+                ", ".join(excluded.mapped("name")),
+            )
         self._merge_validate_selection(orders_to_merge)
 
         groups = self._merge_group_orders(orders_to_merge)
@@ -131,8 +141,23 @@ class MixinOrderMerge(models.AbstractModel):
     def _merge_collapse_matches(self, matches, candidates):
         if len(matches) <= 1:
             return matches[:1]
-        keeper, folded = matches[0], matches[1:]
-        keeper.product_qty += sum(folded.mapped("product_qty"))
+        # Each candidate here only matched the *source* line's date -- two
+        # candidates can individually be within threshold of the source line
+        # while being more than the threshold apart from each other. Only
+        # fold candidates that also mutually match one another, or a source
+        # line would bridge two otherwise-unrelated lines into one.
+        mutual = matches.filtered(
+            lambda line: all(
+                self._merge_lines_match_date(line, other)
+                for other in matches
+                if other != line
+            ),
+        )
+        if len(mutual) <= 1:
+            return matches[:1]
+        keeper, folded = mutual[0], mutual[1:]
+        for line in folded:
+            keeper._merge_order_line(line)
         for line in folded:
             if line in candidates:
                 candidates.remove(line)
@@ -152,12 +177,12 @@ class MixinOrderMerge(models.AbstractModel):
 
     def _merge_metadata(self, target, sources):
         all_origins = [target.origin] + list(sources.mapped("origin"))
-        target.origin = ", ".join(filter(None, all_origins))
+        target.origin = ", ".join(dict.fromkeys(filter(None, all_origins)))
         self._merge_metadata_refs(target, sources)
 
     def _merge_metadata_refs(self, target, sources):
         all_refs = [target.partner_ref] + list(sources.mapped("partner_ref"))
-        target.partner_ref = ", ".join(filter(None, all_refs))
+        target.partner_ref = ", ".join(dict.fromkeys(filter(None, all_refs)))
 
     def _merge_post_messages(self, target, sources):
         source_names = ", ".join(sources.mapped("name"))

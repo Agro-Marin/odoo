@@ -62,29 +62,51 @@ class MixinOrderInvoice(models.AbstractModel):
             order_invoices[order.id] = set(invoices.ids)
             all_invoice_ids.update(invoices.ids)
 
-        orphan_refunds_by_reversed_id = {}
-        if all_invoice_ids:
-            orphan_refunds = self.env["account.move"].search(
-                [
-                    ("reversed_entry_id", "in", list(all_invoice_ids)),
-                    ("move_type", "=", refund_type),
-                    ("id", "not in", list(all_invoice_ids)),
-                ],
-            )
-            for refund in orphan_refunds:
-                orphan_refunds_by_reversed_id.setdefault(
-                    refund.reversed_entry_id.id,
-                    [],
-                ).append(refund.id)
+        orphan_refunds_by_reversed_id = self._get_orphan_refunds_by_reversed_id(
+            all_invoice_ids,
+            refund_type,
+        )
 
         AccountMove = self.env["account.move"]
         for order in self:
             invoice_ids = order_invoices.get(order.id, set())
-            for inv_id in list(invoice_ids):
-                if inv_id in orphan_refunds_by_reversed_id:
-                    invoice_ids.update(orphan_refunds_by_reversed_id[inv_id])
+            pending = list(invoice_ids)
+            while pending:
+                inv_id = pending.pop()
+                for orphan_id in orphan_refunds_by_reversed_id.get(inv_id, ()):
+                    if orphan_id not in invoice_ids:
+                        invoice_ids.add(orphan_id)
+                        pending.append(orphan_id)
             order.invoice_ids = AccountMove.browse(sorted(invoice_ids))
             order.invoice_count = len(invoice_ids)
+
+    def _get_orphan_refunds_by_reversed_id(self, invoice_ids, refund_type):
+        """Map every invoice/refund id reachable from `invoice_ids` through a
+        chain of reversals to the orphan refund ids that reverse it -- an
+        orphan refund can itself be reversed by a further orphan refund, so
+        this resolves the whole chain, not just its first level."""
+        orphan_refunds_by_reversed_id = {}
+        known_ids = set(invoice_ids)
+        frontier = set(invoice_ids)
+        while frontier:
+            orphans = self.env["account.move"].search(
+                [
+                    ("reversed_entry_id", "in", list(frontier)),
+                    ("move_type", "=", refund_type),
+                    ("id", "not in", list(known_ids)),
+                ],
+            )
+            if not orphans:
+                break
+            frontier = set()
+            for refund in orphans:
+                orphan_refunds_by_reversed_id.setdefault(
+                    refund.reversed_entry_id.id,
+                    [],
+                ).append(refund.id)
+                known_ids.add(refund.id)
+                frontier.add(refund.id)
+        return orphan_refunds_by_reversed_id
 
     def _search_invoice_ids(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:

@@ -1,5 +1,11 @@
 from odoo.tests import TransactionCase, tagged
 
+# This file (like test_order_shared_features.py) exercises the mixin
+# through sale.order/purchase.order, so it only passes when this module is
+# installed alongside sale and purchase: `-i base_order,sale,purchase`. This
+# module's own manifest cannot depend on either (they both depend on it), so
+# running `-i base_order` alone will fail every test here with a KeyError.
+
 
 @tagged("post_install", "-at_install")
 class TestOrderAmountMixin(TransactionCase):
