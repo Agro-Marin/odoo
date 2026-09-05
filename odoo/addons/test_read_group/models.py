@@ -202,8 +202,10 @@ class Test_Read_GroupPrefixCollision(models.Model):
     _name = "test_read_group.prefix_collision"
     _description = "Prefix-colliding groupby specs (tag / tag_id)"
 
-    tag = fields.Many2many("test_read_group.tag", relation="trg_prefix_tag_rel")
-    tag_id = fields.Many2one("test_read_group.tag")
+    tag = fields.Many2many(
+        "test_read_group.tag", relation="trg_prefix_tag_rel", string="Tag (m2m)"
+    )
+    tag_id = fields.Many2one("test_read_group.tag", string="Tag (m2o)")
     value = fields.Integer()
 
 
