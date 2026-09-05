@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import UTC, datetime
 
 from freezegun import freeze_time
@@ -370,3 +371,99 @@ class TestOverlapSweepInSql(TransactionCase):
         self.assertNotIn(
             self.booked, self.Reservation.search([("schedule_overlap_count", "<", 1)])
         )
+
+
+@tagged("post_install", "-at_install")
+class TestWorkSchedule(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Resource = cls.env["resource.resource"]
+        cls.fixed_calendar = cls.env.company.resource_calendar_id
+        cls.fixed_calendar.tz = "UTC"
+        flexible_calendar = cls.env["resource.calendar"].create(
+            {
+                "name": "Flexible 20h",
+                "flexible_hours": True,
+                "hours_per_week": 20,
+                "hours_per_day": 4,
+                "tz": "UTC",
+            }
+        )
+        cls.fixed = Resource.create(
+            {"name": "fixed", "calendar_id": cls.fixed_calendar.id, "tz": "UTC"}
+        )
+        cls.flexible = Resource.create(
+            {"name": "flexible", "calendar_id": flexible_calendar.id, "tz": "UTC"}
+        )
+        cls.free = Resource.create({"name": "free", "calendar_id": False, "tz": "UTC"})
+        cls.env["resource.calendar.leaves"].create(
+            {
+                "name": "off",
+                "resource_id": cls.fixed.id,
+                "calendar_id": cls.fixed_calendar.id,
+                "date_from": datetime(2026, 6, 2),
+                "date_to": datetime(2026, 6, 2, 23, 59, 59),
+            }
+        )
+        cls.start = datetime(2026, 6, 1, tzinfo=UTC)
+        cls.stop = datetime(2026, 6, 6, tzinfo=UTC)
+
+    def test_one_call_covers_every_kind_of_resource(self):
+        resources = self.fixed | self.flexible | self.free
+        schedule = resources._get_work_schedule(self.start, self.stop)
+        self.assertEqual(set(schedule.intervals), set(resources.ids))
+        self.assertEqual(schedule.flexible_ids, {self.flexible.id, self.free.id})
+        self.assertEqual(schedule.work_hours(self.fixed), 32)
+        self.assertEqual(schedule.work_hours(self.flexible), 20)
+        self.assertEqual(schedule.work_hours(self.free), 120)
+
+    def test_a_resource_outside_the_schedule_reads_as_empty(self):
+        schedule = self.fixed._get_work_schedule(self.start, self.stop)
+        self.assertEqual(len(schedule.intervals[self.flexible.id]), 0)
+        self.assertEqual(schedule.work_hours(self.flexible), 0)
+
+    def test_schedule_agrees_with_the_two_apis_it_replaces(self):
+        schedule = (self.fixed | self.flexible)._get_work_schedule(
+            self.start, self.stop
+        )
+        fixed_intervals, _calendars = self.fixed._get_valid_work_intervals(
+            self.start, self.stop
+        )
+        self.assertEqual(
+            list(schedule.intervals[self.fixed.id]),
+            list(fixed_intervals[self.fixed.id]),
+        )
+        intervals, per_day, per_week = (
+            self.flexible._get_flexible_resource_valid_work_intervals(
+                self.start, self.stop
+            )
+        )
+        self.assertEqual(
+            schedule.work_hours(self.flexible),
+            self.flexible._get_flexible_resource_work_hours(
+                intervals[self.flexible.id],
+                per_day[self.flexible.id],
+                per_week[self.flexible.id],
+            ),
+        )
+
+    def test_compute_leaves_is_honoured_for_fixed_resources(self):
+        with_leaves = self.fixed._get_work_schedule(self.start, self.stop)
+        without = self.fixed._get_work_schedule(
+            self.start, self.stop, compute_leaves=False
+        )
+        self.assertEqual(with_leaves.work_hours(self.fixed), 32)
+        self.assertEqual(without.work_hours(self.fixed), 40)
+
+    def test_work_hours_per_day_is_filled_for_both_kinds(self):
+        schedule = (self.fixed | self.flexible)._get_work_schedule(
+            self.start, self.stop
+        )
+        fixed_days = defaultdict(float)
+        schedule.work_hours(self.fixed, work_hours_per_day=fixed_days)
+        self.assertEqual(sum(fixed_days.values()), 32)
+        self.assertNotIn(datetime(2026, 6, 2).date(), fixed_days)
+        flexible_days = defaultdict(float)
+        schedule.work_hours(self.flexible, work_hours_per_day=flexible_days)
+        self.assertEqual(sum(flexible_days.values()), 20)

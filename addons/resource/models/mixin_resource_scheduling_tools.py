@@ -1,7 +1,7 @@
 from datetime import UTC, timedelta
 
 from odoo import models
-from odoo.tools.date_utils import localized, sum_intervals
+from odoo.tools.date_utils import localized
 
 
 class MixinResourceSchedulingTools(models.AbstractModel):
@@ -35,34 +35,21 @@ class MixinResourceSchedulingTools(models.AbstractModel):
                 )
             return (end_utc - start_utc).total_seconds() / 3600.0
 
-        if resource._is_flexible():
-            if calendar and calendar != resource.calendar_id:
-                return calendar.get_work_hours_count(
-                    start_utc,
-                    end_utc,
-                    compute_leaves=compute_leaves,
-                    domain=leave_domain,
-                )
-            work_intervals, hours_per_day, hours_per_week = (
-                resource._get_flexible_resource_valid_work_intervals(
-                    start_utc,
-                    end_utc,
-                    compute_leaves=compute_leaves,
-                    leave_domain=leave_domain,
-                )
+        if resource._is_flexible() and calendar and calendar != resource.calendar_id:
+            return calendar.get_work_hours_count(
+                start_utc,
+                end_utc,
+                compute_leaves=compute_leaves,
+                domain=leave_domain,
             )
-            return resource._get_flexible_resource_work_hours(
-                work_intervals[resource.id],
-                hours_per_day[resource.id],
-                hours_per_week[resource.id],
-            )
-
-        work_intervals, _calendar_intervals = resource._get_valid_work_intervals(
+        schedule = resource._get_work_schedule(
             start_utc,
             end_utc,
             calendars=(calendar,) if calendar else None,
+            compute_leaves=compute_leaves,
+            leave_domain=leave_domain,
         )
-        return sum_intervals(work_intervals[resource.id])
+        return schedule.work_hours(resource)
 
     def _scheduling_snap_to_calendar(self, date_start, date_end, calendar=None):
         self.check_singleton()

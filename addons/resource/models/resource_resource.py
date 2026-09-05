@@ -16,6 +16,7 @@ from odoo.tools.date_utils import (
     to_timezone,
 )
 
+from .utils import ResourceSchedule
 from odoo.addons.base.models.res_partner import _tz_get
 
 if TYPE_CHECKING:
@@ -273,12 +274,43 @@ class ResourceResource(models.Model):
             )
         return resource_calendars_within_period
 
+    def _get_work_schedule(
+        self,
+        start: datetime,
+        end: datetime,
+        calendars: tuple | None = None,
+        compute_leaves: bool = True,
+        leave_domain: list | None = None,
+    ) -> ResourceSchedule:
+        flexible = self.filtered(lambda resource: resource._is_flexible())
+        intervals, calendar_intervals = (self - flexible)._get_valid_work_intervals(
+            start,
+            end,
+            calendars=calendars,
+            compute_leaves=compute_leaves,
+            domain=leave_domain,
+        )
+        flexible_intervals, hours_per_day, hours_per_week = (
+            flexible._get_flexible_resource_valid_work_intervals(
+                start, end, compute_leaves=compute_leaves, leave_domain=leave_domain
+            )
+        )
+        intervals.update(flexible_intervals)
+        return ResourceSchedule(
+            intervals=defaultdict(Intervals, intervals),
+            calendar_intervals=calendar_intervals,
+            hours_per_day=defaultdict(dict, hours_per_day),
+            hours_per_week=defaultdict(dict, hours_per_week),
+            flexible_ids=frozenset(flexible.ids),
+        )
+
     def _get_valid_work_intervals(
         self,
         start: datetime,
         end: datetime,
         calendars: tuple | None = None,
         compute_leaves: bool = True,
+        domain: list | None = None,
     ) -> tuple[dict[int, Intervals], dict[int, Intervals]]:
         if not (start.tzinfo and end.tzinfo):
             raise ValueError("start and end datetimes must be timezone-aware")
@@ -302,7 +334,11 @@ class ResourceResource(models.Model):
                     )
                 continue
             work_intervals_batch = calendar._work_intervals_batch(
-                start, end, resources=resources, compute_leaves=compute_leaves
+                start,
+                end,
+                resources=resources,
+                domain=domain,
+                compute_leaves=compute_leaves,
             )
             for resource in resources:
                 resource_work_intervals[resource.id] |= (
