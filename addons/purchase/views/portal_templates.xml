@@ -379,14 +379,11 @@
         </thead>
         <tbody class="purchase_tbody">
 
-        <t t-set="current_subtotal" t-value="0" />
         <t
             t-set="filtered_lines"
             t-value="order.line_ids.filtered(lambda l: l.display_type or l.product_qty != 0)" />
 
         <t t-foreach="filtered_lines" t-as="line">
-
-        <t t-set="current_subtotal" t-value="current_subtotal + line.price_subtotal" />
 
         <tr
             t-att-class="'fw-bolder o_line_section' if line.display_type == 'line_section' else 'fw-bold o_line_subsection' if line.display_type == 'line_subsection' else 'fst-italic text-break o_line_note' if line.display_type == 'line_note' else ''">
@@ -439,11 +436,14 @@
         </td>
         </t>
         <t t-if="line.display_type in ('line_section', 'line_subsection')">
-        <td colspan="99">
+        <td t-att-colspan="5 if display_price_and_taxes else 99">
         <span t-field="line.name" />
         </td>
-        <t t-set="current_section" t-value="line" />
-        <t t-set="current_subtotal" t-value="0" />
+        <td t-if="display_price_and_taxes" class="text-end">
+        <span
+            t-out="line._get_section_totals('price_subtotal')"
+            t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: order.currency_id}" />
+        </td>
         </t>
         <t t-if="line.display_type == 'line_note'">
         <td colspan="99">
@@ -451,17 +451,6 @@
         </td>
         </t>
         </tr>
-        <t
-            t-if="current_section and (line_last or filtered_lines[line_index+1].display_type in ('line_section', 'line_subsection')) and order.state == 'done'">
-        <tr class="is-subtotal text-end">
-        <td colspan="99">
-        <strong class="mr16">Subtotal</strong>
-        <span
-            t-esc="current_subtotal"
-            t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: order.currency_id}" />
-        </td>
-        </tr>
-        </t>
         </t>
         </tbody>
         </table>

@@ -759,6 +759,7 @@
                                 name="line_ids"
                                 widget="product_label_section_and_note_field_o2m"
                                 mode="list,kanban"
+                                aggregated_fields="price_subtotal"
                                 context="{'default_state': 'draft'}"
                                 readonly="state == 'cancel' or locked"
                                 options="{ 'subsections': True }">

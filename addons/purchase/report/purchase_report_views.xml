@@ -48,6 +48,10 @@
                         name="user_id"
                         context="{'group_by': 'user_id'}" />
                     <filter
+                        string="Order"
+                        name="group_order_id"
+                        context="{'group_by': 'order_id'}" />
+                    <filter
                         string="Product"
                         name="group_product_id"
                         context="{'group_by': 'product_id'}" />

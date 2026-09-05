@@ -26,3 +26,7 @@ from . import test_product_uom_guard
 from . import test_account_move_create_purchase
 from . import test_purchase_price_history
 from . import test_purchase_audit_fixes
+from . import test_purchase_sections
+from . import test_purchase_supplierinfo
+from . import test_purchase_report_group
+from . import test_purchase_bill_autocomplete
