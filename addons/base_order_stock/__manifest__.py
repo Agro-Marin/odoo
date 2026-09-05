@@ -15,6 +15,11 @@ Mixins:
 -------
 * **mixin.order.stock** — transfer status, effective date, incoterms
 * **mixin.order.line.stock** — transfer status, qty_to_transfer, move helpers
+* **mixin.order.line.stock.match** — SQL-view reconciliation between order
+  lines and stock moves, backing the delivery/receipt matching grid
+
+Also extends ``stock.picking`` (``delay_pass``, effective-transfer-date
+helpers) and ``account.move`` (incoterm-location override).
 
 ``transfer_state`` is computed per line from the quantities and rolled up to
 the order through ``mixin.order.state.rollup``, the same engine ``base_order``
