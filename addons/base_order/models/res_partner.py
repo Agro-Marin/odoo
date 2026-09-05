@@ -98,19 +98,23 @@ class ResPartner(models.Model):
         cutoff_date = self.env.company._get_order_cycle_cutoff_date()
         counts = {}
         for order_model, domain in sources:
-            order_groups = self.env[order_model].sudo()._read_group(  # pylint: disable=n-plus-one-query
-                domain=Domain.AND(
-                    [
-                        domain,
-                        self._get_domain_order_activity_scope(),
+            order_groups = (
+                self.env[order_model]
+                .sudo()
+                ._read_group(  # pylint: disable=n-plus-one-query
+                    domain=Domain.AND(
                         [
-                            ("partner_id", "in", partners.ids),
-                            ("date_order", ">=", cutoff_date),
+                            domain,
+                            self._get_domain_order_activity_scope(),
+                            [
+                                ("partner_id", "in", partners.ids),
+                                ("date_order", ">=", cutoff_date),
+                            ],
                         ],
-                    ],
-                ),
-                groupby=["partner_id"],
-                aggregates=["__count"],
+                    ),
+                    groupby=["partner_id"],
+                    aggregates=["__count"],
+                )
             )
             for partner, count in order_groups:
                 counts[partner.id] = counts.get(partner.id, 0) + count
@@ -130,16 +134,20 @@ class ResPartner(models.Model):
 
         last_dates = {}
         for order_model, domain in sources:
-            order_groups = self.env[order_model].sudo()._read_group(  # pylint: disable=n-plus-one-query
-                domain=Domain.AND(
-                    [
-                        domain,
-                        self._get_domain_order_activity_scope(),
-                        [("partner_id", "in", partners.ids)],
-                    ],
-                ),
-                groupby=["partner_id"],
-                aggregates=["date_order:max"],
+            order_groups = (
+                self.env[order_model]
+                .sudo()
+                ._read_group(  # pylint: disable=n-plus-one-query
+                    domain=Domain.AND(
+                        [
+                            domain,
+                            self._get_domain_order_activity_scope(),
+                            [("partner_id", "in", partners.ids)],
+                        ],
+                    ),
+                    groupby=["partner_id"],
+                    aggregates=["date_order:max"],
+                )
             )
             for partner, last_date in order_groups:
                 previous = last_dates.get(partner.id)
