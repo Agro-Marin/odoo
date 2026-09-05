@@ -260,6 +260,9 @@ def read_xlsx_rows(data, options):
     import openpyxl.cell.cell as types
     import openpyxl.styles.numbers as styles
 
+    from . import odf_ods_reader
+
+    odf_ods_reader._check_zip_member_sizes(io.BytesIO(data))
     book = openpyxl.load_workbook(io.BytesIO(data), data_only=True, read_only=True)
     try:
         sheets = options["sheets"] = book.sheetnames
