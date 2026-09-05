@@ -2169,9 +2169,9 @@ class Base_ImportImport(models.TransientModel):
         Char) raised ``KeyError('relation')``, which `execute_import` does not
         catch, so it surfaced as an HTTP 500 rather than an import error.
         """
-        self._check_import_paths(import_fields)
+        path_models = self._check_import_paths(import_fields)
         for index, path in enumerate(import_fields):
-            field = self._resolve_import_path(path)
+            field = self._resolve_import_path(path, path_models)
             if field is None:
                 # Unknown leaf or a pseudo-field such as `.id`. Not this
                 # method's error to report: `load` validates those and produces
@@ -2188,7 +2188,7 @@ class Base_ImportImport(models.TransientModel):
                 self._parse_binary_from_data(data, index, path, options)
         return data
 
-    def _resolve_import_path(self, path):
+    def _resolve_import_path(self, path, path_models=None):
         """The field an import path addresses, or ``None`` if it does not
         address one.
 
@@ -2201,9 +2201,16 @@ class Base_ImportImport(models.TransientModel):
         raises -- see :meth:`_check_import_paths`.
 
         :param str path: e.g. ``'name'``, ``'partner_id/country_id/code'``
+        :param dict[str, str] path_models: :meth:`_resolve_path_model` results
+            already computed by :meth:`_check_import_paths`, keyed by path --
+            reused instead of re-walking the same relation chain twice per
+            call. ``None`` (the default) always resolves fresh.
         :rtype: odoo.fields.Field | None
         """
-        model = self._resolve_path_model(path)
+        if path_models is not None and path in path_models:
+            model = path_models[path]
+        else:
+            model = self._resolve_path_model(path)
         if not model:
             return None
         # A Properties sub-column is written `<field>.<property>`; it is the
@@ -2255,12 +2262,19 @@ class Base_ImportImport(models.TransientModel):
 
         :param list[str] import_fields: field paths, as sent by the client
         :raises ImportValidationError: on the first unusable path
+        :rtype: dict[str, str]
+        :returns: :meth:`_resolve_path_model` results for every multi-segment
+            path, so a caller building a parse plan right after this call does
+            not have to re-walk the same relation chain a second time.
         """
+        path_models = {}
         for path in import_fields:
             segments = path.split("/")
             if len(segments) == 1:
                 continue
-            if self._resolve_path_model(path) is None:
+            model = self._resolve_path_model(path)
+            path_models[path] = model
+            if model is None:
                 raise ImportValidationError(
                     _(
                         "Column %(column)s cannot be imported: %(path)s is not a "
@@ -2271,6 +2285,7 @@ class Base_ImportImport(models.TransientModel):
                     ),
                     field=path,
                 )
+        return path_models
 
     def _parse_binary_from_data(self, data, index, name, options):
         """Resolve the binary column at ``index`` to base64 payloads.
