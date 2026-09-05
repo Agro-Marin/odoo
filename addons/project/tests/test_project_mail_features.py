@@ -918,3 +918,43 @@ Content-Type: text/html;
             action["url"],
             "Portal user with edit access should get a link to project sharing",
         )
+
+    def test_tracking_values_are_ordered_by_importance(self) -> None:
+        """Chatter tracking rows must read in business order, not alphabetically.
+
+        `_mail_track_get_field_sequence` collapses every `tracking=True` field
+        to sequence 100 (`mail/models/base.py`), so the real tiebreak is the
+        field name. Giving the fields explicit sequences is what puts the
+        assignee and step changes above the deadline one.
+        """
+        task = self.env["project.task"].create(
+            {
+                "name": "Tracking order",
+                "project_id": self.project_pigs.id,
+            }
+        )
+        self.flush_tracking()
+
+        other_step = self.env["project.workflow.step"].search(
+            [("id", "!=", task.step_id.id)], limit=1
+        )
+        task.write(
+            {
+                "date_end": "2026-01-31 12:00:00",
+                "step_id": other_step.id,
+                "user_ids": [Command.set(self.user_projectuser.ids)],
+            }
+        )
+        self.flush_tracking()
+
+        tracking_message = task.message_ids.sudo().filtered("tracking_value_ids")[:1]
+        self.assertTrue(tracking_message, "The write must have produced tracking.")
+        formatted = tracking_message.tracking_value_ids._tracking_value_format()
+        changed = [entry["fieldInfo"]["changedField"] for entry in formatted]
+
+        self.assertEqual(
+            changed,
+            ["Assignees", "Workflow Step", "Deadline"],
+            "Tracking rows must follow the declared sequences, not the "
+            "alphabetical fallback every tracking=True field shares.",
+        )
