@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="stock_picking_batch_form_inherit_delivery" model="ir.ui.view">
+        <field name="name">stock.picking.batch.form.inherit.delivery</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="inherit_id" ref="stock_picking_batch.stock_picking_batch_form" />
+        <field name="arch" type="xml">
+            <field name="wave_partner_id" position="after">
+                <field name="wave_carrier_id" />
+            </field>
+        </field>
+    </record>
+
+</odoo>
