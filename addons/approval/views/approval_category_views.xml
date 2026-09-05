@@ -70,7 +70,6 @@
                 <field name="color" />
                 <field name="company_id" />
                 <field name="kanban_dashboard" />
-                <field name="count_request_to_validate" />
                 <field name="show_on_dashboard" />
                 <templates>
                     <t t-name="card">

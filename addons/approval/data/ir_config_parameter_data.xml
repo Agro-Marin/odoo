@@ -16,9 +16,4 @@
         <field name="value">500</field>
     </record>
 
-    <record id="config_param_sequence_manual" model="ir.config_parameter">
-        <field name="key">approval.sequence.manual</field>
-        <field name="value">1000</field>
-    </record>
-
 </odoo>

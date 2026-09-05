@@ -277,7 +277,7 @@ re-sync, never preserved as a phantom "manual" approver.
 | Reset to draft | Owner or manager (refused/cancelled); manager only (approved) | `action_reset_to_draft()` | state in `_TERMINAL_STATES` AND `_check_reset_allowed()`; approved also runs `_check_withdraw_allowed()` |
 | Withdraw | Approver who approved | `action_withdraw()` | approver state=approved (pending or approved request), `_check_withdraw_allowed()` |
 | Bulk approve | Approver/delegate with pending rights | `action_approve_bulk()` | All selected state=pending, `_get_current_pending_approver()` non-empty |
-| Bulk refuse | Approver/delegate with pending rights | `action_refuse_bulk()` | Same as bulk approve |
+| Bulk refuse | Approver/delegate with pending rights | `action_refuse_bulk()` | Validates the batch, then opens `approval.decision.wizard` in batch mode (`request_ids`) so a reason is captured on every request, exactly as a single refusal does |
 | Cascade refuse | Parent document (mixin) | `action_refuse_approval()` → `_refuse_cascade()` | request not terminal and not draft |
 | Auto-expire | Cron | `cron_auto_expire()` → `_force_terminal("cancelled")` | pending past `auto_expire_hours` |
 | Consent approve | Cron | `cron_consent_approval()` | pending past window, parallel category, no refusal, no pending change, `_can_consent_approve()` |
@@ -324,7 +324,7 @@ terminal state are never re-promoted back into the workflow.
 
 **Sequence values by source:**
 
-Four `ir.config_parameter` keys, seeded in `data/ir_config_parameter_data.xml`
+Three `ir.config_parameter` keys, seeded in `data/ir_config_parameter_data.xml`
 and read through `_get_sequence_param(kind, default)` (which logs and falls
 back to the default on an unparseable value):
 
@@ -334,7 +334,7 @@ back to the default on an unparseable value):
 | Category approvers | As defined (field default 10) | `approval.category.approver.sequence`, set per row on the category form. **No config parameter** — there is no `approval.sequence.category` |
 | Replacing-rule approvers | 10 | `approval.sequence.tier` → `_get_sequence_replacement()` (the parameter keeps its old name so a tuned deployment is not silently reset) |
 | Security group members | 500 | `approval.sequence.group` → `_get_sequence_group()` |
-| Manual approvers | 1000 | `approval.sequence.manual` → `_get_sequence_manual()` |
+| Manual approvers | As given | The row's own `sequence`; a re-sync classifies a manual row but never rewrites it |
 
 ---
 

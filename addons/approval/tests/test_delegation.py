@@ -241,62 +241,6 @@ class TestApprovalDelegation(common.TransactionCase):
             "Effective approver should revert to user_id after delegation expires",
         )
 
-    def test_can_edit_true_for_effective_approver(self):
-        request = self._create_pending_request()
-        approver = request.approver_ids.filtered(
-            lambda a: a.user_id == self.approver_user
-        )
-
-        approver_as_user = approver.with_user(self.approver_user)
-        self.assertTrue(
-            approver_as_user.can_edit,
-            "can_edit should be True for the approver",
-        )
-
-    def test_can_edit_true_for_delegate_when_delegated(self):
-        request = self._create_pending_request()
-        approver = request.approver_ids.filtered(
-            lambda a: a.user_id == self.approver_user
-        )
-
-        today = fields.Date.today()
-
-        approver.sudo().write(
-            {
-                "delegate_id": self.delegate_user.id,
-                "delegate_start_date": today,
-                "delegate_end_date": today + timedelta(days=7),
-            }
-        )
-
-        approver_as_delegate = approver.with_user(self.delegate_user)
-        self.assertTrue(
-            approver_as_delegate.can_edit,
-            "can_edit should be True for delegate when delegation is active",
-        )
-
-    def test_can_edit_false_for_original_approver_when_delegated(self):
-        request = self._create_pending_request()
-        approver = request.approver_ids.filtered(
-            lambda a: a.user_id == self.approver_user
-        )
-
-        today = fields.Date.today()
-
-        approver.sudo().write(
-            {
-                "delegate_id": self.delegate_user.id,
-                "delegate_start_date": today,
-                "delegate_end_date": today + timedelta(days=7),
-            }
-        )
-
-        approver_as_user = approver.with_user(self.approver_user)
-        self.assertFalse(
-            approver_as_user.can_edit,
-            "can_edit should be False for original approver when delegated",
-        )
-
     def test_delegate_wizard_sets_delegation(self):
         request = self._create_pending_request()
 

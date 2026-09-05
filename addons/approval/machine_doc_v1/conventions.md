@@ -429,9 +429,9 @@ factories) instead of rebuilding user fixtures.
 | `action_confirm()` validation | `_check_confirm()` which calls `_check_enough_approvers()`, `_check_has_document_has_attachment()`, `_check_category_required_fields()` |
 | `_LOCKED_FIELDS` / `_get_locked_fields()` | `_PENDING_CHANGE_EDITABLE` (fields reopened by the change flow) and the form view `readonly` attrs |
 | `approval_type` / `target_model` selection | Both are on `approval.category` with `selection_add` -- extend there, not on request (request uses related) |
-| Approver CRUD access checks | Both `approval_request_validation.py` (`_check_access_approver_ids`) AND `approval_approver.py` (`_check_access_create/write/unlink`) -- they enforce the same rules at different levels |
+| Approver CRUD access checks | `approval_approver.py` (`_check_access_create/write/unlink`, `_check_business_rules_*`) — every o2m command on `approver_ids` reaches the row model, so the request has no second copy |
 | `_check_withdraw_allowed()` override | Use `_raise_withdraw_blocked()` for the canonical message; provide clear reasons why withdrawal is blocked |
-| New category fields for validation | Extend `_get_category_required_field_mapping()` in `approval_request_validation.py` (note: base intentionally does NOT map `has_payment_method`) |
+| New category fields for validation | Extend `_get_category_required_field_mapping()` in `approval_request_validation.py`  |
 | Terminal transitions added in new code | Route through `_apply_decision()` (decisions) or `_force_terminal()` (non-decisions) so metadata, activities and notifications stay consistent |
 | SQL views (`approval_metrics`, `approver_performance`) | Both are `_auto = False` + `mixin.sql.report`, which builds the statement at query time from `_get_fields_select()` / `_get_from_tables()` / `_get_where_conditions()` / `_get_fields_group_by()`. A new field needs its own SELECT entry — the field list and the query are not linked |
 | `approval.request.amount` or any threshold | `amount` is **Monetary** in `currency_id`. Never compare it to a rule threshold directly — go through `mixin.approval.threshold._convert_request_amount()`, which converts into the rule's own currency |

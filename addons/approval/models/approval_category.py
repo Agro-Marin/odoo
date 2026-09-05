@@ -91,18 +91,6 @@ class ApprovalCategory(models.Model):
         default="no",
         tracking=True,
     )
-    has_payment_method = fields.Selection(
-        CATEGORY_SELECTION,
-        string="Has Payment",
-        required=True,
-        default="no",
-        tracking=True,
-        help="DEPRECATED: no module defines a payment_method_id field on "
-        "approval.request, so this option has no effect (setting it to "
-        "'required' used to make every confirmation fail). Hidden from "
-        "the category form; kept for schema stability until a module "
-        "actually implements the field.",
-    )
     has_automation = fields.Selection(
         CATEGORY_SELECTION,
         required=True,
@@ -394,17 +382,6 @@ class ApprovalCategory(models.Model):
                     ),
                 )
 
-    @api.constrains("approver_ids")
-    def _constrains_approver_ids(self) -> None:
-        for category in self:
-            user_ids = category.approver_ids.mapped("user_id").ids
-            if len(user_ids) != len(set(user_ids)):
-                raise ValidationError(
-                    self.env._(
-                        "An user may not be in the approver list multiple times."
-                    ),
-                )
-
     @api.constrains("approve_sequentially", "approval_minimum")
     def _constrains_approve_sequentially(self) -> None:
         if any(a.approve_sequentially and not a.approval_minimum for a in self):
@@ -662,9 +639,7 @@ class ApprovalCategory(models.Model):
             late_data = approval_request._read_group(
                 [
                     ("category_id", "in", categories_with_deadlines.ids),
-                    ("state", "=", "pending"),
-                    ("approval_deadline", "!=", False),
-                    ("approval_deadline", "<", fields.Datetime.now()),
+                    *approval_request._get_domain_overdue(),
                 ],
                 groupby=["category_id"],
                 aggregates=["__count"],
@@ -709,13 +684,7 @@ class ApprovalCategory(models.Model):
             if category.group_approval != "exclusive":
                 approver_user_ids.update(category.approver_ids.mapped("user_id").ids)
 
-            has_manager_approval = (
-                "manager_approval" in category._fields
-                and category.manager_approval != "no"
-            )
-
-            if has_manager_approval and category.group_approval != "exclusive":
-                manager_count = 1
+            manager_count = category._get_default_approver_count_extra()
 
             if category.group_approval != "no" and category.approver_group_id:
                 approver_user_ids.update(category.approver_group_id.all_user_ids.ids)
@@ -734,7 +703,7 @@ class ApprovalCategory(models.Model):
             category.invalid_minimum = category.approval_minimum > total_approvers
 
             if category.invalid_minimum:
-                if has_manager_approval:
+                if manager_count:
                     category.invalid_minimum_warning = self.env._(
                         "Your minimum approval (%(minimum)d) exceeds the estimated "
                         "default approvers (%(total)d). Note: This count assumes all "
@@ -753,6 +722,10 @@ class ApprovalCategory(models.Model):
                     )
             else:
                 category.invalid_minimum_warning = False
+
+    def _get_default_approver_count_extra(self) -> int:
+        self.check_singleton()
+        return 0
 
     def create_request(self) -> dict[str, Any]:
         self.check_singleton()
@@ -806,11 +779,7 @@ class ApprovalCategory(models.Model):
             return self.view_requests_pending()
         return self._get_view_request(
             self.env._("Overdue"),
-            [
-                ("state", "=", "pending"),
-                ("approval_deadline", "!=", False),
-                ("approval_deadline", "<", fields.Datetime.now()),
-            ],
+            self.env["approval.request"]._get_domain_overdue(),
         )
 
     def view_requests_user(self) -> dict[str, Any]:

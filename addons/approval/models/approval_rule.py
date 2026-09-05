@@ -104,6 +104,53 @@ class ApprovalRule(models.Model):
 
     _APPROVER_ACTIONS = ("add_approver", "set_approvers")
 
+    @api.depends("category_id.company_id")
+    def _compute_company_id(self) -> None:
+        for rule in self:
+            rule.company_id = rule.category_id.company_id
+
+    @api.constrains("company_id", "category_id")
+    def _check_company_matches_category(self):
+        for rule in self:
+            category_company = rule.category_id.company_id
+            if (
+                rule.company_id
+                and category_company
+                and rule.company_id != category_company
+            ):
+                raise ValidationError(
+                    self.env._(
+                        "Rule '%(rule)s' is scoped to %(company)s but its "
+                        "category '%(category)s' belongs to %(other)s, so it "
+                        "could never apply. Leave the company empty or set it "
+                        "to the category's.",
+                        rule=rule.name,
+                        company=rule.company_id.name,
+                        category=rule.category_id.name,
+                        other=category_company.name,
+                    ),
+                )
+
+    @api.constrains("approver_ids", "company_id", "category_id")
+    def _check_approvers_in_company(self):
+        for rule in self:
+            company = rule.company_id or rule.category_id.company_id
+            if not company:
+                continue
+            outside = rule.approver_ids.filtered(
+                lambda u, company=company: company not in u.company_ids
+            )
+            if outside:
+                raise ValidationError(
+                    self.env._(
+                        "Rule '%(rule)s' is scoped to %(company)s; these "
+                        "approvers are not members of it: %(users)s.",
+                        users=", ".join(outside.mapped("name")),
+                        company=company.name,
+                        rule=rule.name,
+                    ),
+                )
+
     @api.constrains("action_type", "approver_ids")
     def _check_approver_ids_required(self):
         for rule in self:

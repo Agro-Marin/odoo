@@ -32,15 +32,10 @@ class ApprovalApprover(models.Model):
         readonly=True,
         index=True,
     )
-    existing_request_user_ids = fields.Many2many(
-        comodel_name="res.users",
-        compute="_compute_existing_request_user_ids",
-    )
     user_id = fields.Many2one(
         comodel_name="res.users",
         required=True,
         check_company=True,
-        domain="['|', ('id', 'not in', existing_request_user_ids), ('id', '=', user_id)]",
         index=True,
     )
     sequence = fields.Integer(default=10)
@@ -132,14 +127,6 @@ class ApprovalApprover(models.Model):
         "approver-performance analytics count only genuine decisions and "
         "measure each approver's own response time (cleared on withdraw "
         "and reset-to-draft).",
-    )
-    can_edit = fields.Boolean(
-        compute="_compute_edit_permissions",
-    )
-    can_edit_user_id = fields.Boolean(
-        compute="_compute_edit_permissions",
-        help="Simple users should not be able to remove themselves as approvers "
-        "because they will lose access to the record if they misclick.",
     )
     delegate_id = fields.Many2one(
         comodel_name="res.users",
@@ -264,14 +251,6 @@ class ApprovalApprover(models.Model):
         self._check_business_rules_unlink()
         return super().unlink()
 
-    @api.depends("request_id.request_owner_id", "request_id.approver_ids.user_id")
-    def _compute_existing_request_user_ids(self):
-        for approver in self:
-            approver.existing_request_user_ids = (
-                approver.request_id.approver_ids.mapped("user_id")._origin
-                | approver.request_id.request_owner_id._origin
-            )
-
     def _delegation_today(self):
         self.check_singleton()
         return self._delegation_today_by_tz()[self.user_id.tz or "UTC"]
@@ -296,16 +275,6 @@ class ApprovalApprover(models.Model):
             approver.is_delegated = (
                 approver.delegate_start_date <= today <= approver.delegate_end_date
             )
-
-    @api.depends_context("uid")
-    @api.depends("user_id", "delegate_id", "is_delegated")
-    def _compute_edit_permissions(self) -> None:
-        is_manager = is_approval_manager(self.env)
-        current_user = self.env.user
-        for approval in self:
-            effective_approver = approval._get_effective_approver()
-            approval.can_edit = is_manager or effective_approver == current_user
-            approval.can_edit_user_id = is_manager
 
     @api.model
     def _delegation_date_buckets(self) -> dict:

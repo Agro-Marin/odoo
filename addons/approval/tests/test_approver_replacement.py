@@ -375,7 +375,8 @@ class TestApprovalTiersAuditRegressions(ApprovalCommon):
     def test_tiers_same_range_different_companies_do_not_collide(self):
         company_a = self.env["res.company"].create({"name": f"Co A {self.id()}"})
         company_b = self.env["res.company"].create({"name": f"Co B {self.id()}"})
-        category = self._make_category(approvers=[self.approver_1])
+        self.approver_1.write({"company_ids": [(4, company_a.id), (4, company_b.id)]})
+        category = self._make_category(approvers=[self.approver_1], company_id=False)
 
         tier_a = self.env["approval.rule"].create(
             {
@@ -408,7 +409,8 @@ class TestApprovalTiersAuditRegressions(ApprovalCommon):
 
     def test_tiers_same_range_same_company_still_collide(self):
         company_a = self.env["res.company"].create({"name": f"Co A {self.id()}"})
-        category = self._make_category(approvers=[self.approver_1])
+        self.approver_1.write({"company_ids": [(4, company_a.id)]})
+        category = self._make_category(approvers=[self.approver_1], company_id=False)
         self.env["approval.rule"].create(
             {
                 "action_type": "set_approvers",

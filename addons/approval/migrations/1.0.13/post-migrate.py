@@ -10,7 +10,9 @@ _PLACEHOLDER_NAMES = ["New", "Nuevo", "Nueva", "Nouveau"]
 def migrate(cr, version):
     env = api.Environment(cr, api.SUPERUSER_ID, {})
 
-    manual_seq = env["approval.request"]._get_sequence_manual()
+    manual_seq = int(
+        env["ir.config_parameter"].sudo().get_param("approval.sequence.manual", 1000)
+    )
     cr.execute(
         "UPDATE approval_approver SET source_synced = TRUE WHERE sequence != %s",
         [manual_seq],

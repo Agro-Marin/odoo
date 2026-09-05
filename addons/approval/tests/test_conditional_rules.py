@@ -468,3 +468,67 @@ class TestRoutingFieldLifecycle(ApprovalCommon):
             "these are classified live but can never move after submission, "
             "so the live path carries them for nothing: %s" % sorted(unreachable),
         )
+
+
+class TestRuleScopeFollowsCategory(ApprovalCommon):
+    def test_rule_company_defaults_to_its_category(self):
+        other = self.env["res.company"].create({"name": "Rule Scope Co"})
+        (self.owner_user | self.approver_1 | self.approver_2).write(
+            {"company_ids": [(4, other.id)]}
+        )
+        category = self._make_category(
+            name="Scoped", approvers=[self.approver_1], company_id=other.id
+        )
+        rule = self.env["approval.rule"].create(
+            {
+                "name": "scoped rule",
+                "category_id": category.id,
+                "condition_field": "amount",
+                "operator": "gt",
+                "threshold": 1,
+                "action_type": "add_approver",
+                "approver_ids": [(4, self.approver_2.id)],
+            }
+        )
+        self.assertEqual(rule.company_id, other)
+        self.assertEqual(rule.currency_id, other.currency_id)
+
+        request = self._prepare_request(
+            category, confirm=False, company_id=other.id, amount=100
+        )
+        self.assertIn(self.approver_2, request.approver_ids.user_id)
+
+    def test_rule_company_cannot_contradict_its_category(self):
+        other = self.env["res.company"].create({"name": "Rule Scope Co 2"})
+        category = self._make_category(name="Scoped 2", approvers=[self.approver_1])
+        with self.assertRaises(ValidationError):
+            self.env["approval.rule"].create(
+                {
+                    "name": "wrong company",
+                    "category_id": category.id,
+                    "company_id": other.id,
+                    "condition_field": "amount",
+                    "operator": "gt",
+                    "threshold": 1,
+                    "action_type": "add_approver",
+                    "approver_ids": [(4, self.approver_2.id)],
+                }
+            )
+
+    def test_rule_on_a_global_category_is_global(self):
+        category = self._make_category(
+            name="Global", approvers=[self.approver_1], company_id=False
+        )
+        rule = self.env["approval.rule"].create(
+            {
+                "name": "global rule",
+                "category_id": category.id,
+                "condition_field": "amount",
+                "operator": "gt",
+                "threshold": 1,
+                "action_type": "add_approver",
+                "approver_ids": [(4, self.approver_2.id)],
+            }
+        )
+        self.assertFalse(rule.company_id)
+        self.assertEqual(rule.currency_id, self.env.company.currency_id)

@@ -106,8 +106,9 @@ class ApprovalDelegateWizard(models.TransientModel):
         approver = self.env["approval.approver"]
         is_manager = is_approval_manager(self.env)
         previewable = self.filtered(
-            lambda wizard: wizard.user_id
-            and (wizard.user_id == self.env.user or is_manager),
+            lambda wizard: (
+                wizard.user_id and (wizard.user_id == self.env.user or is_manager)
+            ),
         )
         counts: dict[tuple[int, str], int] = {}
         if previewable:

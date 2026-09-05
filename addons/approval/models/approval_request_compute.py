@@ -110,11 +110,12 @@ class ApprovalRequestCompute(models.Model):
         "date_cancelled",
         "category_id.sla_target_hours",
         "category_id.sla_warning_pct",
+        "category_snapshot",
     )
     def _compute_sla_status(self) -> None:
         now = fields.Datetime.now()
         for request in self:
-            sla_hours = request.category_id.sla_target_hours
+            sla_hours = request._get_snapshot_config("sla_target_hours")
             if not sla_hours or not request.date_confirmed:
                 request.sla_status = "no_sla"
                 continue
@@ -135,10 +136,19 @@ class ApprovalRequestCompute(models.Model):
             request.sla_status = self._sla_status_for(
                 elapsed,
                 sla_hours,
-                request.category_id.sla_warning_pct,
+                request._get_snapshot_config("sla_warning_pct"),
             )
 
     _SLA_DEFAULT_WARNING_PCT = 80
+
+    _SLA_TARGET_SQL = (
+        "COALESCE((ar.category_snapshot ->> 'sla_target_hours')::numeric, "
+        "ac.sla_target_hours, 0)"
+    )
+    _SLA_WARNING_SQL = (
+        "COALESCE((ar.category_snapshot ->> 'sla_warning_pct')::numeric, "
+        "ac.sla_warning_pct)"
+    )
 
     @api.model
     def _sla_status_for(
@@ -171,16 +181,17 @@ class ApprovalRequestCompute(models.Model):
         where_sql = ""
         if "no_sla" not in wanted:
             where_sql = (
-                "WHERE COALESCE(ac.sla_target_hours, 0) > 0 "
-                "AND ar.date_confirmed IS NOT NULL"
+                f"WHERE {self._SLA_TARGET_SQL} > 0 AND ar.date_confirmed IS NOT NULL"
             )
         default_warning_pct = self._SLA_DEFAULT_WARNING_PCT
+        sla_target = self._SLA_TARGET_SQL
+        sla_warning = self._SLA_WARNING_SQL
         self.env.cr.execute(
             f"""
             SELECT id FROM (
             SELECT ar.id,
                    CASE
-                       WHEN COALESCE(ac.sla_target_hours, 0) = 0
+                       WHEN {sla_target} = 0
                             OR ar.date_confirmed IS NULL
                            THEN 'no_sla'
                        WHEN ar.state IN ('approved', 'refused', 'cancelled')
@@ -200,19 +211,19 @@ class ApprovalRequestCompute(models.Model):
                                        END,
                                        NOW() AT TIME ZONE 'UTC')
                                     <= ar.date_confirmed
-                                       + ac.sla_target_hours * INTERVAL '1 hour'
+                                       + {sla_target} * INTERVAL '1 hour'
                                    THEN 'met'
                                ELSE 'breached'
                            END
                        WHEN NOW() AT TIME ZONE 'UTC'
                             > ar.date_confirmed
-                              + ac.sla_target_hours * INTERVAL '1 hour'
+                              + {sla_target} * INTERVAL '1 hour'
                            THEN 'breached'
                        WHEN NOW() AT TIME ZONE 'UTC'
                             > ar.date_confirmed
-                              + ac.sla_target_hours
+                              + {sla_target}
                                 * COALESCE(
-                                      NULLIF(ac.sla_warning_pct, 0),
+                                      NULLIF({sla_warning}, 0),
                                       {default_warning_pct}
                                   )
                                 / 100.0 * INTERVAL '1 hour'
@@ -239,11 +250,11 @@ class ApprovalRequestCompute(models.Model):
             else:
                 request.sla_elapsed_hours = 0.0
 
-    @api.depends("date_confirmed", "category_id.sla_target_hours")
+    @api.depends("date_confirmed", "category_id.sla_target_hours", "category_snapshot")
     def _compute_sla_remaining_hours(self) -> None:
         now = fields.Datetime.now()
         for request in self:
-            sla_hours = request.category_id.sla_target_hours
+            sla_hours = request._get_snapshot_config("sla_target_hours")
             if not sla_hours or not request.date_confirmed:
                 request.sla_remaining_hours = 0.0
                 continue
@@ -284,14 +295,10 @@ class ApprovalRequestCompute(models.Model):
             )
 
     @api.depends_context("uid")
-    @api.depends("request_owner_id")
     def _compute_request_access_rights(self) -> None:
         is_manager = is_approval_manager(self.env)
         for request in self:
             request.can_change_request_owner = is_manager
-            request.has_access_to_request = (
-                request.request_owner_id == self.env.user or is_manager
-            )
 
     @api.depends("approver_ids")
     def _compute_user_ids(self) -> None:

@@ -20,17 +20,6 @@ class ApprovalRequestValidation(models.Model):
                     self.env._("End date must be after start date."),
                 )
 
-    @api.constrains("approver_ids")
-    def _check_approver_ids(self) -> None:
-        for request in self:
-            user_ids = request.approver_ids.mapped("user_id").ids
-            if len(user_ids) != len(set(user_ids)):
-                raise ValidationError(
-                    self.env._(
-                        "You cannot assign the same approver multiple times on the same request.",
-                    ),
-                )
-
     @api.constrains("category_id", "request_owner_id")
     def _check_category_access(self) -> None:
         for request in self:
@@ -121,91 +110,27 @@ class ApprovalRequestValidation(models.Model):
                 ),
             )
 
-    def _check_access_approver_ids(self, approver_commands: list) -> None:
+    def _check_routing_fields_after_submit(self, vals: dict) -> None:
         if self._skip_check_access():
             return
-
-        approval_approver = self.env["approval.approver"]
-        current_user = self.env.user
-
+        touched = set(vals) & (
+            self._get_routing_fields_live() - self._get_fields_locked()
+        )
+        if not touched:
+            return
         for request in self:
-            request_name = request._label()
-
-            for command in approver_commands:
-                cmd_type = command[0]
-
-                if cmd_type == Command.CREATE:
-                    raise AccessError(
-                        self.env._(
-                            "Approvers cannot be added manually.\n\n"
-                            "Approvers are defined by the approval category and "
-                            "managed automatically.\n\n"
-                            "Request: %(name)s",
-                            name=request_name,
-                        ),
-                    )
-
-                if cmd_type == Command.UPDATE:
-                    approver_id = command[1]
-                    approver = approval_approver.browse(approver_id)
-                    effective_approver = approver._get_effective_approver()
-                    is_effective_approver = effective_approver == current_user
-
-                    if not is_effective_approver:
-                        if approver.is_delegated:
-                            raise AccessError(
-                                self.env._(
-                                    "This approval is currently delegated to %(delegate)s.\n\n"
-                                    "Request: %(name)s\nOriginal approver: %(approver)s",
-                                    name=request_name,
-                                    approver=approver.user_id.name,
-                                    delegate=approver.delegate_id.name,
-                                ),
-                            )
-                        raise AccessError(
-                            self.env._(
-                                "Only the assigned approver can modify their approval record.\n\n"
-                                "Request: %(name)s\nApprover: %(approver)s",
-                                name=request_name,
-                                approver=approver.user_id.name,
-                            ),
-                        )
-
-                elif cmd_type in (Command.DELETE, Command.UNLINK):
-                    approver_id = command[1]
-                    approver = approval_approver.browse(approver_id)
-                    raise AccessError(
-                        self.env._(
-                            "Approvers cannot be removed from requests.\n\n"
-                            "Approvers are defined by the approval category and "
-                            "managed automatically.\n\n"
-                            "Request: %(name)s\nApprover: %(approver)s",
-                            name=request_name,
-                            approver=approver.user_id.name,
-                        ),
-                    )
-
-                elif cmd_type == Command.LINK:
-                    raise AccessError(
-                        self.env._(
-                            "Approvers cannot be linked manually.\n\n"
-                            "Approvers are defined by the approval category and "
-                            "managed automatically.\n\n"
-                            "Request: %(name)s",
-                            name=request_name,
-                        ),
-                    )
-
-                elif cmd_type in (Command.CLEAR, Command.SET):
-                    raise AccessError(
-                        self.env._(
-                            "Approvers cannot be replaced manually.\n\n"
-                            "Approvers are defined by the approval category and "
-                            "managed automatically.\n\n"
-                            "Request: %(name)s",
-                            name=request_name,
-                        ),
-                    )
+            if request.state == "new" or request.request_owner_id == self.env.user:
+                continue
+            raise AccessError(
+                self.env._(
+                    "Only the request owner or an approval manager can change "
+                    "%(fields)s once the request is submitted: it decides who "
+                    "approves and how soon the reminders fire.\n\n"
+                    "Request: %(name)s",
+                    fields=", ".join(sorted(touched)),
+                    name=request._label(),
+                ),
+            )
 
     def _check_approver_ids_business_rules(self, approver_commands: list) -> None:
         if self.env.su and self.env.context.get("approver_ids_computation"):

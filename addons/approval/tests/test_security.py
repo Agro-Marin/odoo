@@ -459,14 +459,66 @@ class TestApproverDraftWriteAccess(ApprovalCommon):
 
         self.assertEqual(request.amount, 250.0)
 
-    def test_approver_may_write_once_submitted(self):
+    def test_approver_may_write_once_submitted_but_not_route(self):
         request = self._prepare_request(self.category, amount=100.0)
 
-        request.with_user(self.approver_1).write({"priority": "3"})
+        with self.assertRaises(AccessError):
+            request.with_user(self.approver_1).write({"priority": "3"})
+        request.with_user(self.owner_user).write({"priority": "3"})
         self.assertEqual(request.priority, "3")
 
         with self.assertRaises(ValidationError):
             request.with_user(self.approver_1).write({"amount": 1.0})
+
+    def test_approver_cannot_reroute_a_request_through_priority(self):
+        self.env["approval.rule"].create(
+            {
+                "name": "urgent adds approver two",
+                "category_id": self.category.id,
+                "condition_field": "priority",
+                "operator": "gte",
+                "threshold": 3,
+                "action_type": "add_approver",
+                "approver_ids": [(4, self.approver_2.id)],
+            }
+        )
+        category = self._make_category(name="Reroute", approvers=[self.approver_1])
+        self.env["approval.rule"].create(
+            {
+                "name": "urgent adds approver two (reroute)",
+                "category_id": category.id,
+                "condition_field": "priority",
+                "operator": "gte",
+                "threshold": 3,
+                "action_type": "add_approver",
+                "approver_ids": [(4, self.approver_2.id)],
+            }
+        )
+        request = self._prepare_request(category)
+        self.assertEqual(request.approver_ids.user_id, self.approver_1)
+
+        with self.assertRaises(AccessError):
+            request.with_user(self.approver_1).write({"priority": "3"})
+        self.assertEqual(request.approver_ids.user_id, self.approver_1)
+
+        request.with_user(self.owner_user).write({"priority": "3"})
+        self.assertIn(self.approver_2, request.approver_ids.user_id)
+
+    def test_manager_cannot_decide_in_an_approvers_name(self):
+        request = self._prepare_request(self.category)
+        row = request.approver_ids.filtered(lambda a: a.user_id == self.approver_1)
+
+        with self.assertRaises(AccessError):
+            row.with_user(self.manager_user).action_approve()
+        with self.assertRaises(AccessError):
+            request.with_user(self.manager_user).action_approve(row)
+        with self.assertRaises(AccessError):
+            request.with_user(self.manager_user).with_context(
+                skip_wizard=True, requested_change_field="reason"
+            ).action_request_change(approver=row)
+
+        self.assertEqual(request.state, "pending")
+        self.assertFalse(row.decided_by_user_id)
 
     def test_manager_is_unaffected(self):
         request = self._prepare_request(self.category, confirm=False, amount=100.0)

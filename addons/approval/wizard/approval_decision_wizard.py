@@ -1,6 +1,5 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
-from odoo.libs.text import nl2br
 
 
 class ApprovalDecisionWizard(models.TransientModel):
@@ -10,8 +9,15 @@ class ApprovalDecisionWizard(models.TransientModel):
     approver_id = fields.Many2one(
         comodel_name="approval.approver",
         readonly=True,
-        required=True,
-        help="The approver record making this decision.",
+        help="The approver record making this decision. Empty in batch mode, "
+        "where request_ids carries the targets and each request resolves "
+        "its own pending row for the current user.",
+    )
+    request_ids = fields.Many2many(
+        comodel_name="approval.request",
+        string="Requests",
+        readonly=True,
+        help="Batch mode: every request refused with the reason below.",
     )
     request_id = fields.Many2one(
         comodel_name="approval.request",
@@ -20,7 +26,6 @@ class ApprovalDecisionWizard(models.TransientModel):
         precompute=True,
         store=True,
         readonly=True,
-        required=True,
         help="The approval request being decided. Auto-populated from ``approver_id``.",
     )
     user_id = fields.Many2one(
@@ -92,49 +97,9 @@ class ApprovalDecisionWizard(models.TransientModel):
             if wiz.approver_id:
                 wiz.request_id = wiz.approver_id.request_id
 
-    def _decision_verb(self, decision_type: str) -> str:
-        return {
-            "refuse": self.env._("refuse"),
-            "change": self.env._("request a change on"),
-        }[decision_type]
-
-    def _check_decision_allowed(self, action_verb: str) -> None:
-        self.check_singleton()
-
-        if self.approver_id.state != "pending":
-            raise UserError(
-                self.env._(
-                    "This approval is no longer pending. Current state: %(state)s",
-                    state=self.approver_id.state,
-                ),
-            )
-
-        effective_approver = self.approver_id._get_effective_approver()
-        if self.env.user == effective_approver:
-            return
-
-        if self.approver_id.is_delegated:
-            raise UserError(
-                self.env._(
-                    "This approval is currently delegated to %(delegate)s.\n"
-                    "You cannot %(verb)s this request while delegation is active.",
-                    delegate=self.approver_id.delegate_id.name,
-                    verb=action_verb,
-                ),
-            )
-        raise UserError(
-            self.env._(
-                "You are not authorized to %(verb)s this request.\n"
-                "Assigned approver: %(approver)s",
-                verb=action_verb,
-                approver=self.approver_id.user_id.name,
-            ),
-        )
-
-    def _check_refusal_reason_applicable(self) -> None:
+    def _check_refusal_reason_applicable(self, request) -> None:
         self.check_singleton()
         reason = self.refusal_reason_id
-        request = self.request_id
         if reason.category_ids and request.category_id not in reason.category_ids:
             raise UserError(
                 self.env._(
@@ -155,35 +120,43 @@ class ApprovalDecisionWizard(models.TransientModel):
 
     def action_confirm_refuse(self):
         self.check_singleton()
-        self._check_decision_allowed(self._decision_verb("refuse"))
-
         if not self.refusal_reason_id:
             raise UserError(
                 self.env._("Please select a reason for refusing this request.")
             )
-        self._check_refusal_reason_applicable()
+        if self.request_ids:
+            return self.request_ids._action_bulk_decision(
+                "action_refuse",
+                "refusal",
+                "refused",
+                before=self._stamp_refusal,
+            )
+        if not self.approver_id:
+            raise UserError(self.env._("There is no approval to refuse."))
+        self._stamp_refusal(self.request_id, self.approver_id)
+        self.approver_id.with_context(skip_wizard=True).action_refuse()
+        return {"type": "ir.actions.act_window_close"}
 
-        self.approver_id.write(
+    def _stamp_refusal(self, request, approver=None) -> None:
+        self._check_refusal_reason_applicable(request)
+        if approver is None:
+            approver = request._get_current_pending_approver()
+        approver.write(
             {
                 "refusal_reason_id": self.refusal_reason_id.id,
                 "note": self.note or False,
             }
         )
         request_vals = {}
-        if not self.request_id.refusal_reason_id:
+        if not request.refusal_reason_id:
             request_vals["refusal_reason_id"] = self.refusal_reason_id.id
-        if not self.request_id.refusal_note:
+        if not request.refusal_note:
             request_vals["refusal_note"] = self.note or False
         if request_vals:
-            self.request_id.sudo().write(request_vals)
-
-        self.approver_id.with_context(skip_wizard=True).action_refuse()
-        return {"type": "ir.actions.act_window_close"}
+            request.sudo().write(request_vals)
 
     def action_confirm_change(self):
         self.check_singleton()
-        self._check_decision_allowed(self._decision_verb("change"))
-
         if not self.change_field:
             raise UserError(
                 self.env._(
@@ -201,17 +174,8 @@ class ApprovalDecisionWizard(models.TransientModel):
         self.request_id.with_context(
             skip_wizard=True,
             requested_change_field=self.change_field,
+            requested_change_note=self.note,
         ).action_request_change(approver=self.approver_id)
-
-        field_label = dict(
-            self._fields["change_field"]._description_selection(self.env)
-        )[self.change_field]
-        self.request_id.activity_schedule(
-            "approval.mail_activity_data_change_request",
-            user_id=self.request_id.request_owner_id.id,
-            summary=self.env._("Change requested on %s", field_label),
-            note=nl2br(self.note),
-        )
         return {"type": "ir.actions.act_window_close"}
 
     def action_cancel(self):

@@ -1,4 +1,5 @@
 from odoo import fields, models
+
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 

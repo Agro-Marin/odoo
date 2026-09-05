@@ -43,6 +43,13 @@
         sequence="15" />
 
     <menuitem
+        id="approvals_request_menu_delegate"
+        name="Delegate My Approvals"
+        parent="approvals_approval_menu"
+        action="action_approval_delegate_wizard"
+        sequence="20" />
+
+    <menuitem
         id="approvals_menu_manager"
         name="Manager"
         parent="approvals_menu_root"

@@ -636,3 +636,30 @@ class TestRequestChangeReroutes(ApprovalCommon):
 
         self.assertEqual(request.approver_ids.user_id, before)
         self.assertEqual(request.state, "pending")
+
+
+class TestChangeRequestActivityBelongsToTheAction(ApprovalCommon):
+    def test_inline_request_change_schedules_the_owner_activity(self):
+        category = self._make_category(
+            name="Inline Change", approvers=[self.approver_1], has_date="optional"
+        )
+        request = self._prepare_request(category)
+        change_type = self.env.ref("approval.mail_activity_data_change_request")
+
+        request.with_user(self.approver_1).with_context(
+            skip_wizard=True,
+            requested_change_field="reason",
+            requested_change_note="Say why.",
+        ).action_request_change()
+
+        activities = request.activity_ids.filtered(
+            lambda a: a.activity_type_id == change_type
+        )
+        self.assertEqual(len(activities), 1)
+        self.assertEqual(activities.user_id, self.owner_user)
+        self.assertIn("Say why.", activities.note)
+
+        request.with_user(self.owner_user).action_resubmit()
+        self.assertFalse(
+            request.activity_ids.filtered(lambda a: a.activity_type_id == change_type)
+        )

@@ -8,6 +8,7 @@
             <form string="Approval Decision">
                 <field name="approver_id" invisible="1" />
                 <field name="request_id" invisible="1" />
+                <field name="request_ids" invisible="1" />
                 <field name="user_id" invisible="1" />
                 <field name="decision_type" invisible="1" />
                 <field name="request_name" invisible="1" />
@@ -19,7 +20,7 @@
                         name="refusal_reason_id"
                         string="Reason"
                         required="decision_type == 'refuse'"
-                        domain="['|', ('category_ids', '=', False), ('category_ids', 'in', category_id)]"
+                        domain="['|', ('category_ids', '=', False), ('category_ids', 'in', category_id)] if category_id else [('category_ids', '=', False)]"
                         placeholder="Select a reason..." />
                 </group>
 

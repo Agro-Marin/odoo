@@ -361,3 +361,29 @@ class TestSlaPythonAndSqlAgree(ApprovalCommon):
                 set(by_search.ids),
                 "_compute_sla_status and _search_sla_status disagree on %r" % status,
             )
+
+
+class TestSlaPolicyIsSnapshotted(ApprovalCommon):
+    def test_changing_the_category_sla_does_not_rewrite_a_confirmed_request(self):
+        category = self._make_category(
+            name="Snapshot SLA", approvers=[self.approver_1], sla_target_hours=10
+        )
+        request = self._prepare_request(category)
+        self.assertEqual(request.sla_status, "on_track")
+        self.assertAlmostEqual(request.sla_remaining_hours, 10, delta=0.1)
+
+        category.sla_target_hours = 0
+        request.invalidate_recordset()
+        self.assertEqual(request.sla_status, "on_track")
+        self.assertAlmostEqual(request.sla_remaining_hours, 10, delta=0.1)
+        self.assertIn(
+            request,
+            self.env["approval.request"].search([("sla_status", "=", "on_track")]),
+        )
+
+        later = self._prepare_request(category)
+        self.assertEqual(later.sla_status, "no_sla")
+        self.assertIn(
+            later,
+            self.env["approval.request"].search([("sla_status", "=", "no_sla")]),
+        )

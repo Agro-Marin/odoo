@@ -111,7 +111,6 @@ so category names are unique per company, archived rows included.
 | `has_date_planned` | Selection | Yes | Yes | default="no", tracking |
 | `has_date_range` | Selection | Yes | Yes | default="no", tracking |
 | `has_partner` | Selection | Yes | Yes | default="no", tracking |
-| `has_payment_method` | Selection | Yes | Yes | default="no", tracking. **DEPRECATED**: no-op (no `payment_method_id` field exists on approval.request); hidden from the category form, kept for schema stability |
 | `has_automation` | Selection | Yes | Yes | default="no", tracking |
 | `has_quantity` | Selection | Yes | Yes | default="no", tracking |
 | `has_amount` | Selection | Yes | Yes | default="no", tracking |
@@ -249,10 +248,9 @@ so category names are unique per company, archived rows included.
 | `state` | Selection(new/pending/approved/refused/cancelled) | Yes | No | compute, store, default="new", tracking, group_expand, index |
 | `user_approver_state` | Selection(new/pending/waiting/approved/refused/cancelled) | No | No | compute (context=uid) — mirrors the six `approval.approver` states |
 | `is_terminal` | Boolean | No | No | compute. True once the request reaches approved, refused or cancelled — exists so views can say "this is over" BY NAME instead of spelling `_TERMINAL_STATES` out as a literal triple in four `invisible` expressions |
-| `has_access_to_request` | Boolean | No | No | compute (context=uid) |
 | `is_pending_my_review` | Boolean | No | No | compute (context=uid), search (via `boolean_search_domain`). Delegation-aware "is this in my queue right now" — backs the review inbox |
 | `can_change_request_owner` | Boolean | No | No | compute |
-| `has_*` | Selection | No | No | 12 related fields from category (incl. deprecated `has_payment_method`; there is no `has_product` — see `approval_product`) |
+| `has_*` | Selection | No | No | 11 related fields from category (there is no `has_product` — see `approval_product`, and no `has_payment_method` since 19.0.1.0.26) |
 | `approval_minimum` | Integer | Yes | No | default=1, readonly, copy=True. Effective minimum (an approver-replacing rule's override, or the category default) |
 | `approve_sequentially` | Boolean | No | No | related |
 | `group_approval` | Selection | No | No | related |
@@ -360,7 +358,7 @@ requester re-submits (`action_resubmit`).
 | `_check_access_write()` | validation.py | Owner OR assigned approver write access |
 | `_check_locked_fields()` | validation.py | **Business rule, never bypassed**: value fields frozen outside draft; `pending_change_field` selectively reopens date/reason, and only for the requester (owner/manager/sudo) |
 | `_check_no_forged_computed_fields()` | validation.py | Rejects direct writes to `_COMPUTE_ONLY_FIELDS` (`state`, the three terminal-date stamps, `approval_deadline`, `res_model_id`) in **every** state, draft included — these are workflow outputs, not inputs |
-| `_check_access_approver_ids()` | validation.py | Per-command access validation |
+| `_check_routing_fields_after_submit()` | validation.py | Once submitted, the live routing inputs (`priority`) are the requester's: an approver may not re-route or re-time the request they decide |
 | `_check_confirm()` | validation.py | Pre-confirm: approvers, documents (distinct-match), required fields |
 | `_check_reset_allowed()` | validation.py | Hook: veto reset-to-draft (base blocks released source-doc links) |
 | `cron_smart_escalation()` | cron.py | Priority-based reminder schedule (batched, limit 500/priority; skips requests with `pending_change_field` set; per-request savepoint) |
@@ -408,7 +406,6 @@ resolved by `_get_escalation_rules()`:
 |-------|------|--------|----------|----------------|
 | `request_id` | Many2one(`approval.request`) | Yes | Yes | ondelete=cascade, check_company, index |
 | `company_id` | Many2one(`res.company`) | Yes | No | related, store, index |
-| `existing_request_user_ids` | Many2many(`res.users`) | No | No | compute |
 | `user_id` | Many2one(`res.users`) | Yes | Yes | check_company, index |
 | `sequence` | Integer | Yes | No | default=10 |
 | `state` | Selection(new/pending/waiting/approved/refused/cancelled) | Yes | No | default="new", readonly, index |
@@ -418,8 +415,6 @@ resolved by `_get_escalation_rules()`:
 | `source_rule_id` | Many2one(`approval.rule`) | Yes | No | readonly, copy=False, index=btree_not_null. Which `add_approver` rule injected this row |
 | `decision_date` | Datetime | Yes | No | readonly, copy=False, index. Stamped by `_apply_decision` on a GENUINE approve/refuse; cleared on withdraw/reset. NULL for non-decision flips. Drives the performance analytics |
 | `decided_by_user_id` | Many2one(`res.users`) | Yes | No | readonly, copy=False, index. WHO exercised the slot (`user_id` is WHOSE it is) — the delegate inside an active delegation window. Stamped and cleared beside `decision_date`; both analytics consumers key on `COALESCE(decided_by_user_id, user_id)` |
-| `can_edit` | Boolean | No | No | compute (context=uid) |
-| `can_edit_user_id` | Boolean | No | No | compute (context=uid) |
 | `delegate_id` | Many2one(`res.users`) | Yes | No | check_company, copy=False |
 | `delegate_start_date` | Date | Yes | No | copy=False |
 | `delegate_end_date` | Date | Yes | No | copy=False |
@@ -715,9 +710,9 @@ Approving is a 1-click action that never opens this wizard.
 
 | Method | Purpose |
 |--------|---------|
-| `_check_decision_allowed()` | Approver still pending + current user is the effective approver (delegation-aware) |
-| `action_confirm_refuse()` | Require reason; persist reason+note on approver row AND request (canonical `refusal_reason_id`/`refusal_note`); then inline `action_refuse` |
-| `action_confirm_change()` | Require field+note; set `pending_change_field` via `action_request_change`; schedule change-request To-Do for the requester |
+| `_stamp_refusal()` | Persist reason+note on the deciding approver row AND the request (canonical `refusal_reason_id`/`refusal_note`); the actor and state checks live in `_apply_decision` |
+| `action_confirm_refuse()` | Require reason; single mode stamps and refuses `approver_id`'s request, batch mode (`request_ids`, from `action_refuse_bulk`) stamps and refuses each request under its own savepoint |
+| `action_confirm_change()` | Require field+note; `action_request_change` sets `pending_change_field` and schedules the requester's change-request To-Do itself |
 | `action_cancel()` | Close the wizard (no decision) |
 
 ---

@@ -4,6 +4,7 @@ from typing import Any
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.text import nl2br
 
 from .approval_utils import boolean_search_domain, is_approval_manager
 
@@ -56,12 +57,7 @@ class ApprovalRequestAction(models.Model):
         if self.category_id.has_reference == "required" and not self.reference:
             self.reference = last_request.reference
 
-    def _action_bulk_decision(
-        self,
-        action_method: str,
-        action_label: str,
-        past_tense: str,
-    ) -> dict[str, Any]:
+    def _check_bulk_decision_allowed(self) -> None:
         for request in self:
             if request.state != "pending":
                 raise UserError(
@@ -79,11 +75,22 @@ class ApprovalRequestAction(models.Model):
                     ),
                 )
 
+    def _action_bulk_decision(
+        self,
+        action_method: str,
+        action_label: str,
+        past_tense: str,
+        before: Any = None,
+    ) -> dict[str, Any]:
+        self._check_bulk_decision_allowed()
+
         success_count = 0
         failed_requests = []
         for request in self:
             try:
                 with self.env.cr.savepoint():
+                    if before is not None:
+                        before(request)
                     getattr(request.with_context(skip_wizard=True), action_method)()
                 success_count += 1
             except (UserError, ValidationError) as e:
@@ -166,7 +173,7 @@ class ApprovalRequestAction(models.Model):
         )
 
     def _check_decision_actor(self, approver: models.BaseModel) -> None:
-        if self.env.su or is_approval_manager(self.env):
+        if self.env.su:
             return
         current_user = self.env.user
         impersonated = approver.filtered(
@@ -362,6 +369,7 @@ class ApprovalRequestAction(models.Model):
             approver = approver.filtered(
                 lambda a: a.request_id == self and a.state == "pending",
             )
+        self._check_decision_actor(approver)
         if not approver:
             self._raise_not_assigned_approver()
 
@@ -391,7 +399,23 @@ class ApprovalRequestAction(models.Model):
                 ),
             )
         self.sudo().write({"pending_change_field": requested_field})
+        self._schedule_change_request_activity(
+            requested_field,
+            self.env.context.get("requested_change_note") or "",
+        )
         return None
+
+    def _schedule_change_request_activity(self, field_name: str, note: str) -> None:
+        self.check_singleton()
+        field_label = dict(
+            self._fields["pending_change_field"]._description_selection(self.env)
+        )[field_name]
+        self.activity_schedule(
+            "approval.mail_activity_data_change_request",
+            user_id=self.request_owner_id.id,
+            summary=self.env._("Change requested on %s", field_label),
+            note=nl2br(note) if note else False,
+        )
 
     def action_resubmit(self) -> None:
         self.check_singleton()
@@ -616,7 +640,18 @@ class ApprovalRequestAction(models.Model):
                 )
 
     def action_refuse_bulk(self) -> dict[str, Any]:
-        return self._action_bulk_decision("action_refuse", "refusal", "refused")
+        self._check_bulk_decision_allowed()
+        return {
+            "name": self.env._("Refuse Requests"),
+            "type": "ir.actions.act_window",
+            "res_model": "approval.decision.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "context": {
+                "default_request_ids": [Command.set(self.ids)],
+                "default_decision_type": "refuse",
+            },
+        }
 
     def action_refuse(
         self, approver: models.BaseModel | None = None

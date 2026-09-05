@@ -1,5 +1,3 @@
-import inspect
-
 from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import Form, common, tagged
@@ -606,33 +604,6 @@ class TestRequestAuditRegressions(ApprovalCommon):
             "already in 'pending' state.",
         ):
             request.action_confirm()
-
-    def test_h8_duplicate_check_uses_set_based_dedup(self):
-        category = self._make_category(approvers=[self.approver_1])
-        request = self._prepare_request(category, confirm=False)
-        self.assertEqual(request.state, "new")
-        request._check_approver_ids()
-
-        source = inspect.getsource(request.__class__._check_approver_ids)
-        self.assertIn(
-            "len(set(",
-            source,
-            "_check_approver_ids no longer uses len(set(...)) for "
-            "dedup — it may have regressed to the mapped-length "
-            "comparison that false-positives on unset user_ids.",
-        )
-        executable = "\n".join(
-            line
-            for line in source.splitlines()
-            if not line.lstrip().startswith("#")
-            and not line.lstrip().startswith('"')
-            and not line.lstrip().startswith("'")
-        )
-        self.assertNotIn(
-            "len(request.approver_ids) != len(request.approver_ids.user_id)",
-            executable,
-            "The old mapped-length comparison is back.",
-        )
 
     def test_create_activity_is_idempotent(self):
         category = self._make_category(approvers=[self.approver_1])

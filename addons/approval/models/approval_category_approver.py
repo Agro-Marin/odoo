@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class ApprovalCategoryApprover(models.Model):
@@ -43,6 +44,23 @@ class ApprovalCategoryApprover(models.Model):
     @api.constrains("category_id", "user_id", "required")
     def _check_category_coherence(self):
         self.category_id._constrains_approval_minimum()
+
+    @api.constrains("category_id", "user_id")
+    def _check_user_in_category_company(self):
+        for row in self:
+            company = row.category_id.company_id
+            if company and company not in row.user_id.company_ids:
+                raise ValidationError(
+                    self.env._(
+                        "%(user)s does not belong to company %(company)s, so "
+                        "they cannot approve requests of category "
+                        "'%(category)s'. Add the company to the user or "
+                        "choose another approver.",
+                        user=row.user_id.name,
+                        company=company.name,
+                        category=row.category_id.name,
+                    ),
+                )
 
     @api.depends("category_id", "category_id.approver_ids.user_id")
     def _compute_existing_user_ids(self):

@@ -34,6 +34,7 @@ class ApprovalRequest(models.Model):
     company_id = fields.Many2one(
         comodel_name="res.company",
         default=lambda self: self.env.company,
+        required=True,
         index=True,
     )
     category_id = fields.Many2one(
@@ -242,9 +243,6 @@ class ApprovalRequest(models.Model):
         "expressions, which is a second copy of _TERMINAL_STATES that no "
         "amount of Python discipline keeps in step.",
     )
-    has_access_to_request = fields.Boolean(
-        compute="_compute_request_access_rights",
-    )
     can_change_request_owner = fields.Boolean(
         compute="_compute_request_access_rights",
     )
@@ -257,7 +255,6 @@ class ApprovalRequest(models.Model):
     has_amount = fields.Selection(related="category_id.has_amount")
     has_reference = fields.Selection(related="category_id.has_reference")
     has_partner = fields.Selection(related="category_id.has_partner")
-    has_payment_method = fields.Selection(related="category_id.has_payment_method")
     has_location = fields.Selection(related="category_id.has_location")
     has_document = fields.Selection(related="category_id.has_document")
     document_requirement_ids = fields.One2many(
@@ -437,6 +434,14 @@ class ApprovalRequest(models.Model):
         return frozenset({"priority", "date", "date_start", "date_end"})
 
     @api.model
+    def _get_domain_overdue(self) -> list:
+        return [
+            ("state", "=", "pending"),
+            ("approval_deadline", "!=", False),
+            ("approval_deadline", "<", fields.Datetime.now()),
+        ]
+
+    @api.model
     def _get_routing_fields_frozen(self) -> frozenset[str]:
         declared = (
             frozenset({"category_id", "request_owner_id"})
@@ -499,8 +504,9 @@ class ApprovalRequest(models.Model):
                 self.browse(request_ids).message_unsubscribe(partner_ids=[partner_id])
 
         if "approver_ids" in vals:
-            self._check_access_approver_ids(vals["approver_ids"])
             self._check_approver_ids_business_rules(vals["approver_ids"])
+
+        self._check_routing_fields_after_submit(vals)
 
         res = super().write(vals)
 

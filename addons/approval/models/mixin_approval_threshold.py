@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class MixinApprovalThreshold(models.AbstractModel):
@@ -7,7 +7,10 @@ class MixinApprovalThreshold(models.AbstractModel):
 
     company_id = fields.Many2one(
         comodel_name="res.company",
-        default=lambda self: self.env.company,
+        compute="_compute_company_id",
+        store=True,
+        readonly=False,
+        precompute=True,
         index=True,
         help="Company this record is scoped to. Empty means it applies to "
         "every company, which is how a shared category carries global "
@@ -15,13 +18,27 @@ class MixinApprovalThreshold(models.AbstractModel):
     )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
-        default=lambda self: self.env.company.currency_id,
+        compute="_compute_currency_id",
+        store=True,
+        readonly=False,
+        precompute=True,
         required=True,
         help="Currency this record's amount thresholds are expressed in. "
         "A request's amount is converted into it before any comparison, "
         "so a global tier or rule on a shared category evaluates "
         "correctly across companies with different currencies.",
     )
+
+    def _compute_company_id(self) -> None:
+        for record in self:
+            record.company_id = self.env.company
+
+    @api.depends("company_id")
+    def _compute_currency_id(self) -> None:
+        for record in self:
+            record.currency_id = (
+                record.company_id.currency_id or self.env.company.currency_id
+            )
 
     def _convert_request_amount(self, request) -> float:
         self.check_singleton()

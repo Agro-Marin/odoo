@@ -14,20 +14,20 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.1.0.25 (matches `__manifest__.py`) |
+| Version | 19.0.1.0.26 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `automation`, `mixin_report_sql`, `mail` |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
 | Application | Yes |
 | License | LGPL-3 |
 | Python models | 11 own + 5 extensions, across 22 files in `models/`, + 2 wizards + 3 report models |
-| Views | 16 XML files (10 `views/` + 4 `report/` + 2 `wizard/`) |
+| Views | 15 XML files (9 `views/` + 4 `report/` + 2 `wizard/`) |
 | Wizards | 2 transient models |
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
 | Cron jobs | 3 (escalation, auto-expire, consent) |
 | Test files | 30 (+ `common.py` shared fixtures) |
 | JS files | 16 (7 src + 9 tests) |
-| Migrations | 18 script directories between 1.0.1 and 1.0.24, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20) **were** released — the manifest bumped through them; they simply needed no script |
+| Migrations | 19 script directories between 1.0.1 and 1.0.26, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20, .25) **were** released — the manifest bumped through them; they simply needed no script |
 
 ## File Inventory
 
@@ -123,7 +123,7 @@ into `test_approvals.py`).
 
 | File | Content |
 |------|---------|
-| `ir_config_parameter_data.xml` | Sequence defaults for approver ordering: `approval.sequence.` `manager` 9, `tier` 10 (the approver-replacing rules — the key keeps its old name), `group` 500, `manual` 1000. There is **no** `approval.sequence.category` — category approvers carry the sequence entered on the category form |
+| `ir_config_parameter_data.xml` | Sequence defaults for approver ordering: `approval.sequence.` `manager` 9, `tier` 10 (the approver-replacing rules — the key keeps its old name), `group` 500. A manually added approver row keeps the sequence it was given; there is no `approval.sequence.manual` since 19.0.1.0.26. There is **no** `approval.sequence.category` — category approvers carry the sequence entered on the category form |
 | `approval_category_data.xml` | Default approval categories (General, Business Trip, etc.) |
 | `mail_activity_type_data.xml` | 2 activity types: approval + change request |
 | `mail_message_subtype_data.xml` | Approval state change subtype |
@@ -189,9 +189,9 @@ approval/
 |   +-- approver_performance.py       # SQL view: approver stats
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 18 script directories (1.0.1 .. 1.0.24)
++-- migrations/                       # 19 script directories (1.0.1 .. 1.0.26)
 +-- tests/                            # 28 test modules + common.py
-+-- views/                            # 11 XML view files
++-- views/                            # 9 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
 +-- security/                         # Groups, rules, ACL
@@ -215,7 +215,7 @@ approval/
 | Transient models | 2 |
 | Test-only models | 1 |
 | Cron jobs | 3 |
-| Migration script directories | 18 |
+| Migration script directories | 19 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
 -not -path './migrations/*' -not -path '*__pycache__*' -not -path './machine_doc_v1/*'

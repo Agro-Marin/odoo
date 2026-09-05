@@ -103,7 +103,22 @@ class TestBulkOperations(common.TransactionCase):
             "All requests should be pending before bulk refuse",
         )
 
-        result = requests.with_user(self.approver1).action_refuse_bulk()
+        action = requests.with_user(self.approver1).action_refuse_bulk()
+        self.assertEqual(action["res_model"], "approval.decision.wizard")
+        self.assertEqual(action["context"]["default_decision_type"], "refuse")
+
+        wizard = (
+            self.env["approval.decision.wizard"]
+            .with_user(self.approver1)
+            .with_context(action["context"])
+            .create({})
+        )
+        with self.assertRaises(UserError):
+            wizard.action_confirm_refuse()
+
+        reason = self.env.ref("approval.refusal_reason_budget_exceeded")
+        wizard.write({"refusal_reason_id": reason.id, "note": "over budget"})
+        result = wizard.action_confirm_refuse()
 
         self.assertEqual(result["type"], "ir.actions.client")
         self.assertEqual(result["tag"], "display_notification")
@@ -114,6 +129,10 @@ class TestBulkOperations(common.TransactionCase):
             all(r.state == "refused" for r in requests),
             "All requests should be refused after bulk refuse",
         )
+        self.assertEqual(requests.mapped("refusal_reason_id"), reason)
+        self.assertEqual(set(requests.mapped("refusal_note")), {"over budget"})
+        decided = requests.approver_ids.filtered(lambda a: a.decision_date)
+        self.assertEqual(decided.mapped("refusal_reason_id"), reason)
 
     def test_bulk_approve_permission_denied_raises_error(self):
         requests = self._create_test_requests(2)

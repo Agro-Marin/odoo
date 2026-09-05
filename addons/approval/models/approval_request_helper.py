@@ -1,5 +1,4 @@
 import logging
-import time
 from typing import Any
 
 from odoo import api, models
@@ -22,6 +21,8 @@ class ApprovalRequestHelper(models.Model):
             "approve_sequentially": cat.approve_sequentially,
             "group_approval": cat.group_approval,
             "approval_deadline_hours": cat.approval_deadline_hours,
+            "sla_target_hours": cat.sla_target_hours,
+            "sla_warning_pct": cat.sla_warning_pct,
             "approvers": [
                 {
                     "user_id": a.user_id.id,
@@ -250,9 +251,6 @@ class ApprovalRequestHelper(models.Model):
     def _get_sequence_manager(self) -> int:
         return self._get_sequence_param("manager", 9)
 
-    def _get_sequence_manual(self) -> int:
-        return self._get_sequence_param("manual", 1000)
-
     def _get_sequence_replacement(self) -> int:
         return self._get_sequence_param("tier", 10)
 
@@ -443,7 +441,6 @@ class ApprovalRequestHelper(models.Model):
         self = self.filtered(lambda r: r.state == "new")
         if not self:
             return
-        batch_t0 = time.perf_counter()
         minimum_updates: dict[int, int] = {}
         rows_to_delete: list[int] = []
         rows_to_create: list[dict[str, Any]] = []
@@ -452,7 +449,6 @@ class ApprovalRequestHelper(models.Model):
         self.category_id.fetch(["rule_ids", "approver_ids"])
 
         group_sequence = self._get_sequence_group()
-        manual_sequence = self._get_sequence_manual()
 
         for request in self:
             (
@@ -462,10 +458,7 @@ class ApprovalRequestHelper(models.Model):
                 replacement,
                 matched_rules,
                 superseded_delegations,
-            ) = request._compute_desired_approvers(
-                group_sequence,
-                manual_sequence,
-            )
+            ) = request._compute_desired_approvers(group_sequence)
 
             if superseded_delegations:
                 request._retire_superseded_delegations(superseded_delegations)
@@ -526,14 +519,6 @@ class ApprovalRequestHelper(models.Model):
             for minimum, ids in by_minimum.items():
                 self.browse(ids).sudo().write({"approval_minimum": minimum})
 
-        batch_ms = (time.perf_counter() - batch_t0) * 1000
-        if batch_ms > 100 * len(self):
-            _logger.warning(
-                "Slow approver sync: %d request(s) took %.1fms total",
-                len(self),
-                batch_ms,
-            )
-
     def _extend_approvers_live(self) -> models.BaseModel:
         live = self.filtered(
             lambda r: r.state == "pending" and not r.pending_change_field,
@@ -543,24 +528,16 @@ class ApprovalRequestHelper(models.Model):
 
         live.category_id.fetch(["rule_ids", "approver_ids"])
         group_sequence = self._get_sequence_group()
-        manual_sequence = self._get_sequence_manual()
 
         added = self.env["approval.approver"]
         for request in live:
             request._lock_and_reload()
             if request.state != "pending" or request.pending_change_field:
                 continue
-            added |= request._extend_approvers_live_one(
-                group_sequence,
-                manual_sequence,
-            )
+            added |= request._extend_approvers_live_one(group_sequence)
         return added
 
-    def _extend_approvers_live_one(
-        self,
-        group_sequence: int,
-        manual_sequence: int,
-    ) -> models.BaseModel:
+    def _extend_approvers_live_one(self, group_sequence: int) -> models.BaseModel:
         self.check_singleton()
         (
             approver_staging,
@@ -569,7 +546,7 @@ class ApprovalRequestHelper(models.Model):
             replacement,
             matched_rules,
             superseded_delegations,
-        ) = self._compute_desired_approvers(group_sequence, manual_sequence)
+        ) = self._compute_desired_approvers(group_sequence)
 
         missing = {
             user_id: vals
@@ -791,7 +768,6 @@ class ApprovalRequestHelper(models.Model):
     def _compute_desired_approvers(
         self,
         group_sequence: int,
-        manual_sequence: int,
     ) -> tuple[dict[int, dict], dict[int, Any], list[Any], Any, Any, Any]:
         self.check_singleton()
         users_to_approver: dict[int, Any] = {}
@@ -867,8 +843,8 @@ class ApprovalRequestHelper(models.Model):
             if not is_injected_orphan:
                 approver_staging[user_id] = {
                     "state": existing_approver.state,
-                    "required": False,
-                    "sequence": manual_sequence,
+                    "required": existing_approver.required,
+                    "sequence": existing_approver.sequence,
                     "source_rule_id": None,
                     "source_synced": False,
                 }

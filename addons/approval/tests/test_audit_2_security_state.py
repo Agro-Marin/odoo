@@ -187,12 +187,16 @@ class TestAudit2MinorFindings(ApprovalCommon):
         request = self._prepare_request(category)
         request.with_user(self.approver_1).action_approve()
 
-        domain = self.env["approval.request"]._get_domain_pending_review(self.approver_1)
+        domain = self.env["approval.request"]._get_domain_pending_review(
+            self.approver_1
+        )
         awaiting_1 = self.env["approval.request"].search(domain)
         self.assertNotIn(
             request, awaiting_1, "already-approved row must not await approver_1"
         )
-        domain2 = self.env["approval.request"]._get_domain_pending_review(self.approver_2)
+        domain2 = self.env["approval.request"]._get_domain_pending_review(
+            self.approver_2
+        )
         self.assertIn(request, self.env["approval.request"].search(domain2))
 
     def test_copy_of_confirmed_request_drops_date_confirmed(self):

@@ -18,7 +18,6 @@
         <field name="has_amount">no</field>
         <field name="has_reference">no</field>
         <field name="has_partner">no</field>
-        <field name="has_payment_method">no</field>
         <field name="has_location">required</field>
         <field name="has_document">optional</field>
         <field name="approval_minimum">1</field>
@@ -45,7 +44,6 @@
         <field name="has_amount">no</field>
         <field name="has_reference">no</field>
         <field name="has_partner">no</field>
-        <field name="has_payment_method">no</field>
         <field name="has_location">no</field>
         <field name="has_document">optional</field>
         <field name="approval_minimum">1</field>
@@ -63,7 +61,6 @@
         <field name="has_amount">optional</field>
         <field name="has_reference">optional</field>
         <field name="has_partner">optional</field>
-        <field name="has_payment_method">optional</field>
         <field name="has_location">optional</field>
         <field name="has_document">required</field>
         <field name="approval_minimum">1</field>
@@ -81,7 +78,6 @@
         <field name="has_amount">optional</field>
         <field name="has_reference">required</field>
         <field name="has_partner">required</field>
-        <field name="has_payment_method">no</field>
         <field name="has_location">no</field>
         <field name="has_document">optional</field>
         <field name="approval_minimum">1</field>
@@ -121,7 +117,6 @@
         <field name="has_amount">no</field>
         <field name="has_reference">no</field>
         <field name="has_partner">no</field>
-        <field name="has_payment_method">no</field>
         <field name="has_location">no</field>
         <field name="has_document">optional</field>
         <field name="approval_minimum">1</field>
@@ -139,7 +134,6 @@
         <field name="has_amount">no</field>
         <field name="has_reference">no</field>
         <field name="has_partner">required</field>
-        <field name="has_payment_method">no</field>
         <field name="has_location">no</field>
         <field name="has_document">optional</field>
         <field name="approval_minimum">1</field>
@@ -157,7 +151,6 @@
         <field name="has_amount">optional</field>
         <field name="has_reference">no</field>
         <field name="has_partner">no</field>
-        <field name="has_payment_method">no</field>
         <field name="has_location">no</field>
         <field name="has_document">optional</field>
         <field name="approval_minimum">1</field>

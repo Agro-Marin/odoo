@@ -1,8 +1,10 @@
 from freezegun import freeze_time
+from psycopg.errors import IntegrityError
 
 from odoo import Command
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import common, tagged
+from odoo.tools import mute_logger
 
 from .common import ApprovalCommon
 
@@ -311,7 +313,8 @@ class TestMultiCompanyAuditRegressions(ApprovalCommon):
         other_company = self.env["res.company"].create(
             {"name": f"Other Co {self.id()}"},
         )
-        category = self._make_category(approvers=[self.approver_1])
+        self.approver_1.write({"company_ids": [(4, other_company.id)]})
+        category = self._make_category(approvers=[self.approver_1], company_id=False)
         tier = self.env["approval.rule"].create(
             {
                 "action_type": "set_approvers",
@@ -344,8 +347,16 @@ class TestMultiCompanyAuditRegressions(ApprovalCommon):
         other_company = self.env["res.company"].create(
             {"name": f"Other Co {self.id()}"},
         )
+        other_approver = self.env["res.users"].create(
+            {
+                "name": "Other Co Approver",
+                "login": f"other_co_approver_{self.id()}",
+                "company_id": other_company.id,
+                "company_ids": [(6, 0, [other_company.id])],
+            }
+        )
         category = self._make_category(
-            approvers=[self.approver_1],
+            approvers=[other_approver],
             company_id=other_company.id,
         )
         found = (
@@ -404,3 +415,53 @@ class TestMultiCompanyAuditRegressions(ApprovalCommon):
             "A request scoped to another company must not be visible "
             "to a user who has no access to that company.",
         )
+
+
+class TestCompanyIsNeverEmpty(ApprovalCommon):
+    def test_request_without_company_is_refused(self):
+        category = self._make_category(name="No Co", approvers=[self.approver_1])
+        with (
+            self.assertRaises((ValidationError, IntegrityError)),
+            mute_logger("odoo.db.cursor"),
+            self.env.cr.savepoint(),
+        ):
+            self.env["approval.request"].create(
+                {
+                    "category_id": category.id,
+                    "request_owner_id": self.owner_user.id,
+                    "company_id": False,
+                }
+            )
+
+    def test_category_approver_must_belong_to_the_category_company(self):
+        other = self.env["res.company"].create({"name": "Approver Co"})
+        category = self.env["approval.category"].create(
+            {"name": "Elsewhere", "sequence_code": "ELSEW", "company_id": other.id}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["approval.category.approver"].create(
+                {"category_id": category.id, "user_id": self.approver_1.id}
+            )
+        self.approver_1.write({"company_ids": [(4, other.id)]})
+        row = self.env["approval.category.approver"].create(
+            {"category_id": category.id, "user_id": self.approver_1.id}
+        )
+        self.assertTrue(row)
+
+    def test_rule_approver_must_belong_to_the_rule_company(self):
+        other = self.env["res.company"].create({"name": "Rule Approver Co"})
+        category = self.env["approval.category"].create(
+            {"name": "Elsewhere 2", "sequence_code": "ELSEW2", "company_id": other.id}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["approval.rule"].create(
+                {
+                    "name": "outsider",
+                    "category_id": category.id,
+                    "condition_field": "amount",
+                    "operator": "gt",
+                    "threshold": 1,
+                    "action_type": "add_approver",
+                    "approver_ids": [(4, self.approver_2.id)],
+                }
+            )

@@ -140,7 +140,9 @@ class TestApproverComputation(common.TransactionCase):
             lambda a: a.user_id == self.manual_user
         )
         self.assertTrue(manual_approver, "Manual approver should be preserved")
-        self.assertEqual(manual_approver.sequence, 1000)
+        self.assertEqual(
+            manual_approver.sequence, 10, "a manual row keeps its own sequence"
+        )
         self.assertFalse(
             manual_approver.required,
             "Manual approver should not be required by default",
@@ -182,10 +184,12 @@ class TestApproverComputation(common.TransactionCase):
 
         request._sync_approvers()
 
-        approvers = request.approver_ids.sorted("sequence")
+        approvers = request.approver_ids.sorted(lambda a: (a.sequence, a.id))
         self.assertEqual(approvers[0].user_id, self.category_user)
         self.assertEqual(approvers[-1].user_id, self.manual_user)
-        self.assertEqual(approvers[-1].sequence, 1000)
+        self.assertEqual(
+            approvers[-1].sequence, 10, "a manual row keeps its own sequence"
+        )
 
     def test_compute_approver_ids_exclusive_mode_only_group_members(self):
         category = self.env["approval.category"].create(
@@ -681,7 +685,7 @@ class TestApproverSyncTriggerFields(ApprovalCommon):
         request.sudo().write({"applied_rule_ids": [(5, 0, 0)]})
         self.env.flush_all()
 
-        result = request._compute_desired_approvers(500, 1000)
+        result = request._compute_desired_approvers(500)
 
         self.assertFalse(
             request.applied_rule_ids,
@@ -1136,3 +1140,22 @@ class TestApproverSyncOnConfirm(ApprovalCommon):
             "An unchanged category must not churn the approver rows at "
             "confirmation (their ids carry the To-Dos and the audit).",
         )
+
+
+class TestManualRowsKeepWhatTheyWereGiven(ApprovalCommon):
+    def test_resync_does_not_downgrade_a_manual_approver(self):
+        category = self._make_category(name="Manual", approvers=[self.approver_1])
+        request = self._prepare_request(category, confirm=False)
+        manual = (
+            self.env["approval.approver"]
+            .with_user(self.manager_user)
+            .create({"request_id": request.id, "user_id": self.approver_2.id})
+        )
+        manual.sudo().write({"required": True, "sequence": 5})
+
+        request.with_user(self.owner_user).write({"priority": "2"})
+
+        manual = request.approver_ids.filtered(lambda a: a.user_id == self.approver_2)
+        self.assertTrue(manual.required)
+        self.assertEqual(manual.sequence, 5)
+        self.assertFalse(manual.source_synced)
