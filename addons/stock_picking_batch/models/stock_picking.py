@@ -237,6 +237,12 @@ class StockPicking(models.Model):
             self.batch_id.picking_ids.update_batch_user(self.batch_id.user_id.id)
         return res
 
+    def action_confirm(self):
+        res = super().action_confirm()
+        for picking in self:
+            picking._find_auto_batch()
+        return res
+
     def button_validate(self):
         res = super().button_validate()
         to_assign_ids = set()

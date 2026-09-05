@@ -351,3 +351,35 @@ class TestBatchAuditFixes(TransactionCase):
         other_type = self.picking_type.copy({"sequence_code": "AUDIT5"})
         with self.assertRaises(UserError):
             batch.picking_type_id = other_type
+
+    def test_reconfirming_reserved_transfers_batches_them_once_auto_batch_is_on(self):
+        picking_type = self.picking_type.copy({"sequence_code": "AUDIT6"})
+        partner = self.env["res.partner"].create({"name": "Late partner"})
+        pickings = self.env["stock.picking"].create(
+            [
+                {
+                    "picking_type_id": picking_type.id,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                    "partner_id": partner.id,
+                    "move_ids": [
+                        Command.create(
+                            {
+                                "product_id": self.product.id,
+                                "product_uom_qty": 1,
+                                "location_id": self.stock_location.id,
+                                "location_dest_id": self.customer_location.id,
+                            }
+                        )
+                    ],
+                }
+                for _ in range(2)
+            ]
+        )
+        pickings.action_confirm()
+        pickings.action_assign()
+        self.assertEqual(pickings.mapped("state"), ["assigned", "assigned"])
+        self.assertFalse(pickings.batch_id)
+        picking_type.write({"auto_batch": True, "batch_group_by_partner": True})
+        pickings.action_confirm()
+        self.assertEqual(len(pickings.batch_id), 1)
