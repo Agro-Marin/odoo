@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo.exceptions import AccessError
 from odoo.fields import Command, Domain
 from odoo.tests import Form, tagged
@@ -1207,3 +1209,44 @@ class TestProjectSharing(TestProjectSharingCommon):
             next_task,
             "The next occurrence of the recurrent task should be created.",
         )
+
+    def test_task_stat_buttons_use_one_icon_in_both_forms(self) -> None:
+        # get_view drops group-restricted buttons, and the dependency stat
+        # button is one of them.
+        self.env.user.group_ids |= self.env.ref(
+            "project.group_project_task_dependencies"
+        )
+        Task = self.env["project.task"]
+        backend = etree.fromstring(
+            Task.get_view(self.env.ref("project.view_task_form2").id, "form")["arch"]
+        )
+        sharing = etree.fromstring(
+            Task.get_view(
+                self.env.ref("project.project_sharing_project_task_view_form").id,
+                "form",
+            )["arch"]
+        )
+
+        def icon(arch, button_name):
+            buttons = arch.xpath(f"//button[@name='{button_name}']")
+            self.assertTrue(buttons, f"stat button {button_name} is missing")
+            return buttons[0].get("icon")
+
+        for label, backend_name, sharing_name in (
+            (
+                "Parent Task",
+                "action_view_parent_task",
+                "action_project_sharing_view_parent_task",
+            ),
+            (
+                "Blocked Tasks",
+                "action_dependent_tasks",
+                "action_project_sharing_open_blocking",
+            ),
+        ):
+            self.assertEqual(
+                icon(backend, backend_name),
+                icon(sharing, sharing_name),
+                f"the '{label}' stat button must carry the same icon in the "
+                "backend form and in the project sharing form",
+            )
