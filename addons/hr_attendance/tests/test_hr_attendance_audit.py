@@ -417,9 +417,12 @@ class TestAbsenceDetection(TransactionCase):
         )
         cls.calendar = _eight_hour_calendar(cls.env, cls.company, "UTC")
         cls.ruleset = _ruleset(cls.env, cls.company)
-        make = lambda name, **extra: _employee(  # noqa: E731
-            cls.env, cls.company, cls.calendar, cls.ruleset, name=name, **extra
-        )
+
+        def make(name, **extra):
+            return _employee(
+                cls.env, cls.company, cls.calendar, cls.ruleset, name=name, **extra
+            )
+
         cls.punctual = make("Punctual")
         cls.absent = make("Absent")
         cls.gone = make("Gone", contract_date_end=date(2026, 8, 15))

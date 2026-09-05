@@ -320,7 +320,9 @@
                         <page string="Details" name="application_details">
                             <group>
                                 <group string="Applicant">
-                                    <field name="degree_id" placeholder="e.g. Masters" />
+                                    <field
+                                        name="degree_id"
+                                        placeholder="e.g. Masters" />
                                     <field name="availability" placeholder="Directly" />
                                 </group>
                                 <group string="Job">

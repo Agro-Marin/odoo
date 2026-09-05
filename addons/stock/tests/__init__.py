@@ -78,3 +78,4 @@ from . import test_stock_move_audit_2026_08_31
 from . import test_location_hardening
 from . import test_move_line_audit_2026_08_31
 from . import test_picking_audit_2026_08_31
+from . import test_completion_sequence

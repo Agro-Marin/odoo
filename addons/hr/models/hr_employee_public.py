@@ -1,6 +1,6 @@
 from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
-from odoo.orm.primitives import LOG_ACCESS_COLUMNS
+from odoo.models import LOG_ACCESS_COLUMNS
 
 
 class HrEmployeePublic(models.Model):

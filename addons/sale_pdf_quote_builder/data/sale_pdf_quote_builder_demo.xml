@@ -76,9 +76,7 @@
         <field name="attached_on_sale">inside</field>
     </record>
 
-    <record
-        id="document_product.product_product_25_document"
-        model="document.document">
+    <record id="document_product.product_product_25_document" model="document.document">
         <field name="attached_on_sale">inside</field>
     </record>
 
