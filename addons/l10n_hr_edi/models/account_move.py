@@ -16,6 +16,7 @@ from ..tools import (
     _mer_api_query_document_process_status_outbox,
     _mer_api_update_document_process_status,
 )
+from odoo.addons.account.tools.import_file_type import CUSTOMIZATION_ID, findtext_equals
 
 _logger = logging.getLogger(__name__)
 
@@ -233,18 +234,18 @@ class AccountMove(models.Model):
                 return self.env["account.edi.xml.ubl_hr"]
         return super()._get_ubl_cii_builder_from_xml_tree(tree)
 
-    def _get_import_file_type(self, file_data):
-        """Identify CIUS HR files."""
+    def _import_file_type_rules(self):
         # EXTENDS 'account'
-        if (
-            file_data["xml_tree"] is not None
-            and (ubl_profile := file_data["xml_tree"].findtext("{*}CustomizationID"))
-            and ubl_profile
-            == "urn:cen.eu:en16931:2017#compliant#urn:mfin.gov.hr:cius-2025:1.0#conformant#urn:mfin.gov.hr:ext-2025:1.0"
-        ):
-            return "account.edi.xml.ubl_hr"
-
-        return super()._get_import_file_type(file_data)
+        return [
+            (
+                "account.edi.xml.ubl_hr",
+                findtext_equals(
+                    CUSTOMIZATION_ID,
+                    "urn:cen.eu:en16931:2017#compliant#urn:mfin.gov.hr:cius-2025:1.0#conformant#urn:mfin.gov.hr:ext-2025:1.0",
+                ),
+            ),
+            *super()._import_file_type_rules(),
+        ]
 
     def _get_invoice_reference_odoo_invoice(self):
         """

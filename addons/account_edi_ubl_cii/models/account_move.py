@@ -7,6 +7,15 @@ from lxml import etree
 from odoo import _, api, fields, models, Command
 from odoo.libs.filesystem import guess_mimetype
 
+from odoo.addons.account.tools.import_file_type import (
+    CUSTOMIZATION_ID,
+    UBL_VERSION_ID,
+    findtext_contains,
+    findtext_equals,
+    tree_localname_is,
+    tree_tag_is,
+)
+
 
 class AccountMove(models.Model):
     _inherit = 'account.move'
@@ -101,32 +110,20 @@ class AccountMove(models.Model):
     # EDI
     # -------------------------------------------------------------------------
 
-    def _get_import_file_type(self, file_data):
-        """ Identify UBL files. """
+    def _import_file_type_rules(self):
         # EXTENDS 'account'
-        if (tree := file_data['xml_tree']) is not None:
-            if etree.QName(tree).localname == 'AttachedDocument':
-                return 'account.edi.xml.ubl.attached_document'
-            if tree.tag == '{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}CrossIndustryInvoice':
-                return 'account.edi.xml.cii'
-            if ubl_version := tree.findtext('{*}UBLVersionID'):
-                if ubl_version == '2.0':
-                    return 'account.edi.xml.ubl_20'
-                if ubl_version in ('2.1', '2.2', '2.3'):
-                    return 'account.edi.xml.ubl_21'
-            if customization_id := tree.findtext('{*}CustomizationID'):
-                if 'xrechnung' in customization_id:
-                    return 'account.edi.xml.ubl_de'
-                if customization_id == 'urn:cen.eu:en16931:2017#compliant#urn:fdc:nen.nl:nlcius:v1.0':
-                    return 'account.edi.xml.ubl_nl'
-                if customization_id == 'urn:cen.eu:en16931:2017#conformant#urn:fdc:peppol.eu:2017:poacc:billing:international:aunz:3.0':
-                    return 'account.edi.xml.ubl_a_nz'
-                if customization_id == 'urn:cen.eu:en16931:2017#conformant#urn:fdc:peppol.eu:2017:poacc:billing:international:sg:3.0':
-                    return 'account.edi.xml.ubl_sg'
-                if 'urn:cen.eu:en16931:2017' in customization_id:
-                    return 'account.edi.xml.ubl_bis3'
-
-        return super()._get_import_file_type(file_data)
+        return [
+            ('account.edi.xml.ubl.attached_document', tree_localname_is('AttachedDocument')),
+            ('account.edi.xml.cii', tree_tag_is('{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}CrossIndustryInvoice')),
+            ('account.edi.xml.ubl_20', findtext_equals(UBL_VERSION_ID, '2.0')),
+            ('account.edi.xml.ubl_21', findtext_equals(UBL_VERSION_ID, '2.1', '2.2', '2.3')),
+            ('account.edi.xml.ubl_de', findtext_contains(CUSTOMIZATION_ID, 'xrechnung')),
+            ('account.edi.xml.ubl_nl', findtext_equals(CUSTOMIZATION_ID, 'urn:cen.eu:en16931:2017#compliant#urn:fdc:nen.nl:nlcius:v1.0')),
+            ('account.edi.xml.ubl_a_nz', findtext_equals(CUSTOMIZATION_ID, 'urn:cen.eu:en16931:2017#conformant#urn:fdc:peppol.eu:2017:poacc:billing:international:aunz:3.0')),
+            ('account.edi.xml.ubl_sg', findtext_equals(CUSTOMIZATION_ID, 'urn:cen.eu:en16931:2017#conformant#urn:fdc:peppol.eu:2017:poacc:billing:international:sg:3.0')),
+            ('account.edi.xml.ubl_bis3', findtext_contains(CUSTOMIZATION_ID, 'urn:cen.eu:en16931:2017')),
+            *super()._import_file_type_rules(),
+        ]
 
     def _unwrap_attachment(self, file_data, recurse=True):
         """ Unwrap UBL AttachedDocument files, which are wrappers around an inner file. """

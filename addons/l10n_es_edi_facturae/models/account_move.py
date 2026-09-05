@@ -18,6 +18,7 @@ from odoo.libs.xml import (
 from odoo.tools import SQL, date_utils, float_compare, float_repr, float_round
 from odoo.tools.xml_utils import cleanup_xml_node, get_xml_value
 
+from odoo.addons.account.tools.import_file_type import tree_tag_is
 from odoo.addons.l10n_es_edi_facturae.xml_utils import NS_MAP
 
 PHONE_CLEAN_TABLE = str.maketrans(
@@ -925,20 +926,18 @@ class AccountMove(models.Model):
     # IMPORT
     # -------------------------------------------------------------------------
 
-    def _get_import_file_type(self, file_data):
-        """Identify Factura-E files."""
-
+    def _import_file_type_rules(self):
         # EXTENDS 'account'
-        def is_facturae(tree):
-            return tree.tag in [
-                "{http://www.facturae.es/Facturae/2014/v3.2.1/Facturae}Facturae",
-                "{http://www.facturae.gob.es/formato/Versiones/Facturaev3_2_2.xml}Facturae",
-            ]
-
-        if file_data["xml_tree"] is not None and is_facturae(file_data["xml_tree"]):
-            return "l10n_es.facturae"
-
-        return super()._get_import_file_type(file_data)
+        return [
+            (
+                "l10n_es.facturae",
+                tree_tag_is(
+                    "{http://www.facturae.es/Facturae/2014/v3.2.1/Facturae}Facturae",
+                    "{http://www.facturae.gob.es/formato/Versiones/Facturaev3_2_2.xml}Facturae",
+                ),
+            ),
+            *super()._import_file_type_rules(),
+        ]
 
     def _unwrap_attachment(self, file_data, recurse=True):
         """Divide a Facturae file into constituent invoices and create a new attachment for each invoice after the first."""

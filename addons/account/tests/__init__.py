@@ -54,6 +54,7 @@ from . import test_portal_page_view_params
 from . import test_tax_report
 from . import test_transfer_wizard
 from . import test_account_incoming_supplier_invoice
+from . import test_import_file_type_rules
 from . import test_payment_term
 from . import test_account_payment_items
 from . import test_account_payment_register

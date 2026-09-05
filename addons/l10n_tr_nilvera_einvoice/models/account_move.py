@@ -9,6 +9,8 @@ from odoo.tools import SQL
 from odoo.addons.l10n_tr_nilvera.const import NILVERA_ERROR_CODE_MESSAGES
 from odoo.addons.l10n_tr_nilvera.lib.nilvera_client import _get_nilvera_client
 
+from odoo.addons.account.tools.import_file_type import CUSTOMIZATION_ID, findtext_contains
+
 MOVE_TYPE_CATEGORY_MAP = {
     "out_invoice": {
         "earchive": "invoices",
@@ -52,17 +54,12 @@ class AccountMove(models.Model):
         default='not_sent',
     )
 
-    def _get_import_file_type(self, file_data):
-        """ Identify Nilvera UBL files. """
+    def _import_file_type_rules(self):
         # EXTENDS 'account'
-        if (
-            file_data['xml_tree'] is not None
-            and (customization_id := file_data['xml_tree'].findtext('{*}CustomizationID'))
-            and 'TR1.2' in customization_id
-        ):
-            return 'account.edi.xml.ubl.tr'
-
-        return super()._get_import_file_type(file_data)
+        return [
+            ('account.edi.xml.ubl.tr', findtext_contains(CUSTOMIZATION_ID, 'TR1.2')),
+            *super()._import_file_type_rules(),
+        ]
 
     def _l10n_tr_types_to_update_status(self):
         return list(MOVE_TYPE_CATEGORY_MAP)

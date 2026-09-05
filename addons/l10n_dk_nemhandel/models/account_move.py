@@ -1,6 +1,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from odoo.addons.account.tools.import_file_type import CUSTOMIZATION_ID, findtext_equals
+
 
 class AccountMove(models.Model):
     _inherit = 'account.move'
@@ -49,17 +51,12 @@ class AccountMove(models.Model):
             return self.env['account.edi.xml.oioubl_21']
         return super()._get_ubl_cii_builder_from_xml_tree(tree)
 
-    def _get_import_file_type(self, file_data):
-        """ Identify OIOUBL files. """
+    def _import_file_type_rules(self):
         # EXTENDS 'account'
-        if (
-            file_data['xml_tree'] is not None
-            and (customization_id := file_data['xml_tree'].findtext('{*}CustomizationID'))
-            and customization_id == 'OIOUBL-2.1'
-        ):
-            return 'account.edi.xml.oioubl_21'
-
-        return super()._get_import_file_type(file_data)
+        return [
+            ('account.edi.xml.oioubl_21', findtext_equals(CUSTOMIZATION_ID, 'OIOUBL-2.1')),
+            *super()._import_file_type_rules(),
+        ]
 
     def action_cancel_nemhandel_documents(self):
         # if the nemhandel_move_state is processing/done

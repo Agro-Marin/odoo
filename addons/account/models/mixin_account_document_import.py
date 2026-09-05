@@ -13,6 +13,8 @@ from odoo.libs.documents import Document, canonical_mimetypes
 from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import groupby
 
+from odoo.addons.account.tools.import_file_type import is_pdf
+
 _logger = logging.getLogger(__name__)
 
 
@@ -358,9 +360,19 @@ class MixinAccountDocumentImport(models.AbstractModel):
         )
 
     @api.model
+    def _import_file_type_rules(self):
+        """``(file_type, predicate)`` pairs, most specific first.
+
+        An override prepends its own and returns ``super()``'s after them, so
+        the module loaded last is asked first and ``pdf`` is the fallback.
+        """
+        return [("pdf", is_pdf)]
+
+    @api.model
     def _get_import_file_type(self, file_data):
-        if "pdf" in file_data["mimetype"] or file_data["name"].endswith(".pdf"):
-            return "pdf"
+        for file_type, matches in self._import_file_type_rules():
+            if matches(file_data):
+                return file_type
         return None
 
     @api.model

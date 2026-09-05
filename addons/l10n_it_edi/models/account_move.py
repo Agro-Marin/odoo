@@ -372,15 +372,16 @@ class AccountMove(models.Model):
             FATTURAPA_FILENAME_RE, file_data["name"]
         )
 
-    def _get_import_file_type(self, file_data):
-        """Identify FatturaPA XML and P7M files."""
+    def _import_file_type_rules(self):
         # EXTENDS 'account'
-        if (
-            self._is_l10n_it_edi_import_file(file_data)
-            and file_data["xml_tree"] is not None
-        ):
-            return "l10n_it.fatturapa"
-        return super()._get_import_file_type(file_data)
+        return [
+            (
+                "l10n_it.fatturapa",
+                lambda file_data: self._is_l10n_it_edi_import_file(file_data)
+                and file_data["xml_tree"] is not None,
+            ),
+            *super()._import_file_type_rules(),
+        ]
 
     def _unwrap_attachment(self, file_data, recurse=True):
         """Divide a FatturaPA file into constituent invoices and create a new attachment for each invoice after the first."""

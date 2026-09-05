@@ -1,5 +1,7 @@
 from odoo import Command, _, api, models
 
+from odoo.addons.account.tools.import_file_type import CUSTOMIZATION_ID, findtext_equals
+
 
 class SaleOrder(models.Model):
     _inherit = "sale.order"
@@ -7,15 +9,15 @@ class SaleOrder(models.Model):
     def _get_edi_builders(self):
         return super()._get_edi_builders() + [self.env["sale.edi.xml.ubl_bis3"]]
 
-    def _get_import_file_type(self, file_data):
-        """Identify UBL files."""
+    def _import_file_type_rules(self):
         # EXTENDS 'account'
-        if (tree := file_data["xml_tree"]) is not None:
-            customization_id = tree.find("{*}CustomizationID")
-            if customization_id is not None:
-                if customization_id.text == "urn:fdc:peppol.eu:poacc:trns:order:3":
-                    return "sale.edi.xml.ubl_bis3"
-        return super()._get_import_file_type(file_data)
+        return [
+            (
+                "sale.edi.xml.ubl_bis3",
+                findtext_equals(CUSTOMIZATION_ID, "urn:fdc:peppol.eu:poacc:trns:order:3"),
+            ),
+            *super()._import_file_type_rules(),
+        ]
 
     def _get_edi_decoder(self, file_data, new=False):
         """Override of sale to add edi decoder for xml files.

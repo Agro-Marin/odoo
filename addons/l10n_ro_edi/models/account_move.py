@@ -12,6 +12,10 @@ from .utils import (
     _request_ciusro_send_invoice,
     _request_ciusro_synchronize_invoices,
 )
+from odoo.addons.account.tools.import_file_type import (
+    CUSTOMIZATION_ID,
+    findtext_contains,
+)
 
 HOLDING_DAYS = 3  # Arbitrary
 
@@ -69,19 +73,12 @@ class AccountMove(models.Model):
     # EDI
     ################################################################################
 
-    def _get_import_file_type(self, file_data):
-        """Identify OIOUBL files."""
+    def _import_file_type_rules(self):
         # EXTENDS 'account'
-        if (
-            file_data["xml_tree"] is not None
-            and (
-                customization_id := file_data["xml_tree"].findtext("{*}CustomizationID")
-            )
-            and "CIUS-RO" in customization_id
-        ):
-            return "account.edi.xml.ubl_ro"
-
-        return super()._get_import_file_type(file_data)
+        return [
+            ("account.edi.xml.ubl_ro", findtext_contains(CUSTOMIZATION_ID, "CIUS-RO")),
+            *super()._import_file_type_rules(),
+        ]
 
     ################################################################################
     # Send Logics
