@@ -1,4 +1,6 @@
 from odoo import _, _lt, api, fields, models
+from odoo.exceptions import ValidationError
+from odoo.fields import Domain
 
 
 class ProductCategory(models.Model):
@@ -8,6 +10,7 @@ class ProductCategory(models.Model):
     _parent_name = "parent_id"
     _rec_name = "complete_name"
     _order = "complete_name"
+    _check_company_domain = models.check_company_domain_parent_of
 
     name = fields.Char(
         string="Name",
@@ -48,8 +51,38 @@ class ProductCategory(models.Model):
         help="The number of products under this category and its children.",
     )
     product_properties_definition = fields.PropertiesDefinition("Product Properties")
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        string="Company",
+        tracking=True,
+        help="Keep empty to share this category with every company.",
+    )
 
     _hierarchy_cycle_message = _lt("You cannot create recursive categories.")
+
+    @api.constrains("company_id")
+    def _check_company_id(self):
+        for company, categories in self.grouped("company_id").items():
+            if not company:
+                # A shared category stays usable by every company's products.
+                continue
+            # A product may use a category of its own company or of an ancestor
+            # (see _check_company_domain above), so the products to reject are the
+            # ones whose company is not below this one -- shared products included.
+            domain = Domain("categ_id", "in", categories.ids) & ~Domain(
+                "company_id", "child_of", company.id
+            )
+            if not self.env["product.template"].sudo().search_count(domain, limit=1):
+                continue
+            raise ValidationError(
+                self.env._(
+                    "You cannot restrict %(categories)s to %(company)s: it holds"
+                    " products shared between companies or belonging to another"
+                    " company.",
+                    categories=", ".join(categories.mapped("display_name")),
+                    company=company.display_name,
+                )
+            )
 
     def copy_data(self, default=None):
         default = dict(default or {})

@@ -49,6 +49,7 @@ class ProductTemplate(models.Model):
         tracking=True,
         index=True,
         group_expand="_read_group_categ_id",
+        check_company=True,
     )
 
     name = fields.Char(
