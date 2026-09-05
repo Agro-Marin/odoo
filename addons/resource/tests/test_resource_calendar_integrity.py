@@ -55,6 +55,23 @@ class TestCalendarIntegrity(TransactionCase):
         )
         self.assertEqual(half.hours_per_week, 20)
 
+    def test_schedule_type_is_a_view_of_flexible_hours(self):
+        flexible = self.Calendar.create({"name": "F", "schedule_type": "flexible"})
+        self.assertTrue(flexible.flexible_hours)
+        fixed = self.Calendar.create({"name": "X"})
+        self.assertEqual(fixed.schedule_type, "fully_fixed")
+        fixed.flexible_hours = True
+        self.assertEqual(fixed.schedule_type, "flexible")
+        fixed.schedule_type = "fully_fixed"
+        self.assertFalse(fixed.flexible_hours)
+        self.assertEqual(
+            self.Calendar.search_count([("flexible_hours", "=", True)]),
+            1
+            + self.Calendar.search_count(
+                [("flexible_hours", "=", True), ("id", "not in", [flexible.id])]
+            ),
+        )
+
     def test_overlap_is_rejected_when_a_line_is_written_directly(self):
         calendar = self.Calendar.create({"name": "Fixed"})
         with self.assertRaises(ValidationError):

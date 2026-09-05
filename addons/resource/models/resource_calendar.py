@@ -111,8 +111,8 @@ class ResourceCalendar(models.Model):
             ("fully_fixed", "Fully Fixed"),
         ],
         string="Schedule Type",
-        required=True,
-        default="fully_fixed",
+        compute="_compute_schedule_type",
+        inverse="_inverse_schedule_type",
         help="Choose which level of definition you want to define on your Schedule\n"
         "- Flexible : Define an amount of hours to work on the week.\n"
         "- Fully Fixed : define the days, periods and the start & end time for each period of the day",
@@ -123,9 +123,6 @@ class ResourceCalendar(models.Model):
     )
     flexible_hours = fields.Boolean(
         string="Flexible Hours",
-        compute="_compute_flexible_hours",
-        inverse="_inverse_flexible_hours",
-        store=True,
         help="When enabled, it will allow employees to work flexibly, without relying on the company's working schedule (working hours).",
     )
     full_time_required_hours = fields.Float(
@@ -249,16 +246,16 @@ class ResourceCalendar(models.Model):
                 calendar.company_id.resource_calendar_id.hours_per_week
             )
 
-    @api.depends("schedule_type")
-    def _compute_flexible_hours(self):
-        for calendar in self:
-            calendar.flexible_hours = calendar.schedule_type == "flexible"
-
-    def _inverse_flexible_hours(self):
+    @api.depends("flexible_hours")
+    def _compute_schedule_type(self):
         for calendar in self:
             calendar.schedule_type = (
                 "flexible" if calendar.flexible_hours else "fully_fixed"
             )
+
+    def _inverse_schedule_type(self):
+        for calendar in self:
+            calendar.flexible_hours = calendar.schedule_type == "flexible"
 
     @api.depends("company_id")
     def _compute_attendance_ids(self):
