@@ -1,6 +1,6 @@
 {
     "name": "Products & Pricelists",
-    "version": "1.4",
+    "version": "1.5",
     "category": "Sales/Sales",
     "description": """
 This is the base module for managing products and pricelists in Odoo.

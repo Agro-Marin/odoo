@@ -1,5 +1,8 @@
+from lxml import etree
+
 from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
+from odoo.tools.safe_eval import safe_eval
 
 
 @tagged("post_install", "-at_install")
@@ -113,3 +116,53 @@ class TestName(TransactionCase):
             )
         )
         self.assertEqual(variant1, product_search)
+
+    def _search_as_the_search_bar_does(self, model, view_xmlid, typed):
+        """Search the way the search bar does: through the view's own filter_domain.
+
+        The domain is read from the combined arch instead of being hardcoded, so
+        the test exercises what a user typing into the search bar actually gets
+        rather than restating the change.
+        """
+        view = self.env.ref(view_xmlid)
+        arch = etree.fromstring(self.env[model].get_view(view.id, "search")["arch"])
+        nodes = arch.xpath("//field[@name='name'][@filter_domain]")
+        self.assertTrue(nodes, "%s has no filter_domain on `name`" % view_xmlid)
+        domain = safe_eval(
+            nodes[0].get("filter_domain"), {"self": typed, "raw_value": typed}
+        )
+        return self.env[model].search(domain)
+
+    def test_search_bar_finds_a_product_pasted_as_ref_and_name(self):
+        """`[PTN] Product Test Name` is what a label, an export or a PDF shows.
+
+        Pasting it whole into the product search bar has to find the product;
+        before this it matched nothing, because the view searched `default_code`,
+        `name` and `barcode` separately and the combined string is none of them.
+        """
+        typed = self.product.display_name
+        self.assertEqual(typed, "[PTN] Product Test Name")
+
+        self.assertEqual(
+            self._search_as_the_search_bar_does(
+                "product.product", "product.view_product_product_search", typed
+            ),
+            self.product,
+        )
+        self.assertEqual(
+            self._search_as_the_search_bar_does(
+                "product.template", "product.view_product_template_search", typed
+            ),
+            self.product.product_tmpl_id,
+        )
+
+    def test_search_bar_still_finds_a_product_by_its_parts(self):
+        """The full-string search must not cost us the partial ones."""
+        for typed in (self.product_code, self.product_name, "Test Name"):
+            with self.subTest(typed=typed):
+                self.assertIn(
+                    self.product,
+                    self._search_as_the_search_bar_does(
+                        "product.product", "product.view_product_product_search", typed
+                    ),
+                )

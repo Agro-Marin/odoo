@@ -29,27 +29,37 @@ class ProductPricelistExportController(Controller):
         pricelist_name = report_data["pricelist"]["name"]
         quantities = report_data["quantities"]
         products = report_data["products"]
+        date = report_data["date"]
         headers = [
             _("Product"),
+            _("Internal Reference"),
+            _("Barcode"),
             _("UOM"),
         ] + [_("Quantity (%s UoM)", qty) for qty in quantities]
         if export_format == "csv":
-            return self._generate_csv(pricelist_name, quantities, products, headers)
+            return self._generate_csv(
+                pricelist_name, quantities, products, headers, date
+            )
         else:
-            return self._generate_xlsx(pricelist_name, quantities, products, headers)
+            return self._generate_xlsx(
+                pricelist_name, quantities, products, headers, date
+            )
 
     def _generate_rows(self, products, quantities):
         rows = []
         for product in products:
             variants = product.get("variants", [product])
             for variant in variants:
-                row = [variant["name"], variant["uom"]] + [
-                    variant["price"].get(qty, 0.0) for qty in quantities
-                ]
+                row = [
+                    variant["name"],
+                    variant["default_code"] or "",
+                    variant["barcode"] or "",
+                    variant["uom"],
+                ] + [variant["price"].get(qty, 0.0) for qty in quantities]
                 rows.append(row)
         return rows
 
-    def _generate_csv(self, pricelist_name, quantities, products, headers):
+    def _generate_csv(self, pricelist_name, quantities, products, headers, date):
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         writer.writerow(headers)
@@ -62,13 +72,13 @@ class ProductPricelistExportController(Controller):
             (
                 "Content-Disposition",
                 content_disposition(
-                    f"Pricelist - {pricelist_name}.{extension_for(CSV_MIMETYPE)}"
+                    f"Pricelist - {pricelist_name} - {date}.{extension_for(CSV_MIMETYPE)}"
                 ),
             ),
         ]
         return request.prepare_response(content, headers)
 
-    def _generate_xlsx(self, pricelist_name, quantities, products, headers):
+    def _generate_xlsx(self, pricelist_name, quantities, products, headers, date):
         document = Document.of(
             rows=self._generate_rows(products, quantities),
             mimetype=XLSX_MIMETYPE,
@@ -82,7 +92,7 @@ class ProductPricelistExportController(Controller):
                 (
                     "Content-Disposition",
                     content_disposition(
-                        f"Pricelist - {pricelist_name}.{extension_for(XLSX_MIMETYPE)}"
+                        f"Pricelist - {pricelist_name} - {date}.{extension_for(XLSX_MIMETYPE)}"
                     ),
                 ),
             ],

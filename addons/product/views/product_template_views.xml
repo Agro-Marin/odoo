@@ -9,7 +9,7 @@
                 <field
                     name="name"
                     string="Product"
-                    filter_domain="['|', '|', '|', ('default_code', 'ilike', self), ('product_variant_ids.default_code', 'ilike', self),('name', 'ilike', self), ('barcode', 'ilike', self)]" />
+                    filter_domain="['|', '|', '|', '|', ('default_code', 'ilike', self), ('product_variant_ids.default_code', 'ilike', self), ('name', 'ilike', self), ('barcode', 'ilike', self), ('display_name', '=', self)]" />
                 <field
                     name="categ_id"
                     filter_domain="[('categ_id', 'child_of', raw_value)]" />

@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import psycopg
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import new_test_user, tagged
 from odoo.tools import mute_logger
@@ -12,7 +12,6 @@ from odoo.addons.product.tests.common import ProductCommon
 
 @tagged("post_install", "-at_install")
 class TestProductAuditFixes(ProductCommon):
-
     def test_attribute_line_write_does_not_mutate_caller_vals(self):
         attribute = self.env["product.attribute"].create(
             {
@@ -1190,10 +1189,201 @@ class TestProductAuditFixes(ProductCommon):
         self.assertIn("Blue Widget", variant.with_context(lang="en_US").name)
         self.assertIn("Artilugio Azul", variant.with_context(lang="es_MX").name)
 
+    def _pricelist_report_probe(self):
+        """A product whose price is 100 today and 42 only on a future window."""
+        category = self.env["product.category"].create({"name": "ReportCateg"})
+        template = self.env["product.template"].create(
+            {
+                "name": "DatedProbe",
+                "list_price": 100.0,
+                "categ_id": category.id,
+            }
+        )
+        variant = template.product_variant_ids
+        variant.default_code = "DPROBE"
+        variant.barcode = "5400000000017"
+        self.future = fields.Date.add(fields.Date.today(), days=30)
+        pricelist = self.env["product.pricelist"].create(
+            {
+                "name": "DatedPL",
+                "item_ids": [
+                    Command.create(
+                        {
+                            "applied_on": "1_product",
+                            "product_tmpl_id": template.id,
+                            "compute_price": "fixed",
+                            "fixed_price": 42.0,
+                            "date_start": self.future,
+                            "date_end": fields.Date.add(self.future, days=10),
+                        }
+                    )
+                ],
+            }
+        )
+        self.env.flush_all()
+        return template, pricelist
+
+    def test_pricelist_report_honours_the_requested_date(self):
+        """Prices move with the pricelist's date windows, so the report must too.
+
+        Printing a tariff for a date the customer asked about used to silently
+        report today's price instead.
+        """
+        template, pricelist = self._pricelist_report_probe()
+        Report = self.env["report.product.report_pricelist"]
+        base = {
+            "active_model": "product.template",
+            "active_ids": template.ids,
+            "pricelist_id": pricelist.id,
+            "quantities": [1],
+        }
+
+        today = Report._get_report_data(dict(base))
+        self.assertEqual(today["products"][0]["price"][1], 100.0)
+        self.assertEqual(today["date"], fields.Date.today())
+
+        dated = Report._get_report_data(dict(base, date=str(self.future)))
+        self.assertEqual(
+            dated["products"][0]["price"][1],
+            42.0,
+            "the rule starting on the requested date must be the one applied",
+        )
+        self.assertEqual(dated["date"], self.future)
+
+    def test_pricelist_report_rejects_an_invalid_date(self):
+        template, pricelist = self._pricelist_report_probe()
+        with self.assertRaises(UserError):
+            self.env["report.product.report_pricelist"]._get_report_data(
+                {
+                    "active_model": "product.template",
+                    "active_ids": template.ids,
+                    "pricelist_id": pricelist.id,
+                    "quantities": [1],
+                    "date": "not-a-date",
+                }
+            )
+
+    def test_pricelist_report_row_carries_reference_barcode_and_category(self):
+        """The xlsx/csv export identifies a product by more than its name."""
+        template, pricelist = self._pricelist_report_probe()
+        row = self.env["report.product.report_pricelist"]._get_report_data(
+            {
+                "active_model": "product.product",
+                "active_ids": template.product_variant_ids.ids,
+                "pricelist_id": pricelist.id,
+                "quantities": [1],
+            }
+        )["products"][0]
+        self.assertEqual(row["default_code"], "DPROBE")
+        self.assertEqual(row["barcode"], "5400000000017")
+        self.assertEqual(row["category"], "ReportCateg")
+
+    def test_pricelist_report_groups_products_by_category(self):
+        """Rows arrive grouped so the PDF can print one heading per category."""
+        categories = self.env["product.category"].create(
+            [{"name": n} for n in ("Zeta", "Alpha", "Mid")]
+        )
+        templates = self.env["product.template"].create(
+            [
+                {"name": f"Grouped{i}", "list_price": 5.0, "categ_id": categ.id}
+                for i, categ in enumerate(categories + categories)
+            ]
+        )
+        self.env.flush_all()
+        rows = self.env["report.product.report_pricelist"]._get_report_data(
+            {
+                "active_model": "product.template",
+                "active_ids": templates.ids,
+                "quantities": [1],
+            }
+        )["products"]
+        names = [row["category"] for row in rows]
+        self.assertEqual(
+            names,
+            sorted(names),
+            "rows must be ordered by category for the grouped rendering",
+        )
+
+    def test_pricelist_report_html_shows_the_reference_and_the_category(self):
+        """The rendered report, not just the data behind it."""
+        template, pricelist = self._pricelist_report_probe()
+        html = str(
+            self.env["report.product.report_pricelist"].get_html(
+                {
+                    "active_model": "product.product",
+                    "active_ids": template.product_variant_ids.ids,
+                    "pricelist_id": pricelist.id,
+                    "quantities": [1],
+                    "date": str(self.future),
+                }
+            )
+        )
+        self.assertIn("Internal Reference", html, "the reference column header")
+        self.assertIn("DPROBE", html, "the reference itself")
+        self.assertIn("ReportCateg", html, "the category heading row")
+
+    def test_pricelist_report_export_rows_carry_reference_and_barcode(self):
+        """What lands in the xlsx/csv a purchaser sends to a vendor."""
+        from odoo.addons.product.controllers.pricelist_report import (
+            ProductPricelistExportController,
+        )
+
+        template, pricelist = self._pricelist_report_probe()
+        products = self.env["report.product.report_pricelist"]._get_report_data(
+            {
+                "active_model": "product.product",
+                "active_ids": template.product_variant_ids.ids,
+                "pricelist_id": pricelist.id,
+                "quantities": [1],
+            }
+        )["products"]
+        self.assertEqual(
+            ProductPricelistExportController()._generate_rows(products, [1]),
+            [["DatedProbe", "DPROBE", "5400000000017", "Units", 100.0]],
+        )
+
+    def test_is_in_selected_section_of_order_is_not_a_stored_column(self):
+        """A search-only field must not own a column nobody ever writes.
+
+        `is_in_selected_section_of_order` exists to be put in a domain by the
+        product catalog; it has no compute and nothing assigns it, so the
+        column it used to reserve held NULL on every row of every database.
+        """
+        field = self.env["product.product"]._fields["is_in_selected_section_of_order"]
+        self.assertFalse(field.store, "the field must not be stored")
+
+        self.env.cr.execute(
+            """
+            SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'product_product'
+               AND column_name = 'is_in_selected_section_of_order'
+            """
+        )
+        self.assertIsNone(
+            self.env.cr.fetchone(),
+            "the column must be dropped by the migration, not merely orphaned: "
+            "declaring store=False stops the ORM creating it on a new database "
+            "but leaves it behind on every existing one",
+        )
+
+    def test_is_in_selected_section_of_order_is_still_searchable(self):
+        """Dropping the column must not change what the domain does.
+
+        `_search_is_in_selected_section_of_order` returns an empty domain when
+        the catalog context is absent, so outside the catalog the condition is
+        a no-op rather than a filter. That is pre-existing behaviour; this
+        guards that going column-less does not alter it.
+        """
+        Product = self.env["product.product"]
+        self.assertEqual(
+            Product.search([("is_in_selected_section_of_order", "=", True)]),
+            Product.search([]),
+            "without the catalog context the condition must stay a no-op",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestAttributeNameUniqueness(ProductCommon):
-
     @mute_logger("odoo.db.cursor")
     def test_duplicate_value_in_one_attribute_is_refused(self):
         attribute = self.env["product.attribute"].create({"name": "Fabric"})

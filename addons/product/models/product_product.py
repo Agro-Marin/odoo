@@ -164,6 +164,7 @@ class ProductProduct(models.Model):
 
     is_in_selected_section_of_order = fields.Boolean(
         search="_search_is_in_selected_section_of_order",
+        store=False,
     )
 
     image_variant_1920 = fields.Image(
@@ -1330,9 +1331,7 @@ class ProductProduct(models.Model):
             Domain("name", "in", [row["name"] for row in rows])
             | Domain("id", "in", [row["product_tmpl_id"] for row in rows])
         )
-        id2template = dict(
-            zip(product_templates.ids, product_templates, strict=True)
-        )
+        id2template = dict(zip(product_templates.ids, product_templates, strict=True))
         name2template = dict(
             zip(product_templates.mapped("name"), product_templates, strict=True)
         )
@@ -1365,9 +1364,7 @@ class ProductProduct(models.Model):
     ):
         PTAL = self.env["product.template.attribute.line"]
 
-        pt_to_attribute_to_values = defaultdict(
-            list
-        )
+        pt_to_attribute_to_values = defaultdict(list)
         for row in rows:
             pt = id2template.get(row["product_tmpl_id"]) or name2template.get(
                 row["name"]
