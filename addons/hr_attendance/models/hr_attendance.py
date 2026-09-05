@@ -286,11 +286,25 @@ class HrAttendance(models.Model):
 
     def _get_worked_hours_in_range(self, start_dt, end_dt):
         self.check_singleton()
+        return self._worked_hours_between(
+            max(self.check_in, start_dt), min(self.check_out, end_dt)
+        )
+
+    def _worked_hours_between(self, start_dt, end_dt):
+        """Working hours this employee's schedule places in a naive-UTC span.
+
+        Independent of `check_out`, so it can price a span for an attendance
+        that is still open -- which is what the auto-check-out cron needs to
+        find where the day's hours run out, without first writing a throwaway
+        check-out that would regenerate overtime and could overlap a later
+        attendance.
+        """
+        self.check_singleton()
         calendar = self._get_employee_calendar()
         resource = self.employee_id.resource_id
         tz = timezone(resource.tz) if not calendar else timezone(calendar.tz)
-        start_dt_tz = max(self.check_in, start_dt).replace(tzinfo=UTC).astimezone(tz)
-        end_dt_tz = min(self.check_out, end_dt).replace(tzinfo=UTC).astimezone(tz)
+        start_dt_tz = start_dt.replace(tzinfo=UTC).astimezone(tz)
+        end_dt_tz = end_dt.replace(tzinfo=UTC).astimezone(tz)
 
         if end_dt_tz < start_dt_tz:
             return 0.0
@@ -884,14 +898,20 @@ class HrAttendance(models.Model):
                     + previous_attendances_duration
                     - max_tol
                 ) > expected_worked_hours:
-                    att.check_out = att.check_in.replace(hour=23, minute=59, second=59)
-                    excess_hours = att.worked_hours - (
+                    # Where the day's allowance runs out, priced without first
+                    # writing a throwaway end-of-day check-out: one write and one
+                    # overtime regeneration instead of two.
+                    end_of_day = att.check_in.replace(hour=23, minute=59, second=59)
+                    worked_to_end_of_day = att._worked_hours_between(
+                        att.check_in, end_of_day
+                    )
+                    excess_hours = worked_to_end_of_day - (
                         expected_worked_hours + max_tol - previous_attendances_duration
                     )
                     att.write(
                         {
                             "check_out": max(
-                                att.check_out - relativedelta(hours=excess_hours),
+                                end_of_day - relativedelta(hours=excess_hours),
                                 att.check_in + relativedelta(seconds=1),
                             ),
                             "out_mode": "auto_check_out",

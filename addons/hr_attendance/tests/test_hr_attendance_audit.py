@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta
+from unittest.mock import patch
 
 from freezegun import freeze_time
 
@@ -597,3 +598,52 @@ class TestApprovalSurvivesRegeneration(TransactionCase):
             "to_approve",
             "a changed amount is new overtime and needs a fresh decision",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestAutoCheckOut(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.company = cls.env["res.company"].create(
+            {
+                "name": "Auto Ltd",
+                "auto_check_out": True,
+                "auto_check_out_tolerance": 1.0,
+            }
+        )
+        cls.calendar = _eight_hour_calendar(cls.env, cls.company, "UTC")
+        cls.ruleset = _ruleset(cls.env, cls.company)
+        cls.employee = _employee(cls.env, cls.company, cls.calendar, cls.ruleset)
+
+    def test_an_over_long_open_attendance_is_closed_once_at_the_allowance(self):
+        # Monday 2026-08-31, scheduled 08:00-16:00 (8h). Open since 08:00; the
+        # cron runs at 20:00, well past 8h + 1h tolerance.
+        with freeze_time("2026-08-31 20:00:00"):
+            attendance = self.env["hr.attendance"].create(
+                {
+                    "employee_id": self.employee.id,
+                    "check_in": datetime(2026, 8, 31, 8, 0),
+                }
+            )
+            writes = []
+            Attendance = type(self.env["hr.attendance"])
+            original_write = Attendance.write
+
+            def spy(records, vals):
+                if records == attendance and "check_out" in vals:
+                    writes.append(vals.get("out_mode"))
+                return original_write(records, vals)
+
+            with patch.object(Attendance, "write", spy):
+                self.env["hr.attendance"]._cron_auto_check_out()
+        self.assertEqual(attendance.out_mode, "auto_check_out")
+        self.assertTrue(attendance.check_out)
+        self.assertEqual(
+            writes,
+            ["auto_check_out"],
+            "the attendance is closed in a single write, not first to end-of-day "
+            "and then to the real cut-off",
+        )
+        # 8h scheduled + 1h tolerance = the attendance keeps 9 worked hours.
+        self.assertAlmostEqual(attendance.worked_hours, 9.0, 2)
