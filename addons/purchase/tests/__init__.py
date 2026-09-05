@@ -29,3 +29,4 @@ from . import test_purchase_audit_fixes
 from . import test_purchase_sections
 from . import test_purchase_supplierinfo
 from . import test_purchase_report_group
+from . import test_purchase_bill_autocomplete

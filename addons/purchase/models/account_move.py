@@ -1,6 +1,7 @@
 import difflib
 import logging
 import time
+from collections import defaultdict
 
 from markupsafe import Markup
 
@@ -198,7 +199,20 @@ class AccountMove(models.Model):
         po_lines = self.purchase_id.line_ids - self.invoice_line_ids.mapped(
             "purchase_line_ids",
         )
-        self._add_order_lines(po_lines)
+        # A bill drafted by hand -- or landed from OCR -- already carries the
+        # vendor's lines with nothing behind them. Link those first: appending
+        # the order lines on top of them is how a three-line bill became six.
+        had_unmatched_lines = any(
+            line.display_type == "product" and not line.purchase_line_ids
+            for line in self.invoice_line_ids
+        )
+        po_lines = self._match_bill_lines_to_order_lines(po_lines)
+        if not had_unmatched_lines:
+            # Everything on the bill was already accounted for, so the order
+            # lines left over are genuinely missing from it. When the vendor
+            # did bill something we could not match, their document is the
+            # authority: we do not invent lines they never charged for.
+            self._add_order_lines(po_lines)
 
         origins = set(self.invoice_line_ids.mapped("purchase_line_ids.order_id.name"))
         self.invoice_origin = ",".join(list(origins))
@@ -207,6 +221,59 @@ class AccountMove(models.Model):
             self.company_id = self.purchase_id.company_id
 
         self.purchase_id = False
+
+    def _match_bill_lines_to_order_lines(self, order_lines):
+        """Link the bill lines already on this bill to the order lines they answer.
+
+        Returns the order lines that found no bill line -- the ones genuinely
+        missing from the document.
+
+        Matching is per product, and among the bill lines of that product the
+        closest one wins: first on quantity still to bill, then on unit price.
+        One order line can absorb several bill lines until its remaining
+        quantity is used up, which our Many2many `purchase_line_ids` supports
+        directly.
+        """
+        self.check_singleton()
+        candidates_by_product = defaultdict(lambda: self.env["account.move.line"])
+        for aml in self.invoice_line_ids:
+            if aml.display_type != "product" or not aml.product_id:
+                continue
+            if aml.purchase_line_ids:
+                continue
+            candidates_by_product[aml.product_id.id] |= aml
+
+        unmatched = self.env["purchase.order.line"]
+        for order_line in order_lines:
+            candidates = candidates_by_product.get(
+                order_line.product_id.id,
+                self.env["account.move.line"],
+            )
+            if not candidates:
+                unmatched |= order_line
+                continue
+
+            uom = order_line.product_uom_id
+            qty_left = order_line.product_qty - order_line.qty_invoiced
+            while candidates:
+                best = min(
+                    candidates,
+                    key=lambda aml: (
+                        abs(
+                            aml.product_uom_id._compute_quantity(aml.quantity, uom)
+                            - qty_left,
+                        ),
+                        abs(aml.price_unit - order_line.price_unit),
+                    ),
+                )
+                best.purchase_line_ids = [Command.link(order_line.id)]
+                candidates -= best
+                candidates_by_product[order_line.product_id.id] -= best
+                qty_left -= best.product_uom_id._compute_quantity(best.quantity, uom)
+                if uom.compare(qty_left, 0) <= 0:
+                    break
+
+        return unmatched
 
     @api.onchange("partner_id", "company_id")
     def _onchange_partner_id(self):
