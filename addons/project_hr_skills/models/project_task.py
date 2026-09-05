@@ -9,5 +9,5 @@ class ProjectTask(models.Model):
 
     user_skill_ids = fields.One2many(
         "hr.employee.skill",
-        related="employee_ids.employee_skill_ids",
+        related="employee_ids.current_employee_skill_ids",
     )

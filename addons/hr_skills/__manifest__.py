@@ -1,6 +1,6 @@
 {
     "name": "Skills Management",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Human Resources/Employees",
     "sequence": 270,
     "summary": "Manage skills, knowledge and resume of your employees",

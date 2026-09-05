@@ -7,7 +7,7 @@ class HrSkillLevel(models.Model):
     _order = "level_progress, id"
 
     skill_type_id = fields.Many2one(
-        "hr.skill.type", index="btree_not_null", ondelete="cascade"
+        "hr.skill.type", required=True, index=True, ondelete="cascade"
     )
     name = fields.Char(required=True)
     level_progress = fields.Integer(

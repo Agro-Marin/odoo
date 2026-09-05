@@ -182,3 +182,79 @@ class TestResumeLineColour(SkillsCase):
                 f"{course_type} left color unassigned; a compute must assign for "
                 "every record it is given",
             )
+
+
+@tagged("post_install", "-at_install")
+class TestCurrentEmployeeSkillSearch(SkillsCase):
+    """current_employee_skill_ids is searchable, like hr.job's counterpart, so
+    a related field elsewhere (project.task.user_skill_ids) can be searched."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        today = date.today()
+        cls.employee = cls.env["hr.employee"].create({"name": "Searchable"})
+        cls.held, cls.lost = cls.env["hr.employee.skill"].create(
+            [
+                {
+                    "employee_id": cls.employee.id,
+                    "skill_id": cls.skill_piano.id,
+                    "skill_level_id": cls.level_expert.id,
+                    "skill_type_id": cls.skill_type.id,
+                    "valid_from": today - relativedelta(months=6),
+                },
+                {
+                    "employee_id": cls.employee.id,
+                    "skill_id": cls.skill_guitar.id,
+                    "skill_level_id": cls.level_novice.id,
+                    "skill_type_id": cls.skill_type.id,
+                    "valid_from": today - relativedelta(months=6),
+                    "valid_to": today - relativedelta(months=1),
+                },
+            ],
+        )
+        cls.env.flush_all()
+
+    def _search(self, domain):
+        return self.env["hr.employee"].search(domain + [("id", "=", self.employee.id)])
+
+    def test_in_and_not_in(self):
+        self.assertEqual(
+            self._search([("current_employee_skill_ids", "in", self.held.ids)]),
+            self.employee,
+        )
+        self.assertFalse(
+            self._search([("current_employee_skill_ids", "in", self.lost.ids)])
+        )
+        self.assertFalse(
+            self._search([("current_employee_skill_ids", "not in", self.held.ids)])
+        )
+        self.assertEqual(
+            self._search([("current_employee_skill_ids", "not in", self.lost.ids)]),
+            self.employee,
+        )
+
+    def test_any_and_ilike(self):
+        self.assertEqual(
+            self._search(
+                [
+                    (
+                        "current_employee_skill_ids",
+                        "any",
+                        [("skill_id", "=", self.skill_piano.id)],
+                    )
+                ]
+            ),
+            self.employee,
+        )
+        self.assertEqual(
+            self._search([("current_employee_skill_ids", "ilike", "Piano")]),
+            self.employee,
+        )
+        self.assertFalse(
+            self._search([("current_employee_skill_ids", "ilike", "Guitar")])
+        )
+
+    def test_an_unsupported_operator_fails_loudly(self):
+        with self.assertRaises(NotImplementedError):
+            self.env["hr.employee"]._search_current_employee_skill_ids("=", True)

@@ -158,9 +158,7 @@
                     t-as="skills_pair">
                     <div class="o_main_panel_skills row ps-5">
                         <t t-foreach="skills_pair" t-as="skill_line">
-                            <div
-                                class="o_main_panel_skill_line col-6 pe-4"
-                                t-if="skill_line.skill_type_id != skill_type_language">
+                            <div class="o_main_panel_skill_line col-6 pe-4">
                                 <h3 class="o_main_panel_skill_name" t-field="skill_line.skill_id">Python</h3>
                                 <div class="progress o_main_panel_skill_progress_bar">
                                     <div

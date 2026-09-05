@@ -2,11 +2,13 @@ from . import test_depends_completeness
 from . import test_certification_activities
 from . import test_employee_skill
 from . import test_resource
+from . import test_resume_line
 from . import test_ui
 from . import test_job_skills_resume
 from . import test_individual_skill_versioning
 from . import test_multi_record_skill_write
 from . import test_skill_library
+from . import test_skill_level_type_migration
 from . import test_skill_reports
 from . import test_cv_controller
 from . import test_valid_from_migration

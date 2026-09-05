@@ -24,6 +24,7 @@ class HrEmployee(models.Model):
     current_employee_skill_ids = fields.One2many(
         "hr.employee.skill",
         compute="_compute_current_employee_skill_ids",
+        search="_search_current_employee_skill_ids",
         readonly=False,
     )
     skill_ids = fields.Many2many(
@@ -68,18 +69,31 @@ class HrEmployee(models.Model):
         for employee in self:
             employee.skill_ids = employee.current_employee_skill_ids.skill_id
 
+    def _get_domain_for_current_employee_skills(self, skill_domain):
+        skill_model = self.env["hr.employee.skill"]
+        current = skill_model._search(
+            Domain.AND(
+                [skill_model._validity_domain(fields.Date.today()), skill_domain]
+            )
+        )
+        return Domain("employee_skill_ids", "in", current)
+
+    def _search_current_employee_skill_ids(self, operator, value):
+        if operator not in ("in", "not in", "any"):
+            raise NotImplementedError
+        if operator == "any" and isinstance(value, Domain):
+            skill_domain = value
+        else:
+            skill_domain = Domain("id", "in", value)
+        result = self._get_domain_for_current_employee_skills(skill_domain)
+        return ~result if operator == "not in" else result
+
     def _search_skill_ids(self, operator, value):
         if operator not in ("in", "not in"):
             raise NotImplementedError
-        current = self.env["hr.employee.skill"]._search(
-            Domain.AND(
-                [
-                    Domain("skill_id", "in", value),
-                    self.env["hr.employee.skill"]._validity_domain(fields.Date.today()),
-                ]
-            )
+        result = self._get_domain_for_current_employee_skills(
+            Domain("skill_id", "in", value)
         )
-        result = Domain("employee_skill_ids", "in", current)
         return ~result if operator == "not in" else result
 
     @api.depends("employee_skill_ids.is_certification")

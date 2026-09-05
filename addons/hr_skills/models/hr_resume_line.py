@@ -1,4 +1,4 @@
-import re
+from urllib.parse import urlsplit
 
 from odoo import api, fields, models
 
@@ -48,11 +48,24 @@ class HrResumeLine(models.Model):
     @api.onchange("external_url")
     def _onchange_external_url(self):
         if not self.name and self.external_url:
-            website_name_match = re.search(
-                r"((https|http):\/\/)?(www\.)?(.*)\.", self.external_url
-            )
-            if website_name_match:
-                self.name = website_name_match.group(4).capitalize()
+            self.name = self._site_name(self.external_url)
+
+    @api.model
+    def _site_name(self, url):
+        """The registrable label of the URL's host, capitalised, or nothing.
+
+        ``https://docs.python.org/3/`` -> ``Python``; a bare ``coursera.org``
+        counts too. The regex this replaces stopped at the *last* dot of the
+        whole URL, so any path holding a dot gave ``Example.com/a.b``."""
+        if "//" not in url:
+            url = f"//{url}"
+        host = urlsplit(url).hostname or ""
+        labels = [label for label in host.split(".") if label]
+        if labels and labels[0] == "www":
+            labels = labels[1:]
+        if not labels:
+            return False
+        return (labels[-2] if len(labels) >= 2 else labels[0]).capitalize()
 
     @api.depends("course_type")
     def _compute_external_url(self):
