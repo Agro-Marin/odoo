@@ -2922,7 +2922,7 @@ msgstr ""
 "つのオプションフィールドに入力するためのサポートを追加しました。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project
+#: model:ir.module.module,description:base.module_document_project
 msgid ""
 "\n"
 "Add the ability to create invoices from the document module.\n"
@@ -2931,7 +2931,7 @@ msgstr ""
 "ドキュメントモジュールから請求書を作成する機能を追加します。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_sign
+#: model:ir.module.module,description:base.module_document_sign
 msgid ""
 "\n"
 "Add the ability to create signatures from the document module.\n"
@@ -3009,7 +3009,7 @@ msgstr ""
 "の幾つかのオプションを持っています。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project_sign
+#: model:ir.module.module,description:base.module_document_project_sign
 msgid ""
 "\n"
 "Adds an action to sign documents attached to tasks.\n"
@@ -3027,7 +3027,7 @@ msgstr ""
 "承認データをドキュメントに追加します\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_fleet
+#: model:ir.module.module,description:base.module_document_fleet
 msgid ""
 "\n"
 "Adds fleet data to documents\n"
@@ -3045,7 +3045,7 @@ msgstr ""
 "品質管理に修理オーダを追加します\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_product
+#: model:ir.module.module,description:base.module_document_product
 msgid ""
 "\n"
 "Adds the ability to create products from the document module and adds the\n"
@@ -3057,7 +3057,7 @@ msgstr ""
 "す。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project_sale
+#: model:ir.module.module,description:base.module_document_project_sale
 msgid ""
 "\n"
 "Adds the ability to set folder templates on products.\n"
@@ -3527,7 +3527,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents
+#: model:ir.module.module,description:base.module_document
 msgid ""
 "\n"
 "App to upload and manage your documents.\n"
@@ -3961,7 +3961,7 @@ msgstr ""
 "ブースを借りるときに自動的にスポンサーを作成します。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents
+#: model:ir.module.module,description:base.module_ai_document
 msgid ""
 "\n"
 "Automatically sort your documents.\n"
@@ -3977,7 +3977,7 @@ msgstr ""
 "今後、ai_documents_automation に名称変更される予定です。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_fsm
+#: model:ir.module.module,description:base.module_document_fsm
 msgid ""
 "\n"
 "Avoid auto-enabling the documents feature on fsm projects.\n"
@@ -4670,7 +4670,7 @@ msgstr ""
 "販売とIntrastatの間のブリッジモジュール。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_account_peppol
+#: model:ir.module.module,description:base.module_document_account_peppol
 msgid ""
 "\n"
 "Bridge module between the Documents and Peppol apps.\n"
@@ -4683,7 +4683,7 @@ msgstr ""
 "インポートできます。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_account
+#: model:ir.module.module,description:base.module_document_account
 msgid ""
 "\n"
 "Bridge module between the accounting and documents apps. It enables\n"
@@ -6018,7 +6018,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr
+#: model:ir.module.module,description:base.module_document_hr
 msgid ""
 "\n"
 "Easily access your documents from your employee profile.\n"
@@ -6252,7 +6252,7 @@ msgstr ""
 "    - PLE 13.1: 恒久的評価在庫レコード\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_be_hr_payroll
 msgid ""
 "\n"
 "Employee 281.10 and 281.45 forms will be automatically integrated to the "
@@ -6263,7 +6263,7 @@ msgstr ""
 "Document app.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_ke_hr_payroll
 msgid ""
 "\n"
 "Employee Tax Deduction Card forms will be automatically integrated to the "
@@ -6273,7 +6273,7 @@ msgstr ""
 "従業員控除カードフォームは、自動的にドキュメントアプリに統合されます。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_hk_hr_payroll
 msgid ""
 "\n"
 "Employee ir56 forms will be automatically integrated to the Document app.\n"
@@ -6282,7 +6282,7 @@ msgstr ""
 "従業員のir56フォームは自動的にドキュメントアプリに統合されます。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_payroll
+#: model:ir.module.module,description:base.module_document_hr_payroll
 msgid ""
 "\n"
 "Employee payslips will be automatically integrated to the Document app.\n"
@@ -6291,7 +6291,7 @@ msgstr ""
 "従業員の給与明細は、ドキュメントアプリに自動的に統合されます。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_ch_hr_payroll
 msgid ""
 "\n"
 "Employees' individual account forms are automatically integrated to the "
@@ -6394,7 +6394,7 @@ msgstr ""
 "。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_expense
+#: model:ir.module.module,description:base.module_document_hr_expense
 msgid ""
 "\n"
 "Expense documents will be automatically integrated to the Document app.\n"
@@ -14600,7 +14600,7 @@ msgstr ""
 "Odooで使用する基本的な勘定科目表と税のテンプレートを提供します。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_holidays
+#: model:ir.module.module,description:base.module_document_hr_holidays
 msgid ""
 "\n"
 "Time off documents will be automatically integrated to the Document app.\n"
@@ -15160,7 +15160,7 @@ msgstr ""
 "または検証済みのタイムシートのみを請求できます。\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_website_documents
+#: model:ir.module.module,description:base.module_website_document
 msgid ""
 "\n"
 "When sharing documents/folder, the domain of the shared URL can be chosen by "
@@ -16590,19 +16590,19 @@ msgid "AI Auto Install"
 msgstr "AI自動インストール"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_ai_documents
+#: model:ir.module.module,shortdesc:base.module_ai_document
 msgid "AI Documents"
 msgstr "AIドキュメント"
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents_account
-#: model:ir.module.module,shortdesc:base.module_ai_documents_account
-#: model:ir.module.module,summary:base.module_ai_documents_account
+#: model:ir.module.module,description:base.module_ai_document_account
+#: model:ir.module.module,shortdesc:base.module_ai_document_account
+#: model:ir.module.module,summary:base.module_ai_document_account
 msgid "AI Documents Account"
 msgstr "AIドキュメントアカウント"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_ai_documents_source
+#: model:ir.module.module,shortdesc:base.module_ai_document_source
 msgid "AI Documents Source"
 msgstr "AIドキュメントソース"
 
@@ -16788,7 +16788,7 @@ msgid "Access Token"
 msgstr "アクセストークン"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr
+#: model:ir.module.module,summary:base.module_document_hr
 msgid "Access documents from the employee profile"
 msgstr "従業員プロファイルからドキュメントにアクセスする"
 
@@ -17335,8 +17335,8 @@ msgid "Add directional information (not used for digital)"
 msgstr "方向情報を追加します(デジタルには使用されません)"
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents_source
-#: model:ir.module.module,summary:base.module_ai_documents_source
+#: model:ir.module.module,description:base.module_ai_document_source
+#: model:ir.module.module,summary:base.module_ai_document_source
 msgid "Add documents to AI agents as sources."
 msgstr "AIエージェントの情報ソースとしてドキュメントを追加"
 
@@ -20841,7 +20841,7 @@ msgid "Automatically set dates on tasks generated by appointments"
 msgstr "予定によって生成されたタスクに自動的に日付を設定します。"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_ai_documents
+#: model:ir.module.module,summary:base.module_ai_document
 msgid "Automatically sort your documents."
 msgstr "自動的にドキュメントを並び替えます。"
 
@@ -20963,7 +20963,7 @@ msgid "Aviato Theme - Responsive Bootstrap Theme for Odoo CMS"
 msgstr "アヴィアトテーマ - Odoo CMS 用のレスポンシブ Bootstrap テーマ"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_fsm
+#: model:ir.module.module,summary:base.module_document_fsm
 msgid "Avoid auto-enabling the documents feature on fsm projects"
 msgstr "fsmプロジェクトでは、ドキュメント機能の自動有効化を避けます"
 
@@ -23010,7 +23010,7 @@ msgstr ""
 "- 暗号化のみ: データを暗号化しますが、サーバの認証はスキップします。"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_website_documents
+#: model:ir.module.module,summary:base.module_website_document
 msgid "Choose the website on which documents/folder are shared"
 msgstr "ドキュメントやフォルダを共有するウェブサイトを選択する。"
 
@@ -23201,7 +23201,7 @@ msgid "Collect payments from your customers through SEPA direct debit."
 msgstr "SEPAダイレクトデビットを通じて顧客から支払いを収集します。"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents
+#: model:ir.module.module,summary:base.module_document
 msgid "Collect, organize and share documents."
 msgstr "ドキュメントの収集・整理・共有"
 
@@ -25919,12 +25919,12 @@ msgstr "帳票テンプレート"
 
 #. module: base
 #: model:ir.module.category,name:base.module_category_productivity_documents
-#: model:ir.module.module,shortdesc:base.module_documents
+#: model:ir.module.module,shortdesc:base.module_document
 msgid "Documents"
 msgstr "ドキュメント"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_account
+#: model:ir.module.module,shortdesc:base.module_document_account
 msgid "Documents - Accounting"
 msgstr "ドキュメント-会計"
 
@@ -25934,94 +25934,94 @@ msgid "Documents - Approvals"
 msgstr "ドキュメント - 承認"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_be_hr_payroll
 msgid "Documents - Belgian Payroll"
 msgstr "ドキュメント-ベルギーの給与"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_expense
+#: model:ir.module.module,shortdesc:base.module_document_hr_expense
 msgid "Documents - Expense"
 msgstr "ドキュメント - 経費"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_fsm
+#: model:ir.module.module,shortdesc:base.module_document_fsm
 msgid "Documents - FSM"
 msgstr "ドキュメント - FSM"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_fleet
+#: model:ir.module.module,shortdesc:base.module_document_fleet
 msgid "Documents - Fleet"
 msgstr "ドキュメント - フリート"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr
+#: model:ir.module.module,shortdesc:base.module_document_hr
 msgid "Documents - HR"
 msgstr "ドキュメント-HR"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_hk_hr_payroll
 msgid "Documents - Hong Kong Payroll"
 msgstr "ドキュメント -  香港給与"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_account_peppol
+#: model:ir.module.module,shortdesc:base.module_document_account_peppol
 msgid "Documents - Import from Peppol"
 msgstr "ドキュメント - Peppolからインポート"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_ke_hr_payroll
 msgid "Documents - Kenyan Payroll"
 msgstr "ドキュメント -  ケニア給与"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_hr_payroll
 msgid "Documents - Payroll"
 msgstr "ドキュメント-給与"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_product
+#: model:ir.module.module,shortdesc:base.module_document_product
 msgid "Documents - Product"
 msgstr "ドキュメント-プロダクト"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project_sale
+#: model:ir.module.module,shortdesc:base.module_document_project_sale
 msgid "Documents - Project - Sale"
 msgstr "ドキュメント - プロジェクト - 販売"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project
+#: model:ir.module.module,shortdesc:base.module_document_project
 msgid "Documents - Projects"
 msgstr "ドキュメント-プロジェクト"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_sign
+#: model:ir.module.module,shortdesc:base.module_document_sign
 msgid "Documents - Signatures"
 msgstr "ドキュメント-署名"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_ch_hr_payroll
 msgid "Documents - Swiss Payroll"
 msgstr "ドキュメント - スイス給与"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_holidays
+#: model:ir.module.module,shortdesc:base.module_document_hr_holidays
 msgid "Documents - Time Off"
 msgstr "ドキュメント-休暇"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project_sign
+#: model:ir.module.module,shortdesc:base.module_document_project_sign
 msgid "Documents Project Sign"
 msgstr "ドキュメントプロジェクト署名"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_spreadsheet
-#: model:ir.module.module,shortdesc:base.module_documents_spreadsheet
-#: model:ir.module.module,summary:base.module_documents_spreadsheet
+#: model:ir.module.module,description:base.module_document_spreadsheet
+#: model:ir.module.module,shortdesc:base.module_document_spreadsheet
+#: model:ir.module.module,summary:base.module_document_spreadsheet
 msgid "Documents Spreadsheet"
 msgstr "ドキュメントスプレッドシート"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_account_peppol
+#: model:ir.module.module,summary:base.module_document_account_peppol
 msgid "Documents from Peppol"
 msgstr "Peppolからのドキュメント"
 
@@ -28596,7 +28596,7 @@ msgid "Fleet History"
 msgstr "フリート履歴"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_fleet
+#: model:ir.module.module,summary:base.module_document_fleet
 msgid "Fleet from documents"
 msgstr "ドキュメントからのフリート"
 
@@ -31820,7 +31820,7 @@ msgid "Invoices & Payments"
 msgstr "請求書・支払管理"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_account
+#: model:ir.module.module,summary:base.module_document_account
 msgid "Invoices from Documents"
 msgstr "ドキュメントからの請求書"
 
@@ -40586,12 +40586,12 @@ msgid "Products Expiration Date"
 msgstr "プロダクトの使用期限"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project_sale
+#: model:ir.module.module,summary:base.module_document_project_sale
 msgid "Products Folder Templates"
 msgstr "プロダクトフォルダテンプレート"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_product
+#: model:ir.module.module,summary:base.module_document_product
 msgid "Products from Documents"
 msgstr "ドキュメントからのプロダクト"
 
@@ -40949,7 +40949,7 @@ msgid "Project expenses"
 msgstr "プロジェクト経費"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project
+#: model:ir.module.module,summary:base.module_document_project
 msgid "Project from documents"
 msgstr "ドキュメントからのプロジェクト"
 
@@ -43906,7 +43906,7 @@ msgid "Sign Test case"
 msgstr "署名テストケース"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project_sign
+#: model:ir.module.module,summary:base.module_document_project_sign
 msgid "Sign documents attached to tasks"
 msgstr "タスクに添付されたドキュメントに署名"
 
@@ -43931,7 +43931,7 @@ msgid "Sign itsme"
 msgstr "itsme署名"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_sign
+#: model:ir.module.module,summary:base.module_document_sign
 msgid "Signature templates from Documents"
 msgstr "ドキュメントからの署名テンプレート"
 
@@ -44488,14 +44488,14 @@ msgid "Spreadsheet Dashboard edition"
 msgstr "スプレッドシートダッシュボードエディション"
 
 #. module: base
-#: model:ir.module.module,description:base.module_spreadsheet_dashboard_documents
-#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_documents
-#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_documents
+#: model:ir.module.module,description:base.module_spreadsheet_dashboard_document
+#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_document
+#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_document
 msgid "Spreadsheet Documents"
 msgstr "スプレッドシートドキュメント"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_spreadsheet_survey
+#: model:ir.module.module,shortdesc:base.module_document_spreadsheet_survey
 msgid "Spreadsheet Survey"
 msgstr "スプレッドシート アンケート調査"
 
@@ -44625,8 +44625,8 @@ msgid "Spreadsheet dashboard for time sheets"
 msgstr "スプレッドシートダッシュボード タイムシート用"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_spreadsheet_survey
-#: model:ir.module.module,summary:base.module_documents_spreadsheet_survey
+#: model:ir.module.module,description:base.module_document_spreadsheet_survey
+#: model:ir.module.module,summary:base.module_document_spreadsheet_survey
 msgid "Spreadsheet for Survey results"
 msgstr "アンケート調査結果用スプレッドシート"
 
@@ -44818,37 +44818,37 @@ msgid "Store chatter attachments in the cloud"
 msgstr "チャターの添付ファイルを クラウドに保存"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_be_hr_payroll
 msgid "Store employee 281.10 and 281.45 forms in the Document app"
 msgstr "従業員の281.10フォームと281.45フォームをドキュメントアプリに保存します"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_payroll
+#: model:ir.module.module,summary:base.module_document_hr_payroll
 msgid "Store employee payslips in the Document app"
 msgstr "ドキュメントアプリに従業員の給与明細を保存する"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_ke_hr_payroll
 msgid "Store employee tax deduction card forms in the Document app"
 msgstr "従業員控除カードフォームをドキュメントアプリに保存"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_holidays
+#: model:ir.module.module,summary:base.module_document_hr_holidays
 msgid "Store employee's time off documents in the Document app"
 msgstr "ドキュメントアプリに従業員の休暇ドキュメントを保存する"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_expense
+#: model:ir.module.module,summary:base.module_document_hr_expense
 msgid "Store expense documents in the Document app"
 msgstr "ドキュメントアプリに経費ドキュメントを保存する"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_ch_hr_payroll
 msgid "Store individual accounts in Documents application"
 msgstr "ドキュメントアプリケーションに個々のアカウントを保存する"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_hk_hr_payroll
 msgid "Store ir56 forms in the Document app"
 msgstr "ドキュメントアプリにir56フォームを保存"
 
@@ -49531,7 +49531,7 @@ msgid "Website Appointments"
 msgstr "ウェブサイト予約"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_website_documents
+#: model:ir.module.module,shortdesc:base.module_website_document
 msgid "Website Documents"
 msgstr "ウェブサイトドキュメント"
 

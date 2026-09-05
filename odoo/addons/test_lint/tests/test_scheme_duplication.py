@@ -34,7 +34,7 @@ SINGLE_BUNDLE_GAP_FLOOR = {
     "automation": 0,
     "base_import": 1,
     "calendar": 2,
-    "documents": 11,
+    "document": 11,
     "event": 1,
     "google_address_autocomplete": 1,
     "hr_gamification": 1,

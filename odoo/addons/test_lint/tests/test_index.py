@@ -130,7 +130,7 @@ BTREE_INDEX_IGNORE_FIELDS = {
     "ir.attachment.res_id",
     "spreadsheet.revision.res_id",
     "discuss.channel.rtc.session.channel_member_id",
-    "documents.document.attachment_id",
+    "document.document.attachment_id",
     "account.fiscal.position.account.position_id",
     "mailing.subscription.contact_id",
     "knowledge.article.member.article_id",

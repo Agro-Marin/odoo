@@ -919,8 +919,8 @@ class MrpBom(models.Model):
             all_products.update(product_ids)
             all_templates.update(template_ids)
         documents = self._search_extra_attachments(all_products, all_templates)
-        by_product = defaultdict(lambda: self.env["documents.document"])
-        by_template = defaultdict(lambda: self.env["documents.document"])
+        by_product = defaultdict(lambda: self.env["document.document"])
+        by_template = defaultdict(lambda: self.env["document.document"])
         for document in documents:
             target = (
                 by_product if document.res_model == "product.product" else by_template
@@ -928,7 +928,7 @@ class MrpBom(models.Model):
             target[document.res_id] |= document
         result = {}
         for bom, (product_ids, template_ids) in targets_by_bom.items():
-            documents = self.env["documents.document"]
+            documents = self.env["document.document"]
             for product_id in product_ids:
                 documents |= by_product[product_id]
             for template_id in template_ids:
@@ -959,7 +959,7 @@ class MrpBom(models.Model):
                 & Domain("res_id", "in", template_ids)
             )
         )
-        return self.env["documents.document"].search(domain)
+        return self.env["document.document"].search(domain)
 
     @api.model
     def _is_skipped_for_no_variant(

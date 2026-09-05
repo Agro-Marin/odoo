@@ -8,7 +8,7 @@ const { ModelStore, useStoreProvider } = stores;
 const EMPTY_FIGURE = { tag: "empty" };
 
 export class MobileFigureContainer extends Component {
-    static template = "documents_spreadsheet.MobileFigureContainer";
+    static template = "document_spreadsheet.MobileFigureContainer";
     static props = {
         spreadsheetModel: Object,
     };

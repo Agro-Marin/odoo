@@ -58,7 +58,7 @@
         <field name="sequence">40</field>
     </record>
 
-    <record id="consu_delivery_02_document" model="documents.document">
+    <record id="consu_delivery_02_document" model="document.document">
         <field name="name">Large Meeting Table Document</field>
         <field
             name="datas"
@@ -71,14 +71,14 @@
     </record>
 
     <record
-        id="documents_product.product_product_4_product_template_document"
-        model="documents.document">
+        id="document_product.product_product_4_product_template_document"
+        model="document.document">
         <field name="attached_on_sale">inside</field>
     </record>
 
     <record
-        id="documents_product.product_product_25_document"
-        model="documents.document">
+        id="document_product.product_product_25_document"
+        model="document.document">
         <field name="attached_on_sale">inside</field>
     </record>
 

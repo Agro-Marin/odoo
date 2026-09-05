@@ -1,0 +1,125 @@
+{
+    "name": "Documents",
+    "version": "1.7",
+    "category": "Productivity/Documents",
+    "sequence": 80,
+    "summary": "Collect, organize and share documents.",
+    "description": """
+Store, organize and share files: a folder tree with per-document access rights,
+share links, versioning, a trash and the Documents workspace.
+
+`documents_enterprise` adds the sharing, operation and link-to-record wizards,
+the onboarding tour, the digest KPIs and the Studio automation upsell.
+    """,
+    "author": "Odoo S.A.",
+    "website": "https://www.odoo.com/app/documents",
+    "license": "LGPL-3",
+    "depends": [
+        "mail",
+        "portal",
+        "attachment_indexation",
+        "html_editor",
+    ],
+    "data": [
+        "security/security.xml",
+        "security/ir.model.access.csv",
+        "data/mail_template_data.xml",
+        "data/mail_activity_type_data.xml",
+        "data/document_tag_data.xml",
+        "data/document_document_data.xml",
+        "data/mail_alias_data.xml",
+        "data/ir_config_parameter_data.xml",
+        "data/ir_cron_data.xml",
+        "views/res_config_settings_views.xml",
+        "views/res_partner_views.xml",
+        "views/document_access_views.xml",
+        "views/document_document_views.xml",
+        "views/document_folder_views.xml",
+        "views/document_tag_views.xml",
+        "views/mail_activity_views.xml",
+        "views/mail_activity_plan_views.xml",
+        "views/mail_alias_views.xml",
+        "views/document_menu_views.xml",
+        "views/document_access_log_views.xml",
+        "views/document_templates_portal.xml",
+        "views/document_templates_share.xml",
+        "views/document_templates_thumbnails.xml",
+        "views/ir_actions_views.xml",
+        "views/mail_compose_message_views.xml",
+        "views/mail_scheduled_message_views.xml",
+        "wizard/document_request_wizard_views.xml",
+    ],
+    "demo": [
+        "demo/document_document_demo.xml",
+    ],
+    "assets": {
+        "web.assets_backend": [
+            "document/static/src/scss/document_views.scss",
+            "document/static/src/scss/document_kanban_view.scss",
+            "document/static/src/attachments/**/*",
+            "document/static/src/core/**/*",
+            "document/static/src/js/**/*",
+            "document/static/src/mail/**/*",
+            "document/static/src/owl/**/*",
+            "document/static/src/utils.js",
+            "document/static/src/views/**/*",
+            "document/static/src/webclient/webclient.js",
+            (
+                "after",
+                "web/static/src/components/errors/error_dialogs.xml",
+                "document/static/src/web/error_dialog/error_dialog_patch.xml",
+            ),
+            "document/static/src/web/**/*",
+            "document/static/src/components/**/*",
+            "document/static/src/editor/**/*",
+        ],
+        "web._assets_primary_variables": [
+            "document/static/src/scss/document.variables.scss",
+        ],
+        "web.assets_tests": [
+            "document/static/tests/tours/*",
+        ],
+        "web.assets_unit_tests": [
+            "document/static/tests/**/*",
+        ],
+        "document.public_page_assets": [
+            (
+                "include",
+                "web._assets_helpers",
+            ),
+            (
+                "include",
+                "web._assets_backend_helpers",
+            ),
+            "web/static/src/scss/pre_variables.scss",
+            "web/static/lib/bootstrap/scss/_variables.scss",
+            "web/static/lib/bootstrap/scss/_variables-dark.scss",
+            "web/static/lib/bootstrap/scss/_maps.scss",
+            (
+                "include",
+                "web._assets_bootstrap_backend",
+            ),
+            "document/static/src/scss/document_public_pages.scss",
+        ],
+        "document.webclient": [
+            (
+                "include",
+                "web.assets_backend",
+            ),
+            "document/static/src/portal_webclient/**/*",
+            "web/static/src/boot/start.js",
+        ],
+    },
+    "esm": {
+        "bundles": [
+            "document.public_page_assets",
+            "document.webclient",
+        ],
+        "secondary_import_map_includes": {
+            "document.webclient": [
+                "web.assets_tests",
+            ],
+        },
+    },
+    "application": True,
+}

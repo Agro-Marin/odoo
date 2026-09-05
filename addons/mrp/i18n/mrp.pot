@@ -2170,7 +2170,7 @@ msgstr ""
 
 #. module: mrp
 #: model:ir.model.fields,field_description:mrp.field_change_production_qty__display_name
-#: model:ir.model.fields,field_description:mrp.field_documents_document__display_name
+#: model:ir.model.fields,field_description:mrp.field_document_document__display_name
 #: model:ir.model.fields,field_description:mrp.field_ir_qweb_field_monetary_opt__display_name
 #: model:ir.model.fields,field_description:mrp.field_mixin_bom_component__display_name
 #: model:ir.model.fields,field_description:mrp.field_mixin_bom_variant_line__display_name
@@ -2251,7 +2251,7 @@ msgid "Do you confirm you want to unbuild"
 msgstr ""
 
 #. module: mrp
-#: model:ir.model,name:mrp.model_documents_document
+#: model:ir.model,name:mrp.model_document_document
 msgid "Document"
 msgstr ""
 
@@ -2704,7 +2704,7 @@ msgstr ""
 
 #. module: mrp
 #: model:ir.model.fields,field_description:mrp.field_change_production_qty__id
-#: model:ir.model.fields,field_description:mrp.field_documents_document__id
+#: model:ir.model.fields,field_description:mrp.field_document_document__id
 #: model:ir.model.fields,field_description:mrp.field_ir_qweb_field_monetary_opt__id
 #: model:ir.model.fields,field_description:mrp.field_mixin_bom_component__id
 #: model:ir.model.fields,field_description:mrp.field_mixin_bom_variant_line__id
@@ -3137,7 +3137,7 @@ msgid "Lead Time"
 msgstr ""
 
 #. module: mrp
-#: model:ir.model.fields,help:mrp.field_documents_document__attached_on_mrp
+#: model:ir.model.fields,help:mrp.field_document_document__attached_on_mrp
 msgid ""
 "Leave hidden if document only accessible on product form.\n"
 "Select Bill of Materials to visualise this document as a product attachment when this product is in a bill of material."
@@ -3311,7 +3311,7 @@ msgid "MO To Close"
 msgstr ""
 
 #. module: mrp
-#: model:ir.model.fields,field_description:mrp.field_documents_document__attached_on_mrp
+#: model:ir.model.fields,field_description:mrp.field_document_document__attached_on_mrp
 msgid "MRP : Visible at"
 msgstr ""
 

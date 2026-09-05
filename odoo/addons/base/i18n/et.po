@@ -2467,7 +2467,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project
+#: model:ir.module.module,description:base.module_document_project
 msgid ""
 "\n"
 "Add the ability to create invoices from the document module.\n"
@@ -2476,7 +2476,7 @@ msgstr ""
 "Lisage arvete loomise võimalus dokumendimoodulisse\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_sign
+#: model:ir.module.module,description:base.module_document_sign
 msgid ""
 "\n"
 "Add the ability to create signatures from the document module.\n"
@@ -2546,7 +2546,7 @@ msgstr ""
 "Aruande avamisel käivitub abiline, mis aitab teil saada vajalikud andmed.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project_sign
+#: model:ir.module.module,description:base.module_document_project_sign
 msgid ""
 "\n"
 "Adds an action to sign documents attached to tasks.\n"
@@ -2564,7 +2564,7 @@ msgstr ""
 "Lisab kinnitamiste andmed dokumentidele\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_fleet
+#: model:ir.module.module,description:base.module_document_fleet
 msgid ""
 "\n"
 "Adds fleet data to documents\n"
@@ -2582,7 +2582,7 @@ msgstr ""
 "Lisab parandustellimused kvaliteedikontrolli\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_product
+#: model:ir.module.module,description:base.module_document_product
 msgid ""
 "\n"
 "Adds the ability to create products from the document module and adds the\n"
@@ -2593,7 +2593,7 @@ msgstr ""
 "võimaluse saata toodete manuseid dokumentide moodulisse.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project_sale
+#: model:ir.module.module,description:base.module_document_project_sale
 msgid ""
 "\n"
 "Adds the ability to set folder templates on products.\n"
@@ -3020,7 +3020,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents
+#: model:ir.module.module,description:base.module_document
 msgid ""
 "\n"
 "App to upload and manage your documents.\n"
@@ -3365,7 +3365,7 @@ msgstr ""
 "Infolauda üürides loo automaatselt sponsor.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents
+#: model:ir.module.module,description:base.module_ai_document
 msgid ""
 "\n"
 "Automatically sort your documents.\n"
@@ -3376,7 +3376,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_fsm
+#: model:ir.module.module,description:base.module_document_fsm
 msgid ""
 "\n"
 "Avoid auto-enabling the documents feature on fsm projects.\n"
@@ -3882,7 +3882,7 @@ msgstr ""
 "Sild Müügi ja Intrastati vahel.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_account_peppol
+#: model:ir.module.module,description:base.module_document_account_peppol
 msgid ""
 "\n"
 "Bridge module between the Documents and Peppol apps.\n"
@@ -3891,7 +3891,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_account
+#: model:ir.module.module,description:base.module_document_account
 msgid ""
 "\n"
 "Bridge module between the accounting and documents apps. It enables\n"
@@ -4981,7 +4981,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr
+#: model:ir.module.module,description:base.module_document_hr
 msgid ""
 "\n"
 "Easily access your documents from your employee profile.\n"
@@ -5138,7 +5138,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_be_hr_payroll
 msgid ""
 "\n"
 "Employee 281.10 and 281.45 forms will be automatically integrated to the "
@@ -5149,7 +5149,7 @@ msgstr ""
 "rakendusse.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_ke_hr_payroll
 msgid ""
 "\n"
 "Employee Tax Deduction Card forms will be automatically integrated to the "
@@ -5157,7 +5157,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_hk_hr_payroll
 msgid ""
 "\n"
 "Employee ir56 forms will be automatically integrated to the Document app.\n"
@@ -5166,7 +5166,7 @@ msgstr ""
 "Töötaja ir56 avaldus lisatakse automaatselt dokumentide rakendusse.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_payroll
+#: model:ir.module.module,description:base.module_document_hr_payroll
 msgid ""
 "\n"
 "Employee payslips will be automatically integrated to the Document app.\n"
@@ -5176,7 +5176,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_ch_hr_payroll
 msgid ""
 "\n"
 "Employees' individual account forms are automatically integrated to the "
@@ -5265,7 +5265,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_expense
+#: model:ir.module.module,description:base.module_document_hr_expense
 msgid ""
 "\n"
 "Expense documents will be automatically integrated to the Document app.\n"
@@ -11220,7 +11220,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_holidays
+#: model:ir.module.module,description:base.module_document_hr_holidays
 msgid ""
 "\n"
 "Time off documents will be automatically integrated to the Document app.\n"
@@ -11609,7 +11609,7 @@ msgstr ""
 "ajaarvestuslehed.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_website_documents
+#: model:ir.module.module,description:base.module_website_document
 msgid ""
 "\n"
 "When sharing documents/folder, the domain of the shared URL can be chosen by "
@@ -12962,19 +12962,19 @@ msgid "AI Auto Install"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_ai_documents
+#: model:ir.module.module,shortdesc:base.module_ai_document
 msgid "AI Documents"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents_account
-#: model:ir.module.module,shortdesc:base.module_ai_documents_account
-#: model:ir.module.module,summary:base.module_ai_documents_account
+#: model:ir.module.module,description:base.module_ai_document_account
+#: model:ir.module.module,shortdesc:base.module_ai_document_account
+#: model:ir.module.module,summary:base.module_ai_document_account
 msgid "AI Documents Account"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_ai_documents_source
+#: model:ir.module.module,shortdesc:base.module_ai_document_source
 msgid "AI Documents Source"
 msgstr ""
 
@@ -13160,7 +13160,7 @@ msgid "Access Token"
 msgstr "Juurdepääsu võti"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr
+#: model:ir.module.module,summary:base.module_document_hr
 msgid "Access documents from the employee profile"
 msgstr "Juurdepääs dokumentidele töötaja profiililt"
 
@@ -13703,8 +13703,8 @@ msgid "Add directional information (not used for digital)"
 msgstr "Lisage suunav informatsioon (mitte digitaalseks kasutamiseks)."
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents_source
-#: model:ir.module.module,summary:base.module_ai_documents_source
+#: model:ir.module.module,description:base.module_ai_document_source
+#: model:ir.module.module,summary:base.module_ai_document_source
 msgid "Add documents to AI agents as sources."
 msgstr ""
 
@@ -17125,7 +17125,7 @@ msgid "Automatically set dates on tasks generated by appointments"
 msgstr "Määra kohtumistest loodud ülesannetele automaatsed kuupäevad"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_ai_documents
+#: model:ir.module.module,summary:base.module_ai_document
 msgid "Automatically sort your documents."
 msgstr ""
 
@@ -17247,7 +17247,7 @@ msgid "Aviato Theme - Responsive Bootstrap Theme for Odoo CMS"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_fsm
+#: model:ir.module.module,summary:base.module_document_fsm
 msgid "Avoid auto-enabling the documents feature on fsm projects"
 msgstr ""
 
@@ -19249,7 +19249,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_website_documents
+#: model:ir.module.module,summary:base.module_website_document
 msgid "Choose the website on which documents/folder are shared"
 msgstr "Valige veebisait, millel dokumendid/kataloogid on jagatud."
 
@@ -19433,7 +19433,7 @@ msgid "Collect payments from your customers through SEPA direct debit."
 msgstr "Koguge oma klientidelt makseid SEPA otsekorralduse kaudu."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents
+#: model:ir.module.module,summary:base.module_document
 msgid "Collect, organize and share documents."
 msgstr ""
 
@@ -22115,12 +22115,12 @@ msgstr "Dokumendi põhi"
 
 #. module: base
 #: model:ir.module.category,name:base.module_category_productivity_documents
-#: model:ir.module.module,shortdesc:base.module_documents
+#: model:ir.module.module,shortdesc:base.module_document
 msgid "Documents"
 msgstr "Dokumendid"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_account
+#: model:ir.module.module,shortdesc:base.module_document_account
 msgid "Documents - Accounting"
 msgstr "Dokumendid - raamatupidamine"
 
@@ -22130,94 +22130,94 @@ msgid "Documents - Approvals"
 msgstr "Dokumendid - Kinnitused"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_be_hr_payroll
 msgid "Documents - Belgian Payroll"
 msgstr "Dokumendid - Belgia palgaarvestus"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_expense
+#: model:ir.module.module,shortdesc:base.module_document_hr_expense
 msgid "Documents - Expense"
 msgstr "Dokumendid - Kulud"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_fsm
+#: model:ir.module.module,shortdesc:base.module_document_fsm
 msgid "Documents - FSM"
 msgstr "Dokumendid - FSM"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_fleet
+#: model:ir.module.module,shortdesc:base.module_document_fleet
 msgid "Documents - Fleet"
 msgstr "Dokumendid - Sõiduvahendid"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr
+#: model:ir.module.module,shortdesc:base.module_document_hr
 msgid "Documents - HR"
 msgstr "Dokumendid - HR"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_hk_hr_payroll
 msgid "Documents - Hong Kong Payroll"
 msgstr "Dokumendid - Hong Kongi palgaarvestus"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_account_peppol
+#: model:ir.module.module,shortdesc:base.module_document_account_peppol
 msgid "Documents - Import from Peppol"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_ke_hr_payroll
 msgid "Documents - Kenyan Payroll"
 msgstr "Dokumendid - Keenia palgaarvestus"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_hr_payroll
 msgid "Documents - Payroll"
 msgstr "Dokumendid - palgaarvestus"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_product
+#: model:ir.module.module,shortdesc:base.module_document_product
 msgid "Documents - Product"
 msgstr "Dokumendid - toode"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project_sale
+#: model:ir.module.module,shortdesc:base.module_document_project_sale
 msgid "Documents - Project - Sale"
 msgstr "Dokumendid - Projektid - Müük"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project
+#: model:ir.module.module,shortdesc:base.module_document_project
 msgid "Documents - Projects"
 msgstr "Dokumendid - projektid"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_sign
+#: model:ir.module.module,shortdesc:base.module_document_sign
 msgid "Documents - Signatures"
 msgstr "Dokumendid - allkirjad"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_ch_hr_payroll
 msgid "Documents - Swiss Payroll"
 msgstr "Dokumendid - Šveitsi palgaarvestus"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_holidays
+#: model:ir.module.module,shortdesc:base.module_document_hr_holidays
 msgid "Documents - Time Off"
 msgstr "Dokumendid - puudumised"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project_sign
+#: model:ir.module.module,shortdesc:base.module_document_project_sign
 msgid "Documents Project Sign"
 msgstr "Dokumendid projekti allkirjastamised"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_spreadsheet
-#: model:ir.module.module,shortdesc:base.module_documents_spreadsheet
-#: model:ir.module.module,summary:base.module_documents_spreadsheet
+#: model:ir.module.module,description:base.module_document_spreadsheet
+#: model:ir.module.module,shortdesc:base.module_document_spreadsheet
+#: model:ir.module.module,summary:base.module_document_spreadsheet
 msgid "Documents Spreadsheet"
 msgstr "Dokumentide arvutustabel"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_account_peppol
+#: model:ir.module.module,summary:base.module_document_account_peppol
 msgid "Documents from Peppol"
 msgstr "Dokumendid Peppolist"
 
@@ -24748,7 +24748,7 @@ msgid "Fleet History"
 msgstr "Fleet ajalugu"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_fleet
+#: model:ir.module.module,summary:base.module_document_fleet
 msgid "Fleet from documents"
 msgstr "Sõidukid dokumentidest"
 
@@ -27918,7 +27918,7 @@ msgid "Invoices & Payments"
 msgstr "Arved ja maksed"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_account
+#: model:ir.module.module,summary:base.module_document_account
 msgid "Invoices from Documents"
 msgstr "Arved dokumentidest"
 
@@ -35544,12 +35544,12 @@ msgid "Products Expiration Date"
 msgstr "Toodete aegumiskuupäev"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project_sale
+#: model:ir.module.module,summary:base.module_document_project_sale
 msgid "Products Folder Templates"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_product
+#: model:ir.module.module,summary:base.module_document_product
 msgid "Products from Documents"
 msgstr "Tooted dokumendilt"
 
@@ -35825,7 +35825,7 @@ msgid "Project expenses"
 msgstr "Projekti kulud"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project
+#: model:ir.module.module,summary:base.module_document_project
 msgid "Project from documents"
 msgstr "Projekt dokumentidest"
 
@@ -38746,7 +38746,7 @@ msgid "Sign Test case"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project_sign
+#: model:ir.module.module,summary:base.module_document_project_sign
 msgid "Sign documents attached to tasks"
 msgstr "Allkirjasta ülesannetele lisatud dokumente"
 
@@ -38771,7 +38771,7 @@ msgid "Sign itsme"
 msgstr "Allkirjasta itsme"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_sign
+#: model:ir.module.module,summary:base.module_document_sign
 msgid "Signature templates from Documents"
 msgstr "Allkirjamallid dokumentidest"
 
@@ -39319,14 +39319,14 @@ msgid "Spreadsheet Dashboard edition"
 msgstr "Arvutustabeli töölaua versioon"
 
 #. module: base
-#: model:ir.module.module,description:base.module_spreadsheet_dashboard_documents
-#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_documents
-#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_documents
+#: model:ir.module.module,description:base.module_spreadsheet_dashboard_document
+#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_document
+#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_document
 msgid "Spreadsheet Documents"
 msgstr "Arvutustabeli dokumendid"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_spreadsheet_survey
+#: model:ir.module.module,shortdesc:base.module_document_spreadsheet_survey
 msgid "Spreadsheet Survey"
 msgstr ""
 
@@ -39456,8 +39456,8 @@ msgid "Spreadsheet dashboard for time sheets"
 msgstr "Arvutustabeli töölaud tööajatabelite jaoks"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_spreadsheet_survey
-#: model:ir.module.module,summary:base.module_documents_spreadsheet_survey
+#: model:ir.module.module,description:base.module_document_spreadsheet_survey
+#: model:ir.module.module,summary:base.module_document_spreadsheet_survey
 msgid "Spreadsheet for Survey results"
 msgstr ""
 
@@ -39644,37 +39644,37 @@ msgid "Store chatter attachments in the cloud"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_be_hr_payroll
 msgid "Store employee 281.10 and 281.45 forms in the Document app"
 msgstr "Säilita töötaja 281.10 ja 281.45 vormid rakenduses Dokument"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_payroll
+#: model:ir.module.module,summary:base.module_document_hr_payroll
 msgid "Store employee payslips in the Document app"
 msgstr "Säilita töötaja palgalehti Dokumendi moodulis"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_ke_hr_payroll
 msgid "Store employee tax deduction card forms in the Document app"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_holidays
+#: model:ir.module.module,summary:base.module_document_hr_holidays
 msgid "Store employee's time off documents in the Document app"
 msgstr "Töötaja puhkuse dokumentide talletamine Dokument moodulis"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_expense
+#: model:ir.module.module,summary:base.module_document_hr_expense
 msgid "Store expense documents in the Document app"
 msgstr "Säilita kuludokumendid moodulis Dokumendid"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_ch_hr_payroll
 msgid "Store individual accounts in Documents application"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_hk_hr_payroll
 msgid "Store ir56 forms in the Document app"
 msgstr ""
 
@@ -44232,7 +44232,7 @@ msgid "Website Appointments"
 msgstr "Veeblilehe kohtumised"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_website_documents
+#: model:ir.module.module,shortdesc:base.module_website_document
 msgid "Website Documents"
 msgstr "Veebilehe dokumendid"
 

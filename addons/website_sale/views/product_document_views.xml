@@ -2,8 +2,8 @@
 <odoo>
 
     <record id="view_product_document_form" model="ir.ui.view">
-        <field name="name">documents.document.form.website_sale</field>
-        <field name="model">documents.document</field>
+        <field name="name">document.document.form.website_sale</field>
+        <field name="model">document.document</field>
         <field name="inherit_id" ref="sale.view_product_document_form" />
         <field name="arch" type="xml">
             <sheet position="inside">
@@ -18,8 +18,8 @@
     </record>
 
     <record id="view_product_document_kanban" model="ir.ui.view">
-        <field name="name">documents.document.kanban.website_sale</field>
-        <field name="model">documents.document</field>
+        <field name="name">document.document.kanban.website_sale</field>
+        <field name="model">document.document</field>
         <field name="inherit_id" ref="sale.view_product_document_kanban" />
         <field name="arch" type="xml">
             <xpath expr="//main/div" position="inside">
@@ -35,8 +35,8 @@
     </record>
 
     <record id="view_product_document_list" model="ir.ui.view">
-        <field name="name">documents.document.list.website_sale</field>
-        <field name="model">documents.document</field>
+        <field name="name">document.document.list.website_sale</field>
+        <field name="model">document.document</field>
         <field name="inherit_id" ref="sale.view_product_document_list" />
         <field name="arch" type="xml">
             <field name="attached_on_sale" position="after">
@@ -48,8 +48,8 @@
     </record>
 
     <record id="view_product_document_search" model="ir.ui.view">
-        <field name="name">documents.document.search.sale</field>
-        <field name="model">documents.document</field>
+        <field name="name">document.document.search.sale</field>
+        <field name="model">document.document</field>
         <field name="inherit_id" ref="sale.view_product_document_search" />
         <field name="arch" type="xml">
             <search position="inside">

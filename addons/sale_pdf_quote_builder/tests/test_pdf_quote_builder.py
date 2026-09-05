@@ -28,7 +28,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
 
         cls.sale_order.date_validity = "2020-11-04"
         cls.sale_order.partner_id.tz = "Europe/Brussels"
-        cls.env["documents.document"].search([]).action_archive()
+        cls.env["document.document"].search([]).action_archive()
         cls.env["quotation.document"].search([]).action_archive()
 
         with file_open(forms_pdf, "rb") as file:
@@ -67,7 +67,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
                 },
             ]
         )
-        cls.product_document = cls.env["documents.document"].create(
+        cls.product_document = cls.env["document.document"].create(
             {
                 "name": "Product Document",
                 "attachment_id": att_prod_doc.id,
@@ -94,7 +94,7 @@ class TestPDFQuoteBuilder(SaleManagementCommon):
 
     def test_compute_customizable_pdf_form_fields_when_no_file(self):
         self.env["quotation.document"].search([]).action_archive()
-        self.env["documents.document"].search([]).action_archive()
+        self.env["document.document"].search([]).action_archive()
         self.assertEqual(self.sale_order.customizable_pdf_form_fields, False)
 
     def test_dynamic_fields_mapping_for_quotation_document(self):

@@ -1,0 +1,81 @@
+/** @odoo-module native */
+import { DocumentsAction } from "@document/views/action/document_action";
+import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { DocumentsBreadcrumbs } from "@document/components/document_breadcrumbs";
+import { DocumentsCogMenu } from "../cog_menu/document_cog_menu.js";
+import { onPatched, useState } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
+
+export class DocumentsControlPanel extends ControlPanel {
+    static template = "document.ControlPanel";
+    static components = {
+        ...ControlPanel.components,
+        DocumentsBreadcrumbs,
+        DocumentsCogMenu,
+        DocumentsAction,
+    };
+
+    setup() {
+        super.setup();
+        this.documentService = useService("document.document");
+
+        this.rightPanelState = useState(this.documentService.rightPanelReactive);
+
+        onPatched(() => {
+            const searchPanelContainer = document.querySelector(".o_search_panel");
+            if (searchPanelContainer) {
+                searchPanelContainer.classList.toggle(
+                    "d-none",
+                    this.env.isSmall && this.env.model.root.selection.length,
+                );
+            }
+        });
+    }
+
+    get currentFolderId() {
+        return this.env.searchModel.getSelectedFolderId();
+    }
+
+    get showActions() {
+        const previewing = !!this.rightPanelState.previewedDocument;
+        const focusing = !!this.rightPanelState.focusedRecord;
+        const focusedSelected =
+            focusing &&
+            !!this.env.model.root.selection.find(
+                (r) => r.id === this.rightPanelState.focusedRecord.id,
+            );
+        return (
+            this.env.config.viewType !== "activity" &&
+            !previewing &&
+            (!focusing || focusedSelected)
+        );
+    }
+
+    get pathBreadcrumbs() {
+        if (this.env.model.config.context.active_model) {
+            return [
+                ...this.env.config.breadcrumbs.slice(0, -1),
+                {
+                    name: this.env.searchModel.getSelectedFolder().display_name,
+                },
+            ];
+        }
+
+        return this.env.searchModel
+            .getSelectedFolderAndParents()
+            .reverse()
+            .map((folder) => {
+                return {
+                    jsId: folder.id,
+                    name: folder.display_name,
+                    onSelected: () => {
+                        const folderSection = this.env.searchModel.getSections()[0];
+                        this.env.searchModel.toggleCategoryValue(
+                            folderSection.id,
+                            folder.id,
+                        );
+                    },
+                };
+            });
+    }
+}

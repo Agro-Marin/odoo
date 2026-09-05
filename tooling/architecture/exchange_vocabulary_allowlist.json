@@ -6,7 +6,7 @@
     "account_peppol.account_peppol_proxy_state": "our registration on the network, not a document's phase",
     "account_peppol.peppol_move_state": "a transmission lifecycle awaiting the port to exchange",
     "account_peppol.peppol_verification_state": "whether a partner is reachable, not a document's phase",
-    "documents_l10n_mx_edi.state": "a download job's progress, not a document's phase",
+    "document_l10n_mx_edi.state": "a download job's progress, not a document's phase",
     "l10n_co_dian.l10n_co_dian_state": "a transmission lifecycle awaiting the port to exchange",
     "l10n_co_dian.state": "a transmission lifecycle awaiting the port to exchange",
     "l10n_dk_nemhandel.l10n_dk_nemhandel_proxy_state": "our registration on the network, not a document's phase",

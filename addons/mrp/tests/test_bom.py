@@ -3086,7 +3086,7 @@ class TestBoM(TestMrpCommon):
         self.assertFalse(operation_2.blocked_by_operation_ids)
 
     def test_bom_document(self):
-        doc_product_bom = self.env["documents.document"].create(
+        doc_product_bom = self.env["document.document"].create(
             {
                 "name": "doc_product_bom",
                 "attached_on_mrp": "bom",
@@ -3095,7 +3095,7 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        self.env["documents.document"].create(
+        self.env["document.document"].create(
             {
                 "name": "doc_product_bom_archived",
                 "active": False,
@@ -3105,7 +3105,7 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        doc_template_bom = self.env["documents.document"].create(
+        doc_template_bom = self.env["document.document"].create(
             {
                 "name": "doc_template_bom",
                 "attached_on_mrp": "bom",

@@ -79,7 +79,7 @@ class MrpBomLine(models.Model):
                 continue
             counts.update(
                 dict(
-                    self.env["documents.document"]._read_group(
+                    self.env["document.document"]._read_group(
                         [
                             ("attached_on_mrp", "=", "bom"),
                             ("active", "=", True),
@@ -266,7 +266,7 @@ class MrpBomLine(models.Model):
             ("res_id", "=", self.product_id.product_tmpl_id.id),
         ]
         counts = dict(
-            self.env["documents.document"]._read_group(
+            self.env["document.document"]._read_group(
                 domain, ["res_model"], ["__count"]
             )
         )
@@ -287,7 +287,7 @@ class MrpBomLine(models.Model):
         return {
             "name": _("Attachments"),
             "domain": domain,
-            "res_model": "documents.document",
+            "res_model": "document.document",
             "type": "ir.actions.act_window",
             "view_mode": "kanban,list,form",
             "target": "current",
@@ -301,25 +301,25 @@ class MrpBomLine(models.Model):
             "views": [
                 (
                     self.env.ref(
-                        "documents_product.view_documents_document_product_kanban"
+                        "document_product.view_documents_document_product_kanban"
                     ).id,
                     "kanban",
                 ),
                 (
                     self.env.ref(
-                        "documents_product.view_documents_document_product_list"
+                        "document_product.view_documents_document_product_list"
                     ).id,
                     "list",
                 ),
                 (
                     self.env.ref(
-                        "documents_product.view_documents_document_product_form"
+                        "document_product.view_documents_document_product_form"
                     ).id,
                     "form",
                 ),
             ],
             "search_view_id": self.env.ref(
-                "documents_product.view_documents_document_product_search"
+                "document_product.view_documents_document_product_search"
             ).ids,
         }
 

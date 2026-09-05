@@ -2973,7 +2973,7 @@ msgstr ""
 "gebruikt met Chorus Pro, vooral bij het factureren van openbare diensten.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project
+#: model:ir.module.module,description:base.module_document_project
 msgid ""
 "\n"
 "Add the ability to create invoices from the document module.\n"
@@ -2982,7 +2982,7 @@ msgstr ""
 "Voeg de mogelijkheid toe om facturen te maken vanuit de document module.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_sign
+#: model:ir.module.module,description:base.module_document_sign
 msgid ""
 "\n"
 "Add the ability to create signatures from the document module.\n"
@@ -3062,7 +3062,7 @@ msgstr ""
 "kiezen van de juiste gegevens.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project_sign
+#: model:ir.module.module,description:base.module_document_project_sign
 msgid ""
 "\n"
 "Adds an action to sign documents attached to tasks.\n"
@@ -3081,7 +3081,7 @@ msgstr ""
 "Voegt goedkeuringsgegevens toe aan documenten\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_fleet
+#: model:ir.module.module,description:base.module_document_fleet
 msgid ""
 "\n"
 "Adds fleet data to documents\n"
@@ -3099,7 +3099,7 @@ msgstr ""
 "Voegt  reparatieorders toe aan kwaliteitscontrole\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_product
+#: model:ir.module.module,description:base.module_document_product
 msgid ""
 "\n"
 "Adds the ability to create products from the document module and adds the\n"
@@ -3111,7 +3111,7 @@ msgstr ""
 "verzenden.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project_sale
+#: model:ir.module.module,description:base.module_document_project_sale
 msgid ""
 "\n"
 "Adds the ability to set folder templates on products.\n"
@@ -3594,7 +3594,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents
+#: model:ir.module.module,description:base.module_document
 msgid ""
 "\n"
 "App to upload and manage your documents.\n"
@@ -4032,7 +4032,7 @@ msgstr ""
 "Maak automatisch een sponsor aan bij het huren van een stand.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents
+#: model:ir.module.module,description:base.module_ai_document
 msgid ""
 "\n"
 "Automatically sort your documents.\n"
@@ -4049,7 +4049,7 @@ msgstr ""
 "Deze module moet later hernoemd worden naar ai_documents_automation.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_fsm
+#: model:ir.module.module,description:base.module_document_fsm
 msgid ""
 "\n"
 "Avoid auto-enabling the documents feature on fsm projects.\n"
@@ -4757,7 +4757,7 @@ msgstr ""
 "Brugmodule tussen verkoop en intrastat.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_account_peppol
+#: model:ir.module.module,description:base.module_document_account_peppol
 msgid ""
 "\n"
 "Bridge module between the Documents and Peppol apps.\n"
@@ -4770,7 +4770,7 @@ msgstr ""
 "in de Documenten-app importeren.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_account
+#: model:ir.module.module,description:base.module_document_account
 msgid ""
 "\n"
 "Bridge module between the accounting and documents apps. It enables\n"
@@ -6173,7 +6173,7 @@ msgstr ""
 "\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr
+#: model:ir.module.module,description:base.module_document_hr
 msgid ""
 "\n"
 "Easily access your documents from your employee profile.\n"
@@ -6411,7 +6411,7 @@ msgstr ""
 "    - PLE 13.1: Permanente voorraad in fysieke eenheden\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_be_hr_payroll
 msgid ""
 "\n"
 "Employee 281.10 and 281.45 forms will be automatically integrated to the "
@@ -6422,7 +6422,7 @@ msgstr ""
 "geïntegreerd in de Document-app.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_ke_hr_payroll
 msgid ""
 "\n"
 "Employee Tax Deduction Card forms will be automatically integrated to the "
@@ -6433,7 +6433,7 @@ msgstr ""
 "geïntegreerd in de Documenten-app.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_hk_hr_payroll
 msgid ""
 "\n"
 "Employee ir56 forms will be automatically integrated to the Document app.\n"
@@ -6443,7 +6443,7 @@ msgstr ""
 "Documenten-app.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_payroll
+#: model:ir.module.module,description:base.module_document_hr_payroll
 msgid ""
 "\n"
 "Employee payslips will be automatically integrated to the Document app.\n"
@@ -6452,7 +6452,7 @@ msgstr ""
 "Loonstroken werknemer worden automatisch geïntegreerd in de Document-app.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_ch_hr_payroll
 msgid ""
 "\n"
 "Employees' individual account forms are automatically integrated to the "
@@ -6557,7 +6557,7 @@ msgstr ""
 "Deze module voegt voltooide cursussen toe aan cv's voor werknemers.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_expense
+#: model:ir.module.module,description:base.module_document_hr_expense
 msgid ""
 "\n"
 "Expense documents will be automatically integrated to the Document app.\n"
@@ -14973,7 +14973,7 @@ msgstr ""
 "Odoo.\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_holidays
+#: model:ir.module.module,description:base.module_document_hr_holidays
 msgid ""
 "\n"
 "Time off documents will be automatically integrated to the Document app.\n"
@@ -15545,7 +15545,7 @@ msgstr ""
 "gekoppeld aan een verkooporder, of alleen de goedgekeurde urenstaten\n"
 
 #. module: base
-#: model:ir.module.module,description:base.module_website_documents
+#: model:ir.module.module,description:base.module_website_document
 msgid ""
 "\n"
 "When sharing documents/folder, the domain of the shared URL can be chosen by "
@@ -16996,19 +16996,19 @@ msgid "AI Auto Install"
 msgstr "AI automatische installatie"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_ai_documents
+#: model:ir.module.module,shortdesc:base.module_ai_document
 msgid "AI Documents"
 msgstr "AI-documenten"
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents_account
-#: model:ir.module.module,shortdesc:base.module_ai_documents_account
-#: model:ir.module.module,summary:base.module_ai_documents_account
+#: model:ir.module.module,description:base.module_ai_document_account
+#: model:ir.module.module,shortdesc:base.module_ai_document_account
+#: model:ir.module.module,summary:base.module_ai_document_account
 msgid "AI Documents Account"
 msgstr "AI Documenten Account"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_ai_documents_source
+#: model:ir.module.module,shortdesc:base.module_ai_document_source
 msgid "AI Documents Source"
 msgstr "AI-documenten Bron"
 
@@ -17195,7 +17195,7 @@ msgid "Access Token"
 msgstr "Toegangstoken"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr
+#: model:ir.module.module,summary:base.module_document_hr
 msgid "Access documents from the employee profile"
 msgstr "Krijg toegang tot documenten vanuit de werknemer zijn profiel"
 
@@ -17747,8 +17747,8 @@ msgid "Add directional information (not used for digital)"
 msgstr "Directionele informatie toevoegen (niet gebruikt voor digitaal)"
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents_source
-#: model:ir.module.module,summary:base.module_ai_documents_source
+#: model:ir.module.module,description:base.module_ai_document_source
+#: model:ir.module.module,summary:base.module_ai_document_source
 msgid "Add documents to AI agents as sources."
 msgstr "Voeg documenten toe aan AI-agents als bronnen."
 
@@ -21303,7 +21303,7 @@ msgstr ""
 "Automatisch datums instellen op taken die door afspraken worden gegenereerd"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_ai_documents
+#: model:ir.module.module,summary:base.module_ai_document
 msgid "Automatically sort your documents."
 msgstr "Sorteer je documenten automatisch."
 
@@ -21425,7 +21425,7 @@ msgid "Aviato Theme - Responsive Bootstrap Theme for Odoo CMS"
 msgstr "Thema Aviato – Responsief Bootstrap-thema voor Odoo CMS"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_fsm
+#: model:ir.module.module,summary:base.module_document_fsm
 msgid "Avoid auto-enabling the documents feature on fsm projects"
 msgstr ""
 "Vermijd het automatisch inschakelen van de documentfunctie op fsm-projecten"
@@ -23490,7 +23490,7 @@ msgstr ""
 "over"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_website_documents
+#: model:ir.module.module,summary:base.module_website_document
 msgid "Choose the website on which documents/folder are shared"
 msgstr "Kies de website waarop documenten/map worden gedeeld"
 
@@ -23681,7 +23681,7 @@ msgid "Collect payments from your customers through SEPA direct debit."
 msgstr "Incasseer betalingen van je klanten middels SEPA auto incasso."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents
+#: model:ir.module.module,summary:base.module_document
 msgid "Collect, organize and share documents."
 msgstr "Verzamel, organiseer en deel documenten."
 
@@ -26416,12 +26416,12 @@ msgstr "Documentsjabloon"
 
 #. module: base
 #: model:ir.module.category,name:base.module_category_productivity_documents
-#: model:ir.module.module,shortdesc:base.module_documents
+#: model:ir.module.module,shortdesc:base.module_document
 msgid "Documents"
 msgstr "Documenten"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_account
+#: model:ir.module.module,shortdesc:base.module_document_account
 msgid "Documents - Accounting"
 msgstr "Documenten - Boekhouding"
 
@@ -26431,94 +26431,94 @@ msgid "Documents - Approvals"
 msgstr "Documenten - Goedkeuringen"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_be_hr_payroll
 msgid "Documents - Belgian Payroll"
 msgstr "Documenten - Belgische Loonadministratie"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_expense
+#: model:ir.module.module,shortdesc:base.module_document_hr_expense
 msgid "Documents - Expense"
 msgstr "Documenten - Onkosten"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_fsm
+#: model:ir.module.module,shortdesc:base.module_document_fsm
 msgid "Documents - FSM"
 msgstr "Documenten - FSM"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_fleet
+#: model:ir.module.module,shortdesc:base.module_document_fleet
 msgid "Documents - Fleet"
 msgstr "Documenten - Wagenpark"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr
+#: model:ir.module.module,shortdesc:base.module_document_hr
 msgid "Documents - HR"
 msgstr "Documenten - HR"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_hk_hr_payroll
 msgid "Documents - Hong Kong Payroll"
 msgstr "Documenten - Hong Kong Payroll"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_account_peppol
+#: model:ir.module.module,shortdesc:base.module_document_account_peppol
 msgid "Documents - Import from Peppol"
 msgstr "Documenten - Importeer vanuit Peppol"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_ke_hr_payroll
 msgid "Documents - Kenyan Payroll"
 msgstr "Documenten - Keniaanse loonlijst"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_hr_payroll
 msgid "Documents - Payroll"
 msgstr "Documenten - Loonadministratie"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_product
+#: model:ir.module.module,shortdesc:base.module_document_product
 msgid "Documents - Product"
 msgstr "Documenten - Product"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project_sale
+#: model:ir.module.module,shortdesc:base.module_document_project_sale
 msgid "Documents - Project - Sale"
 msgstr "Documenten - Project - Verkoop"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project
+#: model:ir.module.module,shortdesc:base.module_document_project
 msgid "Documents - Projects"
 msgstr "Documenten - Projecten"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_sign
+#: model:ir.module.module,shortdesc:base.module_document_sign
 msgid "Documents - Signatures"
 msgstr "Documenten - Handtekeningen"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_ch_hr_payroll
 msgid "Documents - Swiss Payroll"
 msgstr "Documenten - Zwitserse loonlijst"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_holidays
+#: model:ir.module.module,shortdesc:base.module_document_hr_holidays
 msgid "Documents - Time Off"
 msgstr "Documenten - verlof"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project_sign
+#: model:ir.module.module,shortdesc:base.module_document_project_sign
 msgid "Documents Project Sign"
 msgstr "Documenten Project Teken"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_spreadsheet
-#: model:ir.module.module,shortdesc:base.module_documents_spreadsheet
-#: model:ir.module.module,summary:base.module_documents_spreadsheet
+#: model:ir.module.module,description:base.module_document_spreadsheet
+#: model:ir.module.module,shortdesc:base.module_document_spreadsheet
+#: model:ir.module.module,summary:base.module_document_spreadsheet
 msgid "Documents Spreadsheet"
 msgstr "Documenten spreadsheet"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_account_peppol
+#: model:ir.module.module,summary:base.module_document_account_peppol
 msgid "Documents from Peppol"
 msgstr "Peppol-documenten"
 
@@ -29117,7 +29117,7 @@ msgid "Fleet History"
 msgstr "Wagenpark geschiedenis"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_fleet
+#: model:ir.module.module,summary:base.module_document_fleet
 msgid "Fleet from documents"
 msgstr "Wagenpark van documenten"
 
@@ -32375,7 +32375,7 @@ msgid "Invoices & Payments"
 msgstr "Facturen & Betalingen"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_account
+#: model:ir.module.module,summary:base.module_document_account
 msgid "Invoices from Documents"
 msgstr "Facturen vanuit documenten"
 
@@ -41291,12 +41291,12 @@ msgid "Products Expiration Date"
 msgstr "Vervaldatum producten"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project_sale
+#: model:ir.module.module,summary:base.module_document_project_sale
 msgid "Products Folder Templates"
 msgstr "Productmapsjablonen"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_product
+#: model:ir.module.module,summary:base.module_document_product
 msgid "Products from Documents"
 msgstr "Producten vanuit documenten"
 
@@ -41655,7 +41655,7 @@ msgid "Project expenses"
 msgstr "Projectkosten"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project
+#: model:ir.module.module,summary:base.module_document_project
 msgid "Project from documents"
 msgstr "Project van documenten"
 
@@ -44629,7 +44629,7 @@ msgid "Sign Test case"
 msgstr "Testsituatie Ondertekenen"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project_sign
+#: model:ir.module.module,summary:base.module_document_project_sign
 msgid "Sign documents attached to tasks"
 msgstr "Onderteken documenten die aan taken zijn gekoppeld"
 
@@ -44654,7 +44654,7 @@ msgid "Sign itsme"
 msgstr "Teken itsme"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_sign
+#: model:ir.module.module,summary:base.module_document_sign
 msgid "Signature templates from Documents"
 msgstr "Handtekening sjablonen voor documenten"
 
@@ -45215,14 +45215,14 @@ msgid "Spreadsheet Dashboard edition"
 msgstr "Spreadsheet Dashboard-editie"
 
 #. module: base
-#: model:ir.module.module,description:base.module_spreadsheet_dashboard_documents
-#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_documents
-#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_documents
+#: model:ir.module.module,description:base.module_spreadsheet_dashboard_document
+#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_document
+#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_document
 msgid "Spreadsheet Documents"
 msgstr "Spreadsheetdocumenten"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_spreadsheet_survey
+#: model:ir.module.module,shortdesc:base.module_document_spreadsheet_survey
 msgid "Spreadsheet Survey"
 msgstr "Spreadsheet voor enquêtes"
 
@@ -45352,8 +45352,8 @@ msgid "Spreadsheet dashboard for time sheets"
 msgstr "Spreadsheetdashboard voor urenstaten"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_spreadsheet_survey
-#: model:ir.module.module,summary:base.module_documents_spreadsheet_survey
+#: model:ir.module.module,description:base.module_document_spreadsheet_survey
+#: model:ir.module.module,summary:base.module_document_spreadsheet_survey
 msgid "Spreadsheet for Survey results"
 msgstr "Spreadsheet voor enquêteresultaten"
 
@@ -45545,40 +45545,40 @@ msgid "Store chatter attachments in the cloud"
 msgstr "Chatbijlagen opslaan in de cloud"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_be_hr_payroll
 msgid "Store employee 281.10 and 281.45 forms in the Document app"
 msgstr ""
 "Bewaar de formulieren 281.10 en 281.45 van werknemers in de Document-app"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_payroll
+#: model:ir.module.module,summary:base.module_document_hr_payroll
 msgid "Store employee payslips in the Document app"
 msgstr "Loonstroken werknemer opslaan in de documenten app"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_ke_hr_payroll
 msgid "Store employee tax deduction card forms in the Document app"
 msgstr ""
 "Bewaar de formulieren voor de belastingaftrekkaart voor werknemers in de "
 "Documenten-app"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_holidays
+#: model:ir.module.module,summary:base.module_document_hr_holidays
 msgid "Store employee's time off documents in the Document app"
 msgstr "Bewaar verlofdocumenten van werknemers in de Document-app"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_expense
+#: model:ir.module.module,summary:base.module_document_hr_expense
 msgid "Store expense documents in the Document app"
 msgstr "Sla onkost-documenten op in de Documenten-app"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_ch_hr_payroll
 msgid "Store individual accounts in Documents application"
 msgstr "Bewaar individuele accounts in de Documenten-applicatie"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_hk_hr_payroll
 msgid "Store ir56 forms in the Document app"
 msgstr "Bewaar ir56-formulieren in de Documenten-app"
 
@@ -50333,7 +50333,7 @@ msgid "Website Appointments"
 msgstr "Website-afspraken"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_website_documents
+#: model:ir.module.module,shortdesc:base.module_website_document
 msgid "Website Documents"
 msgstr "Websitedocumenten"
 

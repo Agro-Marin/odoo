@@ -1,4 +1,4 @@
-from odoo.addons.documents_product.controllers.documents_document import (
+from odoo.addons.document_product.controllers.document_document import (
     ProductDocumentsController,
 )
 

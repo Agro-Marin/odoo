@@ -1,0 +1,193 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * documents_product
+#
+# Translators:
+# lhmflexerp <lhm@flexerp.dk>, 2022
+# Ejner Sønniksen <ejner@vkdata.dk>, 2022
+# Joe Hansen <joedalton2@yahoo.dk>, 2022
+# Martin Trigaux, 2022
+# Mads Søndergaard, 2022
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Kira Petersen François (peti)" <peti@odoo.com>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 15.5alpha1+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-30 18:44+0000\n"
+"PO-Revision-Date: 2025-11-16 05:27+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Danish <https://translate.odoo.com/projects/odoo-19/"
+"document_product/da/>\n"
+"Language: da\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: document_product
+#: model_terms:ir.ui.view,arch_db:document_product.res_config_settings_view_form
+msgid "Centralize files attached to products"
+msgstr "Centralisér filer vedhæftet produkter"
+
+#. module: document_product
+#: model:ir.model,name:document_product.model_res_company
+msgid "Companies"
+msgstr "Virksomheder"
+
+#. module: document_product
+#: model:ir.model,name:document_product.model_res_config_settings
+msgid "Config Settings"
+msgstr "Konfigurationsindstillinger"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_document_document__display_name
+#: model:ir.model.fields,field_description:document_product.field_product_product__display_name
+#: model:ir.model.fields,field_description:document_product.field_product_template__display_name
+#: model:ir.model.fields,field_description:document_product.field_res_company__display_name
+#: model:ir.model.fields,field_description:document_product.field_res_config_settings__display_name
+msgid "Display Name"
+msgstr "Vis navn"
+
+#. module: document_product
+#: model:ir.model,name:document_product.model_document_document
+msgid "Document"
+msgstr "Dokument"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_res_company__documents_product_settings
+msgid "Documents Product Settings"
+msgstr "Dokumenter produkt indstillinger"
+
+#. module: document_product
+#: model_terms:ir.ui.view,arch_db:document_product.res_config_settings_view_form
+msgid "Folder"
+msgstr "Mappe"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_document_document__id
+#: model:ir.model.fields,field_description:document_product.field_product_product__id
+#: model:ir.model.fields,field_description:document_product.field_product_template__id
+#: model:ir.model.fields,field_description:document_product.field_res_company__id
+#: model:ir.model.fields,field_description:document_product.field_res_config_settings__id
+msgid "ID"
+msgstr "ID"
+
+#. module: document_product
+#: model:ir.model,name:document_product.model_product_template
+#: model:ir.model.fields,field_description:document_product.field_document_document__product_template_id
+#: model:ir.model.fields,field_description:document_product.field_res_config_settings__documents_product_settings
+msgid "Product"
+msgstr "Produkt"
+
+#. module: document_product
+#: model:document.tag,name:document_product.documents_product_sheet_tag
+msgid "Product > DataSheets"
+msgstr "Produkt > Datablade"
+
+#. module: document_product
+#: model:document.tag,name:document_product.documents_product_msds_tag
+msgid "Product > MSDS"
+msgstr "Produkt > MSDS"
+
+#. module: document_product
+#: model:document.tag,name:document_product.documents_product_new_tag
+msgid "Product > New"
+msgstr "Produkt > Ny"
+
+#. module: document_product
+#: model:document.tag,name:document_product.documents_product_plans_tag
+msgid "Product > Plans"
+msgstr "Produkt > Planer"
+
+#. module: document_product
+#: model:document.tag,name:document_product.documents_product_specs_tag
+msgid "Product > Specs"
+msgstr "Produkt > Specifikationer"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_res_company__product_folder_id
+msgid "Product Folder"
+msgstr "Produktmappe"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_res_company__product_tag_ids
+msgid "Product Tag"
+msgstr "Produkt-tag"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_res_config_settings__product_tag_ids
+msgid "Product Tags"
+msgstr "Produkt-tags"
+
+#. module: document_product
+#: model:ir.model,name:document_product.model_product_product
+#: model:ir.model.fields,field_description:document_product.field_document_document__product_id
+msgid "Product Variant"
+msgstr "Varevariant"
+
+#. module: document_product
+#. odoo-python
+#: code:addons/document_product/models/document.py:0
+msgid "Product created from Documents"
+msgstr "Produkt oprettet ud fra Dokumenter"
+
+#. module: document_product
+#: model:document.document,name:document_product.document_product_folder
+msgid "Products"
+msgstr "Varer"
+
+#. module: document_product
+#: model_terms:ir.ui.view,arch_db:document_product.res_config_settings_view_form
+msgid "Tags"
+msgstr "Tags"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_res_config_settings__product_folder_id
+msgid "product default folder"
+msgstr ""
+
+#~ msgid ""
+#~ "A set of condition and actions which will be available to all attachments "
+#~ "matching the conditions"
+#~ msgstr ""
+#~ "En række betingelser og handlinger der vil være tilgængelige for alle "
+#~ "vedhæftninger, som matcher betingelserne"
+
+#~ msgid "Create"
+#~ msgstr "Opret"
+
+#~ msgid "DataSheets"
+#~ msgstr "DataArk"
+
+#~ msgid "Default Tags"
+#~ msgstr "Standard tags"
+
+#~ msgid "Documents"
+#~ msgstr "Dokumenter"
+
+#~ msgid "MSDS"
+#~ msgstr "MSDS"
+
+#~ msgid "New"
+#~ msgstr "Ny"
+
+#~ msgid "Plans"
+#~ msgstr "Planer"
+
+#~ msgid "Product Workspace"
+#~ msgstr "Produkt arbejdsområde"
+
+#~ msgid "Product template"
+#~ msgstr "Produktskabelon"
+
+#~ msgid "Specs"
+#~ msgstr "Specifikationer"
+
+#~ msgid "Workspace"
+#~ msgstr "Arbejdsområde"
+
+#~ msgid "product default workspace"
+#~ msgstr "Standardarbejdsområde for produkter"

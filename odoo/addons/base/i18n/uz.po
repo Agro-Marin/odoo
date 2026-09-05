@@ -2690,7 +2690,7 @@ msgstr ""
 "imkoniyatini qo‘shing."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project
+#: model:ir.module.module,description:base.module_document_project
 #, fuzzy
 msgid ""
 "\n"
@@ -2698,7 +2698,7 @@ msgid ""
 msgstr "Hujjatlar modulidan hisob-fakturalar yaratish imkoniyatini qo‘shing."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_sign
+#: model:ir.module.module,description:base.module_document_sign
 #, fuzzy
 msgid ""
 "\n"
@@ -2774,7 +2774,7 @@ msgstr ""
 "yordam beradigan bir nechta variantlar mavjud."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project_sign
+#: model:ir.module.module,description:base.module_document_project_sign
 #, fuzzy
 msgid ""
 "\n"
@@ -2790,7 +2790,7 @@ msgid ""
 msgstr "Hujjatlarga tasdiqlash ma'lumotlarini qo‘shadi"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_fleet
+#: model:ir.module.module,description:base.module_document_fleet
 #, fuzzy
 msgid ""
 "\n"
@@ -2806,7 +2806,7 @@ msgid ""
 msgstr "Sifat nazoratiga ta'mirlash buyurtmalarini qo‘shadi"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_product
+#: model:ir.module.module,description:base.module_document_product
 #, fuzzy
 msgid ""
 "\n"
@@ -2817,7 +2817,7 @@ msgstr ""
 "ilovasiga mahsulotlar ilovalarini yuborish imkoniyatini beradi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project_sale
+#: model:ir.module.module,description:base.module_document_project_sale
 #, fuzzy
 msgid ""
 "\n"
@@ -3262,7 +3262,7 @@ msgstr ""
 "bo‘lsa, zarur buxgalteriya yozuvlari tuziladi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents
+#: model:ir.module.module,description:base.module_document
 #, fuzzy
 msgid ""
 "\n"
@@ -3631,7 +3631,7 @@ msgid ""
 msgstr "Stend ijaraga olinganda avtomatik ravishda homiy yaratish"
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents
+#: model:ir.module.module,description:base.module_ai_document
 #, fuzzy
 msgid ""
 "\n"
@@ -3647,7 +3647,7 @@ msgstr ""
 "bog‘liq. Keyinchalik uni ai_hujjatlar_avtomatlashtirish deb nomlash kerak."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_fsm
+#: model:ir.module.module,description:base.module_document_fsm
 #, fuzzy
 msgid ""
 "\n"
@@ -4305,7 +4305,7 @@ msgid ""
 msgstr "Savdo va intrastat o‘rtasidagi ko‘prik moduli."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_account_peppol
+#: model:ir.module.module,description:base.module_document_account_peppol
 #, fuzzy
 msgid ""
 "\n"
@@ -4317,7 +4317,7 @@ msgstr ""
 "ilovasida qabul qilingan Peppol hujjatlarini import qilish imkonini beradi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_account
+#: model:ir.module.module,description:base.module_document_account
 #, fuzzy
 msgid ""
 "\n"
@@ -5588,7 +5588,7 @@ msgstr ""
 "olgan OSS hisobotlarini taqdim etadi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr
+#: model:ir.module.module,description:base.module_document_hr
 #, fuzzy
 msgid ""
 "\n"
@@ -5812,7 +5812,7 @@ msgstr ""
 "qaydnomasi"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_be_hr_payroll
 #, fuzzy
 msgid ""
 "\n"
@@ -5823,7 +5823,7 @@ msgstr ""
 "kiritiladi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_ke_hr_payroll
 #, fuzzy
 msgid ""
 "\n"
@@ -5834,7 +5834,7 @@ msgstr ""
 "ilovasiga kiritiladi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_hk_hr_payroll
 #, fuzzy
 msgid ""
 "\n"
@@ -5844,7 +5844,7 @@ msgstr ""
 "kiritiladi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_payroll
+#: model:ir.module.module,description:base.module_document_hr_payroll
 #, fuzzy
 msgid ""
 "\n"
@@ -5854,7 +5854,7 @@ msgstr ""
 "ilovasiga kiritiladi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_ch_hr_payroll
 #, fuzzy
 msgid ""
 "\n"
@@ -5952,7 +5952,7 @@ msgstr ""
 "xodimlar uchun yakunlangan kurs tadbirlarini rezyumega qo‘shadi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_expense
+#: model:ir.module.module,description:base.module_document_hr_expense
 #, fuzzy
 msgid ""
 "\n"
@@ -13726,7 +13726,7 @@ msgstr ""
 "jadvalini taqdim etadi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_holidays
+#: model:ir.module.module,description:base.module_document_hr_holidays
 #, fuzzy
 msgid ""
 "\n"
@@ -14260,7 +14260,7 @@ msgstr ""
 "imkoniyati mavjud"
 
 #. module: base
-#: model:ir.module.module,description:base.module_website_documents
+#: model:ir.module.module,description:base.module_website_document
 #, fuzzy
 msgid ""
 "\n"
@@ -15912,21 +15912,21 @@ msgid "AI Auto Install"
 msgstr "AI avtomatik o‘rnatish"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_ai_documents
+#: model:ir.module.module,shortdesc:base.module_ai_document
 #, fuzzy
 msgid "AI Documents"
 msgstr "AI hujjatlar"
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents_account
-#: model:ir.module.module,shortdesc:base.module_ai_documents_account
-#: model:ir.module.module,summary:base.module_ai_documents_account
+#: model:ir.module.module,description:base.module_ai_document_account
+#: model:ir.module.module,shortdesc:base.module_ai_document_account
+#: model:ir.module.module,summary:base.module_ai_document_account
 #, fuzzy
 msgid "AI Documents Account"
 msgstr "AI hujjatlar hisobi"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_ai_documents_source
+#: model:ir.module.module,shortdesc:base.module_ai_document_source
 #, fuzzy
 msgid "AI Documents Source"
 msgstr "AI hujjatlar manbasi"
@@ -16146,7 +16146,7 @@ msgid "Access Token"
 msgstr "Kirish tokeni"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr
+#: model:ir.module.module,summary:base.module_document_hr
 #, fuzzy
 msgid "Access documents from the employee profile"
 msgstr "Xodim profilidan hujjatlarga kirish"
@@ -16771,8 +16771,8 @@ msgid "Add directional information (not used for digital)"
 msgstr "Yo‘nalish ma'lumotlarini qo‘shing (raqamli uchun ishlatilmaydi)"
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents_source
-#: model:ir.module.module,summary:base.module_ai_documents_source
+#: model:ir.module.module,description:base.module_ai_document_source
+#: model:ir.module.module,summary:base.module_ai_document_source
 #, fuzzy
 msgid "Add documents to AI agents as sources."
 msgstr "AI agentlariga manbalar sifatida hujjatlarni qo‘shing"
@@ -20968,7 +20968,7 @@ msgstr ""
 "Uchrashuvlar orqali yaratilgan vazifalarga sanalarni avtomatik belgilash"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_ai_documents
+#: model:ir.module.module,summary:base.module_ai_document
 #, fuzzy
 msgid "Automatically sort your documents."
 msgstr "Hujjatlaringizni avtomatik saralash"
@@ -21114,7 +21114,7 @@ msgid "Aviato Theme - Responsive Bootstrap Theme for Odoo CMS"
 msgstr "Aviato mavzusi - Odoo CMS uchun moslashuvchan Bootstrap mavzusi"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_fsm
+#: model:ir.module.module,summary:base.module_document_fsm
 #, fuzzy
 msgid "Avoid auto-enabling the documents feature on fsm projects"
 msgstr ""
@@ -23531,7 +23531,7 @@ msgstr ""
 "autentifikatsiyasini o‘tkazib yuboring"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_website_documents
+#: model:ir.module.module,summary:base.module_website_document
 #, fuzzy
 msgid "Choose the website on which documents/folder are shared"
 msgstr "Hujjatlar/papkalar ulashiladigan veb-saytni tanlang"
@@ -23750,7 +23750,7 @@ msgstr ""
 "Mijozlaringizdan to‘lovlarni SEPA to‘g‘ridan-to‘g‘ri debet orqali yig‘ing."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents
+#: model:ir.module.module,summary:base.module_document
 #, fuzzy
 msgid "Collect, organize and share documents."
 msgstr "Hujjatlarni to‘plang, tartibga soling va ulashing."
@@ -26893,13 +26893,13 @@ msgstr "Hujjat shabloni"
 
 #. module: base
 #: model:ir.module.category,name:base.module_category_productivity_documents
-#: model:ir.module.module,shortdesc:base.module_documents
+#: model:ir.module.module,shortdesc:base.module_document
 #, fuzzy
 msgid "Documents"
 msgstr "Hujjatlar"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_account
+#: model:ir.module.module,shortdesc:base.module_document_account
 #, fuzzy
 msgid "Documents - Accounting"
 msgstr "Hujjatlar - Buxgalteriya hisobi"
@@ -26911,111 +26911,111 @@ msgid "Documents - Approvals"
 msgstr "Hujjatlar - Tasdiqlashlar"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_be_hr_payroll
 #, fuzzy
 msgid "Documents - Belgian Payroll"
 msgstr "Hujjatlar - Belgiya ish haqi"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_expense
+#: model:ir.module.module,shortdesc:base.module_document_hr_expense
 #, fuzzy
 msgid "Documents - Expense"
 msgstr "Hujjatlar - Xarajatlar"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_fsm
+#: model:ir.module.module,shortdesc:base.module_document_fsm
 #, fuzzy
 msgid "Documents - FSM"
 msgstr "Hujjatlar - FSM"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_fleet
+#: model:ir.module.module,shortdesc:base.module_document_fleet
 #, fuzzy
 msgid "Documents - Fleet"
 msgstr "Hujjatlar - Transport vositalari"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr
+#: model:ir.module.module,shortdesc:base.module_document_hr
 #, fuzzy
 msgid "Documents - HR"
 msgstr "Hujjatlar - Kadrlar bo‘limi"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_hk_hr_payroll
 #, fuzzy
 msgid "Documents - Hong Kong Payroll"
 msgstr "Hujjatlar - Gonkong ish haqi"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_account_peppol
+#: model:ir.module.module,shortdesc:base.module_document_account_peppol
 #, fuzzy
 msgid "Documents - Import from Peppol"
 msgstr "Hujjatlar - Peppoldan import"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_ke_hr_payroll
 #, fuzzy
 msgid "Documents - Kenyan Payroll"
 msgstr "Hujjatlar - Keniya ish haqi"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_hr_payroll
 #, fuzzy
 msgid "Documents - Payroll"
 msgstr "Hujjatlar - Ish haqi"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_product
+#: model:ir.module.module,shortdesc:base.module_document_product
 #, fuzzy
 msgid "Documents - Product"
 msgstr "Hujjatlar - Mahsulot"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project_sale
+#: model:ir.module.module,shortdesc:base.module_document_project_sale
 #, fuzzy
 msgid "Documents - Project - Sale"
 msgstr "Hujjatlar - Loyiha - Sotish"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project
+#: model:ir.module.module,shortdesc:base.module_document_project
 #, fuzzy
 msgid "Documents - Projects"
 msgstr "Hujjatlar - Loyihalar"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_sign
+#: model:ir.module.module,shortdesc:base.module_document_sign
 #, fuzzy
 msgid "Documents - Signatures"
 msgstr "Hujjatlar - Imzolar"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_ch_hr_payroll
 #, fuzzy
 msgid "Documents - Swiss Payroll"
 msgstr "Hujjatlar - Shveytsariya ish haqi"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_holidays
+#: model:ir.module.module,shortdesc:base.module_document_hr_holidays
 #, fuzzy
 msgid "Documents - Time Off"
 msgstr "Hujjatlar - Ta'til"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project_sign
+#: model:ir.module.module,shortdesc:base.module_document_project_sign
 #, fuzzy
 msgid "Documents Project Sign"
 msgstr "Loyiha hujjatlarini imzolash"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_spreadsheet
-#: model:ir.module.module,shortdesc:base.module_documents_spreadsheet
-#: model:ir.module.module,summary:base.module_documents_spreadsheet
+#: model:ir.module.module,description:base.module_document_spreadsheet
+#: model:ir.module.module,shortdesc:base.module_document_spreadsheet
+#: model:ir.module.module,summary:base.module_document_spreadsheet
 #, fuzzy
 msgid "Documents Spreadsheet"
 msgstr "Jadval hujjatlari"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_account_peppol
+#: model:ir.module.module,summary:base.module_document_account_peppol
 #, fuzzy
 msgid "Documents from Peppol"
 msgstr "Peppoldan hujjatlar"
@@ -30058,7 +30058,7 @@ msgid "Fleet History"
 msgstr "Flot tarixi"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_fleet
+#: model:ir.module.module,summary:base.module_document_fleet
 #, fuzzy
 msgid "Fleet from documents"
 msgstr "Hujjatlardan olingan flot"
@@ -33866,7 +33866,7 @@ msgid "Invoices & Payments"
 msgstr "Hisob-fakturalar va to‘lovlar"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_account
+#: model:ir.module.module,summary:base.module_document_account
 #, fuzzy
 msgid "Invoices from Documents"
 msgstr "Hujjatlardan hisob-fakturalar"
@@ -42923,13 +42923,13 @@ msgid "Products Expiration Date"
 msgstr "Mahsulotlarning yaroqlilik muddati"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project_sale
+#: model:ir.module.module,summary:base.module_document_project_sale
 #, fuzzy
 msgid "Products Folder Templates"
 msgstr "Mahsulotlar papkasi andozalari"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_product
+#: model:ir.module.module,summary:base.module_document_product
 #, fuzzy
 msgid "Products from Documents"
 msgstr "Hujjatlardan olingan mahsulotlar"
@@ -43249,7 +43249,7 @@ msgid "Project expenses"
 msgstr "Loyiha xarajatlari"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project
+#: model:ir.module.module,summary:base.module_document_project
 #, fuzzy
 msgid "Project from documents"
 msgstr "Hujjatlardan loyiha"
@@ -46750,7 +46750,7 @@ msgid "Sign Test case"
 msgstr "Sinov holatini imzolash"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project_sign
+#: model:ir.module.module,summary:base.module_document_project_sign
 #, fuzzy
 msgid "Sign documents attached to tasks"
 msgstr "Vazifalarga biriktirilgan hujjatlarni imzolash"
@@ -46780,7 +46780,7 @@ msgid "Sign itsme"
 msgstr "itsme imzosi"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_sign
+#: model:ir.module.module,summary:base.module_document_sign
 #, fuzzy
 msgid "Signature templates from Documents"
 msgstr "Hujjatlardan imzo namunalari"
@@ -47432,15 +47432,15 @@ msgid "Spreadsheet Dashboard edition"
 msgstr "Elektron jadval boshqaruv paneli nashri"
 
 #. module: base
-#: model:ir.module.module,description:base.module_spreadsheet_dashboard_documents
-#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_documents
-#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_documents
+#: model:ir.module.module,description:base.module_spreadsheet_dashboard_document
+#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_document
+#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_document
 #, fuzzy
 msgid "Spreadsheet Documents"
 msgstr "Elektron jadval hujjatlari"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_spreadsheet_survey
+#: model:ir.module.module,shortdesc:base.module_document_spreadsheet_survey
 #, fuzzy
 msgid "Spreadsheet Survey"
 msgstr "Elektron jadval so‘rovnomasi"
@@ -47597,8 +47597,8 @@ msgid "Spreadsheet dashboard for time sheets"
 msgstr "Vaqt hisoboti uchun elektron jadval boshqaruv paneli"
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_spreadsheet_survey
-#: model:ir.module.module,summary:base.module_documents_spreadsheet_survey
+#: model:ir.module.module,description:base.module_document_spreadsheet_survey
+#: model:ir.module.module,summary:base.module_document_spreadsheet_survey
 #, fuzzy
 msgid "Spreadsheet for Survey results"
 msgstr "So‘rovnoma natijalari uchun elektron jadval"
@@ -47822,44 +47822,44 @@ msgid "Store chatter attachments in the cloud"
 msgstr "Chat ilovalarini bulutda saqlash"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_be_hr_payroll
 #, fuzzy
 msgid "Store employee 281.10 and 281.45 forms in the Document app"
 msgstr "Xodimlarning 281.10 va 281.45 shakllarini Hujjat ilovasida saqlash"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_payroll
+#: model:ir.module.module,summary:base.module_document_hr_payroll
 #, fuzzy
 msgid "Store employee payslips in the Document app"
 msgstr "Xodimlarning ish haqi varaqalarini Hujjat ilovasida saqlash"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_ke_hr_payroll
 #, fuzzy
 msgid "Store employee tax deduction card forms in the Document app"
 msgstr ""
 "Xodimlarning soliq chegirmasi kartasi shakllarini Hujjat ilovasida saqlash"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_holidays
+#: model:ir.module.module,summary:base.module_document_hr_holidays
 #, fuzzy
 msgid "Store employee's time off documents in the Document app"
 msgstr "Xodimlarning ta'til hujjatlarini Hujjat ilovasida saqlash"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_expense
+#: model:ir.module.module,summary:base.module_document_hr_expense
 #, fuzzy
 msgid "Store expense documents in the Document app"
 msgstr "Xarajat hujjatlarini Hujjat ilovasida saqlash"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_ch_hr_payroll
 #, fuzzy
 msgid "Store individual accounts in Documents application"
 msgstr "Shaxsiy hisoblarni Hujjatlar ilovasida saqlash"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_hk_hr_payroll
 #, fuzzy
 msgid "Store ir56 forms in the Document app"
 msgstr "IR56 shakllarini Hujjat ilovasida saqlash"
@@ -53327,7 +53327,7 @@ msgid "Website Appointments"
 msgstr "Veb-saytdagi uchrashuvlar"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_website_documents
+#: model:ir.module.module,shortdesc:base.module_website_document
 #, fuzzy
 msgid "Website Documents"
 msgstr "Veb-sayt hujjatlari"

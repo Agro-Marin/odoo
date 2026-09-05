@@ -47,7 +47,7 @@ class TestIrActionsReport(AccountTestInvoicingCommon):
         )
         self.assertTrue(test_record_report, "The PDF should have been generated")
 
-    @mute_logger("odoo.addons.documents.models.documents_document")
+    @mute_logger("odoo.addons.document.models.document_document")
     def test_download_with_encrypted_pdf(self):
         attach_name = "original_vendor_bill.pdf"
         with file_open("base/tests/minimal.pdf", "rb") as pdf_file:

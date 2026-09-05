@@ -430,7 +430,7 @@
                                         <div
                                             class="d-flex flex-column align-items-center">
                                             <img
-                                                src="/documents/static/description/icon.png"
+                                                src="/document/static/description/icon.png"
                                                 width="60" />
                                             <small>Documents</small>
                                         </div>

@@ -14,12 +14,12 @@ class IrAttachment(models.Model):
             self.res_id = (
                 bom.product_id.id if bom.product_id else bom.product_tmpl_id.id
             )
-            document = self.env["documents.document"].search(
+            document = self.env["document.document"].search(
                 [("attachment_id", "=", self.id)]
             )
             if document:
                 document.attached_on_mrp = "bom"
             else:
-                self.env["documents.document"].create(
+                self.env["document.document"].create(
                     {"attachment_id": self.id, "attached_on_mrp": "bom"}
                 )

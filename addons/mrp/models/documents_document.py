@@ -2,7 +2,7 @@ from odoo import fields, models
 
 
 class DocumentsDocument(models.Model):
-    _inherit = "documents.document"
+    _inherit = "document.document"
 
     def _default_attached_on_mrp(self):
         return "bom" if self.env.context.get("attached_on_bom") else "hidden"

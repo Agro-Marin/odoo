@@ -3,7 +3,7 @@ from odoo.exceptions import UserError
 
 
 class DocumentsDocument(models.Model):
-    _inherit = "documents.document"
+    _inherit = "document.document"
 
     # Technical field to tell apart Gelato print images from other product documents.
     is_gelato = fields.Boolean(readonly=True)

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <templates>
-    <t t-name="documents_spreadsheet.MobileFigureContainer">
+    <t t-name="document_spreadsheet.MobileFigureContainer">
         <div class="o-spreadsheet">
             <div t-if="!figureRows.length" class="m-3">
                 Only chart figures are displayed in small screens but this dashboard doesn't contain any

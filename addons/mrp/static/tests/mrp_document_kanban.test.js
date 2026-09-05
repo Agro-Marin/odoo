@@ -21,7 +21,7 @@ describe.current.tags("desktop");
 defineMrpModels();
 
 const newArchs = {
-    "documents.document,false,kanban": `<kanban js_class="product_documents_kanban" create="false"><templates><t t-name="card">
+    "document.document,false,kanban": `<kanban js_class="product_documents_kanban" create="false"><templates><t t-name="card">
                     <field name="name"/>
                 </t></templates></kanban>`,
 };
@@ -32,14 +32,14 @@ test("MRP documents kanban basic rendering", async () => {
         mimetype: "image/png",
         name: "test.png",
     });
-    pyEnv["documents.document"].create([
+    pyEnv["document.document"].create([
         { name: "test1", attachment_id: irAttachment, mimetype: "image/png" },
         { name: "test2" },
         { name: "test3" },
     ]);
     registerArchs(newArchs);
     await start();
-    await openView({ res_model: "documents.document", views: [[false, "kanban"]] });
+    await openView({ res_model: "document.document", views: [[false, "kanban"]] });
     await contains("button[name='product_upload_document']");
     await contains(".o_kanban_renderer .o_kanban_record:not(.o_kanban_ghost)", {
         count: 3,
@@ -56,7 +56,7 @@ test("mrp: upload multiple files", async () => {
     const text1 = new File(["hello, world"], "text1.txt", { type: "text/plain" });
     const text2 = new File(["hello, world"], "text2.txt", { type: "text/plain" });
     const text3 = new File(["hello, world"], "text3.txt", { type: "text/plain" });
-    pyEnv["documents.document"].create([
+    pyEnv["document.document"].create([
         { name: "test1", attachment_id: irAttachment, mimetype: "image/png" },
         { name: "test2" },
         { name: "test3" },
@@ -64,7 +64,7 @@ test("mrp: upload multiple files", async () => {
 
     registerArchs(newArchs);
     await start();
-    await openView({ res_model: "documents.document", views: [[false, "kanban"]] });
+    await openView({ res_model: "document.document", views: [[false, "kanban"]] });
 
     getService("file_upload").bus.addEventListener("FILE_UPLOAD_ADDED", () =>
         asyncStep("xhrSend"),
@@ -77,7 +77,7 @@ test("mrp: upload multiple files", async () => {
 
 test("mrp: click on image opens attachment viewer", async () => {
     const newArchs = {
-        "documents.document,false,kanban": `
+        "document.document,false,kanban": `
                 <kanban js_class="product_documents_kanban" create="false">
                     <templates>
                         <t t-name="card">
@@ -96,7 +96,7 @@ test("mrp: click on image opens attachment viewer", async () => {
         mimetype: "image/png",
         name: "test.png",
     });
-    pyEnv["documents.document"].create([
+    pyEnv["document.document"].create([
         { name: "test1", attachment_id: irAttachment, mimetype: "image/png" },
         { name: "test2" },
         { name: "test3" },
@@ -104,7 +104,7 @@ test("mrp: click on image opens attachment viewer", async () => {
 
     registerArchs(newArchs);
     await start();
-    await openView({ res_model: "documents.document", views: [[false, "kanban"]] });
+    await openView({ res_model: "document.document", views: [[false, "kanban"]] });
 
     await click(".o_kanban_previewer");
     await contains(".o-FileViewer");
@@ -119,7 +119,7 @@ test("mrp: upload progress bars", async () => {
         name: "test.png",
     });
     const text1 = new File(["hello, world"], "text1.txt", { type: "text/plain" });
-    pyEnv["documents.document"].create([
+    pyEnv["document.document"].create([
         { name: "test1", attachment_id: irAttachment, mimetype: "image/png" },
         { name: "test2" },
         { name: "test3" },
@@ -127,7 +127,7 @@ test("mrp: upload progress bars", async () => {
 
     registerArchs(newArchs);
     await start();
-    await openView({ res_model: "documents.document", views: [[false, "kanban"]] });
+    await openView({ res_model: "document.document", views: [[false, "kanban"]] });
 
     let xhr;
     patchWithCleanup(fileUploadService, {

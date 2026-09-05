@@ -5,7 +5,7 @@
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [
-        "documents_product",
+        "document_product",
         "sale_management",
     ],
     "data": [

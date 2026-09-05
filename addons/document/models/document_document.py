@@ -1,0 +1,2195 @@
+import base64
+import contextlib
+import io
+import logging
+import re
+import string
+import uuid
+from collections import defaultdict
+from typing import Any
+from urllib.parse import quote
+from urllib.parse import urlencode as url_encode
+
+import requests
+from dateutil.relativedelta import relativedelta
+
+import odoo
+from odoo import SUPERUSER_ID, Command, _, api, fields, models, modules
+from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
+from odoo.fields import Domain
+from odoo.libs.filesystem import get_extension
+from odoo.tools import groupby
+from odoo.tools.image import image_process
+from odoo.tools.misc import clean_context
+from odoo.tools.pdf import PdfReader
+
+from odoo.addons.document.tools import UserFolder
+from odoo.addons.mail.tools import link_preview
+
+_logger = logging.getLogger(__name__)
+
+
+def _sanitize_file_extension(extension: str) -> str:
+    return re.sub(r"^[\s.]+|\s+$", "", extension)
+
+
+class DocumentsDocument(models.Model):
+    _name = "document.document"
+    _description = "Document"
+    _inherit = [
+        "mixin.mail.thread.cc",
+        "mixin.mail.activity",
+        "mixin.mail.alias.optional",
+        "mixin.user.favorite",
+    ]
+    _mail_post_access = "read"
+    _order = "sequence, id desc"
+    _parent_name = "folder_id"
+    _parent_store = True
+    _systray_view = "activity"
+
+    company_id = fields.Many2one(
+        "res.company",
+        string="Company",
+        index=True,
+    )
+    partner_id = fields.Many2one(
+        "res.partner",
+        string="Contact",
+        tracking=True,
+        index="btree_not_null",
+    )
+    owner_id = fields.Many2one(
+        "res.users",
+        string="Owner",
+        default=lambda self: self.env.user.id if self.env.user.active else False,
+        copy=False,
+        index=True,
+        tracking=True,
+    )
+    attachment_id = fields.Many2one(
+        "ir.attachment",
+        ondelete="cascade",
+        bypass_search_access=True,
+        copy=False,
+    )
+    attachment_name = fields.Char(
+        "Attachment Name",
+        related="attachment_id.name",
+        readonly=False,
+    )
+    description = fields.Text(
+        "Attachment Description",
+        related="attachment_id.description",
+        readonly=False,
+    )
+    attachment_type = fields.Selection(
+        string="Attachment Type",
+        related="attachment_id.type",
+        readonly=False,
+    )
+    checksum = fields.Char(
+        related="attachment_id.checksum",
+    )
+    mimetype = fields.Char(
+        related="attachment_id.mimetype",
+    )
+    index_content = fields.Text(
+        related="attachment_id.index_content",
+    )
+    raw = fields.Binary(
+        related="attachment_id.raw",
+        related_sudo=True,
+        readonly=False,
+        prefetch=False,
+    )
+    datas = fields.Binary(
+        related="attachment_id.datas",
+        related_sudo=True,
+        readonly=False,
+        prefetch=False,
+    )
+
+    shortcut_document_id = fields.Many2one(
+        "document.document",
+        "Source Document",
+        ondelete="cascade",
+        index="btree_not_null",
+    )
+    shortcut_document_owner_id = fields.Many2one(
+        "res.users",
+        "Source Document Owner",
+        related="shortcut_document_id.owner_id",
+        store=True,
+    )
+    shortcut_ids = fields.One2many("document.document", "shortcut_document_id")
+
+    file_size = fields.Integer(
+        compute="_compute_file_size",
+        store=True,
+    )
+    res_model = fields.Char(
+        "Resource Model",
+        compute="_compute_res_record",
+        store=True,
+        inverse="_inverse_res_record",
+        recursive=True,
+    )
+    res_model_name = fields.Char(
+        compute="_compute_res_model_name",
+    )
+    res_id = fields.Many2oneReference(
+        "Resource ID",
+        model_field="res_model",
+        compute="_compute_res_record",
+        store=True,
+        inverse="_inverse_res_record",
+        recursive=True,
+    )
+    res_name = fields.Char(
+        "Resource Name",
+        compute="_compute_res_name",
+    )
+
+    previous_attachment_ids = fields.Many2many(
+        "ir.attachment",
+        string="History",
+        bypass_search_access=True,
+    )
+
+    name = fields.Char(
+        "Name",
+        copy=True,
+        compute="_compute_name_and_preview",
+        store=True,
+        readonly=False,
+        recursive=True,
+        translate=True,
+        tracking=True,
+    )
+    active = fields.Boolean(default=True, string="Active")
+    sequence = fields.Integer("Sequence", default=10)
+    type = fields.Selection(
+        [("url", "URL"), ("binary", "File"), ("folder", "Folder")],
+        default="binary",
+        string="Type",
+        required=True,
+        readonly=True,
+        index=True,
+    )
+    thumbnail = fields.Binary(
+        attachment=True,
+        compute="_compute_thumbnail",
+        store=True,
+        recursive=True,
+        readonly=False,
+    )
+    thumbnail_status = fields.Selection(
+        [
+            ("present", "Present"),
+            ("error", "Error"),
+            (
+                "client_generated",
+                "Client Generated",
+            ),
+        ],
+        compute="_compute_thumbnail",
+        store=True,
+        recursive=True,
+        readonly=False,
+    )
+    url = fields.Char(
+        "Link URL",
+        size=1024,
+        index=True,
+        tracking=True,
+    )
+    url_preview_image = fields.Char(
+        "URL Preview Image",
+        compute="_compute_name_and_preview",
+        store=True,
+        readonly=False,
+        recursive=True,
+    )
+    url_preview_pending = fields.Boolean(
+        "URL preview to fetch",
+        default=False,
+        copy=False,
+        help="Set when a URL document still needs its link preview fetched "
+        "asynchronously (see _cron_update_url_preview).",
+    )
+    request_activity_id = fields.Many2one("mail.activity")
+    requestee_partner_id = fields.Many2one("res.partner")
+    tag_ids = fields.Many2many("document.tag", "document_tag_rel", string="Tags")
+    lock_uid = fields.Many2one("res.users", string="Locked by", tracking=True)
+
+    document_token = fields.Char(
+        required=True,
+        default=lambda __: (
+            base64.urlsafe_b64encode(uuid.uuid4().bytes).decode().removesuffix("==")
+        ),
+        copy=False,
+    )
+    access_token = fields.Char(compute="_compute_access_token")
+
+    access_url = fields.Char(string="Access url", compute="_compute_access_url")
+    is_access_via_link_hidden = fields.Boolean(
+        "Link Access Hidden",
+        index=True,
+        help='If "True", only people given direct access to this document will be able to view it. '
+        'If "False", access with the link also given to all who can access the parent folder.',
+    )
+    access_via_link = fields.Selection(
+        [("view", "Viewer"), ("edit", "Editor"), ("none", "None")],
+        string="Link Access Rights",
+        required=True,
+        default="none",
+        index=True,
+    )
+    is_download_blocked = fields.Boolean(
+        "Block Download",
+        default=False,
+        help="If set, people who can only view this document cannot download "
+        "it. Editors are unaffected: they can replace the content, so "
+        "withholding it from them would mean nothing.",
+    )
+    access_internal = fields.Selection(
+        [("view", "Viewer"), ("edit", "Editor"), ("none", "None")],
+        string="Internal Users Rights",
+        required=True,
+        default="none",
+        index=True,
+    )
+
+    access_ids = fields.One2many(
+        "document.access",
+        "document_id",
+        string="Allowed Access",
+    )
+
+    user_permission = fields.Selection(
+        [("edit", "Editor"), ("view", "Viewer"), ("none", "None")],
+        string="User permission",
+        compute="_compute_user_permission",
+        compute_sudo=True,
+        search="_search_user_permission",
+    )
+    user_can_move = fields.Boolean(
+        string="Can move it",
+        compute="_compute_user_can_move",
+    )
+
+    parent_path = fields.Char(index=True)
+    folder_id = fields.Many2one(
+        "document.document",
+        string="Folder",
+        required=False,
+        ondelete="set null",
+        domain="[('type', '=', 'folder'), ('shortcut_document_id', '=', False)]",
+        index=True,
+        search="_search_folder_id",
+        tracking=True,
+    )
+    user_folder_id = fields.Char(
+        string="Parent",
+        compute="_compute_user_folder_id",
+        search="_search_user_folder_id",
+    )
+    children_ids = fields.One2many("document.document", "folder_id")
+
+    deletion_delay = fields.Integer(
+        "Deletion delay",
+        compute="_compute_deletion_delay",
+        help="Delay after permanent deletion of the document in the trash (days)",
+    )
+
+    create_activity_option = fields.Boolean(
+        string="Create a new activity",
+        compute="_compute_create_activity_option",
+        store=True,
+        readonly=False,
+    )
+    create_activity_type_id = fields.Many2one(
+        "mail.activity.type",
+        string="Activity type",
+    )
+    create_activity_summary = fields.Char("Summary")
+    create_activity_date_deadline_range = fields.Integer(string="Due Date In")
+    create_activity_date_deadline_range_type = fields.Selection(
+        [
+            ("days", "Days"),
+            ("weeks", "Weeks"),
+            ("months", "Months"),
+        ],
+        string="Due type",
+        default="days",
+    )
+    create_activity_note = fields.Html(string="Note")
+    create_activity_user_id = fields.Many2one(
+        "res.users",
+        string="Responsible",
+    )
+
+    available_embedded_actions_ids = fields.Many2many(
+        "ir.embedded.actions",
+        string="Available Actions",
+        compute="_compute_available_embedded_actions_ids",
+        groups="base.group_user",
+    )
+
+    alias_tag_ids = fields.Many2many(
+        "document.tag",
+        "document_alias_tag_rel",
+        string="Alias Tags",
+    )
+    mail_alias_domain_count = fields.Integer(
+        "Mail Alias Domain Count",
+        compute="_compute_mail_alias_domain_count",
+    )
+
+    is_editable_attachment = fields.Boolean(
+        default=False,
+        help="True if we can edit the link attachment.",
+    )
+    is_multipage = fields.Boolean(
+        "Is considered multipage",
+        compute="_compute_is_multipage",
+        store=True,
+        readonly=False,
+    )
+    file_extension = fields.Char(
+        "File Extension",
+        compute="_compute_file_extension",
+        inverse="_inverse_file_extension",
+        store=True,
+        readonly=False,
+        copy=True,
+    )
+
+    last_access_date_group = fields.Selection(
+        selection=[
+            ("0_older", "Older"),
+            ("1_month", "This Month"),
+            ("2_week", "This Week"),
+            ("3_day", "Today"),
+        ],
+        string="Last Accessed On",
+        compute="_compute_last_access_date_group",
+        search="_search_last_access_date_group",
+    )
+
+    _res_model_res_id_idx = models.Index("(res_model, res_id)")
+
+    _attachment_unique = models.Constraint(
+        "unique (attachment_id)",
+        "This attachment is already a document",
+    )
+    _document_token_unique = models.Constraint(
+        "unique (document_token)",
+        "Access tokens already used.",
+    )
+    _folder_id_not_id = models.Constraint(
+        "check(folder_id <> id)",
+        "A folder cannot be included in itself",
+    )
+    _shortcut_document_id_not_id = models.Constraint(
+        "check(shortcut_document_id <> id)",
+        "A shortcut cannot point to itself",
+    )
+
+    @api.constrains("document_token")
+    def _check_document_token(self) -> None:
+        charset = set(string.ascii_letters + string.digits + "-_")
+        for document in self:
+            if (
+                len(document.document_token or "") != 22
+                or set(document.document_token) - charset
+            ):
+                raise ValidationError(_("Invalid document token"))
+
+    @api.constrains(
+        "shortcut_document_id",
+        "shortcut_ids",
+        "type",
+        "folder_id",
+        "children_ids",
+        "company_id",
+    )
+    def _check_shortcut_fields(self) -> None:
+        errors = []
+        wrong_types, wrong_companies = self.browse(), self.browse()
+        chained_shortcuts = self.browse()
+        wrong_parents_sudo = self.folder_id.sudo().filtered("shortcut_document_id")
+        for target in self.filtered("shortcut_ids"):
+            for shortcut in target.shortcut_ids:
+                if shortcut.type != target.type:
+                    wrong_types |= shortcut
+        for shortcut in self.filtered("shortcut_document_id"):
+            if shortcut.type != shortcut.shortcut_document_id.type:
+                wrong_types |= shortcut
+            if shortcut.children_ids:
+                wrong_parents_sudo |= shortcut
+            if shortcut.shortcut_document_id.sudo().shortcut_document_id:
+                chained_shortcuts |= shortcut
+            if (
+                shortcut.shortcut_document_id.company_id
+                and shortcut.shortcut_document_id.company_id != shortcut.company_id
+            ):
+                wrong_companies |= shortcut
+        if wrong_types:
+            message = _("The following documents/shortcuts have a type mismatch: \n")
+            documents_list = "\n- ".join(wrong_types.mapped("name"))
+            errors.append(f"{message}\n- {documents_list}")
+        if wrong_parents_sudo:
+            message = _(
+                "The following shortcuts cannot be set as documents parents: \n"
+            )
+            shortcuts_list = "\n- ".join(wrong_parents_sudo.mapped("name"))
+            errors.append(f"{message}\n- {shortcuts_list}")
+        if wrong_companies:
+            message = _("The following documents/shortcuts have a company mismatch: \n")
+            shortcuts_list = "\n- ".join(wrong_companies.mapped("name"))
+            errors.append(f"{message}\n- {shortcuts_list}")
+        if chained_shortcuts:
+            message = _(
+                "The following shortcuts point at another shortcut instead of a "
+                "document: \n"
+            )
+            shortcuts_list = "\n- ".join(chained_shortcuts.mapped("name"))
+            errors.append(f"{message}\n- {shortcuts_list}")
+        if errors:
+            raise ValidationError("\n\n".join(errors))
+
+    @api.constrains("owner_id", "folder_id")
+    def _check_root_documents_owner_id(self) -> None:
+        root_documents = self.filtered(lambda d: not d.folder_id)
+        unauthorized_owners_sudo = (
+            root_documents._get_unauthorized_root_document_owners_sudo()
+        )
+        if unauthorized_owners_sudo:
+            users_documents_list = [
+                (document.owner_id.name, document.name)
+                for document in root_documents
+                if document.owner_id in unauthorized_owners_sudo
+            ]
+            raise ValidationError(
+                _(
+                    "The following user(s) cannot own root documents/folders: \n- %(lines)s",
+                    lines="\n-".join(
+                        f"{user_name}: {doc_name}"
+                        for user_name, doc_name in users_documents_list
+                    ),
+                )
+            )
+
+    @api.constrains("res_model")
+    def _check_res_model(self) -> None:
+        if self.filtered(lambda d: d.res_model == "document.document"):
+            raise ValidationError(
+                _("A document can not be linked to itself or another document.")
+            )
+
+    @api.constrains("url")
+    def _check_url(self) -> None:
+        for document in self.filtered("url"):
+            if not document.url.startswith(("https://", "http://", "ftp://")):
+                raise ValidationError(
+                    _(
+                        "URL %s does not seem complete, as it does not begin with http(s):// or ftp://",
+                        document.url,
+                    )
+                )
+
+    def _pop_attachment_vals(self, vals: dict) -> dict:
+        keys = [
+            key
+            for key in list(vals)
+            if (field := self._fields.get(key)) is not None
+            and field.related
+            and field.related.split(".")[0] == "attachment_id"
+        ]
+        return {key: vals.pop(key) for key in keys}
+
+    @api.model_create_multi
+    def create(self, vals_list: list[dict]) -> DocumentsDocument:
+        attachments = []
+        for vals in vals_list:
+            attachment_dict = self._pop_attachment_vals(vals)
+            attachment = self.env["ir.attachment"].browse(vals.get("attachment_id"))
+            self._clean_vals_for_user_folder_id(vals, is_create=True)
+            self._check_parent_folder_in_vals(vals)
+            if not self.env.su and self.env.user.share:
+                if not vals.get("folder_id"):
+                    raise AccessError(
+                        _("You are not allowed to create documents here.")
+                    )
+                for access_field in ("access_internal", "access_via_link"):
+                    vals.pop(access_field, None)
+            if attachment and attachment_dict:
+                attachment.write(attachment_dict)
+            elif attachment_dict:
+                attachment_dict.setdefault("name", vals.get("name", "unnamed"))
+                attachment = (
+                    self.env["ir.attachment"]
+                    .with_context(clean_context(self.env.context))
+                    .create(attachment_dict)
+                )
+                vals["attachment_id"] = attachment.id
+                vals["name"] = vals.get("name", attachment.name)
+            if attachment and not vals.get("name"):
+                vals["name"] = attachment.name
+            attachments.append(attachment)
+
+        documents = super(
+            DocumentsDocument, self.with_context(default_access_ids=None)
+        ).create(vals_list)
+
+        if not self._is_documents_manager():
+            if any(d.alias_name for d in documents):
+                raise AccessError(_("Only Documents Managers can set aliases."))
+            if any(d._is_company_root_folder() for d in documents):
+                self._raise_company_folder_manager_only()
+
+        for document, attachment in zip(documents, attachments, strict=True):
+            if (
+                attachment
+                and not attachment.res_id
+                and (
+                    not attachment.res_model
+                    or attachment.res_model == "document.document"
+                )
+            ):
+                attachment.with_context(no_document=True).write(
+                    {
+                        "res_model": "document.document",
+                        "res_id": document.id,
+                    }
+                )
+        self._mark_url_preview_pending(documents)
+        return documents
+
+    @api.model
+    def _shortcut_access_defaults(self, target: DocumentsDocument) -> dict:
+        return {
+            "access_internal": target.access_internal or "view",
+            "access_via_link": target.access_via_link or "none",
+        }
+
+    @api.model
+    def _trigger_url_preview_cron(self) -> None:
+        cron = self.env.ref("document.ir_cron_url_preview", raise_if_not_found=False)
+        if cron:
+            cron.sudo()._trigger()
+
+    def _locked_by_other(self) -> DocumentsDocument:
+        if self.env.su or self._is_documents_manager():
+            return self.browse()
+        return self.filtered(lambda d: d.lock_uid and d.lock_uid != self.env.user)
+
+    @api.model
+    def _check_parent_folder_in_vals(self, vals: dict) -> None:
+        if not vals.get("folder_id"):
+            return
+        if self.browse(vals["folder_id"]).sudo().type != "folder":
+            raise UserError(_("Invalid folder id"))
+
+    def write(self, vals: dict) -> bool:
+        if "shortcut_document_id" in vals:
+            raise UserError(_("Shortcuts cannot change target document."))
+
+        if (
+            vals.get("active") is False
+            and not self.env.su
+            and not self.env.context.get("documents_archiving")
+        ):
+            if remaining_vals := {k: v for k, v in vals.items() if k != "active"}:
+                self.write(remaining_vals)
+            self.action_archive()
+            return True
+
+        self._clean_vals_for_user_folder_id(vals)
+
+        is_manager = self._is_documents_manager()
+        pinned_folders_start = self.filtered(lambda d: d._is_company_root_folder())
+
+        content_keys = ("datas", "raw")
+        writes_content = any(key in vals for key in content_keys)
+        has_content = any(vals.get(key) for key in content_keys)
+        replaces_content = writes_content or "attachment_id" in vals
+        if replaces_content and (locked_by_other := self._locked_by_other()):
+            raise UserError(
+                _(
+                    "“%(name)s” is locked by %(user)s and its content cannot "
+                    "be replaced by another user.",
+                    name=locked_by_other[0].name,
+                    user=locked_by_other[0].lock_uid.name,
+                )
+            )
+
+        previous_owner_access_to_keep = {}
+        documents_per_initial_active = {}
+
+        if (owner_id := vals.get("owner_id")) is not None:
+            if not is_manager and any(d.owner_id != self.env.user for d in self):
+                raise AccessError(
+                    _("You cannot change the owner of documents you do not own.")
+                )
+            if not isinstance(owner_id, int | bool | None):
+                owner_id = owner_id.id
+            documents_changing_owner = self.filtered(
+                lambda d: d.owner_id and d.owner_id.id != owner_id
+            )
+            previous_owner_access_to_keep.update(
+                documents_changing_owner.grouped("owner_id")
+            )
+
+        new_parent_folder = self.browse()
+        documents_to_move, documents_to_move_per_initial_folder = (
+            self.browse(),
+            self.browse(),
+        )
+
+        if "folder_id" in vals:
+            self._check_parent_folder_in_vals(vals)
+            new_parent_folder = self.browse(vals["folder_id"])
+            documents_to_move = self.filtered(
+                lambda d: d.folder_id != new_parent_folder
+            )
+            if documents_to_move and new_parent_folder and not new_parent_folder.active:
+                raise UserError(
+                    _("It is not possible to move documents into archived folders.")
+                )
+            if documents_to_move and not self.env.su:
+                if new_parent_folder and new_parent_folder.user_permission != "edit":
+                    raise AccessError(_("You can't access that folder_id."))
+                for doc in documents_to_move:
+                    if doc.user_permission != "edit":
+                        raise AccessError(
+                            _("You are not allowed to move (some of) these documents.")
+                        )
+                    if not doc.user_can_move:
+                        raise AccessError(
+                            _(
+                                "You can't move documents you do not own out of folders you cannot edit."
+                            )
+                        )
+
+            if new_parent_folder.shortcut_document_id:
+                resolved_vals = vals | {
+                    "folder_id": new_parent_folder.shortcut_document_id.id
+                }
+                resolved_vals.pop("user_folder_id", None)
+                return self.write(resolved_vals)
+
+            if new_parent_folder:
+                for doc in documents_to_move:
+                    to_active = vals.get("active")
+                    if (not doc.active and not to_active) or (
+                        doc.folder_id
+                        and not doc.folder_id.active
+                        and (not to_active or doc.folder_id not in self)
+                    ):
+                        raise UserError(
+                            _("It is not possible to move archived documents.")
+                        )
+            documents_to_move_per_initial_folder = documents_to_move.grouped(
+                "folder_id"
+            )
+
+        if (to_active := vals.get("active")) is not None:
+            if to_active is False:
+                if not self.env.su and self.env.user.share:
+                    raise UserError(_("You are not allowed to (un)archive documents."))
+                self.check_access("unlink")
+            documents_per_initial_active = self.grouped("active")
+
+        attachment_id = vals.get("attachment_id")
+        if attachment_id:
+            self.check_singleton()
+
+        attachments_was_present = []
+        versioned = self.browse()
+        for record in self:
+            attachments_was_present.append(bool(record.attachment_id))
+            if (
+                record.type == "binary"
+                and (writes_content or "url" in vals)
+                and (not record.attachment_id or not record.attachment_id.file_size)
+            ):
+                body = _(
+                    "Document Request: %(name)s Uploaded by: %(user)s",
+                    name=record.name,
+                    user=self.env.user.name,
+                )
+                record.with_context(no_document=True).message_post(body=body)
+
+            if record.attachment_id:
+                if attachment_id and attachment_id != record.attachment_id.id:
+                    attachment = self.env["ir.attachment"].browse(attachment_id)
+                    if (attachment.res_model, attachment.res_id) != (
+                        record.res_model,
+                        record.res_id,
+                    ):
+                        attachment.with_context(no_document=True).write(
+                            {
+                                "res_model": record.res_model or "document.document",
+                                "res_id": record.res_id
+                                if record.res_model
+                                else record.id,
+                            }
+                        )
+
+                    related_record = record.res_model and self.env[
+                        record.res_model
+                    ].browse(record.res_id)
+                    if (
+                        not hasattr(related_record, "message_main_attachment_id")
+                        or related_record.message_main_attachment_id
+                        != record.attachment_id
+                    ):
+                        record.attachment_id.with_context(no_document=True).write(
+                            {"res_model": "document.document", "res_id": record.id}
+                        )
+                    if attachment_id in record.previous_attachment_ids.ids:
+                        record.previous_attachment_ids = [(3, attachment_id, False)]
+                    record.previous_attachment_ids = [
+                        (4, record.attachment_id.id, False)
+                    ]
+                    versioned |= record
+                elif "attachment_id" in vals and not attachment_id:
+                    # Detaching the file outright. This used to keep no version
+                    # at all: the document went empty, the outgoing attachment
+                    # stayed behind pointing at it, and the history panel
+                    # offered nothing to go back to -- unlike every other way of
+                    # replacing the content. Emptying a document IS replacing
+                    # its content, which is how the lock guard above already
+                    # reads it.
+                    #
+                    # The attachment itself becomes the previous version, not a
+                    # copy of it: nothing is overwriting it here, so the copy
+                    # the branch below makes would archive a duplicate and leave
+                    # the original dangling.
+                    record.previous_attachment_ids = [
+                        (4, record.attachment_id.id, False)
+                    ]
+                    versioned |= record
+                elif writes_content:
+                    old_attachment = record.attachment_id.with_context(
+                        no_document=True
+                    ).copy()
+                    old_attachment.write(
+                        {
+                            "res_model": "document.document",
+                            "res_id": record.id,
+                        }
+                    )
+                    record.previous_attachment_ids = [(4, old_attachment.id, False)]
+                    versioned |= record
+            elif has_content and not vals.get("attachment_id"):
+                res_model = vals.get("res_model", record.res_model)
+                res_id = vals.get("res_id", record.res_id)
+                if res_model and not self.env[res_model].browse(res_id).exists():
+                    record.res_model = False
+                    record.res_id = False
+
+                attachment = (
+                    self.env["ir.attachment"]
+                    .with_context(no_document=True)
+                    .create(
+                        {
+                            "name": vals.get("name", record.name),
+                            "res_model": record.res_model or "document.document",
+                            "res_id": record.res_id if record.res_model else record.id,
+                        }
+                    )
+                )
+                record.attachment_id = attachment.id
+
+        attachment_dict = self._pop_attachment_vals(vals)
+
+        if not is_manager and set(vals) & set(self.env["mixin.mail.alias"]._fields):
+            raise AccessError(_("Only Documents Managers can set aliases."))
+
+        write_result = super().write(vals)
+        if attachment_dict:
+            self.attachment_id.write(attachment_dict)
+
+        if "attachment_id" in vals:
+            self.attachment_id.check_access("read")
+
+        versioned._prune_versions()
+
+        if (new_active := vals.get("active")) is not None:
+            if not new_active:
+                if self.sudo().search(
+                    [("id", "child_of", self.ids), ("active", "=", True)]
+                ):
+                    raise UserError(
+                        _(
+                            'Operation not supported. Please use "Move to Trash" / `action_archive` instead.'
+                        )
+                    )
+                if archived_documents := documents_per_initial_active.get(True):
+                    archived_documents._log_transition_to_parent_folders(
+                        lambda names: self.env._(
+                            "The following documents have been sent to trash: "
+                            "%(documents)s.",
+                            documents=names,
+                        )
+                    )
+            elif new_active:
+                if self.sudo().search(
+                    [("id", "parent_of", self.ids), ("active", "=", False)]
+                ):
+                    raise UserError(
+                        _(
+                            'Operation not supported. Please use "Restore" / `action_unarchive` instead.'
+                        )
+                    )
+                if restored_documents := documents_per_initial_active.get(False):
+                    restored_documents._log_transition_to_parent_folders(
+                        lambda names: self.env._(
+                            "The following documents have been restored from the "
+                            "trash: %(documents)s.",
+                            documents=names,
+                        )
+                    )
+
+        if (
+            not is_manager
+            and self.filtered(lambda d: d._is_company_root_folder())
+            != pinned_folders_start
+        ):
+            self._raise_company_folder_manager_only()
+
+        for document, attachment_was_present in zip(
+            self, attachments_was_present, strict=True
+        ):
+            if (
+                document.request_activity_id
+                and document.attachment_id
+                and not attachment_was_present
+            ):
+                feedback = _(
+                    "Document Request: %(name)s Uploaded by: %(user)s",
+                    name=document.name,
+                    user=self.env.user.name,
+                )
+                document.with_context(
+                    no_document=True
+                ).request_activity_id.action_feedback(
+                    feedback=feedback, attachment_ids=[document.attachment_id.id]
+                )
+
+        if (
+            (company_id := vals.get("company_id")) is not None
+        ) and self.shortcut_ids | self.children_ids:
+            self._update_company(company_id)
+
+        self._add_user_role_without_propagation("edit", previous_owner_access_to_keep)
+
+        if new_parent_folder and (
+            documents_to_sync := documents_to_move.filtered(
+                lambda d: not d.shortcut_document_id
+            )
+        ):
+            documents_to_sync.action_update_access_rights(
+                access_internal=new_parent_folder.access_internal,
+                access_via_link=new_parent_folder.access_via_link,
+                partners={
+                    access.partner_id: (access.role, access.expiration_date)
+                    for access in new_parent_folder.access_ids
+                    if access.role
+                },
+            )
+            if "company_id" not in vals:
+                documents_to_sync._update_company(new_parent_folder.company_id.id)
+
+        if documents_to_move:
+            for folder, documents in documents_to_move.grouped("folder_id").items():
+                if folder:
+                    folder.message_post_with_source(
+                        source_ref="document.folder_notification_move_in",
+                        render_values={"documents": documents},
+                    )
+            for folder, documents in documents_to_move_per_initial_folder.items():
+                if folder:
+                    folder.message_post_with_source(
+                        source_ref="document.folder_notification_move_out",
+                        render_values={"documents": documents},
+                    )
+
+        if "url" in vals:
+            self._mark_url_preview_pending(self)
+
+        return write_result
+
+    def copy(self, default: dict | None = None) -> DocumentsDocument:
+        if not self:
+            return self
+        if not all(self.mapped("active")):
+            raise UserError(_("You cannot duplicate document(s) in the Trash."))
+        if default and default.get("user_folder_id") == UserFolder.MY:
+            default["owner_id"] = self.env.user.id
+
+        self.env["document.document"].check_access("create")
+        self.check_access("read")
+        documents_order = {doc.id: idx for idx, doc in enumerate(self)}
+        new_documents = [self.browse()] * len(self)
+        is_manager = self._is_documents_manager()
+        skip_documents = self.env.context.get("documents_copy_folders_only")
+
+        shortcuts = self.filtered("shortcut_document_id")
+        if shortcuts and not skip_documents:
+            for destination, targets in self._get_copy_shortcuts_destinations(
+                shortcuts, default
+            ):
+                new_shortcuts = targets.action_create_shortcut(
+                    location_user_folder_id=destination
+                )
+                for new_shortcut, target in zip(new_shortcuts, targets, strict=True):
+                    new_shortcut.name = _("%s (copy)", target.name)
+                    new_documents[documents_order[target.id]] = new_shortcut
+
+        folders = (self - shortcuts).filtered(lambda d: d.type == "folder")
+        if folders:
+            if (
+                not is_manager
+                and default
+                and default.get("user_folder_id") == UserFolder.COMPANY
+            ):
+                self._raise_company_folder_manager_only()
+
+            embedded_actions = self._get_folder_embedded_actions(folders.ids)
+            new_folders = folders.sudo()._copy_with_access(default=default).sudo(False)
+
+            self.browse(
+                [
+                    new_folder.id
+                    for old_folder, new_folder in zip(folders, new_folders, strict=True)
+                    if old_folder._cannot_create_sibling()
+                ]
+            ).sudo().write({"folder_id": False})
+
+            for old_folder, new_folder in zip(folders, new_folders, strict=True):
+                if folder_embedded_actions := embedded_actions.get(old_folder.id):
+                    embedded_actions_copies = folder_embedded_actions.copy()
+                    embedded_actions_copies.parent_res_id = new_folder.id
+                children_default = {"folder_id": new_folder.id}
+                owner_id_in_default = (default or {}).get("owner_id") is not None
+                if owner_id_in_default:
+                    children_default.update(owner_id=default["owner_id"])
+
+                if new_folder._is_descendant_of(old_folder):
+                    raise UserError(
+                        _(
+                            "You cannot copy a folder into itself or into one of its own descendants."
+                        )
+                    )
+                old_folder.children_ids.with_context(
+                    documents_copy_skip_rename=True
+                ).copy(children_default)
+
+                new_documents[documents_order[old_folder.id]] = new_folder
+                if (
+                    is_manager
+                    and old_folder._is_company_root_folder()
+                    and not owner_id_in_default
+                ):
+                    new_folder.owner_id = old_folder.owner_id
+
+        if not skip_documents and (
+            documents_sudo := (self - shortcuts - folders).sudo()
+        ):
+            new_binaries_sudo = documents_sudo._copy_with_access(default=default)
+            for old_document_sudo, new_binary_sudo in zip(
+                documents_sudo, new_binaries_sudo, strict=True
+            ):
+                new_documents[documents_order[old_document_sudo.id]] = (
+                    new_binary_sudo.sudo(False)
+                )
+                if (
+                    is_manager
+                    and "owner_id" not in (default or {})
+                    and (
+                        not old_document_sudo.owner_id
+                        and not old_document_sudo.folder_id
+                    )
+                ):
+                    new_binary_sudo.owner_id = False
+            self.browse(
+                [
+                    new_binary_sudo.id
+                    for new_binary_sudo in new_binaries_sudo
+                    if new_binary_sudo.sudo(self.env.su)._cannot_create_sibling()
+                ]
+            ).sudo().write({"folder_id": False})
+
+            if to_copy_attachment_sudo := documents_sudo._copy_attachment_filter(
+                default
+            ):
+                new_attachments_iterator = iter(
+                    to_copy_attachment_sudo.attachment_id.with_context(
+                        no_document=True
+                    ).copy()
+                )
+                with self.env.protecting(
+                    self._get_fields_to_recompute(depends=["attachment_id"]),
+                    new_binaries_sudo,
+                ):
+                    for old_document_sudo, new_binary_sudo in zip(
+                        documents_sudo, new_binaries_sudo, strict=True
+                    ):
+                        if old_document_sudo in to_copy_attachment_sudo:
+                            new_attachment = next(new_attachments_iterator)
+                            new_binary_sudo.write(
+                                {
+                                    "attachment_id": new_attachment.id,
+                                    "res_id": False,
+                                    "res_model": False,
+                                }
+                            )
+
+        return self.browse(
+            [new_document.id for new_document in new_documents if new_document]
+        )
+
+    def copy_data(self, default: dict | None = None) -> list[dict]:
+        default = dict(default or {})
+        if "user_folder_id" in default:
+            self._clean_vals_for_user_folder_id(default)
+        vals_list = super().copy_data(default=default)
+        if "name" not in default:
+            for document, vals in zip(self, vals_list, strict=True):
+                vals["name"] = (
+                    document.name
+                    if self.env.context.get("documents_copy_skip_rename")
+                    else _("%s (copy)", document.name)
+                )
+        if "legal_number" in self._fields and "legal_number" not in default:
+            for document, vals in zip(self, vals_list, strict=True):
+                if document.legal_number:
+                    vals["legal_number"] = _("%s (copy)", document.legal_number)
+        for vals in vals_list:
+            vals["access_ids"] = default.get("access_ids", False)
+            if "owner_id" not in vals:
+                vals["owner_id"] = self.env.user.id
+        return vals_list
+
+    def copy_translations(self, new, excluded=()):
+        super().copy_translations(new, excluded=(*excluded, "name"))
+        self._copy_translations_of_renamed_field(
+            new, "name", lambda record, term: record.env._("%s (copy)", term)
+        )
+
+    def unlink(self) -> bool:
+        to_delete = self._with_descendants_sudo().sudo(False)
+        removable_parent_folders = self._get_removable_parent_folders()
+        removable_attachments = to_delete.attachment_id.filtered(
+            lambda a: a.res_model != "document.document"
+        )
+
+        res = super(DocumentsDocument, to_delete).unlink()
+
+        if removable_attachments:
+            removable_attachments.unlink()
+        if removable_parent_folders:
+            with contextlib.suppress(AccessError):
+                removable_parent_folders.unlink()
+        return res
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_unauthorized(self) -> None:
+        try:
+            self.check_access("unlink")
+        except UserError as e:
+            raise UserError(_("You are not allowed to delete all these items.")) from e
+        self._raise_if_unauthorized_archive()
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_company_folders(self) -> None:
+        self._raise_if_used_folder()
+
+    @api.depends("document_token")
+    def _compute_access_token(self) -> None:
+        for document in self:
+            document.access_token = f"{document.document_token}o{document.id or 0:x}"
+
+    @api.depends("access_token")
+    def _compute_access_url(self) -> None:
+        for document in self:
+            document.access_url = f"{document.sudo().get_base_url()}/odoo/documents/{quote(document.access_token, safe='')}"
+
+    @api.depends("create_activity_type_id", "create_activity_user_id")
+    def _compute_create_activity_option(self) -> None:
+        to_activate = self.filtered(
+            lambda d: d.create_activity_type_id and d.create_activity_user_id
+        )
+        to_activate.create_activity_option = True
+        (self - to_activate).create_activity_option = False
+
+    @api.depends("folder_id", "company_id")
+    @api.depends_context("uid", "allowed_company_ids", "documents_show_parent_name")
+    def _compute_display_name(self) -> None:
+        accessible_records = self._filtered_access("read")
+        not_accessible_records = self - accessible_records
+        not_accessible_records.display_name = _("Restricted")
+        folders = accessible_records.filtered(lambda d: d.type == "folder")
+        for record in folders:
+            if record.user_permission != "none":
+                record.display_name = (
+                    record.name
+                    if not self.env.context.get("documents_show_parent_name")
+                    or not record.folder_id
+                    else _(
+                        "%(record)s (in %(parent)s)",
+                        record=record.name,
+                        parent=record.folder_id.name,
+                    )
+                )
+            else:
+                record.display_name = _("Restricted Folder")
+
+        for record in accessible_records - folders:
+            record.display_name = record.name
+
+    @api.depends("name", "type", "shortcut_document_id.name")
+    def _compute_file_extension(self) -> None:
+        for record in self:
+            if record.type != "binary":
+                record.file_extension = False
+            elif record.shortcut_document_id.name:
+                file_extension = _sanitize_file_extension(
+                    get_extension(record.shortcut_document_id.name.strip())
+                )
+                record.file_extension = file_extension or False
+            elif record.name:
+                record.file_extension = (
+                    _sanitize_file_extension(get_extension(record.name.strip()))
+                    or False
+                )
+
+    @api.depends(
+        "attachment_id.file_size", "shortcut_document_id.attachment_id.file_size"
+    )
+    def _compute_file_size(self) -> None:
+        shortcuts = self.filtered("shortcut_document_id")
+        for document in self - shortcuts:
+            document.file_size = document.attachment_id.file_size
+        for document in shortcuts:
+            document.file_size = document.shortcut_document_id.file_size
+
+    @api.depends(
+        "attachment_id",
+        "url",
+        "shortcut_document_id",
+        "shortcut_document_id.name",
+        "shortcut_document_id.url_preview_image",
+    )
+    def _compute_name_and_preview(self) -> None:
+        shortcuts = self.filtered("shortcut_document_id")
+        for record in self - shortcuts:
+            if record.attachment_id:
+                record.name = record.attachment_id.name
+                record.url_preview_image = False
+            elif record.url and not record.name:
+                record.name = record.url
+
+        for shortcut in shortcuts:
+            shortcut.name = shortcut.name or shortcut.shortcut_document_id.name
+            shortcut.url_preview_image = (
+                shortcut.url_preview_image
+                or shortcut.shortcut_document_id.url_preview_image
+            )
+
+    def _mark_url_preview_pending(self, documents: DocumentsDocument) -> None:
+        to_fetch = documents.filtered(
+            lambda d: d.type == "url" and d.url and not d.shortcut_document_id
+        )
+        if not to_fetch:
+            return
+        to_fetch.url_preview_pending = True
+        self._trigger_url_preview_cron()
+
+    @api.model
+    def _cron_update_url_preview(self, limit: int = 200) -> None:
+        documents = self.search(
+            [("url_preview_pending", "=", True), ("type", "=", "url")], limit=limit
+        )
+        if not documents:
+            return
+        session = requests.Session()
+        for document in documents:
+            vals = {"url_preview_pending": False}
+            preview = (
+                link_preview.get_link_preview_from_url(document.url, session)
+                if document.url
+                else None
+            )
+            if preview:
+                if preview.get("og_title") and document.name in (False, document.url):
+                    vals["name"] = preview["og_title"]
+                if preview.get("og_image"):
+                    vals["url_preview_image"] = preview["og_image"]
+            document.write(vals)
+            if not modules.module.current_test:
+                self.env.cr.commit()
+
+        if len(documents) == limit:
+            self._trigger_url_preview_cron()
+
+    @api.depends("checksum", "mimetype")
+    def _compute_is_multipage(self) -> None:
+        for document in self:
+            document.is_multipage = bool(document._get_is_multipage())
+
+    @api.depends(
+        "attachment_id",
+        "attachment_id.res_model",
+        "attachment_id.res_id",
+        "shortcut_document_id.res_model",
+        "shortcut_document_id.res_id",
+    )
+    def _compute_res_record(self) -> None:
+        for record in self:
+            attachment = record.attachment_id
+            if attachment:
+                record.res_model = (
+                    attachment.res_model != "document.document"
+                    and attachment.res_model
+                ) or False
+                record.res_id = (
+                    attachment.res_model != "document.document" and attachment.res_id
+                ) or False
+            if record.shortcut_document_id:
+                record.res_model = record.shortcut_document_id.res_model
+                record.res_id = record.shortcut_document_id.res_id
+
+    @api.depends("res_model", "res_id")
+    def _compute_res_name(self) -> None:
+        linked = self.filtered(lambda d: d.res_id and d.res_model)
+        for res_model, documents in linked.grouped("res_model").items():
+            if res_model not in self.env:
+                continue
+            with contextlib.suppress(MissingError, AccessError):
+                self.env[res_model].browse(documents.mapped("res_id")).exists().mapped(
+                    "display_name"
+                )
+
+        (self - linked).res_name = False
+        for record in linked:
+            if record.res_model not in self.env:
+                record.res_name = False
+                continue
+            try:
+                record.res_name = (
+                    self.env[record.res_model].browse(record.res_id).display_name
+                )
+            except MissingError:
+                record.res_name = False
+            except AccessError:
+                record.res_name = _("Restricted")
+
+    @api.depends(
+        "checksum",
+        "mimetype",
+        "attachment_id.type",
+        "shortcut_document_id.thumbnail",
+        "shortcut_document_id.thumbnail_status",
+    )
+    def _compute_thumbnail(self) -> None:
+        for document in self:
+            if document.shortcut_document_id:
+                document.thumbnail = document.shortcut_document_id.thumbnail
+                document.thumbnail_status = (
+                    document.shortcut_document_id.thumbnail_status
+                )
+            elif document.mimetype and (
+                document.mimetype.startswith("application/pdf")
+                or document.mimetype.startswith("image/webp")
+                or (
+                    document.mimetype.startswith("image/")
+                    and document.attachment_id.type == "cloud_storage"
+                )
+            ):
+                document.thumbnail = False
+                document.thumbnail_status = "client_generated"
+            elif document.mimetype and document.mimetype.startswith("image/"):
+                content = document.attachment_id.sudo()._get_content_prefix()
+                try:
+                    thumbnail = (
+                        image_process(content, size=(200, 140), crop="center")
+                        if content
+                        else None
+                    )
+                except UserError, TypeError:
+                    thumbnail = None
+                document.thumbnail = base64.b64encode(thumbnail) if thumbnail else False
+                document.thumbnail_status = "present" if thumbnail else "error"
+            else:
+                document.thumbnail = False
+                document.thumbnail_status = False
+
+    @api.depends("type")
+    def _compute_deletion_delay(self) -> None:
+        folders = self.filtered(lambda d: d.type == "folder")
+        folders.deletion_delay = self.get_deletion_delay()
+        (self - folders).deletion_delay = False
+
+    @api.depends("res_model")
+    def _compute_res_model_name(self) -> None:
+        for record in self:
+            if record.res_model:
+                record.res_model_name = (
+                    self.env["ir.model"]._get(record.res_model).display_name
+                )
+            else:
+                record.res_model_name = False
+
+    def _inverse_file_extension(self) -> None:
+        for record in self:
+            file_extension = (
+                _sanitize_file_extension(record.file_extension)
+                if record.file_extension
+                else False
+            )
+            (record | record.shortcut_ids).file_extension = file_extension
+
+    def _inverse_res_record(self) -> None:
+        attachments_by_target = defaultdict(lambda: self.env["ir.attachment"])
+        self_link_targets = set()
+        for record in self:
+            attachment = record.attachment_id
+
+            res_model, res_id = record.res_model, record.res_id
+            if not res_model:
+                res_model = "document.document"
+                res_id = record.id
+                self_link_targets.add((res_model, res_id))
+
+            if attachment and (attachment.res_model, attachment.res_id) != (
+                res_model,
+                res_id,
+            ):
+                attachments_by_target[(res_model, res_id)] |= attachment
+
+        for (res_model, res_id), attachments in attachments_by_target.items():
+            if (
+                not self.env.su
+                and (res_model, res_id) not in self_link_targets
+                and res_model in self.env
+            ):
+                self.env[res_model].browse(res_id).check_access("write")
+            attachments.sudo().with_context(no_document=True).write(
+                {"res_model": res_model, "res_id": res_id}
+            )
+
+    def action_move_folder(
+        self, target: str, before_folder_id: int | bool = False
+    ) -> bool | None:
+        self.check_singleton()
+        if self.type != "folder" or not self.active:
+            return None
+
+        values = {"user_folder_id": target}
+        sibling_folders_domain = (
+            Domain("type", "=", "folder")
+            & Domain("id", "!=", self.id)
+            & Domain("user_folder_id", "=", target)
+        )
+
+        if before_folder := self.browse(before_folder_id).exists():
+            located_after_domain = Domain("sequence", ">", before_folder.sequence) | (
+                Domain("sequence", "=", before_folder.sequence)
+                & Domain("id", "<=", before_folder_id)
+            )
+            folders_to_resequence_domain = sibling_folders_domain & located_after_domain
+            folders_to_resequence_sudo = self.sudo().search(
+                folders_to_resequence_domain
+            )
+            if (
+                folders_to_resequence_sudo
+                and before_folder == folders_to_resequence_sudo[0]
+            ):
+                values["sequence"] = before_folder.sequence
+                new_sequence = before_folder.sequence + 1
+                for folder_sudo in folders_to_resequence_sudo:
+                    if folder_sudo.sequence >= new_sequence:
+                        break
+                    folder_sudo.sequence = new_sequence
+                    new_sequence += 1
+                return self.write(values)
+
+        if (
+            result := self.env["document.document"]
+            .sudo()
+            .search_read(
+                sibling_folders_domain,
+                fields=["sequence"],
+                order="sequence DESC",
+                limit=1,
+            )
+        ):
+            values["sequence"] = result[0]["sequence"] + 1
+
+        return self.write(values)
+
+    def action_change_owner(self, new_user_id: int) -> None:
+        self.owner_id = new_user_id
+
+    def action_create_shortcut(
+        self, location_user_folder_id: str | None = None
+    ) -> DocumentsDocument:
+        if not self.ids:
+            return self.browse()
+
+        if len(self.folder_id.ids) > 1 and location_user_folder_id is None:
+            raise UserError(
+                _("A destination is required when creating multiple shortcuts at once.")
+            )
+        if location_user_folder_id is False:
+            raise UserError(_("Ambiguous shortcut target location."))
+        if location_user_folder_id is not None:
+            user_folder = self._parse_user_folder(location_user_folder_id)
+            location_folder_id = (
+                user_folder.folder_id
+                if user_folder is not None and user_folder.is_folder
+                else False
+            )
+        else:
+            location_folder_id = None
+
+        location = (
+            self.browse(location_folder_id)
+            if location_folder_id is not None
+            else self.folder_id
+        )
+        if location_folder_id and location.shortcut_document_id:
+            return self.action_create_shortcut(str(location.shortcut_document_id.id))
+
+        if location:
+            if location.user_permission != "edit":
+                raise AccessError(_("You are not allowed to write in this folder."))
+        elif location_user_folder_id == UserFolder.COMPANY and not self.env.su:
+            targets = self.shortcut_document_id | self.filtered(
+                lambda d: not d.shortcut_document_id
+            )
+            if any(t.type == "folder" for t in targets) and not self.env.user.has_group(
+                "document.group_documents_manager"
+            ):
+                self._raise_company_folder_manager_only()
+
+        (
+            self.shortcut_document_id
+            | self.filtered(lambda d: not d.shortcut_document_id)
+        ).check_access("read")
+
+        return (
+            self.sudo()
+            .create(
+                [
+                    {
+                        "user_folder_id": str(location.id)
+                        if location
+                        else location_user_folder_id,
+                        "shortcut_document_id": (
+                            target := document.shortcut_document_id or document
+                        ).id,
+                        **self._shortcut_access_defaults(target),
+                        "access_ids": [
+                            Command.create(
+                                {
+                                    "partner_id": access.partner_id.id,
+                                    "role": access.role,
+                                }
+                            )
+                            for access in target.access_ids
+                            if access.role
+                        ],
+                        **{
+                            field_name: (
+                                value.id
+                                if isinstance(
+                                    (value := target[field_name]), models.Model
+                                )
+                                else value
+                            )
+                            for field_name in self._get_fields_shortcuts_copy()
+                        },
+                    }
+                    for document in self
+                ]
+            )
+            .sudo(False)
+        )
+
+    def action_view_access_log(self) -> dict:
+        self.check_singleton()
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "document.documents_access_log_action"
+        )
+        return action | {
+            "display_name": _("Access Log: %s", self.name),
+            "domain": [("document_id", "=", self.id)],
+            "context": {"search_default_group_partner": 1},
+        }
+
+    def toggle_lock(self) -> None:
+        self.check_singleton()
+        if self.lock_uid:
+            self.lock_uid = False
+        else:
+            self.lock_uid = self.env.uid
+
+    def _check_user_favorite_access(self) -> None:
+        self._check_access_or_raise(
+            "read", _("You are not allowed to access these documents.")
+        )
+
+    # compute_sudo=False, unlike the mixin's default: the compute below masks
+    # the value for documents this user may not access, and _filtered_access
+    # answers "yes" to everything when it runs sudo.
+    is_user_favorite = fields.Boolean(compute_sudo=False)
+
+    @api.depends("favorite_user_ids")
+    @api.depends_context("uid", "allowed_company_ids")
+    def _compute_is_user_favorite(self) -> None:
+        # A document you may no longer access reads as not-favorited, rather
+        # than as whatever the relation still says. Field reads on this model
+        # are not gated by user_permission, so the mixin's plain membership
+        # test would answer for records the rest of the UI hides.
+        favorited = self._filtered_access("read").filtered(
+            lambda document: self.env.user in document.favorite_user_ids
+        )
+        favorited.is_user_favorite = True
+        (self - favorited).is_user_favorite = False
+
+    def action_archive(self) -> bool | None:
+        if not self:
+            return None
+
+        if locked_by_other := self._locked_by_other():
+            raise UserError(
+                _(
+                    "“%(name)s” is locked by %(user)s and cannot be sent to "
+                    "the trash by another user.",
+                    name=locked_by_other[0].name,
+                    user=locked_by_other[0].lock_uid.name,
+                )
+            )
+
+        to_archive_sudo = self._with_descendants_sudo()
+        active_documents = to_archive_sudo.filtered(self._active_name).sudo(False)
+        if not active_documents:
+            return None
+
+        active_documents._check_access_or_raise(
+            "unlink", self._archive_denied_message()
+        )
+
+        active_documents._raise_if_unauthorized_archive()
+        active_documents._raise_if_used_folder()
+        deletion_date = fields.Date.to_string(
+            fields.Date.today() + relativedelta(days=self.get_deletion_delay())
+        )
+        log_message = _(
+            "This file has been sent to the trash and will be deleted forever on the %s",
+            deletion_date,
+        )
+        active_documents._message_log_batch(
+            bodies={doc.id: log_message for doc in active_documents}
+        )
+        return super(
+            DocumentsDocument,
+            active_documents.with_context(documents_archiving=True),
+        ).action_archive()
+
+    def action_unarchive(self) -> bool | None:
+        self_archived = self.filtered(lambda d: not d.active)
+        if not self_archived:
+            return None
+        archived_top_parent_documents = (
+            self.env["document.document"]
+            .sudo()
+            .search(
+                Domain.AND(
+                    (
+                        Domain("id", "parent_of", self_archived.ids),
+                        Domain("id", "not in", self_archived.ids),
+                        Domain("active", "=", False),
+                        Domain("folder_id", "=", False)
+                        | Domain("folder_id.active", "=", True),
+                    )
+                )
+            )
+            .sudo(False)
+        )
+        if archived_top_parent_documents:
+            raise UserError(
+                _(
+                    "Item(s) you wish to restore are included in archived folders. "
+                    "To restore these items, you must restore the following including folders instead:\n"
+                    "- %(folders_list)s",
+                    folders_list="\n-".join(
+                        archived_top_parent_documents.mapped("name")
+                    ),
+                )
+            )
+
+        to_unarchive_candidate_documents = (
+            self.env["document.document"]
+            .with_context(active_test=False)
+            .search([("id", "child_of", self_archived.ids)])
+        )
+
+        seen_documents, to_unarchive_ids = set(), set()
+
+        def add_if_can_be_restored(doc: DocumentsDocument) -> bool:
+            if doc in seen_documents or seen_documents.add(doc):
+                return doc.id in to_unarchive_ids
+            if (
+                not doc.folder_id
+                or doc.folder_id.sudo().active
+                or add_if_can_be_restored(doc.folder_id)
+            ):
+                to_unarchive_ids.add(doc.id)
+                return True
+            return False
+
+        for document in to_unarchive_candidate_documents:
+            add_if_can_be_restored(document)
+        to_unarchive_documents = to_unarchive_candidate_documents.filtered(
+            lambda d: d.id in to_unarchive_ids
+        )
+        log_message = _("This document has been restored.")
+        to_unarchive_documents._message_log_batch(
+            bodies={doc.id: log_message for doc in to_unarchive_documents}
+        )
+        return super(DocumentsDocument, to_unarchive_documents).action_unarchive()
+
+    def access_content(self) -> dict:
+        self.check_singleton()
+        action = {
+            "type": "ir.actions.act_url",
+            "target": "new",
+        }
+        if self.url:
+            action["url"] = self.url
+        elif self.type == "binary":
+            action["url"] = f"/documents/content/{quote(self.access_token, safe='')}"
+        return action
+
+    def open_resource(self) -> dict | bool:
+        self.check_singleton()
+        if self.res_model and self.res_id:
+            view_id = self.env[self.res_model].get_formview_id(self.res_id)
+            return {
+                "res_id": self.res_id,
+                "res_model": self.res_model,
+                "type": "ir.actions.act_window",
+                "views": [[view_id, "form"]],
+            }
+        return False
+
+    def add_documents_attachment(
+        self, res_model: str, res_id: int, is_public: bool = False
+    ) -> list[dict]:
+        origins = self.attachment_id
+        new_attachments = origins.copy(
+            {"res_model": res_model, "res_id": res_id, "public": is_public}
+        )
+        for origin, copied in zip(origins, new_attachments, strict=True):
+            copied.original_id = origin.id
+
+        if is_public:
+            new_attachments.generate_access_token()
+
+        return [attachment._get_media_info() for attachment in new_attachments]
+
+    def _copy_attachment_filter(self, default: dict | None) -> DocumentsDocument:
+        if default and "attachment_id" in default:
+            return self.env["document.document"]
+        return self.filtered("attachment_id")
+
+    def _copy_with_access(self, default: dict | None) -> DocumentsDocument:
+        if not self:
+            return self
+        res = super().copy(default=default)
+        if default and "access_ids" in default:
+            return res
+        access_vals_list = []
+        for doc, doc_copied in zip(self, res, strict=True):
+            owner_partner = doc_copied.owner_id.partner_id
+            doc_access_to_have = doc.access_ids.filtered("role")
+            doc_access_to_create = doc_access_to_have.filtered(
+                lambda a, doc_copied=doc_copied, owner_partner=owner_partner: (
+                    a.partner_id not in doc_copied.access_ids.partner_id | owner_partner
+                )
+            )
+            access_vals_list += doc_access_to_create.copy_data(
+                default={"document_id": doc_copied.id}
+            )
+        self.env["document.access"].sudo().create(access_vals_list)
+        return res
+
+    def get_deletion_delay(self) -> int:
+        return (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param_int("document.deletion_delay", 30)
+        )
+
+    def is_folder_containing_document(self) -> bool:
+        self.check_singleton()
+        return bool(
+            self.env["document.document"]
+            .sudo()
+            .search_count(
+                [("id", "child_of", self.id), ("type", "!=", "folder")],
+                limit=1,
+            )
+        )
+
+    def _get_is_multipage(self) -> bool | None:
+        decoded = self.attachment_id._get_pdf_raw() if self.attachment_id else None
+        if decoded is None:
+            return None
+        if modules.module.current_test and b"<!DOCTYPE html>" in decoded[:32]:
+            _logger.info(
+                "Skip _get_is_multipage of %r: html content detected in pdf document while in testing mode",
+                self.name,
+            )
+            return False
+        stream = io.BytesIO(decoded)
+        try:
+            return len(PdfReader(stream, strict=False).pages) > 1
+        except AttributeError:
+            raise
+        except Exception:
+            message = (
+                "Impossible to count pages in %r. It could be due to a malformed document or a "
+                "(possibly known) issue within PyPDF2."
+            )
+            _logger.warning(message, self.name, exc_info=True)
+            return False
+
+    @api.model
+    def get_previewable_file_extensions(self) -> set:
+        return {"bmp", "mp3", "png", "jpg", "jpeg", "pdf", "gif", "txt", "wav"}
+
+    @api.model
+    def _get_fields_shortcuts_copy(self) -> set:
+        return {
+            "company_id",
+            "is_access_via_link_hidden",
+            "is_multipage",
+            "partner_id",
+            "type",
+            "url",
+        }
+
+    @api.readonly
+    @api.model
+    def get_document_max_upload_limit(self) -> int | None:
+        ICP = self.env["ir.config_parameter"].sudo()
+        for key in ("document.max_fileupload_size", "web.max_file_upload_size"):
+            value = ICP.get_param(key, default=None)
+            if value is None:
+                continue
+            try:
+                return int(value) or None
+            except ValueError:
+                _logger.error("invalid %s: %r", key, value)
+        return odoo.http.DEFAULT_MAX_CONTENT_LENGTH
+
+    @api.readonly
+    @api.model
+    def get_details_panel_res_models(self) -> list:
+        functional_models = [
+            "account.move",
+            "fleet.vehicle",
+            "hr.expense",
+            "hr.leave",
+            "product.product",
+            "project.project",
+            "project.task",
+            "purchase.order",
+            "sale.order",
+        ]
+        return [
+            model
+            for model in functional_models
+            if (res_model := self.env.get(model)) is not None
+            and res_model.has_access("read")
+        ]
+
+    @api.model
+    def _get_traceback_folder_sudo(self) -> DocumentsDocument:
+        folder_id = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param_int("document.support_folder", 0)
+        )
+        folder_sudo = self.env["document.document"].sudo().browse(folder_id)
+        if not folder_sudo or not folder_sudo.exists():
+            folder_sudo = (
+                self.env["document.document"]
+                .sudo()
+                .create(
+                    {
+                        "name": self.env._("Support"),
+                        "type": "folder",
+                        "access_internal": "none",
+                        "access_via_link": "none",
+                    }
+                )
+            )
+            self.env["ir.config_parameter"].sudo().set_param(
+                "document.support_folder", folder_sudo.id
+            )
+        return folder_sudo
+
+    def _with_descendants_sudo(self) -> DocumentsDocument:
+        return (
+            self.sudo()
+            .with_context(active_test=False)
+            .search([("id", "child_of", self.ids)])
+        )
+
+    def _get_removable_parent_folders(self) -> DocumentsDocument:
+        folders_sudo = self.sudo().with_context(active_test=False).folder_id
+        removable_sudo = folders_sudo.filtered(
+            lambda folder: (
+                not (folder.children_ids - self.sudo())
+                and not folder.active
+                and folder.id not in self.ids
+            )
+        )
+        return removable_sudo.with_env(self.env)
+
+    @api.model
+    def _get_gc_clear_bin_domain(self) -> list:
+        deletion_delay = self.get_deletion_delay()
+        return [
+            ("active", "=", False),
+            (
+                "write_date",
+                "<=",
+                fields.Datetime.now() - relativedelta(days=deletion_delay),
+            ),
+        ]
+
+    def _get_access_action(
+        self, access_uid: int | None = None, force_website: bool = False
+    ) -> dict:
+        self.check_singleton()
+        if (
+            access_uid
+            and not force_website
+            and self.active
+            and self.env.user.has_group("document.group_documents_user")
+        ):
+            url_params = url_encode(
+                {
+                    "documents_init_document_id": self.id,
+                    "view_id": self.env.ref("document.document_view_kanban").id,
+                    "menu_id": self.env.ref("document.menu_root").id,
+                    "folder_id": self.folder_id.id,
+                }
+            )
+
+            return {
+                "type": "ir.actions.act_url",
+                "url": f"/odoo/action-document.document_action?{url_params}",
+            }
+        return super()._get_access_action(
+            access_uid=access_uid, force_website=force_website
+        )
+
+    def _get_copy_shortcuts_destinations(
+        self, shortcuts: DocumentsDocument, default: dict | None
+    ) -> Any:
+        default = default or {}
+        folder_id = default.get("folder_id")
+        user_folder_id = default.get("user_folder_id")
+        prefetch_ids = None
+        candidates = {}
+
+        if user_folder := self._parse_user_folder(user_folder_id):
+            if user_folder.is_folder:
+                candidates[self.browse(user_folder.folder_id)] = shortcuts
+            else:
+                return ((str(user_folder), shortcuts),)
+        elif folder_id is not None:
+            candidates[self.browse(folder_id)] = shortcuts
+        else:
+            candidates = shortcuts.grouped("folder_id")
+            prefetch_ids = shortcuts.folder_id.ids
+
+        targets_per_destination = defaultdict(self.browse)
+        for destination, destination_shortcuts in candidates.items():
+            if isinstance(destination, str):
+                pass
+            elif (
+                not self.env.su
+                and destination
+                and destination.with_prefetch(prefetch_ids).user_permission != "edit"
+            ):
+                destination = UserFolder.MY
+            else:
+                destination = str(destination.id)
+            targets_per_destination[destination] |= destination_shortcuts
+        return targets_per_destination.items()
+
+    @api.model
+    def _get_fields_to_recompute(self, depends: list) -> set | list:
+        if not depends:
+            return []
+
+        fields_to_recompute = set()
+        fields_compute_stored = {
+            field
+            for field in self._fields.values()
+            if field.copy and field.store and field.compute
+        }
+        for field_dependence in (self._fields[depend] for depend in depends):
+            fields_dependent = set(self.pool.get_dependent_fields(field_dependence))
+            fields_to_recompute |= fields_compute_stored & fields_dependent
+
+        return fields_to_recompute
+
+    def _prepare_create_values(self, vals_list: list[dict]) -> list[dict]:
+        old_vals_list = [vals.copy() for vals in vals_list]
+        vals_list = super()._prepare_create_values(vals_list)
+        folders = self.env["document.document"].browse(
+            v["folder_id"] for v in vals_list if v.get("folder_id")
+        )
+        users = self.env["res.users"].browse(
+            v["owner_id"] for v in vals_list if v.get("owner_id")
+        )
+        folders.fetch(
+            (
+                "access_internal",
+                "access_via_link",
+                "access_ids",
+                "active",
+                "company_id",
+                "owner_id",
+            )
+        )
+        (users | folders.owner_id).fetch(["partner_id"])
+        self.browse(
+            v["shortcut_document_id"]
+            for v in vals_list
+            if v.get("shortcut_document_id")
+        ).check_access("read")
+        vals_list_to_update_linked_record = []
+        for vals, old_vals in zip(vals_list, old_vals_list, strict=True):
+            owner = self.env["res.users"].browse(
+                vals.get("owner_id", self.env.user.active and self.env.user.id)
+            )
+            if owner and not owner.active:
+                _logger.warning(
+                    "Documents: Creating document(s) as %s",
+                    "superuser"
+                    if owner.id == SUPERUSER_ID
+                    else f"archived user (id={owner.id})",
+                )
+                owner = self.env["res.users"]
+                vals["owner_id"] = False
+
+            vals_values = {"owner_id": owner.id}
+            shortcut_target = self.browse()
+            if vals.get("shortcut_document_id"):
+                shortcut_target = self.browse(vals["shortcut_document_id"])
+
+            folder = self.env["document.document"].browse(vals.get("folder_id", False))
+            if folder:
+                if not folder.active:
+                    raise UserError(
+                        self.env._(
+                            "It is not possible to create documents in an archived folder."
+                        )
+                    )
+
+                if not shortcut_target:
+                    vals_values.update(
+                        {
+                            "access_via_link": folder.access_via_link,
+                            "access_internal": folder.access_internal,
+                        }
+                    )
+                if folder.company_id:
+                    vals_values["company_id"] = folder.company_id.id
+
+            if shortcut_target:
+                vals_values.update(
+                    self._shortcut_access_defaults(shortcut_target)
+                    | {
+                        "is_access_via_link_hidden": shortcut_target.is_access_via_link_hidden,
+                    }
+                )
+
+            vals.update((k, v) for k, v in vals_values.items() if k not in old_vals)
+            provided_access_ids = self._validated_create_access_commands(
+                old_vals.get("access_ids")
+            )
+            opted_out_of_inheritance = "access_ids" in old_vals and not any(
+                command[0] == Command.CREATE for command in provided_access_ids
+            )
+            if (
+                "shortcut_document_id" not in old_vals
+                and not opted_out_of_inheritance
+                and folder
+                and (inherited_access_ids := folder._get_inherited_access_ids_vals())
+            ):
+                partner_ids = [
+                    command[2]["partner_id"]
+                    for command in vals["access_ids"] or []
+                    if command[0] == Command.CREATE and command[2]
+                ]
+                access_vals_to_add = [
+                    v
+                    for v in inherited_access_ids
+                    if v["partner_id"] not in partner_ids
+                ]
+                vals["access_ids"] = list(vals["access_ids"] or []) + [
+                    Command.create(access_vals) for access_vals in access_vals_to_add
+                ]
+
+            if owner:
+                vals["access_ids"] = list(vals["access_ids"] or [])
+                for values in vals["access_ids"]:
+                    if (
+                        values[0] == Command.CREATE
+                        and values[2]
+                        and values[2]["partner_id"] == owner.partner_id.id
+                    ):
+                        values[2]["last_access_date"] = fields.Datetime.now()
+                        break
+                else:
+                    vals["access_ids"] += [
+                        Command.create(
+                            {
+                                "partner_id": owner.partner_id.id,
+                                "last_access_date": fields.Datetime.now(),
+                            }
+                        )
+                    ]
+
+            if (
+                "res_model" not in vals
+                and "res_id" not in vals
+                and isinstance(vals.get("attachment_id"), int)
+            ):
+                vals_list_to_update_linked_record.append(vals)
+
+        if vals_list_to_update_linked_record:
+            attachment_by_id = (
+                self.env["ir.attachment"]
+                .browse(
+                    [
+                        vals["attachment_id"]
+                        for vals in vals_list_to_update_linked_record
+                    ]
+                )
+                .grouped("id")
+            )
+            for vals in vals_list_to_update_linked_record:
+                attachment = attachment_by_id[vals["attachment_id"]]
+                vals["res_model"] = (
+                    False
+                    if attachment.res_model == "document.document"
+                    else attachment.res_model
+                )
+                vals["res_id"] = (
+                    False
+                    if attachment.res_model == "document.document"
+                    else attachment.res_id
+                )
+
+        indexed = list(enumerate(zip(vals_list, old_vals_list, strict=True)))
+        prepared_by_position = {}
+        for res_model, group in groupby(
+            indexed, lambda item: item[1][0].get("res_model")
+        ):
+            positions = [position for position, __ in group]
+            prepared_by_position.update(
+                zip(
+                    positions,
+                    self._prepare_create_values_for_model(
+                        res_model,
+                        [vals_list[position] for position in positions],
+                        [old_vals_list[position] for position in positions],
+                    ),
+                    strict=True,
+                )
+            )
+        return [prepared_by_position[position] for position in range(len(vals_list))]
+
+    def _prepare_create_values_for_model(
+        self, res_model: str | bool, vals_list: list[dict], pre_vals_list: list[dict]
+    ) -> list[dict]:
+        if (
+            res_model
+            and issubclass(self.pool[res_model], self.pool["mixin.documents"])
+            and not self.env.context.get("no_document")
+        ):
+            return self.env[
+                res_model
+            ]._prepare_document_create_values_for_linked_records(
+                res_model, vals_list, pre_vals_list
+            )
+        return vals_list
+
+    @api.model
+    def _pdf_split(
+        self,
+        new_files: list | None = None,
+        open_files: list | None = None,
+        vals: dict | None = None,
+    ) -> DocumentsDocument:
+        vals = vals or {}
+        new_attachments = self.env["ir.attachment"]._pdf_split(
+            new_files=new_files, open_files=open_files
+        )
+        new_documents = self.create(
+            [dict(vals, attachment_id=attachment.id) for attachment in new_attachments]
+        )
+        env_partner = self.env.user.partner_id
+        documents_not_member = new_documents.filtered(
+            lambda d: env_partner not in d.access_ids.partner_id
+        )
+        self.env["document.access"].sudo().create(
+            [
+                {
+                    "document_id": doc.id,
+                    "partner_id": env_partner.id,
+                    "last_access_date": fields.Datetime.now(),
+                }
+                for doc in documents_not_member
+            ]
+        )
+        return new_documents
+
+    @api.autovacuum
+    def _gc_clear_bin(self) -> tuple:
+        limit = 1000
+        expired = self.search(self._get_gc_clear_bin_domain(), limit=limit)
+        removed = len(expired)
+        expired.unlink()
+        return removed, removed == limit
+
+    def _raise_if_used_folder(self) -> None:
+        if folder_ids := self.filtered(lambda d: d.type == "folder").ids:
+            company_used_folders_domain = self.env[
+                "res.company"
+            ]._get_used_folder_ids_domain(folder_ids)
+            if (
+                self.env["res.company"]
+                .sudo()
+                .search_count(company_used_folders_domain, limit=1)
+            ):
+                raise ValidationError(
+                    _("Impossible to delete folders used by other applications.")
+                )

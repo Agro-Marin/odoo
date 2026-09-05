@@ -63,7 +63,7 @@ class IrAttachment(models.Model):
             except UserError as e:
                 if (
                     not hasattr(e, "_audit_trail")
-                    or vals.get("res_model") != "documents.document"
+                    or vals.get("res_model") != "document.document"
                     or vals.keys() & {"raw", "datas", "store_fname", "db_datas"}
                 ):
                     raise

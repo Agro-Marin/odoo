@@ -2,7 +2,7 @@ from odoo import fields, models
 
 
 class DocumentsDocument(models.Model):
-    _inherit = "documents.document"
+    _inherit = "document.document"
 
     attached_on_sale = fields.Selection(
         selection=[

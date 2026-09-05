@@ -1,0 +1,13 @@
+{
+  "expected": {
+    "document_l10n_mx_edi/TestAuditFindings.test_an_issued_cfdi_gets_sale_taxes": "ERROR",
+    "document_l10n_mx_edi/TestCfdiQrForReal.test_a_scanned_bill_yields_its_signed_values_with_nothing_stubbed": "FAIL",
+    "document_l10n_mx_edi/TestCfdiQrForReal.test_the_code_pays_for_the_total_and_only_the_date_is_still_owed": "FAIL",
+    "document_l10n_mx_edi/TestCfdiQrForReal.test_what_the_code_could_not_state_is_what_escalates": "FAIL"
+  },
+  "note": "This suite could not run at all until 2026-08-29 -- the module would not install -- and first measured 29 failures of 401. Five cross-repo drifts accounted for 25 of them, all now fixed: PAGE_BREAK and _BARCODE_READERS moved to document_extract.tools.readers; TERMINAL_SAT_STATES was deleted outright from enterprise l10n_mx_edi; account.tax replaced company_id with company_ids, a many2many, which _find_tax and _get_tax_domain still filtered in the singular -- that was LIVE product code, not test debt, so CFDI tax matching was broken in production; and _enqueue_phase passed delayed(description=) where the API has only ever taken name=. The four that remain are individual, not a pattern: a tax group whose country_id must match its tax, a SAT-unreachable fixture, and two column-tuple assertions.",
+  "run_spec": "odoo-bin -i documents_l10n_mx_edi --test-enable --test-tags '/document_l10n_mx_edi' --stop-after-init",
+  "suite": "/document_l10n_mx_edi",
+  "tests_total": 401,
+  "verified_at": "3aa342e4736"
+}

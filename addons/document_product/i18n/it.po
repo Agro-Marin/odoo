@@ -1,0 +1,190 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * documents_product
+#
+# Translators:
+# Martin Trigaux, 2022
+# Sergio Zanchetta <primes2h@gmail.com>, 2022
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Marianna Ciofani (cima)" <cima@odoo.com>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 15.5alpha1+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-30 18:44+0000\n"
+"PO-Revision-Date: 2025-10-20 08:36+0000\n"
+"Last-Translator: \"Marianna Ciofani (cima)\" <cima@odoo.com>\n"
+"Language-Team: Italian <https://translate.odoo.com/projects/odoo-19/"
+"document_product/it/>\n"
+"Language: it\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=3; plural=(n == 1) ? 0 : ((n != 0 && n % 1000000 == "
+"0) ? 1 : 2);\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: document_product
+#: model_terms:ir.ui.view,arch_db:document_product.res_config_settings_view_form
+msgid "Centralize files attached to products"
+msgstr "Accentra i file allegati ai prodotti"
+
+#. module: document_product
+#: model:ir.model,name:document_product.model_res_company
+msgid "Companies"
+msgstr "Aziende"
+
+#. module: document_product
+#: model:ir.model,name:document_product.model_res_config_settings
+msgid "Config Settings"
+msgstr "Impostazioni di configurazione"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_document_document__display_name
+#: model:ir.model.fields,field_description:document_product.field_product_product__display_name
+#: model:ir.model.fields,field_description:document_product.field_product_template__display_name
+#: model:ir.model.fields,field_description:document_product.field_res_company__display_name
+#: model:ir.model.fields,field_description:document_product.field_res_config_settings__display_name
+msgid "Display Name"
+msgstr "Nome visualizzato"
+
+#. module: document_product
+#: model:ir.model,name:document_product.model_document_document
+msgid "Document"
+msgstr "Documento"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_res_company__documents_product_settings
+msgid "Documents Product Settings"
+msgstr "Impostazioni documenti prodotto"
+
+#. module: document_product
+#: model_terms:ir.ui.view,arch_db:document_product.res_config_settings_view_form
+msgid "Folder"
+msgstr "Cartella"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_document_document__id
+#: model:ir.model.fields,field_description:document_product.field_product_product__id
+#: model:ir.model.fields,field_description:document_product.field_product_template__id
+#: model:ir.model.fields,field_description:document_product.field_res_company__id
+#: model:ir.model.fields,field_description:document_product.field_res_config_settings__id
+msgid "ID"
+msgstr "ID"
+
+#. module: document_product
+#: model:ir.model,name:document_product.model_product_template
+#: model:ir.model.fields,field_description:document_product.field_document_document__product_template_id
+#: model:ir.model.fields,field_description:document_product.field_res_config_settings__documents_product_settings
+msgid "Product"
+msgstr "Prodotto"
+
+#. module: document_product
+#: model:document.tag,name:document_product.documents_product_sheet_tag
+msgid "Product > DataSheets"
+msgstr "Prodotto > Fogli dati"
+
+#. module: document_product
+#: model:document.tag,name:document_product.documents_product_msds_tag
+msgid "Product > MSDS"
+msgstr "Prodotto > MSDS"
+
+#. module: document_product
+#: model:document.tag,name:document_product.documents_product_new_tag
+msgid "Product > New"
+msgstr "Prodotto > Nuovo"
+
+#. module: document_product
+#: model:document.tag,name:document_product.documents_product_plans_tag
+msgid "Product > Plans"
+msgstr "Prodotto > Piani"
+
+#. module: document_product
+#: model:document.tag,name:document_product.documents_product_specs_tag
+msgid "Product > Specs"
+msgstr "Prodotto > Specifiche"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_res_company__product_folder_id
+msgid "Product Folder"
+msgstr "Cartella prodotto"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_res_company__product_tag_ids
+msgid "Product Tag"
+msgstr "Etichetta prodotto"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_res_config_settings__product_tag_ids
+msgid "Product Tags"
+msgstr "Etichette prodotto"
+
+#. module: document_product
+#: model:ir.model,name:document_product.model_product_product
+#: model:ir.model.fields,field_description:document_product.field_document_document__product_id
+msgid "Product Variant"
+msgstr "Variante prodotto"
+
+#. module: document_product
+#. odoo-python
+#: code:addons/document_product/models/document.py:0
+msgid "Product created from Documents"
+msgstr "Prodotto creato da Documenti"
+
+#. module: document_product
+#: model:document.document,name:document_product.document_product_folder
+msgid "Products"
+msgstr "Prodotti"
+
+#. module: document_product
+#: model_terms:ir.ui.view,arch_db:document_product.res_config_settings_view_form
+msgid "Tags"
+msgstr "Tag"
+
+#. module: document_product
+#: model:ir.model.fields,field_description:document_product.field_res_config_settings__product_folder_id
+msgid "product default folder"
+msgstr "cartella predefinita prodotto"
+
+#~ msgid ""
+#~ "A set of condition and actions which will be available to all attachments "
+#~ "matching the conditions"
+#~ msgstr ""
+#~ "Una serie di condizioni e azioni che saranno disponibili per tutti gli "
+#~ "allegati che soddisfano i requisiti"
+
+#~ msgid "Create"
+#~ msgstr "Crea"
+
+#~ msgid "DataSheets"
+#~ msgstr "Schede tecniche"
+
+#~ msgid "Default Tags"
+#~ msgstr "Default Tag"
+
+#~ msgid "Documents"
+#~ msgstr "Documenti"
+
+#~ msgid "MSDS"
+#~ msgstr "SDS"
+
+#~ msgid "New"
+#~ msgstr "Nuovo"
+
+#~ msgid "Plans"
+#~ msgstr "Piani"
+
+#~ msgid "Product Workspace"
+#~ msgstr "Spazio di lavoro prodotto"
+
+#~ msgid "Product template"
+#~ msgstr "Modello prodotto"
+
+#~ msgid "Specs"
+#~ msgstr "Specifiche"
+
+#~ msgid "Workspace"
+#~ msgstr "Spazio di lavoro"
+
+#~ msgid "product default workspace"
+#~ msgstr "Spazio di lavoro predefinito del prodotto"

@@ -264,7 +264,7 @@ export class SpreadsheetMixin extends models.Model {
     get_selector_spreadsheet_models() {
         return [
             {
-                model: "documents.document",
+                model: "document.document",
                 display_name: "Spreadsheets",
                 allow_create: true,
             },
@@ -595,10 +595,10 @@ export class Tag extends models.Model {
 
 export function getBasicData() {
     return {
-        "documents.document": {},
+        "document.document": {},
         "ir.model": {},
         "ir.embedded.actions": {},
-        "documents.tag": {},
+        "document.tag": {},
         "spreadsheet.template": {},
         "res.currency": {},
         "res.users": {},

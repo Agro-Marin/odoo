@@ -70,7 +70,7 @@ describe.current.tags("desktop");
 // snapshot -- so the mock stayed installed for EVERY test in the bundle, and
 // every notification any other addon raised was recorded as a stray
 // `expect.step("notification")` in whatever test was running. It took
-// `@documents/log_access` down (2 tests) as soon as `project` shared a HOOT run
+// `@document/log_access` down (2 tests) as soon as `project` shared a HOOT run
 // with `documents`.
 beforeEach(() =>
     mockService("notification", () => ({

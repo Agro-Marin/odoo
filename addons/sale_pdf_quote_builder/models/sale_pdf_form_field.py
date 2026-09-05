@@ -33,7 +33,7 @@ class SalePdfFormField(models.Model):
         "Leave empty to be able to customized it in the quotation form.",
     )
     product_document_ids = fields.Many2many(
-        string="Product Documents", comodel_name="documents.document"
+        string="Product Documents", comodel_name="document.document"
     )
     quotation_document_ids = fields.Many2many(
         string="Quotation Documents", comodel_name="quotation.document"
@@ -211,7 +211,7 @@ class SalePdfFormField(models.Model):
     @api.model
     def _cron_post_upgrade_assign_missing_form_fields(self):
         # Called post-upgrade as we can't access the files during the upgrade process
-        product_documents = self.env["documents.document"].search(
+        product_documents = self.env["document.document"].search(
             [("attached_on_sale", "=", "inside")]
         )
         quote_documents = self.env["quotation.document"].search([])

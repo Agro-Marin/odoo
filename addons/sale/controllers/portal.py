@@ -445,7 +445,7 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
         except AccessError, MissingError:
             return request.redirect("/my")
 
-        document = request.env["documents.document"].browse(document_id).sudo().exists()
+        document = request.env["document.document"].browse(document_id).sudo().exists()
         if not document or not document.active:
             return request.redirect("/my")
 

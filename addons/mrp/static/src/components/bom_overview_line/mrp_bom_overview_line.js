@@ -80,7 +80,7 @@ export class BomOverviewLine extends Component {
         return this.actionService.doAction({
             name: _t("Attachments"),
             type: "ir.actions.act_window",
-            res_model: "documents.document",
+            res_model: "document.document",
             domain: [
                 "&",
                 ["attached_on_mrp", "=", "bom"],

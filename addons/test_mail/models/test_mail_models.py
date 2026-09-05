@@ -66,7 +66,7 @@ class MailTestAliasOptional(models.Model):
     It aliases *itself*, so it has to be able to hold the mail that address
     receives -- `mail.alias._check_alias_model_stores_messages` refuses the
     configuration otherwise, and so does the router, one message at a time. What
-    this fixture is for is the mixin without `_inherits`, which `documents.document`
+    this fixture is for is the mixin without `_inherits`, which `document.document`
     also combines with a chatter; that is untouched.
     """
 

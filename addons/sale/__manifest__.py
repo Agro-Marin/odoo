@@ -11,7 +11,7 @@ This module contains all the common features of Sales Management and eCommerce.
     "depends": [
         "base_order",
         "mixin_report_sql",
-        "documents",
+        "document",
         "sales_team",
         "account_payment_provider",
         "utm",

@@ -8,7 +8,7 @@
     "website": "https://www.odoo.com/app/ecommerce",
     "license": "LGPL-3",
     "depends": [
-        "documents",
+        "document",
         "website_payment",
         "website_mail",
         "portal_rating",

@@ -2201,14 +2201,14 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project
+#: model:ir.module.module,description:base.module_document_project
 msgid ""
 "\n"
 "Add the ability to create invoices from the document module.\n"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_sign
+#: model:ir.module.module,description:base.module_document_sign
 msgid ""
 "\n"
 "Add the ability to create signatures from the document module.\n"
@@ -2261,7 +2261,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project_sign
+#: model:ir.module.module,description:base.module_document_project_sign
 msgid ""
 "\n"
 "Adds an action to sign documents attached to tasks.\n"
@@ -2275,7 +2275,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_fleet
+#: model:ir.module.module,description:base.module_document_fleet
 msgid ""
 "\n"
 "Adds fleet data to documents\n"
@@ -2289,7 +2289,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_product
+#: model:ir.module.module,description:base.module_document_product
 msgid ""
 "\n"
 "Adds the ability to create products from the document module and adds the\n"
@@ -2297,7 +2297,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_project_sale
+#: model:ir.module.module,description:base.module_document_project_sale
 msgid ""
 "\n"
 "Adds the ability to set folder templates on products.\n"
@@ -2909,7 +2909,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents
+#: model:ir.module.module,description:base.module_ai_document
 msgid ""
 "\n"
 "Automatically sort your documents.\n"
@@ -2968,7 +2968,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_fsm
+#: model:ir.module.module,description:base.module_document_fsm
 msgid ""
 "\n"
 "Avoid auto-enabling the documents feature on fsm projects.\n"
@@ -3594,7 +3594,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_account_peppol
+#: model:ir.module.module,description:base.module_document_account_peppol
 msgid ""
 "\n"
 "Bridge module between the Documents and Peppol apps.\n"
@@ -3603,7 +3603,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_account
+#: model:ir.module.module,description:base.module_document_account
 msgid ""
 "\n"
 "Bridge module between the accounting and documents apps. It enables\n"
@@ -4687,7 +4687,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_product_asset_compliance
+#: model:ir.module.module,description:base.module_document_product_asset_compliance
 msgid ""
 "\n"
 "Documents - Asset Compliance Reporting\n"
@@ -4708,7 +4708,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_product_asset
+#: model:ir.module.module,description:base.module_document_product_asset
 msgid ""
 "\n"
 "Documents - Asset Link\n"
@@ -4720,11 +4720,11 @@ msgid ""
 "* seeded folders per asset type: Equipment, Fleet, Machinery, Properties, with\n"
 "  matching tags\n"
 "* folder and tags are assigned from the asset type\n"
-"* asset-specific views and filters on ``documents.document``\n"
+"* asset-specific views and filters on ``document.document``\n"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_compliance
+#: model:ir.module.module,description:base.module_document_compliance
 msgid ""
 "\n"
 "Documents Compliance\n"
@@ -4751,7 +4751,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_custody
+#: model:ir.module.module,description:base.module_document_custody
 msgid ""
 "\n"
 "Documents Custody\n"
@@ -4760,17 +4760,17 @@ msgid ""
 "Tracks the physical whereabouts of documents whose original must be kept on\n"
 "file (title deeds, promissory notes, collateral, tax documents):\n"
 "\n"
-"* ``documents.location`` -- hierarchical physical location tree (cabinet,\n"
+"* ``document.location`` -- hierarchical physical location tree (cabinet,\n"
 "  drawer, folder), analogous to ``stock.location``\n"
-"* ``documents.move`` -- transactional move log (intake, loan, return,\n"
+"* ``document.move`` -- transactional move log (intake, loan, return,\n"
 "  reorganization, loss, sold), analogous to ``stock.move``\n"
-"* ``documents.document`` -- ``default_location_id`` (storage location),\n"
+"* ``document.document`` -- ``default_location_id`` (storage location),\n"
 "  ``current_location_id`` and ``custodian_partner_id`` (current custody, kept in\n"
-"  sync by ``documents.move``)\n"
+"  sync by ``document.move``)\n"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_product_asset_compliance_hr
+#: model:ir.module.module,description:base.module_document_product_asset_compliance_hr
 msgid ""
 "\n"
 "Documents Product Asset Compliance HR\n"
@@ -5029,7 +5029,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr
+#: model:ir.module.module,description:base.module_document_hr
 msgid ""
 "\n"
 "Easily access your documents from your employee profile.\n"
@@ -5158,35 +5158,35 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_be_hr_payroll
 msgid ""
 "\n"
 "Employee 281.10 and 281.45 forms will be automatically integrated to the Document app.\n"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_ke_hr_payroll
 msgid ""
 "\n"
 "Employee Tax Deduction Card forms will be automatically integrated to the Document app.\n"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_hk_hr_payroll
 msgid ""
 "\n"
 "Employee ir56 forms will be automatically integrated to the Document app.\n"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_payroll
+#: model:ir.module.module,description:base.module_document_hr_payroll
 msgid ""
 "\n"
 "Employee payslips will be automatically integrated to the Document app.\n"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,description:base.module_document_l10n_ch_hr_payroll
 msgid ""
 "\n"
 "Employees' individual account forms are automatically integrated to the Document app.\n"
@@ -5256,7 +5256,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_enterprise
+#: model:ir.module.module,description:base.module_document_enterprise
 msgid ""
 "\n"
 "Enterprise layer on top of the `documents` app.\n"
@@ -5353,7 +5353,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_expense
+#: model:ir.module.module,description:base.module_document_hr_expense
 msgid ""
 "\n"
 "Expense documents will be automatically integrated to the Document app.\n"
@@ -7885,7 +7885,7 @@ msgid ""
 "tracking, so a published safety data sheet, pesticide label or technical data\n"
 "sheet is a tracked document rather than an untracked PDF.\n"
 "\n"
-"Publishing stamps the generated document with its ``documents.type``, the issue\n"
+"Publishing stamps the generated document with its ``document.type``, the issue\n"
 "date and the expiry derived from the type's validity period, which is what puts\n"
 "it inside ``documents_compliance``'s expiration, notification and renewal\n"
 "machinery. Without this bridge the PDFs are filed correctly but expire silently.\n"
@@ -8590,7 +8590,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents
+#: model:ir.module.module,description:base.module_document
 msgid ""
 "\n"
 "Store, organize and share files: a folder tree with per-document access rights,\n"
@@ -10911,7 +10911,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_hr_holidays
+#: model:ir.module.module,description:base.module_document_hr_holidays
 msgid ""
 "\n"
 "Time off documents will be automatically integrated to the Document app.\n"
@@ -11395,7 +11395,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_website_documents
+#: model:ir.module.module,description:base.module_website_document
 msgid ""
 "\n"
 "When sharing documents/folder, the domain of the shared URL can be chosen by selecting a target website.\n"
@@ -12719,7 +12719,7 @@ msgid ""
 "Cloud-only Drive/SharePoint on a **dedicated** S3 bucket.\n"
 "\n"
 "Files live 100% in the bucket under their **original names/paths** — there is no\n"
-"filestore copy and **no ``ir.attachment`` / ``documents.document`` row per file**.\n"
+"filestore copy and **no ``ir.attachment`` / ``document.document`` row per file**.\n"
 "The bucket is the source of truth; the UI lists it live with ``ListObjectsV2``,\n"
 "uploads and downloads happen **browser-direct** through presigned URLs, and the\n"
 "Odoo controller only acts as the access-control gate.\n"
@@ -13026,8 +13026,8 @@ msgid ""
 "``customer_merge_general_partner_id``                         0         Merge target partner\n"
 "``customer_merge_min_orders``                                 2         Min orders to avoid merge\n"
 "``customer_merge_interval_number`` / ``_interval_type``       3/months  Evaluation period\n"
-"``documents_l10n_mx_edi.sat_batch_size``                      100       SAT status check batch size\n"
-"``documents_l10n_mx_edi.sat_status_max_days``                 60        Max age for SAT status checks\n"
+"``document_l10n_mx_edi.sat_batch_size``                      100       SAT status check batch size\n"
+"``document_l10n_mx_edi.sat_status_max_days``                 60        Max age for SAT status checks\n"
 "============================================================= ========= ========================================\n"
 "\n"
 "\n"
@@ -13951,7 +13951,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_l10n_mx_edi
+#: model:ir.module.module,description:base.module_document_l10n_mx_edi
 msgid ""
 "====================\n"
 "CFDI file management\n"
@@ -13973,7 +13973,7 @@ msgid ""
 "    SAT (portal or web service)\n"
 "      └─ l10n_mx_edi.session          one download request, one date range\n"
 "           └─ ZIP of XML files\n"
-"                └─ documents.document one per CFDI, filed and tagged by content\n"
+"                └─ document.document one per CFDI, filed and tagged by content\n"
 "                     └─ wizard        create a bill, or attach to an existing one\n"
 "                          └─ account.move\n"
 "\n"
@@ -14049,7 +14049,7 @@ msgid ""
 "or a Sunday, so no CFDI sits near a boundary to show which way it fell.\n"
 "\n"
 "To settle it, compare a window that starts on a busy weekday against the emission\n"
-"dates of what came back. ``documents.document.l10n_mx_edi_emission_date`` now\n"
+"dates of what came back. ``document.document.l10n_mx_edi_emission_date`` now\n"
 "stores the issuer's ``Fecha`` beside ``l10n_mx_edi_stamp_date``, so that\n"
 "comparison is available on any session downloaded from here on; existing rows\n"
 "are backfilled the next time their common fields recompute.\n"
@@ -14099,7 +14099,7 @@ msgid ""
 "downloaded twice, an overlapping date range, a manual upload of files\n"
 "already fetched by the cron — all of these are normal, and none of them may\n"
 "produce a second document or a second bill. Three layers enforce it: the ZIP\n"
-"extraction skips known UUIDs, ``documents.document.create()`` skips them\n"
+"extraction skips known UUIDs, ``document.document.create()`` skips them\n"
 "again, and ``account.move._post()`` refuses to post a second bill claiming a\n"
 "UUID already on file.\n"
 "\n"
@@ -14137,10 +14137,10 @@ msgid ""
 "=========================  ====================================================  =========\n"
 "Setting                    Key                                                   Default\n"
 "=========================  ====================================================  =========\n"
-"SAT validation batch size  ``documents_l10n_mx_edi.sat_batch_size``              50\n"
-"Review period, days        ``documents_l10n_mx_edi.sat_status_max_days``         60\n"
-"Max verification attempts  ``documents_l10n_mx_edi.default_max_verify_cfdi``      40\n"
-"Verification deadline, h   ``documents_l10n_mx_edi.sat_verify_deadline_hours``    12\n"
+"SAT validation batch size  ``document_l10n_mx_edi.sat_batch_size``              50\n"
+"Review period, days        ``document_l10n_mx_edi.sat_status_max_days``         60\n"
+"Max verification attempts  ``document_l10n_mx_edi.default_max_verify_cfdi``      40\n"
+"Verification deadline, h   ``document_l10n_mx_edi.sat_verify_deadline_hours``    12\n"
 "=========================  ====================================================  =========\n"
 "\n"
 "The review period is counted in **calendar** days, not working days.\n"
@@ -14179,7 +14179,7 @@ msgid ""
 "::\n"
 "\n"
 "    odoo-bin -c <conf> -d <db> -u documents_l10n_mx_edi \\\n"
-"        --test-tags /documents_l10n_mx_edi --stop-after-init\n"
+"        --test-tags /document_l10n_mx_edi --stop-after-init\n"
 "\n"
 "Two suites carry most of the weight:\n"
 "\n"
@@ -17016,19 +17016,19 @@ msgid "AI Auto Install"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_ai_documents
+#: model:ir.module.module,shortdesc:base.module_ai_document
 msgid "AI Documents"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents_account
-#: model:ir.module.module,shortdesc:base.module_ai_documents_account
-#: model:ir.module.module,summary:base.module_ai_documents_account
+#: model:ir.module.module,description:base.module_ai_document_account
+#: model:ir.module.module,shortdesc:base.module_ai_document_account
+#: model:ir.module.module,summary:base.module_ai_document_account
 msgid "AI Documents Account"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_ai_documents_source
+#: model:ir.module.module,shortdesc:base.module_ai_document_source
 msgid "AI Documents Source"
 msgstr ""
 
@@ -17250,7 +17250,7 @@ msgid "Access Token"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr
+#: model:ir.module.module,summary:base.module_document_hr
 msgid "Access documents from the employee profile"
 msgstr ""
 
@@ -17881,8 +17881,8 @@ msgid "Add description templates to projects"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_ai_documents_source
-#: model:ir.module.module,summary:base.module_ai_documents_source
+#: model:ir.module.module,description:base.module_ai_document_source
+#: model:ir.module.module,summary:base.module_ai_document_source
 msgid "Add documents to AI agents as sources."
 msgstr ""
 
@@ -20868,7 +20868,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_product_asset_compliance
+#: model:ir.module.module,summary:base.module_document_product_asset_compliance
 msgid "Asset compliance reporting and analytics dashboard"
 msgstr ""
 
@@ -21394,7 +21394,7 @@ msgid "Automatically set dates on tasks generated by appointments"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_ai_documents
+#: model:ir.module.module,summary:base.module_ai_document
 msgid "Automatically sort your documents."
 msgstr ""
 
@@ -21541,7 +21541,7 @@ msgid "Avoid Reversal Entries"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_fsm
+#: model:ir.module.module,summary:base.module_document_fsm
 msgid "Avoid auto-enabling the documents feature on fsm projects"
 msgstr ""
 
@@ -22644,7 +22644,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_product_asset_compliance_hr
+#: model:ir.module.module,summary:base.module_document_product_asset_compliance_hr
 msgid "Bridge: asset manager dimension on the asset compliance report"
 msgstr ""
 
@@ -22818,7 +22818,7 @@ msgid "CFDI 4.0 fields for sale orders"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_mx_edi
+#: model:ir.module.module,shortdesc:base.module_document_l10n_mx_edi
 msgid "CFDI file management"
 msgstr ""
 
@@ -23728,7 +23728,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_website_documents
+#: model:ir.module.module,summary:base.module_website_document
 msgid "Choose the website on which documents/folder are shared"
 msgstr ""
 
@@ -23937,7 +23937,7 @@ msgid "Collect payments from your customers through SEPA direct debit."
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents
+#: model:ir.module.module,summary:base.module_document
 msgid "Collect, organize and share documents."
 msgstr ""
 
@@ -26671,18 +26671,18 @@ msgid "Document Template"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_compliance
+#: model:ir.module.module,summary:base.module_document_compliance
 msgid "Document compliance management with expiration tracking"
 msgstr ""
 
 #. module: base
 #: model:ir.module.category,name:base.module_category_productivity_documents
-#: model:ir.module.module,shortdesc:base.module_documents
+#: model:ir.module.module,shortdesc:base.module_document
 msgid "Documents"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_account
+#: model:ir.module.module,shortdesc:base.module_document_account
 msgid "Documents - Accounting"
 msgstr ""
 
@@ -26692,130 +26692,130 @@ msgid "Documents - Approvals"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_product_asset_compliance
+#: model:ir.module.module,shortdesc:base.module_document_product_asset_compliance
 msgid "Documents - Asset Compliance Reporting"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_product_asset
+#: model:ir.module.module,shortdesc:base.module_document_product_asset
 msgid "Documents - Asset Link"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_be_hr_payroll
 msgid "Documents - Belgian Payroll"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_expense
+#: model:ir.module.module,shortdesc:base.module_document_hr_expense
 msgid "Documents - Expense"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_fsm
+#: model:ir.module.module,shortdesc:base.module_document_fsm
 msgid "Documents - FSM"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_fleet
+#: model:ir.module.module,shortdesc:base.module_document_fleet
 msgid "Documents - Fleet"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr
+#: model:ir.module.module,shortdesc:base.module_document_hr
 msgid "Documents - HR"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_hk_hr_payroll
 msgid "Documents - Hong Kong Payroll"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_account_peppol
+#: model:ir.module.module,shortdesc:base.module_document_account_peppol
 msgid "Documents - Import from Peppol"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_ke_hr_payroll
 msgid "Documents - Kenyan Payroll"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_hr_payroll
 msgid "Documents - Payroll"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_product
+#: model:ir.module.module,shortdesc:base.module_document_product
 msgid "Documents - Product"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project_sale
+#: model:ir.module.module,shortdesc:base.module_document_project_sale
 msgid "Documents - Project - Sale"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project
+#: model:ir.module.module,shortdesc:base.module_document_project
 msgid "Documents - Projects"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_sign
+#: model:ir.module.module,shortdesc:base.module_document_sign
 msgid "Documents - Signatures"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,shortdesc:base.module_document_l10n_ch_hr_payroll
 msgid "Documents - Swiss Payroll"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_hr_holidays
+#: model:ir.module.module,shortdesc:base.module_document_hr_holidays
 msgid "Documents - Time Off"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_compliance
+#: model:ir.module.module,shortdesc:base.module_document_compliance
 msgid "Documents Compliance"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_custody
+#: model:ir.module.module,shortdesc:base.module_document_custody
 msgid "Documents Custody"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_enterprise
+#: model:ir.module.module,shortdesc:base.module_document_enterprise
 msgid "Documents Enterprise"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_product_asset_compliance_hr
+#: model:ir.module.module,shortdesc:base.module_document_product_asset_compliance_hr
 msgid "Documents Product Asset Compliance HR"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_project_sign
+#: model:ir.module.module,shortdesc:base.module_document_project_sign
 msgid "Documents Project Sign"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_spreadsheet
-#: model:ir.module.module,shortdesc:base.module_documents_spreadsheet
-#: model:ir.module.module,summary:base.module_documents_spreadsheet
+#: model:ir.module.module,description:base.module_document_spreadsheet
+#: model:ir.module.module,shortdesc:base.module_document_spreadsheet
+#: model:ir.module.module,summary:base.module_document_spreadsheet
 msgid "Documents Spreadsheet"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_documents_full
-#: model:ir.module.module,summary:base.module_test_documents_full
+#: model:ir.module.module,shortdesc:base.module_test_document_full
+#: model:ir.module.module,summary:base.module_test_document_full
 msgid "Documents Testing Module"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_account_peppol
+#: model:ir.module.module,summary:base.module_document_account_peppol
 msgid "Documents from Peppol"
 msgstr ""
 
@@ -26936,7 +26936,7 @@ msgid "Download"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_mx_edi
+#: model:ir.module.module,summary:base.module_document_l10n_mx_edi
 msgid "Download CFDI files from the SAT portal and manage them in Documents"
 msgstr ""
 
@@ -29510,7 +29510,7 @@ msgid "Fleet History"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_fleet
+#: model:ir.module.module,summary:base.module_document_fleet
 msgid "Fleet from documents"
 msgstr ""
 
@@ -32762,7 +32762,7 @@ msgid "Invoices & Payments"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_account
+#: model:ir.module.module,summary:base.module_document_account
 msgid "Invoices from Documents"
 msgstr ""
 
@@ -34148,7 +34148,7 @@ msgid "Link between timesheet and time off"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_product_asset
+#: model:ir.module.module,summary:base.module_document_product_asset
 msgid "Link documents to assets via serial/lot numbers"
 msgstr ""
 
@@ -40408,7 +40408,7 @@ msgid "Phone integration with Subscriptions module."
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_custody
+#: model:ir.module.module,summary:base.module_document_custody
 msgid "Physical custody and traceability of documents in the DMS"
 msgstr ""
 
@@ -41069,12 +41069,12 @@ msgid "Products Expiration Date"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project_sale
+#: model:ir.module.module,summary:base.module_document_project_sale
 msgid "Products Folder Templates"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_product
+#: model:ir.module.module,summary:base.module_document_product
 msgid "Products from Documents"
 msgstr ""
 
@@ -41299,7 +41299,7 @@ msgid "Project expenses"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project
+#: model:ir.module.module,summary:base.module_document_project
 msgid "Project from documents"
 msgstr ""
 
@@ -44448,7 +44448,7 @@ msgid "Sign Test case"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_project_sign
+#: model:ir.module.module,summary:base.module_document_project_sign
 msgid "Sign documents attached to tasks"
 msgstr ""
 
@@ -44473,7 +44473,7 @@ msgid "Sign itsme"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_sign
+#: model:ir.module.module,summary:base.module_document_sign
 msgid "Signature templates from Documents"
 msgstr ""
 
@@ -45003,14 +45003,14 @@ msgid "Spreadsheet Dashboard edition"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_spreadsheet_dashboard_documents
-#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_documents
-#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_documents
+#: model:ir.module.module,description:base.module_spreadsheet_dashboard_document
+#: model:ir.module.module,shortdesc:base.module_spreadsheet_dashboard_document
+#: model:ir.module.module,summary:base.module_spreadsheet_dashboard_document
 msgid "Spreadsheet Documents"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_documents_spreadsheet_survey
+#: model:ir.module.module,shortdesc:base.module_document_spreadsheet_survey
 msgid "Spreadsheet Survey"
 msgstr ""
 
@@ -45140,8 +45140,8 @@ msgid "Spreadsheet dashboard for time sheets"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_documents_spreadsheet_survey
-#: model:ir.module.module,summary:base.module_documents_spreadsheet_survey
+#: model:ir.module.module,description:base.module_document_spreadsheet_survey
+#: model:ir.module.module,summary:base.module_document_spreadsheet_survey
 msgid "Spreadsheet for Survey results"
 msgstr ""
 
@@ -45405,37 +45405,37 @@ msgid "Store chatter attachments in the cloud"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_be_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_be_hr_payroll
 msgid "Store employee 281.10 and 281.45 forms in the Document app"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_payroll
+#: model:ir.module.module,summary:base.module_document_hr_payroll
 msgid "Store employee payslips in the Document app"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_ke_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_ke_hr_payroll
 msgid "Store employee tax deduction card forms in the Document app"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_holidays
+#: model:ir.module.module,summary:base.module_document_hr_holidays
 msgid "Store employee's time off documents in the Document app"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_hr_expense
+#: model:ir.module.module,summary:base.module_document_hr_expense
 msgid "Store expense documents in the Document app"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_ch_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_ch_hr_payroll
 msgid "Store individual accounts in Documents application"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_l10n_hk_hr_payroll
+#: model:ir.module.module,summary:base.module_document_l10n_hk_hr_payroll
 msgid "Store ir56 forms in the Document app"
 msgstr ""
 
@@ -50151,7 +50151,7 @@ msgid "Website Appointments"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_website_documents
+#: model:ir.module.module,shortdesc:base.module_website_document
 msgid "Website Documents"
 msgstr ""
 
@@ -50560,7 +50560,7 @@ msgid "Wizards to be Launched"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_documents_enterprise
+#: model:ir.module.module,summary:base.module_document_enterprise
 msgid "Wizards, the document-request flow and KPIs for Documents."
 msgstr ""
 

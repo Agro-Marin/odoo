@@ -213,14 +213,14 @@ class TestAuditTrailAttachment(AccountTestInvoicingHttpCommon):
             "documents_account" in cls.env["ir.module.module"]._installed()
         )
         if cls.document_installed:
-            folder_test = cls.env["documents.document"].create(
+            folder_test = cls.env["document.document"].create(
                 {
                     "name": "folder_test",
                     "type": "folder",
                 }
             )
             existing_setting = (
-                cls.env["documents.account.folder.setting"]
+                cls.env["document.account.folder.setting"]
                 .sudo()
                 .search(
                     [("journal_id", "=", cls.company_data["default_journal_sale"].id)]
@@ -229,7 +229,7 @@ class TestAuditTrailAttachment(AccountTestInvoicingHttpCommon):
             if existing_setting:
                 existing_setting.folder_id = folder_test
             else:
-                cls.env["documents.account.folder.setting"].sudo().create(
+                cls.env["document.account.folder.setting"].sudo().create(
                     {
                         "folder_id": folder_test.id,
                         "journal_id": cls.company_data["default_journal_sale"].id,
@@ -286,7 +286,7 @@ class TestAuditTrailAttachment(AccountTestInvoicingHttpCommon):
         self.assertEqual(invoice.message_main_attachment_id, second_attachment)
 
         if self.document_installed:
-            document = self.env["documents.document"].search(
+            document = self.env["document.document"].search(
                 [
                     ("res_model", "=", "account.move"),
                     ("res_id", "=", invoice.id),

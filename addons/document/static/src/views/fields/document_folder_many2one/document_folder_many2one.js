@@ -1,0 +1,41 @@
+/** @odoo-module native */
+import { Component } from "@odoo/owl";
+import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
+import {
+    computeM2OProps,
+    Many2One,
+    buildM2OFieldDescription,
+    Many2OneField,
+} from "@web/fields/relational/many2one";
+
+export class DocumentsFolderMany2One extends Component {
+    static template = "document.DocumentsFolderMany2One";
+    static components = { Many2One };
+    static props = { ...Many2OneField.props };
+
+    setup() {
+        this.action = useService("action");
+    }
+
+    get m2oProps() {
+        return {
+            ...computeM2OProps(this.props),
+            openRecordAction: () => this.openAction(),
+        };
+    }
+
+    async openAction() {
+        const value = this.props.record.data[this.props.name];
+        await this.action.doAction("document.document_action_preference", {
+            additionalContext: {
+                no_documents_unique_folder_id: true,
+                searchpanel_default_user_folder_id: value && value.id.toString(),
+            },
+        });
+    }
+}
+
+registry.category("fields").add("documents_folder_many2one", {
+    ...buildM2OFieldDescription(DocumentsFolderMany2One),
+});

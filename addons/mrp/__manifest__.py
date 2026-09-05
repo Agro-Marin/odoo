@@ -8,7 +8,7 @@
     "website": "https://www.odoo.com/app/manufacturing",
     "license": "LGPL-3",
     "depends": [
-        "documents_product",
+        "document_product",
         "stock",
         "resource",
     ],

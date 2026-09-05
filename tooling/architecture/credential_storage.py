@@ -110,7 +110,7 @@ SHARE_FIELDS = frozenset(
         "appointment.access_token",
         "base.access_token",
         "calendar.access_token",
-        "documents.access_token",
+        "document.access_token",
         "frontdesk.access_token",
         "hr_contract_salary.access_token",
         "iot.token",  # minted by iot.box._default_token so a box can pair

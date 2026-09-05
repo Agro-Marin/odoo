@@ -668,7 +668,7 @@ class WebsiteSale(payment_portal.PaymentPortal):
     def product_document(self, product_template, document_id):
         product_template.check_access("read")
 
-        document = request.env["documents.document"].browse(document_id).sudo().exists()
+        document = request.env["document.document"].browse(document_id).sudo().exists()
         if not document or not document.active:
             return request.redirect(self._get_shop_path())
 
