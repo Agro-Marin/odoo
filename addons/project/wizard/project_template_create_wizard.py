@@ -1,6 +1,7 @@
 from typing import Any, Self
 
 from odoo import Command, api, fields, models
+from odoo.tools.misc import unquote
 
 
 class ProjectTemplateCreateWizard(models.TransientModel):
@@ -89,6 +90,14 @@ class ProjectTemplateRoleToUsersMap(models.TransientModel):
     _name = "project.template.role.to.users.map"
     _description = "Project role to users mapping"
 
+    def _domain_user_ids(self) -> list:
+        return [
+            ("share", "=", False),
+            ("active", "=", True),
+            ("project_role_ids", "=?", unquote("role_id if role_user_ids else False")),
+            ("all_group_ids", "in", self.env.ref("project.group_project_user").ids),
+        ]
+
     wizard_id = fields.Many2one(
         "project.template.create.wizard", export_string_translation=False
     )
@@ -96,5 +105,8 @@ class ProjectTemplateRoleToUsersMap(models.TransientModel):
     user_ids = fields.Many2many(
         "res.users",
         string="Assignees",
-        domain=[("share", "=", False), ("active", "=", True)],
+        domain=lambda self: str(self._domain_user_ids()),
+    )
+    role_user_ids = fields.Many2many(
+        related="role_id.user_ids", export_string_translation=False
     )

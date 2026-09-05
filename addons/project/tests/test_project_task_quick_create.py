@@ -1,4 +1,6 @@
+from odoo import Command
 from odoo.tests import Form
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.project.tests.test_project_base import TestProjectCommon
 
@@ -236,3 +238,59 @@ class TestProjectTaskQuickCreate(TestProjectCommon):
         )
         self.assertIn(self.user1, task.user_ids)
         self.assertEqual(task.name, "Fix login")
+
+    def test_portal_follower_of_the_project_can_be_assigned(self) -> None:
+        """A portal user who follows the project is assignable, and only there.
+
+        The `user_ids` domain is what the client offers; the removal at the end
+        is what keeps the data honest once the task moves on.
+        """
+        outsider = (
+            self.env["res.users"]
+            .with_context({"no_reset_password": True})
+            .create(
+                {
+                    "name": "Portal Outsider",
+                    "login": "portal_outsider",
+                    "email": "portal.outsider@example.com",
+                    "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
+                }
+            )
+        )
+        self.project_pigs.message_subscribe(
+            partner_ids=self.user_portal.partner_id.ids
+        )
+
+        candidates = self.env["res.users"].search(
+            safe_eval(
+                self.env["project.task"]._fields["user_ids"].domain,
+                {"project_id": self.project_pigs.id},
+            )
+        )
+        self.assertIn(
+            self.user_portal,
+            candidates,
+            "A portal follower of the project must be offered as an assignee.",
+        )
+        self.assertNotIn(
+            outsider,
+            candidates,
+            "A portal user who does not follow the project must not be offered.",
+        )
+        self.assertIn(
+            self.user_projectuser,
+            candidates,
+            "Internal users must still be offered.",
+        )
+
+        self.task_1.user_ids += self.user_portal
+        self.assertIn(self.user_portal, self.task_1.user_ids)
+
+        self.task_1.project_id = self.project_goats
+        self.assertNotIn(
+            self.user_portal,
+            self.task_1.user_ids,
+            "A portal assignee must be dropped when the task moves to a project "
+            "they do not follow.",
+        )
+

@@ -265,6 +265,52 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
             "The message link should contain a personalized token to register to the portal",
         )
 
+    def test_portal_collaborator_cannot_read_task_templates(self) -> None:
+        """A collaborator of a shared project must not reach its task templates.
+
+        The portal controller and the project-sharing action already drop them
+        from every screen; this covers the record rule, which is what an RPC
+        call actually goes through.
+        """
+        template = (
+            self.env["project.task"]
+            .with_context({"mail_create_nolog": True})
+            .create(
+                {
+                    "name": "Portal Task Template",
+                    "project_id": self.project_portal.id,
+                    "is_template": True,
+                }
+            )
+        )
+        subtask = (
+            self.env["project.task"]
+            .with_context({"mail_create_nolog": True})
+            .create(
+                {
+                    "name": "Portal Task Template Subtask",
+                    "project_id": self.project_portal.id,
+                    "parent_id": template.id,
+                }
+            )
+        )
+        self.assertTrue(
+            template.has_template_ancestor and subtask.has_template_ancestor,
+            "The fixture must carry a template ancestor for this test to mean anything.",
+        )
+
+        Task = self.env["project.task"].with_user(self.user_portal)
+        self.assertTrue(
+            Task.search([("id", "=", self.task_portal.id)]),
+            "The collaborator must still see the regular tasks of the project.",
+        )
+        self.assertFalse(
+            Task.search([("id", "in", (template + subtask).ids)]),
+            "A portal collaborator must not see the task templates of a shared project.",
+        )
+        with self.assertRaises(AccessError):
+            template.with_user(self.user_portal).read(["name"])
+
 
 class TestProjectSharingChatterAccess(TestProjectSharingCommon, HttpCase):
     @mute_logger("odoo.addons.http_routing.models.ir_http", "odoo.http")

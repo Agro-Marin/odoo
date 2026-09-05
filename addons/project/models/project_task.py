@@ -391,7 +391,13 @@ class ProjectTask(models.Model):
         context={"active_test": False},
         tracking=True,
         default=_default_user_ids,
-        domain="[('share', '=', False), ('active', '=', True)]",
+        domain=(
+            "['|',"
+            "     ('share', '=', False),"
+            "     '&', ('share', '=', True),"
+            "          ('followed_project_ids', '=', project_id),"
+            " ('active', '=', True)]"
+        ),
         falsy_value_label=_lt("👤 Unassigned"),
     )
     tag_ids = fields.Many2many("project.tags", string="Tags")
@@ -1006,7 +1012,11 @@ class ProjectTask(models.Model):
 
     @api.onchange("project_id")
     def _onchange_project_id(self) -> None:
-        if self.state != "blocked" and self.state not in CLOSED_STATES:
+        if (
+            self.state != "blocked"
+            and self.state not in CLOSED_STATES
+            and self.step_id != self._origin.step_id
+        ):
             self.state = "in_progress"
         if not self.project_id and not self.user_ids:
             self.user_ids = self.env.user
@@ -2280,6 +2290,14 @@ class ProjectTask(models.Model):
         partner_ids, project_link_per_task_id = self._write_prepare_transfer_notice(
             vals
         )
+        # _compute_step_id keeps the task on its step when the destination
+        # project shares it, so the step has to be read before the write to
+        # tell a real board change from a move within the same board.
+        steps_before = (
+            {task.id: task.step_id.id for task in self}
+            if "project_id" in vals
+            else {}
+        )
 
         if vals.get("parent_id") is False:
             additional_vals["display_in_project"] = True
@@ -2305,7 +2323,8 @@ class ProjectTask(models.Model):
 
         self._write_apply_assignment(vals, now, task_ids_without_user_set)
         self._write_send_step_rating(vals)
-        self._write_apply_state(vals, now, state_changed)
+        self._write_apply_state(vals, now, state_changed, steps_before)
+        self._write_drop_unfollowing_portal_assignees(vals)
 
         if "parent_id" in vals:
             self.env.remove_to_compute(self._fields["state"], self)
@@ -2550,6 +2569,24 @@ class ProjectTask(models.Model):
                 [("task_id", "in", self.ids), ("user_id", "=", self.env.uid)]
             ).triage_id = False
 
+    def _write_drop_unfollowing_portal_assignees(self, vals: dict[str, Any]) -> None:
+        """Drop portal assignees a task leaves behind when it changes project.
+
+        A portal user is only assignable while they follow the project, so a
+        task landing on a project they do not follow must not keep them.
+        Runs after the write, on the destination project.
+        """
+        if "project_id" not in vals:
+            return
+        for task in self:
+            leaving = task.user_ids.filtered("share")
+            if not leaving:
+                continue
+            followers = task.project_id.sudo().message_partner_ids
+            leaving = leaving.filtered(lambda user: user.partner_id not in followers)
+            if leaving:
+                task.user_ids -= leaving
+
     def _write_prepare_transfer_notice(
         self, vals: dict[str, Any]
     ) -> tuple[list[int], dict[int, Any]]:
@@ -2601,7 +2638,11 @@ class ProjectTask(models.Model):
             )._send_task_rating_mail(force_send=True)
 
     def _write_apply_state(
-        self, vals: dict[str, Any], now: Any, state_changed: Self
+        self,
+        vals: dict[str, Any],
+        now: Any,
+        state_changed: Self,
+        steps_before: dict[int, int | bool] | None = None,
     ) -> None:
         if "state" in vals:
             if state_changed:
@@ -2611,8 +2652,11 @@ class ProjectTask(models.Model):
                     if task.allow_dependencies and task.is_blocked_by_predecessors():
                         task.state = "blocked"
         elif "project_id" in vals:
+            steps_before = steps_before or {}
             self.filtered(
-                lambda t: t.state != "blocked" and t.state not in CLOSED_STATES
+                lambda t: t.state != "blocked"
+                and t.state not in CLOSED_STATES
+                and steps_before.get(t.id) != t.step_id.id
             ).state = "in_progress"
 
     def _write_notify_transfer(
@@ -3680,6 +3724,18 @@ class ProjectTask(models.Model):
             return {
                 "type": "ir.actions.act_url",
                 "url": f"/my/projects/{self.project_id.id}/project_sharing/{self.id}",
+                "target": "self",
+            }
+        if (
+            user
+            and not user.share
+            and not force_website
+            and self.project_id
+            and self.with_user(user).has_access("read")
+        ):
+            return {
+                "type": "ir.actions.act_url",
+                "url": f"/odoo/project/{self.project_id.id}/tasks/{self.id}",
                 "target": "self",
             }
         return super()._get_access_action(access_uid, force_website)

@@ -1,11 +1,34 @@
 from typing import Self
 
-from odoo import api, models
+from odoo import api, fields, models
 from odoo.api import ValuesType
 
 
 class ResUsers(models.Model):
     _inherit = "res.users"
+
+    project_role_ids = fields.Many2many(
+        "resource.role",
+        "resource_role_res_users_rel",
+        "user_id",
+        "role_id",
+        string="Project Roles",
+        export_string_translation=False,
+        copy=False,
+    )
+    followed_project_ids = fields.Many2many(
+        "project.project",
+        string="Followed Projects",
+        store=False,
+        search="_search_followed_project_ids",
+        export_string_translation=False,
+    )
+
+    def _search_followed_project_ids(self, operator, value) -> list:
+        followers = self.env["mail.followers"].search(
+            [("res_model", "=", "project.project"), ("res_id", operator, value)]
+        )
+        return [("partner_id", "in", followers.partner_id.ids)]
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:

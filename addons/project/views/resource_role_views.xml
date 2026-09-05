@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="resource_role_view_list_inherit_project" model="ir.ui.view">
+        <field name="name">resource.role.list.inherit.project</field>
+        <field name="model">resource.role</field>
+        <field name="inherit_id" ref="resource.resource_role_view_list" />
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="user_ids" widget="many2many_avatar_user" />
+            </field>
+        </field>
+    </record>
+
+    <record id="resource_role_view_form_inherit_project" model="ir.ui.view">
+        <field name="name">resource.role.form.inherit.project</field>
+        <field name="model">resource.role</field>
+        <field name="inherit_id" ref="resource.resource_role_view_form" />
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="user_ids" widget="many2many_avatar_user" />
+            </field>
+        </field>
+    </record>
+
+    <record id="resource_role_view_search_inherit_project" model="ir.ui.view">
+        <field name="name">resource.role.search.inherit.project</field>
+        <field name="model">resource.role</field>
+        <field name="inherit_id" ref="resource.resource_role_view_search" />
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="user_ids" />
+            </field>
+            <filter name="archived" position="after">
+                <group>
+                    <filter
+                        name="groupby_team_members"
+                        string="Team Members"
+                        context="{'group_by': 'user_ids'}" />
+                </group>
+            </filter>
+        </field>
+    </record>
+
+</odoo>

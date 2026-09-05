@@ -918,3 +918,31 @@ Content-Type: text/html;
             action["url"],
             "Portal user with edit access should get a link to project sharing",
         )
+
+    def test_task_access_action_for_internal_user_opens_it_in_its_project(self):
+        """The link in a task notification keeps the project around.
+
+        Without a branch of our own, an internal user falls through to
+        `Base._get_access_action`, which hands back `get_formview_action()` --
+        the task on its own, with no way back to the board it came from.
+        """
+        task = self.env["project.task"].create(
+            {
+                "name": "Test Task Internal",
+                "project_id": self.project_pigs.id,
+            }
+        )
+        action = task.with_user(self.user_projectuser)._get_access_action()
+        self.assertEqual(action["type"], "ir.actions.act_url")
+        self.assertEqual(
+            action["url"],
+            f"/odoo/project/{self.project_pigs.id}/tasks/{task.id}",
+            "An internal user should land on the task inside its project.",
+        )
+
+        private_task = self.env["project.task"].create({"name": "Private Task"})
+        self.assertEqual(
+            private_task.with_user(self.user_projectuser)._get_access_action()["type"],
+            "ir.actions.act_window",
+            "A task with no project keeps the generic form action.",
+        )

@@ -247,6 +247,7 @@
             <field
                 name="domain_force">[
             ('project_id.privacy_visibility', 'in', ['invited_users', 'portal']),
+            ('has_template_ancestor', '=', False),
             ('active', '=', True),
             '|',
                 ('message_partner_ids', 'child_of', [user.partner_id.commercial_partner_id.id]),
@@ -269,6 +270,7 @@
             <field
                 name="domain_force">[
             ('project_id.privacy_visibility', 'in', ['invited_users', 'portal']),
+            ('has_template_ancestor', '=', False),
             ('active', '=', True),
             '|',
                 '&amp;',
