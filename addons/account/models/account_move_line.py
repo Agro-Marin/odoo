@@ -1521,6 +1521,7 @@ class AccountMoveLine(models.Model):
         }
 
     @api.depends("discount_date", "date_maturity")
+    @api.depends_context("tz")
     def _compute_payment_date(self):
         for line in self:
             today = fields.Date.context_today(line)
@@ -2853,7 +2854,6 @@ class AccountMoveLine(models.Model):
         )
         return context
 
-    @api.model
     @api.model
     def _prepare_reconciliation_exchange_difference(self, context, partials):
         exchange_lines_to_fix = self.env["account.move.line"]

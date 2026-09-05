@@ -1253,12 +1253,31 @@ class AccountJournal(models.Model):
         if "type" in vals and not self.env.context.get(
             "account_journal_skip_alias_sync"
         ):
+            # `_alias_get_creation_values()` derives an alias from the journal's own
+            # name, so two journals sharing a name derive the SAME alias here too --
+            # the same batch-uniqueness hole `write()`'s `unusable_alias` block
+            # guards against for a direct alias_name write. Reserve names across
+            # the batch before assigning, the same way, so a batch `type` change on
+            # same-named journals doesn't crash on the second journal's alias.
+            claimed = {}
+            alias_names = {}
+            alias_defaults = {}
             for journal in self:
                 alias_vals = journal._alias_get_creation_values()
+                derived = alias_vals["alias_name"]
+                company_claimed = claimed.setdefault(journal.company_id.id, set())
+                if derived and derived in company_claimed:
+                    derived = self.env["mail.alias"]._sanitize_alias_name(
+                        f"{derived}-{journal.code}"
+                    )
+                company_claimed.add(derived)
+                alias_names[journal.id] = derived
+                alias_defaults[journal.id] = alias_vals["alias_defaults"]
+            for journal in self:
                 journal.update(
                     {
-                        "alias_defaults": alias_vals["alias_defaults"],
-                        "alias_name": alias_vals["alias_name"],
+                        "alias_defaults": alias_defaults[journal.id],
+                        "alias_name": alias_names[journal.id],
                     }
                 )
 

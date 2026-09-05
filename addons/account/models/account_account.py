@@ -15,7 +15,6 @@ class AccountAccount(models.Model):
         "mixin.mail.activity",
     ]
 
-
     name = fields.Char(tracking=True)
     currency_id = fields.Many2one(tracking=True)
     active = fields.Boolean(tracking=True)
@@ -64,7 +63,6 @@ class AccountAccount(models.Model):
     related_taxes_amount = fields.Integer(
         compute="_compute_related_taxes_amount",
     )
-
 
     @api.constrains("reconcile", "account_type", "tax_ids")
     def _constrains_reconcile(self):
@@ -235,7 +233,6 @@ class AccountAccount(models.Model):
                     "Account on a journal to Receivable or Payable.",
                 )
             )
-
 
     @api.depends_context("company")
     def _compute_company_fiscal_country_code(self):
@@ -433,12 +430,10 @@ class AccountAccount(models.Model):
                     else account.name
                 )
 
-
     @api.onchange("account_type")
     def _onchange_account_type(self):
         if self.account_type == "off_balance":
             self.tax_ids = False
-
 
     def _inverse_opening_debit(self):
         for record in self:
@@ -492,7 +487,6 @@ class AccountAccount(models.Model):
             )
 
         self.env.flush_all()
-
 
     def _toggle_reconcile_to_true(self):
         if not self.ids:
@@ -549,7 +543,6 @@ class AccountAccount(models.Model):
         """
         self.env.cr.execute(query, [list(self.ids)])
 
-
     @api.model
     def _get_most_frequent_accounts_for_partner(
         self,
@@ -586,6 +579,11 @@ class AccountAccount(models.Model):
             bypass_access=True,
         )
         if not filter_never_used_accounts:
+            # Query._joins is private: keyed by alias, valued (kind, table, condition).
+            # Widening this one join to a RIGHT JOIN is what lets an account with zero
+            # matching account.move.line rows still appear in the result below (the
+            # public Domain/search API has no "outer join" primitive to express that).
+            # A Query internals change that touches this shape needs to update this call.
             _kind, rhs_table, condition = query._joins["account_move_line__account_id"]
             query._joins["account_move_line__account_id"] = (
                 SQL("RIGHT JOIN"),
@@ -758,7 +756,6 @@ class AccountAccount(models.Model):
         ).search_fetch(domain, ["display_name"], limit=limit)
         return [(record.id, record.display_name) for record in records]
 
-
     def write(self, vals):
         if "reconcile" in vals:
             if vals["reconcile"]:
@@ -802,7 +799,6 @@ class AccountAccount(models.Model):
             )
 
         return super().write(vals)
-
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_contains_journal_items(self):
@@ -852,7 +848,6 @@ class AccountAccount(models.Model):
                     ", ".join(f"{a.code} - {a.name}" for a in self),
                 )
             )
-
 
     def action_view_related_taxes(self):
         related_taxes_ids = (

@@ -62,11 +62,11 @@
                     string="Unreconciled"
                     name="reconcilable_account"
                     domain="[('balance', '!=', 0), ('account_id.reconcile', '=', True), '|', ('matching_number', '=', False), ('matching_number', '=like', 'P%')]"
-                    help="Journal items where the account allows reconciliation no matter the residual amount" />
+                    help="Journal items where matching number isn't set" />
                 <filter
                     string="With residual"
                     domain="[('amount_residual', '!=', 0), ('account_id.reconcile', '=', True)]"
-                    help="Journal items where matching number isn't set"
+                    help="Journal items where the account allows reconciliation and the residual amount is not zero"
                     name="unreconciled" />
                 <separator />
                 <filter
@@ -531,7 +531,6 @@
                 <field name="is_same_currency" column_invisible="True" />
                 <field name="is_account_reconcile" column_invisible="True" />
                 <field name="sequence" column_invisible="True" />
-                <field name="parent_state" column_invisible="True" />
                 <field name="deductible_amount" optional="hide" />
                 <groupby name="partner_id">
                     <button name="edit" type="edit" icon="fa-edit" title="Edit" />
