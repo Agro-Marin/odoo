@@ -238,6 +238,25 @@ class TestSignupHttpRoutes(HttpCaseWithUserDemo):
         )
         self.assertIn("Another user is already registered", res.text)
 
+    def test_signup_post_blank_login_shows_error(self):
+        """A signup POST with a blank login surfaces the form error
+        instead of a 500 (bypasses the HTML `required` attribute the way a
+        non-browser client would)."""
+        self._set_signup("b2c")
+        self.authenticate(None, None)
+        res = self.url_open(
+            "/web/signup",
+            data={
+                "login": "",
+                "name": "",
+                "password": "SuperSecret!123",
+                "confirm_password": "SuperSecret!123",
+                "csrf_token": http.Request.csrf_token(self),
+            },
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("The form was not properly filled in.", res.text)
+
     def test_reset_password_does_not_leak_account_existence(self):
         """Known and unknown logins get the SAME generic reset message."""
         self.env["ir.config_parameter"].sudo().set_param(
