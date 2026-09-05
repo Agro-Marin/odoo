@@ -79,7 +79,7 @@
         <field name="email_from">enrique.jones152@gmail.example.com</field>
         <field name="partner_phone">9963214587</field>
         <field name="partner_name">Enrique Jones</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_sales')])]" />
         <field
             name="availability"
@@ -100,7 +100,7 @@
         <field name="partner_name">Meldona Thang</field>
         <field name="email_from">meldona.thang@example.com</field>
         <field name="partner_phone">998655451</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_sales')])]" />
         <field
             name="availability"
@@ -116,7 +116,7 @@
         <field name="partner_name">Emily Brooks</field>
         <field name="email_from">emily.brooks@example.com</field>
         <field name="partner_phone">6965545</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_manager')])]" />
         <field
             name="availability"
@@ -132,7 +132,7 @@
         <field name="partner_name">Alex Parker</field>
         <field name="email_from">alex.parker@example.com</field>
         <field name="partner_phone">9817891</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_manager')])]" />
         <field
             name="availability"
@@ -150,7 +150,7 @@
     <record id="hr_case_cto3" model="hr.applicant">
         <field name="partner_name">Natalie Foster</field>
         <field name="email_from">natalie.foster@example.com</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_manager')])]" />
         <field
             name="availability"
@@ -166,7 +166,7 @@
         <field name="partner_name">Johan Duck</field>
         <field name="email_from">coincoin@gmail.example.com</field>
         <field name="partner_phone">8955545</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
         <field
             name="availability"
@@ -183,7 +183,7 @@
         <field name="partner_name">Kelly Wallant</field>
         <field name="email_from">kelly@wallant.example.com</field>
         <field name="partner_phone">879895515</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_developer" />
         <field name="department_id" ref="hr.dep_rd" />
@@ -196,7 +196,7 @@
         <field name="partner_name">Cécile Donth</field>
         <field name="email_from">c-cile72@msn.example.com</field>
         <field name="partner_phone">98765411</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_developer" />
         <field name="department_id" ref="hr.dep_rd" />
@@ -210,7 +210,7 @@
         <field name="partner_name">Ohen Rizome</field>
         <field name="email_from">ohen@yahoo.example.com</field>
         <field name="partner_phone">654687987654</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_developer" />
         <field name="department_id" ref="hr.dep_rd" />
@@ -225,7 +225,7 @@
         <field name="partner_name">Marie Justine</field>
         <field name="email_from">justinemarie@outlook.example.com</field>
         <field name="partner_phone">9988774455</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_manager')])]" />
         <field
             name="availability"
@@ -246,7 +246,7 @@
         <field name="partner_name">Lucas Anderson</field>
         <field name="email_from">lucas.anderson@example.com</field>
         <field name="partner_phone">99855</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field
             name="availability"
@@ -269,7 +269,7 @@
         <field name="partner_name">Jose</field>
         <field name="email_from">the.jose@gmail.example.com</field>
         <field name="partner_phone">999666735</field>
-        <field name="type_id" ref="degree_bachelor" />
+        <field name="degree_id" ref="degree_bachelor" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_trainee" />
         <field name="department_id" ref="hr.dep_administration" />
@@ -282,7 +282,7 @@
         <field name="partner_name">Daniel Parker</field>
         <field name="email_from">daniel.parker@example.com</field>
         <field name="partner_phone">996735</field>
-        <field name="type_id" ref="degree_bachelor" />
+        <field name="degree_id" ref="degree_bachelor" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_trainee" />
         <field name="department_id" ref="hr.dep_administration" />
@@ -297,7 +297,7 @@
         <field name="partner_name">Lily Patterson</field>
         <field name="email_from">lilly.patterson@example.com</field>
         <field name="partner_phone">996711135</field>
-        <field name="type_id" ref="degree_bachelor" />
+        <field name="degree_id" ref="degree_bachelor" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_trainee" />
         <field name="department_id" ref="hr.dep_administration" />
@@ -312,7 +312,7 @@
         <field name="partner_name">Jordan Ellis</field>
         <field name="email_from">jordan.ellis@example.com</field>
         <field name="partner_phone">99673455</field>
-        <field name="type_id" ref="degree_bachelor" />
+        <field name="degree_id" ref="degree_bachelor" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_trainee" />
         <field name="department_id" ref="hr.dep_administration" />
@@ -326,7 +326,7 @@
     <record id="hr_case_mkt0" model="hr.applicant">
         <field name="partner_name">Yin Lee</field>
         <field name="email_from">yin.lee@wechat.example.com</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_manager')])]" />
         <field name="job_id" ref="hr.job_marketing" />
         <field name="department_id" ref="hr.dep_sales" />
@@ -337,7 +337,7 @@
     <record id="hr_case_mkt1" model="hr.applicant">
         <field name="partner_name">Hubert Blank</field>
         <field name="email_from">st-hubertus@gmail.example.com</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_manager')])]" />
         <field
             name="availability"
@@ -352,7 +352,7 @@
     <record id="hr_case_mkt2" model="hr.applicant">
         <field name="partner_name">Natalie Foster</field>
         <field name="email_from">natalie.foster@example.com</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_manager')])]" />
         <field
             name="availability"
@@ -370,7 +370,7 @@
         <field name="partner_name">Daniel Parker</field>
         <field name="email_from">daniel.parker@example.com</field>
         <field name="partner_phone">996735</field>
-        <field name="type_id" ref="degree_bachelor" />
+        <field name="degree_id" ref="degree_bachelor" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_it')])]" />
         <field name="job_id" ref="hr.job_marketing" />
         <field name="department_id" ref="hr.dep_administration" />
@@ -384,7 +384,7 @@
     <record id="hr_case_yrsexperienceinphp0" model="hr.applicant">
         <field name="partner_name">John Bruno</field>
         <field name="email_from">johnnyboy@gmail.example.com</field>
-        <field name="type_id" ref="degree_graduate" />
+        <field name="degree_id" ref="degree_graduate" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_manager')])]" />
         <field
             name="create_date"
@@ -402,7 +402,7 @@
     <record id="hr_case_marketingjob0" model="hr.applicant">
         <field name="partner_name">Sandra Elvis</field>
         <field name="email_from">sandra.elvis.the.king25@gmail.example.com</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_reserve')])]" />
         <field
             name="create_date"
@@ -420,7 +420,7 @@
     <record id="hr_case_financejob0" model="hr.applicant">
         <field name="partner_name">David Armstrong</field>
         <field name="email_from">david.strongarm@gmail.example.com</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_reserve')])]" />
         <field name="partner_phone">33968745</field>
         <field
@@ -436,7 +436,7 @@
     <record id="hr_case_financejob1" model="hr.applicant">
         <field name="partner_name">Joren Jacob</field>
         <field name="email_from">joren.jacob@outlook.example.com</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_reserve')])]" />
         <field
             name="availability"
@@ -455,7 +455,7 @@
     <record id="hr_case_financejob2" model="hr.applicant">
         <field name="partner_name">Mitchel Armstrong</field>
         <field name="email_from">mitchel.armstrong@example.com</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_reserve')])]" />
         <field name="partner_phone">339745</field>
         <field
@@ -473,7 +473,7 @@
     <record id="hr_case_financejob3" model="hr.applicant">
         <field name="partner_name">Elijah Thompson</field>
         <field name="email_from">elijah.thompson@example.com</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_reserve')])]" />
         <field name="partner_phone">339745</field>
         <field
@@ -489,7 +489,7 @@
     <record id="hr_case_financejob4" model="hr.applicant">
         <field name="partner_name">Scarlett Rivera</field>
         <field name="email_from">scarlett.rivera@example.com</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_reserve')])]" />
         <field name="partner_phone">33974325</field>
         <field
@@ -506,7 +506,7 @@
         <field name="partner_name">Tina Augustie</field>
         <field name="email_from">tina.turner@gmail.example.com</field>
         <field name="partner_phone">9898745745</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_sales')])]" />
         <field name="job_id" ref="hr.job_trainee" />
         <field name="department_id" ref="hr.dep_rd" />
@@ -522,7 +522,7 @@
         <field name="partner_name">Sebastian Carter</field>
         <field name="email_from">sebastian.carter@gmail.example.com</field>
         <field name="partner_phone">8643244</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field name="job_id" ref="hr.job_trainee" />
         <field name="department_id" ref="hr.dep_rd" />
@@ -538,7 +538,7 @@
         <field name="partner_name">Vincent Harris</field>
         <field name="email_from">vincent.harris@example.com</field>
         <field name="partner_phone">845242</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field name="job_id" ref="hr.job_trainee" />
         <field name="department_id" ref="hr.dep_rd" />
@@ -554,7 +554,7 @@
         <field name="partner_name">Shane Williams</field>
         <field name="email_from">the.real.shane@gmail.example.com</field>
         <field name="partner_phone">9812398524</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
         <field
             name="availability"
@@ -574,7 +574,7 @@
         <field name="partner_name">David Billy</field>
         <field name="email_from">billy.boy12@gmail.example.com</field>
         <field name="partner_phone">9988774455</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[(6,0,[ref('tag_applicant_it')])]" />
         <field
             name="availability"
@@ -594,7 +594,7 @@
         <field name="partner_name">Dakota Lane</field>
         <field name="email_from">dakota.lane@example.com</field>
         <field name="partner_phone">9981214455</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field
             name="availability"
@@ -614,7 +614,7 @@
         <field name="partner_name">Abigail Carter</field>
         <field name="email_from">abigail.carter@example.com</field>
         <field name="partner_phone">8299291</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field
             name="availability"
@@ -634,7 +634,7 @@
         <field name="partner_name">Hunter Reynolds</field>
         <field name="email_from">hunter.reynolds@example.com</field>
         <field name="partner_phone">8921231</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field
             name="availability"
@@ -654,7 +654,7 @@
         <field name="partner_name">Eren Yeager</field>
         <field name="email_from">eren.yeager@example.com</field>
         <field name="partner_phone">8911101</field>
-        <field name="type_id" ref="degree_licenced" />
+        <field name="degree_id" ref="degree_licenced" />
         <field name="categ_ids" eval="[Command.set([ref('tag_applicant_sales')])]" />
         <field
             name="availability"

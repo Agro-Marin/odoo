@@ -10,20 +10,4 @@ class HrApplicant(models.Model):
             job = self.env["hr.job"].browse(values.get("job_id"))
             if not job.sudo().active:
                 raise UserError(_("The job offer has been closed."))
-            stage = (
-                self.env["hr.recruitment.stage"]
-                .sudo()
-                .search(
-                    [
-                        ("fold", "=", False),
-                        "|",
-                        ("job_ids", "=", False),
-                        ("job_ids", "=", values["job_id"]),
-                    ],
-                    order="sequence asc",
-                    limit=1,
-                )
-            )
-            if stage:
-                values["stage_id"] = stage.id
         return values

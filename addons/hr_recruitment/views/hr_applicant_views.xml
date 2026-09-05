@@ -66,7 +66,7 @@
                 <field name="user_id" widget="many2one_avatar_user" optional="show" />
                 <field name="is_rotting" column_invisible="True" />
                 <field name="rotting_days" column_invisible="True" />
-                <field name="type_id" column_invisible="True" />
+                <field name="degree_id" column_invisible="True" />
                 <field
                     name="application_status"
                     optional="hide"
@@ -320,7 +320,7 @@
                         <page string="Details" name="application_details">
                             <group>
                                 <group string="Applicant">
-                                    <field name="type_id" placeholder="e.g. Masters" />
+                                    <field name="degree_id" placeholder="e.g. Masters" />
                                     <field name="availability" placeholder="Directly" />
                                 </group>
                                 <group string="Job">

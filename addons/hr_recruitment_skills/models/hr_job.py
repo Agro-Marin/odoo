@@ -33,7 +33,7 @@ class HrJob(models.Model):
             matching_applicant_skills = applicant.current_applicant_skill_ids.filtered(
                 lambda a, job_skill_map=job_skill_map: a.skill_id.id in job_skill_map,
             )
-            applicant_degree = applicant.type_id.score * 100 if job_degree > 1 else 0
+            applicant_degree = applicant.degree_id.score * 100 if job_degree > 1 else 0
             applicant_total = (
                 sum(
                     min(skill.level_progress, job_skill_map[skill.skill_id.id] * 2)

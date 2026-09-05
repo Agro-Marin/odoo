@@ -52,7 +52,7 @@
         <record id="scenario_applicant_macm_helen" model="hr.applicant">
             <field name="email_from">helenlee@exampe.email.com</field>
             <field name="partner_name">Helen Lee</field>
-            <field name="type_id" ref="degree_bac5" />
+            <field name="degree_id" ref="degree_bac5" />
             <field
                 name="categ_ids"
                 eval="[Command.set([ref('tag_applicant_sales'), ref('tag_applicant_manager'), ref('tag_applicant_demo')])]" />
@@ -74,7 +74,7 @@
         <record id="scenario_applicant_macm_enrique" model="hr.applicant">
             <field name="email_from">enrique.jones152@gmail.example.com</field>
             <field name="partner_name">Enrique Jones</field>
-            <field name="type_id" ref="degree_bachelor" />
+            <field name="degree_id" ref="degree_bachelor" />
             <field
                 name="categ_ids"
                 eval="[Command.set([ref('tag_applicant_sales'), ref('tag_applicant_demo')])]" />
@@ -100,7 +100,7 @@
         <record id="scenario_applicant_fsd_hannah" model="hr.applicant">
             <field name="email_from">hannah.glover@exampe.email.com</field>
             <field name="partner_name">Hannah Glover</field>
-            <field name="type_id" ref="degree_licenced" />
+            <field name="degree_id" ref="degree_licenced" />
             <field
                 name="categ_ids"
                 eval="[Command.set([ref('tag_applicant_it'), ref('tag_applicant_manager'), ref('tag_applicant_demo')])]" />
@@ -124,7 +124,7 @@
         <record id="scenario_applicant_fsd_simon" model="hr.applicant">
             <field name="email_from">simon.jones@exampe.email.com</field>
             <field name="partner_name">Simon Jones</field>
-            <field name="type_id" ref="degree_graduate" />
+            <field name="degree_id" ref="degree_graduate" />
             <field name="categ_ids" eval="[Command.set([ref('tag_applicant_demo')])]" />
             <field name="availability" eval="DateTime.today()" />
             <field name="priority">0</field>
@@ -147,7 +147,7 @@
         <record id="scenario_applicant_fsd_maria" model="hr.applicant">
             <field name="email_from">maria.rodriguez@example.email.com</field>
             <field name="partner_name">Maria Rodriguez</field>
-            <field name="type_id" ref="degree_graduate" />
+            <field name="degree_id" ref="degree_graduate" />
             <field name="categ_ids" eval="[Command.set([ref('tag_applicant_demo')])]" />
             <field name="availability" eval="(DateTime.today()).strftime('%Y-%m-%d')" />
             <field name="priority">0</field>

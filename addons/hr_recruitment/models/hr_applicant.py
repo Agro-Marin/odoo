@@ -74,7 +74,7 @@ class HrApplicant(models.Model):
         index="btree_not_null",
     )
     linkedin_profile = fields.Char("LinkedIn Profile", index="btree_not_null")
-    type_id = fields.Many2one("hr.recruitment.degree", "Degree")
+    degree_id = fields.Many2one("hr.recruitment.degree", "Degree")
     availability = fields.Date(
         "Availability",
         help="The date at which the applicant will be available to start working",
@@ -717,7 +717,7 @@ class HrApplicant(models.Model):
 
         talent_vals = {
             fname: vals[fname]
-            for fname in ("email_from", "partner_phone", "linkedin_profile", "type_id")
+            for fname in ("email_from", "partner_phone", "linkedin_profile", "degree_id")
             if fname in vals
         }
         if talent_vals:

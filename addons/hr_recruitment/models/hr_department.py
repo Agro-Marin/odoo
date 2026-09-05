@@ -17,17 +17,24 @@ class HrDepartment(models.Model):
     )
 
     def _compute_new_applicant_count(self):
-        if self.env.user.has_group("hr_recruitment.group_hr_recruitment_interviewer"):
-            applicant_data = self.env["hr.applicant"]._read_group(
-                [("department_id", "in", self.ids), ("stage_id.sequence", "<=", 1)],
-                ["department_id"],
-                ["__count"],
-            )
-            result = {department.id: count for department, count in applicant_data}
-            for department in self:
-                department.new_applicant_count = result.get(department.id, 0)
-        else:
-            self.new_applicant_count = 0
+        self.new_applicant_count = 0
+        if not self.env.user.has_group("hr_recruitment.group_hr_recruitment_interviewer"):
+            return
+        jobs = self.env["hr.job"].search([("department_id", "in", self.ids)])
+        first_stage_by_job = self.env["hr.recruitment.stage"]._get_first_stage_by_job(
+            jobs
+        )
+        counts = self.env["hr.applicant"]._read_group(
+            [("job_id", "in", jobs.ids)], ["job_id", "stage_id"], ["__count"]
+        )
+        new_by_department = {}
+        for job, stage, count in counts:
+            if stage == first_stage_by_job[job]:
+                new_by_department[job.department_id] = (
+                    new_by_department.get(job.department_id, 0) + count
+                )
+        for department in self:
+            department.new_applicant_count = new_by_department.get(department, 0)
 
     def _compute_recruitment_stats(self):
         job_data = self.env["hr.job"]._read_group(
