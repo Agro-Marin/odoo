@@ -54,6 +54,8 @@ class TestCalendarIntegrity(TransactionCase):
             }
         )
         self.assertEqual(half.hours_per_week, 20)
+        self.assertEqual(half.hours_per_day, 4)
+        self.assertEqual(set(half.attendance_ids.mapped("duration_days")), {1.0})
 
     def test_schedule_type_is_a_view_of_flexible_hours(self):
         flexible = self.Calendar.create({"name": "F", "schedule_type": "flexible"})
@@ -304,3 +306,67 @@ class TestBatchedResourceQueries(TransactionCase):
                 self.start, self.stop, resource
             )
             self.assertEqual(batch[resource.id], single[resource.id])
+
+
+@tagged("post_install", "-at_install")
+class TestOverlapSweepInSql(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.resource = cls.env["resource.resource"].create(
+            {"name": "Lathe", "tz": "UTC"}
+        )
+        cls.Reservation = cls.env["resource.reservation"]
+        cls.booked = cls.Reservation.create(
+            {
+                "name": "booked",
+                "resource_id": cls.resource.id,
+                "date_start": datetime(2026, 6, 1, 8),
+                "date_end": datetime(2026, 6, 1, 12),
+                "allocated_percentage": 60,
+            }
+        )
+
+    def test_prospective_conflicts_accept_string_datetimes(self):
+        conflicts = self.Reservation._prospective_conflicts(
+            [
+                {
+                    "resource_id": self.resource.id,
+                    "date_start": "2026-06-01 10:00:00",
+                    "date_end": "2026-06-01 11:00:00",
+                    "allocated_percentage": 50,
+                }
+            ]
+        )
+        self.assertEqual(conflicts, self.booked)
+
+    def test_prospective_within_capacity_is_not_a_conflict(self):
+        conflicts = self.Reservation._prospective_conflicts(
+            [
+                {
+                    "resource_id": self.resource.id,
+                    "date_start": datetime(2026, 6, 1, 10),
+                    "date_end": datetime(2026, 6, 1, 11),
+                    "allocated_percentage": 40,
+                }
+            ]
+        )
+        self.assertFalse(conflicts)
+
+    def test_search_operators_agree_with_the_compute(self):
+        other = self.Reservation.create(
+            {
+                "name": "clash",
+                "resource_id": self.resource.id,
+                "date_start": datetime(2026, 6, 1, 9),
+                "date_end": datetime(2026, 6, 1, 10),
+            }
+        )
+        self.assertEqual(self.booked.schedule_overlap_count, 1)
+        self.assertEqual(
+            self.Reservation.search([("schedule_overlap_count", ">=", 1)]),
+            self.booked | other,
+        )
+        self.assertNotIn(
+            self.booked, self.Reservation.search([("schedule_overlap_count", "<", 1)])
+        )

@@ -419,10 +419,13 @@ class ResourceCalendar(models.Model):
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
+        new_lines = "attendance_ids" in (default or {})
         for calendar, vals in zip(self, vals_list, strict=True):
             vals["name"] = self.env._("%s (copy)", calendar.name)
             if calendar.flexible_hours:
                 vals.setdefault("hours_per_week", calendar.hours_per_week)
+            elif new_lines and "hours_per_day" not in default:
+                vals.pop("hours_per_day", None)
         return vals_list
 
     def switch_calendar_type(self):

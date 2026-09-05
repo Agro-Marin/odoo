@@ -345,44 +345,16 @@ class ResourceReservation(models.Model):
             return result
 
         self.flush_model(self._OVERLAP_SWEEP_FIELDS)
-        window_start = min(stored.mapped("date_start"))
-        window_end = max(stored.mapped("date_end"))
-        rows_by_resource = self._overlap_rows(
+        partners = self._overlap_partners(
             (
                 SQL("AND resource_id = ANY(%s)", list(set(stored.resource_id.ids))),
-                SQL("AND date_start < %s", window_end),
-                SQL("AND date_end > %s", window_start),
+                SQL("AND date_start < %s", max(stored.mapped("date_end"))),
+                SQL("AND date_end > %s", min(stored.mapped("date_start"))),
             )
         )
-
-        conflict_partners = self._sweep_overlap_partners(rows_by_resource)
         for record in stored:
-            result[record.id] = self.browse(
-                sorted(conflict_partners.get(record.id, ()))
-            )
+            result[record.id] = self.browse(sorted(partners.get(record.id, ())))
         return result
-
-    def _overlap_rows(self, extra_conditions=()):
-        self.env.cr.execute(
-            SQL(
-                """
-                SELECT id, resource_id, date_start, date_end,
-                       LEAST(100, GREATEST(0, COALESCE(allocated_percentage, 100)))
-                  FROM %s
-                 WHERE resource_id IS NOT NULL
-                   AND active
-                   AND date_start IS NOT NULL
-                   AND date_end IS NOT NULL
-                   %s
-                """,
-                SQL.identifier(self._table),
-                SQL(" ").join(extra_conditions),
-            )
-        )
-        rows_by_resource = defaultdict(list)
-        for res_id, resource_id, date_start, date_end, pct in self.env.cr.fetchall():
-            rows_by_resource[resource_id].append((res_id, date_start, date_end, pct))
-        return rows_by_resource
 
     @api.model
     def _prospective_conflicts(self, vals_list, ignore_ids=()):
@@ -392,6 +364,8 @@ class ResourceReservation(models.Model):
             date_start, date_end = vals.get("date_start"), vals.get("date_end")
             if not resource_id or not date_start or not date_end:
                 continue
+            date_start = fields.Datetime.to_datetime(date_start)
+            date_end = fields.Datetime.to_datetime(date_end)
             if date_end <= date_start:
                 continue
             pct = vals.get("allocated_percentage")
@@ -401,23 +375,14 @@ class ResourceReservation(models.Model):
             return self.browse()
 
         self.flush_model(self._OVERLAP_SWEEP_FIELDS)
-
-        resource_ids = list({row[1] for row in prospective})
-        window_start = min(row[2] for row in prospective)
-        window_end = max(row[3] for row in prospective)
         conditions = [
-            SQL("AND resource_id = ANY(%s)", resource_ids),
-            SQL("AND date_start < %s", window_end),
-            SQL("AND date_end > %s", window_start),
+            SQL("AND resource_id = ANY(%s)", list({row[1] for row in prospective})),
+            SQL("AND date_start < %s", max(row[3] for row in prospective)),
+            SQL("AND date_end > %s", min(row[2] for row in prospective)),
         ]
         if ignore_ids:
             conditions.append(SQL("AND id != ALL(%s)", list(ignore_ids)))
-        rows_by_resource = self._overlap_rows(tuple(conditions))
-
-        for sentinel, resource_id, date_start, date_end, pct in prospective:
-            rows_by_resource[resource_id].append((sentinel, date_start, date_end, pct))
-
-        partners = self._sweep_overlap_partners(rows_by_resource)
+        partners = self._overlap_partners(tuple(conditions), prospective)
         conflicting = set()
         for sentinel, *_rest in prospective:
             conflicting.update(peer for peer in partners.get(sentinel, ()) if peer > 0)
@@ -430,8 +395,9 @@ class ResourceReservation(models.Model):
         compare = COMPARATORS[operator]
 
         self.flush_model(self._OVERLAP_SWEEP_FIELDS)
-        partners = self._sweep_overlap_partners(self._overlap_rows())
-        conflicted = {res_id: len(peers) for res_id, peers in partners.items()}
+        conflicted = {
+            res_id: len(peers) for res_id, peers in self._overlap_partners().items()
+        }
 
         if compare(0, value):
             excluded = [
@@ -452,32 +418,77 @@ class ResourceReservation(models.Model):
             )
         ]
 
-    @staticmethod
-    def _sweep_overlap_partners(rows_by_resource):
-        partners = defaultdict(set)
-        for rows in rows_by_resource.values():
-            events = []
-            for res_id, date_start, date_end, pct in rows:
-                if date_end <= date_start:
-                    continue
-                events.append((date_start, 1, res_id, pct))
-                events.append((date_end, 0, res_id, pct))
-            events.sort(key=lambda event: (event[0], event[1]))
-
-            active = {}
-            for _instant, kind, res_id, pct in events:
-                if not kind:
-                    active.pop(res_id, None)
-                    continue
-                active[res_id] = pct
-                if sum(active.values()) <= 100:
-                    continue
-                ids_here = list(active)
-                for other_id in ids_here:
-                    partners[other_id].update(
-                        peer for peer in ids_here if peer != other_id
+    def _overlap_partners(self, extra_conditions=(), prospective=()):
+        rows = SQL(
+            """
+            SELECT id, resource_id, date_start, date_end,
+                   LEAST(100, GREATEST(0, COALESCE(allocated_percentage, 100)))::float8
+              FROM %s
+             WHERE resource_id IS NOT NULL
+               AND active
+               AND date_start IS NOT NULL
+               AND date_end IS NOT NULL
+               AND date_end > date_start
+               %s
+            """,
+            SQL.identifier(self._table),
+            SQL(" ").join(extra_conditions),
+        )
+        if prospective:
+            rows = SQL(
+                "%s UNION ALL SELECT * FROM (VALUES %s)"
+                " AS prospective(id, resource_id, date_start, date_end, pct)",
+                rows,
+                SQL(", ").join(
+                    SQL(
+                        "(%s::int, %s::int, %s::timestamp, %s::timestamp, %s::float8)",
+                        *row,
                     )
-        return partners
+                    for row in prospective
+                ),
+            )
+        self.env.cr.execute(
+            SQL(
+                """
+                WITH booking(id, resource_id, date_start, date_end, pct) AS (%s),
+                     event AS (
+                         SELECT resource_id, date_start AS instant, 1 AS kind, pct
+                           FROM booking
+                          UNION ALL
+                         SELECT resource_id, date_end, 0, -pct
+                           FROM booking
+                     ),
+                     load AS (
+                         SELECT resource_id, instant, kind,
+                                SUM(pct) OVER (
+                                    PARTITION BY resource_id
+                                    ORDER BY instant, kind
+                                    ROWS UNBOUNDED PRECEDING
+                                ) AS total
+                           FROM event
+                     ),
+                     hot AS (
+                         SELECT DISTINCT resource_id, instant
+                           FROM load
+                          WHERE kind = 1 AND total > 100
+                     )
+                SELECT this.id, ARRAY_AGG(DISTINCT other.id)
+                  FROM hot
+                  JOIN booking AS this
+                    ON this.resource_id = hot.resource_id
+                   AND this.date_start <= hot.instant
+                   AND this.date_end > hot.instant
+                  JOIN booking AS other
+                    ON other.resource_id = hot.resource_id
+                   AND other.id <> this.id
+                   AND other.date_start <= hot.instant
+                   AND other.date_end > hot.instant
+                 GROUP BY this.id
+                """,
+                rows,
+            )
+        )
+        return {res_id: set(peers) for res_id, peers in self.env.cr.fetchall()}
 
     @api.depends("res_model", "res_id")
     def _compute_origin_display(self):
