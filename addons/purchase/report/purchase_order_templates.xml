@@ -166,8 +166,10 @@
                 <p t-field="o.notes" class="mt-4" />
                 <div class="oe_structure" />
 
-                <strong>Payment Terms: </strong>
-                <span t-field="o.payment_term_id" class="mt-4" />
+                <t t-if="o.payment_term_id">
+                    <strong>Payment Terms: </strong>
+                    <span t-field="o.payment_term_id" class="mt-4" />
+                </t>
 
                 <t
                     t-set="base_address"

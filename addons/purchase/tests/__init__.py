@@ -4,6 +4,9 @@ from . import test_purchase_downpayment
 from . import test_purchase_flow
 from . import test_purchase_order_line_compute
 from . import test_purchase_order_product_catalog
+from . import test_purchase_line_price_tracking
+from . import test_purchase_order_list_views
+from . import test_purchase_order_pdf
 from . import test_purchase_order_report
 from . import test_purchase_invoice
 from . import test_purchase_portal

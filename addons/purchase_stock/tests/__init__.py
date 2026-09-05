@@ -23,3 +23,5 @@ from . import test_stockvaluation
 from . import test_supplier
 from . import test_uninstall
 from . import test_receipt_line_match
+from . import test_purchase_order_list_views
+from . import test_purchase_priority_propagation
