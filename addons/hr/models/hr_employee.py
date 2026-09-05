@@ -616,6 +616,21 @@ class HrEmployee(models.Model):
         "A user cannot be linked to multiple employees in the same company.",
     )
 
+    @api.constrains("user_id", "work_contact_id")
+    def _check_work_contact_is_the_user_partner(self):
+        for employee in self:
+            user_partner = employee.user_id.partner_id
+            if user_partner and employee.work_contact_id != user_partner:
+                raise ValidationError(
+                    self.env._(
+                        "%(employee)s is linked to user %(user)s, so their work "
+                        "contact must be that user's contact, not %(contact)s.",
+                        employee=employee.display_name,
+                        user=employee.user_id.display_name,
+                        contact=employee.work_contact_id.display_name,
+                    )
+                )
+
     @api.constrains("salary_distribution")
     def _check_salary_distribution(self):
         for employee in self:

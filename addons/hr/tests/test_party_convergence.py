@@ -1,3 +1,4 @@
+from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -12,6 +13,17 @@ class TestPartyConvergence(TransactionCase):
     """
 
     @classmethod
+    def _diverge(cls, employee, contact):
+        """Legacy data: two partner rows for one person. The constraint forbids
+        writing it, so it is planted the way an old database holds it."""
+        cls.env.flush_all()
+        cls.env.cr.execute(
+            "UPDATE hr_employee SET work_contact_id = %s WHERE id = %s",
+            (contact.id, employee.id),
+        )
+        employee.invalidate_recordset(["work_contact_id"])
+
+    @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.Emp = cls.env["hr.employee"]
@@ -20,18 +32,18 @@ class TestPartyConvergence(TransactionCase):
 
         user = User.create({"name": "Converged", "login": "conv_a"})
         cls.converged = cls.Emp.create({"name": "Converged", "user_id": user.id})
-        cls.converged.work_contact_id = user.partner_id
 
         user_b = User.create({"name": "Mergeable", "login": "conv_b"})
         cls.mergeable = cls.Emp.create({"name": "Mergeable", "user_id": user_b.id})
-        cls.mergeable.work_contact_id = Partner.create({"name": "Mergeable Work"})
+        cls._diverge(cls.mergeable, Partner.create({"name": "Mergeable Work"}))
 
         user_c = User.create(
             {"name": "Conflicted", "login": "conv_c", "email": "home@example.com"}
         )
         cls.conflicted = cls.Emp.create({"name": "Conflicted", "user_id": user_c.id})
-        cls.conflicted.work_contact_id = Partner.create(
-            {"name": "Conflicted Work", "email": "work@example.com"}
+        cls._diverge(
+            cls.conflicted,
+            Partner.create({"name": "Conflicted Work", "email": "work@example.com"}),
         )
 
         cls.userless = cls.Emp.create({"name": "No User"})
@@ -153,3 +165,21 @@ class TestPrivateAddressFollowsTheContact(TransactionCase):
         self.assertEqual(
             employee.private_address_id.parent_id, employee.work_contact_id
         )
+
+
+@tagged("post_install", "-at_install")
+class TestWorkContactFollowsTheUser(TransactionCase):
+    def test_an_employee_with_a_user_cannot_point_at_another_contact(self):
+        user = self.env["res.users"].create({"name": "Bound", "login": "bound"})
+        employee = self.env["hr.employee"].create({"name": "Bound", "user_id": user.id})
+        other = self.env["res.partner"].create({"name": "Someone Else"})
+        with self.assertRaises(ValidationError):
+            employee.work_contact_id = other
+
+    def test_linking_a_user_moves_the_work_contact_to_the_user_partner(self):
+        employee = self.env["hr.employee"].create({"name": "Later User"})
+        own_contact = employee.work_contact_id
+        user = self.env["res.users"].create({"name": "Later User", "login": "later"})
+        employee.user_id = user
+        self.assertEqual(employee.work_contact_id, user.partner_id)
+        self.assertNotEqual(employee.work_contact_id, own_contact)
