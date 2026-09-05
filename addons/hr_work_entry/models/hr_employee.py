@@ -8,12 +8,6 @@ class HrEmployee(models.Model):
     has_work_entries = fields.Boolean(
         compute="_compute_has_work_entries", groups="base.group_system,hr.group_hr_user"
     )
-    work_entry_source = fields.Selection(
-        readonly=False,
-        related="version_id.work_entry_source",
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
 
     def _compute_has_work_entries(self):
         with_entries = set()

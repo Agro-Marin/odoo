@@ -12,6 +12,7 @@ class HrEmployee(models.Model):
             "no_user": 0,
             "no_work_contact": 0,
             "divergent": 0,
+            "misparented_home": [],
             "conflicting": [],
             "safe_to_merge": [],
         }
@@ -20,6 +21,9 @@ class HrEmployee(models.Model):
         for employee in self.sudo().with_context(active_test=False).search([]):
             report["total"] += 1
             contact = employee.work_contact_id
+            home = employee.private_address_id
+            if home and contact and home.parent_id != contact:
+                report["misparented_home"].append(employee.id)
             user_partner = employee.user_id.partner_id
             if not contact:
                 report["no_work_contact"] += 1
@@ -63,6 +67,7 @@ class HrEmployee(models.Model):
             "  two partners, divergent: %s" % r["divergent"],
             "      of those, mergeable: %s" % len(r["safe_to_merge"]),
             "      needing a decision : %s" % len(r["conflicting"]),
+            "  home not under contact : %s" % len(r["misparented_home"]),
         ]
         for entry in r["conflicting"]:
             lines.append("")
@@ -78,6 +83,7 @@ class HrEmployee(models.Model):
     @api.model
     def converge_party_rows(self, limit=None):
         report = self.report_party_convergence()
+        self.browse(report["misparented_home"])._reparent_private_address()
         entries = report["safe_to_merge"][: limit or None]
         Merge = self.env["base.partner.merge.automatic.wizard"].sudo()
 

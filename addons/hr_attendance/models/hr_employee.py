@@ -89,13 +89,6 @@ class HrEmployee(models.Model):
         groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
 
-    ruleset_id = fields.Many2one(
-        readonly=False,
-        related="version_id.ruleset_id",
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-
     @api.model_create_multi
     def create(self, vals_list):
         officer_group = self.env.ref(

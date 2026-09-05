@@ -138,71 +138,6 @@ class HrEmployee(models.Model):
         store=False,
         check_company=True,
     )
-    contract_date_start = fields.Date(
-        related="version_id.contract_date_start",
-        readonly=False,
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    contract_date_end = fields.Date(
-        related="version_id.contract_date_end",
-        readonly=False,
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    trial_date_end = fields.Date(
-        related="version_id.trial_date_end",
-        readonly=False,
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    contract_wage = fields.Monetary(
-        related="version_id.contract_wage",
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    date_start = fields.Date(
-        related="version_id.date_start",
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    date_end = fields.Date(
-        related="version_id.date_end",
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    is_current = fields.Boolean(
-        related="version_id.is_current",
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    is_past = fields.Boolean(
-        related="version_id.is_past",
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    is_future = fields.Boolean(
-        related="version_id.is_future",
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    is_in_contract = fields.Boolean(
-        related="version_id.is_in_contract",
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    structure_type_id = fields.Many2one(
-        related="version_id.structure_type_id",
-        readonly=False,
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
-    contract_type_id = fields.Many2one(
-        related="version_id.contract_type_id",
-        readonly=False,
-        inherited=True,
-        groups="hr.group_hr_manager",
-    )
     current_version_id = fields.Many2one(
         "hr.version",
         compute="_compute_current_version_id",
@@ -923,6 +858,7 @@ class HrEmployee(models.Model):
         res = super().write(new_vals)
         if "work_contact_id" in vals:
             self._update_bank_account_contact(vals["work_contact_id"])
+            self._reparent_private_address()
         if user_to_sync and user_to_sync.image_1920:
             employees_without_image = self.filtered(lambda e: not e.image_1920)
             if employees_without_image:
@@ -2813,6 +2749,13 @@ class HrEmployee(models.Model):
         if active_status is not None:
             resource_vals["active"] = active_status
         return resource_vals
+
+    def _reparent_private_address(self):
+        for employee in self.sudo():
+            home = employee.private_address_id
+            contact = employee.work_contact_id
+            if home and contact and home.parent_id != contact:
+                home.parent_id = contact
 
     def _update_bank_account_contact(self, work_contact_id):
         accounts_sudo = (

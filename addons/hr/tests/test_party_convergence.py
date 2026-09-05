@@ -115,3 +115,41 @@ class TestPartyConvergence(TransactionCase):
         second = self.Emp.converge_party_rows()
         self.assertIn(self.mergeable.id, first["merged"])
         self.assertNotIn(self.mergeable.id, second["merged"])
+
+
+@tagged("post_install", "-at_install")
+class TestPrivateAddressFollowsTheContact(TransactionCase):
+    def _link_user_to_an_employee_with_a_home(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "Homed", "private_street": "Home Street 1"}
+        )
+        old_contact = employee.work_contact_id
+        user = self.env["res.users"].create({"name": "Homed", "login": "homed"})
+        employee.write({"user_id": user.id})
+        return employee, old_contact, user
+
+    def test_linking_a_user_moves_the_home_under_the_user_partner(self):
+        employee, old_contact, user = self._link_user_to_an_employee_with_a_home()
+        self.assertEqual(employee.work_contact_id, user.partner_id)
+        self.assertEqual(employee.private_address_id.parent_id, user.partner_id)
+        self.assertEqual(employee.private_street, "Home Street 1")
+        self.assertFalse(old_contact.child_ids)
+
+    def test_the_user_partner_then_serves_the_home_as_the_employee_address(self):
+        _employee, _old_contact, user = self._link_user_to_an_employee_with_a_home()
+        addresses = user.partner_id._get_all_addr()
+        self.assertEqual(addresses[0]["contact_type"], "employee")
+        self.assertEqual(addresses[0]["street"], "Home Street 1")
+
+    def test_the_report_names_a_home_left_under_another_contact(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "Stranded", "private_street": "Elsewhere 2"}
+        )
+        other = self.env["res.partner"].create({"name": "Stranded Other"})
+        employee.private_address_id.sudo().parent_id = other
+        report = self.env["hr.employee"].report_party_convergence()
+        self.assertIn(employee.id, report["misparented_home"])
+        self.env["hr.employee"].converge_party_rows()
+        self.assertEqual(
+            employee.private_address_id.parent_id, employee.work_contact_id
+        )

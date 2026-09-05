@@ -50,6 +50,9 @@ CONDITIONAL = {
     # expressed in. Same name, different subject -- so keep-shadowed when both
     # are present.
     "currency_id": "account",
+    # documents_hr counts the employee's own documents; the partner's count is
+    # the contact's. Same name, different subject.
+    "document_count": "documents_hr",
 }
 
 EXPECTED = (
