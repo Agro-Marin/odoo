@@ -45,3 +45,22 @@ class TestOrderMergeMixin(TransactionCase):
         old = self._order(self.partner_a, date_order="2020-01-01 00:00:00")
         new = self._order(self.partner_a, date_order="2024-01-01 00:00:00")
         self.assertEqual(self.SaleOrder._merge_get_target(old + new), old)
+
+    def test_action_merge_logs_excluded_non_draft_orders(self):
+        draft_a = self._order(self.partner_a)
+        draft_b = self._order(self.partner_a)
+        confirmed = self._order(self.partner_a)
+        confirmed.line_ids = [
+            (0, 0, {"product_id": self.env["product.product"].create({"name": "P"}).id})
+        ]
+        confirmed.action_confirm()
+
+        with self.assertLogs(
+            "odoo.addons.base_order.models.mixin_order_merge", level="INFO"
+        ) as captured:
+            (draft_a + draft_b + confirmed).action_merge()
+
+        self.assertTrue(
+            any(confirmed.name in line for line in captured.output),
+            "the excluded confirmed order's name must appear in the log",
+        )
