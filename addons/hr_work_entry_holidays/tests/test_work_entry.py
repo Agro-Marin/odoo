@@ -301,26 +301,25 @@ class TestWorkeEntryHolidaysWorkEntry(TestWorkEntryHolidaysBase):
                 ),
             ]
         )
-        self.assertIsNotNone(leave_work_entry)
+        self.assertTrue(leave_work_entry)
 
         self.env["hr.work.entry.regeneration.wizard"].regenerate_work_entries(
             slots=[
                 {"date": leave_start_date, "employee_id": self.employee_external.id}
             ],
-            record_ids=leave_work_entry.ids,
         )
-        leave_work_entry = self.env["hr.work.entry"].search(
+        regenerated = self.env["hr.work.entry"].search(
             [
                 ("employee_id", "=", self.employee_external.id),
-                (
-                    "work_entry_type_id",
-                    "=",
-                    leave.holiday_status_id.work_entry_type_id.id,
-                ),
+                ("date", "=", leave_start_date.date()),
+                ("state", "!=", "validated"),
             ]
         )
-        self.assertIsNotNone(
-            leave_work_entry, "Leave's work entry should have the same work entry type"
+        self.assertEqual(
+            regenerated.work_entry_type_id,
+            leave.holiday_status_id.work_entry_type_id,
+            "Resetting the day regenerates it from the schedule, and the approved "
+            "leave still covers it, so the regenerated entry keeps the leave's type.",
         )
 
     def test_work_entries_overlap_half_day_leaves(self):

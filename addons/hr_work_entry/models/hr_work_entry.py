@@ -365,9 +365,9 @@ class HrWorkEntry(models.Model):
         return siblings
 
     @contextmanager
-    def _error_checking(self, start, stop, *, employee_ids):
+    def _error_checking(self, start=None, stop=None, skip=False, *, employee_ids):
         siblings = self.browse()
-        if start and stop:
+        if not skip and start and stop:
             siblings = self._reset_conflicts_between(start, stop, employee_ids)
         try:
             yield

@@ -122,6 +122,7 @@ test("a work entry type used on several days is offered once as a favourite", as
             work_entry_type_id: 1,
             date: "2024-12-30",
             duration: 8,
+            create_date: "2024-12-30 10:00:00",
         },
         {
             name: "Tuesday",
@@ -129,18 +130,21 @@ test("a work entry type used on several days is offered once as a favourite", as
             work_entry_type_id: 1,
             date: "2024-12-31",
             duration: 8,
+            create_date: "2024-12-31 10:00:00",
         },
     ]);
-    const view = await mountView({
+    onRpc("hr.work.entry.type", "read", ({ args }) => {
+        expect.step(`read ${JSON.stringify(args[0])}`);
+    });
+    await mountView({
         type: "calendar",
         resModel: "hr.work.entry",
         context: { default_employee_id: 100 },
     });
-    const controller = getCalendarController(view);
-    expect(controller.model.userFavoritesWorkEntries.map((t) => t.id)).toEqual([1], {
+    expect.verifySteps(["read [1]"], {
         message:
             "Favourites are grouped by type and creation day, so one type used on two " +
-            "days comes back twice; reading it twice rendered two buttons with the " +
-            "same t-key.",
+            "days comes back twice; reading [1, 1] renders two buttons with the same " +
+            "t-key, which OWL rejects in debug mode.",
     });
 });
