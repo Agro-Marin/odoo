@@ -251,7 +251,12 @@ class ProjectProject(models.Model):
         string="Tags",
     )
     favorite_user_ids = fields.Many2many(string="Members")
-    is_user_favorite = fields.Boolean(string="Show Project on Dashboard")
+    is_user_favorite = fields.Boolean(
+        string="Show Project on Dashboard",
+        # The mixin leaves it at the computed-field default of copy=False, which
+        # drops a duplicated project off the dashboard of whoever duplicated it.
+        copy=True,
+    )
     workflow_step_ids = fields.Many2many(
         "project.workflow.step",
         "project_workflow_step_project_rel",
