@@ -32,11 +32,15 @@ Also implements the removal strategy First Expiry First Out (FEFO) widely used, 
         "report/report_deliveryslip.xml",
         "report/report_lot_barcode.xml",
         "report/report_package_barcode.xml",
+        "report/report_stock_traceability.xml",
         "data/product_expiry_data.xml",
     ],
     "assets": {
         "web.assets_tests": [
             "product_expiry/static/tests/tours/*.js",
+        ],
+        "web.assets_unit_tests": [
+            "product_expiry/static/tests/*.test.js",
         ],
         "web.assets_backend": [
             "product_expiry/static/src/**/*",
