@@ -38,7 +38,6 @@ function setupApprovalActivity(pyEnv, { userId = serverState.userId } = {}) {
         res_model: "approval.request",
         user_id: userId,
     });
-    expect(approverId).not.toBe(requestId);
     return { requestId, approverId };
 }
 

@@ -286,8 +286,7 @@ class ApprovalDashboard(models.Model):
 
             if last_period_count > 0:
                 trend = round(
-                    ((this_period_count - last_period_count) / last_period_count)
-                    * 100,
+                    ((this_period_count - last_period_count) / last_period_count) * 100,
                     1,
                 )
                 display_val = abs(trend)
@@ -328,16 +327,40 @@ class ApprovalDashboard(models.Model):
         metrics_model = self.env["approval.metrics"]
         performance_model = self.env["approver.performance"]
 
-        for dashboard in self:
-            slowest_category = metrics_model.search_read(
-                [
-                    ("avg_approval_hours", ">", 0),
-                ],
-                ["category_id", "avg_approval_hours"],
-                order="avg_approval_hours desc",
-                limit=1,
-            )
+        slowest_category = metrics_model.search_read(
+            [
+                ("avg_approval_hours", ">", 0),
+            ],
+            ["category_id", "avg_approval_hours"],
+            order="avg_approval_hours desc",
+            limit=1,
+        )
 
+        slowest_approver = next(
+            iter(
+                performance_model.search_read(
+                    [("avg_response_hours", ">", 0)],
+                    ["user_id", "avg_response_hours"],
+                    order="avg_response_hours desc",
+                    limit=1,
+                ),
+            ),
+            None,
+        )
+
+        most_pending = next(
+            iter(
+                performance_model.search_read(
+                    [("pending_count", ">", 0)],
+                    ["user_id", "pending_count"],
+                    order="pending_count desc",
+                    limit=1,
+                ),
+            ),
+            None,
+        )
+
+        for dashboard in self:
             if slowest_category:
                 row = slowest_category[0]
                 dashboard.slowest_category_id = (
@@ -347,18 +370,6 @@ class ApprovalDashboard(models.Model):
             else:
                 dashboard.slowest_category_id = False
                 dashboard.slowest_category_hours = 0.0
-
-            slowest_approver = next(
-                iter(
-                    performance_model.search_read(
-                        [("avg_response_hours", ">", 0)],
-                        ["user_id", "avg_response_hours"],
-                        order="avg_response_hours desc",
-                        limit=1,
-                    ),
-                ),
-                None,
-            )
 
             if slowest_approver:
                 dashboard.slowest_approver_id = (
@@ -370,18 +381,6 @@ class ApprovalDashboard(models.Model):
             else:
                 dashboard.slowest_approver_id = False
                 dashboard.slowest_approver_hours = 0.0
-
-            most_pending = next(
-                iter(
-                    performance_model.search_read(
-                        [("pending_count", ">", 0)],
-                        ["user_id", "pending_count"],
-                        order="pending_count desc",
-                        limit=1,
-                    ),
-                ),
-                None,
-            )
 
             if most_pending:
                 dashboard.most_pending_approver_id = (
@@ -513,9 +512,7 @@ class ApprovalDashboard(models.Model):
         requests_7d = sum(count for day, count in request_days if day >= days_7_ago)
         requests_per_day_7d = round(requests_7d / 7, 2)
 
-        requests_15d = sum(
-            count for day, count in request_days if day >= days_15_ago
-        )
+        requests_15d = sum(count for day, count in request_days if day >= days_15_ago)
         requests_per_day_15d = round(requests_15d / 15, 2)
 
         requests_30d = sum(count for _day, count in request_days)
@@ -533,28 +530,18 @@ class ApprovalDashboard(models.Model):
             ["__count"],
         )
 
-        approvals_7d = sum(
-            count for day, count in approval_days if day >= days_7_ago
-        )
+        approvals_7d = sum(count for day, count in approval_days if day >= days_7_ago)
         approvals_per_day_7d = round(approvals_7d / 7, 2)
 
-        approvals_15d = sum(
-            count for day, count in approval_days if day >= days_15_ago
-        )
+        approvals_15d = sum(count for day, count in approval_days if day >= days_15_ago)
         approvals_per_day_15d = round(approvals_15d / 15, 2)
 
         approvals_30d = sum(count for _day, count in approval_days)
         approvals_per_day_30d = round(approvals_30d / 30, 2)
 
-        avg_7d = self._calculate_avg_response_time_sql(
-            days_7_ago_utc, today_end_utc
-        )
-        avg_15d = self._calculate_avg_response_time_sql(
-            days_15_ago_utc, today_end_utc
-        )
-        avg_30d = self._calculate_avg_response_time_sql(
-            days_30_ago_utc, today_end_utc
-        )
+        avg_7d = self._calculate_avg_response_time_sql(days_7_ago_utc, today_end_utc)
+        avg_15d = self._calculate_avg_response_time_sql(days_15_ago_utc, today_end_utc)
+        avg_30d = self._calculate_avg_response_time_sql(days_30_ago_utc, today_end_utc)
 
         ninety_days_ago = today_utc - timedelta(days=90)
 

@@ -265,7 +265,7 @@
                         string="Re-submit"
                         type="object"
                         class="btn-primary"
-                        invisible="not pending_change_field or (request_owner_id != uid and not user_approver_state)" />
+                        invisible="not pending_change_field or (request_owner_id != uid and not user_approver_state and not has_access_to_request)" />
                     <button
                         name="action_withdraw"
                         string="Withdraw"

@@ -76,6 +76,7 @@ class ProductPricelistItem(models.Model):
         comodel_name="product.category",
         string="Category",
         ondelete="cascade",
+        check_company=True,
         help="Specify a product category if this rule only applies to products belonging to this category or its children categories. Keep empty otherwise.",
     )
     product_tmpl_id = fields.Many2one(

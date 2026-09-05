@@ -26,10 +26,13 @@ _MOVED_NAMES = (
 
 
 def migrate(cr, version):
-    cr.execute("SELECT 1 FROM ir_module_module WHERE name = 'approval_product'")
+    cr.execute(
+        "SELECT 1 FROM ir_module_module WHERE name = 'approval_product' "
+        "AND state = 'installed'"
+    )
     if not cr.fetchone():
         _logger.warning(
-            "19.0.1.0.12: approval_product not present; skipping ownership "
+            "19.0.1.0.12: approval_product not installed; skipping ownership "
             "hand-over (product surface stays owned by approval)."
         )
         return
