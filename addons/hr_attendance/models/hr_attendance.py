@@ -159,7 +159,9 @@ class HrAttendance(models.Model):
     def _compute_date(self):
         for attendance in self:
             if not attendance.employee_id or not attendance.check_in:
-                attendance.date = fields.Datetime.now()
+                # A placeholder for a half-built record; `date` is a Date, so it
+                # takes a date, not a datetime that only coerces on flush.
+                attendance.date = fields.Date.context_today(attendance)
                 continue
             tz = timezone(attendance.employee_id._get_tz())
             attendance.date = (

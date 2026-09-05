@@ -8,7 +8,10 @@ class ResCompany(models.Model):
     _inherit = "res.company"
 
     def _default_company_token(self):
-        return str(uuid.uuid4())
+        # `.hex` to match the field default and `_regenerate_attendance_kiosk_key`;
+        # a company whose key is back-filled at column-init must not end up with a
+        # differently shaped token from every other company's.
+        return uuid.uuid4().hex
 
     overtime_company_threshold = fields.Integer(
         string="Tolerance Time In Favor Of Company", default=0
