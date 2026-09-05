@@ -132,6 +132,11 @@ describe("onClickSaleOrder", () => {
         expect(currentOrder.lines[2].price_unit).toBe(325);
         expect(currentOrder.lines[2].prices.total_excluded).toBe(325);
 
+        // The percentage travels to the server so the invoice line can name it.
+        for (const detail of JSON.parse(currentOrder.lines[2].down_payment_details)) {
+            expect(detail.percentage_value).toBe(50);
+        }
+
         const comp = await mountWithCleanup(Orderline, {
             props: { line: currentOrder.lines[2] },
         });
@@ -186,6 +191,11 @@ describe("onClickSaleOrder", () => {
         expect(currentOrder.lines[2].qty).toBe(1);
         expect(currentOrder.lines[2].price_unit).toBe(50);
         expect(currentOrder.lines[2].prices.total_excluded).toBe(50);
+
+        // A fixed amount is not a percentage: nothing to name on the invoice.
+        for (const detail of JSON.parse(currentOrder.lines[2].down_payment_details)) {
+            expect(detail.percentage_value).toBe(0);
+        }
 
         const comp = await mountWithCleanup(Orderline, {
             props: { line: currentOrder.lines[2] },

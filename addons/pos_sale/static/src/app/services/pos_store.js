@@ -373,6 +373,9 @@ patch(PosStore.prototype, {
         return true;
     },
     async addDownPaymentProductOrderlineToOrder(saleOrder, amount, isPercentage) {
+        // `amount` is the percentage itself when `isPercentage`, and is
+        // overwritten below with the money it resolves to. Keep it.
+        const percentageValue = isPercentage ? amount : 0;
         const result = await this.loadDownPaymentProduct();
         if (!result) {
             return;
@@ -464,6 +467,9 @@ patch(PosStore.prototype, {
                         product_uom_qty: saleOrderLine.product_uom_qty,
                         price_unit: saleOrderLine.price_unit,
                         total: saleOrderLine.price_total,
+                        // Carried so the invoice line can say which percentage
+                        // the down payment was; 0 for a fixed amount.
+                        percentage_value: percentageValue,
                     })),
                 ),
                 tax_ids: [["link", ...baseLine.tax_ids]],

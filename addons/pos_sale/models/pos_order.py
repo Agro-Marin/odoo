@@ -1,3 +1,5 @@
+import json
+
 from odoo import _, api, fields, models
 
 
@@ -242,7 +244,16 @@ class PosOrder(models.Model):
 
         if pos_line.sale_order_origin_id:
             origin_line = pos_line.sale_order_line_id
-            inv_line_vals["name"] = origin_line.name
+            # A down payment line has no description of its own on the sale
+            # order, and `sale.order.line._compute_name` leaves `name` empty on
+            # any line already tied to a POS order (task 30694), so this used to
+            # put a line with NO description at all on the customer's invoice.
+            # Fall back on what the POS line calls itself.
+            inv_line_vals["name"] = origin_line.name or pos_line.display_name
+            if percentage := pos_line._get_down_payment_percentage():
+                inv_line_vals["name"] += _(
+                    " of %(percentage)s%%", percentage=percentage
+                )
             origin_line._set_analytic_distribution(inv_line_vals)
 
         return inv_line_vals
@@ -282,6 +293,24 @@ class PosOrderLine(models.Model):
         readonly=False,
         copy=False,
     )
+
+    def _get_down_payment_percentage(self):
+        self.check_singleton()
+        if not self.down_payment_details:
+            return None
+        # `computation_key` carries a per-application suffix here
+        # (`down_payment,so-<id>-dp-<n>`, see pos_store.js), so the token has to
+        # be looked for in the list, not compared to the whole key.
+        key = (self.extra_tax_data or {}).get("computation_key") or ""
+        if "down_payment" not in key.split(","):
+            return None
+        try:
+            details = json.loads(self.down_payment_details)
+        except ValueError:
+            return None
+        if not details:
+            return None
+        return details[0].get("percentage_value") or None
 
     @api.depends(
         "order_id.state",

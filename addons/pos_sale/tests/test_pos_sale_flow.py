@@ -1,3 +1,4 @@
+import json
 import uuid
 
 from odoo import fields
@@ -1602,6 +1603,140 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
         downpayment_invoice.action_post()
         self.user.group_ids = selected_groups
         self.assertEqual(downpayment_line.price_unit, 100)
+
+    def _create_pos_downpayment_order(self, details, amount=20.0):
+        """Book a paid, to-invoice POS order carrying a single down payment
+        line against a confirmed sale order, the way the client sends it."""
+        dp_product = self.env["product.product"].create(
+            {
+                "name": "Down Payment",
+                "available_in_pos": True,
+                "type": "service",
+                "taxes_id": [],
+            }
+        )
+        self.main_pos_config.write({"down_payment_product_id": dp_product.id})
+
+        product = self.env["product.product"].create(
+            {
+                "name": "Downpayment Probe Product",
+                "available_in_pos": True,
+                "type": "service",
+                "invoice_policy": "ordered",
+                "lst_price": 100.0,
+                "taxes_id": [],
+            }
+        )
+        partner = self.env["res.partner"].create({"name": "Downpayment Partner"})
+        sale_order = (
+            self.env["sale.order"]
+            .sudo()
+            .create(
+                {
+                    "partner_id": partner.id,
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "product_id": product.id,
+                                "name": product.name,
+                                "product_qty": 1,
+                                "price_unit": 100.0,
+                            }
+                        )
+                    ],
+                }
+            )
+        )
+        sale_order.action_confirm()
+
+        self.main_pos_config.open_ui()
+        order_uuid = "dp-%s" % uuid.uuid4()
+        self.env["pos.order"].sync_from_ui(
+            [
+                {
+                    "amount_paid": amount,
+                    "amount_tax": 0,
+                    "amount_return": 0,
+                    "amount_total": amount,
+                    "session_id": self.main_pos_config.current_session_id.id,
+                    "date_order": fields.Datetime.to_string(fields.Datetime.now()),
+                    "fiscal_position_id": False,
+                    "lines": [
+                        Command.create(
+                            {
+                                "discount": 0,
+                                "pack_lot_ids": [],
+                                "price_unit": amount,
+                                "product_id": dp_product.id,
+                                "price_subtotal": amount,
+                                "price_subtotal_incl": amount,
+                                "tax_ids": [],
+                                "sale_order_origin_id": sale_order.id,
+                                "down_payment_details": json.dumps(details),
+                                # Exactly what addDownPaymentProductOrderline-
+                                # ToOrder sends: the "down_payment" token plus a
+                                # per-application suffix.
+                                "extra_tax_data": {
+                                    "computation_key": "down_payment,so-%d-dp-0"
+                                    % sale_order.id
+                                },
+                                "qty": 1,
+                            }
+                        )
+                    ],
+                    "name": "Order %s" % order_uuid,
+                    "partner_id": partner.id,
+                    "sequence_number": 2,
+                    "payment_ids": [
+                        Command.create(
+                            {
+                                "amount": amount,
+                                "name": fields.Datetime.now(),
+                                "payment_method_id": self.main_pos_config.payment_method_ids[
+                                    0
+                                ].id,
+                            }
+                        )
+                    ],
+                    "uuid": order_uuid,
+                    "last_order_preparation_change": "{}",
+                    "user_id": self.env.uid,
+                    "to_invoice": True,
+                }
+            ]
+        )
+        return self.env["pos.order"].search([("uuid", "=", order_uuid)])
+
+    def test_downpayment_invoice_line_has_a_description(self):
+        """A POS down payment must not invoice a line with no description."""
+        details = [
+            {
+                "product_name": "Downpayment Probe Product",
+                "product_uom_qty": 1,
+                "price_unit": 100.0,
+                "total": 100.0,
+            }
+        ]
+        order = self._create_pos_downpayment_order(details)
+        self.assertEqual(
+            order.account_move.invoice_line_ids.mapped("name"), ["Down Payment"]
+        )
+
+    def test_downpayment_invoice_line_mentions_the_percentage(self):
+        """A percentage down payment says which percentage it was."""
+        details = [
+            {
+                "product_name": "Downpayment Probe Product",
+                "product_uom_qty": 1,
+                "price_unit": 100.0,
+                "total": 100.0,
+                "percentage_value": 20,
+            }
+        ]
+        order = self._create_pos_downpayment_order(details)
+        self.assertEqual(
+            order.account_move.invoice_line_ids.mapped("name"), ["Down Payment of 20%"]
+        )
 
     def test_downpayment_invoice_link(self):
         # Test to check if the final invoice generated from an SO is correctly linked to the downpayment invoice.
