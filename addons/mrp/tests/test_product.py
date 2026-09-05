@@ -498,7 +498,7 @@ class TestMrpProductKitDomainIsOne(TestMrpCommon):
 @tagged("post_install", "-at_install")
 class TestMrpProductQuantityScope(TestMrpCommon):
     def test_kit_quantities_use_the_location_domains_argument(self):
-        from odoo.addons.stock.models.product_product import QuantityFilters
+        from odoo.addons.stock.tools.quantity import QuantityFilters
 
         component, kit = self.env["product.product"].create(
             [

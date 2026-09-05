@@ -5,8 +5,8 @@ from odoo.exceptions import RedirectWarning, UserError
 from odoo.fields import Domain
 from odoo.tests import TransactionCase, tagged
 
-from odoo.addons.stock.models.product_product import (
-    ProductProduct as StockProductProduct,
+from odoo.addons.stock.models.product_product_quantity import (
+    ProductProductQuantity as StockProductProduct,
 )
 from odoo.addons.stock.tools.quantity import (
     QuantityFilters,

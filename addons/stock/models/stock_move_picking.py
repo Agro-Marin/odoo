@@ -1,0 +1,236 @@
+import logging
+
+from odoo import models
+from odoo.tools.misc import OrderedSet, groupby
+from odoo.tools.translate import _
+
+_logger = logging.getLogger(__name__)
+
+
+class StockMovePicking(models.Model):
+    _inherit = "stock.move"
+
+    def _update_picking(self):
+        Picking = self.env["stock.picking"]
+        grouped_moves = groupby(self, key=lambda m: m._get_picking_assignation_key())
+        for _group, moves in grouped_moves:
+            moves = self.env["stock.move"].concat(*moves)
+            new_picking = False
+            picking = moves[0]._get_picking_for_assignation()
+            if picking:
+                vals = moves._prepare_picking_vals(picking)
+                if vals:
+                    picking.write(vals)
+            else:
+                moves = moves.filtered(
+                    lambda m: m.product_uom_id.compare(m.product_uom_qty, 0.0) >= 0,
+                )
+                if not moves:
+                    continue
+                new_picking = True
+                picking = Picking.create(moves._prepare_new_picking_vals())
+
+            moves.write({"picking_id": picking.id})
+            moves._post_process_picking(new=new_picking)
+        return True
+
+    def _prepare_picking_vals(self, picking):
+        vals = {}
+        if any(picking.partner_id != m.partner_id for m in self):
+            vals["partner_id"] = False
+        if any(picking.origin != m.origin for m in self):
+            current_origins = picking.origin.split(",") if picking.origin else []
+            new_moves_origins = [move.origin for move in self if move.origin]
+            new_origin = ",".join(OrderedSet(current_origins + new_moves_origins))
+            if picking.origin != new_origin:
+                vals["origin"] = new_origin
+        return vals
+
+    def _post_process_picking(self, new=False):
+        pass
+
+    def _prepare_new_picking_vals(self):
+        origins = list(dict.fromkeys(self.filtered("origin").mapped("origin")))
+        origin = ",".join(origins[:5]) if origins else False
+        if origins and len(origins) > 5:
+            origin += "..."
+        partners = self.partner_id
+        vals = {
+            "origin": origin,
+            "company_id": self.company_id.id,
+            "user_id": False,
+            "partner_id": partners.id if len(partners) == 1 else False,
+            "picking_type_id": self.picking_type_id.id,
+            "location_id": self.location_id.id,
+        }
+        if self.location_dest_id:
+            vals["location_dest_id"] = self.location_dest_id.id
+        return vals
+
+    def _get_picking_assignation_key(self):
+        self.check_singleton()
+        keys = (
+            self.reference_ids,
+            self.location_id,
+            self.location_dest_id,
+            self.picking_type_id,
+            self.company_id,
+        )
+        if self.move_orig_ids.picking_id and not self.reference_ids:
+            keys += (self.move_orig_ids.picking_id,)
+        return keys
+
+    def _get_domain_picking_for_assignation(self):
+        return [
+            ("reference_ids", "in", self.reference_ids.ids),
+            ("location_id", "=", self.location_id.id),
+            (
+                "location_dest_id",
+                "=",
+                (
+                    self.location_dest_id.id
+                    or self.picking_type_id.default_location_dest_id.id
+                ),
+            ),
+            ("picking_type_id", "=", self.picking_type_id.id),
+            ("printed", "=", False),
+            (
+                "state",
+                "in",
+                ["draft", "confirmed", "waiting", "partially_available", "assigned"],
+            ),
+        ]
+
+    def _get_picking_for_assignation(self):
+        self.check_singleton()
+        if not self.reference_ids:
+            return self.env["stock.picking"]
+        domain = self._get_domain_picking_for_assignation()
+        reference_set = set(self.reference_ids.ids)
+        covered_picking = self.env["stock.picking"]
+        for picking in self.env["stock.picking"].search(domain):
+            picking_set = set(picking.reference_ids.ids)
+            if picking_set == reference_set:
+                return picking
+            if not covered_picking and picking_set <= reference_set:
+                covered_picking = picking
+        return covered_picking
+
+    def _update_references(self):
+        to_set = self.filtered(lambda m: not m.reference_ids and m.picking_id)
+        for picking, moves in to_set.grouped("picking_id").items():
+            if picking.reference_ids:
+                moves.reference_ids = picking.reference_ids
+
+    def action_view_reference(self):
+        self.check_singleton()
+        if (
+            not self.is_inventory
+            and self.location_dest_usage == "inventory"
+            and self.scrap_id
+        ):
+            return {
+                "res_model": "stock.scrap",
+                "type": "ir.actions.act_window",
+                "views": [[False, "form"]],
+                "res_id": self.scrap_id.id,
+            }
+        source = self.picking_id
+        if source and source.has_access("read"):
+            return {
+                "res_model": source._name,
+                "type": "ir.actions.act_window",
+                "views": [[False, "form"]],
+                "res_id": source.id,
+            }
+        return {
+            "res_model": self._name,
+            "type": "ir.actions.act_window",
+            "views": [[False, "form"]],
+            "res_id": self.id,
+        }
+
+    def action_show_details(self):
+        self.check_singleton()
+        view = self.env.ref("stock.view_stock_move_form_operations")
+
+        return {
+            "name": _("Detailed Operations"),
+            "type": "ir.actions.act_window",
+            "view_mode": "form",
+            "res_model": "stock.move",
+            "views": [(view.id, "form")],
+            "view_id": view.id,
+            "target": "new",
+            "res_id": self.id,
+            "context": dict(
+                self.env.context,
+                default_picked=self.picked,
+            ),
+        }
+
+    def action_product_forecast_report(self):
+        self.check_singleton()
+        action = self.product_id.action_product_forecast_report()
+        action["context"] = {
+            "active_id": self.product_id.id,
+            "active_model": "product.product",
+            "move_to_match_ids": self.ids,
+        }
+        if self._is_consuming():
+            warehouse = self.location_id.warehouse_id
+        else:
+            warehouse = self.location_dest_id.warehouse_id
+
+        if warehouse:
+            action["context"]["warehouse_id"] = warehouse.id
+        return action
+
+    def _get_description(self):
+        product = self.product_id.with_context(lang=self._get_lang())
+        return product._get_description(self.picking_type_id)
+
+    def _get_partner_id(self):
+        self.check_singleton()
+        if self.location_id == self.company_id.internal_transit_location_id:
+            return self.location_dest_id.warehouse_id.partner_id.id
+        return self.partner_id.id
+
+    def _get_lang(self):
+        return (
+            self.picking_id.partner_id.lang
+            or self.partner_id.lang
+            or self.env.user.lang
+        )
+
+    def _get_source_document(self):
+        self.check_singleton()
+        return self.picking_id or False
+
+    def _get_report_description_picking(self):
+        self.check_singleton()
+        description = self.description_picking or ""
+        if description.startswith(self.product_id.display_name):
+            description = description.removeprefix(self.product_id.display_name).strip()
+        return description
+
+    def _get_product_catalog_lines_data(self, parent_record=False, **kwargs):
+        if not (parent_record and self):
+            return {
+                "quantity": 0,
+            }
+        self.product_id.check_singleton()
+        return {
+            **parent_record._get_product_price_and_data(self.product_id),
+            "quantity": (
+                self.product_uom_qty
+                if len(self) == 1
+                else sum(self.mapped("product_qty"))
+            ),
+            "readOnly": len(self) > 1,
+            "uomDisplayName": (len(self) == 1 and self.product_uom_id.display_name)
+            or self.product_id.uom_id.display_name,
+        }
+
+    def _log_cancel_activity(self):
+        return

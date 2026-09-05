@@ -9,7 +9,7 @@ from odoo.tests import TransactionCase, tagged
 from odoo.addons.stock.models.stock_orderpoint_replenish import (
     StockWarehouseOrderpointReplenish,
 )
-from odoo.addons.stock.models.stock_rule import StockRule
+from odoo.addons.stock.models.stock_rule_selection import StockRuleSelection
 
 
 class TestAuditRuleResolution(TransactionCase):
@@ -146,14 +146,14 @@ class TestAuditRuleResolution(TransactionCase):
             for product in products
         ]
 
-        original = StockRule._get_rule_candidates
+        original = StockRuleSelection._get_rule_candidates
         calls = []
 
         def counting(rule_model, *args, **kwargs):
             calls.append(1)
             return original(rule_model, *args, **kwargs)
 
-        with patch.object(StockRule, "_get_rule_candidates", counting):
+        with patch.object(StockRuleSelection, "_get_rule_candidates", counting):
             self.env["stock.rule"].run(procurements)
 
         self.assertEqual(
