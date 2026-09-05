@@ -1,7 +1,10 @@
+from lxml import etree
+
 from odoo.exceptions import AccessError
 from odoo.fields import Command, Domain
 from odoo.tests import Form, tagged
 from odoo.tools import mute_logger
+from odoo.tools.safe_eval import safe_eval
 
 from .test_project_base import TestProjectCommon
 
@@ -1206,4 +1209,35 @@ class TestProjectSharing(TestProjectSharingCommon):
         self.assertTrue(
             next_task,
             "The next occurrence of the recurrent task should be created.",
+        )
+
+    def test_project_sharing_search_offers_my_tasks_filter(self) -> None:
+        """A portal collaborator can narrow a shared project to their own tasks."""
+        arch = etree.fromstring(
+            self.env["project.task"].get_view(
+                self.env.ref("project.project_sharing_project_task_view_search").id,
+                "search",
+            )["arch"]
+        )
+        my_tasks = arch.xpath("//filter[@name='my_tasks']")
+        self.assertTrue(
+            my_tasks,
+            "the Project Sharing search view must offer a filter on the tasks"
+            " assigned to the portal user",
+        )
+        mine = self.env["project.task"].create(
+            {
+                "name": "Assigned to the collaborator",
+                "project_id": self.project_portal.id,
+                "user_ids": [Command.link(self.user_portal.id)],
+            }
+        )
+        domain = Domain(
+            safe_eval(my_tasks[0].get("domain"), {"uid": self.user_portal.id})
+        ) & Domain("project_id", "=", self.project_portal.id)
+        self.assertEqual(
+            self.env["project.task"].search(domain),
+            mine,
+            "the filter keeps the collaborator's own tasks and drops the ones"
+            " assigned to somebody else in the same shared project",
         )
