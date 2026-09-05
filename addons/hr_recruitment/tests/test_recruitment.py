@@ -651,3 +651,39 @@ class TestRecruitment(TransactionCase):
         self.assertEqual(employee.job_title, job.name)
         self.assertEqual(employee.work_contact_id, applicant.partner_id)
         self.assertEqual(employee.applicant_ids, applicant)
+
+    def test_job_activity_count_counts_my_activities_on_open_applicants(self):
+        job = self.env["hr.job"].create({"name": "Counted Job"})
+        hired = self.env["hr.recruitment.stage"].create(
+            {"name": "Hired", "sequence": 60, "hired_stage": True}
+        )
+        open_applicant, hired_applicant, archived_applicant = self.env[
+            "hr.applicant"
+        ].create(
+            [
+                {"partner_name": "Open", "job_id": job.id},
+                {"partner_name": "Hired", "job_id": job.id, "stage_id": hired.id},
+                {"partner_name": "Archived", "job_id": job.id, "active": False},
+            ]
+        )
+        other_user = self.env["res.users"].create(
+            {
+                "name": "Other",
+                "login": "other-recruiter@example.com",
+                "group_ids": [
+                    Command.link(
+                        self.env.ref("hr_recruitment.group_hr_recruitment_user").id
+                    )
+                ],
+            }
+        )
+        for applicant, user in (
+            (open_applicant, self.env.user),
+            (open_applicant, self.env.user),
+            (open_applicant, other_user),
+            (hired_applicant, self.env.user),
+            (archived_applicant, self.env.user),
+        ):
+            applicant.activity_schedule("mail.mail_activity_data_todo", user_id=user.id)
+        self.assertEqual(job.activity_count, 2)
+        self.assertEqual(job.with_user(other_user).activity_count, 1)

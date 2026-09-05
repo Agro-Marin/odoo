@@ -199,26 +199,25 @@ class HrJob(models.Model):
 
     @api.depends_context("uid")
     def _compute_activity_count(self):
-        self.env.cr.execute(
-            """
-            SELECT
-                app.job_id,
-                COUNT(*) AS act_count
-             FROM mail_activity act
-             JOIN hr_applicant app ON app.id = act.res_id
-             JOIN hr_recruitment_stage sta ON app.stage_id = sta.id
-            WHERE act.user_id = %(user_id)s AND act.res_model = 'hr.applicant'
-              AND app.active
-              AND app.job_id = ANY(%(job_ids)s)
-              AND sta.hired_stage IS NOT TRUE
-              AND COALESCE(act.active, TRUE) = TRUE
-            GROUP BY app.job_id
-        """,
-            {"user_id": self.env.uid, "job_ids": list(self.ids or [0])},
-        )
-        job_activities = dict(self.env.cr.fetchall())
+        job_by_applicant_id = {
+            applicant.id: applicant.job_id
+            for applicant in self.env["hr.applicant"].search(
+                [("job_id", "in", self.ids), ("stage_id.hired_stage", "!=", True)]
+            )
+        }
+        activity_count_by_job = defaultdict(int)
+        for res_id, count in self.env["mail.activity"]._read_group(
+            [
+                ("res_model", "=", "hr.applicant"),
+                ("res_id", "in", list(job_by_applicant_id)),
+                ("user_id", "=", self.env.uid),
+            ],
+            ["res_id"],
+            ["__count"],
+        ):
+            activity_count_by_job[job_by_applicant_id[res_id]] += count
         for job in self:
-            job.activity_count = job_activities.get(job.id, 0)
+            job.activity_count = activity_count_by_job[job]
 
     @api.depends("application_ids.interviewer_ids")
     def _compute_extended_interviewer_ids(self):
