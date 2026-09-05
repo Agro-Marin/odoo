@@ -182,15 +182,7 @@ class AccountTaxMergeWizard(models.TransientModel):
         """
 
         def ordered(tax):
-            return tax.repartition_line_ids.sorted(
-                lambda line: (
-                    line.document_type,
-                    line.repartition_type,
-                    line.sequence,
-                    line.factor_percent,
-                    line.account_id.id or 0,
-                )
-            )
+            return tax.repartition_line_ids._sorted_for_positional_pairing()
 
         destination = ordered(tax_to_merge_into)
         mapping = {}
