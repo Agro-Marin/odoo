@@ -1,9 +1,9 @@
 import contextlib
 
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
-from .ir_attachment import _get_s3_client
+from ..tools import s3
 
 
 class ResConfigSettings(models.TransientModel):
@@ -14,19 +14,21 @@ class ResConfigSettings(models.TransientModel):
     )
     cloud_storage_s3_bucket_name = fields.Char(
         string="S3 Bucket Name",
-        config_parameter="cloud_storage_s3_bucket_name",
+        config_parameter=s3.PARAM_BUCKET,
     )
     cloud_storage_s3_region = fields.Char(
         string="AWS Region",
-        config_parameter="cloud_storage_s3_region",
+        config_parameter=s3.PARAM_REGION,
     )
     cloud_storage_s3_access_key_id = fields.Char(
         string="AWS Access Key ID",
-        config_parameter="cloud_storage_s3_access_key_id",
+        help="Stored encrypted in the credential vault, never as a system "
+        "parameter. Leave both key fields empty to keep the stored keys.",
     )
-    cloud_storage_s3_secret_access_key = fields.Char(
-        string="AWS Secret Access Key",
-        config_parameter="cloud_storage_s3_secret_access_key",
+    cloud_storage_s3_secret_access_key = fields.Char(string="AWS Secret Access Key")
+    cloud_storage_s3_keys_set = fields.Boolean(
+        string="IAM keys stored",
+        readonly=True,
     )
     cloud_storage_s3_enabled = fields.Boolean(
         string="Use S3 in this environment",
@@ -56,6 +58,37 @@ class ResConfigSettings(models.TransientModel):
             self.env["ir.config_parameter"].get_param("cloud_storage_provider") == "s3"
         )
 
+    @api.model
+    def get_values(self):
+        res = super().get_values()
+        res["cloud_storage_s3_keys_set"] = bool(s3.get_keys(self.env))
+        return res
+
+    def set_values(self):
+        self._store_s3_keys()
+        super().set_values()
+
+    def _store_s3_keys(self):
+        access_key_id = self.cloud_storage_s3_access_key_id
+        secret_access_key = self.cloud_storage_s3_secret_access_key
+        if bool(access_key_id) != bool(secret_access_key):
+            raise UserError(
+                self.env._(
+                    "Provide both the Access Key ID and the Secret Access Key, "
+                    "or leave both empty to keep the stored keys."
+                )
+            )
+        if not access_key_id:
+            return
+        s3.store_keys(self.env, access_key_id, secret_access_key)
+        self.write(
+            {
+                "cloud_storage_s3_access_key_id": False,
+                "cloud_storage_s3_secret_access_key": False,
+                "cloud_storage_s3_keys_set": True,
+            }
+        )
+
     def _setup_cloud_storage_provider(self):
         if not self._is_s3_provider():
             return super()._setup_cloud_storage_provider()
@@ -63,8 +96,8 @@ class ResConfigSettings(models.TransientModel):
         if icp.sudo().get_param("cloud_storage_s3_enabled") != "True":
             return None
 
-        bucket = icp.get_param("cloud_storage_s3_bucket_name")
-        client = _get_s3_client(self.env)
+        bucket = icp.get_param(s3.PARAM_BUCKET)
+        client = s3.get_client(self.env)
         blob_name = "0/_setup_test.txt"
 
         try:
@@ -120,14 +153,7 @@ class ResConfigSettings(models.TransientModel):
     def _get_cloud_storage_configuration(self):
         if not self._is_s3_provider():
             return super()._get_cloud_storage_configuration()
-        icp = self.env["ir.config_parameter"].sudo()
-        configuration = {
-            "bucket_name": icp.get_param("cloud_storage_s3_bucket_name"),
-            "region": icp.get_param("cloud_storage_s3_region"),
-            "access_key_id": icp.get_param("cloud_storage_s3_access_key_id"),
-            "secret_access_key": icp.get_param("cloud_storage_s3_secret_access_key"),
-        }
-        return configuration if all(configuration.values()) else {}
+        return s3.get_config(self.env)
 
     def _check_cloud_storage_uninstallable(self):
         if not self._is_s3_provider():

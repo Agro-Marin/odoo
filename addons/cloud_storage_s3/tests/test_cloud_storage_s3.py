@@ -3,14 +3,18 @@ from urllib.parse import quote
 
 from botocore.exceptions import ClientError
 
+from odoo import http
 from odoo.exceptions import UserError, ValidationError
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import HttpCase, TransactionCase, tagged
 
 from .. import uninstall_hook
-from ..models.ir_attachment import _get_s3_client, _S3ClientCache
+from ..tools import drive_import, s3
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
+
+CLIENT_FACTORY = "odoo.addons.cloud_storage_s3.tools.s3.boto3.client"
 
 
-class TestCloudStorageS3Common(TransactionCase):
+class TestCloudStorageS3Common(EncryptionKeyCase, TransactionCase):
     def setUp(self):
         super().setUp()
         self.bucket_name = "test-odoo-bucket"
@@ -21,12 +25,9 @@ class TestCloudStorageS3Common(TransactionCase):
         icp = self.env["ir.config_parameter"]
         icp.set_param("cloud_storage_s3_enabled", "True")
         icp.set_param("cloud_storage_provider", "s3")
-        icp.set_param("cloud_storage_s3_bucket_name", self.bucket_name)
-        icp.set_param("cloud_storage_s3_region", self.region)
-        icp.set_param("cloud_storage_s3_access_key_id", self.access_key_id)
-        icp.set_param("cloud_storage_s3_secret_access_key", self.secret_access_key)
-
-        _S3ClientCache.clear()
+        icp.set_param(s3.PARAM_BUCKET, self.bucket_name)
+        icp.set_param(s3.PARAM_REGION, self.region)
+        s3.store_keys(self.env, self.access_key_id, self.secret_access_key)
 
         self.mock_s3_client = MagicMock()
         self.mock_s3_client.generate_presigned_url.return_value = (
@@ -36,15 +37,12 @@ class TestCloudStorageS3Common(TransactionCase):
             {"Error": {"Code": "404"}}, "HeadObject"
         )
 
-        self._boto3_patcher = patch(
-            "odoo.addons.cloud_storage_s3.models.ir_attachment.boto3.client",
-            return_value=self.mock_s3_client,
-        )
+        self._boto3_patcher = patch(CLIENT_FACTORY, return_value=self.mock_s3_client)
         self._boto3_patcher.start()
 
     def tearDown(self):
         self._boto3_patcher.stop()
-        _S3ClientCache.clear()
+        s3.clear_cache()
         super().tearDown()
 
 
@@ -170,20 +168,65 @@ class TestCloudStorageS3(TestCloudStorageS3Common):
         self.mock_s3_client.delete_objects.assert_not_called()
 
     def test_client_cache_invalidation(self):
-        with patch(
-            "odoo.addons.cloud_storage_s3.models.ir_attachment.boto3.client",
-            side_effect=lambda *a, **kw: MagicMock(),
-        ):
-            _S3ClientCache.clear()
-            client1 = _get_s3_client(self.env)
-            client2 = _get_s3_client(self.env)
+        with patch(CLIENT_FACTORY, side_effect=lambda *a, **kw: MagicMock()):
+            s3.clear_cache()
+            client1 = s3.get_client(self.env)
+            client2 = s3.get_client(self.env)
             self.assertIs(client1, client2)
 
-            self.env["ir.config_parameter"].set_param(
-                "cloud_storage_s3_access_key_id", "NEWKEY"
-            )
-            client3 = _get_s3_client(self.env)
+            s3.store_keys(self.env, "NEWKEY", self.secret_access_key)
+            client3 = s3.get_client(self.env)
             self.assertIsNot(client1, client3)
+
+    def test_keys_live_in_the_vault_only(self):
+        credential = s3.get_credential(self.env)
+        self.assertEqual(credential.storage_method, "json")
+        self.assertEqual(
+            credential.get_credential_dict(),
+            {
+                "access_key_id": self.access_key_id,
+                "secret_access_key": self.secret_access_key,
+            },
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT count(*) FROM ir_config_parameter WHERE value LIKE %s",
+            (f"%{self.secret_access_key}%",),
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], 0)
+
+    def test_settings_store_keys_and_clear_the_wizard_row(self):
+        settings = self.env["res.config.settings"].create(
+            {
+                "cloud_storage_s3_access_key_id": "AKIANEWKEY",
+                "cloud_storage_s3_secret_access_key": "newsecret",
+            }
+        )
+        with patch.object(
+            type(settings), "_setup_cloud_storage_provider", return_value=None
+        ):
+            settings.set_values()
+        self.assertEqual(s3.get_keys(self.env)["access_key_id"], "AKIANEWKEY")
+        self.assertFalse(settings.cloud_storage_s3_access_key_id)
+        self.assertFalse(settings.cloud_storage_s3_secret_access_key)
+        self.assertTrue(settings.cloud_storage_s3_keys_set)
+        self.assertTrue(
+            self.env["res.config.settings"].get_values()["cloud_storage_s3_keys_set"]
+        )
+
+    def test_settings_refuse_half_a_key_pair(self):
+        settings = self.env["res.config.settings"].create(
+            {"cloud_storage_s3_access_key_id": "AKIANEWKEY"}
+        )
+        with self.assertRaises(UserError):
+            settings.set_values()
+
+    def test_configuration_needs_the_vault_keys(self):
+        settings = self.env["res.config.settings"].new({})
+        self.assertTrue(settings._get_cloud_storage_configuration())
+        s3.get_credential(self.env).active = False
+        s3.clear_cache()
+        self.assertFalse(settings._get_cloud_storage_configuration())
 
     def test_is_s3_provider(self):
         attachment = self.env["ir.attachment"].new()
@@ -205,10 +248,9 @@ class TestCloudStorageS3(TestCloudStorageS3Common):
         uninstall_hook(self.env)
         icp = self.env["ir.config_parameter"]
         self.assertFalse(icp.get_param("cloud_storage_provider"))
-        self.assertFalse(icp.get_param("cloud_storage_s3_bucket_name"))
-        self.assertFalse(icp.get_param("cloud_storage_s3_region"))
-        self.assertFalse(icp.get_param("cloud_storage_s3_access_key_id"))
-        self.assertFalse(icp.get_param("cloud_storage_s3_secret_access_key"))
+        self.assertFalse(icp.get_param(s3.PARAM_BUCKET))
+        self.assertFalse(icp.get_param(s3.PARAM_REGION))
+        self.assertFalse(s3.get_credential(self.env))
 
 
 class TestCloudStorageS3Hybrid(TestCloudStorageS3Common):
@@ -368,6 +410,176 @@ class TestCloudStorageS3Hybrid(TestCloudStorageS3Common):
         settings = self.env["res.config.settings"].new({})
         self.assertTrue(settings._get_cloud_storage_configuration())
 
-    def test_documents_not_in_unsupported_models(self):
-        unsupported = self.env["ir.attachment"]._get_cloud_storage_unsupported_models()
-        self.assertNotIn("documents.document", unsupported)
+
+def _page(*objects):
+    return [{"Contents": [{"Key": key, "Size": size} for key, size in objects]}]
+
+
+@tagged("post_install", "-at_install")
+class TestDriveImport(TestCloudStorageS3Common):
+    def setUp(self):
+        super().setUp()
+        if "documents.document" not in self.env:
+            self.skipTest("documents is not installed")
+        self.user = self.env["res.users"].create(
+            {"name": "Drive Viewer", "login": "drive_viewer"}
+        )
+        self.admin = self.env["res.users"].create(
+            {"name": "Drive Admin", "login": "drive_admin"}
+        )
+        paginator = MagicMock()
+        paginator.paginate.return_value = _page(
+            ("06 Partners/", 0),
+            ("06 Partners/ACME/contract.pdf", 1234),
+            ("06 Partners/ACME/logo.png", 99),
+            ("Empty Folder/", 0),
+            ("readme.txt", 7),
+        )
+        self.mock_s3_client.get_paginator.return_value = paginator
+
+    def _import(self, grants=()):
+        return drive_import.import_bucket(
+            self.env,
+            self.mock_s3_client,
+            "drive-bucket",
+            self.region,
+            root_name="Cloud",
+            grants=grants,
+        )
+
+    def test_objects_become_a_folder_tree_over_the_existing_keys(self):
+        result = self._import()
+        root = self.env["documents.document"].browse(result["root_id"])
+        self.assertEqual(root.type, "folder")
+        self.assertTrue(root._is_company_root_folder())
+        self.assertEqual(result["folders"], 3)
+        self.assertEqual(result["files"], 3)
+        contract = self.env["documents.document"].search(
+            [("name", "=", "contract.pdf")]
+        )
+        self.assertEqual(contract.folder_id.name, "ACME")
+        self.assertEqual(contract.folder_id.folder_id.name, "06 Partners")
+        self.assertEqual(contract.folder_id.folder_id.folder_id, root)
+        attachment = contract.attachment_id
+        self.assertEqual(attachment.type, "cloud_storage")
+        self.assertEqual(
+            attachment.url,
+            f"https://drive-bucket.s3.{self.region}.amazonaws.com/"
+            + quote("06 Partners/ACME/contract.pdf"),
+        )
+        self.assertEqual(attachment.mimetype, "application/pdf")
+        self.assertEqual(attachment.file_size, 1234)
+        self.assertEqual(attachment.res_model, "documents.document")
+        self.assertEqual(attachment.res_id, contract.id)
+        self.assertEqual(
+            contract.attachment_id._get_s3_info()["blob_name"],
+            "06 Partners/ACME/contract.pdf",
+        )
+        self.mock_s3_client.put_object.assert_not_called()
+        self.mock_s3_client.copy_object.assert_not_called()
+
+    def test_grants_map_onto_documents_access(self):
+        result = self._import(
+            grants=[
+                {
+                    "path": "06 Partners",
+                    "user_id": self.user.id,
+                    "access_level": "read",
+                },
+                {
+                    "path": "06 Partners/ACME",
+                    "user_id": self.admin.id,
+                    "access_level": "admin",
+                },
+                {
+                    "path": "readme.txt",
+                    "user_id": self.user.id,
+                    "access_level": "upload",
+                },
+                {"path": "missing", "user_id": self.user.id, "access_level": "read"},
+            ]
+        )
+        self.assertEqual(result["grants"], 3)
+        self.assertEqual([g["path"] for g in result["skipped_grants"]], ["missing"])
+        documents = self.env["documents.document"]
+        partners = documents.search([("name", "=", "06 Partners")])
+        self.assertEqual(partners.access_ids.partner_id, self.user.partner_id)
+        self.assertEqual(partners.access_ids.role, "view")
+        acme = documents.search([("name", "=", "ACME")])
+        self.assertEqual(acme.owner_id, self.admin)
+        roles = {access.partner_id: access.role for access in acme.access_ids}
+        self.assertEqual(roles[self.admin.partner_id], "edit")
+        self.assertEqual(roles[self.user.partner_id], "view")
+        readme = documents.search([("name", "=", "readme.txt")])
+        self.assertEqual(readme.access_ids.role, "edit")
+        self.assertEqual(partners.with_user(self.user).user_permission, "view")
+        self.assertEqual(acme.with_user(self.user).user_permission, "view")
+        self.assertEqual(readme.with_user(self.user).user_permission, "edit")
+
+    def test_cloud_images_thumbnails_are_client_generated(self):
+        self._import()
+        logo = self.env["documents.document"].search([("name", "=", "logo.png")])
+        self.assertEqual(logo.thumbnail_status, "client_generated")
+
+
+@tagged("post_install", "-at_install")
+class TestDocumentsDirectUpload(EncryptionKeyCase, HttpCase):
+    def setUp(self):
+        super().setUp()
+        if "documents.document" not in self.env:
+            self.skipTest("documents is not installed")
+        icp = self.env["ir.config_parameter"]
+        icp.set_param("cloud_storage_s3_enabled", "True")
+        icp.set_param("cloud_storage_provider", "s3")
+        icp.set_param(s3.PARAM_BUCKET, "test-odoo-bucket")
+        icp.set_param(s3.PARAM_REGION, "us-east-2")
+        s3.store_keys(self.env, "AKIAIOSFODNN7EXAMPLE", "secret")
+        client = MagicMock()
+        client.generate_presigned_url.return_value = "https://presigned.example.com/put"
+        self._boto3_patcher = patch(CLIENT_FACTORY, return_value=client)
+        self._boto3_patcher.start()
+        self.uploader = self.env["res.users"].create(
+            {
+                "name": "Uploader",
+                "login": "uploader",
+                "password": "uploader_pwd",
+                "group_ids": [
+                    (6, 0, [self.env.ref("documents.group_documents_user").id])
+                ],
+            }
+        )
+
+    def tearDown(self):
+        self._boto3_patcher.stop()
+        s3.clear_cache()
+        super().tearDown()
+
+    def test_upload_route_signs_a_direct_upload(self):
+        self.authenticate("uploader", "uploader_pwd")
+        response = self.url_open(
+            "/documents/upload/",
+            data={
+                "csrf_token": http.Request.csrf_token(self),
+                "user_folder_id": "MY",
+                "cloud_storage": "1",
+                "file_size": "4096",
+            },
+            files={"ufile": ("big.bin", b"", "application/octet-stream")},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        document = self.env["documents.document"].browse(payload["document_ids"])
+        self.assertEqual(payload["upload_info"]["method"], "PUT")
+        self.assertEqual(
+            payload["upload_info"]["url"], "https://presigned.example.com/put"
+        )
+        attachment = document.attachment_id
+        self.assertEqual(attachment.type, "cloud_storage")
+        self.assertEqual(attachment.file_size, 4096)
+        self.assertEqual(document.file_size, 4096)
+        self.assertIn("documents_document/", attachment.url)
+        self.assertEqual(attachment.res_id, document.id)
+        self.assertNotIn(
+            "documents.document",
+            self.env["ir.attachment"]._get_cloud_storage_unsupported_models(),
+        )

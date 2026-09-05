@@ -1,7 +1,6 @@
 import io
 import logging
 from collections import defaultdict
-from typing import Any
 
 from odoo import api, fields, models
 from odoo.tools.pdf import OdooPdfFileReader, OdooPdfFileWriter
@@ -12,15 +11,11 @@ _logger = logging.getLogger(__name__)
 
 
 class IrAttachment(models.Model):
-
     _inherit = "ir.attachment"
 
     document_ids = fields.One2many(
         "documents.document", "attachment_id", export_string_translation=False
     )
-
-    def _zip_detached_reader(self) -> Any:
-        return None
 
     def get_documents_operation_add_destination(self) -> dict:
         self.check_singleton()

@@ -633,48 +633,57 @@ export class DocumentService {
      * @param {Object} [param3]
      * @param {number|String} [param3.targetFolderId]
      */
+    /**
+     * A file that goes straight to the cloud provider never crosses the
+     * server, so the server's upload cap does not apply to it.
+     *
+     * @param {File} file
+     * @returns {boolean}
+     */
+    isCloudUpload(file) {
+        return (
+            session.cloud_storage_min_file_size !== undefined &&
+            file.size > session.cloud_storage_min_file_size &&
+            !session.cloud_storage_unsupported_models.includes("documents.document")
+        );
+    }
+
     async uploadDocument(files, accessToken, context, { targetFolderId } = {}) {
         const fileArray = [...files];
         const maxUploadSize = await this.getMaxUploadSize();
-        const validFiles = fileArray.filter((file) => file.size <= maxUploadSize);
-        if (validFiles.length !== 0) {
-            const encodedToken = encodeURIComponent(accessToken || "");
-            const uploadRoute = `/documents/upload/${encodedToken}`;
-            const upload = await this.fileUpload.upload(uploadRoute, validFiles, {
-                buildFormData: (formData) => {
-                    if (context) {
-                        for (const key of [
-                            "default_user_folder_id",
-                            "default_partner_id",
-                            "default_res_id",
-                            "default_res_model",
-                        ]) {
-                            if (context[key]) {
-                                formData.append(
-                                    key.replace("default_", ""),
-                                    context[key],
-                                );
-                            }
-                        }
-                        if (context.allowed_company_ids) {
-                            formData.append(
-                                "allowed_company_ids",
-                                JSON.stringify(context.allowed_company_ids),
-                            );
-                        }
-                        if (context.document_id) {
-                            formData.append("document_id", context.document_id);
-                        }
-                    }
-                },
-                displayErrorNotification: false,
-            });
+        const cloudFiles = fileArray.filter((file) => this.isCloudUpload(file));
+        const validFiles = fileArray.filter(
+            (file) => !cloudFiles.includes(file) && file.size <= maxUploadSize,
+        );
+        const encodedToken = encodeURIComponent(accessToken || "");
+        const uploadRoute = `/documents/upload/${encodedToken}`;
+        const trackTarget = (upload) => {
             const trackedUpload = upload && this.fileUpload.uploads[upload.id];
             if (trackedUpload && targetFolderId !== undefined) {
                 trackedUpload.targetFolderId = targetFolderId;
             }
+        };
+        for (const file of cloudFiles) {
+            trackTarget(
+                await this.fileUpload.upload(uploadRoute, [file], {
+                    directFile: file,
+                    buildFormData: (formData) => {
+                        this._buildUploadFormData(formData, context);
+                        formData.append("cloud_storage", "1");
+                    },
+                    displayErrorNotification: false,
+                }),
+            );
         }
-        if (validFiles.length >= fileArray.length) {
+        if (validFiles.length !== 0) {
+            const upload = await this.fileUpload.upload(uploadRoute, validFiles, {
+                buildFormData: (formData) =>
+                    this._buildUploadFormData(formData, context),
+                displayErrorNotification: false,
+            });
+            trackTarget(upload);
+        }
+        if (validFiles.length + cloudFiles.length >= fileArray.length) {
             return;
         }
         const message = _t(
@@ -682,6 +691,35 @@ export class DocumentService {
             formatFieldFloat(maxUploadSize, { humanReadable: true }),
         );
         this.notification.add(message, { type: "danger" });
+    }
+
+    /**
+     * @param {FormData} formData
+     * @param {Object} [context]
+     */
+    _buildUploadFormData(formData, context) {
+        if (!context) {
+            return;
+        }
+        for (const key of [
+            "default_user_folder_id",
+            "default_partner_id",
+            "default_res_id",
+            "default_res_model",
+        ]) {
+            if (context[key]) {
+                formData.append(key.replace("default_", ""), context[key]);
+            }
+        }
+        if (context.allowed_company_ids) {
+            formData.append(
+                "allowed_company_ids",
+                JSON.stringify(context.allowed_company_ids),
+            );
+        }
+        if (context.document_id) {
+            formData.append("document_id", context.document_id);
+        }
     }
 }
 

@@ -6,6 +6,7 @@ import { browser } from "@web/core/browser/browser";
 import { FileUploadEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
 class FileUploadService {
     /**
      * @param {{ notification: any }} services
@@ -22,19 +23,37 @@ class FileUploadService {
     }
 
     /**
+     * An empty stand-in that keeps the file's identity, so a controller can
+     * create the record and sign a direct upload for it without the bytes.
+     *
+     * @param {File} file
+     * @returns {File}
+     */
+    placeholderFor(file) {
+        return new File([new Blob([])], file.name, { type: file.type });
+    }
+
+    /**
      * @param {string} route
      * @param {FileList | File[]} files
      * @param {{
      * buildFormData?: (formData: FormData) => void,
      * displayErrorNotification?: boolean,
+     * directFile?: File,
      * [key: string]: any,
-     * }} [params]
+     * }} [params] `directFile` makes the upload two-phase: the route
+     *  receives an empty placeholder carrying the file's name and type and
+     *  must answer with an `upload_info`; the real bytes then go straight to
+     *  that URL, and LOADED fires only once both phases have succeeded.
      */
     async upload(route, files, params = {}) {
         const xhr = fileUploadService.createXhr();
         xhr.open("POST", route);
         const formData = new FormData();
         formData.append("csrf_token", odoo.csrf_token);
+        if (params.directFile) {
+            files = [this.placeholderFor(params.directFile)];
+        }
         for (const file of files) {
             formData.append("ufile", file);
         }
@@ -59,13 +78,35 @@ class FileUploadService {
             upload.total = ev.total;
             upload.state = "loading";
         });
-        xhr.addEventListener("load", () => {
+        xhr.addEventListener("load", async () => {
             this.inFlight.delete(xhr);
+            let content;
             try {
-                handleResponse();
+                content = handleResponse();
             } catch (e) {
                 onError(e);
                 return;
+            }
+            if (params.directFile) {
+                if (!content?.upload_info) {
+                    onError(
+                        new Error(_t("The server did not return a direct upload URL.")),
+                    );
+                    return;
+                }
+                upload.state = "loading";
+                try {
+                    await this.uploadToUrl(content.upload_info, params.directFile, {
+                        onProgress: (loaded, total) => {
+                            upload.progress = total > 0 ? loaded / total : 0;
+                            upload.loaded = loaded;
+                            upload.total = total;
+                        },
+                    });
+                } catch (e) {
+                    onError(e);
+                    return;
+                }
             }
             delete this.uploads[upload.id];
             upload.state = "loaded";
@@ -91,13 +132,14 @@ class FileUploadService {
         };
 
         /**
-         * @returns {true}
+         * @returns {Object|undefined} the parsed JSON body, when it is one
          * @throws {Error}
          */
         const handleResponse = () => {
             const resp = xhr.responseText ?? xhr.response;
             let error;
             let errorMessage = "";
+            let parsed;
             if (!(xhr.status >= 200 && xhr.status < 300)) {
                 error = true;
             }
@@ -122,6 +164,7 @@ class FileUploadService {
                 if (error && content instanceof Document) {
                     errorMessage = content.body?.textContent?.trim() || errorMessage;
                 } else if (content instanceof Object) {
+                    parsed = content;
                     if (content.error) {
                         error = true;
                         if (content.error.data) {
@@ -135,7 +178,7 @@ class FileUploadService {
             if (error) {
                 throw new Error(errorMessage);
             }
-            return true;
+            return parsed;
         };
 
         /**
@@ -167,6 +210,61 @@ class FileUploadService {
         xhr.send(formData);
         this.bus.trigger(FileUploadEvent.ADDED, { upload });
         return upload;
+    }
+
+    /**
+     * Send a file's bytes straight to a storage URL a controller signed for
+     * it, outside the Odoo server. Resolves on the status the signer declared
+     * and rejects with an Error carrying `status` otherwise; the browser
+     * reports a CORS refusal as a network error, which arrives as status 0.
+     *
+     * @param {{url: string, method: string, response_status: number, headers?: Record<string, string>}} uploadInfo
+     * @param {File | Blob} file
+     * @param {{ onProgress?: (loaded: number, total: number) => void }} [options]
+     * @returns {Promise<XMLHttpRequest> & { abort: () => void }}
+     */
+    uploadToUrl(uploadInfo, file, { onProgress } = {}) {
+        const xhr = fileUploadService.createXhr();
+        this.inFlight.add(xhr);
+        const promise = new Promise((resolve, reject) => {
+            const fail = (message, status) => {
+                this.inFlight.delete(xhr);
+                const error = new Error(message);
+                error.status = status;
+                reject(error);
+            };
+            xhr.open(uploadInfo.method, uploadInfo.url);
+            for (const [key, value] of Object.entries(uploadInfo.headers || {})) {
+                xhr.setRequestHeader(key, value);
+            }
+            if (onProgress) {
+                xhr.upload.addEventListener("progress", (ev) =>
+                    onProgress(ev.loaded, ev.total),
+                );
+            }
+            xhr.addEventListener("load", () => {
+                if (xhr.status === 403) {
+                    fail(
+                        _t("You are not allowed to upload file to the cloud storage"),
+                        403,
+                    );
+                } else if (xhr.status !== uploadInfo.response_status) {
+                    fail(_t("Cloud storage error"), xhr.status);
+                } else {
+                    this.inFlight.delete(xhr);
+                    resolve(xhr);
+                }
+            });
+            xhr.addEventListener("error", () => fail(_t("Cloud storage error"), 0));
+            xhr.addEventListener("abort", () => {
+                const error = new Error(_t("Upload aborted"));
+                error.name = "AbortError";
+                this.inFlight.delete(xhr);
+                reject(error);
+            });
+            xhr.send(file);
+        });
+        return Object.assign(promise, { abort: () => xhr.abort() });
     }
 
     destroy() {

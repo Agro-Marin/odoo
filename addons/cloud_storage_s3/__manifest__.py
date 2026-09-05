@@ -1,6 +1,6 @@
 {
     "name": "Cloud Storage S3",
-    "version": "19.0.2.0.0",
+    "version": "19.0.3.0.0",
     "category": "Technical Settings",
     "summary": "Store attachments in Amazon S3, with an optional local mirror",
     "author": "AgroMarin",
@@ -8,6 +8,7 @@
     "license": "LGPL-3",
     "depends": [
         "cloud_storage",
+        "credential",
     ],
     "external_dependencies": {
         "python": [
@@ -15,6 +16,7 @@
         ],
     },
     "data": [
+        "data/credential_category_data.xml",
         "data/ir_cron.xml",
         "views/settings.xml",
     ],

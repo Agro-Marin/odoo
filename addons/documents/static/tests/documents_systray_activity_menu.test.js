@@ -9,7 +9,11 @@ defineDocumentsModels();
 test("activity menu widget: documents request button", async () => {
     mockService("action", {
         doAction(action) {
-            expect(action).toBe("documents.action_request_form");
+            // The web client with no action in the URL opens the home menu
+            // through this same service; only the button's dispatch is asserted.
+            if (action !== "menu") {
+                expect.step(action);
+            }
         },
     });
     await start();
@@ -17,4 +21,5 @@ test("activity menu widget: documents request button", async () => {
     await waitFor(".o-mail-ActivityMenu");
     await contains(".o_sys_documents_request").click();
     await waitForNone(".o-mail-ActivityMenu");
+    expect.verifySteps(["documents.action_request_form"]);
 });

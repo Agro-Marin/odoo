@@ -4,8 +4,8 @@ import { registry } from "@web/core/registry";
 import { Deferred, Mutex } from "@web/core/utils/concurrency";
 
 import {
+    getImageThumbnail,
     getPdfThumbnail,
-    getWebpThumbnail,
 } from "./documents_client_thumbnail_service_utils.js";
 
 const THUMBNAIL_WIDTH = 200;
@@ -35,10 +35,10 @@ export const documentsClientThumbnailService = {
                 if (isPdfValid === false) {
                     thumbnail = false;
                 }
-            } else if (record.data.mimetype === "image/webp") {
+            } else if (record.data.mimetype?.startsWith("image/")) {
                 try {
                     const img = await this._getLoadedImage(record);
-                    ({ thumbnail } = await getWebpThumbnail(
+                    ({ thumbnail } = await getImageThumbnail(
                         img,
                         THUMBNAIL_WIDTH,
                         THUMBNAIL_HEIGHT,

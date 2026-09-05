@@ -12,7 +12,6 @@ from odoo.addons.mail.tests.common import mail_new_test_user
 
 @tagged("post_install", "-at_install")
 class TestDocumentsPdfSplitTargets(HttpCaseWithUserDemo):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -77,7 +76,6 @@ class TestDocumentsPdfSplitTargets(HttpCaseWithUserDemo):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsUploadRoute(HttpCase, TransactionCaseDocuments):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -122,6 +120,15 @@ class TestDocumentsUploadRoute(HttpCase, TransactionCaseDocuments):
             before,
             "nothing may be filed on a record the uploader cannot write",
         )
+
+    def test_direct_cloud_upload_needs_a_provider(self):
+        self.authenticate("plain_internal", "plain_internal")
+        self.env["ir.config_parameter"].sudo().set_param("cloud_storage_provider", "")
+        before = self.env["documents.document"].search_count([])
+        with mute_logger("odoo.http"):
+            response = self._upload(user_folder_id="MY", cloud_storage="1")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self.env["documents.document"].search_count([]), before)
 
     def test_root_upload_still_works_without_a_linked_record(self):
         self.authenticate("plain_internal", "plain_internal")

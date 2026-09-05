@@ -15,7 +15,7 @@ export async function getPdfThumbnail(record, width, height) {
 /**
  * @return {Promise<{thumbnail: string}>}
  */
-export async function getWebpThumbnail(img, width, height) {
+export async function getImageThumbnail(img, width, height) {
     const canvas = document.createElement("canvas");
     const widthRatio = width / img.width;
     const heightRatio = height / img.height;

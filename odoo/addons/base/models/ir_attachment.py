@@ -56,7 +56,7 @@ from odoo.addons.base.models.ir_attachment_storage import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Generator
+    from collections.abc import Callable, Collection, Generator, Iterator
 
     from odoo.tools.query import Query
 
@@ -256,8 +256,10 @@ class IrAttachment(models.Model):
         elif db_datas:
             has_content = True
             vals["raw"] = db_datas.encode() if isinstance(db_datas, str) else db_datas
-        for field in ("file_size", "checksum", "store_fname", "index_content"):
+        for field in ("checksum", "store_fname", "index_content"):
             vals.pop(field, None)
+        if has_content:
+            vals.pop("file_size", None)
         return vals, has_content
 
     @api.model_create_multi
@@ -1373,6 +1375,9 @@ class IrAttachment(models.Model):
     def _migrate_remote_to_local(self) -> bool:
         self.check_singleton()
         return self.type == "binary"
+
+    def _zip_detached_reader(self) -> Callable[[int], Iterator[bytes]] | None:
+        return None
 
     @api.autovacuum
     def _audit_url_attachments(self) -> None:

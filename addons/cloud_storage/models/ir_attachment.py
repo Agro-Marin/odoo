@@ -133,14 +133,22 @@ class IrAttachment(models.Model):
         raise NotImplementedError
 
     def _get_cloud_storage_unsupported_models(self):
-        # Some models may use their attachments' data in the business code
-        # We should avoid those attachments to be uploaded to the cloud storage
-        models = self.env.registry.descendants(
-            ["mixin.mail.thread.main.attachment"], "_inherit", "_inherits"
-        )
-        if "mixin.documents" in self.env:
-            models.update(
-                self.env.registry.descendants(["mixin.documents"], "_inherit")
+        # A main attachment is read back by business code (OCR, EDI, previews),
+        # so it must keep its bytes on the server.
+        return list(
+            self.env.registry.descendants(
+                ["mixin.mail.thread.main.attachment"], "_inherit", "_inherits"
             )
-            models.add("documents.document")
-        return list(models)
+        )
+
+    def _zip_detached_reader(self):
+        if self.type != "cloud_storage":
+            return super()._zip_detached_reader()
+        url = self._generate_cloud_storage_download_info()["url"]
+
+        def read_blocks(block_size):
+            with requests.get(url, stream=True, timeout=30) as response:
+                response.raise_for_status()
+                yield from response.iter_content(block_size)
+
+        return read_blocks

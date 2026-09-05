@@ -34,7 +34,6 @@ def _sanitize_file_extension(extension: str) -> str:
 
 
 class DocumentsDocument(models.Model):
-
     _name = "documents.document"
     _description = "Document"
     _inherit = [
@@ -48,7 +47,6 @@ class DocumentsDocument(models.Model):
     _parent_name = "folder_id"
     _parent_store = True
     _systray_view = "activity"
-
 
     company_id = fields.Many2one(
         "res.company",
@@ -281,9 +279,7 @@ class DocumentsDocument(models.Model):
         compute="_compute_user_can_move",
     )
 
-    parent_path = fields.Char(
-        index=True
-    )
+    parent_path = fields.Char(index=True)
     folder_id = fields.Many2one(
         "documents.document",
         string="Folder",
@@ -383,7 +379,6 @@ class DocumentsDocument(models.Model):
     )
 
     _res_model_res_id_idx = models.Index("(res_model, res_id)")
-
 
     _attachment_unique = models.Constraint(
         "unique (attachment_id)",
@@ -504,7 +499,6 @@ class DocumentsDocument(models.Model):
                         document.url,
                     )
                 )
-
 
     def _pop_attachment_vals(self, vals: dict) -> dict:
         keys = [
@@ -706,9 +700,7 @@ class DocumentsDocument(models.Model):
             if to_active is False:
                 if not self.env.su and self.env.user.share:
                     raise UserError(_("You are not allowed to (un)archive documents."))
-                self.check_access(
-                    "unlink"
-                )
+                self.check_access("unlink")
             documents_per_initial_active = self.grouped("active")
 
         attachment_id = vals.get("attachment_id")
@@ -837,9 +829,7 @@ class DocumentsDocument(models.Model):
                             'Operation not supported. Please use "Move to Trash" / `action_archive` instead.'
                         )
                     )
-                if archived_documents := documents_per_initial_active.get(
-                    True
-                ):
+                if archived_documents := documents_per_initial_active.get(True):
                     archived_documents._log_transition_to_parent_folders(
                         lambda names: self.env._(
                             "The following documents have been sent to trash: "
@@ -856,9 +846,7 @@ class DocumentsDocument(models.Model):
                             'Operation not supported. Please use "Restore" / `action_unarchive` instead.'
                         )
                     )
-                if restored_documents := documents_per_initial_active.get(
-                    False
-                ):
+                if restored_documents := documents_per_initial_active.get(False):
                     restored_documents._log_transition_to_parent_folders(
                         lambda names: self.env._(
                             "The following documents have been restored from the "
@@ -898,9 +886,7 @@ class DocumentsDocument(models.Model):
         ) and self.shortcut_ids | self.children_ids:
             self._update_company(company_id)
 
-        self._add_user_role_without_propagation(
-            "edit", previous_owner_access_to_keep
-        )
+        self._add_user_role_without_propagation("edit", previous_owner_access_to_keep)
 
         if new_parent_folder and (
             documents_to_sync := documents_to_move.filtered(
@@ -1124,7 +1110,6 @@ class DocumentsDocument(models.Model):
     def _unlink_except_company_folders(self) -> None:
         self._raise_if_used_folder()
 
-
     @api.depends("document_token")
     def _compute_access_token(self) -> None:
         for document in self:
@@ -1308,6 +1293,7 @@ class DocumentsDocument(models.Model):
     @api.depends(
         "checksum",
         "mimetype",
+        "attachment_id.type",
         "shortcut_document_id.thumbnail",
         "shortcut_document_id.thumbnail_status",
     )
@@ -1321,6 +1307,10 @@ class DocumentsDocument(models.Model):
             elif document.mimetype and (
                 document.mimetype.startswith("application/pdf")
                 or document.mimetype.startswith("image/webp")
+                or (
+                    document.mimetype.startswith("image/")
+                    and document.attachment_id.type == "cloud_storage"
+                )
             ):
                 document.thumbnail = False
                 document.thumbnail_status = "client_generated"
@@ -1355,7 +1345,6 @@ class DocumentsDocument(models.Model):
                 )
             else:
                 record.res_model_name = False
-
 
     def _inverse_file_extension(self) -> None:
         for record in self:
@@ -1394,7 +1383,6 @@ class DocumentsDocument(models.Model):
             attachments.sudo().with_context(no_document=True).write(
                 {"res_model": res_model, "res_id": res_id}
             )
-
 
     def action_move_folder(
         self, target: str, before_folder_id: int | bool = False
@@ -1703,7 +1691,6 @@ class DocumentsDocument(models.Model):
             }
         return False
 
-
     def add_documents_attachment(
         self, res_model: str, res_id: int, is_public: bool = False
     ) -> list[dict]:
@@ -1732,9 +1719,7 @@ class DocumentsDocument(models.Model):
             return res
         access_vals_list = []
         for doc, doc_copied in zip(self, res, strict=True):
-            owner_partner = (
-                doc_copied.owner_id.partner_id
-            )
+            owner_partner = doc_copied.owner_id.partner_id
             doc_access_to_have = doc.access_ids.filtered("role")
             doc_access_to_create = doc_access_to_have.filtered(
                 lambda a, doc_copied=doc_copied, owner_partner=owner_partner: (
@@ -2194,7 +2179,6 @@ class DocumentsDocument(models.Model):
         removed = len(expired)
         expired.unlink()
         return removed, removed == limit
-
 
     def _raise_if_used_folder(self) -> None:
         if folder_ids := self.filtered(lambda d: d.type == "folder").ids:

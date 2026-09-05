@@ -4,43 +4,18 @@ import uuid
 from collections import defaultdict
 from functools import partial
 from itertools import batched
-from urllib.parse import quote, unquote
-
-import boto3
-from botocore.exceptions import ClientError
+from urllib.parse import unquote
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-_logger = logging.getLogger(__name__)
+from ..tools import s3
 
-_S3ClientCache = {}
+_logger = logging.getLogger(__name__)
 
 S3_URL_PATTERN = re.compile(
     r"^https://(?P<bucket_name>[\w\-.]+)\.s3\.(?P<region>[\w\-.]+)\.amazonaws\.com/(?P<blob_name>[^?]+)$"
 )
-
-
-def _get_s3_client(env):
-    icp = env["ir.config_parameter"].sudo()
-    cfg = (
-        icp.get_param("cloud_storage_s3_access_key_id"),
-        icp.get_param("cloud_storage_s3_secret_access_key"),
-        icp.get_param("cloud_storage_s3_region"),
-    )
-    cached_config, cached_client = _S3ClientCache.get(
-        env.registry.db_name, (None, None)
-    )
-    if cached_config == cfg and cached_client:
-        return cached_client
-    client = boto3.client(
-        "s3",
-        aws_access_key_id=cfg[0],
-        aws_secret_access_key=cfg[1],
-        region_name=cfg[2],
-    )
-    _S3ClientCache[env.registry.db_name] = (cfg, client)
-    return client
 
 
 class IrAttachment(models.Model):
@@ -78,18 +53,6 @@ class IrAttachment(models.Model):
             icp.get_param("cloud_storage_provider") == "s3"
             and icp.get_param("cloud_storage_s3_storage_mode") == "hybrid"
         )
-
-    def _get_cloud_storage_unsupported_models(self):
-        unsupported = super()._get_cloud_storage_unsupported_models()
-        if not self._is_s3_provider():
-            return unsupported
-        documents_models = set()
-        if "mixin.documents" in self.env:
-            documents_models.update(
-                self.env.registry.descendants(["mixin.documents"], "_inherit")
-            )
-            documents_models.add("documents.document")
-        return [m for m in unsupported if m not in documents_models]
 
     def _filter_s3_mirrorable(self):
         return self.filtered(
@@ -139,25 +102,8 @@ class IrAttachment(models.Model):
         self.check_singleton()
         return self.store_fname or self._generate_cloud_storage_blob_name()
 
-    def _s3_object_exists(self, client, bucket, key):
-        try:
-            client.head_object(Bucket=bucket, Key=key)
-            return True
-        except ClientError as exc:
-            if exc.response.get("Error", {}).get("Code") in (
-                "404",
-                "NoSuchKey",
-                "NotFound",
-            ):
-                return False
-            raise
-
     def _s3_bucket_name(self):
-        return (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("cloud_storage_s3_bucket_name")
-        )
+        return self.env["ir.config_parameter"].sudo().get_param(s3.PARAM_BUCKET)
 
     def _s3_mirror_to_cloud(self):
         if not self or not self._s3_is_enabled():
@@ -166,11 +112,11 @@ class IrAttachment(models.Model):
         if not bucket:
             _logger.error("S3 mirror skipped: no bucket configured.")
             return
-        client = _get_s3_client(self.env)
+        client = s3.get_client(self.env)
         for attach in self:
             try:
                 blob_name = attach.s3_blob_name or attach._s3_hybrid_blob_name()
-                if self._s3_object_exists(client, bucket, blob_name):
+                if s3.object_exists(client, bucket, blob_name):
                     attach.write(
                         {"s3_blob_name": blob_name, "s3_mirror_pending": False}
                     )
@@ -240,16 +186,15 @@ class IrAttachment(models.Model):
         }
 
     def _generate_s3_url(self, blob_name):
-        bucket = self._s3_bucket_name()
-        region = (
-            self.env["ir.config_parameter"].sudo().get_param("cloud_storage_s3_region")
+        icp = self.env["ir.config_parameter"].sudo()
+        return s3.object_url(
+            icp.get_param(s3.PARAM_BUCKET), icp.get_param(s3.PARAM_REGION), blob_name
         )
-        return f"https://{bucket}.s3.{region}.amazonaws.com/{quote(blob_name)}"
 
     def _generate_s3_presigned_url(
         self, bucket_name, blob_name, method="get_object", expiration=300
     ):
-        client = _get_s3_client(self.env)
+        client = s3.get_client(self.env)
         params = {"Bucket": bucket_name, "Key": blob_name}
         return client.generate_presigned_url(
             method, Params=params, ExpiresIn=expiration
@@ -328,7 +273,7 @@ class IrAttachment(models.Model):
                 if blob not in still_used:
                     blobs_by_bucket[hybrid_bucket].append(blob)
         if blobs_by_bucket:
-            client = _get_s3_client(self.env)
+            client = s3.get_client(self.env)
             for bucket, blob_names in blobs_by_bucket.items():
                 for batch in batched(blob_names, 1000, strict=False):
                     try:

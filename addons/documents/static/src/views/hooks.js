@@ -442,7 +442,8 @@ function useDocumentsViewFileUpload() {
             });
             return;
         }
-        const newDocumentIds = Array.isArray(response) ? response : undefined;
+        const documentIds = Array.isArray(response) ? response : response?.document_ids;
+        const newDocumentIds = Array.isArray(documentIds) ? documentIds : undefined;
         await env.model.load();
         if (!newDocumentIds) {
             return;

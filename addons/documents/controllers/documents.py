@@ -901,6 +901,8 @@ class ShareRoute(http.Controller):
         res_id: str = "",
         res_model: Any = False,
         allowed_company_ids: str = "",
+        cloud_storage: str = "",
+        file_size: str = "",
     ) -> Any:
         if allowed_company_ids:
             with replace_exceptions(ValueError, by=BadRequest):
@@ -934,6 +936,8 @@ class ShareRoute(http.Controller):
             raise BadRequest("missing files")
         if len(files) > 1 and document_sudo.type not in (False, "folder"):
             raise BadRequest("cannot save multiple files inside a single document")
+        if cloud_storage:
+            self._check_direct_upload(files)
 
         if is_internal_user:
             with replace_exceptions(ValueError, by=BadRequest):
@@ -983,12 +987,47 @@ class ShareRoute(http.Controller):
         if document_sudo.type != "folder" and len(document_ids) == 1:
             document_sudo = document_sudo.browse(document_ids)
 
+        if cloud_storage:
+            return self._documents_direct_upload_response(document_ids, file_size)
         if request.env.user._is_public():
             if document_sudo.type == "folder" or previous_attachment_id:
                 return request.redirect(document_sudo.access_url)
             return request.redirect("/documents/upload/success")
         else:
             return request.prepare_json_response(document_ids)
+
+    def _check_direct_upload(self, files: list) -> None:
+        if len(files) > 1:
+            raise BadRequest("a direct cloud upload carries one file")
+        if (
+            not request.env["ir.config_parameter"]
+            .sudo()
+            .get_param("cloud_storage_provider")
+        ):
+            raise BadRequest(
+                "Cloud storage configuration has been changed. Please refresh the page."
+            )
+
+    def _documents_direct_upload_response(
+        self, document_ids: list, file_size: str
+    ) -> Any:
+        document_sudo = request.env["documents.document"].sudo().browse(document_ids)
+        document_sudo.check_singleton()
+        attachment_sudo = document_sudo.attachment_id
+        attachment_sudo._post_add_create(cloud_storage=True)
+        if attachment_sudo.type != "cloud_storage":
+            raise BadRequest(
+                "Cloud storage configuration has been changed. Please refresh the page."
+            )
+        if file_size:
+            with replace_exceptions(ValueError, by=BadRequest):
+                attachment_sudo.file_size = int(file_size)
+        return request.prepare_json_response(
+            {
+                "document_ids": document_ids,
+                "upload_info": attachment_sudo._generate_cloud_storage_upload_info(),
+            }
+        )
 
     def _documents_upload(
         self,

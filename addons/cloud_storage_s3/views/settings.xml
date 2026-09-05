@@ -79,6 +79,17 @@
                                 class="col-lg-4"
                                 password="True" />
                         </div>
+                        <div class="row mt8">
+                            <label
+                                for="cloud_storage_s3_keys_set"
+                                string="IAM keys stored"
+                                class="o_light_label col-lg-3" />
+                            <field name="cloud_storage_s3_keys_set" class="col-lg-4" />
+                        </div>
+                        <div class="mt8 text-muted">
+                            The keys are kept encrypted in the credential vault.
+                            Leave both fields empty to keep the stored keys.
+                        </div>
                         <div class="mt8 text-muted">
                             <i class="fa fa-info-circle" /> IAM permissions required:
                             <code>s3:PutObject</code>, <code>s3:GetObject</code>,

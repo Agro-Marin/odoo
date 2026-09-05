@@ -93,7 +93,6 @@
             "@board/*": ["addons/board/static/src/*"],
             "@bus/*": ["addons/bus/static/src/*"],
             "@calendar/*": ["addons/calendar/static/src/*"],
-            "@cloud_drive_s3/*": ["../agromarin/cloud_drive_s3/static/src/*"],
             "@cloud_storage/*": ["addons/cloud_storage/static/src/*"],
             "@cloud_storage_google/*": ["addons/cloud_storage_google/static/src/*"],
             "@crm/*": ["addons/crm/static/src/*"],
