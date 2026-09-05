@@ -161,9 +161,21 @@ class IrAttachment(models.Model):
 
     @api.model
     def _get_index_read_size(self, mimetype):
-        # Read whole documents this backend parses; defer text/others to base
-        # (bounded text prefix / skip), so unindexable media still streams flat.
-        if mimetype in self._INDEXED_DOC_MIMETYPES:
+        # Read whole documents this backend parses. Also read whole content
+        # for an unlabelled or generic mimetype (empty, or the browser
+        # fallback `application/octet-stream`) rather than deferring to
+        # base's default of skipping: this method only sees the mimetype the
+        # caller declared, so it cannot byte-sniff itself, but `_index`'s
+        # Document can once it gets the full bytes -- a generic mimetype is
+        # exactly the case where the declared string carries no information
+        # either way. Media that genuinely can't be indexed (images, audio,
+        # video) is always declared with its own specific mimetype, never a
+        # generic one, so this can't make those stream full by mistake.
+        if (
+            not mimetype
+            or mimetype == "application/octet-stream"
+            or mimetype in self._INDEXED_DOC_MIMETYPES
+        ):
             return None
         return super()._get_index_read_size(mimetype)
 
