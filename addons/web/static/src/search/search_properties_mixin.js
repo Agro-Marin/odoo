@@ -7,6 +7,17 @@ import { findGroupByGroupId } from "./search_group_by.js";
 import { fireAndForgetNotify } from "./search_notification.js";
 
 /**
+ * @param {Record<string, any>} definition
+ * @param {string | undefined} definitionRecordName
+ * @returns {string}
+ */
+function propertyDescription(definition, definitionRecordName) {
+    return definitionRecordName
+        ? `${definition.string} (${definitionRecordName})`
+        : definition.string;
+}
+
+/**
  * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
@@ -50,7 +61,10 @@ export const SearchPropertiesMixin = (Base) =>
                     }
                     const existingSearchItem = existingFieldProperties[definition.name];
                     if (existingSearchItem) {
-                        existingSearchItem.description = `${definition.string} (${definitionRecordName})`;
+                        existingSearchItem.description = propertyDescription(
+                            definition,
+                            definitionRecordName,
+                        );
                         searchItemIds.add(existingSearchItem.id);
                         continue;
                     }
@@ -63,9 +77,10 @@ export const SearchPropertiesMixin = (Base) =>
                         propertyDomain: [definitionRecord, "=", definitionRecordId],
                         propertyFieldDefinition: definition,
                         propertyItemId: searchItem.id,
-                        description: definitionRecordName
-                            ? `${definition.string} (${definitionRecordName})`
-                            : definition.string,
+                        description: propertyDescription(
+                            definition,
+                            definitionRecordName,
+                        ),
                         groupId: this.nextGroupId++,
                     };
                     if (["many2many", "tags"].includes(definition.type)) {
@@ -79,23 +94,34 @@ export const SearchPropertiesMixin = (Base) =>
             const staleIds = Object.values(existingFieldProperties)
                 .filter((/** @type {any} */ item) => !searchItemIds.has(item.id))
                 .map((/** @type {any} */ item) => item.id);
-            for (const id of staleIds) {
-                delete this.searchItems[id];
-            }
-            this._enrichedSearchItems = null;
-            if (staleIds.length) {
-                const queryLength = this.query.length;
-                this.query = this.query.filter(
-                    (/** @type {any} */ queryElem) =>
-                        !staleIds.includes(queryElem.searchItemId),
-                );
-                if (this.query.length !== queryLength) {
-                    fireAndForgetNotify(this._notify());
-                }
+            if (this._forgetSearchItems(staleIds)) {
+                fireAndForgetNotify(this._notify());
             }
             return this.getSearchItems((/** @type {any} */ searchItem) =>
                 searchItemIds.has(searchItem.id),
             );
+        }
+
+        /**
+         * Drop search items the model no longer knows, and whatever the query
+         * held on them.
+         *
+         * @param {number[]} ids
+         * @returns {boolean} whether the query lost an element
+         */
+        _forgetSearchItems(ids) {
+            for (const id of ids) {
+                delete this.searchItems[id];
+            }
+            this._enrichedSearchItems = null;
+            if (!ids.length) {
+                return false;
+            }
+            const queryLength = this.query.length;
+            this.query = this.query.filter(
+                (/** @type {any} */ queryElem) => !ids.includes(queryElem.searchItemId),
+            );
+            return this.query.length !== queryLength;
         }
 
         async fillSearchViewItemsProperty() {
@@ -206,9 +232,6 @@ export const SearchPropertiesMixin = (Base) =>
                         !liveIds.has(item.id),
                 )
                 .map((/** @type {any} */ item) => item.id);
-            for (const id of staleIds) {
-                delete this.searchItems[id];
-            }
 
             const prefix = `${field.name}.`;
             for (const fieldName of Object.keys(this.searchViewFields)) {
@@ -217,16 +240,8 @@ export const SearchPropertiesMixin = (Base) =>
                 }
             }
 
-            this._enrichedSearchItems = null;
-            if (staleIds.length) {
-                const queryLength = this.query.length;
-                this.query = this.query.filter(
-                    (/** @type {any} */ queryElem) =>
-                        !staleIds.includes(queryElem.searchItemId),
-                );
-                if (this.query.length !== queryLength) {
-                    await this._notify();
-                }
+            if (this._forgetSearchItems(staleIds)) {
+                await this._notify();
             }
         }
 
@@ -237,7 +252,7 @@ export const SearchPropertiesMixin = (Base) =>
          */
         async _fetchPropertiesDefinition(resModel, fieldName) {
             const domain = [];
-            const activeId = this._rawContext.active_id;
+            const activeId = this.globalContext.active_id;
             if (activeId) {
                 domain.push(["id", "=", activeId]);
             }

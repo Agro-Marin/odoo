@@ -10,11 +10,8 @@ import {
     createFilterTree as buildFilterTree,
 } from "./search_panel_fetch.js";
 
-/** @import { Section } from "@web/search/search_model" */
 /** @import { DomainListRepr } from "@web/core/domain" */
-/** @typedef {Section & { type: "category" }} Category */
-/** @typedef {Section & { type: "filter" }} Filter */
-/** @typedef {(section: Section) => boolean} SectionPredicate */
+/** @import { Category, Filter, Section, SectionPredicate } from "../search_types" */
 
 /**
  * @param {any} error
@@ -136,17 +133,72 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
+         * @param {Section} section
+         * @param {Record<string, any>} result
+         */
+        _createSectionTree(section, result) {
+            if (section.type === "category") {
+                this._createCategoryTree(section.id, result);
+            } else {
+                this._createFilterTree(section.id, result);
+            }
+        }
+
+        /**
+         * Fetch one section's values, keeping only the response of the latest
+         * fetch issued for it: an earlier response landing later, from the
+         * network or from the disk cache's refresh callback, is dropped.
+         *
+         * @param {Section} section
+         * @param {string} method
+         * @param {Record<string, any>} kwargs
+         * @returns {Promise<void>}
+         */
+        async _fetchSection(section, method, kwargs) {
+            const loadId = (this._sectionLoadIds.get(section.id) || 0) + 1;
+            this._sectionLoadIds.set(section.id, loadId);
+            const isLatest = () => loadId === this._sectionLoadIds.get(section.id);
+            let result;
+            try {
+                result = await this.orm
+                    .cache({
+                        type: "disk",
+                        update: "always",
+                        callback: (
+                            /** @type {any} */ result,
+                            /** @type {any} */ hasChanged,
+                        ) => {
+                            if (!hasChanged || !isLatest()) {
+                                return;
+                            }
+                            this._createSectionTree(section, result);
+                            this._notify({ reloadSections: false });
+                        },
+                    })
+                    .call(this.resModel, method, [section.fieldName], kwargs);
+            } catch (error) {
+                if (isLatest()) {
+                    this._createSectionTree(section, {
+                        error_msg: sectionErrorMessage(error),
+                        values: [],
+                    });
+                }
+                return;
+            }
+            if (isLatest()) {
+                this._createSectionTree(section, result);
+            }
+        }
+
+        /**
          * @param {Category[]} categories
          * @returns {Promise<void>}
          */
         async _fetchCategories(categories) {
             const filterDomain = this._getFilterDomain();
-            const searchDomain = this.searchDomain;
             await Promise.all(
-                categories.map(async (category) => {
-                    const loadId = (this._sectionLoadIds.get(category.id) || 0) + 1;
-                    this._sectionLoadIds.set(category.id, loadId);
-                    const kwargs = {
+                categories.map((category) =>
+                    this._fetchSection(category, "search_panel_select_range", {
                         category_domain: this._getCategoryDomain(category.id),
                         context: this.globalContext,
                         enable_counters: category.enableCounters,
@@ -154,48 +206,9 @@ export const SearchPanelMixin = (Base) =>
                         filter_domain: filterDomain,
                         hierarchize: category.hierarchize,
                         limit: category.limit,
-                        search_domain: searchDomain,
-                    };
-                    let result;
-                    try {
-                        result = await this.orm
-                            .cache({
-                                type: "disk",
-                                update: "always",
-                                callback: (
-                                    /** @type {any} */ result,
-                                    /** @type {any} */ hasChanged,
-                                ) => {
-                                    if (
-                                        !hasChanged ||
-                                        loadId !== this._sectionLoadIds.get(category.id)
-                                    ) {
-                                        return;
-                                    }
-                                    this._createCategoryTree(category.id, result);
-                                    this._notify({ reloadSections: false });
-                                },
-                            })
-                            .call(
-                                this.resModel,
-                                "search_panel_select_range",
-                                [category.fieldName],
-                                kwargs,
-                            );
-                    } catch (error) {
-                        if (loadId === this._sectionLoadIds.get(category.id)) {
-                            this._createCategoryTree(category.id, {
-                                error_msg: sectionErrorMessage(error),
-                                values: [],
-                            });
-                        }
-                        return;
-                    }
-                    if (loadId !== this._sectionLoadIds.get(category.id)) {
-                        return;
-                    }
-                    this._createCategoryTree(category.id, result);
-                }),
+                        search_domain: this.searchDomain,
+                    }),
+                ),
             );
         }
 
@@ -210,12 +223,9 @@ export const SearchPanelMixin = (Base) =>
                 evalContext[category.fieldName] = category.activeValueId;
             }
             const categoryDomain = this._getCategoryDomain();
-            const searchDomain = this.searchDomain;
             await Promise.all(
-                filters.map(async (filter) => {
-                    const loadId = (this._sectionLoadIds.get(filter.id) || 0) + 1;
-                    this._sectionLoadIds.set(filter.id, loadId);
-                    const kwargs = {
+                filters.map((filter) =>
+                    this._fetchSection(filter, "search_panel_select_multi_range", {
                         category_domain: categoryDomain,
                         comodel_domain: new Domain(filter.domain).toList(evalContext),
                         context: this.globalContext,
@@ -225,48 +235,9 @@ export const SearchPanelMixin = (Base) =>
                         group_by: filter.groupBy || false,
                         group_domain: this._getGroupDomain(filter),
                         limit: filter.limit,
-                        search_domain: searchDomain,
-                    };
-                    let result;
-                    try {
-                        result = await this.orm
-                            .cache({
-                                type: "disk",
-                                update: "always",
-                                callback: (
-                                    /** @type {any} */ result,
-                                    /** @type {any} */ hasChanged,
-                                ) => {
-                                    if (
-                                        !hasChanged ||
-                                        loadId !== this._sectionLoadIds.get(filter.id)
-                                    ) {
-                                        return;
-                                    }
-                                    this._createFilterTree(filter.id, result);
-                                    this._notify({ reloadSections: false });
-                                },
-                            })
-                            .call(
-                                this.resModel,
-                                "search_panel_select_multi_range",
-                                [filter.fieldName],
-                                kwargs,
-                            );
-                    } catch (error) {
-                        if (loadId === this._sectionLoadIds.get(filter.id)) {
-                            this._createFilterTree(filter.id, {
-                                error_msg: sectionErrorMessage(error),
-                                values: [],
-                            });
-                        }
-                        return;
-                    }
-                    if (loadId !== this._sectionLoadIds.get(filter.id)) {
-                        return;
-                    }
-                    this._createFilterTree(filter.id, result);
-                }),
+                        search_domain: this.searchDomain,
+                    }),
+                ),
             );
         }
 
@@ -285,10 +256,8 @@ export const SearchPanelMixin = (Base) =>
          * @returns {Promise<void>}
          */
         async _reloadSections() {
-            return this._reloadMutex.exec(async () => {
-                const wasBlocked = /** @type {boolean} */ (this.blockNotification);
-                this.blockNotification = /** @type {boolean} */ (true);
-                try {
+            return this._reloadMutex.exec(() =>
+                this._withNotificationsBlockedAsync(async () => {
                     const searchDomain = /** @type {DomainListRepr} */ (
                         this._getDomain({ withSearchPanel: false })
                     );
@@ -297,7 +266,7 @@ export const SearchPanelMixin = (Base) =>
                         !deepEqual(this.searchDomain, searchDomain);
                     this.searchDomain = searchDomain;
 
-                    const toFetch = (/** @type {any} */ section) =>
+                    const toFetch = (/** @type {Section} */ section) =>
                         section.enableCounters ||
                         (searchDomainChanged && !section.expand);
                     const categoriesToFetch = this.categories.filter(toFetch);
@@ -305,7 +274,8 @@ export const SearchPanelMixin = (Base) =>
 
                     if (
                         searchDomainChanged ||
-                        Boolean(categoriesToFetch.length + filtersToFetch.length)
+                        categoriesToFetch.length ||
+                        filtersToFetch.length
                     ) {
                         if (this.display.searchPanel) {
                             this.sectionsPromise = this._fetchSections(
@@ -318,10 +288,8 @@ export const SearchPanelMixin = (Base) =>
                         }
                         this.searchPanelInfo.shouldReload = !this.display.searchPanel;
                     }
-                } finally {
-                    this.blockNotification = /** @type {boolean} */ (wasBlocked);
-                }
-            });
+                }),
+            );
         }
 
         /**

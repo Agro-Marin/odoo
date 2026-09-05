@@ -66,7 +66,20 @@ function notificationChannel(steps) {
             const wasBlocked = this.blockNotification;
             this.blockNotification = true;
             try {
-                fn();
+                return fn();
+            } finally {
+                this.blockNotification = wasBlocked;
+            }
+        },
+        /**
+         * @this {any}
+         * @param {() => Promise<any>} fn
+         */
+        async _withNotificationsBlockedAsync(fn) {
+            const wasBlocked = this.blockNotification;
+            this.blockNotification = true;
+            try {
+                return await fn();
             } finally {
                 this.blockNotification = wasBlocked;
             }
@@ -110,9 +123,9 @@ function derivations() {
         _getGroupDomain: () => /** @type {any[]} */ ([]),
         _getSearchItemContext: () => ({}),
         _getSearchItemGroupBys: () => /** @type {any[]} */ ([]),
-        _rawContext: {},
         /** @type {any[] | null} */
         _enrichedSearchItems: null,
+        domainEvalContext: {},
         isDebugMode: false,
     };
 }
@@ -186,7 +199,6 @@ const DOUBLES = {
     "search/search_properties_mixin.js": (steps) => ({
         ...notificationChannel(steps),
         ...itemRegistry(),
-        _rawContext: {},
         getSearchItems: () => /** @type {any[]} */ ([]),
         /** @type {any[] | null} */
         _enrichedSearchItems: null,

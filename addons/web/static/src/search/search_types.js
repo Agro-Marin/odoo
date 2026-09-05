@@ -112,6 +112,30 @@
 /** @typedef {Record<number, StoredSearchItem>} SearchItems */
 
 /**
+ * @typedef {Object} Section
+ * @property {number} id
+ * @property {string} type
+ * @property {Map<any, Object>} values
+ * @property {Map<any, Object>} [groups]
+ * @property {string} [errorMsg]
+ * @property {string} [fieldName]
+ * @property {string} [description]
+ * @property {boolean} [enableCounters]
+ * @property {number} [limit]
+ * @property {string} [icon]
+ * @property {string} [color]
+ * @property {boolean} [expand]
+ * @property {string|false} [hierarchize]
+ * @property {any} [activeValueId]
+ * @property {string} [domain]
+ * @property {string|false} [groupBy]
+ */
+
+/** @typedef {Section & { type: "category" }} Category */
+/** @typedef {Section & { type: "filter" }} Filter */
+/** @typedef {(section: Section) => boolean} SectionPredicate */
+
+/**
  * @typedef {Object} PeriodWindow
  * @property {number} startYear
  * @property {number} endYear

@@ -2,7 +2,6 @@
 /** @odoo-module native */
 
 import { Component, status, useRef, useState } from "@odoo/owl";
-import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -76,8 +75,6 @@ export class SearchBar extends Component {
         autofocus: true,
     };
 
-    /** @type {import("services").ServiceFactories["dialog"]} */
-    dialogService;
     /** @type {{ el: HTMLElement | null }} */
     root;
     /** @type {import("services").ServiceFactories["ui"]} */
@@ -116,7 +113,6 @@ export class SearchBar extends Component {
     inputRef;
 
     setup() {
-        this.dialogService = useService("dialog");
         this.root = useRef("root");
         this.ui = useService("ui");
 
@@ -810,26 +806,9 @@ export class SearchBar extends Component {
         const { domain, groupId } = facet;
         if (this.env.searchModel.canOrderByCount && facet.type === "groupBy") {
             this.env.searchModel.switchGroupBySort();
-            return;
-        } else if (!domain) {
-            return;
+        } else if (domain) {
+            this.env.searchModel.spawnCustomFilterDialog({ domain, groupId });
         }
-        const { resModel } = this.env.searchModel;
-        this.dialogService.add(DomainSelectorDialog, {
-            resModel,
-            domain,
-            context: this.env.searchModel.domainEvalContext,
-            onConfirm: (nextDomain) => {
-                if (nextDomain !== domain) {
-                    this.env.searchModel.splitAndAddDomain(nextDomain, groupId);
-                }
-            },
-            disableConfirmButton: (domain) => domain === `[]`,
-            title: _t("Custom Filter"),
-            confirmButtonText: _t("Search"),
-            discardButtonText: _t("Discard"),
-            isDebugMode: this.env.searchModel.isDebugMode,
-        });
     }
 
     /**

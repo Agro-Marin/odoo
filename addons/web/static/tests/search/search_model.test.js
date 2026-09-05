@@ -66,6 +66,67 @@ describe("_notify — the single UPDATE-emission path", () => {
     });
 });
 
+describe("the block windows the host lends its mixins", () => {
+    test("the synchronous window blocks, returns fn's value and restores the flag", () => {
+        const model = /** @type {any} */ ({ blockNotification: false });
+        const seen = SearchModel.prototype._withNotificationsBlocked.call(model, () => {
+            expect(model.blockNotification).toBe(true);
+            return "value";
+        });
+        expect(seen).toBe("value");
+        expect(model.blockNotification).toBe(false);
+    });
+
+    test("a throw inside the synchronous window still restores the flag", () => {
+        const model = /** @type {any} */ ({ blockNotification: false });
+        expect(() =>
+            SearchModel.prototype._withNotificationsBlocked.call(model, () => {
+                throw new Error("boom");
+            }),
+        ).toThrow(/boom/);
+        expect(model.blockNotification).toBe(false);
+    });
+
+    test("the asynchronous window holds until the promise settles", async () => {
+        const model = /** @type {any} */ ({ blockNotification: false });
+        let release = () => {};
+        const prom = SearchModel.prototype._withNotificationsBlockedAsync.call(
+            model,
+            () =>
+                new Promise((resolve) => {
+                    release = () => resolve("settled");
+                }),
+        );
+        await Promise.resolve();
+        expect(model.blockNotification).toBe(true);
+        release();
+        expect(await prom).toBe("settled");
+        expect(model.blockNotification).toBe(false);
+    });
+
+    test("a rejection inside the asynchronous window still restores the flag", async () => {
+        const model = /** @type {any} */ ({ blockNotification: false });
+        await expect(
+            SearchModel.prototype._withNotificationsBlockedAsync.call(
+                model,
+                async () => {
+                    throw new Error("boom");
+                },
+            ),
+        ).rejects.toThrow(/boom/);
+        expect(model.blockNotification).toBe(false);
+    });
+
+    test("windows nest: the inner one restores to blocked, not to free", () => {
+        const model = /** @type {any} */ ({ blockNotification: false });
+        SearchModel.prototype._withNotificationsBlocked.call(model, () => {
+            SearchModel.prototype._withNotificationsBlocked.call(model, () => {});
+            expect(model.blockNotification).toBe(true);
+        });
+        expect(model.blockNotification).toBe(false);
+    });
+});
+
 class TestComponent extends Component {
     static template = xml`<div class="o_test_component"/>`;
     static props = ["*"];

@@ -30,19 +30,6 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * @param {() => void} fn
-         */
-        _withNotificationsBlocked(fn) {
-            const wasBlocked = /** @type {boolean} */ (this.blockNotification);
-            this.blockNotification = /** @type {boolean} */ (true);
-            try {
-                fn();
-            } finally {
-                this.blockNotification = /** @type {boolean} */ (wasBlocked);
-            }
-        }
-
-        /**
          * @param {number} searchItemId
          * @param {Record<string, any>} autocompleteValue
          */

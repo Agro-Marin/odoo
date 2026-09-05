@@ -130,6 +130,57 @@ test("retiring a property also retires its synthesised field metadata", async ()
     expect(model.searchViewFields["other_props.q1"]).not.toBe(undefined);
 });
 
+test("a property whose definition record has no name is described the same on every expansion", async () => {
+    const model = await createSearchModel();
+    model._fetchPropertiesDefinition = async () => [
+        {
+            definitionRecordId: 1,
+            definitionRecordName: undefined,
+            definitions: [{ name: "p1", string: "P1", type: "char" }],
+        },
+    ];
+    const [propertiesItem] = model.getSearchItems(
+        (/** @type {any} */ item) => item.fieldName === "properties",
+    );
+
+    const first = await model.getSearchItemsProperties(propertiesItem);
+    const second = await model.getSearchItemsProperties(propertiesItem);
+
+    expect(first.map((/** @type {any} */ item) => item.description)).toEqual(["P1"]);
+    expect(second.map((/** @type {any} */ item) => item.description)).toEqual(["P1"]);
+    expect(second[0].id).toBe(first[0].id);
+});
+
+test("a retired property that was in the query drops out of it, and one that was not is silent", async () => {
+    const model = await createSearchModel();
+    let definitions = [
+        { name: "p1", string: "P1", type: "char" },
+        { name: "p2", string: "P2", type: "char" },
+    ];
+    model._fetchPropertiesDefinition = async () => [
+        { definitionRecordId: 1, definitionRecordName: "Parent", definitions },
+    ];
+    const [propertiesItem] = model.getSearchItems(
+        (/** @type {any} */ item) => item.fieldName === "properties",
+    );
+    const [p1, p2] = await model.getSearchItemsProperties(propertiesItem);
+    await model.addAutoCompletionValues(p1.id, {
+        label: "x",
+        value: "x",
+        operator: "ilike",
+    });
+    expect(model.query.map((/** @type {any} */ q) => q.searchItemId)).toEqual([p1.id]);
+
+    definitions = [definitions[0]];
+    expect(model._forgetSearchItems([p2.id])).toBe(false);
+    expect(model.searchItems[p2.id]).toBe(undefined);
+
+    definitions = [];
+    await model.getSearchItemsProperties(propertiesItem);
+    expect(model.searchItems[p1.id]).toBe(undefined);
+    expect(model.query).toEqual([]);
+});
+
 test("a failing definitions fetch retires nothing", async () => {
     const model = await createSearchModel();
     const definitions = {

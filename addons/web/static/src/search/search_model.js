@@ -56,27 +56,8 @@ import { getIntervalOptions } from "./utils/dates.js";
 /** @import { Domain, DomainListRepr } from "@web/core/domain" */
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 /** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
-/** @import { ActiveItem, AutocompleteValue, Facet, QueryElement, QueryGroup, SearchItem, SearchItems, StoredSearchItem } from "./search_types" */
+/** @import { ActiveItem, AutocompleteValue, Category, Facet, Filter, QueryElement, QueryGroup, SearchItem, SearchItems, Section, StoredSearchItem } from "./search_types" */
 
-/**
- * @typedef {Object} Section
- * @property {number} id
- * @property {string} type
- * @property {Map<any, Object>} values
- * @property {Map<any, Object>} [groups]
- * @property {string} [errorMsg]
- * @property {string} [fieldName]
- * @property {string} [description]
- * @property {boolean} [enableCounters]
- * @property {number} [limit]
- * @property {string} [icon]
- * @property {string} [color]
- * @property {boolean} [expand]
- * @property {string|false} [hierarchize]
- * @property {any} [activeValueId]
- * @property {string} [domain]
- * @property {string|false} [groupBy]
- */
 /**
  * @typedef {Object} SearchModelConfig
  * @property {string} resModel
@@ -98,10 +79,6 @@ import { getIntervalOptions } from "./utils/dates.js";
  * @property {boolean} [canOrderByCount]
  * @property {string[]} [defaultGroupBy]
  */
-
-/** @typedef {Section & { type: "category" }} Category */
-/** @typedef {Section & { type: "filter" }} Filter */
-/** @typedef {(section: Section) => boolean} SectionPredicate */
 
 export class SearchModel extends SearchQueryMixin(
     SearchSplitDomainMixin(
@@ -334,8 +311,7 @@ export class SearchModel extends SearchQueryMixin(
             searchPanelDefaults,
         },
     ) {
-        this.blockNotification = true;
-        try {
+        await this._withNotificationsBlockedAsync(async () => {
             /** @type {Record<number, any>} */
             this.searchItems = {};
             /** @type {QueryElement[]} */
@@ -396,10 +372,8 @@ export class SearchModel extends SearchQueryMixin(
             if (this.display.searchPanel) {
                 await this._seedSearchPanel(searchPanelDefaults);
             }
-        } finally {
-            this.blockNotification = false;
-            this._pendingNotification = false;
-        }
+        });
+        this._pendingNotification = false;
     }
 
     /**
@@ -584,10 +558,10 @@ export class SearchModel extends SearchQueryMixin(
             const queryIndex = indexQueryBySearchItem(this.query);
             const enrichedSearchItems = [];
             for (const searchItem of Object.values(this.searchItems)) {
-                const enrichedSearchitem = this._enrichItem(searchItem, queryIndex);
-                if (!isInvisible(searchItem.invisible, domainEvalContext)) {
-                    enrichedSearchItems.push(enrichedSearchitem);
+                if (isInvisible(searchItem.invisible, domainEvalContext)) {
+                    continue;
                 }
+                enrichedSearchItems.push(this._enrichItem(searchItem, queryIndex));
             }
             enrichedSearchItems.sort(
                 (f1, f2) =>
@@ -936,6 +910,42 @@ export class SearchModel extends SearchQueryMixin(
         }
 
         this.trigger(SearchModelEvent.UPDATE);
+    }
+
+    /**
+     * Run `fn` with notifications held back. A `_notify()` inside the window
+     * records a pending notification instead of emitting one; the caller ends
+     * the window with a `_notify()` of its own, or drains the flag.
+     *
+     * @template T
+     * @param {() => T} fn
+     * @returns {T}
+     */
+    _withNotificationsBlocked(fn) {
+        const wasBlocked = this.blockNotification;
+        this.blockNotification = true;
+        try {
+            return fn();
+        } finally {
+            this.blockNotification = wasBlocked;
+        }
+    }
+
+    /**
+     * The asynchronous window: held until the promise `fn` returns settles.
+     *
+     * @template T
+     * @param {() => Promise<T>} fn
+     * @returns {Promise<T>}
+     */
+    async _withNotificationsBlockedAsync(fn) {
+        const wasBlocked = this.blockNotification;
+        this.blockNotification = true;
+        try {
+            return await fn();
+        } finally {
+            this.blockNotification = wasBlocked;
+        }
     }
 
     /**

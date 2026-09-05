@@ -152,11 +152,6 @@ export class SearchBarMenu extends Component {
 
     /**
      * @param {string} fieldName
-     * @param {Object} field
-     * @returns {boolean}
-     */
-    /**
-     * @param {string} fieldName
      * @param {Record<string, any>} field
      * @returns {boolean}
      */

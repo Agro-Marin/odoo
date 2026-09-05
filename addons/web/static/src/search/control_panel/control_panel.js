@@ -189,9 +189,6 @@ export class ControlPanel extends Component {
         return this.root.el.parentElement;
     }
 
-    /**
-     * @returns {Object}
-     */
     /** @returns {Record<string, any>} */
     get display() {
         return {

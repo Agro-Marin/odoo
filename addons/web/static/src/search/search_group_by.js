@@ -3,6 +3,7 @@
 
 import { rankInterval } from "./utils/dates.js";
 
+/** @import { OrderTerm } from "@web/core/utils/order_by" */
 /** @import { ActiveItem, QueryElement, QueryGroup, SearchItems } from "./search_types" */
 
 /**
@@ -145,10 +146,6 @@ export function computeGroupBy({
           ? globalGroupBy.slice()
           : (fallbackOnDefault && defaultGroupBy?.slice()) || [];
 }
-
-/**
- * @typedef {{ name: string, asc?: boolean }} OrderTerm
- */
 
 /**
  * @param {QueryGroup[]} groups

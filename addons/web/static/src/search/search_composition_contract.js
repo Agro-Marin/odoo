@@ -75,6 +75,7 @@ export const SEARCH_PANEL_REQUIRES = [
     "_getFilterDomain",
     "_getGroupDomain",
     "_notify",
+    "_withNotificationsBlockedAsync",
     "categories",
     "filters",
 ];
@@ -87,7 +88,6 @@ export const SEARCH_PANEL_SHARED_STATE = [
     "_reloadMutex",
     "_sectionLoadIds",
     "_sections",
-    "blockNotification",
     "display",
     "globalContext",
     "orm",
@@ -113,7 +113,7 @@ export const SEARCH_PROPERTIES_PUBLISHED = ["fillSearchViewItemsProperty"];
  * read or tested on its own.
  * @type {string[]}
  */
-export const SEARCH_PROPERTIES_REQUIRES = ["_notify", "_rawContext", "getSearchItems"];
+export const SEARCH_PROPERTIES_REQUIRES = ["_notify", "getSearchItems"];
 
 /**
  * Host instance state this unit reads or writes.
@@ -123,6 +123,7 @@ export const SEARCH_PROPERTIES_SHARED_STATE = [
     "_enrichedSearchItems",
     "_filledPropertyFields",
     "fieldService",
+    "globalContext",
     "nextGroupId",
     "nextId",
     "query",
@@ -203,6 +204,7 @@ export const SEARCH_SPLIT_DOMAIN_REQUIRES = [
     "createNewFilters",
     "createNewGroupBy",
     "deactivateGroup",
+    "domainEvalContext",
     "fillSearchViewItemsProperty",
     "isDebugMode",
 ];
@@ -217,7 +219,6 @@ export const SEARCH_SPLIT_DOMAIN_SHARED_STATE = [
     "dialog",
     "env",
     "getDefaultDomain",
-    "globalContext",
     "query",
     "resModel",
     "searchItems",
@@ -234,7 +235,6 @@ export const SEARCH_SPLIT_DOMAIN_SHARED_STATE = [
  * @type {string[]}
  */
 export const SEARCH_QUERY_PUBLISHED = [
-    "_withNotificationsBlocked",
     "addAutoCompletionValues",
     "clearQuery",
     "createNewFilters",
@@ -250,14 +250,17 @@ export const SEARCH_QUERY_PUBLISHED = [
  * read or tested on its own.
  * @type {string[]}
  */
-export const SEARCH_QUERY_REQUIRES = ["_getSelectedGeneratorIds", "_notify"];
+export const SEARCH_QUERY_REQUIRES = [
+    "_getSelectedGeneratorIds",
+    "_notify",
+    "_withNotificationsBlocked",
+];
 
 /**
  * Host instance state this unit reads or writes.
  * @type {string[]}
  */
 export const SEARCH_QUERY_SHARED_STATE = [
-    "blockNotification",
     "defaultGroupBy",
     "defaultGroupByRemoved",
     "globalGroupBy",
@@ -278,7 +281,8 @@ export const SEARCH_QUERY_SHARED_STATE = [
 /**
  * What the mixins call on the host: the derivation family (`_getDomain`,
  * `_getContext`, `_getGroupBy` ...), the item registry, and the notification
- * channel every mutation ends with.
+ * channel every mutation ends with -- both the emission and the two windows
+ * that hold it back, so that one unit owns the channel end to end.
  * @type {string[]}
  */
 export const SEARCH_MODEL_PUBLISHED = [
@@ -295,8 +299,10 @@ export const SEARCH_MODEL_PUBLISHED = [
     "_getSearchItemGroupBys",
     "_getSelectedGeneratorIds",
     "_notify",
-    "_rawContext",
+    "_withNotificationsBlocked",
+    "_withNotificationsBlockedAsync",
     "categories",
+    "domainEvalContext",
     "filters",
     "getSearchItems",
     "isDebugMode",

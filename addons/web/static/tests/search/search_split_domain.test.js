@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { doubleMembersFor } from "@web/../tests/search/search_doubles";
 import { condition, connector } from "@web/core/tree/condition_tree";
 import { computeSearchItemGroupBys, getQueryGroups } from "@web/search/search_group_by";
 import { SearchQueryMixin } from "@web/search/search_query_mixin";
@@ -9,6 +10,14 @@ import { SearchSplitDomainMixin } from "@web/search/search_split_domain_mixin";
 describe.current.tags("headless");
 
 const QueryModel = SearchSplitDomainMixin(SearchQueryMixin(class {}));
+
+/**
+ * The block window belongs to the host, which this two-mixin model has no
+ * level for: take the doubles' spelling of it rather than a third one.
+ */
+const { _withNotificationsBlocked } = doubleMembersFor(
+    "search/search_split_domain_mixin.js",
+);
 
 /**
  * @param {Record<string, any>} tree
@@ -44,6 +53,7 @@ function makeSearchModel(tree, overrides = {}) {
             }
             notifications.push("notify");
         },
+        _withNotificationsBlocked,
         _getGroups() {
             return getQueryGroups(this.query, this.searchItems);
         },
@@ -77,6 +87,67 @@ function addItem(model, id, item, activate = true) {
 
 const queryIds = (/** @type {any} */ model) =>
     model.query.map((/** @type {any} */ q) => q.searchItemId);
+
+describe("spawnCustomFilterDialog", () => {
+    class FakeDialog {}
+
+    /**
+     * @param {Record<string, any>} [overrides]
+     * @returns {{ model: any, dialogs: any[], splits: any[] }}
+     */
+    function makeDialogModel(overrides = {}) {
+        /** @type {any[]} */
+        const dialogs = [];
+        /** @type {any[]} */
+        const splits = [];
+        const model = makeSearchModel(condition("foo", "=", 1), {
+            DomainSelectorDialog: FakeDialog,
+            dialog: {
+                add: (/** @type {any} */ Dialog, /** @type {any} */ props) =>
+                    dialogs.push({ Dialog, props }),
+            },
+            getDefaultDomain: () => `[("id", "=", 1)]`,
+            domainEvalContext: { uid: 7 },
+            splitAndAddDomain: (/** @type {any} */ ...args) => splits.push(args),
+            ...overrides,
+        });
+        return { model, dialogs, splits };
+    }
+
+    test("a new filter opens on the default domain, OR-connected, and splits whatever comes back", async () => {
+        const { model, dialogs, splits } = makeDialogModel();
+        await model.spawnCustomFilterDialog();
+
+        expect(dialogs.length).toBe(1);
+        const { Dialog, props } = dialogs[0];
+        expect(Dialog).toBe(FakeDialog);
+        expect(props.domain).toBe(`[("id", "=", 1)]`);
+        expect(props.defaultConnector).toBe("|");
+        expect(props.context).toEqual({ uid: 7 });
+        expect(props.resModel).toBe("partner");
+        expect(props.disableConfirmButton("[]")).toBe(true);
+        expect(props.disableConfirmButton(`[("id", "=", 1)]`)).toBe(false);
+
+        props.onConfirm(`[("foo", "=", 1)]`);
+        expect(splits).toEqual([[`[("foo", "=", 1)]`, undefined]]);
+    });
+
+    test("editing a facet opens on its own domain and replaces its group only when the domain changed", async () => {
+        const { model, dialogs, splits } = makeDialogModel();
+        const domain = `[("foo", "=", 1)]`;
+        await model.spawnCustomFilterDialog({ domain, groupId: 3 });
+
+        const { props } = dialogs[0];
+        expect(props.domain).toBe(domain);
+        expect("defaultConnector" in props).toBe(false);
+
+        props.onConfirm(domain);
+        expect(splits).toEqual([]);
+
+        props.onConfirm(`[("foo", "=", 2)]`);
+        expect(splits).toEqual([[`[("foo", "=", 2)]`, 3]]);
+    });
+});
 
 describe("splitAndAddDomain", () => {
     test("without groupId, new filters are appended after the existing query", async () => {

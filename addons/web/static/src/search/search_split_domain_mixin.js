@@ -204,24 +204,32 @@ export const SearchSplitDomainMixin = (Base) =>
         }
         /**
          * Open the custom-filter dialog and hand what it produces to
-         * `splitAndAddDomain`.
+         * `splitAndAddDomain`: on a new domain by default, or on the domain
+         * of an existing facet group, which the result then replaces.
          *
          * It lives here rather than on the query mixin because that is all it
          * does: every other name it touches is host state, and the one
          * operation it calls is this unit's. Owning it from `search_query_mixin`
          * made the two mixins mutually dependent for a dialog neither of them
          * is about -- the composition's only remaining mixin-to-mixin cycle.
+         *
+         * @param {object} [target]
+         * @param {string} [target.domain]
+         * @param {number} [target.groupId]
          */
-        async spawnCustomFilterDialog() {
-            const domain = this.getDefaultDomain(this.searchViewFields);
+        async spawnCustomFilterDialog({ domain, groupId } = {}) {
+            const editing = domain !== undefined;
             this.dialog.add(this.DomainSelectorDialog, {
                 resModel: this.resModel,
-                defaultConnector: "|",
-                domain,
-                context: this.globalContext,
-                onConfirm: (/** @type {any} */ domain) =>
-                    this.splitAndAddDomain(domain),
-                disableConfirmButton: (/** @type {any} */ domain) => domain === `[]`,
+                ...(editing ? {} : { defaultConnector: "|" }),
+                domain: editing ? domain : this.getDefaultDomain(this.searchViewFields),
+                context: this.domainEvalContext,
+                onConfirm: (/** @type {string} */ nextDomain) => {
+                    if (!editing || nextDomain !== domain) {
+                        this.splitAndAddDomain(nextDomain, groupId);
+                    }
+                },
+                disableConfirmButton: (/** @type {string} */ domain) => domain === `[]`,
                 title: _t("Custom Filter"),
                 confirmButtonText: _t("Search"),
                 discardButtonText: _t("Discard"),
