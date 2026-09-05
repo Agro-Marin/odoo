@@ -77,15 +77,10 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <t t-set="current_subtotal" t-value="0" />
                         <t
                             t-set="filtered_lines"
                             t-value="o.line_ids.filtered(lambda l: l.display_type or l.product_qty != 0)" />
                         <t t-foreach="filtered_lines" t-as="line">
-                            <t
-                                t-set="current_subtotal"
-                                t-value="current_subtotal + line.price_subtotal" />
-
                             <tr
                                 t-att-class="'fw-bolder o_line_section' if line.display_type == 'line_section' else 'fw-bold o_line_subsection' if line.display_type == 'line_subsection' else 'fst-italic o_line_note' if line.display_type == 'line_note' else ''">
                                 <t t-if="not line.display_type">
@@ -125,11 +120,14 @@
                                 </t>
                                 <t
                                     t-if="line.display_type in ('line_section', 'line_subsection')">
-                                    <td colspan="99" id="section">
+                                    <td colspan="5" id="section">
                                         <span t-field="line.name" />
                                     </td>
-                                    <t t-set="current_section" t-value="line" />
-                                    <t t-set="current_subtotal" t-value="0" />
+                                    <td class="text-end" id="section_total">
+                                        <span
+                                            t-out="line._get_section_totals('price_subtotal')"
+                                            t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: o.currency_id}" />
+                                    </td>
                                 </t>
                                 <t t-if="line.display_type == 'line_note'">
                                     <td colspan="99" id="note">
@@ -137,17 +135,6 @@
                                     </td>
                                 </t>
                             </tr>
-                            <t
-                                t-if="current_section and (line_last or filtered_lines[line_index+1].display_type in ('line_section', 'line_subsection'))">
-                                <tr class="is-subtotal text-end">
-                                    <td colspan="99" id="subtotal">
-                                        <strong class="me-3">Subtotal</strong>
-                                        <span
-                                            t-out="current_subtotal"
-                                            t-options="{&quot;widget&quot;: &quot;monetary&quot;, &quot;display_currency&quot;: o.currency_id}" />
-                                    </td>
-                                </tr>
-                            </t>
                         </t>
                     </tbody>
                 </table>

@@ -571,6 +571,37 @@ class PurchaseOrderLine(models.Model):
 
         return valid_dates
 
+    def _get_section_lines(self):
+        self.check_singleton()
+        return self.order_id.line_ids.filtered(self._is_line_in_section)
+
+    def _get_section_totals(self, totals_field):
+        """Sum `totals_field` over the lines this section owns.
+
+        Takes the field by name -- like `sale.order.line` -- so the report and
+        the portal can total whichever amount they are printing.
+        """
+        self.check_singleton()
+        return sum(self._get_section_lines().mapped(totals_field))
+
+    def _is_line_in_section(self, line):
+        """Is `line` one of the product lines this section or subsection totals?
+
+        A subsection owns only its own lines. A section owns its direct lines
+        *and* the lines of the subsections under it -- which is the half the
+        report used to lose, because it reset its running subtotal on a
+        subsection just as it did on a section.
+        """
+        self.check_singleton()
+        is_direct_child = line.parent_id == self and not line.display_type
+        is_indirect_child = (
+            self.display_type == "line_section"
+            and line.parent_id
+            and line.parent_id.display_type == "line_subsection"
+            and line.parent_id.parent_id == self
+        )
+        return is_direct_child or is_indirect_child
+
     def _get_invoice_line_link_field(self):
         return "purchase_line_ids"
 
