@@ -15,22 +15,6 @@ class TestBoardArchPreprocessing(TransactionCase):
         root = etree.fromstring(self._process("<form><board/></form>"))
         self.assertEqual(root.get("js_class"), "board")
 
-    def test_removes_invisible_action(self):
-        """An ``<action>`` flagged invisible is stripped; a visible one stays."""
-        arch = "<form><action name='1' invisible='1'/><action name='2'/></form>"
-        root = etree.fromstring(self._process(arch))
-        self.assertEqual([a.get("name") for a in root.findall(".//action")], ["2"])
-
-    def test_removes_nested_invisible_action(self):
-        """Invisible actions nested under other nodes are stripped recursively."""
-        arch = (
-            "<form><board><column>"
-            "<action name='keep'/><action name='drop' invisible='1'/>"
-            "</column></board></form>"
-        )
-        root = etree.fromstring(self._process(arch))
-        self.assertEqual([a.get("name") for a in root.findall(".//action")], ["keep"])
-
     def test_arch_without_actions_preserved(self):
         """Boundary: arch with no ``<action>`` keeps its structure, only js_class added."""
         root = etree.fromstring(self._process("<form><board><column/></board></form>"))

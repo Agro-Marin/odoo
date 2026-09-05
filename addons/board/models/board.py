@@ -39,24 +39,8 @@ class BoardBoard(models.AbstractModel):
 
     @api.model
     def _arch_preprocessing(self, arch):
-        def remove_unauthorized_children(node):
-            for child in node.iterchildren():
-                if child.tag == "action" and child.get("invisible") not in (
-                    None,
-                    "0",
-                    "",
-                ):
-                    node.remove(child)
-                else:
-                    remove_unauthorized_children(child)
-            return node
-
         archnode = etree.fromstring(arch)
         # add the js_class 'board' on the fly to force the webclient to
         # instantiate a BoardView instead of FormView
         archnode.set("js_class", "board")
-        return etree.tostring(
-            remove_unauthorized_children(archnode),
-            pretty_print=True,
-            encoding="unicode",
-        )
+        return etree.tostring(archnode, pretty_print=True, encoding="unicode")
