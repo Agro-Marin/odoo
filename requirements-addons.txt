@@ -58,6 +58,11 @@ boto3==1.43.67  # cloud_storage_s3
 botocore==1.43.67  # cloud_storage_s3 -- boto3's own pinned
                    # runtime, held at the matching version so a boto3 bump
                    # cannot silently drag a different botocore in
+# api_ai, for the subprocess path only: tools/claude_sdk.py guards the import
+# and sets SDK_AVAILABLE, so a module that only drives the HTTP path installs
+# and runs without it. Moved here from agromarin/requirements.txt, which had
+# kept it after api_ai itself moved into this tree.
+claude-agent-sdk==0.2.137  # api_ai — optional, degrades without it
 chardet==5.2.0  # base_import, mail
 defusedxml==0.7.1  # attachment_indexation, website
 google-auth==2.56.3  # cloud_storage_google
@@ -72,7 +77,23 @@ PyMuPDF==1.28.2  # base — optional
 python-ldap==3.4.7 ; sys_platform != 'win32'  # auth_ldap
 python-stdnum==2.2  # account_vat + 15 l10n modules. Fixes operation_timeout in SOAP client
 qrcode==8.2  # auth_totp, pos_self_order
+# document_extract_ocr, both imported at module level: the module refuses to
+# install without them rather than installing and reading nothing off a scan.
+# `rapidocr` is the continuation of `rapidocr-onnxruntime`, which is frozen:
+# every release after the 1.2.3 this used to pin caps at python_requires <3.13,
+# so on 3.14 the old name could never move. Models still ship in the wheel
+# (~32 MB, PP-OCRv6). `onnxruntime` sits out of alphabetical order to stay
+# beside it: 3.x bundles no inference backend and exposes no extra for one, so
+# without this second pin the import succeeds and the first call raises
+# `ImportError: onnxruntime is not installed`.
+rapidocr==3.9.2
+onnxruntime==1.29.0
 # The only remaining reason pytz is installed anywhere: vobject depends on it.
 vobject==0.9.9  # calendar, event, web, website_event_track — optional
 xlrd==2.0.2  # base_import: legacy .xls (BIFF) reader — optional
 zeep==4.3.3  # account_vat, via stdnum's own SOAP client — optional
+# document_extract_barcode, imported as `zxingcpp`. The decoder is compiled into
+# the wheel, so unlike the `pyzbar` it replaces there is no libzbar to install
+# system-side -- and none ever was here, which is why that reader had been
+# returning no barcodes on every page and the module could not install.
+zxing-cpp==3.1.1
