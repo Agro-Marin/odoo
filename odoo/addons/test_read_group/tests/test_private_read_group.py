@@ -1630,6 +1630,10 @@ class TestPrivateReadGroup(common.TransactionCase):
 
         self.assertEqual(
             RelatedFoo._read_group([], ["bar_base_ids"], ["__count"]),
+            [(RelatedBase, 1)],
+        )
+        self.assertEqual(
+            RelatedFoo._read_group([], ["bar_base_ids"], ["__count"]),
             RelatedFoo._read_group([], ["bar_id.base_ids"], ["__count"]),
         )
 
