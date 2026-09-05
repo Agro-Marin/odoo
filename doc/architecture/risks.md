@@ -23,7 +23,7 @@ a question — those live at the bottom of the view that owns the subject, under
 | R6 | Sibling-repo public-surface exposure is recorded, not paid down | Medium | 2026-08-08 | — |
 | R7 | Every measured figure is single-process | Medium | 2026-08-08 | **2026-08-28** |
 | R8 | Headless test runs skip the tours they select as passes | High | 2026-09-02 | — |
-| R9 | A recursive stored compute has a shape no DB-free tier can pin | Medium | 2026-09-02 | — |
+| R9 | A recursive stored compute has a shape no DB-free tier can pin | Medium | 2026-09-02 | **2026-09-04** |
 | R10 | Most gate modules state their reason nowhere | Medium | 2026-09-02 | — |
 
 ---
@@ -386,7 +386,7 @@ load-bearing half: a flag dropped without it lets the skip come back unread, and
 a floor set from the headless count ratifies the skip. The entry closes when no
 suite is run headless.
 
-## R9 — A recursive stored compute has a shape no DB-free tier can pin
+## R9 — A recursive stored compute had a shape no DB-free tier could pin — **CLOSED 2026-09-04**
 
 **What.** `e8ff3f09c9e` fixed `_recompute_singly`
 (`odoo/orm/fields/_field_compute.py`): a single-record read of a `store=True,
@@ -397,18 +397,18 @@ protected and has no cache entry, so a descendant computed there fell through to
 the stored column, read the value from before the write that scheduled the
 recompute, stored it, and was marked done — and the protected assignment path
 never calls `modified()`, so nothing marked it again. The stale rows are the
-descendants of whichever record was read first. The fix widens the batch only
-when no record of the field is protected. What stays open is the *shape*, not
+descendants of whichever record was read first. The initial fix widened the batch only
+when no record of the field was protected. What stayed open was the *shape*, not
 the defect: a stored recursive compute on a model whose `_order` is not
 tree-ordered, where a fetch does not flush the field before the nested read can
 happen.
 
 **Evidence.** `test_orm`'s
 `test_12_recursive_stored_value_survives_a_middle_first_read` pins the fix, and
-it is database-backed on purpose: `InMemoryBackend.search`
-(`odoo/orm/runtime/backend.py`) flushes everything unconditionally where
-PostgreSQL flushes only the fields the query reaches, so the deferred pending set
-the defect needs never exists in Tier 2. The defect was live for as long as the
+it was database-backed on purpose: `InMemoryBackend.search`
+(`odoo/orm/runtime/backend.py`) flushed everything unconditionally where
+PostgreSQL flushed only the fields the query reached, so the deferred pending set
+the defect needed did not survive an ordinary write in Tier 2. The defect was live for as long as the
 shape was, and both DB-free tiers were green throughout — R4's pattern with a
 worked instance, and the reason it is recorded as a shape rather than closed as a
 bug. Shipped models carry the shape in this repository and in `enterprise`;
@@ -425,13 +425,27 @@ the partner field the value is an access anchor, and whether a stale one was
 ever reachable through those rules is unmeasured; `e8ff3f09c9e^` against
 `e8ff3f09c9e` is the clean before/after for anyone who needs to know.
 
-**What would close it.** A DB-free backend whose flush is selective enough to
-hold a pending set across a search — a change to `InMemoryBackend`'s contract,
-not a test — would let the invariant be pinned in the tier every PR runs. Short
-of that, this entry stays open as the record that the invariant is pinned by one
-DB-backed test in one integration suite, and that a change to
-`_field_compute.py` or to the protection path has to be checked against a real
-database by hand before it lands.
+**How it was closed.** Search query assembly now lives in one shared planner
+in `runtime/backend.py`. Both adapters consume its domain, join and order
+field dependencies. The in-memory adapter uses `env.flush_query` rather than
+`flush_all`, and evaluates records through descriptors rather than loading all
+stored columns into cache. Unrelated pending computes survive a search; dirty
+cached values are not overwritten by storage.
+
+`odoo/orm/tests/test_search_flush.py` pins selective flushing and cache behavior.
+`odoo/orm/tests/test_recursive_compute_batching.py` now reproduces the shape
+through ordinary writes and middle-first reads, without hand-staging caches.
+The same scenarios and model definitions run against PostgreSQL in
+`tests/contract/test_search_flush.py`, including dependencies alternating
+between differently computed recursive fields. Removing the protection guard
+fails the single-field scenario; narrowing it to only the current field fails
+the alternating-field scenario. Restoring the old eager search fails the
+pending-set assertions. These mutation checks run in separate processes and
+leave production source unchanged.
+
+This closes the recursive-compute testability gap, not all adapter differences:
+record rules, translated fetches, parent-store behavior and other documented
+capabilities still require their appropriate integration tests.
 
 ## R10 — Most gate modules state their reason nowhere
 

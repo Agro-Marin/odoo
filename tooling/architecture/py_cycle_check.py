@@ -41,7 +41,6 @@ _PACKAGE_REEXPORT = (
 )
 
 KNOWN_CYCLES: tuple[Known, ...] = (
-    Known(("odoo.modules", "odoo.modules.db"), _PACKAGE_REEXPORT),
     Known(("odoo.cli", "odoo.cli.command"), _PACKAGE_REEXPORT),
 )
 

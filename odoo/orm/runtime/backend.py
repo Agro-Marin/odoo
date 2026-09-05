@@ -171,6 +171,55 @@ class StorageBackend(typing.Protocol):
     ) -> None: ...
 
 
+def _prepare_search_query(
+    model: BaseModel,
+    domain: Domain,
+    offset: int,
+    limit: int | None,
+    order: str | None,
+    *,
+    check_access: bool = True,
+    prof: typing.Any = None,
+) -> Query:
+    """Compile search and ordering dependencies for either persistence adapter.
+
+    PostgreSQL flushes this metadata when executing the query. The in-memory
+    adapter consumes the same metadata before evaluating records in Python.
+    """
+    if prof is None:
+        prof = _OrmProfile(_orm_read)
+    query = Query(model.env, model._table, model._table_sql)
+    if not domain.is_true():
+        query.add_where(domain._to_sql(model, model._table, query))
+    prof.mark("domain")
+
+    if check_access:
+        model_sudo = model.sudo().with_context(active_test=False)
+        sec_domain = model.env["ir.rule"]._get_domain_accessible_records(
+            model._name, "read"
+        )
+        sec_domain = sec_domain.optimize_full(model_sudo)
+        if sec_domain.is_false():
+            return model.browse()._as_query()
+        if not sec_domain.is_true():
+            query.add_where(sec_domain._to_sql(model_sudo, model._table, query))
+    prof.mark("rules")
+
+    if order:
+        query.order = model._order_to_sql(order, query) or SQL.identifier(
+            model._table, "id"
+        )
+
+    if limit is not None and limit is not False:
+        query.limit = 1 if limit is True else limit
+    if offset is not None and offset is not False:
+        query.offset = 1 if offset is True else offset
+
+    prof.stop("query")
+    prof.report(_orm_read, "_search %s", model._name)
+    return query
+
+
 class PostgresBackend:
     supports_parent_store: bool = True
 
@@ -448,38 +497,9 @@ class PostgresBackend:
         check_access: bool = True,
         prof: typing.Any = None,
     ) -> Query:
-        if prof is None:
-            prof = _OrmProfile(_orm_read)
-        query = Query(model.env, model._table, model._table_sql)
-        if not domain.is_true():
-            query.add_where(domain._to_sql(model, model._table, query))
-        prof.mark("domain")
-
-        if check_access:
-            model_sudo = model.sudo().with_context(active_test=False)
-            sec_domain = model.env["ir.rule"]._get_domain_accessible_records(
-                model._name, "read"
-            )
-            sec_domain = sec_domain.optimize_full(model_sudo)
-            if sec_domain.is_false():
-                return self.as_query(model.browse())
-            if not sec_domain.is_true():
-                query.add_where(sec_domain._to_sql(model_sudo, model._table, query))
-        prof.mark("rules")
-
-        if order:
-            query.order = model._order_to_sql(order, query) or SQL.identifier(
-                model._table, "id"
-            )
-
-        if limit is not None and limit is not False:
-            query.limit = 1 if limit is True else limit
-        if offset is not None and offset is not False:
-            query.offset = 1 if offset is True else offset
-
-        prof.stop("query")
-        prof.report(_orm_read, "_search %s", model._name)
-        return query
+        return _prepare_search_query(
+            model, domain, offset, limit, order, check_access=check_access, prof=prof
+        )
 
     def as_query(self, model: BaseModel, ordered: bool = True) -> Query:
         query = Query(model.env, model._table, model._table_sql)
@@ -886,42 +906,14 @@ class InMemoryBackend:
         check_access: bool = True,
         prof: typing.Any = None,
     ) -> Query:
-        model.env.flush_all()
-
+        query = _prepare_search_query(
+            model, domain, offset, limit, order, check_access=check_access, prof=prof
+        )
+        model.env.flush_query(query.select())
+        # Descriptors preserve dirty values and fetch only what is read.
+        # Bulk-loading stored rows here would overwrite deferred writes.
         all_ids = self.storage.table_ids(model._table)
-        if not all_ids:
-            return model.browse()._as_query(ordered=False)
-
         all_records = model.browse(all_ids)
-        rows = self.storage.get_rows(model._table, all_ids)
-
-        env = model.env
-        fields_meta = model._fields
-        _fdc = env._field_depends_context
-        storable: list[tuple] = []
-        sentinel = model.browse(all_ids[0])
-        for fname, field in fields_meta.items():
-            if fname != "id" and field.store and field.column_type:
-                if field not in _fdc:
-                    storable.append((fname, field, env._core.get_field_data(field)))
-                else:
-                    try:
-                        storable.append((fname, field, field._get_cache(env)))
-                    except (KeyError, AttributeError, TypeError) as e:
-                        _logger.debug(
-                            "DictBackend cache load skipped %s.%s: %s",
-                            model._name,
-                            fname,
-                            e,
-                        )
-
-        for fname, field, field_cache in storable:
-            convert = field.convert_to_cache
-            for record_id in all_ids:
-                row = rows.get(record_id)
-                if row is not None and fname in row:
-                    value = _column_read_value(field, row[fname], env)
-                    field_cache[record_id] = convert(value, sentinel)
 
         if not domain.is_true():
             matching = all_records.filtered_domain(domain)

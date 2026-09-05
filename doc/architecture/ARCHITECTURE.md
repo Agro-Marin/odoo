@@ -5,6 +5,9 @@ system, utilities. This page carries context, forces, cross-cutting mechanisms
 and the index of the views. Per-addon maps live in
 `addons/*/machine_doc_v1/ARCHITECTURE.md`.
 
+The [2026-09-04 fork audit](../audits/architecture-2026-09-04.md) records prioritized findings,
+implemented transaction and dependency improvements, and remaining work.
+
 | If you are… | Read |
 |---|---|
 | new to the core | *Context* and *Forces* below, then [`module.md`](module.md) |

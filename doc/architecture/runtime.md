@@ -159,7 +159,14 @@ Three details the sketch flattens, all claims about **order**:
 
 - **`retrying()` lives in `odoo/service/transaction.py`**, not on a model. It
   re-runs the callable on PostgreSQL serialization/deadlock errors, rewinding
-  uploaded files between attempts.
+  uploaded files between attempts. The attempt includes flush and commit:
+  a concurrency rejection at commit is retried too. Replay requires successful
+  rollback, transaction reset and registry reset. The cursor's `commit_count`
+  must remain unchanged since entry; once work is durable, a post-commit hook
+  failure propagates without replay or local registry rollback. Connection
+  errors with an unknown commit outcome are not retryable. These boundaries
+  are exercised by `tests/service/test_transaction_recovery.py` and
+  `tests/contract/test_transaction_recovery.py`.
 - **Commit and session-save both happen *inside* the sketch, not after it.**
   `env.cr.commit()` is the last thing `retrying()` does once its callable
   returns, and the session is written earlier still — by

@@ -698,7 +698,7 @@ class TestRetrying:
             with pytest.raises(psycopg.errors.IntegrityError):
                 mod.retrying(func, mock_env)
 
-    def test_rollback_error_suppressed(self, mod, mock_env) -> None:
+    def test_failed_rollback_refuses_replay(self, mod, mock_env) -> None:
         exc = psycopg.errors.SerializationFailure()
         exc.sqlstate = "40001"
         mock_env.cr.rollback.side_effect = RuntimeError("rollback failed")
@@ -718,9 +718,12 @@ class TestRetrying:
         ):
             mock_http.request = None
             mock_backoff.delay.return_value = 0.0
-            result = mod.retrying(func, mock_env)
+            with pytest.raises(psycopg.errors.SerializationFailure) as caught:
+                mod.retrying(func, mock_env)
 
-        assert result == "ok"
+        assert calls == 1
+        assert caught.value.__cause__ is mock_env.cr.rollback.side_effect
+        mock_env.cr.commit.assert_not_called()
 
     def test_outer_except_resets_registry_on_non_retryable_error(
         self, mod, mock_env
@@ -751,9 +754,7 @@ class TestRetrying:
         mock_env.transaction.reset.assert_not_called()
         mock_env.registry.reset_changes.assert_not_called()
 
-    def test_commit_time_failure_runs_cleanup_without_retry(
-        self, mod, mock_env
-    ) -> None:
+    def test_commit_time_failure_exhausts_bounded_retries(self, mod, mock_env) -> None:
         exc = psycopg.errors.SerializationFailure()
         exc.sqlstate = "40001"
         mock_env.cr.commit.side_effect = exc
@@ -764,12 +765,11 @@ class TestRetrying:
             calls += 1
             return "ok"
 
-        with patch("odoo.http") as mock_http:
-            mock_http.request = None
+        with patch("odoo.service.transaction.time.sleep"):
             with pytest.raises(psycopg.errors.SerializationFailure):
                 mod.retrying(func, mock_env)
 
-        assert calls == 1
+        assert calls == 5
         mock_env.transaction.reset.assert_called()
         mock_env.registry.reset_changes.assert_called()
         mock_env.registry.signal_changes.assert_not_called()

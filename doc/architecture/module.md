@@ -580,12 +580,15 @@ Every edge of a cycle can sit inside one layer and cross no boundary. Python
 hides this better than ESM does — a partially-initialised module is a live
 object, so a cycle usually *works* until an entry point changes.
 `py_cycle_check.py` reconstructs the import graph to find them. **The ORM has
-none.** Two are pinned, all the benign package↔submodule shape:
+none.** Pinned import cycles:
 
 ```
-odoo.modules <-> odoo.modules.db
 odoo.cli     <-> odoo.cli.command
 ```
+
+The module loader's former cycle was removed by importing `Manifest` from its
+owning module in `modules/db.py`, rather than reaching it through the package
+that imports `db`. Public re-exports remain available to consumers.
 
 `from . import x` is an edge to `x`, not to the package: the ancestor package is
 already on `sys.modules` when the importing module runs, so its `__init__`
@@ -628,6 +631,16 @@ method of the backend taking the model as its argument; `runtime/backend.py`'s
 implementors read side by side in one file, and what stays on the model is
 query *compilation* — `_field_to_sql`, `_order_to_sql`, `_traverse_related_sql`
 — which `Domain._to_sql` and `read_group` call too.
+
+Search query assembly is shared through
+`runtime/backend.py::_prepare_search_query`. Its SQL metadata identifies fields
+required by domains, joins and ordering. PostgreSQL flushes that metadata at
+execution; the in-memory adapter flushes it before evaluating records in Python.
+Search no longer flushes every pending compute or copies unread stored columns
+into cache. This makes deferred recursive computes observable in the fast tier;
+`tests/contract/test_search_flush.py` exercises the same recursion scenarios
+against PostgreSQL.
+
 Production CRUD sniffs the test backend neither via
 `transaction.storage` nor via a null check. Until 2026-08-08 a null
 `env.backend` *was* the PostgreSQL implementation — an unnamed branch at fifteen

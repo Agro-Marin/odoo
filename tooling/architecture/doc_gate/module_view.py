@@ -453,9 +453,8 @@ class TestPinnedCyclesAndRemovals(unittest.TestCase):
         known = getattr(report, "known", None) or report.cycles
         measured = {" <-> ".join(cycle) for cycle in known}
 
-        count = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five"}[len(measured)]
-        anchor = f"{count} are pinned, all the benign"
-        self.assertIn(anchor, DOC, "module.md does not state the measured count")
+        anchor = "Pinned import cycles:"
+        self.assertIn(anchor, DOC, "module.md does not list the measured cycles")
         block = DOC.split(anchor, 1)[1]
         block = block.split("```", 2)[1]
         listed = {

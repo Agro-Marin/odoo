@@ -6,10 +6,10 @@ from itertools import batched
 from psycopg.types.json import Json
 
 import odoo.api
-import odoo.modules
 import odoo.tools
 from odoo.db import schema as _db_schema
 from odoo.modules._protocols import SqlReader
+from odoo.modules.module import Manifest
 
 from .registry import Registry
 
@@ -17,7 +17,6 @@ if typing.TYPE_CHECKING:
     from collections.abc import Iterable
 
     from odoo.db import Cursor
-    from odoo.modules.module import Manifest
 
 _logger = logging.getLogger(__name__)
 
@@ -154,7 +153,7 @@ def _mark_auto_install_modules(cr: Cursor) -> None:
 def initialize(cr: Cursor) -> None:
     _create_base_schema(cr)
 
-    manifests = odoo.modules.Manifest.all_addon_manifests()
+    manifests = Manifest.all_addon_manifests()
     category_cache: dict[str, int] = {}
     module_rows = [
         (

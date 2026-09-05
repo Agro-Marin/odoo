@@ -78,18 +78,10 @@ def _commit_and_signal_changes(env: Environment) -> None:
     commits_before = env.cr.commit_count
     try:
         env.cr.commit()
-    except Exception as exc:
+    except Exception:
         if env.cr.commit_count > commits_before:
             with suppress(Exception):
                 env.registry.signal_changes()
-        else:
-            _reset_env_state(env)
-            if not env.cr.closed and isinstance(exc, IntegrityError):
-                translated = None
-                with suppress(Exception):
-                    translated = _integrity_error_to_validation_error(env, exc)
-                if translated is not None:
-                    raise translated from exc
         raise
     if not env.cr.closed:
         env.registry.signal_changes()
@@ -98,18 +90,44 @@ def _commit_and_signal_changes(env: Environment) -> None:
             env.registry.signal_changes()
 
 
+def _rollback_transaction(env: Environment, exc: Exception) -> None:
+    """Require successful recovery before allowing another attempt."""
+    try:
+        env.cr.rollback()
+    except Exception as rollback_error:
+        raise exc from rollback_error
+    if env.cr.closed:
+        raise exc
+    env.transaction.reset()
+    env.registry.reset_changes()
+
+
+def _retry_error_name(exc: Exception) -> str | None:
+    if isinstance(exc, PG_RETRY_EXCEPTIONS):
+        return errors.lookup(exc.sqlstate).__name__
+    if isinstance(exc, ConcurrencyError):
+        return repr(exc)
+    if is_stale_cached_plan(exc):
+        return "StaleCachedPlan"
+    return None
+
+
 def retrying[T](
     func: Callable[[], T],
     env: Environment,
     participant: RetryParticipant | None = None,
 ) -> T:
+    commits_before = env.cr.commit_count
     try:
         for tryno in range(1, MAX_TRIES_ON_CONCURRENCY_FAILURE + 1):
             tryleft = MAX_TRIES_ON_CONCURRENCY_FAILURE - tryno
             try:
                 result = func()
-                if not env.cr.closed:
-                    env.cr.flush()
+                if env.cr.closed:
+                    _warn_cursor_closed_before_commit(func, participant)
+                    break
+                env.cr.flush()
+                _commit_and_signal_changes(env)
                 break
             except (
                 IntegrityError,
@@ -117,25 +135,23 @@ def retrying[T](
                 ConcurrencyError,
                 *PG_STALE_PLAN_EXCEPTIONS,
             ) as exc:
-                if env.cr.closed:
+                if env.cr.closed or env.cr.commit_count > commits_before:
                     raise
-                with suppress(Exception):
-                    env.cr.rollback()
-                _reset_env_state(env)
+                _rollback_transaction(env, exc)
                 if participant is not None:
                     participant.on_rollback(exc)
                 if isinstance(exc, IntegrityError):
                     if env.cr.closed:
                         raise
-                    raise _integrity_error_to_validation_error(env, exc) from exc
+                    translated = None
+                    with suppress(Exception):
+                        translated = _integrity_error_to_validation_error(env, exc)
+                    if translated is not None:
+                        raise translated from exc
+                    raise
 
-                if isinstance(exc, PG_RETRY_EXCEPTIONS):
-                    error = errors.lookup(exc.sqlstate).__name__
-                elif isinstance(exc, ConcurrencyError):
-                    error = repr(exc)
-                elif is_stale_cached_plan(exc):
-                    error = "StaleCachedPlan"
-                else:
+                error = _retry_error_name(exc)
+                if error is None:
                     _logger.info(
                         "OperationalError not retryable: %s (sqlstate=%s)",
                         type(exc).__name__,
@@ -161,14 +177,9 @@ def retrying[T](
                 )
                 time.sleep(wait_time)
     except Exception:
-        _reset_env_state(env)
+        if env.cr.commit_count == commits_before:
+            _reset_env_state(env)
         raise
-
-    if env.cr.closed:
-        _warn_cursor_closed_before_commit(func, participant)
-        return result
-
-    _commit_and_signal_changes(env)
     return result
 
 
