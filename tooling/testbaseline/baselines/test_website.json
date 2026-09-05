@@ -1,0 +1,28 @@
+{
+  "expected": {
+    "test_website/TestForm.test_form_conditional_visibility_record_field": "FAIL",
+    "test_website/TestImageUploadProgress.test_01_image_upload_progress": "FAIL",
+    "test_website/TestMedia.test_01_replace_media": "FAIL",
+    "test_website/TestMedia.test_02_image_link": "FAIL",
+    "test_website/TestSnippetBackgroundVideo.test_snippet_background_video": "FAIL",
+    "test_website/TestSystray.test_01_admin": "FAIL",
+    "test_website/TestSystray.test_02_reditor_tester": "FAIL",
+    "test_website/TestSystray.test_03_reditor_not_tester": "FAIL",
+    "test_website/TestSystray.test_04_not_reditor_tester": "FAIL",
+    "test_website/TestSystray.test_05_not_reditor_not_tester": "FAIL",
+    "test_website/TestTranslation.test_en_fr_db_en_fr_site": "FAIL",
+    "test_website/TestTranslation.test_en_fr_db_fr_en_site": "FAIL",
+    "test_website/TestTranslation.test_en_fr_db_fr_site": "FAIL",
+    "test_website/TestTranslation.test_fr_db_fr_site": "ERROR",
+    "test_website/TestTranslation.test_fr_en_db_en_fr_site": "FAIL",
+    "test_website/TestTranslation.test_fr_en_db_en_site": "FAIL",
+    "test_website/TestTranslation.test_fr_en_db_fr_en_site": "FAIL",
+    "test_website/TestTranslation.test_fr_en_db_fr_site": "FAIL",
+    "test_website/TestWebsitePageProperties.test_website_page_properties_website_page": "FAIL"
+  },
+  "note": "Seeded 2026-09-05 from a clean detached worktree of 498d4702f80, node_modules symlinked, no demo. 18 FAIL + 1 ERROR of 77; the identical set reproduced on the working tree that carried the website.py split (507a33c5d89), so none of it is that commit. Every FAIL is a browser tour (TestSystray x5, TestTranslation x7, TestMedia x2, TestForm, TestImageUploadProgress, TestSnippetBackgroundVideo, TestWebsitePageProperties), the shape of the /website baseline's TIMEOUT bucket. The one ERROR is real and Python-side: TestTranslation.test_fr_db_fr_site raises UserError 'Cannot deactivate a language that is used by archived contacts' from res.lang, a guard this fork added that the test's fixture predates. Not root-caused.",
+  "run_spec": "odoo-bin -d <fresh db> -i test_website --test-enable --test-tags '/test_website'",
+  "suite": "/test_website",
+  "tests_total": 77,
+  "verified_at": "498d4702f80"
+}
