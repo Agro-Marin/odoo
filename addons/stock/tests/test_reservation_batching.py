@@ -282,3 +282,52 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(move2.quantity, 6.0)
         self.assertEqual(move2.state, "partially_available")
         self.assertEqual(self._reserved(self.product), 10.0)
+
+    def test_siblings_share_one_origin_within_a_batch(self):
+        output = self.env["stock.location"].create(
+            {
+                "name": "Batch Output",
+                "usage": "internal",
+                "location_id": self.warehouse_1.view_location_id.id,
+            }
+        )
+        self._stock(self.product, 10.0)
+        self._stock(self.product, 100.0, location=output)
+        pick = self.env["stock.move"].create(
+            {
+                "product_id": self.product.id,
+                "product_uom_qty": 10.0,
+                "location_id": self.stock_location.id,
+                "location_dest_id": output.id,
+                "picking_type_id": self.warehouse_1.pick_type_id.id,
+            }
+        )
+        ships = self.env["stock.move"].create(
+            [
+                {
+                    "product_id": self.product.id,
+                    "product_uom_qty": 10.0,
+                    "location_id": output.id,
+                    "location_dest_id": self.customer_location.id,
+                    "picking_type_id": self.warehouse_1.out_type_id.id,
+                    "procure_method": "make_to_order",
+                    "move_orig_ids": [Command.link(pick.id)],
+                    "description_picking": f"ship {index}",
+                }
+                for index in range(2)
+            ]
+        )
+        pick._action_confirm()
+        ships._action_confirm(merge=False)
+        pick._action_assign()
+        pick.picked = True
+        pick._action_done()
+
+        ships._action_assign()
+
+        self.assertEqual(
+            sum(ships.move_line_ids.mapped("quantity")),
+            10.0,
+            "two siblings fed by one 10-unit origin cannot reserve 20 between them",
+        )
+        self.assertEqual(ships.mapped("state"), ["assigned", "waiting"])

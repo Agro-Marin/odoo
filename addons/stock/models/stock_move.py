@@ -2930,8 +2930,32 @@ class StockMove(models.Model):
             grouped_move_lines_out[k] += sum(ml.quantity_product_uom for ml in g)
         for k, g in groupby(move_lines_out_reserved, key=get_source_key):
             grouped_move_lines_out[k] += sum(ml.quantity_product_uom for ml in g)
+        for key, quantity in self._get_pending_reserved_out(
+            moves_out_siblings_to_consider
+        ).items():
+            grouped_move_lines_out[key] += quantity
 
         return grouped_move_lines_out
+
+    def _get_pending_reserved_out(self, siblings):
+        ledger = self.env.context.get("reservation_ledger")
+        pending = defaultdict(float)
+        if ledger is None or not siblings:
+            return pending
+        env = self.env
+        product_uom = self.product_id.uom_id
+        for vals in ledger.get_pending_move_line_vals(siblings.ids):
+            key = (
+                env["stock.location"].browse(vals["location_id"]),
+                env["stock.lot"].browse(vals.get("lot_id") or ()),
+                env["stock.package"].browse(vals.get("package_id") or ()),
+                env["res.partner"].browse(vals.get("owner_id") or ()),
+            )
+            line_uom = env["uom.uom"].browse(vals["product_uom_id"])
+            pending[key] += line_uom._compute_quantity(
+                vals.get("quantity", 0.0), product_uom, rounding_method="HALF-UP"
+            )
+        return pending
 
     def _get_available_move_lines(self, reserved_by_this_run):
         grouped_move_lines_in = self._get_available_move_lines_in()

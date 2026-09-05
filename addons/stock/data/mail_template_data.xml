@@ -16,10 +16,11 @@
                 <p style="margin: 0px; padding: 0px; font-size: 13px;"> Hello <t t-out="object.partner_id.name or ''">Brandon Freeman</t>,<br /><br /> We are
                     glad to inform you that your order has been shipped. <t t-if="hasattr(object, 'carrier_tracking_ref') and object.carrier_tracking_ref">
                     Your tracking reference is <strong>
-                        <t t-if="object.carrier_tracking_url">
+                        <t
+                            t-if="hasattr(object, 'carrier_tracking_url') and object.carrier_tracking_url">
                             <t
                                 t-set="multiple_carrier_tracking"
-                                t-value="object.get_multiple_carrier_tracking()" />
+                                t-value="hasattr(object, 'get_multiple_carrier_tracking') and object.get_multiple_carrier_tracking()" />
                             <t t-if="multiple_carrier_tracking">
                                 <t t-foreach="multiple_carrier_tracking" t-as="line">
                                     <br />

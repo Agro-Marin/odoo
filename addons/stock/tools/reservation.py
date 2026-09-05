@@ -111,6 +111,10 @@ class ReservationLedger:
     def get_total_pending(self):
         return sum(self._pending.values())
 
+    def get_pending_move_line_vals(self, move_ids):
+        move_ids = set(move_ids)
+        return [vals for vals in self.move_line_vals if vals.get("move_id") in move_ids]
+
 
 class ReservationCandidate(typing.NamedTuple):
     handle: object
