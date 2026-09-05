@@ -6,12 +6,12 @@
     "description": """
 The "every N units, until ..." half of a recurrence, in one place.
 
-``project.task.recurrence`` and ``planning.recurrency`` had each grown the same
-rule independently: the same four unit values, the same two policy values, the
-same positive-interval rule written twice -- once as a Python constraint and
-once as a SQL CHECK -- and the same step-to-the-next-occurrence helper under two
-names. This module owns that vocabulary so a further consumer cannot invent a
-fifth spelling of "week".
+``project.task.recurrence``, ``planning.recurrency`` and ``maintenance.request``
+had each grown the same rule independently: the same four unit values, the same
+two policy values, the same positive-interval rule written twice -- once as a
+Python constraint and once as a SQL CHECK -- and the same step-to-the-next-
+occurrence helper under two names. This module owns that vocabulary so a
+further consumer cannot invent a fourth spelling of "week".
 
 Ships a mixin only -- no concrete model, no data, no views. Deliberately does
 not own ``repeat_until`` (a Date for one consumer and a Datetime for the other,
