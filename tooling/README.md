@@ -81,3 +81,21 @@ Linux inotify capacity is shared per user. Inspect watch ownership before
 raising host limits: a recursively watched generated tree can exhaust the
 budget even while every Odoo watcher closes correctly. Service tests deliberately
 fail on capacity exhaustion rather than turning untested behavior into a skip.
+
+## Gate environment validation
+
+`tooling/gate` checks Ruff and mypy's executable versions and validates the full
+`requirements-dev.txt` against its selected interpreter before running a command.
+The check uses pip's non-installing plan, with package-index access disabled, so
+version ranges, platform markers and dependency requirements follow the same
+rules as installation. Validation ignores local pip configuration and environment
+options that could disable dependency checks. A plan that would install anything
+is a failure even if
+pip exits successfully. Missing or malformed reports also fail closed.
+
+A cached environment is not assumed current merely because the two tool versions
+match. Adding a stub package can change what mypy sees without changing mypy's
+version. When the environment is stale, the launcher prints the exact command
+to synchronize it; checking alone does not install packages or alter the profile.
+`--pins` continues to report the Ruff/mypy version pins, while `--python` reports
+the selected interpreter. Neither information-only option builds an environment.

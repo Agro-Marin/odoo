@@ -5,7 +5,7 @@
 # A count taken in the full development environment can differ because its
 # runtime dependencies expose additional types. Keep that measurement separate.
 # This launcher builds tooling/.venv-gates from the requirements and refuses to
-# run when its ruff or mypy version differs from the pin.
+# run when its tools or installed requirements differ from the declared profile.
 #
 #   tooling/gate ruff check odoo/ --no-cache --statistics
 #   tooling/gate mypy --no-incremental --config-file mypy.ini -p odoo.orm
@@ -56,6 +56,8 @@ for tool in ruff mypy; do
         exit 2
     fi
 done
+
+"$venv/bin/python" "$here/_gate_environment.py" "$pins"
 
 export PATH="$venv/bin:$PATH"
 export ODOO_GATE_PYTHON="$venv/bin/python"

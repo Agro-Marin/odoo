@@ -214,3 +214,28 @@ separate real-ORM loading test passed. Layering, import cycles, core Ruff and th
 unchanged size floors passed. Architecture documentation and launcher checks
 passed; the launcher integration check was rerun after building its local
 pinned environment instead of accepting its missing-environment skip.
+
+## Continuation: gate environment freshness, 2026-09-05
+
+The main checkout's cached gate environment lacked the newly required dateutil
+stubs, yet `tooling/gate` accepted it because Ruff and mypy's versions matched.
+The launcher now validates the complete requirements file with pip's
+non-installing resolver plan before executing the requested command. It rejects
+missing or mismatched packages, incomplete dependencies, plans that would
+install anything, and absent or malformed reports. Platform markers and version
+ranges remain owned by pip rather than a second requirement parser.
+
+Validation isolates pip from local configuration and environment flags. Tests
+reproduced how `PIP_NO_DEPS=1` and a config-file equivalent otherwise bypassed
+transitive checks. Package-index access and cache writes are disabled during
+validation. A stale environment gets an explicit synchronization command; the
+check itself does not install packages. The main checkout's cached environment
+was synchronized with its declared requirements.
+
+All 17 launcher/environment tests passed, including real pip runs against
+isolated environments and a local wheel that pip could plan successfully but
+had not installed. Restoring the old launcher in temporary test checkouts
+makes the missing-package, wrong-version and uninstalled-wheel regressions fail.
+The validated main-checkout gate passed the combined 809-file type check and
+Ruff over tooling and tests. This closes a concrete reproducibility gap; it does
+not establish deployed CI enforcement or close the browser-coverage risk R8.
