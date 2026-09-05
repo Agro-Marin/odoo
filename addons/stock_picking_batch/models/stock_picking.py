@@ -293,10 +293,8 @@ class StockPicking(models.Model):
         return super()._create_backorder(backorder_moves)
 
     def _should_show_transfers(self):
-        if len(self.batch_id) == 1 and len(self) == (
-            len(self.batch_id.picking_ids)
-            - len(self.env.context.get("pickings_to_detach", []))
-        ):
+        detached = self.browse(self.env.context.get("pickings_to_detach"))
+        if len(self.batch_id) == 1 and self == self.batch_id.picking_ids - detached:
             return False
         return super()._should_show_transfers()
 

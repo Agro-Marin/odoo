@@ -144,7 +144,8 @@ class StockPickingBatch(models.Model):
             estimated_shipping_volume = 0
             weighed_package_ids = set()
             measured_package_ids = set()
-            for pack in batch.move_line_ids.result_package_id:
+            move_lines = batch.move_line_ids
+            for pack in move_lines.result_package_id:
                 package_type = pack.package_type_id
                 if pack.shipping_weight:
                     estimated_shipping_weight += pack.shipping_weight
@@ -158,7 +159,7 @@ class StockPickingBatch(models.Model):
                         * package_type.height
                     ) / 1000.0**3
                     measured_package_ids.add(pack.id)
-            for move_line in batch.picking_ids.move_ids.move_line_ids:
+            for move_line in move_lines:
                 package_id = move_line.result_package_id.id
                 if package_id not in weighed_package_ids:
                     estimated_shipping_weight += (
@@ -251,11 +252,6 @@ class StockPickingBatch(models.Model):
                 default=False,
             )
 
-    @api.onchange("date_planned")
-    def onchange_date_planned(self):
-        if self.date_planned:
-            self.picking_ids.date_planned = self.date_planned
-
     def _inverse_move_line_ids(self):
         for batch in self:
             new_move_lines = batch.move_line_ids
@@ -271,7 +267,7 @@ class StockPickingBatch(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            if vals.get("name", "/") == "/":
+            if vals.get("name", "New") == "New":
                 company_id = vals.get("company_id", self.env.company.id)
                 picking_type = self.env["stock.picking.type"].browse(
                     vals.get("picking_type_id")
@@ -306,6 +302,10 @@ class StockPickingBatch(models.Model):
             self._set_picking_type_from_pickings()
         if "user_id" in vals:
             self.picking_ids.update_batch_user(vals["user_id"])
+        if vals.get("date_planned"):
+            self.picking_ids.filtered(
+                lambda picking: picking.date_planned != self.date_planned
+            ).date_planned = vals["date_planned"]
         return res
 
     @api.ondelete(at_uninstall=False)
@@ -360,6 +360,10 @@ class StockPickingBatch(models.Model):
             )
         )
         pickings -= empty_waiting_pickings
+        if not pickings:
+            raise UserError(
+                _("No quantity was processed in any transfer of this batch.")
+            )
 
         empty_pickings = pickings.filtered(has_no_quantity)
 
@@ -606,11 +610,7 @@ class StockPickingBatch(models.Model):
 
     def _get_merged_batch_vals(self):
         self.check_singleton()
-        return {
-            "user_id": self.user_id.id,
-            "description": self.description,
-            "date_planned": self.date_planned,
-        }
+        return {"user_id": self.user_id.id, "description": self.description}
 
     def _get_auto_wave_grouping_key(self, picking_type, nearest_parent_location):
         self.check_singleton()

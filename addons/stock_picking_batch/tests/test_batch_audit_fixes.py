@@ -1,4 +1,4 @@
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
@@ -383,3 +383,39 @@ class TestBatchAuditFixes(TransactionCase):
         picking_type.write({"auto_batch": True, "batch_group_by_partner": True})
         pickings.action_confirm()
         self.assertEqual(len(pickings.batch_id), 1)
+
+    def test_validating_a_batch_with_nothing_processed_is_refused(self):
+        pickings = self._picking() | self._picking()
+        batch = self._batch(pickings)
+        batch.action_confirm()
+        pickings.move_ids.quantity = 0
+        with self.assertRaises(UserError):
+            batch.action_done()
+        self.assertEqual(batch.state, "in_progress")
+        self.assertEqual(batch.picking_ids, pickings)
+
+    def test_a_batch_created_with_its_default_name_is_numbered(self):
+        batch = self.env["stock.picking.batch"].create(
+            {"name": "New", "picking_type_id": self.picking_type.id}
+        )
+        self.assertNotEqual(batch.name, "New")
+        self.assertIn(self.picking_type.sequence_code, batch.name)
+        kept = self.env["stock.picking.batch"].create(
+            {"name": "Given", "picking_type_id": self.picking_type.id}
+        )
+        self.assertEqual(kept.name, "Given")
+
+    def test_writing_the_scheduled_date_reaches_every_transfer(self):
+        pickings = self._picking() | self._picking()
+        batch = self._batch(pickings)
+        date = fields.Datetime.to_datetime("2030-01-02 03:04:05")
+        batch.write({"date_planned": date})
+        self.assertEqual(set(pickings.mapped("date_planned")), {date})
+        self.assertEqual(batch.date_planned, date)
+
+    def test_merging_takes_the_earliest_date_from_the_transfers_themselves(self):
+        first, second = self._batch(self._picking()), self._batch(self._picking())
+        early = fields.Datetime.to_datetime("2020-01-01 00:00:00")
+        second.date_planned = early
+        (first | second).action_merge()
+        self.assertEqual(first.date_planned, early)
