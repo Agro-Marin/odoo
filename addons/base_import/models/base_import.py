@@ -29,6 +29,7 @@ from odoo.libs.documents import (
     decode,
     guess_encoding,
     infer_separators,
+    mimetypes_for,
     register_reader,
     strip_currency_symbol,
 )
@@ -208,7 +209,6 @@ class ImportValidationError(Exception):
         self.field_type = kwargs.get("field_type")
 
 
-
 def read_xls_rows(data, options):
     # Lazy import, mirroring _read_xlsx's `import openpyxl` and _read_ods's
     # `from . import odf_ods_reader`: `xlrd` is an optional format library
@@ -256,14 +256,13 @@ def read_xls_rows(data, options):
             rows.append(values)
     return rows
 
+
 def read_xlsx_rows(data, options):
     import openpyxl
     import openpyxl.cell.cell as types
     import openpyxl.styles.numbers as styles
 
-    book = openpyxl.load_workbook(
-        io.BytesIO(data), data_only=True, read_only=True
-    )
+    book = openpyxl.load_workbook(io.BytesIO(data), data_only=True, read_only=True)
     try:
         sheets = options["sheets"] = book.sheetnames
         sheet_name = options["sheet"] = options.get("sheet") or sheets[0]
@@ -315,6 +314,7 @@ def read_xlsx_rows(data, options):
     finally:
         book.close()
 
+
 class _SpreadsheetReader(BaseReader):
     """A workbook read as `rows`, for every consumer of the format layer.
 
@@ -365,6 +365,7 @@ def read_ods_rows(data, options):
     # The reader already drops blank rows, including the repeated blank
     # tail every producer writes.
     return doc.get_sheet(sheet)
+
 
 class Base(models.AbstractModel):
     _inherit = "base"
@@ -3197,29 +3198,7 @@ def _prepare_read_file_error(exc: Exception, message: str) -> UserError:
 
 
 register_reader(
-    _SpreadsheetReader(
-        "xlsx",
-        (
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "application/vnd.ms-excel.sheet.macroenabled.12",
-        ),
-        read_xlsx_rows,
-        "openpyxl",
-    ),
+    _SpreadsheetReader("xlsx", mimetypes_for("xlsx"), read_xlsx_rows, "openpyxl")
 )
-register_reader(
-    _SpreadsheetReader(
-        "xls",
-        ("application/vnd.ms-excel",),
-        read_xls_rows,
-        "xlrd",
-    ),
-)
-register_reader(
-    _SpreadsheetReader(
-        "ods",
-        ("application/vnd.oasis.opendocument.spreadsheet",),
-        read_ods_rows,
-        "odf",
-    ),
-)
+register_reader(_SpreadsheetReader("xls", mimetypes_for("xls"), read_xls_rows, "xlrd"))
+register_reader(_SpreadsheetReader("ods", mimetypes_for("ods"), read_ods_rows, "odf"))

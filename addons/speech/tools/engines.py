@@ -2,35 +2,20 @@ from __future__ import annotations
 
 from typing import Any
 
-from odoo.libs.documents import ANY, CUES, TEXT, get_readers, get_writers
-
-AUDIO_MIMETYPES = frozenset(
-    {
-        "audio/aac",
-        "audio/flac",
-        "audio/mp4",
-        "audio/mpeg",
-        "audio/ogg",
-        "audio/opus",
-        "audio/wav",
-        "audio/webm",
-        "audio/x-m4a",
-        "audio/x-wav",
-    }
+from odoo.libs.documents import (
+    ANY,
+    CUES,
+    TEXT,
+    get_readers,
+    get_writers,
+    mimetypes_for,
 )
 
-VIDEO_MIMETYPES = frozenset(
-    {
-        "video/mp4",
-        "video/mpeg",
-        "video/ogg",
-        "video/quicktime",
-        "video/webm",
-        "video/x-matroska",
-    }
-)
+from .formats import SPEECH_EXTENSIONS
 
-SPOKEN_MIMETYPES = AUDIO_MIMETYPES | VIDEO_MIMETYPES
+SPOKEN_MIMETYPES = mimetypes_for(*SPEECH_EXTENSIONS)
+AUDIO_MIMETYPES = frozenset(m for m in SPOKEN_MIMETYPES if m.startswith("audio/"))
+VIDEO_MIMETYPES = frozenset(m for m in SPOKEN_MIMETYPES if m.startswith("video/"))
 
 DEFAULT_SPEECH_MIMETYPE = "audio/mpeg"
 

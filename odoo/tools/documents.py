@@ -4,14 +4,21 @@ import io
 import logging
 from typing import Any
 
-from odoo.libs.documents import CHILDREN, FREE, BaseReader, Document, register_reader
+from odoo.libs.documents import (
+    CHILDREN,
+    FREE,
+    BaseReader,
+    Document,
+    mimetypes_for,
+    register_reader,
+)
 
 _logger = logging.getLogger(__name__)
 
 
 class PdfEmbeddedFiles(BaseReader):
     name = "pdf_embedded_files"
-    mimetypes = frozenset({"application/pdf"})
+    mimetypes = mimetypes_for("pdf")
     yields = (CHILDREN,)
     cost = FREE
 

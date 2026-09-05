@@ -6,6 +6,7 @@ from typing import Any
 
 from odoo.libs.filesystem import guess_mimetype
 
+from .formats import mimetype_for
 from .guess import decode, looks_like_text
 from .readers import (
     BARCODES,
@@ -43,11 +44,11 @@ TEXT_MAX_CHARS = 60_000
 DEFAULT_READ_UP_TO = CHEAP
 
 _DEFAULT_MIMETYPES = {
-    ROWS: "text/csv",
+    ROWS: mimetype_for("csv"),
     TEXT: "text/plain",
-    TREE: "application/xml",
-    DATA: "application/json",
-    CUES: "text/vtt",
+    TREE: mimetype_for("xml"),
+    DATA: mimetype_for("json"),
+    CUES: mimetype_for("vtt"),
 }
 
 

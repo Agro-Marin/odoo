@@ -494,3 +494,29 @@ class TestDocument(unittest.TestCase):
     def test_an_unknown_representation_is_refused(self):
         with self.assertRaises(ValueError):
             Document(b"x", "text/plain").provides("pixels")
+
+
+class TestBuiltinsAreInTheTable(unittest.TestCase):
+    # The reader and writer registries used to spell every mimetype for
+    # themselves, and `xml_text` in document_extract drifted from the xml
+    # format by one alias. Every built-in is derived from the table now, and
+    # this is what keeps the next one from being spelled by hand.
+
+    def test_every_builtin_reader_mimetype_is_a_registered_format(self):
+        from odoo.libs.documents.formats import get_format
+        from odoo.libs.documents.readers import registered_readers
+
+        for reader in registered_readers():
+            for mimetype in reader.mimetypes - {ANY}:
+                with self.subTest(reader=reader.name, mimetype=mimetype):
+                    self.assertIsNotNone(get_format(mimetype))
+
+    def test_every_builtin_writer_mimetype_is_a_canonical_format(self):
+        from odoo.libs.documents.formats import extension_for
+        from odoo.libs.documents.writers import registered_writers
+
+        for writer in registered_writers():
+            if writer.mimetype == ANY:
+                continue
+            with self.subTest(writer=writer.name):
+                self.assertTrue(extension_for(writer.mimetype))

@@ -5,6 +5,7 @@ from . import formats
 from . import guess
 from . import layout
 from . import readers
+from . import representations
 from . import writers
 from .coerce import (
     infer_separators,
@@ -50,6 +51,7 @@ from .formats import (
     get_format_of_extension,
     known_formats,
     mimetype_for,
+    mimetypes_for,
     register_extension,
     register_format,
 )
@@ -144,6 +146,7 @@ __all__ = [
     "known_writers",
     "layout",
     "mimetype_for",
+    "mimetypes_for",
     "normalize_number",
     "parse_srt",
     "parse_vtt",
@@ -154,6 +157,7 @@ __all__ = [
     "register_writer",
     "registered_readers",
     "registered_writers",
+    "representations",
     "strip_currency_symbol",
     "to_date",
     "to_datetime",

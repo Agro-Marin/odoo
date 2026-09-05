@@ -20,7 +20,10 @@ SPEECH_FORMATS = (
     ("video/mp4", "mp4", "MPEG-4 video", frozenset()),
     ("video/quicktime", "mov", "QuickTime video", frozenset()),
     ("video/x-matroska", "mkv", "Matroska video", frozenset()),
+    ("video/mpeg", "mpeg", "MPEG video", frozenset()),
+    ("video/ogg", "ogv", "Ogg video", frozenset()),
 )
+SPEECH_EXTENSIONS = tuple(extension for _, extension, _, _ in SPEECH_FORMATS)
 
 
 def register_speech_formats() -> None:

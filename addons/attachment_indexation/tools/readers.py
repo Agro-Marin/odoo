@@ -25,21 +25,20 @@ import zipfile
 from defusedxml.minidom import parseString as defused_parse_string
 from lxml import etree
 
-from odoo.libs.documents import TEXT, BaseReader, register_reader
+from odoo.libs.documents import (
+    TEXT,
+    BaseReader,
+    mimetype_for,
+    mimetypes_for,
+    register_reader,
+)
 
 _logger = logging.getLogger(__name__)
 
-DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-OPENDOCUMENT = frozenset(
-    {
-        "application/vnd.oasis.opendocument.text",
-        "application/vnd.oasis.opendocument.spreadsheet",
-        "application/vnd.oasis.opendocument.presentation",
-        "application/vnd.oasis.opendocument.graphics",
-    }
-)
+DOCX = mimetype_for("docx")
+PPTX = mimetype_for("pptx")
+XLSX = mimetype_for("xlsx")
+OPENDOCUMENT = mimetypes_for("odt", "ods", "odp", "odg")
 
 # What one entry of a zip-based container may inflate to. A small, well-formed
 # .docx can declare a huge uncompressed size for its inner XML and force a full

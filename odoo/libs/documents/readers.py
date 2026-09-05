@@ -7,10 +7,28 @@ from collections.abc import Callable
 from operator import attrgetter
 from typing import Any, Protocol, runtime_checkable
 
+from .formats import mimetypes_for
+from .representations import (
+    ANY,
+    BARCODES,
+    CHEAP,
+    CHILDREN,
+    CUES,
+    DATA,
+    EXPENSIVE,
+    FREE,
+    IMAGES,
+    REPRESENTATIONS,
+    ROWS,
+    TEXT,
+    TREE,
+)
+
 __all__ = [
     "ANY",
     "BARCODES",
     "CHEAP",
+    "CHILDREN",
     "CUES",
     "DATA",
     "EXPENSIVE",
@@ -27,23 +45,6 @@ __all__ = [
     "registered_readers",
     "unregister_reader",
 ]
-
-ROWS = "rows"
-TEXT = "text"
-TREE = "tree"
-DATA = "data"
-IMAGES = "images"
-BARCODES = "barcodes"
-CHILDREN = "children"
-CUES = "cues"
-
-REPRESENTATIONS = (ROWS, TEXT, TREE, DATA, IMAGES, BARCODES, CHILDREN, CUES)
-
-ANY = "*"
-
-FREE = 0
-CHEAP = 10
-EXPENSIVE = 20
 
 
 @runtime_checkable
@@ -161,13 +162,6 @@ def _reader(
     return reader
 
 
-_XML_MIMETYPES = frozenset({"application/xml", "text/xml", "application/xhtml+xml"})
-_JSON_MIMETYPES = frozenset({"application/json", "text/json"})
-_CSV_MIMETYPES = frozenset({"text/csv", "text/plain", "application/csv"})
-_VTT_MIMETYPES = frozenset({"text/vtt"})
-_SRT_MIMETYPES = frozenset({"application/x-subrip", "application/x-srt", "text/srt"})
-
-
 def _read_tree(document: Any) -> Any:
     from lxml import etree
 
@@ -223,11 +217,11 @@ def _read_cued_text(document: Any) -> str:
     return cues_as_text(document.cues)
 
 
-register_reader(_reader("xml", _XML_MIMETYPES, (TREE,), _read_tree))
-register_reader(_reader("json", _JSON_MIMETYPES, (DATA,), _read_data))
-register_reader(_reader("csv", _CSV_MIMETYPES, (ROWS,), _read_csv_rows))
-register_reader(_reader("vtt", _VTT_MIMETYPES, (CUES,), _read_vtt_cues))
-register_reader(_reader("srt", _SRT_MIMETYPES, (CUES,), _read_srt_cues))
+register_reader(_reader("xml", mimetypes_for("xml"), (TREE,), _read_tree))
+register_reader(_reader("json", mimetypes_for("json"), (DATA,), _read_data))
+register_reader(_reader("csv", mimetypes_for("csv"), (ROWS,), _read_csv_rows))
+register_reader(_reader("vtt", mimetypes_for("vtt"), (CUES,), _read_vtt_cues))
+register_reader(_reader("srt", mimetypes_for("srt"), (CUES,), _read_srt_cues))
 register_reader(
-    _reader("cued_text", _VTT_MIMETYPES | _SRT_MIMETYPES, (TEXT,), _read_cued_text)
+    _reader("cued_text", mimetypes_for("vtt", "srt"), (TEXT,), _read_cued_text)
 )

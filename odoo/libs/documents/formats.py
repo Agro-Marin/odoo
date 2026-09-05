@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .readers import REPRESENTATIONS
+from .representations import CUES, DATA, IMAGES, REPRESENTATIONS, ROWS, TEXT, TREE
 
 __all__ = [
     "Format",
@@ -11,6 +11,7 @@ __all__ = [
     "get_format_of_extension",
     "known_formats",
     "mimetype_for",
+    "mimetypes_for",
     "register_extension",
     "register_format",
 ]
@@ -23,6 +24,11 @@ class Format:
     representation: str
     accepts: frozenset[str] = field(default_factory=frozenset)
     label: str = ""
+
+    @property
+    def mimetypes(self) -> frozenset[str]:
+        """Every spelling a reader of this format answers to, canonical first."""
+        return frozenset({self.mimetype, *self.accepts})
 
     def __repr__(self) -> str:
         return f"<Format {self.extension} {self.mimetype}>"
@@ -104,51 +110,98 @@ def extension_for(mimetype: str) -> str:
     return fmt.extension if fmt else ""
 
 
+def mimetypes_for(*extensions: str) -> frozenset[str]:
+    """The mimetypes a reader of these formats claims, aliases included.
+
+    Raises for an extension nobody registered: a reader naming a format the
+    table does not hold is the drift this function exists to make impossible,
+    and answering an empty set would register a reader that reads nothing.
+    """
+    claimed: set[str] = set()
+    for extension in extensions:
+        fmt = get_format_of_extension(extension)
+        if fmt is None:
+            raise ValueError(f"No format is registered under {extension!r}")
+        claimed |= fmt.mimetypes
+    return frozenset(claimed)
+
+
 def known_formats() -> tuple[Format, ...]:
     return tuple(_FORMATS)
 
 
-register_format(
-    Format(
-        mimetype="text/csv",
-        extension="csv",
-        representation="rows",
-        accepts=frozenset({"text/plain", "application/csv"}),
-        label="Comma-separated values",
-    )
+_BUILTIN_FORMATS = (
+    # (mimetype, extension, representation, accepts, label)
+    (
+        "text/csv",
+        "csv",
+        ROWS,
+        {"text/plain", "application/csv"},
+        "Comma-separated values",
+    ),
+    ("application/xml", "xml", TREE, {"text/xml", "application/xhtml+xml"}, "XML"),
+    ("application/json", "json", DATA, {"text/json"}, "JSON"),
+    ("text/vtt", "vtt", CUES, (), "WebVTT"),
+    ("application/x-subrip", "srt", CUES, {"application/x-srt", "text/srt"}, "SubRip"),
+    ("application/pdf", "pdf", TEXT, (), "PDF"),
+    ("image/png", "png", IMAGES, (), "PNG image"),
+    ("image/jpeg", "jpg", IMAGES, {"image/jpg"}, "JPEG image"),
+    ("image/webp", "webp", IMAGES, (), "WebP image"),
+    ("image/gif", "gif", IMAGES, (), "GIF image"),
+    ("image/bmp", "bmp", IMAGES, (), "Bitmap image"),
+    (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "xlsx",
+        ROWS,
+        {"application/vnd.ms-excel.sheet.macroenabled.12"},
+        "Excel workbook",
+    ),
+    ("application/vnd.ms-excel", "xls", ROWS, (), "Excel 97-2003 workbook"),
+    (
+        "application/vnd.oasis.opendocument.spreadsheet",
+        "ods",
+        ROWS,
+        (),
+        "OpenDocument spreadsheet",
+    ),
+    (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "docx",
+        TEXT,
+        (),
+        "Word document",
+    ),
+    (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "pptx",
+        TEXT,
+        (),
+        "PowerPoint presentation",
+    ),
+    ("application/vnd.oasis.opendocument.text", "odt", TEXT, (), "OpenDocument text"),
+    (
+        "application/vnd.oasis.opendocument.presentation",
+        "odp",
+        TEXT,
+        (),
+        "OpenDocument presentation",
+    ),
+    (
+        "application/vnd.oasis.opendocument.graphics",
+        "odg",
+        TEXT,
+        (),
+        "OpenDocument graphics",
+    ),
 )
-register_format(
-    Format(
-        mimetype="application/xml",
-        extension="xml",
-        representation="tree",
-        accepts=frozenset({"text/xml", "application/xhtml+xml"}),
-        label="XML",
+
+for _mimetype, _extension, _representation, _accepts, _label in _BUILTIN_FORMATS:
+    register_format(
+        Format(
+            mimetype=_mimetype,
+            extension=_extension,
+            representation=_representation,
+            accepts=frozenset(_accepts),
+            label=_label,
+        )
     )
-)
-register_format(
-    Format(
-        mimetype="application/json",
-        extension="json",
-        representation="data",
-        accepts=frozenset({"text/json"}),
-        label="JSON",
-    )
-)
-register_format(
-    Format(
-        mimetype="text/vtt",
-        extension="vtt",
-        representation="cues",
-        label="WebVTT",
-    )
-)
-register_format(
-    Format(
-        mimetype="application/x-subrip",
-        extension="srt",
-        representation="cues",
-        accepts=frozenset({"application/x-srt", "text/srt"}),
-        label="SubRip",
-    )
-)

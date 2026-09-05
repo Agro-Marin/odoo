@@ -11,26 +11,11 @@ import xlsxwriter
 
 from odoo.exceptions import UserError
 from odoo.http import request
-from odoo.libs.documents import (
-    ROWS,
-    BaseWriter,
-    Format,
-    register_format,
-    register_writer,
-)
+from odoo.libs.documents import ROWS, BaseWriter, mimetype_for, register_writer
 
 _logger = logging.getLogger(__name__)
 
-XLSX_MIMETYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
-register_format(
-    Format(
-        mimetype=XLSX_MIMETYPE,
-        extension="xlsx",
-        representation=ROWS,
-        label="Excel workbook",
-    )
-)
+XLSX_MIMETYPE = mimetype_for("xlsx")
 
 
 def none_values_filtered[T](

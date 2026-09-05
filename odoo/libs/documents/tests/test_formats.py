@@ -8,6 +8,7 @@ from odoo.libs.documents.formats import (
     get_format_of_extension,
     known_formats,
     mimetype_for,
+    mimetypes_for,
     register_extension,
     register_format,
 )
@@ -29,8 +30,27 @@ class TestLookup(unittest.TestCase):
             self.assertEqual(extension_for(fmt.mimetype), fmt.extension)
 
     def test_an_unregistered_name_answers_empty_rather_than_guessing(self):
-        self.assertEqual(mimetype_for("xlsx"), "")
-        self.assertEqual(extension_for("application/pdf"), "")
+        self.assertEqual(mimetype_for("zzz"), "")
+        self.assertEqual(extension_for("application/x-nothing"), "")
+
+    def test_mimetypes_for_is_the_canonical_name_and_its_aliases(self):
+        self.assertEqual(
+            mimetypes_for("xml"),
+            {"application/xml", "text/xml", "application/xhtml+xml"},
+        )
+        self.assertEqual(
+            mimetypes_for("vtt", "srt"), mimetypes_for("vtt") | mimetypes_for("srt")
+        )
+
+    def test_mimetypes_for_refuses_a_name_nobody_registered(self):
+        # An empty set would register a reader that reads nothing, silently.
+        with self.assertRaises(ValueError):
+            mimetypes_for("zzz")
+
+    def test_a_format_lists_its_own_spellings(self):
+        self.assertEqual(
+            self._format("image/jpeg").mimetypes, {"image/jpeg", "image/jpg"}
+        )
 
     def test_an_alias_finds_the_format(self):
         self.assertIs(get_format("text/xml"), get_format("application/xml"))

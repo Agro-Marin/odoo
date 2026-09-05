@@ -7,6 +7,7 @@ from odoo.libs.documents import (
     IMAGES,
     TEXT,
     BaseReader,
+    mimetypes_for,
     register_reader,
 )
 
@@ -21,11 +22,9 @@ RASTER_MAX_PAGES = 1
 
 OCR_MIN_CHARS = 8
 
-PDF = frozenset({"application/pdf"})
-IMAGE_MIMETYPES = frozenset(
-    {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif", "image/bmp"}
-)
-XML_MIMETYPES = frozenset({"application/xml", "text/xml"})
+PDF = mimetypes_for("pdf")
+IMAGE_MIMETYPES = mimetypes_for("png", "jpg", "webp", "gif", "bmp")
+XML_MIMETYPES = mimetypes_for("xml")
 PAGED = PDF | IMAGE_MIMETYPES
 
 

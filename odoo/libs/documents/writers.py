@@ -7,7 +7,8 @@ from collections.abc import Callable
 from typing import Any, Protocol, runtime_checkable
 
 from .format import from_value
-from .readers import ANY, CUES, DATA, REPRESENTATIONS, ROWS, TEXT, TREE
+from .formats import mimetype_for
+from .representations import ANY, CUES, DATA, REPRESENTATIONS, ROWS, TEXT, TREE
 
 __all__ = [
     "BaseWriter",
@@ -171,9 +172,9 @@ def _write_srt(value: Any, **options: Any) -> bytes:
     return write_srt(value).encode(options.get("encoding") or "utf-8")
 
 
-register_writer(_writer("csv", "text/csv", ROWS, _write_csv))
-register_writer(_writer("json", "application/json", DATA, _write_json))
-register_writer(_writer("xml", "application/xml", TREE, _write_tree))
+register_writer(_writer("csv", mimetype_for("csv"), ROWS, _write_csv))
+register_writer(_writer("json", mimetype_for("json"), DATA, _write_json))
+register_writer(_writer("xml", mimetype_for("xml"), TREE, _write_tree))
 register_writer(_writer("text", ANY, TEXT, _write_text))
-register_writer(_writer("vtt", "text/vtt", CUES, _write_vtt))
-register_writer(_writer("srt", "application/x-subrip", CUES, _write_srt))
+register_writer(_writer("vtt", mimetype_for("vtt"), CUES, _write_vtt))
+register_writer(_writer("srt", mimetype_for("srt"), CUES, _write_srt))
