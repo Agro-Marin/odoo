@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo import api, fields, models
 
 
@@ -37,8 +39,6 @@ class BoardBoard(models.AbstractModel):
 
     @api.model
     def _arch_preprocessing(self, arch):
-        from lxml import etree
-
         def remove_unauthorized_children(node):
             for child in node.iterchildren():
                 if child.tag == "action" and child.get("invisible") not in (
