@@ -1,5 +1,6 @@
 import logging
 
+from odoo.fields import Command
 from odoo.tests.common import TransactionCase, tagged
 
 from .perfkit import BenchmarkRecorder
@@ -35,7 +36,9 @@ class TestPerfCompare(TransactionCase):
                     "state": ("draft", "open", "done", "cancel")[i % 4],
                     "rel_id": rel_ids[i % N_REL],
                     "line_ids": (
-                        [(0, 0, {"value": j}) for j in range(3)] if i < 50 else []
+                        [Command.create({"value": j}) for j in range(3)]
+                        if i < 50
+                        else []
                     ),
                 }
                 for i in range(CORPUS)
@@ -230,7 +233,7 @@ class TestPerfCompare(TransactionCase):
             Base.create(
                 {
                     "name": f"cl_{cc[0]}",
-                    "line_ids": [(0, 0, {"value": j}) for j in range(10)],
+                    "line_ids": [Command.create({"value": j}) for j in range(10)],
                 }
             )
             env.flush_all()
@@ -261,7 +264,9 @@ class TestPerfCompare(TransactionCase):
         victim = [None]
 
         def _mk_single():
-            victim[0] = Base.create({"name": "u", "line_ids": [(0, 0, {"value": 1})]})
+            victim[0] = Base.create(
+                {"name": "u", "line_ids": [Command.create({"value": 1})]}
+            )
             env.flush_all()
 
         def _unlink_single():
@@ -281,7 +286,7 @@ class TestPerfCompare(TransactionCase):
         def _mk_batch():
             victims[0] = Base.create(
                 [
-                    {"name": f"ub_{i}", "line_ids": [(0, 0, {"value": 1})]}
+                    {"name": f"ub_{i}", "line_ids": [Command.create({"value": 1})]}
                     for i in range(10)
                 ]
             )
