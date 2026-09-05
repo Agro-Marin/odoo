@@ -589,3 +589,35 @@ class TestBalanceUsesTheUsersToday(TestHrHolidaysCommon):
             "an allocation dated the user's today must be in the balance even "
             "when UTC is still on the previous day",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestAllocationActivitySkip(TestHrHolidaysCommon):
+    def test_batch_context_creates_no_approval_activity(self):
+        leave_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Officer Allocated",
+                "requires_allocation": True,
+                "allocation_validation_type": "hr",
+                "responsible_ids": [(4, self.user_hruser_id)],
+                "company_id": self.company.id,
+            }
+        )
+        allocation = (
+            self.env["hr.leave.allocation"]
+            .with_context(mail_activity_automation_skip=True)
+            .create(
+                {
+                    "name": "batch",
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": leave_type.id,
+                    "number_of_days": 1,
+                }
+            )
+        )
+        self.assertFalse(
+            allocation.activity_ids,
+            "the batch wizard asks for no activities and must get none",
+        )
+        allocation.with_context(mail_activity_automation_skip=False).activity_update()
+        self.assertEqual(allocation.activity_ids.user_id, self.user_hruser)

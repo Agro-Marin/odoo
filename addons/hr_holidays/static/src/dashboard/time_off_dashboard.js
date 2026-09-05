@@ -68,9 +68,14 @@ export class TimeOffDashboard extends Component {
         if (!this.state.allocationRequests) {
             return;
         }
-        const action = await this.orm.call("hr.leave", "open_pending_requests", [], {
-            context: this.getContext(),
-        });
+        const action = await this.orm.call(
+            "hr.leave.allocation",
+            "open_pending_requests",
+            [],
+            {
+                context: this.getContext(),
+            },
+        );
         this.actionService.doAction(action);
     }
 }

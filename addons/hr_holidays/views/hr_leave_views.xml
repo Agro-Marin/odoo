@@ -408,24 +408,21 @@
                                     t-if="record.can_approve.raw_value"
                                     name="action_approve"
                                     type="object"
-                                    class="btn btn-sm btn-primary py-0"
-                                    groups="hr_holidays.group_hr_holidays_user">
+                                    class="btn btn-sm btn-primary py-0">
                                     Approve
                                 </button>
                                 <button
                                     t-if="record.can_validate.raw_value and !record.can_approve.raw_value"
                                     name="action_approve"
                                     type="object"
-                                    class="btn btn-sm btn-primary py-0"
-                                    groups="hr_holidays.group_hr_holidays_manager">
+                                    class="btn btn-sm btn-primary py-0">
                                     Validate
                                 </button>
                                 <button
                                     t-if="record.can_refuse.raw_value"
                                     name="action_refuse"
                                     type="object"
-                                    class="btn btn-sm btn-secondary py-0"
-                                    groups="hr_holidays.group_hr_holidays_user">
+                                    class="btn btn-sm btn-secondary py-0">
                                     Refuse
                                 </button>
                                 <button

@@ -69,7 +69,7 @@ class HrVersion(models.Model):
         return created_versions
 
     def write(self, vals):
-        specific_contracts = self.env["hr.version"]
+        written_contracts = self.env["hr.version"]
         if any(
             field in vals
             for field in [
@@ -96,12 +96,12 @@ class HrVersion(models.Model):
                     if not leaves:
                         continue
                     super(HrVersion, contract).write(vals)
+                    written_contracts |= contract
                     for leave in leaves:
                         overlapping_contracts = self._check_overlapping_contract(leave)
                         if not overlapping_contracts:
                             continue
                         leaves_state = self._refuse_leave(leave, leaves_state)
-                        specific_contracts |= contract
                         all_new_leave_origin, all_new_leave_vals = (
                             self._populate_all_new_leave_vals_from_split_leave(
                                 all_new_leave_origin,
@@ -122,7 +122,7 @@ class HrVersion(models.Model):
                         "them. Please review these leaves and/or allocations before changing the contract."
                     )
                 ) from e
-        return super(HrVersion, self - specific_contracts).write(vals)
+        return super(HrVersion, self - written_contracts).write(vals)
 
     def _get_leaves(self, extra_domain=None):
         domain = [
