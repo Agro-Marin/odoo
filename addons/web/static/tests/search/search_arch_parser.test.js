@@ -221,6 +221,11 @@ describe("unknown field diagnostics", () => {
         const items = parser.parse().preSearchItems.flat();
 
         expect(items).toEqual([]);
+        const empty = new SearchArchParser({ arch: `<search/>` }, FIELDS);
+        empty.parse();
+        expect(parser.groupNumber).toBe(empty.groupNumber, {
+            message: "an ignored date filter must not open a group of its own",
+        });
         expect.verifySteps([
             `[search] <filter date="nope">: no such field on the model; the date filter is ignored (check for a typo).`,
         ]);

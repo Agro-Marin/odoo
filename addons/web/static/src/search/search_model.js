@@ -15,6 +15,7 @@ import {
 import { computeSearchContext, computeSearchItemContext } from "./search_context.js";
 import {
     computeCategoryDomain,
+    computeDateFilterDescription,
     computeDateFilterDomain,
     computeDomain,
     computeFieldDomain,
@@ -167,8 +168,8 @@ export class SearchModel extends SearchQueryMixin(
         this.intervalOptions = getIntervalOptions();
         /** @type {Map<number, number>} */
         this._sectionLoadIds = new Map();
-        /** @type {Map<number, Section>|null} */
-        this._sectionsByTypeSource = null;
+        /** @type {Map<string, Section[]>|null} */
+        this._sectionsByType = null;
 
         this._reloadMutex = new Mutex();
     }
@@ -433,17 +434,13 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {Section[]}
      */
     _sectionsOfType(type) {
-        if (this._sectionsByTypeSource !== this.sections || !this._sectionsByType) {
-            this._sectionsByTypeSource = this.sections;
-            this._sectionsByType = new Map();
+        this._sectionsByType ??= new Map();
+        let sections = this._sectionsByType.get(type);
+        if (!sections) {
+            sections = [...this.sections.values()].filter((s) => s.type === type);
+            this._sectionsByType.set(type, sections);
         }
-        if (!this._sectionsByType.has(type)) {
-            this._sectionsByType.set(
-                type,
-                [...this.sections.values()].filter((s) => s.type === type),
-            );
-        }
-        return this._sectionsByType.get(type);
+        return sections;
     }
 
     /**
@@ -587,30 +584,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @param {number|null} defaultFavoriteId
-     */
-    _activateDefaultSearchItems(defaultFavoriteId) {
-        if (defaultFavoriteId) {
-            this.toggleSearchItem(defaultFavoriteId);
-        } else {
-            Object.values(this.searchItems)
-                .filter((f) => f.isDefault && f.type !== "favorite")
-                .sort((f1, f2) => (f1.defaultRank || 100) - (f2.defaultRank || 100))
-                .forEach((f) => {
-                    if (f.type === "dateFilter") {
-                        this.toggleDateFilter(f.id);
-                    } else if (f.type === "dateGroupBy") {
-                        this.toggleDateGroupBy(f.id);
-                    } else if (f.type === "field") {
-                        this.addAutoCompletionValues(f.id, f.defaultAutocompleteValue);
-                    } else {
-                        this.toggleSearchItem(f.id);
-                    }
-                });
-        }
-    }
-
-    /**
      * @param {Record<string, any>[]} dynamicFilters
      */
     _createGroupOfDynamicFilters(dynamicFilters) {
@@ -645,12 +618,12 @@ export class SearchModel extends SearchQueryMixin(
 
     /**
      * @param {StoredSearchItem} searchItem
-     * @param {Map<number, QueryElement[]>|QueryElement[]} queryIndex
+     * @param {Map<number, QueryElement[]>} queryIndex
      */
     _enrichItem(searchItem, queryIndex) {
         return enrichSearchItem(
             searchItem,
-            queryIndex || this.query,
+            queryIndex,
             this.referenceMoment,
             this.intervalOptions,
         );
@@ -687,14 +660,22 @@ export class SearchModel extends SearchQueryMixin(
     /**
      * @param {SearchItem} dateFilter
      * @param {string[]} generatorIds
-     * @param {string} [key]
+     * @returns {Domain}
      */
-    _getDateFilterDomain(dateFilter, generatorIds, key = "domain") {
-        return computeDateFilterDomain(
+    _getDateFilterDomain(dateFilter, generatorIds) {
+        return computeDateFilterDomain(this.referenceMoment, dateFilter, generatorIds);
+    }
+
+    /**
+     * @param {SearchItem} dateFilter
+     * @param {string[]} generatorIds
+     * @returns {string}
+     */
+    _getDateFilterDescription(dateFilter, generatorIds) {
+        return computeDateFilterDescription(
             this.referenceMoment,
             dateFilter,
             generatorIds,
-            key,
         );
     }
 
@@ -746,11 +727,10 @@ export class SearchModel extends SearchQueryMixin(
             searchItems: this.searchItems,
             getSearchItemDomain: (/** @type {ActiveItem} */ activeItem) =>
                 this.getSearchItemDomain(activeItem),
-            getDateFilterDomain: (
+            getDateFilterDescription: (
                 /** @type {SearchItem} */ searchItem,
                 /** @type {string[]} */ generatorIds,
-                /** @type {string} */ key,
-            ) => this._getDateFilterDomain(searchItem, generatorIds, key),
+            ) => this._getDateFilterDescription(searchItem, generatorIds),
             orderByCount: this.orderByCount,
             globalGroupBy: this.globalGroupBy,
             defaultGroupBy: this.defaultGroupBy,

@@ -16,7 +16,7 @@ function makeParams(overrides = {}) {
         groups: [],
         searchItems: {},
         getSearchItemDomain: () => null,
-        getDateFilterDomain: () => "",
+        getDateFilterDescription: () => "",
         orderByCount: false,
         globalGroupBy: [],
         defaultGroupBy: undefined,

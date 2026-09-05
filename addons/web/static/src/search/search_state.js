@@ -113,7 +113,7 @@ export function queryToState(source) {
  */
 export function queryFromState(state, target) {
     target.query = toWire(state.query);
-    target.orderByCount = state.orderByCount;
+    target.orderByCount = state.orderByCount ?? false;
     target.defaultGroupByRemoved = state.defaultGroupByRemoved ?? false;
 }
 

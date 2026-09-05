@@ -124,6 +124,13 @@ describe("state export/import", () => {
     });
 });
 
+test("a state written before the sort flag existed imports as unsorted", () => {
+    const target = /** @type {any} */ ({});
+    queryFromState(/** @type {any} */ ({ query: [] }), target);
+    expect(target.orderByCount).toBe(false);
+    expect(target.defaultGroupByRemoved).toBe(false);
+});
+
 describe("isInvisible", () => {
     test("an absent or falsy expression is not invisible", () => {
         expect(isInvisible(undefined, {})).toBe(false);

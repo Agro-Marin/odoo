@@ -184,22 +184,25 @@ export function computeFieldDomain(field, autocompleteValues) {
 /**
  * @param {Record<string, any>} referenceMoment
  * @param {Record<string, any>} dateFilter
- * @param {any[]} generatorIds
- * @param {string} [key="domain"]
- * @returns {Domain|string}
+ * @param {string[]} generatorIds
+ * @returns {Domain}
  */
-export function computeDateFilterDomain(
+export function computeDateFilterDomain(referenceMoment, dateFilter, generatorIds) {
+    return constructDateDomain(referenceMoment, dateFilter, generatorIds).domain;
+}
+
+/**
+ * @param {Record<string, any>} referenceMoment
+ * @param {Record<string, any>} dateFilter
+ * @param {string[]} generatorIds
+ * @returns {string}
+ */
+export function computeDateFilterDescription(
     referenceMoment,
     dateFilter,
     generatorIds,
-    key = "domain",
 ) {
-    const dateFilterRange = constructDateDomain(
-        referenceMoment,
-        dateFilter,
-        generatorIds,
-    );
-    return /** @type {Record<string, any>} */ (dateFilterRange)[key];
+    return constructDateDomain(referenceMoment, dateFilter, generatorIds).description;
 }
 
 /**
@@ -208,7 +211,7 @@ export function computeDateFilterDomain(
  * @param {any} referenceMoment
  * @param {object} [hooks]
  * @param {(field: SearchItem, autocompleteValues: AutocompleteValue[]) => Domain} [hooks.getFieldDomain]
- * @param {(dateFilter: SearchItem, generatorIds: string[]) => Domain|string} [hooks.getDateFilterDomain]
+ * @param {(dateFilter: SearchItem, generatorIds: string[]) => Domain} [hooks.getDateFilterDomain]
  * @returns {Domain|string|null}
  */
 export function computeSearchItemDomain(

@@ -235,6 +235,7 @@ export const SEARCH_SPLIT_DOMAIN_SHARED_STATE = [
  * @type {string[]}
  */
 export const SEARCH_QUERY_PUBLISHED = [
+    "_activateDefaultSearchItems",
     "addAutoCompletionValues",
     "clearQuery",
     "createNewFilters",
@@ -316,15 +317,12 @@ export const SEARCH_MODEL_PUBLISHED = [
  * @type {string[]}
  */
 export const SEARCH_MODEL_REQUIRES = [
+    "_activateDefaultSearchItems",
     "_createGroupOfFavorites",
     "_fetchSections",
     "_reconciliateFavorites",
     "_reloadSections",
     "_shouldWaitForData",
-    "addAutoCompletionValues",
-    "toggleDateFilter",
-    "toggleDateGroupBy",
-    "toggleSearchItem",
 ];
 
 /**
@@ -349,7 +347,6 @@ export const SEARCH_MODEL_SHARED_STATE = [
     "_sectionLoadIds",
     "_sections",
     "_sectionsByType",
-    "_sectionsByTypeSource",
     "blockNotification",
     "canOrderByCount",
     "defaultGroupByRemoved",

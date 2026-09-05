@@ -30,6 +30,44 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
+         * Populate the query from the defaults the arch and the context
+         * declared: the default favorite alone when there is one, else every
+         * default item in rank order.
+         *
+         * @param {number|null} defaultFavoriteId
+         */
+        _activateDefaultSearchItems(defaultFavoriteId) {
+            if (defaultFavoriteId) {
+                this.toggleSearchItem(defaultFavoriteId);
+                return;
+            }
+            const defaults = Object.values(this.searchItems)
+                .filter((/** @type {any} */ f) => f.isDefault && f.type !== "favorite")
+                .sort(
+                    (/** @type {any} */ f1, /** @type {any} */ f2) =>
+                        (f1.defaultRank || 100) - (f2.defaultRank || 100),
+                );
+            for (const item of defaults) {
+                switch (item.type) {
+                    case "dateFilter":
+                        this.toggleDateFilter(item.id);
+                        break;
+                    case "dateGroupBy":
+                        this.toggleDateGroupBy(item.id);
+                        break;
+                    case "field":
+                        this.addAutoCompletionValues(
+                            item.id,
+                            item.defaultAutocompleteValue,
+                        );
+                        break;
+                    default:
+                        this.toggleSearchItem(item.id);
+                }
+            }
+        }
+
+        /**
          * @param {number} searchItemId
          * @param {Record<string, any>} autocompleteValue
          */
@@ -220,15 +258,23 @@ export const SearchQueryMixin = (Base) =>
                 }
                 generatorIds = validGeneratorIds;
             }
-            const customIds = generatorIds.filter((/** @type {any} */ gid) =>
-                gid.startsWith("custom"),
-            );
+            const isCustom = (/** @type {string} */ gid) => gid.startsWith("custom");
+            const customIds = generatorIds.filter(isCustom);
+            if (customIds.length && customIds.length < generatorIds.length) {
+                console.warn(
+                    `[search] date filter "${searchItem.name}": a custom period cannot be ` +
+                        `combined with a month, quarter or year; keeping the periods and ignoring`,
+                    customIds,
+                );
+                return generatorIds.filter((gid) => !isCustom(gid));
+            }
             if (customIds.length > 1) {
                 console.warn(
                     `[search] date filter "${searchItem.name}": custom periods are mutually exclusive; ` +
                         `keeping "${customIds.at(-1)}" and ignoring`,
                     customIds.slice(0, -1),
                 );
+                return [/** @type {string} */ (customIds.at(-1))];
             }
             return generatorIds;
         }

@@ -2142,17 +2142,10 @@ describe("the domain override seam", () => {
         expect(model.domain).toEqual([["overridden", "=", 1]]);
     });
 
-    test("a subclass's _getDateFilterDomain reaches the domain", async () => {
+    test("a subclass's _getDateFilterDomain reaches the domain and leaves the facet label alone", async () => {
         let calls = 0;
         class OverridingSearchModel extends SearchModel {
-            _getDateFilterDomain(
-                /** @type {any} */ dateFilter,
-                /** @type {any[]} */ generatorIds,
-                key = "domain",
-            ) {
-                if (key !== "domain") {
-                    return super._getDateFilterDomain(dateFilter, generatorIds, key);
-                }
+            _getDateFilterDomain() {
                 calls++;
                 return new Domain([["overridden_date", "=", 1]]);
             }
@@ -2171,6 +2164,7 @@ describe("the domain override seam", () => {
 
         expect(calls).toBeGreaterThan(0);
         expect(model.domain).toEqual([["overridden_date", "=", 1]]);
+        expect(model.facets[0].values[0]).toMatch(/^Date: .+ \d{4}$/);
     });
 
     test("without an override the module functions still apply", async () => {

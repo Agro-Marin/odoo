@@ -34,10 +34,10 @@ function groupByIcon(type, orderByCount) {
 /**
  * @param {QueryGroup} group
  * @param {SearchItems} searchItems
- * @param {Function} getDateFilterDomain
+ * @param {(dateFilter: any, generatorIds: string[]) => string} getDateFilterDescription
  * @returns {{values: string[], title: string|undefined, type: string|undefined, tooltip: string|undefined}}
  */
-function readGroupLabels(group, searchItems, getDateFilterDomain) {
+function readGroupLabels(group, searchItems, getDateFilterDescription) {
     const values = [];
     let title;
     let type;
@@ -71,10 +71,9 @@ function readGroupLabels(group, searchItems, getDateFilterDomain) {
             }
             case "dateFilter": {
                 type = "filter";
-                const periodDescription = getDateFilterDomain(
+                const periodDescription = getDateFilterDescription(
                     searchItem,
-                    activeItem.generatorIds,
-                    "description",
+                    activeItem.generatorIds ?? [],
                 );
                 values.push(`${searchItem.description}: ${periodDescription}`);
                 break;
@@ -114,7 +113,7 @@ function buildDefaultGroupByFacet(defaultGroupBy, searchViewFields, orderByCount
  * @param {QueryGroup[]} params.groups
  * @param {SearchItems} params.searchItems
  * @param {Function} params.getSearchItemDomain
- * @param {Function} params.getDateFilterDomain
+ * @param {(dateFilter: any, generatorIds: string[]) => string} params.getDateFilterDescription
  * @param {string|false} params.orderByCount
  * @param {string[]} params.globalGroupBy
  * @param {string[]} [params.defaultGroupBy]
@@ -126,7 +125,7 @@ export function buildFacets({
     groups,
     searchItems,
     getSearchItemDomain,
-    getDateFilterDomain,
+    getDateFilterDescription,
     orderByCount,
     globalGroupBy,
     defaultGroupBy,
@@ -143,7 +142,7 @@ export function buildFacets({
         const { values, title, type, tooltip } = readGroupLabels(
             group,
             searchItems,
-            getDateFilterDomain,
+            getDateFilterDescription,
         );
         /** @type {Facet} */
         const facet = {

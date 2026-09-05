@@ -443,6 +443,54 @@ describe("toggleDateFilter generator validation", () => {
         expect(generatorIds).toInclude("year");
         expect(generatorIds).not.toInclude("bogus");
     });
+
+    test("a custom period among plain ones is dropped with a warning, whatever its position", () => {
+        patchWithCleanup(console, { warn: () => expect.step("warn") });
+        const customOptions = [{ id: "custom_x", description: "X", domain: "[]" }];
+        for (const defaultGeneratorIds of [
+            ["custom_x", "month"],
+            ["month", "custom_x"],
+        ]) {
+            const model = makeDateModel();
+            addItem(model, 1, {
+                type: "dateFilter",
+                name: "filter_date",
+                optionsParams: { ...optionsParams, customOptions },
+                defaultGeneratorIds,
+            });
+
+            model.toggleDateFilter(1);
+
+            expect.verifySteps(["warn"]);
+            const generatorIds = model.query.map(
+                (/** @type {any} */ q) => q.generatorId,
+            );
+            expect(generatorIds).toInclude("month");
+            expect(generatorIds).not.toInclude("custom_x");
+        }
+    });
+
+    test("two custom periods keep the last one only", () => {
+        patchWithCleanup(console, { warn: () => expect.step("warn") });
+        const customOptions = [
+            { id: "custom_a", description: "A", domain: "[]" },
+            { id: "custom_b", description: "B", domain: "[]" },
+        ];
+        const model = makeDateModel();
+        addItem(model, 1, {
+            type: "dateFilter",
+            name: "filter_date",
+            optionsParams: { ...optionsParams, customOptions },
+            defaultGeneratorIds: ["custom_a", "custom_b"],
+        });
+
+        model.toggleDateFilter(1);
+
+        expect.verifySteps(["warn"]);
+        expect(model.query.map((/** @type {any} */ q) => q.generatorId)).toEqual([
+            "custom_b",
+        ]);
+    });
 });
 
 describe("switchGroupBySort", () => {

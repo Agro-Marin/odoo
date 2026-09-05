@@ -378,18 +378,10 @@ export class SearchArchParser {
      * @param {Element} node
      * @param {Record<string, any>} preSearchItem
      * @param {() => void} visitChildren
-     * @returns {boolean}
      */
     applyDateFilter(node, preSearchItem, visitChildren) {
         const fieldName = node.getAttribute("date");
         const dateField = this.fields[fieldName];
-        if (!dateField) {
-            console.warn(
-                `[search] <filter date="${fieldName}">: no such field on the ` +
-                    `model; the date filter is ignored (check for a typo).`,
-            );
-            return false;
-        }
         preSearchItem.type = "dateFilter";
         preSearchItem.fieldName = fieldName;
         preSearchItem.fieldType = dateField.type;
@@ -424,7 +416,6 @@ export class SearchArchParser {
             this.optionsParams = null;
         }
         preSearchItem.optionsParams = optionsParams;
-        return true;
     }
 
     /**
@@ -475,16 +466,22 @@ export class SearchArchParser {
         const preSearchItem = { type: "filter" };
         this.classifyByContext(node, preSearchItem);
 
+        const dateFieldName = node.getAttribute("date");
+        if (dateFieldName && !this.fields[dateFieldName]) {
+            console.warn(
+                `[search] <filter date="${dateFieldName}">: no such field on the ` +
+                    `model; the date filter is ignored (check for a typo).`,
+            );
+            return;
+        }
+
         if (reduceType(preSearchItem.type) !== this.currentTag) {
             this.pushGroup(reduceType(preSearchItem.type));
         }
 
         if (preSearchItem.type === "filter") {
-            if (
-                node.hasAttribute("date") &&
-                !this.applyDateFilter(node, preSearchItem, visitChildren)
-            ) {
-                return;
+            if (dateFieldName) {
+                this.applyDateFilter(node, preSearchItem, visitChildren);
             }
             preSearchItem.domain = node.getAttribute("domain") || "[]";
         }
