@@ -114,6 +114,54 @@ class PurchaseOrderLine(models.Model):
     def _get_fields_tracked_qty(self):
         return [*super()._get_fields_tracked_qty(), "qty_transferred"]
 
+    def write(self, vals):
+        # The mixin's tracking framework is about quantities: it is keyed on
+        # `_get_fields_tracked_qty`, shared with `sale.order.line`, and compares
+        # at `Product Unit` precision. A price does not belong in that list, so
+        # it gets its own collect/post pair here, at `Product Price`.
+        price_changes = self._collect_price_changes(vals)
+        result = super().write(vals)
+        if price_changes:
+            self._post_price_changes(price_changes)
+        return result
+
+    def _collect_price_changes(self, vals):
+        if "price_unit" not in vals:
+            return []
+
+        precision = self.env["decimal.precision"].get_precision("Product Price")
+        new_price = vals["price_unit"]
+        return [
+            {
+                "line": line,
+                "old_price": line.price_unit,
+                "new_price": new_price,
+            }
+            for line in self
+            if line.order_id.state == "done"
+            and not line.display_type
+            and float_compare(
+                line.price_unit,
+                new_price,
+                precision_digits=precision,
+            )
+            != 0
+        ]
+
+    def _post_price_changes(self, changes):
+        changes_by_order = defaultdict(list)
+        for change in changes:
+            changes_by_order[change["line"].order_id].append(change)
+        for order, order_changes in changes_by_order.items():
+            order.message_post_with_source(
+                "purchase.track_po_line_price_template",
+                render_values={
+                    "changes": order_changes,
+                    "count": len(order_changes),
+                },
+                subtype_xmlid="mail.mt_note",
+            )
+
     def _collect_qty_changes(self, vals, tracked_fields):
         if self.env.context.get("accrual_entry_date"):
             tracked_fields = [f for f in tracked_fields if f != "qty_transferred"]

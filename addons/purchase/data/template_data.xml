@@ -21,6 +21,25 @@
         </div>
     </template>
 
+    <template id="track_po_line_price_template">
+        <div>
+            <strong t-if="count == 1">The unit price has been updated.</strong>
+            <strong t-if="count &gt; 1">Unit prices updated for <t t-esc="count" /> lines:</strong>
+            <ul>
+                <t t-foreach="changes" t-as="change">
+                    <li>
+                        <strong><t t-esc="change['line'].product_id.display_name" />:</strong>
+                        <t
+                            t-esc="change['old_price']"
+                            t-options="{'widget': 'monetary', 'display_currency': change['line'].currency_id}" /> -&gt; <t
+                            t-esc="change['new_price']"
+                            t-options="{'widget': 'monetary', 'display_currency': change['line'].currency_id}" />
+                    </li>
+                </t>
+            </ul>
+        </div>
+    </template>
+
     <template id="track_po_qty_update_template">
         <div>
             <strong t-if="change_type == 'product_qty'">Ordered quantities updated for <t t-esc="count" />
