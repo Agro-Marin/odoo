@@ -921,6 +921,21 @@ class ProductProduct(models.Model):
         action["context"] = {"default_product_ids": self.ids}
         return action
 
+    def action_open_packaging_barcodes(self):
+        self.check_singleton()
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.env._("Packaging Barcodes"),
+            "res_model": "product.uom",
+            "view_mode": "list",
+            "view_id": self.env.ref("product.product_uom_list_view").id,
+            "domain": [("product_id", "=", self.id)],
+            "context": {
+                "default_product_id": self.id,
+                "product_ids": self.ids,
+            },
+        }
+
     def view_product_template(self):
         self.check_singleton()
         return {
@@ -1330,9 +1345,7 @@ class ProductProduct(models.Model):
             Domain("name", "in", [row["name"] for row in rows])
             | Domain("id", "in", [row["product_tmpl_id"] for row in rows])
         )
-        id2template = dict(
-            zip(product_templates.ids, product_templates, strict=True)
-        )
+        id2template = dict(zip(product_templates.ids, product_templates, strict=True))
         name2template = dict(
             zip(product_templates.mapped("name"), product_templates, strict=True)
         )
@@ -1365,9 +1378,7 @@ class ProductProduct(models.Model):
     ):
         PTAL = self.env["product.template.attribute.line"]
 
-        pt_to_attribute_to_values = defaultdict(
-            list
-        )
+        pt_to_attribute_to_values = defaultdict(list)
         for row in rows:
             pt = id2template.get(row["product_tmpl_id"]) or name2template.get(
                 row["name"]

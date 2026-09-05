@@ -28,3 +28,4 @@ from . import test_product_uom_and_copy
 from . import test_robustness
 from . import test_unlink_where_possible
 from . import test_product_category_company
+from . import test_product_packaging_barcodes
