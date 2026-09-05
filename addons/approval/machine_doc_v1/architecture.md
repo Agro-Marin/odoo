@@ -36,8 +36,8 @@
            v
 +----------------------------------------------------------------------+
 |                        approval.request                              |
-|  Split across 6 files: fields, compute, action, validation,         |
-|  helper (_sync_approvers, _force_terminal), cron                    |
+|  Split across 7 files: fields, compute, action, validation,         |
+|  helper (_sync_approvers, _force_terminal), escalation, cron        |
 |  state = stored compute from approver_ids.state                     |
 |  amount is Monetary in currency_id; rules convert into their own    |
 |  their own currency before comparing                                |

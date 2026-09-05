@@ -205,7 +205,7 @@ so category names are unique per company, archived rows included.
 | Key | Value |
 |-----|-------|
 | Model | `approval.request` |
-| Files | `approval_request.py`, `approval_request_compute.py`, `approval_request_action.py`, `approval_request_validation.py`, `approval_request_helper.py`, `approval_request_cron.py` |
+| Files | `approval_request.py`, `approval_request_compute.py`, `approval_request_action.py`, `approval_request_validation.py`, `approval_request_helper.py`, `approval_request_escalation.py`, `approval_request_cron.py` |
 | Type | Model |
 | Inherits | `mixin.mail.thread.main.attachment`, `mixin.mail.activity` |
 | Chatter access | `_mail_post_access = "read"` — read rights are enough to post, so an approver who can see a request can comment on it without holding write |

@@ -11,6 +11,7 @@ from . import (
     approval_request_action,
     approval_request_compute,
     approval_request_cron,
+    approval_request_escalation,
     approval_request_helper,
     approval_request_validation,
     approval_rule,

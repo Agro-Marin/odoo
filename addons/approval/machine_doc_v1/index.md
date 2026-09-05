@@ -41,7 +41,8 @@ dashboards.
 | `approval_request_compute.py` | extends `approval.request` | All compute methods (state, SLA, deadline, prediction, terminal-date stamps) |
 | `approval_request_action.py` | extends `approval.request` | Search, onchange, actions (approve/refuse/confirm/cancel/reset-to-draft/withdraw/request-change/bulk) |
 | `approval_request_validation.py` | extends `approval.request` | Access control + business rule validation (write/unlink/confirm/locked-fields/reset checks) |
-| `approval_request_helper.py` | extends `approval.request` | Private helpers (`_sync_approvers`, `_force_terminal`, `_TERMINAL_STATES`, locking, notifications, escalation config) |
+| `approval_request_helper.py` | extends `approval.request` | Private helpers (`_sync_approvers`, `_force_terminal`, `_TERMINAL_STATES`, locking, approver rules) |
+| `approval_request_escalation.py` | extends `approval.request` | The overdue path: escalation manager resolution, the escalation notice, the reminder activity, `_get_escalation_rules` |
 | `approval_request_cron.py` | extends `approval.request` | Cron: smart_escalation, auto_expire, consent_approval |
 | `approval_approver.py` | `approval.approver` | Individual approver: state, delegation, CRUD access control |
 | `mixin_approval.py` | `mixin.approval` (Abstract) | Mixin for source documents (PO, SO, etc.) to integrate with approvals |
@@ -165,6 +166,7 @@ approval/
 |   +-- approval_request_action.py    # Actions (split file)
 |   +-- approval_request_validation.py# Access control (split file)
 |   +-- approval_request_helper.py    # Helpers (split file)
+|   +-- approval_request_escalation.py # Escalation + reminders (split file)
 |   +-- approval_request_cron.py      # Cron jobs (split file)
 |   +-- approval_approver.py          # Approver records
 |   +-- mixin_approval.py             # Source document mixin
@@ -235,12 +237,13 @@ Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/
 ## Architecture Notes
 
 ### Split Model Pattern
-`approval.request` is split across 6 files using `_inherit = "approval.request"`:
+`approval.request` is split across 7 files using `_inherit = "approval.request"`:
 - `approval_request.py` -- Fields, CRUD, smart-copy defaults
 - `approval_request_compute.py` -- Compute methods
 - `approval_request_action.py` -- Actions and search
 - `approval_request_validation.py` -- Access control + business rules
 - `approval_request_helper.py` -- Private helpers
+- `approval_request_escalation.py` -- Escalation and reminders
 - `approval_request_cron.py` -- Scheduled actions
 
 ### State Machine (since 19.0.1.0.7)

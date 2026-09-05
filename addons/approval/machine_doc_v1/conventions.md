@@ -455,7 +455,7 @@ factories) instead of rebuilding user fixtures.
 
 ## Split Model Pattern
 
-`approval.request` is split across 6 files for maintainability. All use `_inherit = "approval.request"`:
+`approval.request` is split across 7 files for maintainability. All use `_inherit = "approval.request"`:
 
 | File | Responsibility | Method Prefix |
 |------|---------------|---------------|
@@ -464,6 +464,7 @@ factories) instead of rebuilding user fixtures.
 | `approval_request_action.py` | User-facing actions, search, onchange, `_apply_decision` | `action_*` |
 | `approval_request_validation.py` | Access control + business rules (incl. locked fields) | `_check_*` |
 | `approval_request_helper.py` | Private helpers, `_sync_approvers`, `_force_terminal`, `_TERMINAL_STATES` | `_sync_*`, `_get_*`, `_merge_*`, `_force_*` |
+| `approval_request_escalation.py` | The overdue path: who a request escalates to, the escalation notice, the reminder activity, and the config `cron_smart_escalation` reads | `_escalate_*`, `_resolve_escalation_*`, `_get_escalation_*`, `_send_reminder` |
 | `approval_request_cron.py` | Scheduled actions | `cron_*` |
 
 When adding a new method, place it in the file matching its responsibility.
