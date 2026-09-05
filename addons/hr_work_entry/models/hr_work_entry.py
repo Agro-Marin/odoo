@@ -156,7 +156,9 @@ class HrWorkEntry(models.Model):
                 )
             )
         self.write({"duration": self.duration - split_duration})
-        return self.copy({**vals, "state": "draft"}).id
+        split_work_entry = self.copy()
+        split_work_entry.write({**vals, "state": "draft"})
+        return split_work_entry.id
 
     def _check_if_error(self):
         open_entries = self.filtered(lambda w: w.state not in CLOSED_STATES)
