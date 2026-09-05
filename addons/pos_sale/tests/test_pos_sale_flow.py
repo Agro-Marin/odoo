@@ -2019,22 +2019,47 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
             " payment product",
         )
 
-        # _update_downpayment_product only acts on the pos.config registered
-        # under the point_of_sale.pos_config_main xmlid.
+        # _update_downpayment_product fills every register whose down payment
+        # product is still empty, and leaves a deliberate choice alone.
         self.main_pos_config.down_payment_product_id = False
-        self.env["ir.model.data"]._update_xmlids(
-            [
-                {
-                    "xml_id": "point_of_sale.pos_config_main",
-                    "record": self.main_pos_config,
-                    "noupdate": True,
-                }
-            ]
-        )
         self.env["pos.config"]._update_downpayment_product()
         self.assertEqual(
             self.main_pos_config.down_payment_product_id,
             self.env.ref("pos_sale.default_downpayment_product"),
+        )
+
+    def test_new_register_gets_the_default_down_payment_product(self):
+        downpayment = self.env.ref("pos_sale.default_downpayment_product")
+        second_register = self.env["pos.config"].create({"name": "Second Register"})
+        self.assertEqual(
+            second_register.down_payment_product_id,
+            downpayment,
+            "A register created after pos_sale is installed should be able to"
+            " sell a down payment without a trip to the settings screen.",
+        )
+
+    def test_update_downpayment_product_spares_a_deliberate_choice(self):
+        downpayment = self.env.ref("pos_sale.default_downpayment_product")
+        chosen = self.desk_pad.product_variant_id
+        empty_register = self.env["pos.config"].create(
+            {"name": "Empty Register", "down_payment_product_id": False}
+        )
+        chosen_register = self.env["pos.config"].create(
+            {"name": "Chosen Register", "down_payment_product_id": chosen.id}
+        )
+
+        self.env["pos.config"]._update_downpayment_product()
+
+        self.assertEqual(
+            empty_register.down_payment_product_id,
+            downpayment,
+            "An empty register should be filled with the default product.",
+        )
+        self.assertEqual(
+            chosen_register.down_payment_product_id,
+            chosen,
+            "A down payment product picked by hand must survive a rerun of the"
+            " onboarding scenario.",
         )
 
     def test_pos_order_and_invoice_amounts(self):
