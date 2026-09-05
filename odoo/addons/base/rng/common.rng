@@ -399,6 +399,7 @@
     <rng:define name="create">
         <rng:element name="create">
             <rng:ref name="overload"/>
+            <rng:ref name="access_rights"/>
             <rng:attribute name="string"/>
             <rng:optional><rng:attribute name="context"/></rng:optional>
             <rng:optional><rng:attribute name="name"/></rng:optional>
@@ -410,6 +411,7 @@
     <rng:define name="delete">
         <rng:element name="delete">
             <rng:ref name="overload"/>
+            <rng:ref name="access_rights"/>
             <rng:optional><rng:attribute name="invisible"/></rng:optional>
         </rng:element>
     </rng:define>
