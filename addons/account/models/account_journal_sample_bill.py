@@ -15,8 +15,8 @@ class AccountJournal(models.Model):
 
     def action_create_vendor_bill(self):
         context = dict(self.env.context)
-        purchase_journal = self.browse(
-            context.get("default_journal_id")
+        purchase_journal = self.browse(context.get("default_journal_id")).filtered(
+            lambda journal: journal.type == "purchase"
         ) or self.search([("type", "=", "purchase")], limit=1)
         partner = self.env.ref("base.res_partner_2", raise_if_not_found=False)
         if not purchase_journal:
