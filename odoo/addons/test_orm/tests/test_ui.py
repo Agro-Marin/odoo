@@ -30,6 +30,6 @@ class TestUiTranslation(odoo.tests.HttpCase):
 
         self.start_tour(
             "/odoo/action-test_orm.action_categories",
-            "sql_constaint",
+            "sql_constraint",
             login="admin",
         )
