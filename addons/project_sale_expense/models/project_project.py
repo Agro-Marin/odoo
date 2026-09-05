@@ -53,7 +53,7 @@ class ProjectProject(models.Model):
                 [
                     ("order_id", "in", list(expenses_per_so_id.keys())),
                     ("is_expense", "=", True),
-                    ("state", "=", "sale"),
+                    ("state", "=", "done"),
                 ],
                 ["order_id", "product_id", "currency_id"],
                 ["amount_taxexc_to_invoice:sum", "amount_taxexc_invoiced:sum"],

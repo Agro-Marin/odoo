@@ -4161,9 +4161,9 @@ class AccountTax(models.Model):
             return self
         taxes, company = self.env["account.tax"], company_id
         while not taxes and company:
-            taxes = self.filtered(lambda t, c=company: c in t.company_ids)
+            taxes = self.sudo().filtered(lambda t, c=company: c in t.company_ids)
             company = company.sudo().parent_id
-        return taxes
+        return taxes.with_env(self.env)
 
     @api.model
     def _fix_tax_included_price(self, price, prod_taxes, line_taxes):

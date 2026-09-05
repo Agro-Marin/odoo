@@ -85,7 +85,7 @@ class SaleOrder(models.Model):
                 continue
 
             declaration_not_yet_invoiced = declaration.not_yet_invoiced
-            # Exactly the confirmed SOs (state == 'sale') are included in `declaration.not_yet_invoiced`.
+            # Exactly the confirmed SOs (state == 'done') are included in `declaration.not_yet_invoiced`.
             # The amount of `declaration.not_yet_invoiced` may change due to confirming or saving `order`.
             #   * An unconfirmed order is being confirmed:
             #     We have to add the order amount to `declaration.not_yet_invoiced`.
@@ -94,7 +94,7 @@ class SaleOrder(models.Model):
             #     But we want to update the warning during the editing already (before saving).
             #     We first have to remove the "old amount" from `declaration.not_yet_invoiced`
             #     before adding the current amount.
-            if order.state == 'sale':
+            if order.state == 'done':
                 old_order_state = order._origin
                 declaration_not_yet_invoiced -= old_order_state.l10n_it_edi_doi_not_yet_invoiced
             declaration_not_yet_invoiced += order.l10n_it_edi_doi_not_yet_invoiced

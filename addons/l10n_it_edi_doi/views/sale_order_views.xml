@@ -37,7 +37,7 @@
                 <field name="currency_id" column_invisible="True" />
                 <field
                     name="state"
-                    decoration-success="state == 'sale'"
+                    decoration-success="state == 'done'"
                     decoration-info="state == 'draft'"
                     decoration-primary="state == 'sent'"
                     widget="badge" />

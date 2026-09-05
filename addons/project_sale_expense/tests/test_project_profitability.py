@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import tagged
 
 from odoo.addons.project_hr_expense.tests.test_project_profitability import (
@@ -73,11 +74,18 @@ class TestProjectSaleExpenseProfitability(
         self.assertEqual(expense.state, "approved")
 
         # Create an expense in a foreign company, the expense is linked to the AA of the project.
+        # An order confirms only with a line (base_order); the expense's own
+        # line is appended to the confirmed order later, as in production.
         so_foreign = self.env["sale.order"].create(
             {
                 "name": "Sale order foreign",
                 "partner_id": self.partner_a.id,
                 "company_id": foreign_company.id,
+                "line_ids": [
+                    Command.create(
+                        {"product_id": self.product_a.id, "product_qty": 1}
+                    )
+                ],
             }
         )
         so_foreign.currency_id = self.foreign_currency
@@ -151,7 +159,7 @@ class TestProjectSaleExpenseProfitability(
                 "id": "expenses",
                 "sequence": expense_sequence,
                 "invoiced": 0.0,
-                "to_invoice": expense_sol.untaxed_amount_to_invoice,
+                "to_invoice": expense_sol.amount_taxexc_to_invoice,
             },
         )
         self.assertDictEqual(
@@ -190,7 +198,7 @@ class TestProjectSaleExpenseProfitability(
             expense_foreign.with_company(expense_foreign.company_id)
         )
         self.assertEqual(expense_foreign.state, "posted")
-        expense_sol_foreign = so_foreign.line_ids[0]
+        expense_sol_foreign = so_foreign.line_ids.filtered("is_expense")
         expense_profitability = project._get_expenses_profitability_items(False)
         self.assertDictEqual(
             expense_profitability.get("revenues", {}),
@@ -198,8 +206,8 @@ class TestProjectSaleExpenseProfitability(
                 "id": "expenses",
                 "sequence": expense_sequence,
                 "invoiced": 0.0,
-                "to_invoice": expense_sol.untaxed_amount_to_invoice
-                + expense_sol_foreign.untaxed_amount_to_invoice * 0.2,
+                "to_invoice": expense_sol.amount_taxexc_to_invoice
+                + expense_sol_foreign.amount_taxexc_to_invoice * 0.2,
             },
         )
         self.assertDictEqual(
@@ -256,8 +264,8 @@ class TestProjectSaleExpenseProfitability(
             {
                 "id": "expenses",
                 "sequence": expense_sequence,
-                "invoiced": expense_sol.untaxed_amount_invoiced,
-                "to_invoice": expense_sol_foreign.untaxed_amount_to_invoice * 0.2,
+                "invoiced": expense_sol.amount_taxexc_invoiced,
+                "to_invoice": expense_sol_foreign.amount_taxexc_to_invoice * 0.2,
             },
         )
 
@@ -271,8 +279,8 @@ class TestProjectSaleExpenseProfitability(
                 "id": "expenses",
                 "sequence": expense_sequence,
                 "invoiced": 0.0,
-                "to_invoice": expense_sol.untaxed_amount_to_invoice
-                + expense_sol_foreign.untaxed_amount_to_invoice * 0.2,
+                "to_invoice": expense_sol.amount_taxexc_to_invoice
+                + expense_sol_foreign.amount_taxexc_to_invoice * 0.2,
             },
         )
 
@@ -284,7 +292,7 @@ class TestProjectSaleExpenseProfitability(
                 "id": "expenses",
                 "sequence": expense_sequence,
                 "invoiced": 0.0,
-                "to_invoice": expense_sol_foreign.untaxed_amount_to_invoice * 0.2,
+                "to_invoice": expense_sol_foreign.amount_taxexc_to_invoice * 0.2,
             },
         )
         self.assertDictEqual(
@@ -306,7 +314,7 @@ class TestProjectSaleExpenseProfitability(
                 "id": "expenses",
                 "sequence": expense_sequence,
                 "invoiced": 0.0,
-                "to_invoice": expense_sol_foreign.untaxed_amount_to_invoice * 0.2,
+                "to_invoice": expense_sol_foreign.amount_taxexc_to_invoice * 0.2,
             },
         )
         self.assertDictEqual(
@@ -343,7 +351,7 @@ class TestProjectSaleExpenseProfitability(
             {
                 "id": "expenses",
                 "sequence": expense_sequence,
-                "invoiced": expense_sol_foreign.untaxed_amount_invoiced * 0.2,
+                "invoiced": expense_sol_foreign.amount_taxexc_invoiced * 0.2,
                 "to_invoice": 0.0,
             },
         )
@@ -358,7 +366,7 @@ class TestProjectSaleExpenseProfitability(
                 "id": "expenses",
                 "sequence": expense_sequence,
                 "invoiced": 0.0,
-                "to_invoice": expense_sol_foreign.untaxed_amount_to_invoice * 0.2,
+                "to_invoice": expense_sol_foreign.amount_taxexc_to_invoice * 0.2,
             },
         )
 

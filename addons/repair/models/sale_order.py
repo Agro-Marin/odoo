@@ -60,7 +60,7 @@ class SaleOrderLine(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         res = super().create(vals_list)
-        res.filtered(lambda line: line.state in ('sale', 'done'))._create_repair_order()
+        res.filtered(lambda line: line.state == 'done')._create_repair_order()
         return res
 
     def write(self, vals):
@@ -68,7 +68,7 @@ class SaleOrderLine(models.Model):
             old_product_qty = {line.id: line.product_qty for line in self}
             res = super().write(vals)
             for line in self:
-                if line.state in ('sale', 'done') and line.product_id:
+                if line.state == 'done' and line.product_id:
                     if line.product_uom_id.compare(old_product_qty[line.id], 0) <= 0 and line.product_uom_id.compare(line.product_qty, 0) > 0:
                         self._create_repair_order()
                     if line.product_uom_id.compare(old_product_qty[line.id], 0) > 0 and line.product_uom_id.compare(line.product_qty, 0) <= 0:

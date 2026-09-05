@@ -158,7 +158,7 @@ class L10n_It_Edi_DoiDeclaration_Of_Intent(models.Model):
     def _compute_not_yet_invoiced(self):
         for declaration in self:
             relevant_orders = declaration.sale_order_ids.filtered(
-                lambda order: order.state == 'sale'
+                lambda order: order.state == 'done'
             )
             declaration.not_yet_invoiced = sum(relevant_orders.mapped('l10n_it_edi_doi_not_yet_invoiced'))
 

@@ -14,7 +14,7 @@ class HrExpense(models.Model):
         tracking=True,
         # NOTE: only confirmed SO can be selected, but this domain in activated throught the name search with the `sale_expense_all_order`
         # context key. So, this domain is not the one applied.
-        domain="[('state', '=', 'sale')]",
+        domain="[('state', '=', 'done')]",
         check_company=True,
         help="If the category has an expense policy, it will be reinvoiced on this sales order",
     )
