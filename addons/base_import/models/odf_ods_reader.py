@@ -6,23 +6,26 @@ from odf.text import P
 
 from odoo import _
 
-# `.ods` is a zip archive, and `opendocument.load` reads every member --
-# `content.xml`, embedded pictures, thumbnails -- fully into memory via plain
-# `zipfile`-backed `z.read()`, with no size guard of its own. A member's
-# declared uncompressed size is fully controlled by the file's author, so a
-# small upload can decompress to gigabytes before this reader's own
-# MAX_CELL_REPEAT/MAX_ROW_REPEAT below ever see a single cell (a zip bomb).
-# Checked ahead of `opendocument.load`, against the archive's own declared
-# sizes -- cheap, since it only reads the central directory, never a member's
-# data.
+# `.ods`/`.xlsx` are both zip archives, and their parsing libraries (odfpy,
+# openpyxl) read some members fully into memory -- `content.xml`, embedded
+# pictures, thumbnails for odfpy; the shared-strings table for openpyxl, even
+# in `read_only` mode -- via plain `zipfile`-backed reads, with no size guard
+# of their own. A member's declared uncompressed size is fully controlled by
+# the file's author, so a small upload can decompress to gigabytes before
+# this reader's own MAX_CELL_REPEAT/MAX_ROW_REPEAT below (or, for `.xlsx`,
+# any row-emptiness filter) ever see a single cell (a zip bomb). Checked
+# ahead of handing the file to either library, against the archive's own
+# declared sizes -- cheap, since it only reads the central directory, never
+# a member's data. Shared between the `.ods` and `.xlsx` readers.
 MAX_UNCOMPRESSED_MEMBER_SIZE = 100 * 1024 * 1024  # 100 MiB
 
 
 def _check_zip_member_sizes(file):
-    """Raise if any member of the ``.ods`` archive would decompress past
-    :data:`MAX_UNCOMPRESSED_MEMBER_SIZE`, before handing it to odfpy.
+    """Raise if any member of the zip archive would decompress past
+    :data:`MAX_UNCOMPRESSED_MEMBER_SIZE`, before handing it to a parsing
+    library (odfpy for `.ods`, openpyxl for `.xlsx`).
 
-    :param file: a file-like object holding the .ods archive
+    :param file: a file-like object holding the zip archive
     :raises ValueError: on the first oversized member
     """
     with zipfile.ZipFile(file) as archive:
