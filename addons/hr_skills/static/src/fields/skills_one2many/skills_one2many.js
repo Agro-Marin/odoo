@@ -4,10 +4,9 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
-import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
-import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";
 
 import { CommonSkillsListRenderer } from "../../views/skills_list_renderer.js";
+import { useSkillsRecordOpener } from "../use_skills_record_opener.js";
 
 export class SkillsListRenderer extends CommonSkillsListRenderer {
     static template = "hr_skills.SkillsListRenderer";
@@ -83,28 +82,7 @@ export class SkillsX2ManyField extends X2ManyField {
     };
     setup() {
         super.setup();
-        this.orm = useService("orm");
-        this.actionService = useService("action");
-
-        const { saveAndLink, updateRecord } = useX2ManyCrud(
-            () => this.list,
-            this.isMany2Many,
-        );
-
-        const openRecord = useOpenX2ManyRecord({
-            resModel: this.list.resModel,
-            activeField: this.activeField,
-            activeActions: this.activeActions,
-            getList: () => this.list,
-            saveRecord: saveAndLink,
-            updateRecord: updateRecord,
-            withParentId: this.props.widget !== "many2many",
-        });
-
-        this._openRecord = (params) => {
-            params.title = this.getWizardTitleName();
-            openRecord({ ...params });
-        };
+        useSkillsRecordOpener(this, () => this.getWizardTitleName());
     }
 
     getWizardTitleName() {
@@ -112,15 +90,11 @@ export class SkillsX2ManyField extends X2ManyField {
     }
 
     async onAdd({ context, editable } = {}) {
-        const employeeId =
-            this.props.record.resModel === "res.users"
-                ? this.props.record.data.employee_id.id
-                : this.props.record.resId;
         return super.onAdd({
             editable,
             context: {
                 ...context,
-                default_employee_id: employeeId,
+                default_employee_id: this.props.record.resId,
             },
         });
     }

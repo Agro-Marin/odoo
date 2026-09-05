@@ -2,7 +2,7 @@ from odoo import Command, api, fields, models
 
 
 class HrApplicant(models.Model):
-    _inherit = "hr.applicant"
+    _inherit = ["mixin.hr.individual.skill.owner", "hr.applicant"]
 
     applicant_skill_ids = fields.One2many(
         "hr.applicant.skill", "applicant_id", string="Skills", copy=True
@@ -28,14 +28,26 @@ class HrApplicant(models.Model):
         string="Matching Score", compute="_compute_matching_skill_ids"
     )
 
-    @api.depends("applicant_skill_ids")
+    def _individual_skill_field_name(self):
+        return "applicant_skill_ids"
+
+    def _individual_skill_command_field_names(self):
+        return ("current_applicant_skill_ids", "applicant_skill_ids")
+
+    @api.depends(
+        "applicant_skill_ids.valid_to",
+        "applicant_skill_ids.skill_id",
+        "applicant_skill_ids.is_certification",
+    )
     def _compute_current_applicant_skill_ids(self):
-        current_applicant_skill_by_applicant = (
-            self.applicant_skill_ids._get_current_skills_by_applicant()
+        current_by_applicant = (
+            self.applicant_skill_ids._current_individual_skills().grouped(
+                "applicant_id"
+            )
         )
         for applicant in self:
-            applicant.current_applicant_skill_ids = (
-                current_applicant_skill_by_applicant[applicant.id]
+            applicant.current_applicant_skill_ids = current_by_applicant.get(
+                applicant, self.env["hr.applicant.skill"]
             )
 
     @api.depends("applicant_skill_ids.skill_id")
@@ -159,33 +171,24 @@ class HrApplicant(models.Model):
         )
         return action
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        if not self:
-            for vals in vals_list:
-                vals["applicant_skill_ids"] = vals.pop(
-                    "current_applicant_skill_ids", []
-                ) + vals.get("applicant_skill_ids", [])
-        return super().create(vals_list)
-
     def write(self, vals):
-        if "current_applicant_skill_ids" in vals or "applicant_skill_ids" in vals:
-            skills = vals.pop("current_applicant_skill_ids", []) + vals.get(
-                "applicant_skill_ids", []
-            )
-            original_vals = vals.copy()
-            original_vals["applicant_skill_ids"] = skills
-            vals["applicant_skill_ids"] = self.env[
-                "hr.applicant.skill"
-            ]._get_transformed_commands(skills, self)
+        """A pool applicant mirrors the skills of the applicants drawn from it,
+        so the raw commands are mapped onto its rows before the mixin turns
+        them into the versioned form."""
+        command_fields = set(self._individual_skill_command_field_names())
+        if command_fields & vals.keys():
+            skills = []
+            for field_name in self._individual_skill_command_field_names():
+                skills += vals.get(field_name) or []
             for applicant in self:
-                if applicant.pool_applicant_id and (not applicant.is_pool_applicant):
-                    mapped_skills = (
-                        applicant._map_applicant_skill_ids_to_talent_skill_ids(
-                            original_vals
-                        )
-                    )
+                if applicant.pool_applicant_id and not applicant.is_pool_applicant:
                     applicant.pool_applicant_id.write(
-                        {"applicant_skill_ids": mapped_skills}
+                        {
+                            "applicant_skill_ids": (
+                                applicant._map_applicant_skill_ids_to_talent_skill_ids(
+                                    {"applicant_skill_ids": skills}
+                                )
+                            )
+                        }
                     )
         return super().write(vals)

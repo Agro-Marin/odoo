@@ -34,6 +34,3 @@ class HrEmployeeSkill(models.Model):
                 )
             ],
         }
-
-    def action_save(self):
-        return {"type": "ir.actions.act_window_close"}

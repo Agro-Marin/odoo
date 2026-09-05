@@ -109,3 +109,108 @@ class TestInternalResumeLines(TransactionCase):
             self.env["hr.employee"].with_user(portal_user).get_internal_resume_lines(
                 employee.id, "hr.employee"
             )
+
+
+@tagged("post_install", "-at_install")
+class TestInternalResumeLineShapes(TransactionCase):
+    """The internal resume is one line per run of versions sharing a title."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.employee = cls.env["hr.employee"].create(
+            {"name": "Shaped employee", "job_title": "Developer"},
+        )
+        cls.first = cls.employee.version_ids
+        cls.day0 = cls.first.date_version
+
+    def _version(self, days, title, **vals):
+        return self.env["hr.version"].create(
+            {
+                "employee_id": self.employee.id,
+                "date_version": self.day0 + relativedelta(days=days),
+                "job_title": title,
+                **vals,
+            },
+        )
+
+    def _lines(self, clip_to_contract=True):
+        self.env.invalidate_all()
+        return self.env["hr.employee"]._internal_resume_lines(
+            self.employee.version_ids, clip_to_contract=clip_to_contract
+        )
+
+    def test_consecutive_versions_with_one_title_are_one_line(self):
+        last = self._version(100, "Developer")
+        lines = self._lines()
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(
+            lines[0]["id"], last.id, "the run answers to its latest version"
+        )
+        self.assertEqual(lines[0]["date_start"], self.day0)
+        self.assertFalse(lines[0]["date_end"])
+
+    def test_a_title_change_ends_the_line_the_day_before(self):
+        self._version(100, "Lead")
+        lines = self._lines()
+        self.assertEqual([line["job_title"] for line in lines], ["Lead", "Developer"])
+        self.assertEqual(lines[1]["date_end"], self.day0 + relativedelta(days=99))
+        self.assertEqual(lines[0]["date_start"], self.day0 + relativedelta(days=100))
+
+    def test_a_version_without_a_title_is_a_hole(self):
+        self._version(100, False)
+        self._version(200, "Developer")
+        lines = self._lines()
+        self.assertEqual(
+            len(lines), 2, "the same title on both sides of a hole is two lines"
+        )
+        self.assertEqual(lines[1]["date_end"], self.day0 + relativedelta(days=99))
+        self.assertEqual(lines[0]["date_start"], self.day0 + relativedelta(days=200))
+
+    def test_a_contract_end_splits_a_run(self):
+        self.first.write(
+            {
+                "contract_date_start": self.day0,
+                "contract_date_end": self.day0 + relativedelta(days=50),
+            },
+        )
+        self._version(100, "Developer")
+        lines = self._lines()
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(lines[1]["date_end"], self.day0 + relativedelta(days=50))
+
+    def test_a_reader_without_contract_access_sees_version_dates_only(self):
+        self.first.write(
+            {
+                "contract_date_start": self.day0 + relativedelta(days=10),
+                "contract_date_end": self.day0 + relativedelta(days=50),
+            },
+        )
+        clipped = self._lines(clip_to_contract=True)
+        plain = self._lines(clip_to_contract=False)
+        self.assertEqual(clipped[0]["date_end"], self.day0 + relativedelta(days=50))
+        self.assertEqual(plain[0]["date_start"], self.first.date_version)
+        self.assertFalse(plain[0]["date_end"])
+
+    def test_an_employee_without_version_access_gets_unclipped_lines(self):
+        self.first.write(
+            {
+                "contract_date_start": self.day0 + relativedelta(days=10),
+                "contract_date_end": self.day0 + relativedelta(days=50),
+            },
+        )
+        colleague = new_test_user(
+            self.env, login="resume.reader", groups="base.group_user"
+        )
+        self.assertFalse(self.env["hr.version"].with_user(colleague).has_access("read"))
+        lines = (
+            self.env["hr.employee"]
+            .with_user(colleague)
+            .get_internal_resume_lines(self.employee.id, "hr.employee")
+        )
+        self.assertEqual(lines[0]["date_start"], self.first.date_version)
+        self.assertFalse(
+            lines[0]["date_end"],
+            "contract dates are hr.version data a plain user cannot read; the "
+            "resume must not leak them through sudo",
+        )

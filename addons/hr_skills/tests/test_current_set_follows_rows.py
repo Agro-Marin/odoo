@@ -248,3 +248,38 @@ class TestOneCommandPerRow(SkillsCase):
     def test_clear_then_create_closes_the_old_row_once(self):
         old, commands = self._commands_for(lambda row: Command.clear())
         self._assert_each_row_once(old, commands)
+
+
+@tagged("post_install", "-at_install")
+class TestCreatingAnOwnerFromCopiedLines(SkillsCase):
+    """copy_data() emits the lines with the old owner's id still in them; the
+    ORM overwrites it on the new owner, but the transformation ran the
+    collision check against it and closed the copied record's live skills.
+    hr.applicant copies its skills, so duplicating an applicant into a talent
+    pool emptied the applicant."""
+
+    def test_the_source_of_a_copy_keeps_its_skills(self):
+        source = self.env["hr.employee"].create({"name": "Copy source"})
+        live = self.env["hr.employee.skill"].create(
+            {
+                "employee_id": source.id,
+                "skill_id": self.skill_piano.id,
+                "skill_level_id": self.level_novice.id,
+                "skill_type_id": self.skill_type.id,
+                "valid_from": date.today() - relativedelta(months=2),
+            },
+        )
+        self.env.flush_all()
+        line_vals = live.copy_data()[0]
+        self.assertEqual(
+            line_vals["employee_id"], source.id, "copy_data keeps the parent"
+        )
+
+        commands = self.env["hr.employee.skill"]._get_transformed_commands(
+            [Command.create(line_vals)], self.env["hr.employee"]
+        )
+
+        self.assertEqual([command[0] for command in commands], [Command.CREATE])
+        self.assertNotIn("employee_id", commands[0][2])
+        self.assertTrue(live.exists())
+        self.assertFalse(live.valid_to)

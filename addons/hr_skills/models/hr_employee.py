@@ -250,71 +250,51 @@ class HrEmployee(models.Model):
             raise AccessError(
                 self.env._("You cannot access the resume of this employee.")
             )
-        res = []
-        employee_versions = self.env["hr.employee"].sudo().browse(res_id).version_ids
-        if not employee_versions:
-            return res
-        interval_date_start = False
-        for i in range(len(employee_versions) - 1):
-            current_version = employee_versions[i]
-            next_version = employee_versions[i + 1]
-            current_date_start = max(
-                current_version.date_version,
-                current_version.contract_date_start or date.min,
-            )
-            current_date_end = min(
-                next_version.date_version + relativedelta(days=-1),
-                current_version.contract_date_end or date.max,
-            )
-            if not current_version.job_title:
-                if interval_date_start:
-                    previous_version = employee_versions[i - 1]
-                    res.append(
-                        {
-                            "id": previous_version.id,
-                            "job_title": previous_version.job_title,
-                            "date_start": interval_date_start,
-                            "date_end": current_date_start + relativedelta(days=-1),
-                        }
-                    )
-                    interval_date_start = False
-            elif (
-                current_version.job_title != next_version.job_title
-                or current_date_end + relativedelta(days=1) != next_version.date_version
-            ):
-                res.append(
-                    {
-                        "id": current_version.id,
-                        "job_title": current_version.job_title,
-                        "date_start": interval_date_start or current_date_start,
-                        "date_end": current_date_end,
-                    }
-                )
-                interval_date_start = False
-            else:
-                interval_date_start = interval_date_start or current_date_start
+        versions = self.env["hr.employee"].sudo().browse(res_id).version_ids
+        return self._internal_resume_lines(
+            versions, clip_to_contract=self.env["hr.version"].has_access("read")
+        )
 
-        last_version = employee_versions[-1]
-        if last_version.job_title:
-            current_date_start = max(
-                last_version.date_version, last_version.contract_date_start or date.min
-            )
-            res.append(
+    @api.model
+    def _version_span(self, version, next_version, clip_to_contract):
+        """The days ``version`` describes: from its start to the day before the
+        next version, narrowed to the contract when the reader may see one."""
+        start = version.date_version
+        end = (
+            next_version.date_version - relativedelta(days=1) if next_version else False
+        )
+        if clip_to_contract:
+            if version.contract_date_start:
+                start = max(start, version.contract_date_start)
+            if version.contract_date_end:
+                end = min(end or date.max, version.contract_date_end)
+        return start, end
+
+    @api.model
+    def _internal_resume_lines(self, versions, clip_to_contract=True):
+        """One line per run of consecutive versions sharing a job title, most
+        recent first. A version without a title is a hole between runs; a run
+        ends where the contract does, even if the next version carries on."""
+        lines = []
+        for version, next_version in zip(versions, [*versions[1:], None], strict=True):
+            if not version.job_title:
+                continue
+            start, end = self._version_span(version, next_version, clip_to_contract)
+            previous = lines[-1] if lines else None
+            if (
+                previous
+                and previous["job_title"] == version.job_title
+                and previous["date_end"]
+                and previous["date_end"] + relativedelta(days=1) == version.date_version
+            ):
+                previous.update(id=version.id, date_end=end)
+                continue
+            lines.append(
                 {
-                    "id": last_version.id,
-                    "job_title": last_version.job_title,
-                    "date_start": interval_date_start or current_date_start,
-                    "date_end": last_version.contract_date_end or False,
+                    "id": version.id,
+                    "job_title": version.job_title,
+                    "date_start": start,
+                    "date_end": end,
                 }
             )
-        elif interval_date_start:
-            previous_version = employee_versions[-2]
-            res.append(
-                {
-                    "id": previous_version.id,
-                    "job_title": previous_version.job_title,
-                    "date_start": interval_date_start,
-                    "date_end": current_date_start + relativedelta(days=-1),
-                }
-            )
-        return res[::-1]
+        return lines[::-1]

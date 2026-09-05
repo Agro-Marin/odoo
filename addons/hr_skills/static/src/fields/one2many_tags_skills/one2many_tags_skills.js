@@ -3,8 +3,8 @@ import { TagsList } from "@web/components/tags_list";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
-import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
-import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";
+
+import { useSkillsRecordOpener } from "../use_skills_record_opener.js";
 
 export class One2ManyTagsSkillsField extends X2ManyField {
     static components = {
@@ -15,25 +15,7 @@ export class One2ManyTagsSkillsField extends X2ManyField {
 
     setup() {
         super.setup();
-        const { saveAndLink, updateRecord } = useX2ManyCrud(
-            () => this.list,
-            this.isMany2Many,
-        );
-
-        const openRecord = useOpenX2ManyRecord({
-            resModel: this.list.resModel,
-            activeField: this.activeField,
-            activeActions: this.activeActions,
-            getList: () => this.list,
-            saveRecord: saveAndLink,
-            updateRecord: updateRecord,
-            withParentId: this.props.widget !== "many2many",
-        });
-
-        this._openRecord = (params) => {
-            params.title = _t("Select Skills");
-            openRecord({ ...params });
-        };
+        useSkillsRecordOpener(this, () => _t("Select Skills"));
     }
 
     getTagProps(record) {
