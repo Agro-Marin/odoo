@@ -358,14 +358,14 @@ export class BarcodeParser {
             {
                 base_code,
                 code: productBarcode,
-                string_value: productBarcode,
+                encoding: "",
                 type: "product",
                 value: productBarcode,
             },
             {
                 base_code,
                 code: trackingNumber,
-                string_value: trackingNumber,
+                encoding: "",
                 type: "lot",
                 value: trackingNumber,
             },
@@ -382,7 +382,7 @@ export class BarcodeParser {
             {
                 base_code,
                 code: sscc,
-                string_value: sscc,
+                encoding: "",
                 type: "package",
                 value: sscc,
             },

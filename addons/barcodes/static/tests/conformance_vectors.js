@@ -515,11 +515,13 @@ export const VECTORS = JSON.parse(`
             "expected": [
                 {
                     "type": "product",
-                    "value": "04012345123456"
+                    "value": "04012345123456",
+                    "encoding": ""
                 },
                 {
                     "type": "lot",
-                    "value": "998877"
+                    "value": "998877",
+                    "encoding": ""
                 }
             ]
         },
@@ -528,11 +530,13 @@ export const VECTORS = JSON.parse(`
             "expected": [
                 {
                     "type": "product",
-                    "value": "09521141123454"
+                    "value": "09521141123454",
+                    "encoding": ""
                 },
                 {
                     "type": "lot",
-                    "value": "4711"
+                    "value": "4711",
+                    "encoding": ""
                 }
             ]
         },
@@ -541,11 +545,13 @@ export const VECTORS = JSON.parse(`
             "expected": [
                 {
                     "type": "product",
-                    "value": "03583787280898"
+                    "value": "03583787280898",
+                    "encoding": ""
                 },
                 {
                     "type": "lot",
-                    "value": "620776"
+                    "value": "620776",
+                    "encoding": ""
                 }
             ]
         },
@@ -554,7 +560,8 @@ export const VECTORS = JSON.parse(`
             "expected": [
                 {
                     "type": "package",
-                    "value": "095265678901234568"
+                    "value": "095265678901234568",
+                    "encoding": ""
                 }
             ]
         },
