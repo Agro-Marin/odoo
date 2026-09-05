@@ -71,6 +71,10 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     get quantityStr() {
+        return this.quantityStrFor(this.qty);
+    }
+
+    quantityStrFor(qty) {
         let unitPart;
         let decimalPart = "";
         const unit = this.product_id.uom_id;
@@ -82,10 +86,10 @@ export class PosOrderline extends PosOrderlineAccounting {
                     (dp) => dp.name === "Product Unit",
                 );
 
-                if (this.qty % 1 === 0) {
-                    unitPart = this.qty.toFixed(0);
+                if (qty % 1 === 0) {
+                    unitPart = qty.toFixed(0);
                 } else {
-                    const formatted = formatFloat(this.qty, {
+                    const formatted = formatFloat(qty, {
                         digits: [69, ProductUnit.digits],
                     });
                     const parts = formatted.split(decimalPoint);
@@ -93,10 +97,10 @@ export class PosOrderline extends PosOrderlineAccounting {
                     decimalPart = parts[1] || "";
                 }
             } else {
-                unitPart = this.qty.toFixed(0);
+                unitPart = qty.toFixed(0);
             }
         } else {
-            unitPart = "" + this.qty;
+            unitPart = "" + qty;
         }
         return {
             qtyStr: unitPart + (decimalPart ? decimalPoint + decimalPart : ""),
