@@ -18,6 +18,7 @@ def migrate(cr, version):
         """
         SELECT sequence_code, company_id, array_agg(id ORDER BY id)
         FROM approval_category
+        WHERE sequence_code IS NOT NULL AND sequence_code <> ''
         GROUP BY sequence_code, company_id
         HAVING count(*) > 1
         ORDER BY sequence_code
@@ -34,7 +35,7 @@ def migrate(cr, version):
         lines.append("Categories with a missing/empty sequence_code:")
         lines += [f"  - id={cid} name={name!r}" for cid, name in missing]
     if duplicates:
-        lines.append("Duplicate sequence_code per company (NULLS NOT DISTINCT):")
+        lines.append("Duplicate sequence_code per company:")
         lines += [
             f"  - code={code!r} company_id={company} ids={ids}"
             for code, company, ids in duplicates
