@@ -1006,7 +1006,11 @@ class ProjectTask(models.Model):
 
     @api.onchange("project_id")
     def _onchange_project_id(self) -> None:
-        if self.state != "blocked" and self.state not in CLOSED_STATES:
+        if (
+            self.state != "blocked"
+            and self.state not in CLOSED_STATES
+            and self.step_id != self._origin.step_id
+        ):
             self.state = "in_progress"
         if not self.project_id and not self.user_ids:
             self.user_ids = self.env.user
@@ -2280,6 +2284,14 @@ class ProjectTask(models.Model):
         partner_ids, project_link_per_task_id = self._write_prepare_transfer_notice(
             vals
         )
+        # _compute_step_id keeps the task on its step when the destination
+        # project shares it, so the step has to be read before the write to
+        # tell a real board change from a move within the same board.
+        steps_before = (
+            {task.id: task.step_id.id for task in self}
+            if "project_id" in vals
+            else {}
+        )
 
         if vals.get("parent_id") is False:
             additional_vals["display_in_project"] = True
@@ -2305,7 +2317,7 @@ class ProjectTask(models.Model):
 
         self._write_apply_assignment(vals, now, task_ids_without_user_set)
         self._write_send_step_rating(vals)
-        self._write_apply_state(vals, now, state_changed)
+        self._write_apply_state(vals, now, state_changed, steps_before)
 
         if "parent_id" in vals:
             self.env.remove_to_compute(self._fields["state"], self)
@@ -2601,7 +2613,11 @@ class ProjectTask(models.Model):
             )._send_task_rating_mail(force_send=True)
 
     def _write_apply_state(
-        self, vals: dict[str, Any], now: Any, state_changed: Self
+        self,
+        vals: dict[str, Any],
+        now: Any,
+        state_changed: Self,
+        steps_before: dict[int, int | bool] | None = None,
     ) -> None:
         if "state" in vals:
             if state_changed:
@@ -2611,8 +2627,11 @@ class ProjectTask(models.Model):
                     if task.allow_dependencies and task.is_blocked_by_predecessors():
                         task.state = "blocked"
         elif "project_id" in vals:
+            steps_before = steps_before or {}
             self.filtered(
-                lambda t: t.state != "blocked" and t.state not in CLOSED_STATES
+                lambda t: t.state != "blocked"
+                and t.state not in CLOSED_STATES
+                and steps_before.get(t.id) != t.step_id.id
             ).state = "in_progress"
 
     def _write_notify_transfer(

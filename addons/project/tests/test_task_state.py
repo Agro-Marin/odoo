@@ -126,6 +126,61 @@ class TestTaskState(TestProjectCommon):
             "task_2 state should remain canceled when its project changes",
         )
 
+    def test_state_survives_a_move_to_a_project_sharing_the_step(self) -> None:
+        """Moving a task between two projects that share its step keeps it.
+
+        `project.workflow.step.project_ids` is a Many2many here, so a step can
+        belong to several projects and `_compute_step_id` deliberately keeps
+        the task on it when the destination is one of them. If the state is
+        reset anyway, moving a task across a shared board silently loses an
+        `approved`.
+        """
+        shared_step = self.env["project.workflow.step"].create(
+            {
+                "name": "Shared Review",
+                "project_ids": [
+                    Command.set((self.project_goats + self.project_pigs).ids)
+                ],
+            }
+        )
+        self.task_1.write({"step_id": shared_step.id, "state": "approved"})
+
+        self.task_1.write({"project_id": self.project_pigs.id})
+
+        self.assertEqual(
+            self.task_1.step_id,
+            shared_step,
+            "The step is shared with the destination, so it must be kept.",
+        )
+        self.assertEqual(
+            self.task_1.state,
+            "approved",
+            "The state must survive a move that does not change the step.",
+        )
+
+    def test_state_resets_on_a_move_that_changes_the_step(self) -> None:
+        """The reset still happens when the destination has its own board."""
+        own_step = self.env["project.workflow.step"].create(
+            {
+                "name": "Goats Only",
+                "project_ids": [Command.set(self.project_goats.ids)],
+            }
+        )
+        self.task_1.write({"step_id": own_step.id, "state": "approved"})
+
+        self.task_1.write({"project_id": self.project_pigs.id})
+
+        self.assertNotEqual(
+            self.task_1.step_id,
+            own_step,
+            "The step is not shared with the destination, so it must change.",
+        )
+        self.assertEqual(
+            self.task_1.state,
+            "in_progress",
+            "A task landing on a different board starts over.",
+        )
+
     def test_duplicate_dependent_task(self) -> None:
         self.task_1.write(
             {
