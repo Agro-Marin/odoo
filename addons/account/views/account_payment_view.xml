@@ -159,7 +159,7 @@
                         domain="[('is_sent', '=', 'True')]" />
                     <filter
                         string="Not Sent"
-                        name="state_sent"
+                        name="state_not_sent"
                         domain="[('is_sent', '=', 'False')]" />
                     <filter
                         string="No Bank Matching"
