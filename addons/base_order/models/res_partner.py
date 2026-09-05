@@ -28,15 +28,19 @@ class ResPartner(models.Model):
             [("id", "child_of", self.ids)],
             ["parent_id"],
         )
-        order_groups = self.env[order_model]._read_group(
-            domain=Domain.AND(
-                [
-                    domain or [],
-                    [("partner_id", "in", all_partners.ids)],
-                ],
-            ),
-            groupby=["partner_id"],
-            aggregates=["__count"],
+        order_groups = (
+            self.env[order_model]
+            .sudo()
+            ._read_group(
+                domain=Domain.AND(
+                    [
+                        domain or [],
+                        [("partner_id", "in", all_partners.ids)],
+                    ],
+                ),
+                groupby=["partner_id"],
+                aggregates=["__count"],
+            )
         )
         self_ids = set(self._ids)
 

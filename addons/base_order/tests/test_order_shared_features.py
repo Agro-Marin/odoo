@@ -4,6 +4,12 @@ from odoo.exceptions import AccessError
 from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
+# This file exercises the mixin through sale.order/purchase.order, so it
+# only passes when this module is installed alongside sale and purchase:
+# `-i base_order,sale,purchase`. This module's own manifest cannot depend
+# on either (they both depend on it), so running `-i base_order` alone
+# will fail every test here with a KeyError.
+
 
 @tagged("post_install", "-at_install")
 class TestOrderSharedFeatures(TransactionCase):
@@ -325,11 +331,11 @@ class TestOrderSharedFeatures(TransactionCase):
 
                 self.assertEqual(invoice_line[field], "")
 
-    def _user_in_group(self, group_xmlid):
+    def _user_in_group(self, group_xmlid, suffix=""):
         return self.env["res.users"].create(
             {
                 "name": "Order Responsible",
-                "login": f"order-responsible-{group_xmlid}",
+                "login": f"order-responsible-{group_xmlid}{suffix}",
                 "group_ids": [Command.set(self.env.ref(group_xmlid).ids)],
             },
         )
@@ -427,3 +433,33 @@ class TestOrderSharedFeatures(TransactionCase):
                 order.sudo().write({"user_id": other.id})
 
                 self.assertEqual(order.sudo().user_id, other)
+
+    _COUNT_FIELDS = {
+        "sale.order": "sale_order_count",
+        "purchase.order": "purchase_order_count",
+    }
+
+    def test_order_count_is_not_narrowed_by_the_personal_rule(self):
+        """`_compute_order_count` must see every order for the partner, like
+        `_compute_recent_orders_count` already does, not just the ones the
+        acting salesperson personally owns."""
+        for model, group in self._OWN_DOCUMENTS_GROUPS.items():
+            with self.subTest(model=model):
+                count_field = self._COUNT_FIELDS[model]
+                user_a = self._user_in_group(group, suffix="-a")
+                user_b = self._user_in_group(group, suffix="-b")
+                self.env[model].with_user(user_a).create(
+                    {"partner_id": self.partner.id, "user_id": user_a.id},
+                )
+                self.env[model].with_user(user_b).create(
+                    {"partner_id": self.partner.id, "user_id": user_b.id},
+                )
+
+                count = self.partner.with_user(user_a)[count_field]
+
+                self.assertEqual(
+                    count,
+                    2,
+                    "the personal-orders record rule must not narrow the "
+                    "stat-button count the way it narrows the order list",
+                )
