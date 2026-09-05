@@ -357,8 +357,8 @@ class TestAttendanceComputeQueryScope(TransactionCase):
             self.env.cr.execute = run
         return [query for query in captured if table in query]
 
-    def test_hours_last_month_bounds_the_month_in_sql(self):
-        selects = self._sql_for("hours_last_month", "hr_attendance")
+    def test_hours_this_month_bounds_the_month_in_sql(self):
+        selects = self._sql_for("hours_this_month", "hr_attendance")
         self.assertTrue(selects, "reading the field must query hr_attendance")
         self.assertTrue(
             all("check_in" in query for query in selects),
@@ -380,7 +380,7 @@ class TestAttendanceComputeQueryScope(TransactionCase):
             f"approved line in the database. WHERE clauses seen: {conditions}",
         )
 
-    def test_hours_last_month_ignores_attendances_outside_the_month(self):
+    def test_hours_this_month_ignores_attendances_outside_the_month(self):
         employee = self.employees[0]
         last_year = fields.Datetime.now() - relativedelta(years=1)
         stale = self.env["hr.attendance"].create(
@@ -397,7 +397,7 @@ class TestAttendanceComputeQueryScope(TransactionCase):
             "the excluded attendance must carry hours, or excluding it proves nothing",
         )
         self.assertEqual(
-            employee.hours_last_month,
+            employee.hours_this_month,
             round(sum(this_month.mapped("worked_hours")), 2),
             "only what was worked this month counts towards it",
         )

@@ -1,8 +1,9 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from freezegun import freeze_time
 
-from odoo import Command
+from odoo import Command, fields
+from odoo.libs.datetime import timezone
 from odoo.tests import Form, HttpCase, new_test_user
 from odoo.tests.common import tagged
 
@@ -1121,11 +1122,19 @@ class TestHrAttendanceOvertime(HttpCase):
         )
 
     def test_employee_overtime_with_multiple_attendance_lines(self):
+        # The kiosk reports "today" in the employee's own zone, which is
+        # Brussels here; the server's date is behind it for two hours a day.
+        employee_today = (
+            fields.Datetime.now()
+            .replace(tzinfo=UTC)
+            .astimezone(timezone(self.employee._get_tz()))
+            .date()
+        )
         for _ in range(2):
             self.env["hr.attendance.overtime.line"].create(
                 {
                     "employee_id": self.employee.id,
-                    "date": date.today(),
+                    "date": employee_today,
                     "duration": 5,
                 }
             )

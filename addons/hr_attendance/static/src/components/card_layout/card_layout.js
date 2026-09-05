@@ -12,10 +12,6 @@ export class CardLayout extends Component {
         kioskReturn: { type: Function },
         activeDisplay: { type: String },
     };
-    static defaultProps = {
-        kioskModeClasses: "",
-    };
-
     setup() {
         this.state = useState(this.getDateTime());
         this.timeInterval = setInterval(() => {

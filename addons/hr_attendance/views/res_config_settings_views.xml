@@ -69,6 +69,7 @@
                         </setting>
                         <setting
                             title="Set PIN codes in the employee detail form (in HR Settings tab)."
+                            company_dependent="1"
                             invisible="attendance_kiosk_mode == 'barcode'"
                             help="Use PIN codes (defined on the Employee's profile) to check-in.">
                             <field name="attendance_kiosk_use_pin" />

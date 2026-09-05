@@ -14,9 +14,9 @@ class HrEmployeePublic(models.Model):
         readonly=True,
         groups="hr_attendance.group_hr_attendance_officer",
     )
-    hours_last_month = fields.Float(related="employee_id.hours_last_month")
-    hours_last_month_overtime = fields.Float(
-        related="employee_id.hours_last_month_overtime"
+    hours_this_month = fields.Float(related="employee_id.hours_this_month")
+    hours_this_month_overtime = fields.Float(
+        related="employee_id.hours_this_month_overtime"
     )
     last_attendance_id = fields.Many2one(
         related="employee_id.last_attendance_id",
@@ -40,8 +40,8 @@ class HrEmployeePublic(models.Model):
         related="company_id.hr_attendance_display_overtime"
     )
 
-    def action_view_last_month_attendances(self):
+    def action_view_this_month_attendances(self):
         self.check_singleton()
         if self.is_user:
-            return self.employee_id.action_view_last_month_attendances()
+            return self.employee_id.action_view_this_month_attendances()
         return None

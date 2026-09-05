@@ -11,14 +11,6 @@ from odoo.libs.numbers import float_compare
 from odoo.tools.date_utils import float_to_time, sum_intervals
 
 
-def _naive_utc(dt):
-    return dt.astimezone(UTC).replace(tzinfo=None)
-
-
-def _midnight(date):
-    return datetime.combine(date, datetime.min.time())
-
-
 def _record_overlap_intervals(intervals):
     boundaries = sorted(_boundaries(intervals, "start", "stop"))
     counts = {}
@@ -120,7 +112,9 @@ class HrAttendanceOvertimeRule(models.Model):
         "Timing Stop is an hour of the day",
     )
 
-    @api.constrains("base_off", "expected_hours", "quantity_period")
+    @api.constrains(
+        "base_off", "expected_hours", "expected_hours_from_contract", "quantity_period"
+    )
     def _check_expected_hours(self):
         for rule in self:
             if (
@@ -157,19 +151,6 @@ class HrAttendanceOvertimeRule(models.Model):
                         name=rule.name,
                     )
                 )
-
-    def _get_local_time_start(self, date, tz):
-        self.check_singleton()
-        ret = _midnight(date) + relativedelta(hours=self.timing_start)
-        return _naive_utc(ret.replace(tzinfo=tz))
-
-    def _get_local_time_stop(self, date, tz):
-        self.check_singleton()
-        if self.timing_stop == 24:
-            ret = datetime.combine(date, datetime.max.time())
-            return _naive_utc(ret.replace(tzinfo=tz))
-        ret = _midnight(date) + relativedelta(hours=self.timing_stop)
-        return _naive_utc(ret.replace(tzinfo=tz))
 
     def _get_expected_hours_for_period(self, start, stop, schedule, employee):
         self.check_singleton()
@@ -219,7 +200,7 @@ class HrAttendanceOvertimeRule(models.Model):
 
         overtime_intervals = defaultdict(list)
         remaining_duration = expected_duration
-        remanining_overtime_amount = overtime_amount
+        remaining_overtime_amount = overtime_amount
         for attendance in attendances.sorted("check_in"):
             for (
                 interval_start,
@@ -238,8 +219,8 @@ class HrAttendanceOvertimeRule(models.Model):
                 new_start = interval_stop - timedelta(hours=interval_overtime_duration)
                 remaining_duration = 0
                 overtime_intervals[attendance].append((new_start, interval_stop, self))
-                remanining_overtime_amount -= interval_overtime_duration
-                if remanining_overtime_amount <= 0:
+                remaining_overtime_amount -= interval_overtime_duration
+                if remaining_overtime_amount <= 0:
                     return overtime_intervals, {}
         return overtime_intervals, {}
 
@@ -414,11 +395,11 @@ class HrAttendanceOvertimeRule(models.Model):
             if not intervals:
                 return
             for employee in employees:
-                intersetion_interval_for_attendance = (
+                intersection_interval_for_attendance = (
                     attendances_intervals[employee] & intervals[employee]
                 )
                 overtime_interval_list = defaultdict(list)
-                for start, stop, attendance in intersetion_interval_for_attendance:
+                for start, stop, attendance in intersection_interval_for_attendance:
                     overtime_interval_list[attendance].append((start, stop, rules))
                 for (
                     attendance,
@@ -568,7 +549,7 @@ class HrAttendanceOvertimeRule(models.Model):
         )
         return overtime_by_employee_by_attendance, undertime_by_employee_by_attendance
 
-    def _generate_overtime_vals_v2(
+    def _generate_overtime_vals(
         self, min_check_in, max_check_out, attendances, schedules_intervals_by_employee
     ):
         vals = []
@@ -578,6 +559,7 @@ class HrAttendanceOvertimeRule(models.Model):
                 for rules, duration in duration_by_rules.items():
                     vals.append(
                         {
+                            "attendance_id": attendance.id,
                             "time_start": attendance.check_in,
                             "time_stop": attendance.check_out,
                             "duration": round(duration, 3),
@@ -611,8 +593,9 @@ class HrAttendanceOvertimeRule(models.Model):
             for attendance, intervals in intervals_by_attendance.items():
                 date = attendance.date
                 duration_by_day_by_rules = defaultdict(lambda: defaultdict(float))
-                min_duration_tuple = max(intervals, key=lambda x: x[0])
-                duration, rules = min_duration_tuple
+                # Several quantity rules can each report a shortfall for the
+                # same day; the smallest shortfall is the one owed.
+                duration, rules = max(intervals, key=lambda x: x[0])
                 duration_by_day_by_rules[date][rules] += duration
                 _add_overtime_val(attendance, duration_by_day_by_rules)
         return vals
@@ -628,6 +611,14 @@ class HrAttendanceOvertimeRule(models.Model):
             return {"amount_rate": sum(rate - 1.0 for rate in rates) + 1.0}
         return {"amount_rate": max(rates)}
 
+    @api.depends(
+        "base_off",
+        "expected_hours_from_contract",
+        "expected_hours",
+        "quantity_period",
+        "timing_type",
+        "resource_calendar_id",
+    )
     def _compute_information_display(self):
         timing_types = dict(self._fields["timing_type"].selection)
         for rule in self:

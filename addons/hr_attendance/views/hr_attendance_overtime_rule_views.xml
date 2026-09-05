@@ -84,9 +84,7 @@
                                         name="timing_start"
                                         widget="float_time"
                                         style="width:10ch" />
-                                    <label
-                                        for="expected_hours_from_contract"
-                                        string="and" />
+                                    <label for="timing_stop" string="and" />
                                     <field
                                         nolabel="1"
                                         name="timing_stop"
@@ -142,7 +140,7 @@
                     invisible="expected_hours_from_contract or base_off != 'quantity'" />
                 <field
                     name="resource_calendar_id"
-                    invisible="expected_hours_from_contract or base_off != 'timing'" />
+                    invisible="base_off != 'timing' or timing_type != 'schedule'" />
             </list>
         </field>
     </record>

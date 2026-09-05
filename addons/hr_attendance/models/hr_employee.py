@@ -2,12 +2,13 @@ import hmac
 from collections import defaultdict
 from datetime import UTC
 
-from dateutil.relativedelta import relativedelta
+from dateutil.relativedelta import MO, SU, relativedelta
 
 from odoo import _, api, exceptions, fields, models
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
+from odoo.libs.numbers import float_round
 
 
 class HrEmployee(models.Model):
@@ -51,8 +52,8 @@ class HrEmployee(models.Model):
         selection=[("checked_out", "Checked out"), ("checked_in", "Checked in")],
         groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
-    hours_last_month = fields.Float(compute="_compute_hours_last_month")
-    hours_last_month_overtime = fields.Float(compute="_compute_hours_last_month")
+    hours_this_month = fields.Float(compute="_compute_hours_this_month")
+    hours_this_month_overtime = fields.Float(compute="_compute_hours_this_month")
     hours_today = fields.Float(
         compute="_compute_hours_today",
         groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
@@ -65,8 +66,8 @@ class HrEmployee(models.Model):
         compute="_compute_hours_today",
         groups="hr_attendance.group_hr_attendance_officer,hr.group_hr_user",
     )
-    hours_last_month_display = fields.Char(
-        compute="_compute_hours_last_month", groups="hr.group_hr_user"
+    hours_this_month_display = fields.Char(
+        compute="_compute_hours_this_month", groups="hr.group_hr_user"
     )
     overtime_ids = fields.One2many(
         "hr.attendance.overtime.line",
@@ -158,7 +159,7 @@ class HrEmployee(models.Model):
         for employee in self:
             employee.total_overtime = mapped_validated_overtimes.get(employee, 0)
 
-    def _compute_hours_last_month(self):
+    def _compute_hours_this_month(self):
         now = fields.Datetime.now()
         now_utc = now.replace(tzinfo=UTC)
         totals = {}
@@ -186,17 +187,17 @@ class HrEmployee(models.Model):
             )
         for employee in self:
             worked, overtime = totals.get(employee.id, (0.0, 0.0))
-            employee.hours_last_month = round(worked, 2)
-            employee.hours_last_month_display = "%g" % employee.hours_last_month
-            employee.hours_last_month_overtime = round(overtime, 2)
+            employee.hours_this_month = round(worked, 2)
+            employee.hours_this_month_display = "%g" % employee.hours_this_month
+            employee.hours_this_month_overtime = round(overtime, 2)
 
     def _compute_hours_today(self):
         now = fields.Datetime.now()
         now_utc = now.replace(tzinfo=UTC)
         by_tz = self.grouped("tz")
         for tz_name, employees in by_tz.items():
-            start_tz = now_utc.astimezone(timezone(tz_name)) + relativedelta(
-                hour=0, minute=0
+            start_tz = now_utc.astimezone(timezone(tz_name)).replace(
+                hour=0, minute=0, second=0, microsecond=0
             )
             start_naive = start_tz.astimezone(UTC).replace(tzinfo=None)
 
@@ -227,7 +228,7 @@ class HrEmployee(models.Model):
                 employee.hours_previously_today = hours_previously_today
                 employee.hours_today = worked_hours
 
-    @api.depends("attendance_ids")
+    @api.depends("attendance_ids.check_in")
     def _compute_last_attendance_id(self):
         Attendance = self.env["hr.attendance"]
         self.last_attendance_id = False
@@ -318,62 +319,86 @@ class HrEmployee(models.Model):
         return False
 
     def _attendance_action_change(self, geo_information=None):
-        self.check_singleton()
-        action_date = fields.Datetime.now()
+        """Check the employee in, or out if they are in, as of now.
 
-        if self.attendance_state != "checked_in":
-            if geo_information:
-                vals = {
+        Runs as superuser: the caller has already established that this is
+        the employee it may act for (the kiosk through its token, the systray
+        through `request.env.user.employee_id`), and the attendance fields
+        this reads are not granted to a plain user.
+        """
+        self.check_singleton()
+        employee = self.sudo()
+        action_date = fields.Datetime.now()
+        geo_information = geo_information or {}
+        if employee.attendance_state != "checked_in":
+            attendance = employee.env["hr.attendance"].create(
+                {
                     "employee_id": self.id,
                     "check_in": action_date,
-                    **{"in_%s" % key: geo_information[key] for key in geo_information},
+                    **{f"in_{key}": value for key, value in geo_information.items()},
                 }
-            else:
-                vals = {
-                    "employee_id": self.id,
-                    "check_in": action_date,
-                }
-            return self.env["hr.attendance"].create(vals)
-        attendance = self.env["hr.attendance"].search(
+            )
+            return attendance.with_env(self.env)
+        attendance = employee.env["hr.attendance"].search(
             [("employee_id", "=", self.id), ("check_out", "=", False)], limit=1
         )
-        if attendance:
-            if geo_information:
-                attendance.write(
-                    {
-                        "check_out": action_date,
-                        **{
-                            "out_%s" % key: geo_information[key]
-                            for key in geo_information
-                        },
-                    }
-                )
-            else:
-                attendance.write({"check_out": action_date})
-        else:
+        if not attendance:
             raise exceptions.UserError(
                 _(
                     "Cannot perform check out on %(empl_name)s, could not find corresponding check in. "
                     "Your attendances have probably been modified manually by human resources.",
-                    empl_name=self.sudo().name,
+                    empl_name=employee.name,
                 )
             )
-        return attendance
+        attendance.write(
+            {
+                "check_out": action_date,
+                **{f"out_{key}": value for key, value in geo_information.items()},
+            }
+        )
+        return attendance.with_env(self.env)
 
-    @api.model
-    def get_overtime_data(self, domain=None, employee_id=None):
-        domain = [] if domain is None else domain
-        validated_overtime = {
-            attendance[0].id: attendance[1]
-            for attendance in self.env["hr.attendance"]._read_group(
-                domain=domain,
-                groupby=["employee_id"],
-                aggregates=["validated_overtime_hours:sum"],
-            )
+    def _get_attendance_systray_data(self):
+        """What the systray and the kiosk show about the employee's day.
+
+        Sudo for the same reason as `_attendance_action_change`: an employee
+        reading their own hours is not an attendance officer.
+        """
+        if not self:
+            return {}
+        employee = self.sudo()
+        return {
+            "id": employee.id,
+            "hours_today": float_round(employee.hours_today, precision_digits=2),
+            "hours_previously_today": float_round(
+                employee.hours_previously_today, precision_digits=2
+            ),
+            "last_attendance_worked_hours": float_round(
+                employee.last_attendance_worked_hours, precision_digits=2
+            ),
+            "last_check_in": employee.last_check_in,
+            "attendance_state": employee.attendance_state,
+            "display_systray": employee.company_id.attendance_from_systray,
+            "device_tracking_enabled": employee.company_id.attendance_device_tracking,
         }
-        return {"validated_overtime": validated_overtime, "overtime_adjustments": {}}
 
-    def action_view_last_month_attendances(self):
+    def _round_overtime_window(self, first, last):
+        """Widen a span of local dates to the periods its overtime is summed
+        over: whole weeks when any rule the employee has ever had is weekly,
+        whole days otherwise."""
+        self.check_singleton()
+        rules = self.sudo().version_ids.ruleset_id.rule_ids
+        if any(
+            rule.base_off == "quantity" and rule.quantity_period == "week"
+            for rule in rules
+        ):
+            return (
+                first + relativedelta(weekday=MO(-1)),
+                last + relativedelta(weekday=SU),
+            )
+        return first, last
+
+    def action_view_this_month_attendances(self):
         self.check_singleton()
         return {
             "type": "ir.actions.act_window",

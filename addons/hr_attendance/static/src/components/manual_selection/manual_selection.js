@@ -8,7 +8,6 @@ import { _t } from "@web/core/translation";
 import { rpc } from "@web/core/network";
 import { Pager } from "@web/components/pager";
 import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/viewport";
-import { useService } from "@web/core/utils/hooks";
 
 export class KioskManualSelection extends Component {
     static template = "hr_attendance.public_kiosk_manual_selection";
@@ -26,7 +25,6 @@ export class KioskManualSelection extends Component {
     };
 
     setup() {
-        this.orm = useService("orm");
         let limit = this.calculateLimit();
         this.state = useState({
             employeesData: {

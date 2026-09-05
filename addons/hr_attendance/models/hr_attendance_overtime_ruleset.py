@@ -35,15 +35,15 @@ class HrAttendanceOvertimeRuleset(models.Model):
 
     def _attendances_to_regenerate_for(self):
         self.check_singleton()
-        elligible_version = self.env["hr.version"].search(
+        eligible_versions = self.env["hr.version"].search(
             [("ruleset_id", "=", self.id)]
         )
-        if not elligible_version:
+        if not eligible_versions:
             return self.env["hr.attendance"]
         return self.env["hr.attendance"].search(
             [
-                ("employee_id", "in", elligible_version.employee_id.ids),
-                ("date", ">=", min(elligible_version.mapped("date_version"))),
+                ("employee_id", "in", eligible_versions.employee_id.ids),
+                ("date", ">=", min(eligible_versions.mapped("date_version"))),
             ]
         )
 

@@ -22,26 +22,6 @@ class HrAttendance(http.Controller):
         )
 
     @staticmethod
-    def _get_user_attendance_data(employee):
-        response = {}
-        if employee:
-            response = {
-                "id": employee.id,
-                "hours_today": float_round(employee.hours_today, precision_digits=2),
-                "hours_previously_today": float_round(
-                    employee.hours_previously_today, precision_digits=2
-                ),
-                "last_attendance_worked_hours": float_round(
-                    employee.last_attendance_worked_hours, precision_digits=2
-                ),
-                "last_check_in": employee.last_check_in,
-                "attendance_state": employee.attendance_state,
-                "display_systray": employee.company_id.attendance_from_systray,
-                "device_tracking_enabled": employee.company_id.attendance_device_tracking,
-            }
-        return response
-
-    @staticmethod
     def _get_overtime_today(employee):
         today = (
             fields.Datetime.now()
@@ -64,7 +44,7 @@ class HrAttendance(http.Controller):
         response = {}
         if employee:
             response = {
-                **HrAttendance._get_user_attendance_data(employee),
+                **employee._get_attendance_systray_data(),
                 "employee_name": employee.name,
                 "employee_avatar": employee.image_256
                 and image_data_uri(employee.image_256),
@@ -91,15 +71,16 @@ class HrAttendance(http.Controller):
 
         if not device_tracking_enabled:
             return response
-        try:
-            location = request.env["geocoder"]._get_localisation(latitude, longitude)
-        except UserError, RequestException:
-            location = _("Unknown")
-
+        # The IP's coordinates stand in for missing GPS ones, so they have to
+        # be settled before the coordinates are turned into a place name.
         if latitude is False or latitude is None:
             latitude = request.geoip.location.latitude
         if longitude is False or longitude is None:
             longitude = request.geoip.location.longitude
+        try:
+            location = request.env["geocoder"]._get_localisation(latitude, longitude)
+        except UserError, RequestException:
+            location = _("Unknown")
         response.update(
             {
                 "location": location,
@@ -238,8 +219,8 @@ class HrAttendance(http.Controller):
     def employee_attendance_data(self, token, employee_id):
         company = self._get_company(token)
         if company:
-            employee = request.env["hr.employee"].sudo().browse(employee_id)
-            if employee.company_id == company:
+            employee = request.env["hr.employee"].sudo().browse(employee_id).exists()
+            if employee and employee.company_id == company:
                 return self._get_employee_info_response(employee)
         return {}
 
@@ -282,7 +263,7 @@ class HrAttendance(http.Controller):
                     or employee._check_attendance_pin(pin_code)
                 )
             ):
-                employee.sudo()._attendance_action_change(
+                employee._attendance_action_change(
                     self._get_geoip_response(
                         "kiosk",
                         latitude=latitude,
@@ -360,8 +341,7 @@ class HrAttendance(http.Controller):
         readonly=True,
     )
     def user_attendance_data(self):
-        employee = request.env.user.employee_id
-        return self._get_user_attendance_data(employee)
+        return request.env.user.employee_id._get_attendance_systray_data()
 
     def has_password(self):
         request.env.cr.execute(

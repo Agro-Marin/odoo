@@ -1,12 +1,12 @@
 from datetime import date, datetime
 
 from odoo import Command
-from odoo.tests import Form, HttpCase, new_test_user
-from odoo.tests.common import tagged
+from odoo.tests import Form, new_test_user
+from odoo.tests.common import TransactionCase, tagged
 
 
 @tagged("hr_attendance_overtime")
-class TestHrAttendanceUndertime(HttpCase):
+class TestHrAttendanceUndertime(TransactionCase):
     @classmethod
     def setUpClass(cls):
         def set_calendar_and_tz(employee, tz):

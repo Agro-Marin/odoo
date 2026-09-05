@@ -222,11 +222,11 @@
                                     <field
                                         name="out_ip_address"
                                         string="IP Address"
-                                        invisible="in_mode == 'manual' or not device_tracking_enabled" />
+                                        invisible="out_mode == 'manual' or not device_tracking_enabled" />
                                     <field
                                         name="out_browser"
                                         string="Browser"
-                                        invisible="in_mode == 'manual' or not device_tracking_enabled" />
+                                        invisible="out_mode == 'manual' or not device_tracking_enabled" />
                                 </group>
                             </group>
                             <group
@@ -592,11 +592,6 @@
                 The attendance reporting of your employees will be displayed here.
             </p>
         </field>
-    </record>
-
-    <record id="hr_attendance_action_greeting_message" model="ir.actions.client">
-        <field name="name">Message</field>
-        <field name="tag">hr_attendance_greeting_message</field>
     </record>
 
     <record id="open_kiosk_url" model="ir.actions.server">
