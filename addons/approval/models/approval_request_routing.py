@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from odoo import api, models
-from odoo.exceptions import MissingError
 
 _logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ class DesiredApprovers:
         }
 
 
-class ApprovalRequestHelper(models.Model):
+class ApprovalRequestRouting(models.Model):
     _inherit = "approval.request"
 
     def _prepare_category_snapshot(self) -> dict[str, Any]:
@@ -83,17 +82,6 @@ class ApprovalRequestHelper(models.Model):
                 "approval_minimum": replacement.approval_minimum,
             }
         return snapshot
-
-    def _label(self) -> str:
-        self.check_singleton()
-        return self.name or self.category_id.name
-
-    def _cancel_activities(self) -> None:
-        approval_activity = self.env.ref("approval.mail_activity_data_approval")
-        activities = self.activity_ids.filtered(
-            lambda a: a.activity_type_id == approval_activity,
-        )
-        activities.sudo().unlink()
 
     def _matched_add_approver_rules(self):
         self.check_singleton()
@@ -270,62 +258,6 @@ class ApprovalRequestHelper(models.Model):
     def _get_sequence_replacement(self) -> int:
         return self._get_sequence_param("tier", 10)
 
-    def get_source_document(self) -> Any:
-        self.check_singleton()
-        if not self.res_model:
-            return False
-        try:
-            if self.res_id:
-                return self.env[self.res_model].browse(self.res_id)
-            return self.env[self.res_model]
-        except KeyError:
-            _logger.warning(
-                "Source model %s not found for approval request %s",
-                self.res_model,
-                self.id,
-            )
-            return False
-
-    def _get_request_activities(self, activity_xmlid: str, user: Any = None) -> Any:
-        domain = [
-            ("res_model", "=", "approval.request"),
-            ("res_id", "in", self.ids),
-            ("activity_type_id", "=", self.env.ref(activity_xmlid).id),
-        ]
-        if user:
-            domain.append(("user_id", "=", user.id))
-        return self.env["mail.activity"].search(domain)
-
-    def _get_user_approval_activities(self, user: Any) -> Any:
-        return self._get_request_activities(
-            "approval.mail_activity_data_approval", user=user
-        )
-
-    def _get_change_request_activities(self) -> Any:
-        return self._get_request_activities(
-            "approval.mail_activity_data_change_request"
-        )
-
-    def _lock_for_approval_action(self) -> None:
-        if not self.ids:
-            return
-
-        self.env.cr.execute(
-            """
-            SELECT id FROM approval_request
-            WHERE id = ANY(%s)
-            ORDER BY id
-            FOR UPDATE
-            """,
-            [list(self.ids)],
-        )
-
-    def _lock_and_reload(self, with_approvers: bool = False) -> None:
-        self._lock_for_approval_action()
-        if with_approvers:
-            self.approver_ids.invalidate_recordset(["state"])
-        self.invalidate_recordset(["state"])
-
     def _merge_approver_to_staging(
         self,
         staging: dict[int, dict],
@@ -344,115 +276,6 @@ class ApprovalRequestHelper(models.Model):
                 "state": "new",
                 "source_synced": True,
             }
-
-    _TERMINAL_STATES = frozenset({"approved", "refused", "cancelled"})
-
-    _DECISION_STATES = frozenset({"approved", "refused"})
-
-    @api.model
-    def _decision_states_sql(self) -> str:
-        members = ", ".join(f"'{state}'" for state in sorted(self._DECISION_STATES))
-        return f"({members})"
-
-    def _flip_unsettled_approvers(self, new_state: str) -> None:
-        self.check_singleton()
-        settled = self.approver_ids._SETTLED_STATES
-        self.approver_ids.sudo().filtered(
-            lambda a: a.state not in settled,
-        ).write({"state": new_state})
-
-    def _stamp_refusal_metadata(
-        self,
-        refusal_reason: models.BaseModel | None,
-        refusal_note: str | None,
-    ) -> None:
-        self.check_singleton()
-        vals: dict[str, Any] = {}
-        if refusal_reason and not self.refusal_reason_id:
-            vals["refusal_reason_id"] = refusal_reason.id
-        if refusal_note and not self.refusal_note:
-            vals["refusal_note"] = refusal_note
-        if vals:
-            self.sudo().write(vals)
-
-    def _force_terminal(
-        self,
-        new_state: str,
-        body: str,
-        refusal_reason: models.BaseModel | None = None,
-        refusal_note: str | None = None,
-        subtype_xmlid: str | None = None,
-    ) -> None:
-        if new_state not in self._TERMINAL_STATES - {"approved"}:
-            raise ValueError(
-                f"_force_terminal() accepts only non-approved terminal "
-                f"states, got {new_state!r}",
-            )
-        self._lock_and_reload()
-        for request in self:
-            if request.state in request._TERMINAL_STATES:
-                continue
-            old_state = request.state
-            request._flip_unsettled_approvers(new_state)
-            request._stamp_refusal_metadata(refusal_reason, refusal_note)
-            request._cancel_activities()
-            request._close_pending_change()
-            request._notify_if_terminal_transition(old_state)
-            request._log_cycle("terminal", was=old_state, forced=new_state)
-            post_kwargs = {"message_type": "notification"}
-            if subtype_xmlid:
-                post_kwargs["subtype_xmlid"] = subtype_xmlid
-            request.message_post(body=body, **post_kwargs)
-            if request.state == "refused":
-                request._refuse_approval_request()
-
-    def _close_pending_change(self) -> None:
-        self.check_singleton()
-        if not self.pending_change_field:
-            return
-        self._get_change_request_activities().sudo().action_feedback()
-        self.sudo().write({"pending_change_field": False})
-
-    def _notify_if_terminal_transition(self, old_state: str) -> None:
-        self.check_singleton()
-        if self.state != old_state and self.state in self._TERMINAL_STATES:
-            self._notify_source_document_state_change(self.state)
-
-    def _notify_source_document_state_change(self, new_state: str) -> None:
-        self.check_singleton()
-        if not self.res_model or not self.res_id:
-            return
-
-        try:
-            source_doc = self.env[self.res_model].browse(self.res_id)
-            mixin_cls = self.env.registry["mixin.approval"]
-        except KeyError:
-            _logger.debug(
-                "Source model %s not in registry; skipping approval state notification",
-                self.res_model,
-            )
-            return
-        if not isinstance(source_doc, mixin_cls):
-            return
-        if source_doc.approval_request_id != self:
-            _logger.warning(
-                "Approval request %s points at %s#%s but that document does "
-                "not reference it back; skipping source notification.",
-                self.id,
-                self.res_model,
-                self.res_id,
-            )
-            return
-        try:
-            source_doc.sudo().with_context(
-                approval_acting_user_id=self.env.uid,
-            )._on_approval_state_changed(new_state)
-        except MissingError:
-            _logger.debug(
-                "Could not notify source document %s#%s of approval state change",
-                self.res_model,
-                self.res_id,
-            )
 
     def _sync_approvers(self) -> None:
         self = self.filtered(lambda r: r.state == "new")
@@ -651,29 +474,6 @@ class ApprovalRequestHelper(models.Model):
             self.sudo().write({"approval_minimum": replacement.approval_minimum})
 
     _SYNC_LOG_PREFIX = "approver-sync"
-
-    _CYCLE_LOG_PREFIX = "approval-cycle"
-
-    def _log_cycle(self, event: str, **details) -> None:
-        if not _logger.isEnabledFor(logging.DEBUG):
-            return
-        self.check_singleton()
-        rows = " ".join(
-            f"{approver.user_id.login}={approver.state}"
-            for approver in self.approver_ids.sorted(lambda a: (a.sequence, a.id))
-        )
-        extra = "".join(f" {key}={value}" for key, value in details.items())
-        _logger.debug(
-            "%s %s request=%s (%s) state=%s minimum=%s rows=[%s]%s",
-            self._CYCLE_LOG_PREFIX,
-            event,
-            self.id,
-            self.name or "draft",
-            self.state,
-            self.approval_minimum,
-            rows,
-            extra,
-        )
 
     def _prepare_sync_plan(
         self,
@@ -903,33 +703,3 @@ class ApprovalRequestHelper(models.Model):
                 ("source_synced", new_source_synced),
             )
             rows_to_update.setdefault(key, []).append(approver.id)
-
-    def _update_next_approvers_state(
-        self,
-        approver: models.BaseModel,
-        new_state: str,
-        only_next_approver: bool,
-        cancel_activities: bool = False,
-    ) -> None:
-        approvers_updated = self.env["approval.approver"]
-        for approval in self.filtered("approve_sequentially"):
-            current_approver = approval.approver_ids & approver
-            if not current_approver:
-                continue
-            anchor = min(
-                ((a.sequence, a.id) for a in current_approver),
-            )
-            settled = approval.approver_ids._SETTLED_STATES
-            approvers_to_update = approval.approver_ids.filtered(
-                lambda a, anchor=anchor, settled=settled: (
-                    a.state not in settled and (a.sequence, a.id) > anchor
-                ),
-            ).sorted(lambda a: (a.sequence, a.id))
-            if only_next_approver and approvers_to_update:
-                approvers_to_update = approvers_to_update[0]
-            approvers_updated |= approvers_to_update
-        approvers_updated.sudo().state = new_state
-        if new_state == "pending":
-            approvers_updated._create_activity()
-        if cancel_activities:
-            approvers_updated.request_id._cancel_activities()

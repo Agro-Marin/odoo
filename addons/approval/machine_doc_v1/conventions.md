@@ -431,7 +431,7 @@ factories) instead of rebuilding user fixtures.
 | `approval_type` / `target_model` selection | Both are on `approval.category` with `selection_add` -- extend there, not on request (request uses related) |
 | Approver CRUD access checks | `approval_approver.py` (`_check_access_create/write/unlink`, `_check_business_rules_*`) — every o2m command on `approver_ids` reaches the row model, so the request has no second copy |
 | `_check_withdraw_allowed()` override | Use `_raise_withdraw_blocked()` for the canonical message; provide clear reasons why withdrawal is blocked |
-| New category fields for validation | Extend `_get_category_required_field_mapping()` in `approval_request_validation.py`  |
+| New category fields for validation | Extend `_get_category_required_field_mapping()` in `approval_request_lifecycle.py`  |
 | Terminal transitions added in new code | Route through `_apply_decision()` (decisions) or `_force_terminal()` (non-decisions) so metadata, activities and notifications stay consistent |
 | SQL views (`approval_metrics`, `approver_performance`) | Both are `_auto = False` + `mixin.sql.report`, which builds the statement at query time from `_get_fields_select()` / `_get_from_tables()` / `_get_where_conditions()` / `_get_fields_group_by()`. A new field needs its own SELECT entry — the field list and the query are not linked |
 | `approval.request.amount` or any threshold | `amount` is **Monetary** in `currency_id`. Never compare it to a rule threshold directly — go through `mixin.approval.threshold._convert_request_amount()`, which converts into the rule's own currency |
@@ -460,11 +460,11 @@ factories) instead of rebuilding user fixtures.
 | File | Responsibility | Method Prefix |
 |------|---------------|---------------|
 | `approval_request.py` | Fields, CRUD, smart-copy, `ESCALATION_RULES` | `create`, `write`, `unlink`, `copy` |
-| `approval_request_compute.py` | All `@api.depends` methods + field searches | `_compute_*`, `_search_sla_status` |
-| `approval_request_action.py` | User-facing actions, search, onchange, `_apply_decision` | `action_*` |
-| `approval_request_validation.py` | Access control + business rules (incl. locked fields) | `_check_*` |
-| `approval_request_helper.py` | Private helpers, `_sync_approvers`, `_force_terminal`, `_TERMINAL_STATES` | `_sync_*`, `_get_*`, `_merge_*`, `_force_*` |
-| `approval_request_escalation.py` | The overdue path: who a request escalates to, the escalation notice, the reminder activity, and the config `cron_smart_escalation` reads | `_escalate_*`, `_resolve_escalation_*`, `_get_escalation_*`, `_send_reminder` |
-| `approval_request_cron.py` | Scheduled actions | `cron_*` |
+| `approval_request.py` | Fields, CRUD, copy, the state machine and the small computes, `_TERMINAL_STATES` / `_DECISION_STATES` | `_compute_*`, `create`/`write` |
+| `approval_request_access.py` | Who may write, unlink, decide, re-route; locked and compute-only fields | `_check_access_*`, `_check_locked_fields` |
+| `approval_request_lifecycle.py` | Every transition and what it touches: decisions, withdraw, cancel, reset, change requests, `_force_terminal`, activities, row locks | `action_*`, `_apply_decision`, `_force_terminal` |
+| `approval_request_routing.py` | Who approves: `_sync_approvers`, `_compute_desired_approvers`, rules, replacement bands, category snapshot | `_sync_*`, `_matched_*`, `_find_matching_replacement` |
+| `approval_request_escalation.py` | When: deadline, overdue, SLA compute and search, the three crons, reminders and escalation | `cron_*`, `_compute_sla_*`, `_send_reminder` |
+| `approval_request_prediction.py` | On-demand outcome prediction | `_predict_*` |
 
 When adding a new method, place it in the file matching its responsibility.

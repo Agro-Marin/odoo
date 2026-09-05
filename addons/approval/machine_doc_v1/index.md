@@ -25,7 +25,7 @@ dashboards.
 | Wizards | 2 transient models |
 | Reports | 4 (2 SQL views + 1 singleton dashboard + 1 QWeb PDF) |
 | Cron jobs | 3 (escalation, auto-expire, consent) |
-| Test files | 30 (+ `common.py` shared fixtures) |
+| Test files | 29 (+ `common.py` shared fixtures) |
 | JS files | 16 (7 src + 9 tests) |
 | Migrations | 19 script directories between 1.0.1 and 1.0.26, named by the bare module version. The missing numbers (.9, .15, .16, .18, .19, .20, .25) **were** released — the manifest bumped through them; they simply needed no script |
 
@@ -38,12 +38,11 @@ dashboards.
 | `approval_category.py` | `approval.category` | Category blueprint: field visibility, privacy visibility, approval minimums, escalation, SLA, consent, dashboard |
 | `approval_category_approver.py` | `approval.category.approver` | M2M with attrs between category and users (required, sequence) |
 | `approval_request.py` | `approval.request` | Core request: fields, CRUD, smart-copy defaults, `ESCALATION_RULES` constant |
-| `approval_request_compute.py` | extends `approval.request` | All compute methods (state, SLA, deadline, prediction, terminal-date stamps) |
-| `approval_request_action.py` | extends `approval.request` | Search, onchange, actions (approve/refuse/confirm/cancel/reset-to-draft/withdraw/request-change/bulk) |
-| `approval_request_validation.py` | extends `approval.request` | Access control + business rule validation (write/unlink/confirm/locked-fields/reset checks) |
-| `approval_request_helper.py` | extends `approval.request` | Private helpers (`_sync_approvers`, `_force_terminal`, `_TERMINAL_STATES`, locking, approver rules) |
-| `approval_request_escalation.py` | extends `approval.request` | The overdue path: escalation manager resolution, the escalation notice, the reminder activity, `_get_escalation_rules` |
-| `approval_request_cron.py` | extends `approval.request` | Cron: smart_escalation, auto_expire, consent_approval |
+| `approval_request_access.py` | extends `approval.request` | Who may write, unlink, decide or re-route: the `_check_access_*` and locked-field rules |
+| `approval_request_lifecycle.py` | extends `approval.request` | The transitions: confirm, approve/refuse (`_apply_decision` funnel), withdraw, cancel, reset, change requests, `_force_terminal`, activities and row locking |
+| `approval_request_routing.py` | extends `approval.request` | Who approves: `_sync_approvers`, `_compute_desired_approvers`, rules, replacement bands, category snapshot |
+| `approval_request_escalation.py` | extends `approval.request` | When: deadline, overdue, SLA (compute + search), the three crons, reminders and escalation |
+| `approval_request_prediction.py` | extends `approval.request` | On-demand outcome prediction (`action_predict_outcome`) |
 | `approval_approver.py` | `approval.approver` | Individual approver: state, delegation, CRUD access control |
 | `mixin_approval.py` | `mixin.approval` (Abstract) | Mixin for source documents (PO, SO, etc.) to integrate with approvals |
 | `mixin_approval_threshold.py` | `mixin.approval.threshold` (Abstract) | Base of `approval.rule`: `company_id` + `currency_id`, `_convert_request_amount()` (a request's amount is converted into the record's currency before any comparison) and `_intervals_overlap()` |
@@ -100,12 +99,13 @@ dashboards.
 | `test_print_button.py` | Print-button visibility on the request form arch |
 | `test_dashboard.py` | Dashboard singleton, KPIs, bottleneck detection |
 | `test_analytics_accuracy.py` | SQL view accuracy, metric calculations |
-| `test_insights_perf_snapshot.py` | Outcome prediction, category snapshots (+ batched-query regression) |
-| `test_audit_2_security_state.py` | Second-round security/state audit regressions |
-| `test_audit_3_attribution_cleanup.py` | Third-round audit: decision attribution under delegation, decision-funnel scoping, change-request close-out, manual-approver preservation, escalation lookup, document-requirement language, batched round-opening |
-| `test_audit_4_invariants.py` | Fourth-round audit: invariants that must hold across the whole lifecycle (pending-review predicate, decision funnels) |
+| `test_prediction_and_snapshot.py` | On-demand outcome prediction, category snapshots (+ batched-query regression) |
+| `test_state_guards.py` | What each request state allows: submitted-request guards, locked fields, forged computed fields |
+| `test_decision_attribution.py` | decision attribution under delegation, decision-funnel scoping, change-request close-out, manual-approver preservation, escalation lookup, document-requirement language, batched round-opening |
+| `test_invariants.py` | invariants that must hold across the whole lifecycle (pending-review predicate, decision funnels) |
 | `test_multi_company.py` | Multi-company isolation across every company_id-scoped model |
-| `test_fixes.py` | Attachment unlink protection, mail-activity search operators, category-approver falsy checks |
+| `test_attachment_lock.py` | Attachments of a decided request are frozen: create, write, unlink, forged `res_field` |
+| `test_category.py` | Category configuration: approver-list domain helper, sequence-code derivation |
 | `test_ui.py` | Tour-based UI tests |
 
 Former `test_audit_regressions.py` and `test_audit_round3_regressions.py`
@@ -162,12 +162,11 @@ approval/
 |   +-- approval_category.py          # Category blueprint
 |   +-- approval_category_approver.py # Category-approver M2M
 |   +-- approval_request.py           # Core fields + CRUD + smart copy
-|   +-- approval_request_compute.py   # Compute methods (split file)
-|   +-- approval_request_action.py    # Actions (split file)
-|   +-- approval_request_validation.py# Access control (split file)
-|   +-- approval_request_helper.py    # Helpers (split file)
+|   +-- approval_request_access.py    # Who may do what (split by concern)
+|   +-- approval_request_lifecycle.py # The transitions
+|   +-- approval_request_routing.py   # Who approves
+|   +-- approval_request_prediction.py# Outcome prediction
 |   +-- approval_request_escalation.py # Escalation + reminders (split file)
-|   +-- approval_request_cron.py      # Cron jobs (split file)
 |   +-- approval_approver.py          # Approver records
 |   +-- mixin_approval.py             # Source document mixin
 |   +-- mixin_approval_threshold.py   # Currency-aware threshold base
@@ -190,7 +189,7 @@ approval/
 |   +-- approval_dashboard.py         # Singleton: real-time KPIs
 |   +-- approval_request_report.xml   # QWeb PDF report action
 +-- migrations/                       # 19 script directories (1.0.1 .. 1.0.26)
-+-- tests/                            # 28 test modules + common.py
++-- tests/                            # 29 test modules + common.py
 +-- views/                            # 9 XML view files
 +-- data/                             # 6 XML data files
 +-- demo/                             # 3 XML demo files
@@ -203,7 +202,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 31 |
-| Python test files | 28 (+ `common.py`) |
+| Python test files | 29 (+ `common.py`) |
 | XML files (non-static) | 27 |
 | XML files (static templates) | 4 |
 | JS files | 16 |
@@ -226,11 +225,11 @@ Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/
 1. **models.md** -- All models, fields, relationships, state machines
 2. `approval_category.py` -- Category blueprint (understand config first)
 3. `approval_request.py` -- Core fields and CRUD
-4. `approval_request_compute.py` -- State machine (`_compute_state`)
-5. `approval_request_helper.py` -- `_sync_approvers` / `_force_terminal` (workflow engine)
+4. `approval_request.py` -- State machine (`_compute_state`)
+5. `approval_request_routing.py` -- `_sync_approvers` (who approves)
 6. `approval_approver.py` -- Approver lifecycle and access control
-7. `approval_request_action.py` -- User-facing actions (`_apply_decision` funnel)
-8. `approval_request_validation.py` -- Security layer + locked fields
+7. `approval_request_lifecycle.py` -- The transitions (`_apply_decision` funnel, `_force_terminal`)
+8. `approval_request_access.py` -- Security layer + locked fields
 9. `approval_rule.py` -- Dynamic routing: adding, replacing, auto-deciding
 10. `mixin_approval.py` -- Source document integration pattern
 
@@ -239,12 +238,11 @@ Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/
 ### Split Model Pattern
 `approval.request` is split across 7 files using `_inherit = "approval.request"`:
 - `approval_request.py` -- Fields, CRUD, smart-copy defaults
-- `approval_request_compute.py` -- Compute methods
-- `approval_request_action.py` -- Actions and search
-- `approval_request_validation.py` -- Access control + business rules
-- `approval_request_helper.py` -- Private helpers
+- `approval_request_access.py` -- Access control + business rules
+- `approval_request_lifecycle.py` -- Transitions, activities, locking
+- `approval_request_routing.py` -- Approver sync, rules, snapshot
+- `approval_request_prediction.py` -- Outcome prediction
 - `approval_request_escalation.py` -- Escalation and reminders
-- `approval_request_cron.py` -- Scheduled actions
 
 ### State Machine (since 19.0.1.0.7)
 Request states: `new`, `pending`, `approved`, `refused`, `cancelled`.
@@ -272,7 +270,7 @@ request-a-change flow (`pending_change_field`) which keeps the request `pending`
   stamps refusal metadata.
 
 ### Approver Sync Engine
-`_sync_approvers()` in `approval_request_helper.py` is the central approver
+`_sync_approvers()` in `approval_request_routing.py` is the central approver
 computation method. It is NOT a computed field (creates/updates related records).
 Called from `create()`, `write()` (whenever a field in
 `_get_approver_sync_trigger_fields()` is written — `category_id`,

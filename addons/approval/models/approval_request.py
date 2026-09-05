@@ -1,7 +1,13 @@
+import logging
 from collections import Counter
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.fields import Domain
+
+from .approval_utils import boolean_search_domain, is_approval_manager
+
+_logger = logging.getLogger(__name__)
 
 
 class ApprovalRequest(models.Model):
@@ -11,25 +17,6 @@ class ApprovalRequest(models.Model):
     _check_company_auto = True
     _mail_post_access = "read"
     _order = "create_date desc, id desc"
-
-    ESCALATION_RULES = {
-        "3": {
-            "first_reminder": 4,
-            "escalation": 8,
-        },
-        "2": {
-            "first_reminder": 24,
-            "escalation": 48,
-        },
-        "1": {
-            "first_reminder": 48,
-            "escalation": 96,
-        },
-        "0": {
-            "first_reminder": 72,
-            "escalation": 168,
-        },
-    }
 
     company_id = fields.Many2one(
         comodel_name="res.company",
@@ -93,7 +80,6 @@ class ApprovalRequest(models.Model):
         "Indexed because cron_smart_escalation filters and groups pending "
         "requests by (state, priority) every 4 hours.",
     )
-
     last_reminder_date = fields.Datetime(
         readonly=True,
         copy=False,
@@ -234,7 +220,6 @@ class ApprovalRequest(models.Model):
         ],
         compute="_compute_user_approver_state",
     )
-
     is_terminal = fields.Boolean(
         compute="_compute_is_terminal",
         help="True once the request reaches approved, refused or cancelled. "
@@ -284,7 +269,6 @@ class ApprovalRequest(models.Model):
         store=True,
         help="Model to create when approval is granted (if any)",
     )
-
     approval_progress = fields.Float(
         compute="_compute_approval_progress",
         help="Percentage of approvals completed (approved / total approvers)",
@@ -294,7 +278,6 @@ class ApprovalRequest(models.Model):
         compute="_compute_pending_approver_ids",
         help="Users who still need to approve this request",
     )
-
     approval_deadline = fields.Datetime(
         compute="_compute_approval_deadline",
         store=True,
@@ -328,7 +311,6 @@ class ApprovalRequest(models.Model):
         compute="_compute_sla_remaining_hours",
         help="Hours remaining until SLA target (negative if breached)",
     )
-
     can_withdraw = fields.Boolean(
         compute="_compute_can_withdraw",
         help="Whether current user can withdraw their approval on this request.",
@@ -363,7 +345,6 @@ class ApprovalRequest(models.Model):
         copy=False,
         help="Snapshot of category configuration at confirmation time",
     )
-
     res_model = fields.Char(
         readonly=True,
         index=True,
@@ -393,7 +374,6 @@ class ApprovalRequest(models.Model):
         compute="_compute_res_name",
         help="Display name of the source document",
     )
-
     attachment_ids = fields.One2many(
         comodel_name="ir.attachment",
         inverse_name="res_id",
@@ -402,7 +382,6 @@ class ApprovalRequest(models.Model):
     count_attachment = fields.Integer(
         compute="_compute_count_attachment",
     )
-
     automation_id = fields.Many2one(
         related="category_id.automation_id",
     )
@@ -418,14 +397,6 @@ class ApprovalRequest(models.Model):
     @api.model
     def _get_routing_fields_live(self) -> frozenset[str]:
         return frozenset({"priority", "date", "date_start", "date_end"})
-
-    @api.model
-    def _get_domain_overdue(self) -> list:
-        return [
-            ("state", "=", "pending"),
-            ("approval_deadline", "!=", False),
-            ("approval_deadline", "<", fields.Datetime.now()),
-        ]
 
     @api.model
     def _get_routing_fields_frozen(self) -> frozenset[str]:
@@ -604,3 +575,322 @@ class ApprovalRequest(models.Model):
             return self.env.ref("approval.mt_approval_state")
 
         return super()._track_subtype(init_values)
+
+    @api.depends("name")
+    def _compute_display_name(self) -> None:
+        placeholder = self.env._("New")
+        for request in self:
+            request.display_name = request.name or placeholder
+
+    def _compute_count_attachment(self) -> None:
+        domain = [
+            ("res_model", "=", "approval.request"),
+            ("res_id", "in", self.ids),
+        ]
+        attachment_data = self.env["ir.attachment"]._read_group(
+            domain,
+            groupby=["res_id"],
+            aggregates=["__count"],
+        )
+        attachment_counts = dict(attachment_data)
+        for request in self:
+            request.count_attachment = attachment_counts.get(request.id, 0)
+
+    @api.depends("res_model")
+    def _compute_res_model_id(self) -> None:
+        for request in self:
+            if request.res_model:
+                request.res_model_id = self.env["ir.model"]._get(request.res_model)
+            else:
+                request.res_model_id = False
+
+    @api.depends("res_model", "res_id")
+    def _compute_res_name(self) -> None:
+        ids_by_model: dict[str, list[int]] = {}
+        for request in self:
+            if request.res_model and request.res_id:
+                ids_by_model.setdefault(request.res_model, []).append(request.res_id)
+
+        names_by_model: dict[str, dict[int, str] | None] = {}
+        existing_by_model: dict[str, set[int]] = {}
+        for model, ids in ids_by_model.items():
+            try:
+                records = self.env[model].browse(ids).exists()
+            except KeyError:
+                names_by_model[model] = None
+                continue
+            existing_by_model[model] = set(records.ids)
+            accessible = records._filtered_access("read")
+            names_by_model[model] = {
+                record.id: record.display_name for record in accessible
+            }
+
+        for request in self:
+            if not (request.res_model and request.res_id):
+                request.res_name = False
+                continue
+            names = names_by_model.get(request.res_model)
+            if names is None:
+                request.res_name = self.env._("Unknown Model")
+            elif request.res_id in names:
+                request.res_name = names[request.res_id]
+            elif request.res_id in existing_by_model.get(request.res_model, ()):
+                request.res_name = self.env._("Access Denied")
+            else:
+                request.res_name = self.env._("Deleted Document")
+
+    def _get_snapshot_config(self, key: str) -> Any:
+        self.check_singleton()
+        snapshot = self.category_snapshot or {}
+        value = snapshot.get(key)
+        if value is None:
+            value = self.category_id[key]
+        return value
+
+    @api.depends_context("uid")
+    @api.depends(
+        "state",
+        "approver_ids.state",
+        "approver_ids.user_id",
+        "approver_ids.delegate_id",
+        "approver_ids.delegate_start_date",
+        "approver_ids.delegate_end_date",
+    )
+    def _compute_can_withdraw(self) -> None:
+        for request in self:
+            request.can_withdraw = (
+                request.state in ("pending", "approved")
+                and request.user_approver_state == "approved"
+            )
+
+    @api.depends_context("uid")
+    @api.depends(
+        "state",
+        "approver_ids.state",
+        "approver_ids.user_id",
+        "approver_ids.delegate_id",
+        "approver_ids.delegate_start_date",
+        "approver_ids.delegate_end_date",
+    )
+    def _compute_is_pending_my_review(self) -> None:
+        user = self.env.user
+        for request in self:
+            request.is_pending_my_review = bool(
+                request.state == "pending"
+                and request._get_current_pending_approver(user)
+            )
+
+    @api.depends_context("uid")
+    def _compute_request_access_rights(self) -> None:
+        is_manager = is_approval_manager(self.env)
+        for request in self:
+            request.can_change_request_owner = is_manager
+
+    @api.depends("approver_ids")
+    def _compute_user_ids(self) -> None:
+        for request in self:
+            request.user_ids = request.approver_ids.user_id
+
+    @api.depends_context("uid")
+    @api.depends(
+        "approver_ids.state",
+        "approver_ids.delegate_id",
+        "approver_ids.delegate_start_date",
+        "approver_ids.delegate_end_date",
+    )
+    def _compute_user_approver_state(self) -> None:
+        current_user = self.env.user
+        for approval in self:
+            approval.user_approver_state = approval.approver_ids.filtered(
+                lambda approver: approver._get_effective_approver() == current_user,
+            )[:1].state
+
+    @api.depends("approver_ids.state")
+    def _compute_approval_progress(self) -> None:
+        for request in self:
+            approvers = request.approver_ids
+            if not approvers:
+                request.approval_progress = 0.0
+                continue
+
+            approved_count = len(approvers.filtered(lambda a: a.state == "approved"))
+            total_count = len(approvers)
+            request.approval_progress = (
+                (approved_count / total_count) * 100.0 if total_count else 0.0
+            )
+
+    @api.depends("state")
+    def _compute_is_terminal(self) -> None:
+        terminal = self._TERMINAL_STATES
+        for request in self:
+            request.is_terminal = request.state in terminal
+
+    @api.depends("approver_ids", "approver_ids.state")
+    def _compute_pending_approver_ids(self) -> None:
+        for request in self:
+            pending = request.approver_ids.filtered(lambda a: a.state == "pending")
+            request.pending_approver_ids = pending.mapped("user_id")
+
+    @api.depends("approver_ids.state", "approver_ids.required", "approval_minimum")
+    def _compute_state(self) -> None:
+        for request in self:
+            state_lst = request.mapped("approver_ids.state")
+
+            if not state_lst:
+                request.state = "new"
+                continue
+
+            required_approved = all(
+                a.state == "approved" for a in request.approver_ids.filtered("required")
+            )
+
+            approval_threshold = request.approval_minimum
+
+            state_counts = Counter(state_lst)
+
+            if state_counts.get("refused", 0) > 0:
+                request.state = "refused"
+            elif state_counts.get("cancelled", 0) > 0:
+                request.state = "cancelled"
+            elif state_counts.get("new", 0) > 0:
+                request.state = "new"
+            elif (
+                state_counts.get("approved", 0) >= approval_threshold
+                and required_approved
+            ):
+                request.state = "approved"
+            else:
+                request.state = "pending"
+
+    def _compute_terminal_date_stamp(self, field_name: str, target_state: str) -> None:
+        now = fields.Datetime.now()
+        for request in self:
+            if request.state != target_state:
+                request[field_name] = False
+            elif not request[field_name]:
+                request[field_name] = now
+
+    @api.depends("state")
+    def _compute_date_approval_granted(self) -> None:
+        self._compute_terminal_date_stamp("date_approval_granted", "approved")
+
+    @api.depends("state")
+    def _compute_date_refused(self) -> None:
+        self._compute_terminal_date_stamp("date_refused", "refused")
+
+    @api.depends("state")
+    def _compute_date_cancelled(self) -> None:
+        self._compute_terminal_date_stamp("date_cancelled", "cancelled")
+
+    _TERMINAL_STATES = frozenset({"approved", "refused", "cancelled"})
+
+    _DECISION_STATES = frozenset({"approved", "refused"})
+
+    @api.model
+    def _decision_states_sql(self) -> str:
+        members = ", ".join(f"'{state}'" for state in sorted(self._DECISION_STATES))
+        return f"({members})"
+
+    def _label(self) -> str:
+        self.check_singleton()
+        return self.name or self.category_id.name
+
+    def get_source_document(self) -> Any:
+        self.check_singleton()
+        if not self.res_model:
+            return False
+        try:
+            if self.res_id:
+                return self.env[self.res_model].browse(self.res_id)
+            return self.env[self.res_model]
+        except KeyError:
+            _logger.warning(
+                "Source model %s not found for approval request %s",
+                self.res_model,
+                self.id,
+            )
+            return False
+
+    @api.onchange("category_id")
+    def _onchange_category_autofill(self) -> None:
+        if not self.category_id:
+            return
+
+        last_request = self._recent_approved_by_owner(limit=1)
+
+        if not last_request:
+            return
+
+        if self.category_id.has_location == "required" and not self.location:
+            self.location = last_request.location
+
+        if self.category_id.has_partner == "required" and not self.partner_id:
+            self.partner_id = last_request.partner_id
+
+        if self.category_id.has_reference == "required" and not self.reference:
+            self.reference = last_request.reference
+
+    def action_view_attachment(self) -> dict[str, Any]:
+        self.check_singleton()
+        res = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
+            "base.action_attachment"
+        )
+        res["domain"] = [
+            ("res_model", "=", "approval.request"),
+            ("res_id", "in", self.ids),
+        ]
+        res["context"] = {
+            "default_res_model": "approval.request",
+            "default_res_id": self.id,
+        }
+        return res
+
+    @api.model
+    def _get_domain_pending_review(self, user: models.BaseModel) -> list:
+        return [
+            ("state", "=", "pending"),
+            "|",
+            (
+                "approver_ids",
+                "any",
+                [
+                    ("user_id", "=", user.id),
+                    ("is_delegated", "=", False),
+                    ("state", "=", "pending"),
+                ],
+            ),
+            (
+                "approver_ids",
+                "any",
+                [
+                    ("delegate_id", "=", user.id),
+                    ("is_delegated", "=", True),
+                    ("state", "=", "pending"),
+                ],
+            ),
+        ]
+
+    @api.model
+    def _search_is_pending_my_review(self, operator: str, value: Any) -> Domain:
+        awaiting = Domain(self._get_domain_pending_review(self.env.user))
+        return boolean_search_domain(operator, value, awaiting, ~awaiting)
+
+    @api.model
+    def action_view_to_review(self) -> dict[str, Any]:
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.env._("Approvals to Review"),
+            "res_model": "approval.request",
+            "view_mode": "list,kanban,form",
+            "domain": self._get_domain_pending_review(self.env.user),
+            "context": {},
+        }
+
+    def _get_current_pending_approver(
+        self, user: models.BaseModel | None = None
+    ) -> models.BaseModel:
+        self.check_singleton()
+        user = user or self.env.user
+        return self.approver_ids.filtered(
+            lambda a: a.state == "pending" and a._get_effective_approver() == user,
+        )

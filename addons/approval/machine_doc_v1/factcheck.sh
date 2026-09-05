@@ -194,12 +194,12 @@ else ok; fi
 
 # The state machine the docs describe, read off the source rather than retyped.
 terminal=$(grep -oP '_TERMINAL_STATES = frozenset\(\{\K[^}]+' \
-    "$MOD/models/approval_request_helper.py" | tr -d ' "' )
+    "$MOD/models/approval_request.py" | tr -d ' "' )
 for state in ${terminal//,/ }; do
     [ -z "$state" ] && continue
     assert_doc_cites "$state" "terminal state $state"
 done
-grep -q '_DECISION_STATES = frozenset' "$MOD/models/approval_request_helper.py" \
+grep -q '_DECISION_STATES = frozenset' "$MOD/models/approval_request.py" \
     && ok || bad "docs describe _DECISION_STATES as the approval-rate denominator; it is gone"
 
 # The approver-ordering defaults index.md tabulates, derived from the data file.

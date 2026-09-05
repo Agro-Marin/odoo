@@ -204,7 +204,7 @@ so category names are unique per company, archived rows included.
 | Key | Value |
 |-----|-------|
 | Model | `approval.request` |
-| Files | `approval_request.py`, `approval_request_compute.py`, `approval_request_action.py`, `approval_request_validation.py`, `approval_request_helper.py`, `approval_request_escalation.py`, `approval_request_cron.py` |
+| Files | `approval_request.py` (fields, CRUD, state machine), `approval_request_access.py` (who may), `approval_request_lifecycle.py` (transitions), `approval_request_routing.py` (who approves), `approval_request_escalation.py` (when), `approval_request_prediction.py` |
 | Type | Model |
 | Inherits | `mixin.mail.thread.main.attachment`, `mixin.mail.activity` |
 | Chatter access | `_mail_post_access = "read"` — read rights are enough to post, so an approver who can see a request can comment on it without holding write |
@@ -304,7 +304,7 @@ State is a **stored computed field** based on `approver_ids.state`
 
 `refused` outranks `cancelled` so a real decision is never masked.
 `_TERMINAL_STATES = frozenset({"approved", "refused", "cancelled"})`
-(class attribute in `approval_request_helper.py`). The source-document
+(class attribute in `approval_request.py`). The source-document
 notification is NOT fired from the compute; the transitioning action
 calls `_notify_if_terminal_transition()` explicitly.
 
@@ -320,49 +320,49 @@ requester re-submits (`action_resubmit`).
 | `write()` | request.py | Access check, forged-compute and locked-fields business rules, category-change guard, owner re-subscription, sync approvers when a field in `_get_approver_sync_trigger_fields()` is written |
 | `copy_data()` / `copy()` | request.py | Duplicate with smart defaults from owner history (`_smart_clone_defaults`) + "Duplicated from" log |
 | `unlink()` | request.py | Two-layer validation (access + business rules: draft only) |
-| `_compute_display_name()` | compute.py | Translated "New" placeholder for unnumbered drafts |
-| `_compute_state()` | compute.py | Core state machine (no side effects) |
+| `_compute_display_name()` | request.py | Translated "New" placeholder for unnumbered drafts |
+| `_compute_state()` | request.py | Core state machine (no side effects) |
 | `_compute_sla_status()` / `_search_sla_status()` | compute.py | Non-stored SLA status + SQL search (CASE mirrors the compute) |
 | `_compute_approval_deadline()` / `_get_snapshot_config()` | compute.py | Deadline from config frozen at confirm |
-| `_compute_date_approval_granted/refused/cancelled()` | compute.py | Append-only terminal-date stamps (cleared on state=`new`) |
+| `_compute_date_approval_granted/refused/cancelled()` | request.py | Append-only terminal-date stamps (cleared on state=`new`) |
 | `_predict_outcomes()` / `action_predict_outcome()` | compute.py | On-demand outcome prediction from comparable decided requests (batched, memoised per category+partner). A button, not a field: computing it on every form read cost a bucket search per load and depended on the reader's record rules |
-| `action_confirm()` | action.py | Draft only: validate, assign sequence name, snapshot, stamp date_confirmed, auto-rules, start workflow |
-| `action_approve()` | action.py | Guard pending-change, then `_apply_decision("approve")` |
-| `action_refuse()` | action.py | Header path opens decision wizard; inline path `_apply_decision("refuse")` |
-| `_apply_decision()` | action.py | **Single decision funnel**: lock, cache refresh, delegation-aware resolution, state write, chatter, chain advance, activity cleanup, terminal notify, refusal rollback hook |
-| `_get_current_pending_approver()` | action.py | Delegation-aware pending-approver resolution (single source for header/bulk/wizard) |
-| `action_cancel()` | action.py | Owner/manager, pending only → `_force_terminal("cancelled")` |
-| `action_reset_to_draft()` | action.py | any terminal state → new; clears decision metadata, date_confirmed, snapshot, escalation counters, applied rules; re-syncs approvers; keeps name. refused/cancelled: owner or manager. approved: **manager only** + `_check_withdraw_allowed()` (descendant-document guard) + notifies source document of the exit |
-| `_check_owner_or_manager()` | action.py | Access layer (WHO) for owner-side lifecycle actions |
+| `action_confirm()` | lifecycle.py | Draft only: validate, assign sequence name, snapshot, stamp date_confirmed, auto-rules, start workflow |
+| `action_approve()` | lifecycle.py | Guard pending-change, then `_apply_decision("approve")` |
+| `action_refuse()` | lifecycle.py | Header path opens decision wizard; inline path `_apply_decision("refuse")` |
+| `_apply_decision()` | lifecycle.py | **Single decision funnel**: lock, cache refresh, delegation-aware resolution, state write, chatter, chain advance, activity cleanup, terminal notify, refusal rollback hook |
+| `_get_current_pending_approver()` | request.py | Delegation-aware pending-approver resolution (single source for header/bulk/wizard) |
+| `action_cancel()` | lifecycle.py | Owner/manager, pending only → `_force_terminal("cancelled")` |
+| `action_reset_to_draft()` | lifecycle.py | any terminal state → new; clears decision metadata, date_confirmed, snapshot, escalation counters, applied rules; re-syncs approvers; keeps name. refused/cancelled: owner or manager. approved: **manager only** + `_check_withdraw_allowed()` (descendant-document guard) + notifies source document of the exit |
+| `_check_owner_or_manager()` | access.py | Access layer (WHO) for owner-side lifecycle actions |
 | `action_request_change()` / `action_resubmit()` | action.py | Request-a-change flow (set/clear `pending_change_field`) |
-| `action_withdraw()` | action.py | Withdraw approval (approved row → pending; explicit exit-from-approved notification) |
-| `_refuse_cascade()` | action.py | Parent-document cancellation → `_force_terminal("refused")` with `refusal_reason_parent_cancelled` |
+| `action_withdraw()` | lifecycle.py | Withdraw approval (approved row → pending; explicit exit-from-approved notification) |
+| `_refuse_cascade()` | lifecycle.py | Parent-document cancellation → `_force_terminal("refused")` with `refusal_reason_parent_cancelled` |
 | `action_approve_bulk()` / `action_refuse_bulk()` | action.py | Bulk decisions via `_action_bulk_decision` (delegation-aware, skip_wizard) |
-| `action_view_to_review()` | action.py | Pending-review inbox, includes requests delegated TO the user |
-| `_refuse_approval_request()` | action.py | No-op anchor for cooperative document rollback (account/purchase/sale override) |
-| `_sync_approvers()` | helper.py | **Core engine**: reconcile approver rows from all sources (write step) |
-| `_compute_desired_approvers()` | helper.py | Pure decision step of the sync (no writes, unit-testable); returns a `DesiredApprovers` dataclass |
-| `_force_terminal()` | helper.py | Non-decision termination funnel (cancel/expire/cascade); preserves terminal approver rows, stamps refusal metadata |
-| `_notify_if_terminal_transition()` | helper.py | Fire source-doc hook once on entering a terminal state |
-| `_lock_for_approval_action()` | helper.py | SELECT FOR UPDATE to prevent race conditions |
-| `_update_next_approvers_state()` | helper.py | Sequential propagation; anchors on min (sequence,id) of the acting rows; never re-promotes terminal rows |
-| `_check_auto_action_rules()` | helper.py | Auto-approve/refuse rules; auto-refuse stamps `refusal_reason_auto_rule` metadata |
-| `_find_matching_replacement()` | helper.py | The first `set_approvers` rule this request falls into, by `(sequence, id)` (via prefetched `category_id.rule_ids`) |
-| `_get_additional_approvers()` | helper.py | Extension hook only (base returns `[]`); `add_approver` rules are merged by `_compute_desired_approvers` from the one `_matched_add_approver_rules()` evaluation |
-| `_get_escalation_rules()` | helper.py | `ESCALATION_RULES` defaults + `approval.escalation.<priority>.<kind>` ir.config_parameter overrides |
-| `_get_escalation_manager()` | helper.py | Hook: manager to escalate to (base returns empty; approval_hr overrides) |
-| `_build_category_snapshot()` | helper.py | Audit snapshot incl. `effective_*` keys and the matched replacing rule |
-| `_notify_source_document_state_change()` | helper.py | Calls mixin hook on source doc (registry isinstance check) |
-| `_check_access_write()` | validation.py | Owner OR assigned approver write access |
-| `_check_locked_fields()` | validation.py | **Business rule, never bypassed**: value fields frozen outside draft; `pending_change_field` selectively reopens date/reason, and only for the requester (owner/manager/sudo) |
-| `_check_no_forged_computed_fields()` | validation.py | Rejects direct writes to `_COMPUTE_ONLY_FIELDS` (`state`, the three terminal-date stamps, `approval_deadline`, `res_model_id`) in **every** state, draft included — these are workflow outputs, not inputs |
-| `_check_routing_fields_after_submit()` | validation.py | Once submitted, the live routing inputs (`priority`) are the requester's: an approver may not re-route or re-time the request they decide |
-| `_check_confirm()` | validation.py | Pre-confirm: approvers, documents (distinct-match), required fields |
-| `_check_reset_allowed()` | validation.py | Hook: veto reset-to-draft (base blocks released source-doc links) |
-| `cron_smart_escalation()` | cron.py | Priority-based reminder schedule (batched, limit 500/priority; skips requests with `pending_change_field` set; per-request savepoint) |
-| `_reconcile_delegation_activities()` | cron.py | Runs first on every escalation tick: repoints an approval To-Do at the effective approver when a delegation was set (or lifted) after the round had already opened, closing the duplicate. Without it the activity stays in the principal's inbox for the life of the delegation |
-| `cron_auto_expire()` | cron.py | **Cancel** (not refuse) requests past `auto_expire_hours` via `_force_terminal` |
-| `cron_consent_approval()` | cron.py | Auto-approve after consent window; skips sequential categories, refused approvers, `pending_change_field`, `_can_consent_approve()` vetoes |
+| `action_view_to_review()` | request.py | Pending-review inbox, includes requests delegated TO the user |
+| `_refuse_approval_request()` | lifecycle.py | No-op anchor for cooperative document rollback (account/purchase/sale override) |
+| `_sync_approvers()` | routing.py | **Core engine**: reconcile approver rows from all sources (write step) |
+| `_compute_desired_approvers()` | routing.py | Pure decision step of the sync (no writes, unit-testable); returns a `DesiredApprovers` dataclass |
+| `_force_terminal()` | lifecycle.py | Non-decision termination funnel (cancel/expire/cascade); preserves terminal approver rows, stamps refusal metadata |
+| `_notify_if_terminal_transition()` | lifecycle.py | Fire source-doc hook once on entering a terminal state |
+| `_lock_for_approval_action()` | lifecycle.py | SELECT FOR UPDATE to prevent race conditions |
+| `_update_next_approvers_state()` | lifecycle.py | Sequential propagation; anchors on min (sequence,id) of the acting rows; never re-promotes terminal rows |
+| `_check_auto_action_rules()` | routing.py | Auto-approve/refuse rules; auto-refuse stamps `refusal_reason_auto_rule` metadata |
+| `_find_matching_replacement()` | routing.py | The first `set_approvers` rule this request falls into, by `(sequence, id)` (via prefetched `category_id.rule_ids`) |
+| `_get_additional_approvers()` | routing.py | Extension hook only (base returns `[]`); `add_approver` rules are merged by `_compute_desired_approvers` from the one `_matched_add_approver_rules()` evaluation |
+| `_get_escalation_rules()` | escalation.py | `ESCALATION_RULES` defaults + `approval.escalation.<priority>.<kind>` ir.config_parameter overrides |
+| `_get_escalation_manager()` | escalation.py | Hook: manager to escalate to (base returns empty; approval_hr overrides) |
+| `_prepare_category_snapshot()` | routing.py | Audit snapshot incl. `effective_*` keys and the matched replacing rule |
+| `_notify_source_document_state_change()` | lifecycle.py | Calls mixin hook on source doc (registry isinstance check) |
+| `_check_access_write()` | access.py | Owner OR assigned approver write access |
+| `_check_locked_fields()` | access.py | **Business rule, never bypassed**: value fields frozen outside draft; `pending_change_field` selectively reopens date/reason, and only for the requester (owner/manager/sudo) |
+| `_check_no_forged_computed_fields()` | access.py | Rejects direct writes to `_COMPUTE_ONLY_FIELDS` (`state`, the three terminal-date stamps, `approval_deadline`, `res_model_id`) in **every** state, draft included — these are workflow outputs, not inputs |
+| `_check_routing_fields_after_submit()` | access.py | Once submitted, the live routing inputs (`priority`) are the requester's: an approver may not re-route or re-time the request they decide |
+| `_check_confirm()` | lifecycle.py | Pre-confirm: approvers, documents (distinct-match), required fields |
+| `_check_reset_allowed()` | lifecycle.py | Hook: veto reset-to-draft (base blocks released source-doc links) |
+| `cron_smart_escalation()` | escalation.py | Priority-based reminder schedule (batched, limit 500/priority; skips requests with `pending_change_field` set; per-request savepoint) |
+| `_reconcile_delegation_activities()` | escalation.py | Runs first on every escalation tick: repoints an approval To-Do at the effective approver when a delegation was set (or lifted) after the round had already opened, closing the duplicate. Without it the activity stays in the principal's inbox for the life of the delegation |
+| `cron_auto_expire()` | escalation.py | **Cancel** (not refuse) requests past `auto_expire_hours` via `_force_terminal` |
+| `cron_consent_approval()` | escalation.py | Auto-approve after consent window; skips sequential categories, refused approvers, `pending_change_field`, `_can_consent_approve()` vetoes |
 
 ### Constraints
 

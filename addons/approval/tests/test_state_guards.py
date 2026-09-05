@@ -8,7 +8,7 @@ from .common import ApprovalCommon
 
 
 @tagged("post_install", "-at_install")
-class TestAudit2SecurityState(ApprovalCommon):
+class TestStateGuards(ApprovalCommon):
     def _parallel_category(self, **vals):
         return self._make_category(
             name=f"A2 Parallel {self.id()}",
@@ -143,7 +143,7 @@ class TestAudit2SecurityState(ApprovalCommon):
 
 
 @tagged("post_install", "-at_install")
-class TestAudit2MinorFindings(ApprovalCommon):
+class TestSubmittedRequestGuards(ApprovalCommon):
     def _category(self, **vals):
         return self._make_category(
             name=f"A2 Minor {self.id()}",
@@ -227,7 +227,7 @@ class TestAudit2MinorFindings(ApprovalCommon):
 
 
 @tagged("post_install", "-at_install")
-class TestAudit3LockedFields(ApprovalCommon):
+class TestLockedFields(ApprovalCommon):
     def _category(self, **vals):
         return self._make_category(
             name=f"A3 Lock {self.id()}",

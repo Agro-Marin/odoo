@@ -1,61 +1,18 @@
 import logging
 from typing import Any
 
-from odoo import api, fields, models
-from odoo.exceptions import AccessError, UserError, ValidationError
-from odoo.fields import Command, Domain
+from odoo import fields, models
+from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
+from odoo.fields import Command
 from odoo.libs.text import nl2br
 
-from .approval_utils import boolean_search_domain, is_approval_manager
+from .approval_utils import is_approval_manager
 
 _logger = logging.getLogger(__name__)
 
 
-class ApprovalRequestAction(models.Model):
+class ApprovalRequestLifecycle(models.Model):
     _inherit = "approval.request"
-
-    @api.model
-    def _search_is_overdue(
-        self,
-        operator: str,
-        value: Any,
-    ) -> list[tuple[str, str, Any]]:
-        now = fields.Datetime.now()
-        return boolean_search_domain(
-            operator,
-            value,
-            true_domain=[
-                ("approval_deadline", "!=", False),
-                ("approval_deadline", "<", now),
-                ("state", "=", "pending"),
-            ],
-            false_domain=[
-                "|",
-                "|",
-                ("approval_deadline", "=", False),
-                ("approval_deadline", ">=", now),
-                ("state", "!=", "pending"),
-            ],
-        )
-
-    @api.onchange("category_id")
-    def _onchange_category_autofill(self) -> None:
-        if not self.category_id:
-            return
-
-        last_request = self._recent_approved_by_owner(limit=1)
-
-        if not last_request:
-            return
-
-        if self.category_id.has_location == "required" and not self.location:
-            self.location = last_request.location
-
-        if self.category_id.has_partner == "required" and not self.partner_id:
-            self.partner_id = last_request.partner_id
-
-        if self.category_id.has_reference == "required" and not self.reference:
-            self.reference = last_request.reference
 
     def _check_bulk_decision_allowed(self) -> None:
         for request in self:
@@ -155,15 +112,6 @@ class ApprovalRequestAction(models.Model):
     def action_approve_bulk(self) -> dict[str, Any]:
         return self._action_bulk_decision("action_approve", "approval", "approved")
 
-    def _get_current_pending_approver(
-        self, user: models.BaseModel | None = None
-    ) -> models.BaseModel:
-        self.check_singleton()
-        user = user or self.env.user
-        return self.approver_ids.filtered(
-            lambda a: a.state == "pending" and a._get_effective_approver() == user,
-        )
-
     def _raise_not_assigned_approver(self) -> None:
         raise UserError(
             self.env._(
@@ -171,22 +119,6 @@ class ApprovalRequestAction(models.Model):
                 "or your approval has already been processed.",
             ),
         )
-
-    def _check_decision_actor(self, approver: models.BaseModel) -> None:
-        if self.env.su:
-            return
-        current_user = self.env.user
-        impersonated = approver.filtered(
-            lambda a: a._get_effective_approver() != current_user,
-        )
-        if impersonated:
-            raise AccessError(
-                self.env._(
-                    "You are not the assigned approver for this decision.\n\n"
-                    "Request: %(name)s",
-                    name=self.display_name,
-                ),
-            )
 
     def _apply_decision(
         self,
@@ -621,22 +553,6 @@ class ApprovalRequestAction(models.Model):
                 message_type="notification",
             )
 
-    def _check_owner_or_manager(self, action_label: str) -> None:
-        if self.env.su or is_approval_manager(self.env):
-            return
-        for request in self:
-            if request.request_owner_id != self.env.user:
-                raise AccessError(
-                    self.env._(
-                        "Only the request owner or an approval manager "
-                        "can %(action)s this request.\n\n"
-                        "Request: %(name)s\nOwner: %(owner)s",
-                        action=action_label,
-                        name=request.display_name,
-                        owner=request.request_owner_id.name,
-                    ),
-                )
-
     def action_refuse_bulk(self) -> dict[str, Any]:
         self._check_bulk_decision_allowed()
         return {
@@ -686,62 +602,6 @@ class ApprovalRequestAction(models.Model):
 
     def _refuse_approval_request(self) -> None:
         return
-
-    def action_view_attachment(self) -> dict[str, Any]:
-        self.check_singleton()
-        res = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
-            "base.action_attachment"
-        )
-        res["domain"] = [
-            ("res_model", "=", "approval.request"),
-            ("res_id", "in", self.ids),
-        ]
-        res["context"] = {
-            "default_res_model": "approval.request",
-            "default_res_id": self.id,
-        }
-        return res
-
-    @api.model
-    def _get_domain_pending_review(self, user: models.BaseModel) -> list:
-        return [
-            ("state", "=", "pending"),
-            "|",
-            (
-                "approver_ids",
-                "any",
-                [
-                    ("user_id", "=", user.id),
-                    ("is_delegated", "=", False),
-                    ("state", "=", "pending"),
-                ],
-            ),
-            (
-                "approver_ids",
-                "any",
-                [
-                    ("delegate_id", "=", user.id),
-                    ("is_delegated", "=", True),
-                    ("state", "=", "pending"),
-                ],
-            ),
-        ]
-
-    @api.model
-    def _search_is_pending_my_review(self, operator: str, value: Any) -> Domain:
-        awaiting = Domain(self._get_domain_pending_review(self.env.user))
-        return boolean_search_domain(operator, value, awaiting, ~awaiting)
-
-    @api.model
-    def action_view_to_review(self) -> dict[str, Any]:
-        return {
-            "type": "ir.actions.act_window",
-            "name": self.env._("Approvals to Review"),
-            "res_model": "approval.request",
-            "view_mode": "list,kanban,form",
-            "domain": self._get_domain_pending_review(self.env.user),
-            "context": {},
-        }
 
     def action_withdraw(
         self, approver: models.BaseModel | None = None
@@ -838,3 +698,325 @@ class ApprovalRequestAction(models.Model):
 
             if old_state == "approved" and request.state != "approved":
                 request._notify_source_document_state_change("pending")
+
+    def _check_approve_sequentially_can_approve(self, candidate) -> None:
+        if self.approve_sequentially and any(a.state == "waiting" for a in candidate):
+            raise ValidationError(
+                self.env._("You cannot approve before the previous approver.")
+            )
+
+    def _check_confirm(self) -> None:
+        self._check_enough_approvers()
+        self._check_has_document_has_attachment()
+        self._check_category_required_fields()
+
+    def _check_enough_approvers(self) -> None:
+        self.check_singleton()
+        if len(self.approver_ids) < self.approval_minimum:
+            raise UserError(
+                self.env._(
+                    "You have to add at least %(count)d approver(s) to "
+                    "confirm your request.",
+                    count=self.approval_minimum,
+                ),
+            )
+
+    def _check_has_document_has_attachment(self) -> None:
+        if self.has_document == "required" and not self.count_attachment:
+            raise UserError(self.env._("You have to attach at least one document."))
+
+        if self.has_document != "required":
+            return
+        requirements = self.category_id.document_requirement_ids.filtered("required")
+        if not requirements:
+            return
+
+        satisfied = self.attachment_ids.approval_requirement_id
+        missing = requirements - satisfied
+        if missing:
+            raise UserError(
+                self.env._(
+                    "Missing required documents: %(missing)s\n\n"
+                    "Attach a file for each, and set its 'Satisfies "
+                    "Requirement' so the approvers know which document is "
+                    "which.",
+                    missing=", ".join(missing.mapped("name")),
+                ),
+            )
+
+    def _check_category_required_fields(self) -> None:
+        field_mapping = self._get_category_required_field_mapping()
+        missing_fields = []
+
+        for has_field, (field_name, field_label) in field_mapping.items():
+            has_value = getattr(self, has_field, "no")
+            if has_value == "required":
+                if self._is_required_field_skipped(has_field):
+                    continue
+                field_value = getattr(self, field_name, None)
+                if not field_value:
+                    missing_fields.append(field_label)
+
+        if self.has_date_range == "required" and not self.date_end:
+            missing_fields.append(self.env._("Period End Date"))
+
+        if missing_fields:
+            raise UserError(
+                self.env._(
+                    "The following required fields are empty:\n\n%(fields)s\n\n"
+                    "Please fill them before submitting the request.",
+                    fields="\n".join(f"- {f}" for f in missing_fields),
+                ),
+            )
+
+    def _is_required_field_skipped(self, has_field: str) -> bool:
+        return False
+
+    def _get_category_required_field_mapping(
+        self,
+    ) -> dict[str, tuple[str, str]]:
+        return {
+            "has_date": ("date", self.env._("Date")),
+            "has_date_deadline": ("date_deadline", self.env._("Deadline")),
+            "has_date_planned": ("date_planned", self.env._("Planned Date")),
+            "has_date_range": ("date_start", self.env._("Period Start Date")),
+            "has_partner": ("partner_id", self.env._("Contact")),
+            "has_quantity": ("quantity", self.env._("Quantity")),
+            "has_amount": ("amount", self.env._("Amount")),
+            "has_reference": ("reference", self.env._("Reference")),
+            "has_location": ("location", self.env._("Location")),
+        }
+
+    def _check_withdraw_allowed(self) -> None:
+        pass
+
+    def _check_reset_allowed(self) -> None:
+        self.check_singleton()
+        if not self.res_model or not self.res_id:
+            return
+        source_doc = self.get_source_document()
+        if not source_doc or not source_doc.exists():
+            return
+        linked_request_id = getattr(source_doc, "approval_request_id", None)
+        if linked_request_id is not None and linked_request_id.id != self.id:
+            raise UserError(
+                self.env._(
+                    "This request cannot be reset: the source document "
+                    "%(doc)s no longer references it. Request a new "
+                    "approval from the document instead.",
+                    doc=source_doc.display_name,
+                ),
+            )
+
+    def _raise_withdraw_blocked(self, active_descendants, doc_label):
+        if not active_descendants:
+            return
+        raise UserError(
+            self.env._(
+                "You cannot withdraw this approval because it has "
+                "%(count)d active %(label)s(s) linked.\n\n"
+                "Cancel the related %(label)s(s) first, then withdraw.",
+                count=len(active_descendants),
+                label=doc_label,
+            ),
+        )
+
+    def _cancel_activities(self) -> None:
+        approval_activity = self.env.ref("approval.mail_activity_data_approval")
+        activities = self.activity_ids.filtered(
+            lambda a: a.activity_type_id == approval_activity,
+        )
+        activities.sudo().unlink()
+
+    def _get_request_activities(self, activity_xmlid: str, user: Any = None) -> Any:
+        domain = [
+            ("res_model", "=", "approval.request"),
+            ("res_id", "in", self.ids),
+            ("activity_type_id", "=", self.env.ref(activity_xmlid).id),
+        ]
+        if user:
+            domain.append(("user_id", "=", user.id))
+        return self.env["mail.activity"].search(domain)
+
+    def _get_user_approval_activities(self, user: Any) -> Any:
+        return self._get_request_activities(
+            "approval.mail_activity_data_approval", user=user
+        )
+
+    def _get_change_request_activities(self) -> Any:
+        return self._get_request_activities(
+            "approval.mail_activity_data_change_request"
+        )
+
+    def _lock_for_approval_action(self) -> None:
+        if not self.ids:
+            return
+
+        self.env.cr.execute(
+            """
+            SELECT id FROM approval_request
+            WHERE id = ANY(%s)
+            ORDER BY id
+            FOR UPDATE
+            """,
+            [list(self.ids)],
+        )
+
+    def _lock_and_reload(self, with_approvers: bool = False) -> None:
+        self._lock_for_approval_action()
+        if with_approvers:
+            self.approver_ids.invalidate_recordset(["state"])
+        self.invalidate_recordset(["state"])
+
+    def _flip_unsettled_approvers(self, new_state: str) -> None:
+        self.check_singleton()
+        settled = self.approver_ids._SETTLED_STATES
+        self.approver_ids.sudo().filtered(
+            lambda a: a.state not in settled,
+        ).write({"state": new_state})
+
+    def _stamp_refusal_metadata(
+        self,
+        refusal_reason: models.BaseModel | None,
+        refusal_note: str | None,
+    ) -> None:
+        self.check_singleton()
+        vals: dict[str, Any] = {}
+        if refusal_reason and not self.refusal_reason_id:
+            vals["refusal_reason_id"] = refusal_reason.id
+        if refusal_note and not self.refusal_note:
+            vals["refusal_note"] = refusal_note
+        if vals:
+            self.sudo().write(vals)
+
+    def _force_terminal(
+        self,
+        new_state: str,
+        body: str,
+        refusal_reason: models.BaseModel | None = None,
+        refusal_note: str | None = None,
+        subtype_xmlid: str | None = None,
+    ) -> None:
+        if new_state not in self._TERMINAL_STATES - {"approved"}:
+            raise ValueError(
+                f"_force_terminal() accepts only non-approved terminal "
+                f"states, got {new_state!r}",
+            )
+        self._lock_and_reload()
+        for request in self:
+            if request.state in request._TERMINAL_STATES:
+                continue
+            old_state = request.state
+            request._flip_unsettled_approvers(new_state)
+            request._stamp_refusal_metadata(refusal_reason, refusal_note)
+            request._cancel_activities()
+            request._close_pending_change()
+            request._notify_if_terminal_transition(old_state)
+            request._log_cycle("terminal", was=old_state, forced=new_state)
+            post_kwargs = {"message_type": "notification"}
+            if subtype_xmlid:
+                post_kwargs["subtype_xmlid"] = subtype_xmlid
+            request.message_post(body=body, **post_kwargs)
+            if request.state == "refused":
+                request._refuse_approval_request()
+
+    def _close_pending_change(self) -> None:
+        self.check_singleton()
+        if not self.pending_change_field:
+            return
+        self._get_change_request_activities().sudo().action_feedback()
+        self.sudo().write({"pending_change_field": False})
+
+    def _notify_if_terminal_transition(self, old_state: str) -> None:
+        self.check_singleton()
+        if self.state != old_state and self.state in self._TERMINAL_STATES:
+            self._notify_source_document_state_change(self.state)
+
+    def _notify_source_document_state_change(self, new_state: str) -> None:
+        self.check_singleton()
+        if not self.res_model or not self.res_id:
+            return
+
+        try:
+            source_doc = self.env[self.res_model].browse(self.res_id)
+            mixin_cls = self.env.registry["mixin.approval"]
+        except KeyError:
+            _logger.debug(
+                "Source model %s not in registry; skipping approval state notification",
+                self.res_model,
+            )
+            return
+        if not isinstance(source_doc, mixin_cls):
+            return
+        if source_doc.approval_request_id != self:
+            _logger.warning(
+                "Approval request %s points at %s#%s but that document does "
+                "not reference it back; skipping source notification.",
+                self.id,
+                self.res_model,
+                self.res_id,
+            )
+            return
+        try:
+            source_doc.sudo().with_context(
+                approval_acting_user_id=self.env.uid,
+            )._on_approval_state_changed(new_state)
+        except MissingError:
+            _logger.debug(
+                "Could not notify source document %s#%s of approval state change",
+                self.res_model,
+                self.res_id,
+            )
+
+    _CYCLE_LOG_PREFIX = "approval-cycle"
+
+    def _log_cycle(self, event: str, **details) -> None:
+        if not _logger.isEnabledFor(logging.DEBUG):
+            return
+        self.check_singleton()
+        rows = " ".join(
+            f"{approver.user_id.login}={approver.state}"
+            for approver in self.approver_ids.sorted(lambda a: (a.sequence, a.id))
+        )
+        extra = "".join(f" {key}={value}" for key, value in details.items())
+        _logger.debug(
+            "%s %s request=%s (%s) state=%s minimum=%s rows=[%s]%s",
+            self._CYCLE_LOG_PREFIX,
+            event,
+            self.id,
+            self.name or "draft",
+            self.state,
+            self.approval_minimum,
+            rows,
+            extra,
+        )
+
+    def _update_next_approvers_state(
+        self,
+        approver: models.BaseModel,
+        new_state: str,
+        only_next_approver: bool,
+        cancel_activities: bool = False,
+    ) -> None:
+        approvers_updated = self.env["approval.approver"]
+        for approval in self.filtered("approve_sequentially"):
+            current_approver = approval.approver_ids & approver
+            if not current_approver:
+                continue
+            anchor = min(
+                ((a.sequence, a.id) for a in current_approver),
+            )
+            settled = approval.approver_ids._SETTLED_STATES
+            approvers_to_update = approval.approver_ids.filtered(
+                lambda a, anchor=anchor, settled=settled: (
+                    a.state not in settled and (a.sequence, a.id) > anchor
+                ),
+            ).sorted(lambda a: (a.sequence, a.id))
+            if only_next_approver and approvers_to_update:
+                approvers_to_update = approvers_to_update[0]
+            approvers_updated |= approvers_to_update
+        approvers_updated.sudo().state = new_state
+        if new_state == "pending":
+            approvers_updated._create_activity()
+        if cancel_activities:
+            approvers_updated.request_id._cancel_activities()

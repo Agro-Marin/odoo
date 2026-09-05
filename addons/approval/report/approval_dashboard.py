@@ -6,7 +6,7 @@ from odoo.libs.datetime import timezone
 from odoo.tools import SQL
 
 
-class ApprovalDashboard(models.Model):
+class ApprovalDashboard(models.TransientModel):
     _name = "approval.dashboard"
     _description = "Approval Dashboard"
     _rec_name = "name"
@@ -714,15 +714,6 @@ class ApprovalDashboard(models.Model):
     def action_view_to_review(self) -> dict[str, Any]:
         return self.env["approval.request"].action_view_to_review()
 
-    _SINGLETON_LOCK_KEY = 2026070301
-
     @api.model
     def get_dashboard(self) -> Self:
-        self.env.cr.execute(
-            "SELECT pg_advisory_xact_lock(%s)",
-            [self._SINGLETON_LOCK_KEY],
-        )
-        dashboard = self.search([], limit=1)
-        if not dashboard:
-            dashboard = self.create({"name": "Approval Dashboard"})
-        return dashboard
+        return self.create({"name": "Approval Dashboard"})

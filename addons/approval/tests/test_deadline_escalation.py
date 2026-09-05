@@ -8,7 +8,7 @@ from odoo.tests import common, tagged
 
 from .common import ApprovalCommon, isolate_group_approval_manager
 from .common import isolate_group_approval_manager as _isolate_group_approval_manager
-from odoo.addons.approval.models import approval_request_cron
+from odoo.addons.approval.models import approval_request_escalation
 
 
 @tagged("post_install", "-at_install")
@@ -617,7 +617,7 @@ class TestDeadlineEscalation(common.TransactionCase):
 
         five_hours_later = "2026-01-05 13:00:00"
         with (
-            patch.object(approval_request_cron, "CRON_BATCH_LIMIT", 2),
+            patch.object(approval_request_escalation, "CRON_BATCH_LIMIT", 2),
             freeze_time(five_hours_later),
         ):
             sent = self.env["approval.request"].cron_smart_escalation()

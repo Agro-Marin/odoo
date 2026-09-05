@@ -801,7 +801,7 @@ class TestApproverSyncBatchesRowWrites(ApprovalCommon):
 
 @tagged("post_install", "-at_install")
 class TestApproverSyncPlanLogging(ApprovalCommon):
-    _LOGGER = "odoo.addons.approval.models.approval_request_helper"
+    _LOGGER = "odoo.addons.approval.models.approval_request_routing"
 
     def _plan_steps(self, run):
         with self.assertLogs(self._LOGGER, level="DEBUG") as captured:

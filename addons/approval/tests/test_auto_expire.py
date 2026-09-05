@@ -5,7 +5,7 @@ from odoo import fields
 from odoo.tests import common, tagged
 
 from .common import ApprovalCommon
-from odoo.addons.approval.models import approval_request_cron as cron_module
+from odoo.addons.approval.models import approval_request_escalation as cron_module
 
 
 @tagged("post_install", "-at_install")

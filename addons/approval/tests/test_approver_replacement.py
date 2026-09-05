@@ -564,7 +564,7 @@ class TestApprovalTiersAuditRegressions(ApprovalCommon):
             },
         )
         with self.assertLogs(
-            "odoo.addons.approval.models.approval_request_helper",
+            "odoo.addons.approval.models.approval_request_routing",
             level="WARNING",
         ) as log_ctx:
             self._prepare_request(category, confirm=False, amount=-100)

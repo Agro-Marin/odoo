@@ -1,11 +1,11 @@
 from odoo import api, models
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command
 
 from .approval_utils import is_approval_manager
 
 
-class ApprovalRequestValidation(models.Model):
+class ApprovalRequestAccess(models.Model):
     _inherit = "approval.request"
 
     @api.constrains("date_start", "date_end")
@@ -263,94 +263,6 @@ class ApprovalRequestValidation(models.Model):
                     ),
                 )
 
-    def _check_approve_sequentially_can_approve(self, candidate) -> None:
-        if self.approve_sequentially and any(a.state == "waiting" for a in candidate):
-            raise ValidationError(
-                self.env._("You cannot approve before the previous approver.")
-            )
-
-    def _check_confirm(self) -> None:
-        self._check_enough_approvers()
-        self._check_has_document_has_attachment()
-        self._check_category_required_fields()
-
-    def _check_enough_approvers(self) -> None:
-        self.check_singleton()
-        if len(self.approver_ids) < self.approval_minimum:
-            raise UserError(
-                self.env._(
-                    "You have to add at least %(count)d approver(s) to "
-                    "confirm your request.",
-                    count=self.approval_minimum,
-                ),
-            )
-
-    def _check_has_document_has_attachment(self) -> None:
-        if self.has_document == "required" and not self.count_attachment:
-            raise UserError(self.env._("You have to attach at least one document."))
-
-        if self.has_document != "required":
-            return
-        requirements = self.category_id.document_requirement_ids.filtered("required")
-        if not requirements:
-            return
-
-        satisfied = self.attachment_ids.approval_requirement_id
-        missing = requirements - satisfied
-        if missing:
-            raise UserError(
-                self.env._(
-                    "Missing required documents: %(missing)s\n\n"
-                    "Attach a file for each, and set its 'Satisfies "
-                    "Requirement' so the approvers know which document is "
-                    "which.",
-                    missing=", ".join(missing.mapped("name")),
-                ),
-            )
-
-    def _check_category_required_fields(self) -> None:
-        field_mapping = self._get_category_required_field_mapping()
-        missing_fields = []
-
-        for has_field, (field_name, field_label) in field_mapping.items():
-            has_value = getattr(self, has_field, "no")
-            if has_value == "required":
-                if self._is_required_field_skipped(has_field):
-                    continue
-                field_value = getattr(self, field_name, None)
-                if not field_value:
-                    missing_fields.append(field_label)
-
-        if self.has_date_range == "required" and not self.date_end:
-            missing_fields.append(self.env._("Period End Date"))
-
-        if missing_fields:
-            raise UserError(
-                self.env._(
-                    "The following required fields are empty:\n\n%(fields)s\n\n"
-                    "Please fill them before submitting the request.",
-                    fields="\n".join(f"- {f}" for f in missing_fields),
-                ),
-            )
-
-    def _is_required_field_skipped(self, has_field: str) -> bool:
-        return False
-
-    def _get_category_required_field_mapping(
-        self,
-    ) -> dict[str, tuple[str, str]]:
-        return {
-            "has_date": ("date", self.env._("Date")),
-            "has_date_deadline": ("date_deadline", self.env._("Deadline")),
-            "has_date_planned": ("date_planned", self.env._("Planned Date")),
-            "has_date_range": ("date_start", self.env._("Period Start Date")),
-            "has_partner": ("partner_id", self.env._("Contact")),
-            "has_quantity": ("quantity", self.env._("Quantity")),
-            "has_amount": ("amount", self.env._("Amount")),
-            "has_reference": ("reference", self.env._("Reference")),
-            "has_location": ("location", self.env._("Location")),
-        }
-
     def _check_business_rules_unlink(self) -> None:
         for request in self:
             if request.state != "new":
@@ -366,39 +278,37 @@ class ApprovalRequestValidation(models.Model):
                     ),
                 )
 
-    def _check_withdraw_allowed(self) -> None:
-        pass
-
-    def _check_reset_allowed(self) -> None:
-        self.check_singleton()
-        if not self.res_model or not self.res_id:
-            return
-        source_doc = self.get_source_document()
-        if not source_doc or not source_doc.exists():
-            return
-        linked_request_id = getattr(source_doc, "approval_request_id", None)
-        if linked_request_id is not None and linked_request_id.id != self.id:
-            raise UserError(
-                self.env._(
-                    "This request cannot be reset: the source document "
-                    "%(doc)s no longer references it. Request a new "
-                    "approval from the document instead.",
-                    doc=source_doc.display_name,
-                ),
-            )
-
-    def _raise_withdraw_blocked(self, active_descendants, doc_label):
-        if not active_descendants:
-            return
-        raise UserError(
-            self.env._(
-                "You cannot withdraw this approval because it has "
-                "%(count)d active %(label)s(s) linked.\n\n"
-                "Cancel the related %(label)s(s) first, then withdraw.",
-                count=len(active_descendants),
-                label=doc_label,
-            ),
-        )
-
     def _skip_check_access(self) -> bool:
         return self.env.su or is_approval_manager(self.env)
+
+    def _check_owner_or_manager(self, action_label: str) -> None:
+        if self.env.su or is_approval_manager(self.env):
+            return
+        for request in self:
+            if request.request_owner_id != self.env.user:
+                raise AccessError(
+                    self.env._(
+                        "Only the request owner or an approval manager "
+                        "can %(action)s this request.\n\n"
+                        "Request: %(name)s\nOwner: %(owner)s",
+                        action=action_label,
+                        name=request.display_name,
+                        owner=request.request_owner_id.name,
+                    ),
+                )
+
+    def _check_decision_actor(self, approver: models.BaseModel) -> None:
+        if self.env.su:
+            return
+        current_user = self.env.user
+        impersonated = approver.filtered(
+            lambda a: a._get_effective_approver() != current_user,
+        )
+        if impersonated:
+            raise AccessError(
+                self.env._(
+                    "You are not the assigned approver for this decision.\n\n"
+                    "Request: %(name)s",
+                    name=self.display_name,
+                ),
+            )

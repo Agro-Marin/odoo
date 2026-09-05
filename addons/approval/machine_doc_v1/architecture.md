@@ -181,7 +181,7 @@ for the delays of everyone ahead of them and made the dashboard's
 `approval.approver._stamp_pending_since`, applied from `create`/`write`,
 so all five promotion paths are covered by construction.
 `_TERMINAL_STATES = frozenset({"approved", "refused", "cancelled"})`
-(`approval_request_helper.py`).
+(`approval_request_routing.py`).
 
 ```
                     +-------+
@@ -681,7 +681,7 @@ which this module is hard to read from an ORM trace:
 
 | Prefix | Emitter | Answers |
 |--------|---------|---------|
-| `approver-sync` | `_log_sync_plan()` (`approval_request_helper.py`) | "why did this request gain/lose an approver?" — the whole batch's flush plan, numbered in execution order |
+| `approver-sync` | `_log_sync_plan()` (`approval_request_routing.py`) | "why did this request gain/lose an approver?" — the whole batch's flush plan, numbered in execution order |
 | `approval-cycle` | `_log_cycle()` (same file) | "why is this request in this state?" — one line per transition with the resulting row layout |
 
 `approval-cycle` is emitted by `action_confirm`, `_apply_decision`,

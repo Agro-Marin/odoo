@@ -842,3 +842,11 @@ class TestSmartCloneUsesTheOwnersHistory(ApprovalCommon):
             10,
             "the lookup keeps 10 rows for one category but loaded %s" % loaded[0],
         )
+
+
+class TestMailActivitySearch(common.TransactionCase):
+    def test_negative_operator_raises_error(self):
+        with self.assertRaises(UserError) as ctx:
+            self.env["mail.activity"].search([("approval_request_id", "!=", 1)])
+
+        self.assertIn("not supported", str(ctx.exception).lower())

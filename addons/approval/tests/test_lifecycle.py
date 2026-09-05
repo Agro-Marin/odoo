@@ -690,7 +690,7 @@ class TestDepartureHandover(ApprovalCommon):
 
 @tagged("post_install", "-at_install")
 class TestCycleLogging(ApprovalCommon):
-    _LOGGER = "odoo.addons.approval.models.approval_request_helper"
+    _LOGGER = "odoo.addons.approval.models.approval_request_lifecycle"
 
     def _cycle_lines(self, run):
         with self.assertLogs(self._LOGGER, level="DEBUG") as captured:

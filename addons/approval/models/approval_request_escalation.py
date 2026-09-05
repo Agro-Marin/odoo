@@ -1,15 +1,507 @@
 import logging
+from datetime import timedelta
 from typing import Any
 
 from markupsafe import Markup
 
 from odoo import api, fields, models
+from odoo.fields import Domain
+
+from .approval_utils import boolean_search_domain
 
 _logger = logging.getLogger(__name__)
+
+CRON_BATCH_LIMIT = 500
 
 
 class ApprovalRequestEscalation(models.Model):
     _inherit = "approval.request"
+
+    ESCALATION_RULES = {
+        "3": {
+            "first_reminder": 4,
+            "escalation": 8,
+        },
+        "2": {
+            "first_reminder": 24,
+            "escalation": 48,
+        },
+        "1": {
+            "first_reminder": 48,
+            "escalation": 96,
+        },
+        "0": {
+            "first_reminder": 72,
+            "escalation": 168,
+        },
+    }
+
+    @api.model
+    def _get_domain_overdue(self) -> list:
+        return [
+            ("state", "=", "pending"),
+            ("approval_deadline", "!=", False),
+            ("approval_deadline", "<", fields.Datetime.now()),
+        ]
+
+    @api.model
+    def _search_is_overdue(
+        self,
+        operator: str,
+        value: Any,
+    ) -> list[tuple[str, str, Any]]:
+        now = fields.Datetime.now()
+        return boolean_search_domain(
+            operator,
+            value,
+            true_domain=self._get_domain_overdue(),
+            false_domain=[
+                "|",
+                "|",
+                ("approval_deadline", "=", False),
+                ("approval_deadline", ">=", now),
+                ("state", "!=", "pending"),
+            ],
+        )
+
+    @api.depends("date_confirmed", "category_snapshot")
+    def _compute_approval_deadline(self) -> None:
+        for request in self:
+            hours = request._get_snapshot_config("approval_deadline_hours")
+            if request.date_confirmed and hours:
+                request.approval_deadline = request.date_confirmed + timedelta(
+                    hours=hours,
+                )
+            else:
+                request.approval_deadline = False
+
+    @api.depends("approval_deadline", "state")
+    def _compute_is_overdue(self) -> None:
+        now = fields.Datetime.now()
+        for request in self:
+            request.is_overdue = (
+                request.approval_deadline
+                and request.approval_deadline < now
+                and request.state == "pending"
+            )
+
+    @api.depends(
+        "date_confirmed",
+        "state",
+        "date_approval_granted",
+        "date_refused",
+        "date_cancelled",
+        "category_id.sla_target_hours",
+        "category_id.sla_warning_pct",
+        "category_snapshot",
+    )
+    def _compute_sla_status(self) -> None:
+        now = fields.Datetime.now()
+        for request in self:
+            sla_hours = request._get_snapshot_config("sla_target_hours")
+            if not sla_hours or not request.date_confirmed:
+                request.sla_status = "no_sla"
+                continue
+
+            if request.state in self._TERMINAL_STATES:
+                resolved_date = {
+                    "approved": request.date_approval_granted,
+                    "refused": request.date_refused,
+                    "cancelled": request.date_cancelled,
+                }.get(request.state) or now
+                elapsed = (
+                    resolved_date - request.date_confirmed
+                ).total_seconds() / 3600
+                request.sla_status = "met" if elapsed <= sla_hours else "breached"
+                continue
+
+            elapsed = (now - request.date_confirmed).total_seconds() / 3600
+            request.sla_status = self._sla_status_for(
+                elapsed,
+                sla_hours,
+                request._get_snapshot_config("sla_warning_pct"),
+            )
+
+    _SLA_DEFAULT_WARNING_PCT = 80
+
+    _SLA_TARGET_SQL = (
+        "COALESCE((ar.category_snapshot ->> 'sla_target_hours')::numeric, "
+        "ac.sla_target_hours, 0)"
+    )
+
+    _SLA_WARNING_SQL = (
+        "COALESCE((ar.category_snapshot ->> 'sla_warning_pct')::numeric, "
+        "ac.sla_warning_pct)"
+    )
+
+    @api.model
+    def _sla_status_for(
+        self,
+        elapsed_hours: float,
+        sla_hours: float,
+        warning_pct: float | None,
+    ) -> str:
+        if elapsed_hours > sla_hours:
+            return "breached"
+        warning_hours = sla_hours * (
+            (warning_pct or self._SLA_DEFAULT_WARNING_PCT) / 100
+        )
+        if elapsed_hours > warning_hours:
+            return "at_risk"
+        return "on_track"
+
+    @api.model
+    def _search_sla_status(self, operator: str, value: str | list | None) -> list:
+        if operator not in ("=", "!=", "in", "not in"):
+            raise NotImplementedError(
+                f"Unsupported operator {operator!r} for sla_status"
+            )
+        wanted = {value} if isinstance(value, str) else set(value or ())
+        all_statuses = {s[0] for s in self._fields["sla_status"].selection}
+        if operator in ("!=", "not in"):
+            wanted = all_statuses - wanted
+        self.env["approval.request"].flush_model()
+        self.env["approval.category"].flush_model()
+        where_sql = ""
+        if "no_sla" not in wanted:
+            where_sql = (
+                f"WHERE {self._SLA_TARGET_SQL} > 0 AND ar.date_confirmed IS NOT NULL"
+            )
+        default_warning_pct = self._SLA_DEFAULT_WARNING_PCT
+        sla_target = self._SLA_TARGET_SQL
+        sla_warning = self._SLA_WARNING_SQL
+        self.env.cr.execute(
+            f"""
+            SELECT id FROM (
+            SELECT ar.id,
+                   CASE
+                       WHEN {sla_target} = 0
+                            OR ar.date_confirmed IS NULL
+                           THEN 'no_sla'
+                       WHEN ar.state IN ('approved', 'refused', 'cancelled')
+                           THEN CASE
+                               -- Keyed on the CURRENT state's date
+                               -- (mirrors _compute_sla_status). Since
+                               -- 19.0.1.0.22 the stamps are cleared when
+                               -- the request leaves the state they
+                               -- record, so only one is ever set; the
+                               -- COALESCE stays as a guard for rows
+                               -- written before that.
+                               WHEN COALESCE(
+                                       CASE ar.state
+                                           WHEN 'approved' THEN ar.date_approval_granted
+                                           WHEN 'refused' THEN ar.date_refused
+                                           WHEN 'cancelled' THEN ar.date_cancelled
+                                       END,
+                                       NOW() AT TIME ZONE 'UTC')
+                                    <= ar.date_confirmed
+                                       + {sla_target} * INTERVAL '1 hour'
+                                   THEN 'met'
+                               ELSE 'breached'
+                           END
+                       WHEN NOW() AT TIME ZONE 'UTC'
+                            > ar.date_confirmed
+                              + {sla_target} * INTERVAL '1 hour'
+                           THEN 'breached'
+                       WHEN NOW() AT TIME ZONE 'UTC'
+                            > ar.date_confirmed
+                              + {sla_target}
+                                * COALESCE(
+                                      NULLIF({sla_warning}, 0),
+                                      {default_warning_pct}
+                                  )
+                                / 100.0 * INTERVAL '1 hour'
+                           THEN 'at_risk'
+                       ELSE 'on_track'
+                   END AS status
+            FROM approval_request ar
+            JOIN approval_category ac ON ac.id = ar.category_id
+            {where_sql}
+            ) AS classified
+            WHERE status = ANY(%s)
+            """,
+            [sorted(wanted)],
+        )
+        return [("id", "in", [rid for (rid,) in self.env.cr.fetchall()])]
+
+    @api.depends("date_confirmed")
+    def _compute_sla_elapsed_hours(self) -> None:
+        now = fields.Datetime.now()
+        for request in self:
+            if request.date_confirmed:
+                delta = now - request.date_confirmed
+                request.sla_elapsed_hours = delta.total_seconds() / 3600
+            else:
+                request.sla_elapsed_hours = 0.0
+
+    @api.depends("date_confirmed", "category_id.sla_target_hours", "category_snapshot")
+    def _compute_sla_remaining_hours(self) -> None:
+        now = fields.Datetime.now()
+        for request in self:
+            sla_hours = request._get_snapshot_config("sla_target_hours")
+            if not sla_hours or not request.date_confirmed:
+                request.sla_remaining_hours = 0.0
+                continue
+            elapsed = (now - request.date_confirmed).total_seconds() / 3600
+            request.sla_remaining_hours = sla_hours - elapsed
+
+    @api.model
+    def cron_smart_escalation(self) -> int:
+        now = fields.Datetime.now()
+        reminders_sent = 0
+
+        self._reconcile_delegation_activities()
+
+        for priority, rules in self._get_escalation_rules().items():
+            reminder_threshold = now - timedelta(hours=rules["first_reminder"])
+            escalation_threshold = now - timedelta(hours=rules["escalation"])
+
+            domain = [
+                ("state", "=", "pending"),
+                ("priority", "=", priority),
+                ("pending_change_field", "=", False),
+                "|",
+                ("last_reminder_date", "=", False),
+                ("last_reminder_date", "<", reminder_threshold),
+                ("date_confirmed", "<", reminder_threshold),
+            ]
+
+            # One query per ESCALATION_RULES entry, not per record: the loop is
+            # over the priority selection, so the count is fixed and independent
+            # of the data. Each priority carries its own reminder threshold and
+            # its own CRON_BATCH_LIMIT, which one merged query cannot preserve.
+            requests_to_remind = self.search(  # pylint: disable=n-plus-one-query
+                domain,
+                order="date_confirmed asc",
+                limit=CRON_BATCH_LIMIT,
+            )
+
+            acknowledged_by_count: dict[int, list[int]] = {}
+
+            for request in requests_to_remind:
+                try:
+                    with self.env.cr.savepoint():
+                        did_work = self._escalate_or_remind_one(
+                            request, escalation_threshold
+                        )
+                except Exception:
+                    _logger.exception(
+                        "Smart escalation failed for request %s; skipping.",
+                        request.id,
+                    )
+                    continue
+
+                if not did_work:
+                    continue
+
+                acknowledged_by_count.setdefault(
+                    request.reminder_count,
+                    [],
+                ).append(request.id)
+                reminders_sent += 1
+
+            for prior_count, ids in acknowledged_by_count.items():
+                self.browse(ids).sudo().write(
+                    {
+                        "last_reminder_date": now,
+                        "reminder_count": prior_count + 1,
+                    }
+                )
+
+        if reminders_sent:
+            _logger.info("Smart escalation: Sent %s reminders", reminders_sent)
+
+        return reminders_sent
+
+    def _escalate_or_remind_one(self, request, escalation_threshold) -> int:
+        has_stalled_approver = any(
+            not a._get_effective_approver().active
+            for a in request.approver_ids
+            if a.state == "pending"
+        )
+        # escalated_to_manager gates both triggers. A stalled approver is a
+        # reason to escalate ahead of the age threshold, not a reason to
+        # escalate again on every run: it does not clear itself, so binding it
+        # to the flag alone re-sent the same notice daily for the life of the
+        # request. Reset to draft clears the flag and re-opens escalation.
+        needs_escalation = not request.escalated_to_manager and (
+            has_stalled_approver or request.date_confirmed < escalation_threshold
+        )
+        if not needs_escalation:
+            return request._send_reminder()
+        did_work = request._escalate_to_manager()
+        _by_manager, not_escalated = request._resolve_escalation_targets()
+        if not_escalated:
+            did_work = request._send_reminder(not_escalated) or did_work
+        return did_work
+
+    @api.model
+    def _reconcile_delegation_activities(self) -> None:
+        activity_type = self.env.ref("approval.mail_activity_data_approval")
+        pending_approvers = self.env["approval.approver"].search(
+            [
+                ("state", "=", "pending"),
+                ("request_id.state", "=", "pending"),
+                ("delegate_id", "!=", False),
+            ],
+            order="id",
+            limit=CRON_BATCH_LIMIT,
+        )
+        for approver in pending_approvers:
+            request = approver.request_id
+            effective = approver._get_effective_approver()
+            correct = request.activity_ids.filtered(
+                lambda a, u=effective, t=activity_type: (
+                    a.user_id == u and a.activity_type_id == t
+                ),
+            )
+            stale = request.activity_ids.filtered(
+                lambda a, u=effective, t=activity_type, ap=approver: (
+                    a.activity_type_id == t
+                    and a.user_id != u
+                    and a.user_id in (ap.user_id | ap.delegate_id)
+                ),
+            )
+            if not stale:
+                continue
+            try:
+                with self.env.cr.savepoint():
+                    if correct:
+                        stale.action_feedback()
+                    else:
+                        stale[:1].sudo().write({"user_id": effective.id})
+                        stale[1:].action_feedback()
+            except Exception:
+                _logger.exception(
+                    "Delegation activity reconciliation failed for "
+                    "approver %s; skipping.",
+                    approver.id,
+                )
+
+    @api.model
+    def cron_auto_expire(self) -> None:
+        expired_requests, hours_by_category = self._eligible_by_category_domain(
+            "auto_expire_hours",
+        )
+        if not expired_requests:
+            return
+
+        expired_count = 0
+        for request in expired_requests:
+            body = self.env._(
+                "This request was automatically cancelled after exceeding "
+                "the %(hours)d-hour expiration window.",
+                hours=hours_by_category[request.category_id.id],
+            )
+            try:
+                with self.env.cr.savepoint():
+                    request._force_terminal(
+                        "cancelled",
+                        body=body,
+                        subtype_xmlid="mail.mt_note",
+                    )
+                expired_count += 1
+            except Exception:
+                _logger.exception(
+                    "Auto-expire failed for request %s; skipping.",
+                    request.id,
+                )
+
+        if expired_count:
+            _logger.info("Auto-expire: Cancelled %d expired requests", expired_count)
+
+    @api.model
+    def _eligible_by_category_domain(
+        self,
+        hours_field: str,
+        extra_domain=None,
+        category_domain=None,
+    ):
+        categories = self.env["approval.category"].search(
+            Domain([(hours_field, ">", 0)]) & Domain(category_domain or []),
+        )
+        if not categories:
+            return self.browse(), {}
+
+        now = fields.Datetime.now()
+        hours_by_category = {c.id: c[hours_field] for c in categories}
+        windows = Domain.FALSE
+        for category in categories:
+            windows |= Domain(
+                [
+                    ("category_id", "=", category.id),
+                    (
+                        "date_confirmed",
+                        "<=",
+                        now - timedelta(hours=hours_by_category[category.id]),
+                    ),
+                ],
+            )
+        domain = Domain([("state", "=", "pending")]) & windows
+        if extra_domain:
+            domain &= Domain(extra_domain)
+        requests = self.search(
+            domain,
+            order="date_confirmed asc",
+            limit=CRON_BATCH_LIMIT,
+        )
+        return requests, hours_by_category
+
+    @api.model
+    def cron_consent_approval(self) -> None:
+        eligible, _hours = self._eligible_by_category_domain(
+            "consent_approval_hours",
+            extra_domain=[("pending_change_field", "=", False)],
+            category_domain=[("approve_sequentially", "=", False)],
+        )
+        consent_count = 0
+        for request in eligible:
+            try:
+                with self.env.cr.savepoint():
+                    if self._consent_approve_one(request, request.category_id):
+                        consent_count += 1
+            except Exception:
+                _logger.exception(
+                    "Consent approval failed for request %s; skipping.",
+                    request.id,
+                )
+
+        if consent_count:
+            _logger.info(
+                "Consent approval: Auto-approved %d requests",
+                consent_count,
+            )
+
+    def _consent_approve_one(self, request, category) -> bool:
+        if not request._can_consent_approve():
+            return False
+
+        request._lock_and_reload(with_approvers=True)
+        if request.state != "pending":
+            return False
+
+        pending = request.approver_ids.filtered(lambda a: a.state == "pending")
+        if not pending:
+            return False
+
+        old_state = request.state
+        pending.sudo().write({"state": "approved"})
+        request._cancel_activities()
+        request._notify_if_terminal_transition(old_state)
+        request.message_post(
+            body=self.env._(
+                "Auto-approved by consent: no objection received "
+                "within %(hours)d-hour window.",
+                hours=category.consent_approval_hours,
+            ),
+            message_type="notification",
+            subtype_xmlid="mail.mt_note",
+        )
+        return True
+
+    def _can_consent_approve(self) -> bool:
+        self.check_singleton()
+        return True
 
     def _get_escalation_manager(self, approver) -> Any:
         category = self.category_id

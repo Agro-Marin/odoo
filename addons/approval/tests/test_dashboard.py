@@ -54,19 +54,14 @@ class TestApprovalDashboard(TransactionCase):
             }
         )
 
-    def test_dashboard_singleton(self):
-        dashboard1 = self.ApprovalDashboard.get_dashboard()
-        self.assertTrue(dashboard1.exists(), "Dashboard should be created")
-
-        dashboard2 = self.ApprovalDashboard.get_dashboard()
-        self.assertEqual(
-            dashboard1.id,
-            dashboard2.id,
-            "get_dashboard() should return the same singleton record",
+    def test_dashboard_is_a_transient_view(self):
+        dashboard = self.ApprovalDashboard.get_dashboard()
+        self.assertTrue(dashboard.exists(), "Dashboard should be created")
+        self.assertTrue(
+            self.ApprovalDashboard._transient,
+            "The dashboard holds computed figures only; it is a transient "
+            "record, not a table with history.",
         )
-
-        count = self.ApprovalDashboard.search_count([])
-        self.assertEqual(count, 1, "Only one dashboard record should exist")
 
     def test_today_stats_empty(self):
         dashboard = self.ApprovalDashboard.get_dashboard()
