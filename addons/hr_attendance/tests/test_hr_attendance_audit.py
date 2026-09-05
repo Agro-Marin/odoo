@@ -522,3 +522,78 @@ class TestOvertimeLineForeignKey(TransactionCase):
         self.assertEqual(len(other_att.linked_overtime_ids), 1)
         self.assertNotEqual(other_att.linked_overtime_ids, self.line)
         self.assertEqual(other_att.linked_overtime_ids.attendance_id, other_att)
+
+
+@tagged("post_install", "-at_install")
+class TestApprovalSurvivesRegeneration(TransactionCase):
+    """A manager's approval and manual correction survive a regeneration that
+    leaves the line otherwise identical -- the compounding payoff of the real
+    `attendance_id`: an unchanged line can be recognised across a delete and
+    recreate."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.company = cls.env["res.company"].create(
+            {"name": "Survives Ltd", "attendance_overtime_validation": "by_manager"}
+        )
+        cls.calendar = _eight_hour_calendar(cls.env, cls.company, "UTC")
+        cls.weekly = _ruleset(cls.env, cls.company, periods=("day", "week"))
+        cls.employee = _employee(cls.env, cls.company, cls.calendar, cls.weekly)
+
+    def _monday(self):
+        # 2026-08-31 is a Monday; 08:00-18:00 = two hours over an 8h day.
+        return self.env["hr.attendance"].create(
+            {
+                "employee_id": self.employee.id,
+                "check_in": datetime(2026, 8, 31, 8, 0),
+                "check_out": datetime(2026, 8, 31, 18, 0),
+            }
+        )
+
+    def _tuesday(self):
+        return self.env["hr.attendance"].create(
+            {
+                "employee_id": self.employee.id,
+                "check_in": datetime(2026, 9, 1, 8, 0),
+                "check_out": datetime(2026, 9, 1, 18, 0),
+            }
+        )
+
+    def test_an_approval_survives_a_later_days_regeneration(self):
+        monday = self._monday()
+        line = monday.linked_overtime_ids
+        self.assertEqual(line.status, "to_approve")
+        line.action_approve()
+        self.assertEqual(monday.overtime_status, "approved")
+        # A Tuesday attendance in the same week regenerates Monday's line too
+        # (weekly rule). Monday's overtime is unchanged, so the approval holds.
+        self._tuesday()
+        monday.invalidate_recordset()
+        self.assertTrue(monday.linked_overtime_ids)
+        self.assertEqual(
+            monday.linked_overtime_ids.status,
+            "approved",
+            "regeneration is a system act; it must not silently un-approve a "
+            "line whose overtime did not change",
+        )
+
+    def test_a_manual_correction_survives(self):
+        monday = self._monday()
+        monday.linked_overtime_ids.manual_duration = 5.0
+        self._tuesday()
+        monday.invalidate_recordset()
+        self.assertEqual(monday.linked_overtime_ids.manual_duration, 5.0)
+        self.assertEqual(monday.overtime_hours, 5.0)
+
+    def test_a_real_change_resets_the_decision(self):
+        monday = self._monday()
+        monday.linked_overtime_ids.action_approve()
+        # Editing Monday itself changes its overtime amount, so the approval
+        # no longer describes what is there: it must fall back to to_approve.
+        monday.write({"check_out": datetime(2026, 8, 31, 19, 0)})
+        self.assertEqual(
+            monday.linked_overtime_ids.status,
+            "to_approve",
+            "a changed amount is new overtime and needs a fresh decision",
+        )

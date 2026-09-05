@@ -477,14 +477,25 @@ class HrAttendance(models.Model):
             return
         windows, all_attendances = self._attendances_in_overtime_windows(windows)
         Line = self.env["hr.attendance.overtime.line"].sudo()
-        Line.search(
+        superseded = Line.search(
             Domain.OR(
                 Domain("employee_id", "=", employee.id)
                 & Domain("date", ">=", first)
                 & Domain("date", "<=", last)
                 for employee, (first, last) in windows.items()
             )
-        ).unlink()
+        )
+        # A manager's approval or manual correction survives a regeneration
+        # that leaves the line otherwise identical -- same attendance, day,
+        # rules and computed amount. Regeneration is a system act, never a
+        # request to reset a human decision; only a real change to the overtime
+        # (a moved shift, an edited rule) drops the line back to its default.
+        decisions_by_key = defaultdict(list)
+        for line in superseded:
+            decisions_by_key[line._regeneration_key()].append(
+                {"status": line.status, "manual_duration": line.manual_duration}
+            )
+        superseded.unlink()
         if not all_attendances:
             return
 
@@ -547,6 +558,10 @@ class HrAttendance(models.Model):
                     schedules_intervals_by_employee,
                 )
             )
+        for vals in overtime_vals_list:
+            decisions = decisions_by_key.get(Line._regeneration_key_from_vals(vals))
+            if decisions:
+                vals.update(decisions.pop(0))
         # Each val carries its `attendance_id`; creating the lines marks the
         # attendance's stored `linked_overtime_ids` computes dirty through the
         # real relation, so nothing has to be marked by hand.

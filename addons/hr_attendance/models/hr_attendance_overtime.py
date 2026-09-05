@@ -86,6 +86,31 @@ class HrAttendanceOvertimeLine(models.Model):
                 and overtime.employee_id.attendance_manager_id == self.env.user
             )
 
+    def _regeneration_key(self):
+        """Identity of an overtime line across a regeneration.
+
+        Two lines with the same key describe the same overtime: the same
+        attendance, day, set of rules and computed amount. A manager's
+        decision on one carries to the other; a change to any part of the key
+        makes it a different line that starts from its default status.
+        """
+        self.check_singleton()
+        return (
+            self.attendance_id.id,
+            self.date,
+            tuple(sorted(self.rule_ids.ids)),
+            round(self.duration, 3),
+        )
+
+    @api.model
+    def _regeneration_key_from_vals(self, vals):
+        return (
+            vals.get("attendance_id"),
+            vals.get("date"),
+            tuple(sorted(vals.get("rule_ids") or ())),
+            round(vals.get("duration") or 0.0, 3),
+        )
+
     def action_approve(self):
         self.write({"status": "approved"})
 
