@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t
+        t-name="product_expiry.TraceabilityReport"
+        t-inherit="stock.TraceabilityReport"
+        t-inherit-mode="extension">
+        <xpath expr="//thead/tr/th[4]" position="after">
+            <th class="o_report_line_header">Expiration Date</th>
+        </xpath>
+    </t>
+
+</templates>
