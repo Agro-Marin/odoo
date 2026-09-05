@@ -93,6 +93,11 @@ class BarcodeNomenclature(models.Model):
                 if rule.gs1_decimal_usage:
                     decimal_position = int(match.group(1)[-1])
                 if decimal_position > 0:
+                    if decimal_position > len(match.group(2)):
+                        raise ValueError(
+                            "decimal_position (%s) exceeds matched value length (%s)"
+                            % (decimal_position, len(match.group(2)))
+                        )
                     result["value"] = float(
                         match.group(2)[:-decimal_position]
                         + "."
@@ -110,6 +115,14 @@ class BarcodeNomenclature(models.Model):
                     )
                 ) from e
         elif rule.gs1_content_type == "identifier":
+            if not match.group(2):
+                raise ValidationError(
+                    _(
+                        'There is something wrong with the barcode rule "%s" pattern.\n'
+                        "Its value must match at least one digit to compute a check digit.",
+                        rule.name,
+                    )
+                )
             # Reject the barcode if its check digit (last char) is invalid
             if match.group(2)[-1] != str(
                 get_barcode_check_digit(
