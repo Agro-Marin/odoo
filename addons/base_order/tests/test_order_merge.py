@@ -124,3 +124,17 @@ class TestOrderMergeMixin(TransactionCase):
             "source line's quantity",
         )
         self.assertEqual(sorted(remaining.mapped("product_qty")), [1.0, 2.0])
+
+    def test_merge_metadata_deduplicates_repeated_origin(self):
+        """Merging the same target again must not keep piling up duplicate
+        origin/partner_ref values from a source that was already folded
+        in once before."""
+        target = self._order(self.partner_a)
+        target.write({"origin": "SO001", "partner_ref": "REF001"})
+        source = self._order(self.partner_a)
+        source.write({"origin": "SO001", "partner_ref": "REF001"})
+
+        self.SaleOrder._merge_metadata(target, source)
+
+        self.assertEqual(target.origin, "SO001")
+        self.assertEqual(target.partner_ref, "REF001")
