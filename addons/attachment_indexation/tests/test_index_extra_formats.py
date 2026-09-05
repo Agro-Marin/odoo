@@ -102,6 +102,53 @@ class TestIndexExtraFormats(TransactionCase):
         result = self.Attachment._index_xlsx(buffer.getvalue())
         self.assertEqual(result, "", "an oversized entry must be skipped, not parsed")
 
+    def test_index_xlsx_survives_an_oversized_unrelated_entry(self):
+        """An oversized embedded image alongside small, readable sheet data
+        must not discard the sheet data: only the parts load_workbook
+        actually parses can zip-bomb it, an embedded picture cannot."""
+        try:
+            from openpyxl import Workbook
+        except ImportError:
+            self.skipTest("openpyxl not installed")
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Data"
+        sheet.append(["Name", "Amount"])
+        sheet.append(["Alice", 10])
+        buffer = io.BytesIO()
+        workbook.save(buffer)
+        buffer.seek(0)
+        src = zipfile.ZipFile(buffer)
+        repacked = io.BytesIO()
+        with zipfile.ZipFile(repacked, "w", zipfile.ZIP_DEFLATED) as zf:
+            for item in src.infolist():
+                zf.writestr(item, src.read(item.filename))
+            zf.writestr(
+                "xl/media/image1.png",
+                b"\x00" * (self.Attachment._INDEX_MAX_BYTES + 1),
+            )
+        result = self.Attachment._index_xlsx(repacked.getvalue())
+        self.assertIn("Alice", result)
+        self.assertIn("Data", result)
+
+    def test_index_xlsx_still_skips_an_oversized_shared_strings_entry(self):
+        """The narrowed guard must still catch a zip bomb hidden in a part
+        load_workbook does parse, not just the worksheet XML itself."""
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zf:
+            zf.writestr(
+                "xl/worksheets/sheet1.xml",
+                b"<worksheet/>",
+            )
+            zf.writestr(
+                "xl/sharedStrings.xml",
+                b"a" * (self.Attachment._INDEX_MAX_BYTES + 1),
+            )
+        result = self.Attachment._index_xlsx(buffer.getvalue())
+        self.assertEqual(
+            result, "", "an oversized shared-strings entry must still be caught"
+        )
+
     def test_index_odt_extracts_paragraphs(self):
         """An .odt payload yields its paragraph text."""
         body = f'<text:p xmlns:text="{TEXT_NS}">First para</text:p>'

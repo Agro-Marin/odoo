@@ -161,8 +161,16 @@ def read_xlsx(data, max_entry_bytes=MAX_ENTRY_BYTES):
 
     f = io.BytesIO(data)
     if zipfile.is_zipfile(f):
+        # Only the parts load_workbook actually decompresses to resolve cells
+        # (sheets, shared strings, styles, the workbook manifest itself) can
+        # zip-bomb it. xl/media and xl/embeddings hold images and OLE objects
+        # respectively, which a legitimate spreadsheet may carry at any size
+        # without load_workbook ever inflating them.
         oversized = any(
-            info.file_size > max_entry_bytes for info in zipfile.ZipFile(f).infolist()
+            info.file_size > max_entry_bytes
+            for info in zipfile.ZipFile(f).infolist()
+            if info.filename.startswith("xl/")
+            and not info.filename.startswith(("xl/media/", "xl/embeddings/"))
         )
         f.seek(0)
         if oversized:
