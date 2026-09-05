@@ -182,6 +182,7 @@ def _rank_by_speedup(names, bi, ci):
             for n in names
             if n in bi
             and n in ci
+            and bi[n]["value"]
             and ci[n]["value"]
             and not (bi[n]["value"] < SUBMICRO_US and ci[n]["value"] < SUBMICRO_US)
         ),
