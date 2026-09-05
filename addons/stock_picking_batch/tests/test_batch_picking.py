@@ -1144,7 +1144,11 @@ class TestBatchPicking02(TransactionCase):
             }
         )
         batch.action_confirm()
-        self.assertFalse((picking_1 | picking_2).user_id.id)
+        self.assertEqual(
+            (picking_1 | picking_2).user_id,
+            self.env.user,
+            "a batch with no responsible leaves the transfers' own in place",
+        )
         batch.user_id = self.env.user
         self.assertEqual((picking_1 | picking_2).user_id, self.env.user)
         batch.user_id = False

@@ -243,7 +243,8 @@ class StockPicking(models.Model):
         if vals.get("batch_id"):
             self.batch_id._set_picking_type_from_pickings()
             self.batch_id._check_pickings_are_allowed()
-            self.batch_id.picking_ids.update_batch_user(self.batch_id.user_id.id)
+            if self.batch_id.user_id:
+                self.batch_id.picking_ids.update_batch_user(self.batch_id.user_id.id)
         return res
 
     def action_confirm(self):

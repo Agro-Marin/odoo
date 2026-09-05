@@ -520,3 +520,25 @@ class TestBatchAuditFixes(TransactionCase):
         picking = self._typed_picking(picking_type, location=shelf)
         self.assertEqual(picking.batch_id, declared)
         self.assertEqual(declared.wave_location_id, shelf)
+
+    def test_joining_a_batch_without_a_responsible_keeps_the_transfers_own(self):
+        picker = self.env["res.users"].create({"name": "Keeper", "login": "audit_keep"})
+        pickings = self._picking() | self._picking()
+        pickings.user_id = picker
+        messages_before = len(pickings.message_ids)
+        batch = self.env["stock.picking.batch"].create(
+            {"picking_type_id": self.picking_type.id}
+        )
+        pickings.batch_id = batch
+        self.assertEqual(pickings.user_id, picker)
+        self.assertEqual(len(pickings.message_ids), messages_before)
+        batch.user_id = self.env.user
+        self.assertEqual(pickings.user_id, self.env.user)
+
+    def test_joining_a_batch_with_a_responsible_takes_it(self):
+        picking = self._picking()
+        batch = self.env["stock.picking.batch"].create(
+            {"picking_type_id": self.picking_type.id, "user_id": self.env.uid}
+        )
+        picking.batch_id = batch
+        self.assertEqual(picking.user_id, self.env.user)
