@@ -1588,6 +1588,11 @@ class TestFormattedReadGroup(common.TransactionCase):
         self.assertEqual(res.mapped("value"), [98])
 
     def test_groupby_day_of_week_ordered_with_user_lang(self):
+        # date:day_of_week's own numbering is locale-independent (0=Sunday),
+        # but its label/order under lang=fr_BE follows the fr_BE week start
+        # (Monday), which reverses the two buckets here relative to the
+        # default (no-lang-context) order. Parametrized over ascending vs
+        # descending order: both share the same fixture and reversal logic.
         Model = self.env["test_read_group.fill_temporal"]
         Model.create(
             [
@@ -1807,6 +1812,11 @@ class TestFormattedReadGroup(common.TransactionCase):
             field_info["foo_id_bar_name_sudo"]["aggregator"], "count_distinct"
         )
 
+        # This call's result is intentionally discarded: it warms the ORM
+        # cache so the identical call right below - the one whose SQL/result
+        # is actually checked - reflects steady-state behavior rather than a
+        # cold cache. The same discard-then-recall pattern repeats several
+        # times further down this file for the same reason.
         RelatedBase.formatted_read_group([], ["foo_id_name_sudo"], ["__count"])
         self.assertEqual(
             RelatedBase.formatted_read_group([], ["foo_id_name_sudo"], ["__count"]),

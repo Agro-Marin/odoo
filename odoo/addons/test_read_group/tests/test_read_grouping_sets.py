@@ -72,6 +72,32 @@ GROUPING_SETS_CASES = [
 ]
 
 
+def _assert_grouping_sets_equiv(test, model, grouping_sets, aggregates_sets):
+    for aggregates in aggregates_sets:
+        expected_result = [
+            model.formatted_read_group([], groupby, aggregates)
+            for groupby in grouping_sets
+        ]
+        test.assertEqual(
+            model.formatted_read_grouping_sets([], grouping_sets, aggregates),
+            expected_result,
+        )
+
+
+def _create_aggregate_records(Model, Partner):
+    partner_1 = Partner.create({"name": "z_one"})
+    partner_2 = Partner.create({"name": "a_two"})
+    Model.create({"key": 1, "partner_id": partner_1.id, "value": 1})
+    Model.create({"key": 1, "partner_id": partner_1.id, "value": 2})
+    Model.create({"key": 1, "partner_id": partner_2.id, "value": 3})
+    Model.create({"key": 2, "partner_id": partner_2.id, "value": 4})
+    Model.create({"key": 2, "partner_id": partner_2.id})
+    Model.create({"key": 2, "value": 5})
+    Model.create({"partner_id": partner_2.id, "value": 5})
+    Model.create({"value": 6})
+    Model.create({})
+
+
 def _create_mario_luigi_tasks(env):
     User = env["test_read_group.user"]
     mario, luigi = User.create([{"name": "Mario"}, {"name": "Luigi"}])
@@ -107,17 +133,7 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
     def test_simple_read_grouping_sets(self):
         Model = self.env["test_read_group.aggregate"]
         Partner = self.env["res.partner"]
-        partner_1 = Partner.create({"name": "z_one"})
-        partner_2 = Partner.create({"name": "a_two"})
-        Model.create({"key": 1, "partner_id": partner_1.id, "value": 1})
-        Model.create({"key": 1, "partner_id": partner_1.id, "value": 2})
-        Model.create({"key": 1, "partner_id": partner_2.id, "value": 3})
-        Model.create({"key": 2, "partner_id": partner_2.id, "value": 4})
-        Model.create({"key": 2, "partner_id": partner_2.id})
-        Model.create({"key": 2, "value": 5})
-        Model.create({"partner_id": partner_2.id, "value": 5})
-        Model.create({"value": 6})
-        Model.create({})
+        _create_aggregate_records(Model, Partner)
 
         grouping_sets = [["key", "partner_id"], ["key"], ["partner_id"], []]
         expected_result = [
@@ -314,9 +330,7 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
 
             expected_result = [
                 tasks._read_group(domain, groupby, aggregates, order=order)
-                for groupby, order in zip(
-                    grouping_sets, read_group_orders, strict=False
-                )
+                for groupby, order in zip(grouping_sets, read_group_orders, strict=True)
             ]
             with (
                 self.subTest(f"Case {i} - {grouping_sets!r} - {aggregates!r}"),
@@ -339,17 +353,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
     def test_simple_formatted_read_grouping_sets(self):
         Model = self.env["test_read_group.aggregate"]
         Partner = self.env["res.partner"]
-        partner_1 = Partner.create({"name": "z_one"})
-        partner_2 = Partner.create({"name": "a_two"})
-        Model.create({"key": 1, "partner_id": partner_1.id, "value": 1})
-        Model.create({"key": 1, "partner_id": partner_1.id, "value": 2})
-        Model.create({"key": 1, "partner_id": partner_2.id, "value": 3})
-        Model.create({"key": 2, "partner_id": partner_2.id, "value": 4})
-        Model.create({"key": 2, "partner_id": partner_2.id})
-        Model.create({"key": 2, "value": 5})
-        Model.create({"partner_id": partner_2.id, "value": 5})
-        Model.create({"value": 6})
-        Model.create({})
+        _create_aggregate_records(Model, Partner)
 
         grouping_sets = [["partner_id", "key"], ["key"], ["partner_id"], []]
         expected_result = [
@@ -436,9 +440,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
 
             expected_result = [
                 tasks.formatted_read_group(domain, groupby, aggregates, order=order)
-                for groupby, order in zip(
-                    grouping_sets, read_group_orders, strict=False
-                )
+                for groupby, order in zip(grouping_sets, read_group_orders, strict=True)
             ]
             with (
                 self.subTest(f"Case {i} - {grouping_sets!r} - {aggregates!r}"),
@@ -652,16 +654,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
 
         aggregates_sets = [["__count"], ["__count", "id:sum"], ["id:max"]]
         grouping_sets = [["bar_id.base_ids"], ["bar_id"], []]
-
-        for aggregates in aggregates_sets:
-            expected_result = [
-                RelatedFoo.formatted_read_group([], groupby, aggregates)
-                for groupby in grouping_sets
-            ]
-            self.assertEqual(
-                RelatedFoo.formatted_read_grouping_sets([], grouping_sets, aggregates),
-                expected_result,
-            )
+        _assert_grouping_sets_equiv(self, RelatedFoo, grouping_sets, aggregates_sets)
 
         bases[0].foo_id = foos[0].id
         (bases[1] + bases[2]).foo_id = foos[1].id
@@ -672,15 +665,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             ["value"],
             [],
         ]
-        for aggregates in aggregates_sets:
-            expected_result = [
-                RelatedBase.formatted_read_group([], groupby, aggregates)
-                for groupby in grouping_sets
-            ]
-            self.assertEqual(
-                RelatedBase.formatted_read_grouping_sets([], grouping_sets, aggregates),
-                expected_result,
-            )
+        _assert_grouping_sets_equiv(self, RelatedBase, grouping_sets, aggregates_sets)
 
         grouping_sets = [
             [],
@@ -695,12 +680,4 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
             ["foo_id_bar_id_name"],
             ["foo_id_bar_name"],
         ]
-        for aggregates in aggregates_sets:
-            expected_result = [
-                RelatedBase.formatted_read_group([], groupby, aggregates)
-                for groupby in grouping_sets
-            ]
-            self.assertEqual(
-                RelatedBase.formatted_read_grouping_sets([], grouping_sets, aggregates),
-                expected_result,
-            )
+        _assert_grouping_sets_equiv(self, RelatedBase, grouping_sets, aggregates_sets)
