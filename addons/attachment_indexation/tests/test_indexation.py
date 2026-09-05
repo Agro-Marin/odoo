@@ -88,7 +88,19 @@ class TestCaseIndexation(TransactionCase):
         )
         self.assertEqual(Att._get_index_read_size("text/plain"), Att._INDEX_MAX_BYTES)
         self.assertEqual(Att._get_index_read_size("video/mp4"), 0)
-        self.assertEqual(Att._get_index_read_size("application/octet-stream"), 0)
+        self.assertEqual(Att._get_index_read_size("image/png"), 0)
+
+    def test_index_read_size_generic_mimetype_reads_full(self):
+        """An unlabelled or generic mimetype (empty, or the browser's
+        'application/octet-stream' fallback) must still read the whole file
+        rather than skip: this method only sees the caller's declared
+        string, so only `_index`'s Document, once given the full bytes, can
+        recognise a real document the declared string could not. Genuinely
+        unindexable media is always declared with its own specific
+        mimetype, never a generic one, so it still skips (asserted above)."""
+        Att = self.env["ir.attachment"]
+        self.assertIsNone(Att._get_index_read_size(""))
+        self.assertIsNone(Att._get_index_read_size("application/octet-stream"))
 
     @skipIf(PDFResourceManager is None, "pdfminer not installed")
     def test_streamed_pdf_reads_full_content_and_indexes(self):
@@ -121,4 +133,36 @@ class TestCaseIndexation(TransactionCase):
             Att._INDEX_MAX_BYTES,
             read_sizes,
             "must not cap the document index read at the prefix",
+        )
+
+    def test_streamed_generic_mimetype_still_indexes_a_real_docx(self):
+        """`mimetype='TRUST'` hands `_create_from_request_file` the caller's
+        declared Content-Type verbatim, with no filename- or byte-based
+        correction (this is `documents.py`'s upload path for internal
+        users). When that declared type is generic
+        (`application/octet-stream`), the real document underneath must
+        still be read back in full and indexed, not silently skipped."""
+        Att = self.env["ir.attachment"]
+        document_xml = (
+            b'<?xml version="1.0"?>'
+            b'<w:document xmlns:w="ns"><w:body><w:p>PROBE_TEXT_HERE</w:p>'
+            b"</w:body></w:document>"
+        )
+        fs = FileStorage(
+            stream=io.BytesIO(_build_docx(document_xml)),
+            filename="report.docx",
+            content_type="application/octet-stream",
+        )
+        att = Att._create_from_request_file(fs, mimetype="TRUST")
+
+        self.assertTrue(att.store_fname, "docx must stream to the filestore")
+        self.assertEqual(
+            att.mimetype,
+            "application/octet-stream",
+            "TRUST mode must not correct the declared mimetype",
+        )
+        self.assertIn(
+            "PROBE_TEXT_HERE",
+            att.index_content or "",
+            "a real docx must still be indexed despite a generic declared mimetype",
         )
