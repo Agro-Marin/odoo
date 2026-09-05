@@ -120,13 +120,19 @@ class MixinOrderDocumentMatch(models.AbstractModel):
         return SQL("account_move am")
 
     @api.model
+    def _get_move_types(self):
+        if not self._move_types:
+            raise NotImplementedError(f"{self._name} must declare _move_types")
+        return self._move_types
+
+    @api.model
     def _where_moves(self):
         return SQL(
             """
             am.move_type IN %(move_types)s
             AND am.state = 'posted'
             """,
-            move_types=tuple(self._move_types),
+            move_types=tuple(self._get_move_types()),
         )
 
     @api.model
@@ -164,8 +170,14 @@ class MixinOrderDocumentMatch(models.AbstractModel):
         )
 
     @api.model
+    def _get_order_table(self):
+        if not self._order_table:
+            raise NotImplementedError(f"{self._name} must declare _order_table")
+        return self._order_table
+
+    @api.model
     def _from_orders(self):
-        return SQL("%s o", SQL.identifier(self._order_table))
+        return SQL("%s o", SQL.identifier(self._get_order_table()))
 
     @api.model
     def _where_orders(self):
