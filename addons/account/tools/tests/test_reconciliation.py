@@ -1,4 +1,6 @@
 from addons.account.tools.reconciliation import (
+    _partial_amounts_across_rates,
+    _ranges_overlap,
     amount_range_after_rate,
     pick_reconciliation_currency,
 )
@@ -16,6 +18,14 @@ class Rounding:
         if remainder >= 0.5:
             floored += 1 if quotient >= 0 else -1
         return floored * self.rounding
+
+    def compare_amounts(self, amount1, amount2):
+        diff = self.round(amount1 - amount2)
+        if diff > 0:
+            return 1
+        if diff < 0:
+            return -1
+        return 0
 
     def __repr__(self):
         return f"<{self.name}>"
@@ -103,3 +113,62 @@ def test_debit_wins_when_both_foreign_currencies_qualify():
     assert pick_reconciliation_currency(FOREIGN_B, FOREIGN_A, COMPANY, both, both) is (
         FOREIGN_B
     )
+
+
+def test_ranges_overlap_when_each_amount_sits_inside_the_other_range():
+    debit_range = (10.00, 10.02, 10.04)
+    credit_range = (10.01, 10.03, 10.05)
+    assert _ranges_overlap(CENTS, 10.02, 10.03, debit_range, credit_range)
+
+
+def test_ranges_do_not_overlap_when_an_amount_falls_outside_the_other_range():
+    debit_range = (10.00, 10.02, 10.04)
+    credit_range = (10.01, 10.03, 10.05)
+    assert not _ranges_overlap(CENTS, 9.00, 10.03, debit_range, credit_range)
+
+
+def test_across_rates_settles_each_side_within_its_own_band_when_bands_dont_overlap():
+    context = {
+        "company_currency": CENTS,
+        "debit_currency": UNITS,
+        "credit_currency": UNITS,
+        "min_recon_amount": 100.0,
+        "debit_recon_values": {"rate": 0.5},
+        "credit_recon_values": {"rate": 0.4},
+        "remaining_debit_amount": 300.0,
+        "remaining_credit_amount": -300.0,
+    }
+    # debit_range = amount_range_after_rate(UNITS, CENTS, 100.0, 1/0.5) = (199.0, 200.0, 201.0)
+    # credit_range = amount_range_after_rate(UNITS, CENTS, 100.0, 1/0.4) = (248.75, 250.0, 251.25)
+    # Neither band contains the other's midpoint, so the ranges don't overlap and
+    # each side settles at its own converted amount rather than the full residual.
+    assert _partial_amounts_across_rates(context) == {
+        "partial_amount": 200.0,
+        "partial_debit_amount_currency": 100.0,
+        "partial_credit_amount_currency": 100.0,
+        "partial_debit_amount": 200.0,
+        "partial_credit_amount": 250.0,
+    }
+
+
+def test_across_rates_collapses_to_the_full_residual_when_bands_overlap():
+    context = {
+        "company_currency": CENTS,
+        "debit_currency": UNITS,
+        "credit_currency": UNITS,
+        "min_recon_amount": 100.0,
+        "debit_recon_values": {"rate": 0.5},
+        "credit_recon_values": {"rate": 0.5},
+        "remaining_debit_amount": 300.0,
+        "remaining_credit_amount": -300.0,
+    }
+    # Both sides convert to the identical (199.0, 200.0, 201.0) band, so each
+    # amount necessarily falls inside the other's band: settle the whole
+    # residual instead of leaving a rounding-window cent behind.
+    assert _partial_amounts_across_rates(context) == {
+        "partial_amount": 300.0,
+        "partial_debit_amount_currency": 100.0,
+        "partial_credit_amount_currency": 100.0,
+        "partial_debit_amount": 300.0,
+        "partial_credit_amount": 300.0,
+    }
