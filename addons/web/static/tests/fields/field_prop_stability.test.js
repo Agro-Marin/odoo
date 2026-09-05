@@ -51,10 +51,11 @@ class Partner extends models.Model {
 class Line extends models.Model {
     _name = "line";
     name = fields.Char();
+    other = fields.Char();
     partner_id = fields.Many2one({ relation: "partner" });
     _records = [
-        { id: 1, name: "l1", partner_id: 1 },
-        { id: 2, name: "l2", partner_id: 1 },
+        { id: 1, name: "l1", other: "o1", partner_id: 1 },
+        { id: 2, name: "l2", other: "o2", partner_id: 1 },
     ];
 }
 
@@ -248,6 +249,64 @@ test("x2many kanban does not re-render its sub-view on an unrelated edit", async
     expect(stats["fields.CharField"]).toBe(5);
     expect(stats["kanban.KanbanRenderer"] || 0).toBe(0);
     expect(stats["kanban.KanbanRecord"] || 0).toBe(0);
+});
+
+// What the two tests above rely on: a sub-view modifier that reads `parent.*`
+// must still follow the parent, now that the parent's render no longer reaches
+// the sub-view. It does, through reactivity on the parent record's data; this
+// is the control that says the zeros above are not a sub-view frozen in place.
+test("x2many sub-view modifiers reading parent still follow the parent", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="flag"/>
+                <field name="line_ids">
+                    <list editable="bottom">
+                        <field name="name" readonly="parent.flag"/>
+                        <field name="other" column_invisible="parent.flag"/>
+                    </list>
+                </field>
+            </form>`,
+    });
+    await animationFrame();
+    expect(".o_field_x2many_list th[data-name]").toHaveCount(2);
+    expect(".o_data_row .o_data_cell.o_readonly_modifier").toHaveCount(0);
+
+    await contains("[name='flag'] input").click();
+    await animationFrame();
+
+    expect(".o_field_x2many_list th[data-name]").toHaveCount(1);
+    expect(".o_data_row .o_data_cell.o_readonly_modifier").toHaveCount(2);
+});
+
+test("x2many kanban card modifiers reading parent still follow the parent", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="flag"/>
+                <field name="line_ids">
+                    <kanban>
+                        <t t-name="card">
+                            <field name="name"/>
+                            <span class="o_probe" invisible="parent.flag">X</span>
+                        </t>
+                    </kanban>
+                </field>
+            </form>`,
+    });
+    await animationFrame();
+    expect(".o_kanban_record .o_probe").toHaveCount(2);
+
+    await contains("[name='flag'] input").click();
+    await animationFrame();
+
+    expect(".o_kanban_record .o_probe").toHaveCount(0);
 });
 
 // Each toggle saves, and the save reloads the x2many, so its record objects are
