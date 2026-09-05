@@ -214,11 +214,12 @@ class CommandService {
                     ...options.hotkeyOptions,
                     global: registration.global,
                     isAvailable: (/** @type {any[]} */ ...args) =>
-                        (registration.isAvailable?.(...args) ?? true) &&
-                        (options.hotkeyOptions?.isAvailable?.(
-                            .../** @type {[any]} */ (args),
-                        ) ??
-                            true),
+                        (!registration.isAvailable ||
+                            registration.isAvailable(...args)) &&
+                        (!options.hotkeyOptions?.isAvailable ||
+                            options.hotkeyOptions.isAvailable(
+                                .../** @type {[any]} */ (args),
+                            )),
                 },
             );
         }

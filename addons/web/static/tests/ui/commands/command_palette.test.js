@@ -1774,6 +1774,56 @@ test("a search that fails is reported, not swallowed", async () => {
     expect.verifyErrors([/Cannot read properties of undefined/]);
 });
 
+test("two commands that cannot render in one pass both lose their row", async () => {
+    expect.errors(2);
+    let poison = false;
+    class Poisoned extends Component {
+        static template = xml`<span class="poisoned"/>`;
+        static props = ["*"];
+        setup() {
+            if (poison) {
+                throw new Error(`poisoned ${this.props.which}`);
+            }
+        }
+    }
+    const palette = await mountPalette(() => [
+        { name: "cmd a", action: () => {} },
+        { name: "cmd b", action: () => {}, Component: Poisoned, props: { which: "b" } },
+        { name: "cmd c", action: () => {}, Component: Poisoned, props: { which: "c" } },
+        { name: "cmd d", action: () => {} },
+    ]);
+    expect(".poisoned").toHaveCount(2);
+
+    poison = true;
+    await click(".o_command_palette_search input");
+    await edit("cmd");
+    await runAllTimers();
+    await animationFrame();
+    await animationFrame();
+
+    expect(".o_command_palette").toHaveCount(1);
+    expect(".poisoned").toHaveCount(0);
+    expect(queryAllTexts(".o_command_name")).toEqual(["cmd a", "cmd d"]);
+    expect(palette.state.commands.map((c) => c.index)).toEqual([0, 1]);
+    expect(queryAll(".o_command").map((el) => el.id)).toEqual([
+        "o_command_0",
+        "o_command_1",
+    ]);
+    expect.verifyErrors([/poisoned b/, /poisoned c/]);
+});
+
+test("a failing initial search is reported and closes the palette", async () => {
+    expect.errors(1);
+    await mountWithCleanup(MainComponentsContainer);
+    getService("dialog").add(CommandPalette, {
+        config: { providers: [{ provide: () => /** @type {any} */ (undefined) }] },
+    });
+    await animationFrame();
+    await animationFrame();
+    expect(".o_command_palette").toHaveCount(0);
+    expect.verifyErrors([/Cannot read properties of undefined/]);
+});
+
 test("one command that cannot render loses its row, not the palette", async () => {
     expect.errors(1);
     let poison = false;

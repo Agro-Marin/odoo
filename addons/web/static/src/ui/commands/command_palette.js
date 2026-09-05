@@ -460,19 +460,23 @@ export class CommandPalette extends Component {
      */
     handleCommandError(command, error) {
         const key = commandKey(command);
-        if (this.brokenCommands.has(key)) {
-            return;
-        }
+        const known = this.brokenCommands.has(key);
         this.brokenCommands.add(key);
-        if (this.state.commands.includes(command)) {
-            this.state.commands = markRaw(
-                this.state.commands
-                    .filter((c) => c !== command)
-                    .map((c, index) => ({ ...c, index })),
-            );
-            this.selectCommand(this.state.commands.length ? 0 : -1);
+        // Two rows can crash in the same render pass. The list is filtered
+        // by key, not by identity, so a row already reported as broken is
+        // still dropped when the pass that drops its predecessor leaves it in
+        // place; the survivors keep their objects, hence their keyIds.
+        const remaining = this.state.commands.filter((c) => commandKey(c) !== key);
+        if (remaining.length !== this.state.commands.length) {
+            remaining.forEach((c, index) => {
+                c.index = index;
+            });
+            this.state.commands = markRaw(remaining);
+            this.selectCommand(remaining.length ? 0 : -1);
         }
-        reportUncaught(error);
+        if (!known) {
+            reportUncaught(error);
+        }
     }
 
     /**
