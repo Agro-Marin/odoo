@@ -90,7 +90,7 @@ patch(BarcodeParser.prototype, {
             if (
                 parseInt(match[2][match[2].length - 1]) !==
                 this.get_barcode_check_digit(
-                    "0".repeat(18 - match[2].length) + match[2],
+                    "0".repeat(Math.max(0, 18 - match[2].length)) + match[2],
                 )
             ) {
                 return null;
