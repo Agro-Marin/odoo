@@ -23,7 +23,7 @@ from odoo.tools.image import (
 )
 from odoo.tools.misc import file_open
 
-from ..models.ir_attachment import SUPPORTED_IMAGE_MIMETYPES
+from ..models.ir_attachment import SUPPORTED_IMAGE_EXTENSIONS, SUPPORTED_IMAGE_MIMETYPES
 from odoo.addons.html_editor.tools import get_video_url_data
 from odoo.addons.iap.tools import iap_tools
 from odoo.addons.mail.tools import link_preview
@@ -373,7 +373,7 @@ class HTML_Editor(http.Controller):
         if is_image:
             format_error_msg = _(
                 "Uploaded image's format is not supported. Try with: %s",
-                ", ".join(SUPPORTED_IMAGE_MIMETYPES.values()),
+                ", ".join(f".{extension}" for extension in SUPPORTED_IMAGE_EXTENSIONS),
             )
             try:
                 mimetype = guess_mimetype(data)

@@ -163,10 +163,11 @@ _BUILTIN_FORMATS = (
     ("application/x-subrip", "srt", CUES, {"application/x-srt", "text/srt"}, "SubRip"),
     ("application/pdf", "pdf", TEXT, (), "PDF"),
     ("image/png", "png", IMAGES, (), "PNG image"),
-    ("image/jpeg", "jpg", IMAGES, {"image/jpg"}, "JPEG image"),
+    ("image/jpeg", "jpg", IMAGES, {"image/jpg", "image/jpe"}, "JPEG image"),
     ("image/webp", "webp", IMAGES, (), "WebP image"),
     ("image/gif", "gif", IMAGES, (), "GIF image"),
     ("image/bmp", "bmp", IMAGES, (), "Bitmap image"),
+    ("image/svg+xml", "svg", TREE, (), "SVG image"),
     (
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "xlsx",

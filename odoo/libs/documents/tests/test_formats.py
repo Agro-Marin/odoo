@@ -61,7 +61,8 @@ class TestLookup(unittest.TestCase):
 
     def test_a_format_lists_its_own_spellings(self):
         self.assertEqual(
-            self._format("image/jpeg").mimetypes, {"image/jpeg", "image/jpg"}
+            self._format("image/jpeg").mimetypes,
+            {"image/jpeg", "image/jpg", "image/jpe"},
         )
 
     def test_an_alias_finds_the_format(self):

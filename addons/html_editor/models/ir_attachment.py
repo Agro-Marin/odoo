@@ -2,16 +2,15 @@ from urllib.parse import quote
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.documents import get_format_of_extension
 from odoo.tools.image import base64_to_image
 
+SUPPORTED_IMAGE_EXTENSIONS = ('gif', 'jpg', 'png', 'svg', 'webp')
+# Every spelling of each format, mapped to the extension a file of it is written under.
 SUPPORTED_IMAGE_MIMETYPES = {
-    'image/gif': '.gif',
-    'image/jpe': '.jpe',
-    'image/jpeg': '.jpeg',
-    'image/jpg': '.jpg',
-    'image/png': '.png',
-    'image/svg+xml': '.svg',
-    'image/webp': '.webp',
+    mimetype: f'.{extension}'
+    for extension in SUPPORTED_IMAGE_EXTENSIONS
+    for mimetype in get_format_of_extension(extension).mimetypes
 }
 
 
