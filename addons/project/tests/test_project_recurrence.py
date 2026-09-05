@@ -631,6 +631,32 @@ class TestRecurrenceDefaults(TestProjectCommon):
         )
         self.assertTrue(rec)
 
+    @freeze_time("2026-01-01 03:00:00")
+    def test_recurrence_until_accepts_today_in_user_timezone(self) -> None:
+        """Today in Mexico is still a valid end date while UTC already says tomorrow.
+
+        03:00 UTC is 21:00 of the previous day here, so for six hours every day
+        the naive UTC date is one day ahead of the date the user is looking at.
+        """
+        self.env.user.tz = "America/Mexico_City"
+        Recurrence = self.env["project.task.recurrence"]
+        local_today = fields.Date.context_today(Recurrence)
+        self.assertEqual(
+            (str(local_today), str(fields.Date.today())),
+            ("2025-12-31", "2026-01-01"),
+            "the fixture must actually straddle midnight in UTC",
+        )
+        rec = Recurrence.create(
+            {
+                "repeat_type": "until",
+                "repeat_until": local_today,
+            }
+        )
+        self.assertTrue(
+            rec,
+            "the end date the user sees as today must not be rejected as past",
+        )
+
     def test_recurrence_until_respects_user_timezone(self) -> None:
         self.env.user.tz = "Etc/GMT+6"
         step = self.env["project.workflow.step"].create(

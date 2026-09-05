@@ -239,3 +239,32 @@ class TestProjectUpdate(TestProjectCommon):
         self.assertListEqual(
             project_update_data_list, [self.project_pigs.task_count, 2, 67]
         )
+
+    def test_project_update_order_follows_date(self) -> None:
+        """The update the user dated last comes first, whatever the creation order."""
+        Update = self.env["project.update"]
+        today = fields.Date.context_today(Update)
+        recent = Update.create(
+            {
+                "name": "Dated today",
+                "project_id": self.project_pigs.id,
+                "status": "on_track",
+                "date": today,
+            }
+        )
+        older = Update.create(
+            {
+                "name": "Dated yesterday",
+                "project_id": self.project_pigs.id,
+                "status": "on_track",
+                "date": today - relativedelta(days=1),
+            }
+        )
+        # Recordset equality falls back to comparing sets of ids, so the order
+        # this test is about only shows up on .ids.
+        self.assertEqual(
+            Update.search([("project_id", "=", self.project_pigs.id)]).ids,
+            (recent + older).ids,
+            "Project updates are ordered by the date the user set on them, not by"
+            " the order they happened to be created in",
+        )

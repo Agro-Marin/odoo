@@ -21,8 +21,10 @@ export const ProjectTaskModelMixin = (T) =>
         }
 
         _processSearchDomain(domain) {
-            const { my_tasks, subtask_action } = this.env.searchModel.globalContext;
-            const showSubtasks = my_tasks || subtask_action || getShowSubtasks();
+            const { my_tasks, subtask_action, activity_action } =
+                this.env.searchModel.globalContext;
+            const showSubtasks =
+                my_tasks || subtask_action || activity_action || getShowSubtasks();
             if (
                 ["project.task", "report.project.task.user"].includes(
                     this.env.searchModel.resModel,

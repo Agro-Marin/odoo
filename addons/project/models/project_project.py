@@ -1840,7 +1840,7 @@ class ProjectProject(models.Model):
                     {
                         "name": _(
                             "Status Update - %(date)s",
-                            date=fields.Date.today().strftime(
+                            date=fields.Date.context_today(self).strftime(
                                 get_lang(self.env).date_format
                             ),
                         ),
@@ -2843,7 +2843,7 @@ class ProjectProject(models.Model):
 
         if self.date_start and self.date:
             if not values.get("date_start"):
-                values["date_start"] = fields.Date.today()
+                values["date_start"] = fields.Date.context_today(self)
             if not values.get("date"):
                 values["date"] = values["date_start"] + (self.date - self.date_start)
 

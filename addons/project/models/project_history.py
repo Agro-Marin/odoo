@@ -114,7 +114,9 @@ class ProjectHistory(models.Model):
         closed_tasks = tasks.filtered(lambda t: t.state in CLOSED_STATES)
         closed_dates = closed_tasks.filtered("date_closed").mapped("date_closed")
         completion_date = (
-            max(closed_dates).date() if closed_dates else fields.Date.today()
+            max(closed_dates).date()
+            if closed_dates
+            else fields.Date.context_today(self)
         )
 
         actual_days = 0
