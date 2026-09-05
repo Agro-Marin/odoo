@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 
+from lxml import html
+
 from odoo import Command
 from odoo.http import Request
 from odoo.tests.common import HttpCase, tagged
@@ -121,3 +123,28 @@ class TestUsersHttp(HttpCase):
             },
         )
         self.assertEqual(anonymous_partner.name, new_name)
+
+
+@tagged("-at_install", "post_install")
+class TestPortalHomeHeadings(HttpCase):
+    """The portal landing page is a public-facing document: it needs an h1."""
+
+    def test_portal_home_exposes_one_level_one_heading(self):
+        login = "test_portal_headings"
+        mail_new_test_user(
+            self.env,
+            login,
+            groups="base.group_portal",
+            name="Heading User",
+        )
+        self.authenticate(login, login)
+
+        response = self.url_open("/my/home")
+        self.assertEqual(response.status_code, 200)
+
+        headings = html.fromstring(response.content).xpath("//h1")
+        self.assertEqual(
+            [heading.text_content().strip() for heading in headings],
+            ["My account"],
+            "/my/home must carry exactly one h1, and it must name the page.",
+        )
