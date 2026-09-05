@@ -3,7 +3,7 @@ import { click, waitFor } from "@odoo/hoot-dom";
 import { getFilledOrder, setupPosEnv } from "@point_of_sale/../tests/unit/utils";
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
 import { ProductScreen } from "@point_of_sale/app/screens/product_screen/product_screen";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { MockServer, mountWithCleanup } from "@web/../tests/web_test_helpers";
 
 import { definePosSaleModels } from "../data/generate_model_definitions.js";
 
@@ -69,6 +69,32 @@ describe("onClickSaleOrder", () => {
         expect(currentOrder.lines[3].qty).toBe(3);
         expect(currentOrder.lines[3].price_unit).toBe(50);
         expect(currentOrder.lines[3].prices.total_excluded).toBe(150);
+    });
+
+    test("settle → a fully delivered SO line is skipped", async () => {
+        const store = await setupPosEnv();
+        // SO line 2 (product 6, ordered 3) has already been delivered in full,
+        // so settling the order has nothing left to sell for it.
+        MockServer.env["sale.order.line"].write([2], { qty_transferred: 3 });
+        const order = await getFilledOrder(store);
+        await mountWithCleanup(ProductScreen, { props: { orderUuid: order.uuid } });
+
+        const promiseResult = store.onClickSaleOrder(1);
+        const button = ".modal-body button:contains('Settle the order')";
+        await waitFor(button);
+        await click(button);
+        await promiseResult;
+
+        const currentOrder = store.getOrder();
+        expect(currentOrder.id).toBe(order.id);
+        // The two pre-existing lines plus the ONE line still to deliver: the
+        // delivered line must not land on the ticket as an empty line.
+        expect(currentOrder.lines.length).toBe(3);
+        expect(currentOrder.lines.filter((l) => l.qty === 0).length).toBe(0);
+
+        expect(currentOrder.lines[2].product_id.id).toBe(5);
+        expect(currentOrder.lines[2].qty).toBe(5);
+        expect(currentOrder.lines[2].price_unit).toBe(100);
     });
 
     test("dpPercentage → calls downPaymentSO", async () => {
