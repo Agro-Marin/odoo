@@ -2861,13 +2861,21 @@ class ProjectProject(models.Model):
             body=self.env._("Project created from template %(name)s.", name=self.name)
         )
 
+        # Task templates are copied into the new project with their template
+        # flag intact, and their roles are what makes a task created from them
+        # dispatch later on.  Dispatching them now, or clearing their roles
+        # along with the regular tasks, would leave the new project holding
+        # templates that assign nobody.
+        dispatching = project.task_ids.filtered(
+            lambda task: not task.has_template_ancestor
+        )
         if role_to_users_mapping and (
             mapping := role_to_users_mapping.filtered(lambda entry: entry.user_ids)
         ):
-            for new_task in project.task_ids:
+            for new_task in dispatching:
                 for entry in mapping:
                     if entry.role_id in new_task.role_ids:
                         new_task.user_ids |= entry.user_ids
 
-        project.task_ids.role_ids = False
+        dispatching.role_ids = False
         return project

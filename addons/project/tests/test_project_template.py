@@ -306,6 +306,79 @@ class TestProjectTemplates(TestProjectCommon):
             "Task 7 should be assigned to the users mapped to `role2` and `role3`, plus the users who were already assigned to the task.",
         )
 
+    def test_task_templates_keep_their_roles_when_created_from_template(self) -> None:
+        """Roles are consumed by the tasks, not by the task templates.
+
+        A project template can hold task templates; they are copied into the
+        new project with `is_template` intact. Their roles are what makes a
+        task created from them dispatch later, so wiping them turns the copied
+        template into a template that assigns nobody.
+        """
+        role = self.env["resource.role"].create({"name": "Developer"})
+        self.task_inside_template.role_ids = role
+        self.task_template_inside_template.role_ids = role
+        subtask_of_template = self.env["project.task"].create(
+            {
+                "name": "C Subtask of the Task Template",
+                "project_id": self.project_template.id,
+                "parent_id": self.task_template_inside_template.id,
+                "role_ids": [Command.link(role.id)],
+            }
+        )
+        self.assertTrue(subtask_of_template.has_template_ancestor)
+
+        wizard = self.env["project.template.create.wizard"].create(
+            {
+                "template_id": self.project_template.id,
+                "name": "New Project from Template",
+                "role_to_users_ids": [
+                    Command.create(
+                        {
+                            "role_id": role.id,
+                            "user_ids": [self.user_projectuser.id],
+                        }
+                    ),
+                ],
+            }
+        )
+        new_project = wizard._create_project_from_template()
+
+        new_task = new_project.task_ids.filtered(
+            lambda t: t.name == self.task_inside_template.name
+        )
+        new_template = new_project.task_ids.filtered(
+            lambda t: t.name == self.task_template_inside_template.name
+        )
+        new_subtask = new_project.with_context(active_test=False).task_ids.filtered(
+            lambda t: t.name == subtask_of_template.name
+        )
+        self.assertTrue(new_template.is_template)
+
+        self.assertEqual(
+            new_task.user_ids,
+            self.user_projectuser,
+            "A regular task must still be dispatched to the users mapped to its role.",
+        )
+        self.assertFalse(
+            new_task.role_ids,
+            "A regular task must still drop its roles once dispatched.",
+        )
+
+        self.assertEqual(
+            new_template.role_ids,
+            role,
+            "A copied task template must keep the roles it dispatches with.",
+        )
+        self.assertFalse(
+            new_template.user_ids,
+            "A copied task template must not be dispatched to anyone.",
+        )
+        self.assertEqual(
+            new_subtask.role_ids,
+            role,
+            "A subtask of a copied task template must keep its roles too.",
+        )
+
     @freeze_time("2025-06-15")
     def test_create_from_template_no_dates(self) -> None:
         today = date.today()
