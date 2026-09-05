@@ -143,7 +143,7 @@
                     position="after">
                     <field
                         name="l10n_hr_kpd_category_id"
-                        coloumn_invisible="parent.country_code != 'HR'"
+                        column_invisible="parent.country_code != 'HR'"
                         options="{'no_create': True, 'readonly': False}" />
                 </xpath>
             </field>
