@@ -494,6 +494,61 @@ class TestImportModule(odoo.tests.TransactionCase):
             "`state` domain condition, not silently returned",
         )
 
+    def test_button_immediate_upgrade_hidden_for_imported_module(self):
+        """t30855 r2 f1: upstream hides `button_immediate_upgrade` for
+        imported modules in both the Apps kanban and form views (an
+        `imported` clause in the `invisible` condition), since an imported
+        module has no addon path on disk and cannot be meaningfully
+        re-upgraded from the registry loader. This fork's views had dropped
+        that clause, so the button would show for a normal (module_type
+        'official') installed imported module."""
+        import lxml.etree
+
+        IrModuleModule = self.env["ir.module.module"]
+        kanban_arch = IrModuleModule.get_view(
+            self.env.ref("base.module_view_kanban").id, "kanban"
+        )["arch"]
+        form_arch = IrModuleModule.get_view(
+            self.env.ref("base.module_form").id, "form"
+        )["arch"]
+        kanban_node = lxml.etree.fromstring(kanban_arch).xpath(
+            "//a[@name='button_immediate_upgrade']"
+        )[0]
+        form_node = lxml.etree.fromstring(form_arch).xpath(
+            "//button[@name='button_immediate_upgrade']"
+        )[0]
+        self.assertIn(
+            "imported",
+            kanban_node.get("invisible") or "",
+            "kanban Upgrade button must stay hidden for imported modules",
+        )
+        self.assertIn(
+            "imported",
+            form_node.get("invisible") or "",
+            "form Upgrade button must stay hidden for imported modules",
+        )
+
+    def test_decorate_apps_modules_batches_search(self):
+        """t30855 r2 f2: `_decorate_apps_modules` ran one `self.search(...)`
+        per module returned by the apps.odoo.com catalog response, an N+1
+        query pattern scaling with the full catalog size. It must issue a
+        single batched search regardless of how many modules are decorated."""
+        self.env["ir.module.module"].create(
+            {"name": "module_a", "state": "installed", "imported": True}
+        )
+        modules_list = [
+            {"name": "module_a"},
+            {"name": "module_b"},
+            {"name": "module_c"},
+        ]
+        with self.assertQueryCount(default=1):
+            self.env["ir.module.module"]._decorate_apps_modules(
+                modules_list, ["name", "state"], "official"
+            )
+        self.assertEqual(modules_list[0]["state"], "installed")
+        self.assertEqual(modules_list[1]["state"], "uninstalled")
+        self.assertEqual(modules_list[2]["state"], "uninstalled")
+
     def test_import_and_uninstall_module(self):
         bundle = "web.assets_backend"
         path = "/test_module/static/src/js/test.js"
