@@ -89,3 +89,40 @@ test("project.task (list): toggle sub-tasks", async () => {
     await animationFrame();
     expect(".o_data_row").toHaveCount(2);
 });
+
+test("project.task (list): activities opened from the systray list sub-tasks", async () => {
+    // The activity menu counts activities on sub-tasks, so the list it opens
+    // must show them even when the "Show Sub-Tasks" preference is off.
+    ProjectTask._records = [
+        {
+            id: 1,
+            project_id: 1,
+            name: "Task 1",
+            step_id: 1,
+            display_in_project: true,
+        },
+        {
+            id: 2,
+            project_id: 1,
+            name: "Task 2",
+            step_id: 1,
+            display_in_project: false,
+        },
+    ];
+    await mountView({
+        resModel: "project.task",
+        type: "list",
+        context: { activity_action: true },
+        arch: `
+            <list multi_edit="1" js_class="project_task_list">
+                <field name="project_id"/>
+                <field name="step_id"/>
+            </list>
+        `,
+    });
+    expect(".o_data_row").toHaveCount(2, {
+        message:
+            "the sub-task carrying an activity must be listed, without the user" +
+            " having to turn Show Sub-Tasks on first",
+    });
+});
