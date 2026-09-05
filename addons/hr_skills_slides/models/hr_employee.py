@@ -5,21 +5,21 @@ class HrEmployee(models.Model):
     _inherit = "hr.employee"
 
     subscribed_courses = fields.Many2many(
-        "slide.channel", related="user_partner_id.slide_channel_ids"
+        "slide.channel", related="work_contact_id.slide_channel_ids"
     )
     has_subscribed_courses = fields.Boolean(compute="_compute_courses_completion_text")
     courses_completion_text = fields.Char(compute="_compute_courses_completion_text")
 
     @api.depends_context("lang")
-    @api.depends("subscribed_courses", "user_partner_id.slide_channel_completed_ids")
+    @api.depends("subscribed_courses", "work_contact_id.slide_channel_completed_ids")
     def _compute_courses_completion_text(self):
         for employee in self:
-            if not employee.user_partner_id:
+            if not employee.work_contact_id:
                 employee.courses_completion_text = False
                 employee.has_subscribed_courses = False
                 continue
             total_completed_courses = len(
-                employee.user_partner_id.slide_channel_completed_ids
+                employee.work_contact_id.slide_channel_completed_ids
             )
             total = len(employee.subscribed_courses)
             employee.courses_completion_text = _(

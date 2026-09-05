@@ -23,7 +23,7 @@ const storeServicePatch = {
             const [employeeData] = await this.env.services.orm.silent.read(
                 "hr.employee.public",
                 [employee.id],
-                ["user_id", "user_partner_id"],
+                ["user_id", "work_contact_id"],
                 { context: { active_test: false } },
             );
             if (employeeData && employeeData.user_id) {
@@ -31,8 +31,8 @@ const storeServicePatch = {
                 this["res.users"].insert({
                     id: employee.user_id,
                     partner_id: {
-                        display_name: employeeData.user_partner_id[1],
-                        id: employeeData.user_partner_id[0],
+                        display_name: employeeData.work_contact_id[1],
+                        id: employeeData.work_contact_id[0],
                     },
                 });
             }

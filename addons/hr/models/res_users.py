@@ -248,7 +248,7 @@ class ResUsers(models.Model):
         return res
 
     def _get_employee_field_names_to_sync(self):
-        return ["name", "email", "image_1920", "tz"]
+        return ["tz"]
 
     def _get_notify_reason_and_partner_ids(self, employee):
         if employee.version_id.hr_responsible_id:
@@ -297,18 +297,7 @@ class ResUsers(models.Model):
         }
         if not employee_values:
             return
-        if "email" in employee_values:
-            employee_values["work_email"] = employee_values.pop("email")
-        Employee = self.env["hr.employee"].sudo()
-        if "image_1920" not in vals:
-            Employee.search(employee_domain).write(employee_values)
-            return
-        Employee.search([*employee_domain, ("image_1920", "=", False)]).write(
-            employee_values
-        )
-        Employee.search([*employee_domain, ("image_1920", "!=", False)]).write(
-            {k: v for k, v in employee_values.items() if k != "image_1920"}
-        )
+        self.env["hr.employee"].sudo().search(employee_domain).write(employee_values)
 
     def write(self, vals):
         hr_fields = [

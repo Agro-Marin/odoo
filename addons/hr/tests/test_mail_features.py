@@ -77,8 +77,9 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
     def test_assert_initial_values(self):
         self.assertTrue(self.test_employee.work_contact_id)
         self.assertFalse(self.test_employee.message_partner_ids)
-        self.assertFalse(self.test_employee.email)
-        self.assertFalse(self.test_employee.phone)
+        # The party's channels are the employee's work channels now.
+        self.assertEqual(self.test_employee.email, self.test_employee.work_email)
+        self.assertEqual(self.test_employee.phone, self.test_employee.work_phone)
         self.assertFalse(self.test_employee.user_id)
 
     def test_employee_get_default_recipients(self):

@@ -24,6 +24,12 @@ KEEP_SHADOWED = frozenset(
         # surface in every contact list and filter sales reads on HR
         # vocabulary; the party's tags stay the contact's.
         "tag_ids",
+        # The resource's timezone drives scheduling and a material resource
+        # has one too; until resource.resource delegates to the party (step 7)
+        # the employee's tz stays the resource's.
+        "tz",
+        # A kanban colour index for the employee list, not the contact's.
+        "color",
     }
 )
 SEPARATE_DESTINATION = frozenset(
@@ -34,9 +40,7 @@ SEPARATE_DESTINATION = frozenset(
         "country_id",
     }
 )
-DELEGATION_PROVIDES = frozenset(
-    {"name", "tz", "lang", "phone", "email", "im_status", "color"}
-)
+DELEGATION_PROVIDES = frozenset({"name", "lang", "phone", "email", "im_status"})
 # inherited=True today, but from hr.version -- so it satisfies a naive
 # "is it inherited" check while resolving to the wrong parent.
 WRONG_PARENT = frozenset({"country_code"})
@@ -57,9 +61,7 @@ CONDITIONAL = {
     "document_count": "documents_hr",
 }
 
-EXPECTED = (
-    KEEP_SHADOWED | SEPARATE_DESTINATION | DELEGATION_PROVIDES | WRONG_PARENT
-) | set(CONDITIONAL)
+EXPECTED = (KEEP_SHADOWED | SEPARATE_DESTINATION | WRONG_PARENT) | set(CONDITIONAL)
 
 
 @tagged("post_install", "-at_install")
@@ -153,3 +155,11 @@ class TestPartnerShadowGate(TransactionCase):
         self.assertTrue(field.inherited)
         self.assertEqual(field.inherited_field.model_name, "hr.version")
         self.assertIn("country_code", self._shadowed())
+
+    def test_delegation_provides_what_it_promised(self):
+        """These names reach the employee from res.partner and nowhere else."""
+        employee = self.env["hr.employee"]._fields
+        for name in DELEGATION_PROVIDES:
+            field = employee[name]
+            self.assertTrue(field.inherited, name)
+            self.assertEqual(field.inherited_field.model_name, "res.partner", name)

@@ -63,10 +63,12 @@ class TestHrAuditRound3(TestHrCommon):
 
         self.Employee.create({"name": "Real Owner", "user_id": user.id})
 
-        self.assertFalse(
+        self.assertNotEqual(
             squatter.work_contact_id,
+            user.partner_id,
             "the userless employee must lose the partner now claimed by a user",
         )
+        self.assertEqual(squatter.work_contact_id.name, "Squatter")
 
     def test_department_subscription_covers_every_written_employee(self):
         dept_a = self.env["hr.department"].create({"name": "R3 A"})

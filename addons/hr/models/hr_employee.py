@@ -29,12 +29,11 @@ class HrEmployee(models.Model):
         "mixin.mail.thread.main.attachment",
         "mixin.mail.activity",
         "mixin.resource",
-        "mixin.avatar",
     ]
     _mail_post_access = "read"
     _primary_email = "work_email"
-    _mail_partner_fields = ("work_contact_id", "user_partner_id")
-    _inherits = {"hr.version": "version_id"}
+    _mail_partner_fields = ("work_contact_id",)
+    _inherits = {"res.partner": "work_contact_id", "hr.version": "version_id"}
 
     _DIRTY_HACK_PRIVATE_FIELDS = (
         "activity_calendar_event_id",
@@ -73,7 +72,8 @@ class HrEmployee(models.Model):
         required=True,
     )
     name = fields.Char(
-        related="resource_id.name",
+        related="work_contact_id.name",
+        inherited=True,
         string="Employee Name",
         store=True,
         readonly=False,
@@ -92,27 +92,14 @@ class HrEmployee(models.Model):
         string="User",
         store=True,
         readonly=False,
+        copy=False,
         check_company=True,
         precompute=True,
         index="btree_not_null",
         ondelete="restrict",
     )
-    user_partner_id = fields.Many2one(
-        related="user_id.partner_id",
-        related_sudo=False,
-        string="User's partner",
-    )
     share = fields.Boolean(
         related="user_id.share",
-    )
-    phone = fields.Char(
-        related="user_id.phone",
-    )
-    im_status = fields.Char(
-        related="user_id.im_status",
-    )
-    email = fields.Char(
-        related="user_id.email",
     )
 
     version_id = fields.Many2one(
@@ -213,8 +200,10 @@ class HrEmployee(models.Model):
     work_contact_id = fields.Many2one(
         "res.partner",
         "Work Contact",
+        required=True,
+        ondelete="restrict",
         copy=False,
-        index="btree_not_null",
+        index=True,
     )
     legal_name = fields.Char(
         compute="_compute_legal_name",
@@ -237,11 +226,6 @@ class HrEmployee(models.Model):
         string="Private Email",
         related="private_address_id.email",
         readonly=False,
-        groups="hr.group_hr_user",
-    )
-    lang = fields.Selection(
-        selection=lambda self: self._lang_get(),
-        string="Lang",
         groups="hr.group_hr_user",
     )
     place_of_birth = fields.Char(
@@ -742,7 +726,7 @@ class HrEmployee(models.Model):
                 private_address_vals[idx] = address_vals
             if vals.get("user_id"):
                 user = self.env["res.users"].browse(vals["user_id"])
-                vals.update(self._sync_user(user, bool(vals.get("image_1920"))))
+                vals.update(self._sync_user(user))
                 vals["name"] = vals.get("name", user.name)
                 self._remove_work_contact_id(user, vals.get("company_id"))
             vals_per_company[vals.get("company_id") or self.env.company.id].append(
@@ -759,9 +743,6 @@ class HrEmployee(models.Model):
             index_per_employee.update(dict(zip(new_employees, idxs, strict=True)))
             employees |= new_employees
         employees = employees.sorted(key=lambda employee: index_per_employee[employee])
-        employees.filtered(
-            lambda e: not e.work_contact_id
-        ).sudo()._create_work_contacts()
         for employee in employees:
             if address_vals := private_address_vals.get(index_per_employee[employee]):
                 employee.write(address_vals)
@@ -844,7 +825,7 @@ class HrEmployee(models.Model):
         user_to_sync = None
         if "user_id" in vals:
             user_to_sync = self.env["res.users"].browse(vals["user_id"])
-            vals.update(self._sync_user(user_to_sync, employee_has_image=True))
+            vals.update(self._sync_user(user_to_sync))
             self._remove_work_contact_id(user_to_sync, vals.get("company_id"))
         if vals.get("tz"):
             users_to_update = self.env["res.users"]
@@ -880,10 +861,8 @@ class HrEmployee(models.Model):
         if "work_contact_id" in vals:
             self._update_bank_account_contact(vals["work_contact_id"])
             self._reparent_private_address()
-        if user_to_sync and user_to_sync.image_1920:
-            employees_without_image = self.filtered(lambda e: not e.image_1920)
-            if employees_without_image:
-                employees_without_image.image_1920 = user_to_sync.image_1920
+        if "name" in vals:
+            self.resource_id.write({"name": vals["name"]})
         if version_vals:
             version_vals["last_modified_date"] = fields.Datetime.now()
             version_vals["last_modified_uid"] = self.env.uid
@@ -1207,10 +1186,14 @@ class HrEmployee(models.Model):
                     employee.work_email = employee.work_contact_id.email
 
     def _has_field_access(self, field, operation):
-        return super()._has_field_access(field, operation) and (
-            self.env.su
-            or self.env.user.has_group("hr.group_hr_user")
-            or field.name not in self._DIRTY_HACK_PRIVATE_FIELDS
+        if not super()._has_field_access(field, operation):
+            return False
+        if self.env.su or self.env.user.has_group("hr.group_hr_user"):
+            return True
+        if field.name in self._DIRTY_HACK_PRIVATE_FIELDS:
+            return False
+        return not self._is_party_field(field.name) or self._is_public_party_field(
+            field.name
         )
 
     def check_no_existing_contract(self, date):
@@ -1623,38 +1606,15 @@ class HrEmployee(models.Model):
             return Domain.FALSE
         return Domain("department_id", "child_of", department.ids)
 
-    def _create_work_contacts(self):
-        if any(employee.work_contact_id for employee in self):
-            raise UserError(self.env._("Some employee already have a work contact"))
-        work_contacts = self.env["res.partner"].create(
-            [
-                {
-                    "email": employee.work_email,
-                    "phone": employee.work_phone,
-                    "name": employee.name,
-                    "image_1920": employee.image_1920,
-                    "company_id": employee.company_id.id,
-                }
-                for employee in self
-            ]
-        )
-        for employee, work_contact in zip(self, work_contacts, strict=True):
-            employee.work_contact_id = work_contact
-
     def _inverse_work_contact_details(self):
-        employees_without_work_contact = self.env["hr.employee"]
         for employee in self:
-            if not employee.work_contact_id:
-                employees_without_work_contact += employee
-            elif len(employee.work_contact_id.employee_ids) <= 1:
+            if len(employee.work_contact_id.employee_ids) <= 1:
                 employee.work_contact_id.sudo().write(
                     {
                         "email": employee.work_email,
                         "phone": employee.work_phone,
                     }
                 )
-        if employees_without_work_contact:
-            employees_without_work_contact.sudo()._create_work_contacts()
 
     @api.model
     def _get_employee_ids_working_now(self):
@@ -1720,40 +1680,6 @@ class HrEmployee(models.Model):
             else:
                 employee.last_activity = False
                 employee.last_activity_time = False
-
-    @api.depends("name", "user_id.avatar_1920", "image_1920")
-    def _compute_avatar_1920(self):
-        super()._compute_avatar_1920()
-
-    @api.depends("name", "user_id.avatar_1024", "image_1024")
-    def _compute_avatar_1024(self):
-        super()._compute_avatar_1024()
-
-    @api.depends("name", "user_id.avatar_512", "image_512")
-    def _compute_avatar_512(self):
-        super()._compute_avatar_512()
-
-    @api.depends("name", "user_id.avatar_256", "image_256")
-    def _compute_avatar_256(self):
-        super()._compute_avatar_256()
-
-    @api.depends("name", "user_id.avatar_128", "image_128")
-    def _compute_avatar_128(self):
-        super()._compute_avatar_128()
-
-    def _update_avatar(self, avatar_field, image_field):
-        employee_wo_user_and_image = self.env["hr.employee"]
-        for employee in self:
-            if not employee.user_id and not employee._origin[image_field]:
-                employee_wo_user_and_image += employee
-                continue
-            avatar = employee._origin[image_field]
-            if not avatar and employee.user_id:
-                avatar = employee.user_id.sudo()[avatar_field]
-            employee[avatar_field] = avatar
-        super(HrEmployee, employee_wo_user_and_image)._update_avatar(
-            avatar_field, image_field
-        )
 
     @api.depends("birthday", "birthday_public_display")
     def _compute_birthday_public_display_string(self):
@@ -1983,13 +1909,16 @@ class HrEmployee(models.Model):
             f_name for f_name in field_names if f_name != "current_version_id"
         ]
         self._check_no_private_fields(field_names)
+        public_names, party_names = self._split_public_and_party_fields(field_names)
         self.flush_model(field_names)
         with self._mask_domain_errors_as_access_errors():
             public = self.env["hr.employee.public"].search_fetch(
-                domain, field_names, offset, limit, order
+                domain, public_names, offset, limit, order
             )
         employees = self.browse(public._ids)
-        employees._copy_cache_from_public(public, field_names)
+        employees._copy_cache_from_public(public, public_names)
+        for fname in party_names:
+            employees.mapped(fname)
         return employees
 
     def fetch(self, field_names=None):
@@ -2002,10 +1931,11 @@ class HrEmployee(models.Model):
             f_name for f_name in field_names if f_name != "current_version_id"
         ]
         self._check_no_private_fields(field_names)
+        public_names, party_names = self._split_public_and_party_fields(field_names)
         self.flush_recordset(field_names)
         public = self.env["hr.employee.public"].browse(self._ids)
-        public.fetch(field_names)
-        for field_name in field_names:
+        public.fetch(public_names)
+        for field_name in public_names:
             public_field = self.env["hr.employee.public"]._fields[field_name]
             private_field = self.env["hr.employee"]._fields[field_name]
             if (
@@ -2016,7 +1946,9 @@ class HrEmployee(models.Model):
                 and private_field.inherited_field.model_name == "hr.version"
             ):
                 public.mapped(field_name)
-        self._copy_cache_from_public(public, field_names)
+        self._copy_cache_from_public(public, public_names)
+        for fname in party_names:
+            self.mapped(fname)
         return None
 
     def _check_access(self, operation):
@@ -2029,9 +1961,43 @@ class HrEmployee(models.Model):
 
         return super()._check_access(operation)
 
+    def _is_party_field(self, fname):
+        field = self._fields[fname]
+        return bool(
+            field.inherited and field.inherited_field.model_name == "res.partner"
+        )
+
+    def _is_public_party_field(self, fname):
+        """A party field a public-profile reader may read through the employee:
+        one the partner stores as a column, which the reader could read on the
+        partner itself. Computed and x2many party fields reach into other
+        models and stay behind the profile."""
+        field = self._fields[fname]
+        return (
+            self._is_party_field(fname)
+            and field.inherited_field.store
+            and field.inherited_field.type not in ("one2many", "many2many")
+        )
+
+    def _split_public_and_party_fields(self, field_names):
+        public_fields = self.env["hr.employee.public"]._fields
+        party_names = [
+            fname
+            for fname in field_names
+            if fname not in public_fields and self._is_public_party_field(fname)
+        ]
+        public_names = [fname for fname in field_names if fname not in party_names]
+        if party_names and "work_contact_id" not in public_names:
+            public_names.append("work_contact_id")
+        return public_names, party_names
+
     def _check_no_private_fields(self, field_names):
         public_fields = self.env["hr.employee.public"]._fields
-        private_fields = [fname for fname in field_names if fname not in public_fields]
+        private_fields = [
+            fname
+            for fname in field_names
+            if fname not in public_fields and not self._is_public_party_field(fname)
+        ]
         if private_fields:
             raise AccessError(
                 self.env._(
@@ -2199,7 +2165,7 @@ class HrEmployee(models.Model):
 
     @api.onchange("user_id")
     def _onchange_user(self):
-        self.update(self._sync_user(self.user_id, (bool(self.image_1920))))
+        self.update(self._sync_user(self.user_id))
         if not self.name:
             self.name = self.user_id.name
 
@@ -2736,33 +2702,46 @@ class HrEmployee(models.Model):
             companies = {employee_company}
         else:
             companies = set(self.mapped("company_id").ids) or {self.env.company.id}
-        old_partner_employee_ids = user.partner_id.employee_ids.filtered(
+        squatters = user.partner_id.employee_ids.filtered(
             lambda e: not e.user_id and e.company_id.id in companies and e not in self
         )
-        old_partner_employee_ids.work_contact_id = None
+        if not squatters:
+            return
+        fresh = (
+            self.env["res.partner"]
+            .sudo()
+            .create(
+                [
+                    {
+                        "name": employee.name,
+                        "email": employee.work_email,
+                        "phone": employee.work_phone,
+                    }
+                    for employee in squatters
+                ]
+            )
+        )
+        for employee, partner in zip(squatters, fresh, strict=True):
+            employee.work_contact_id = partner
 
     def _generate_missing_avatars(self):
         if not self.env["ir.ui.view"].sudo(False).has_access("write"):
             return
-        for employee in self:
-            if employee.image_1920 or not (employee.name or "").strip():
+        for partner in self.work_contact_id:
+            if partner.image_1920 or not (partner.name or "").strip():
                 continue
-            employee.image_1920 = employee._prepare_avatar_svg()
-            employee.work_contact_id.image_1920 = employee.image_1920
+            partner.image_1920 = partner._prepare_avatar_svg()
 
-    def _sync_user(self, user, employee_has_image=False):
+    def _sync_user(self, user):
         vals = {"user_id": user.id}
         if user:
             vals["work_contact_id"] = user.partner_id.id
-        if not employee_has_image:
-            vals["image_1920"] = user.image_1920
         if user.tz:
             vals["tz"] = user.tz
         return vals
 
     def _prepare_resource_values(self, vals, tz):
         resource_vals = super()._prepare_resource_values(vals, tz)
-        vals.pop("name", None)
         user_id = vals.pop("user_id", None)
         if user_id:
             resource_vals["user_id"] = user_id

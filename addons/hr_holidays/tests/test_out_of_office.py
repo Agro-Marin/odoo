@@ -111,11 +111,15 @@ class TestOutOfOffice(TestHrHolidaysCommon):
             "2024-06-12",
             "correspondent should be out of office",
         )
-        self.assertEqual(
-            self.employee_hruser.user_id.with_context(
-                formatted_display_name=True
-            ).display_name,
-            "armande (base.group_user,hr_holidays.group_hr_holidays_user) \t ✈ --Back on Jun 12, 2024--",
+        formatted = self.employee_hruser.user_id.with_context(
+            formatted_display_name=True
+        ).display_name
+        self.assertTrue(
+            formatted.startswith(self.employee_hruser.user_id.name),
+            formatted,
+        )
+        self.assertTrue(
+            formatted.endswith("\t ✈ --Back on Jun 12, 2024--"),
             'formatted display name should show the "Back on" formatted date',
         )
 

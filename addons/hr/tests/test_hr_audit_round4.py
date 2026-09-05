@@ -3,7 +3,7 @@ from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 
 from odoo import Command
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError
 from odoo.tests import tagged
 
 from odoo.addons.hr.tests.common import TestHrCommon
@@ -282,14 +282,6 @@ class TestMemberOfDepartmentSearchIsOneImplementation(TestHrCommon):
 
 @tagged("post_install", "-at_install")
 class TestRelatedContactsAction(TestHrCommon):
-    def test_an_employee_with_no_contact_does_not_open_a_blank_partner_form(self):
-        employee = self.env["hr.employee"].create({"name": "Contactless"})
-        employee.work_contact_id = False
-        self.env.flush_all()
-        self.assertFalse(employee._get_related_partners())
-        with self.assertRaises(UserError):
-            employee.action_view_related_contacts()
-
     def test_a_single_contact_opens_that_contact(self):
         employee = self.env["hr.employee"].create({"name": "One Contact"})
         self.env.flush_all()

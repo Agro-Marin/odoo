@@ -112,9 +112,10 @@ class HrEmployee(models.Model):
         old_work_contact_id_mapping = {e.id: e.work_contact_id.id for e in self}
         res = super().write(vals)
 
-        if "work_contact_id" in vals:
+        if "work_contact_id" in vals or "user_id" in vals:
             for employee in self:
-                if vals["work_contact_id"] != old_work_contact_id_mapping[employee.id]:
+                new_contact_id = employee.work_contact_id.id
+                if new_contact_id != old_work_contact_id_mapping[employee.id]:
                     car_ids = (
                         self.env["fleet.vehicle"]
                         .sudo()
@@ -131,20 +132,12 @@ class HrEmployee(models.Model):
                             lambda c, employee=employee: (
                                 c.driver_employee_id.id == employee.id
                             )
-                        ).write(
-                            {
-                                "driver_id": vals["work_contact_id"],
-                            }
-                        )
+                        ).write({"driver_id": new_contact_id})
                         car_ids.filtered(
                             lambda c, employee=employee: (
                                 c.future_driver_employee_id.id == employee.id
                             )
-                        ).write(
-                            {
-                                "future_driver_id": vals["work_contact_id"],
-                            }
-                        )
+                        ).write({"future_driver_id": new_contact_id})
 
         if "mobility_card" in vals:
             car_ids = (

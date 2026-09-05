@@ -70,7 +70,7 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
             .sudo(False)
         )
 
-        cls.expense_employee.user_partner_id.parent_id = cls.env.company.partner_id
+        cls.expense_employee.work_contact_id.parent_id = cls.env.company.partner_id
 
         cls.env.user.group_ids |= group_expense_manager
 

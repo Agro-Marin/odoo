@@ -58,7 +58,7 @@ class TestHrEmployee(TestHrCommon):
         self.assertEqual(e2.related_partners_count, 1)
         self.assertNotEqual(e1.work_contact_id, e2.work_contact_id)
 
-    def test_user_image_write_preserves_custom_employee_image(self):
+    def test_user_image_is_the_employee_image(self):
         import base64
         import io
 
@@ -81,10 +81,11 @@ class TestHrEmployee(TestHrCommon):
         employee = self.env["hr.employee"].create(
             {"user_id": user.id, "image_1920": img_a}
         )
-        stored_custom = employee.image_1920
-        self.assertTrue(stored_custom)
+        self.assertEqual(user.partner_id.image_1920, employee.image_1920)
         user.write({"image_1920": img_b})
-        self.assertEqual(employee.image_1920, stored_custom)
+        employee.invalidate_recordset(["image_1920"])
+        self.assertEqual(employee.image_1920, user.partner_id.image_1920)
+        self.assertNotEqual(employee.image_1920, img_a)
 
     def test_employee_smart_button_multi_company(self):
         partner = self.env["res.partner"].create({"name": "Partner Test"})
@@ -176,7 +177,13 @@ class TestHrEmployee(TestHrCommon):
         employee_form.work_email = "raoul@example.com"
         employee_form.user_id = self.res_users_hr_officer
         employee = employee_form.save()
-        self.assertEqual(employee.name, "Raoul Grosbedon")
+        # Choosing the user makes the employee that person: the name typed
+        # before is replaced by the party's, and renaming afterwards renames
+        # the party.
+        self.assertEqual(employee.name, self.res_users_hr_officer.name)
+        self.assertEqual(employee.work_contact_id, self.res_users_hr_officer.partner_id)
+        employee.name = "Raoul Grosbedon"
+        self.assertEqual(self.res_users_hr_officer.name, "Raoul Grosbedon")
         self.assertEqual(employee.work_email, self.res_users_hr_officer.email)
         self.assertEqual(employee.tz, self.res_users_hr_officer.tz)
 
@@ -202,7 +209,7 @@ class TestHrEmployee(TestHrCommon):
         employee_form.tz = _tz
         employee_form.user_id = self.res_users_hr_manager
         employee = employee_form.save()
-        self.assertEqual(employee.name, "Raoul Grosbedon")
+        self.assertEqual(employee.name, self.res_users_hr_manager.name)
         self.assertEqual(employee.work_email, self.res_users_hr_manager.email)
         self.assertEqual(employee.tz, _tz)
 
@@ -391,7 +398,8 @@ class TestHrEmployee(TestHrCommon):
         employee_B.work_email = "new_email@example.com"
         self.assertEqual(employee_A.work_email, "employee_A@example.com")
         self.assertEqual(employee_B.work_email, "new_email@example.com")
-        self.assertFalse(employee_A.work_contact_id)
+        self.assertTrue(employee_A.work_contact_id)
+        self.assertNotEqual(employee_A.work_contact_id, user.partner_id)
         self.assertEqual(employee_B.work_contact_id, user.partner_id)
 
     def test_availability_user_infos_employee(self):
@@ -534,7 +542,8 @@ class TestHrEmployee(TestHrCommon):
             len(user.employee_ids) == 1,
             "Test user should have exactly one employee associated with it",
         )
-        self.assertFalse(employee.work_contact_id)
+        self.assertTrue(employee.work_contact_id)
+        self.assertNotEqual(employee.work_contact_id, user.partner_id)
         new_employee = user.employee_ids
         self.assertEqual(new_employee.work_contact_id, user.partner_id)
         self.assertEqual(new_employee.user_id, user)

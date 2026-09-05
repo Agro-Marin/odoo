@@ -1910,7 +1910,7 @@ class HrExpense(models.Model):
                     "ref": move_ref,
                     "move_type": "in_receipt",
                     "partner_id": employee_sudo.work_contact_id.id,
-                    "commercial_partner_id": employee_sudo.user_partner_id.id,
+                    "commercial_partner_id": employee_sudo.work_contact_id.commercial_partner_id.id,
                     "currency_id": expenses_sudo.company_currency_id.id,
                     "line_ids": [
                         Command.create(expense_sudo._prepare_move_lines_vals())

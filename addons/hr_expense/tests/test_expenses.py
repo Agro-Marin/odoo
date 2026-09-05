@@ -12,7 +12,7 @@ from odoo.addons.hr_expense.tests.common import TestExpenseCommon
 @tagged("-at_install", "post_install")
 class TestExpenses(TestExpenseCommon):
     def test_expense_main_flow(self):
-        self.expense_employee.user_partner_id.property_supplier_payment_term_id = (
+        self.expense_employee.work_contact_id.property_supplier_payment_term_id = (
             self.env.ref("account.account_payment_term_30days")
         )
         expenses_by_employee = self.create_expenses(
@@ -1368,10 +1368,10 @@ class TestExpenses(TestExpenseCommon):
         expense.with_context(validate_analytic=True).action_approve()
 
     def test_expense_no_stealing_from_employees(self):
-        self.expense_employee.user_partner_id.parent_id = self.env.company.partner_id
+        self.expense_employee.work_contact_id.parent_id = self.env.company.partner_id
         self.assertEqual(
             self.env.company.partner_id,
-            self.expense_employee.user_partner_id.commercial_partner_id,
+            self.expense_employee.work_contact_id.commercial_partner_id,
         )
 
         expense = self.create_expenses({"employee_id": self.expense_employee.id})
@@ -1381,9 +1381,9 @@ class TestExpenses(TestExpenseCommon):
         move = expense.account_move_id
 
         self.assertNotEqual(move.commercial_partner_id, self.env.company.partner_id)
-        self.assertEqual(move.partner_id, self.expense_employee.user_partner_id)
+        self.assertEqual(move.partner_id, self.expense_employee.work_contact_id)
         self.assertEqual(
-            move.commercial_partner_id, self.expense_employee.user_partner_id
+            move.commercial_partner_id, self.expense_employee.work_contact_id
         )
 
     def test_expense_set_total_amount_to_0(self):
