@@ -16,8 +16,8 @@ class HrEmployee(models.Model):
                 {
                     "user_id": employee.user_id.id,
                     "employee_id": employee.id,
-                    "partner_id": employee.work_contact_id.id
-                    or employee.work_contact_id.id,
+                    "partner_id": employee.partner_id.id
+                    or employee.partner_id.id,
                     "employee_name": employee.name,
                 }
             )

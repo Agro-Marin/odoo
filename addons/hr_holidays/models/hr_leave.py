@@ -1437,7 +1437,7 @@ Versions:
                 "res_id": holiday.id,
             }
             partner_id = (user and user.partner_id) or (
-                holiday.employee_id and holiday.employee_id.work_contact_id
+                holiday.employee_id and holiday.employee_id.partner_id
             )
             if partner_id:
                 meeting_values["partner_ids"] = [Command.link(partner_id.id)]
@@ -1863,7 +1863,7 @@ is approved, validated or refused."
             if leave.user_id:
                 recipient = leave.user_id.partner_id.id
             elif leave.employee_id:
-                recipient = leave.employee_id.work_contact_id.id
+                recipient = leave.employee_id.partner_id.id
 
             if recipient:
                 self.env["mixin.mail.thread"].sudo().message_notify(

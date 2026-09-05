@@ -22,5 +22,5 @@ test("partnerId", async () => {
     });
     const emp = store.models["hr.employee"].get(2);
     store.setCashier(emp);
-    expect(comp.partnerId).toBe(emp.work_contact_id.id);
+    expect(comp.partnerId).toBe(emp.partner_id.id);
 });

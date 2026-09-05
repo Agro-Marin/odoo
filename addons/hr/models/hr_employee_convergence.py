@@ -20,7 +20,7 @@ class HrEmployee(models.Model):
 
         for employee in self.sudo().with_context(active_test=False).search([]):
             report["total"] += 1
-            contact = employee.work_contact_id
+            contact = employee.partner_id
             home = employee.private_address_id
             if home and contact and home.parent_id != contact:
                 report["misparented_home"].append(employee.id)
@@ -90,7 +90,7 @@ class HrEmployee(models.Model):
         merged = []
         for entry in entries:
             employee = self.browse(entry["employee_id"])
-            work_contact = employee.sudo().work_contact_id
+            work_contact = employee.sudo().partner_id
             user_partner = employee.sudo().user_id.partner_id
             if not work_contact or not user_partner or work_contact == user_partner:
                 continue

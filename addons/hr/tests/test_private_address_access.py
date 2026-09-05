@@ -55,7 +55,7 @@ class TestPrivateAddressAccess(TransactionCase):
         cls.employee = cls.env["hr.employee"].create(
             {
                 "name": "Subject Person",
-                "work_contact_id": cls.subject.partner_id.id,
+                "partner_id": cls.subject.partner_id.id,
                 "user_id": cls.subject.id,
                 "company_id": cls.env.company.id,
             }

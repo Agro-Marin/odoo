@@ -41,7 +41,7 @@ class HrEmployee(models.Model):
             ],
             "domain": [
                 ("driver_employee_id", "in", self.ids),
-                ("driver_id", "in", self.work_contact_id.ids),
+                ("driver_id", "in", self.partner_id.ids),
             ],
             "context": dict(
                 self.env.context,
@@ -82,7 +82,7 @@ class HrEmployee(models.Model):
         rg = self.env["fleet.vehicle.assignation.log"]._read_group(
             [
                 ("driver_employee_id", "in", self.ids),
-                ("driver_id", "in", self.work_contact_id.ids),
+                ("driver_id", "in", self.partner_id.ids),
             ],
             ["driver_employee_id"],
             ["__count"],
@@ -91,9 +91,9 @@ class HrEmployee(models.Model):
         for employee in self:
             employee.employee_cars_count = cars_count.get(employee.id, 0)
 
-    @api.constrains("work_contact_id")
+    @api.constrains("partner_id")
     def _check_work_contact_id(self):
-        no_address = self.filtered(lambda r: not r.work_contact_id)
+        no_address = self.filtered(lambda r: not r.partner_id)
         car_ids = (
             self.env["fleet.vehicle"]
             .sudo()
@@ -109,12 +109,12 @@ class HrEmployee(models.Model):
             )
 
     def write(self, vals):
-        old_work_contact_id_mapping = {e.id: e.work_contact_id.id for e in self}
+        old_work_contact_id_mapping = {e.id: e.partner_id.id for e in self}
         res = super().write(vals)
 
-        if "work_contact_id" in vals or "user_id" in vals:
+        if "partner_id" in vals or "user_id" in vals:
             for employee in self:
-                new_contact_id = employee.work_contact_id.id
+                new_contact_id = employee.partner_id.id
                 if new_contact_id != old_work_contact_id_mapping[employee.id]:
                     car_ids = (
                         self.env["fleet.vehicle"]

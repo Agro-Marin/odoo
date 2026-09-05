@@ -14,7 +14,7 @@ def migrate(cr, version):
         SQL(
             """
             UPDATE ir_attachment a
-               SET res_model = 'res.partner', res_id = e.work_contact_id
+               SET res_model = 'res.partner', res_id = e.partner_id
               FROM hr_employee e
              WHERE a.res_model = 'hr.employee'
                AND a.res_id = e.id
@@ -22,7 +22,7 @@ def migrate(cr, version):
                AND NOT EXISTS (
                        SELECT 1 FROM ir_attachment p
                         WHERE p.res_model = 'res.partner'
-                          AND p.res_id = e.work_contact_id
+                          AND p.res_id = e.partner_id
                           AND p.res_field = a.res_field)
             """,
             list(IMAGE_FIELDS),

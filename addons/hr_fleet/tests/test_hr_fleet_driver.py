@@ -32,7 +32,7 @@ class TestHrFleetDriver(common.TransactionCase):
         cls.car = cls.env["fleet.vehicle"].create(
             {
                 "model_id": cls.model.id,
-                "future_driver_id": cls.test_employee.work_contact_id.id,
+                "future_driver_id": cls.test_employee.partner_id.id,
                 "plan_to_change_car": False,
                 "fuel_type": "diesel",
             }
@@ -47,9 +47,9 @@ class TestHrFleetDriver(common.TransactionCase):
         )
 
     def test_driver_sync_with_employee(self):
-        self.assertEqual(self.car.future_driver_id, self.test_employee.work_contact_id)
+        self.assertEqual(self.car.future_driver_id, self.test_employee.partner_id)
         self.test_employee.user_id = self.test_user
-        self.assertEqual(self.test_employee.work_contact_id, self.test_user.partner_id)
+        self.assertEqual(self.test_employee.partner_id, self.test_user.partner_id)
         self.car.action_accept_driver_change()
         self.assertEqual(self.car.driver_id, self.test_user.partner_id)
 
@@ -73,7 +73,7 @@ class TestHrFleetDriver(common.TransactionCase):
             .create(
                 {
                     "name": "Test Employee 2",
-                    "work_contact_id": self.test_employee.work_contact_id.id,
+                    "partner_id": self.test_employee.partner_id.id,
                 }
             )
         )
@@ -83,7 +83,7 @@ class TestHrFleetDriver(common.TransactionCase):
             .create(
                 {
                     "model_id": self.model.id,
-                    "driver_id": test_employee2.work_contact_id.id,
+                    "driver_id": test_employee2.partner_id.id,
                 }
             )
         )

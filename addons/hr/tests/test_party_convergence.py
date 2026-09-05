@@ -18,10 +18,10 @@ class TestPartyConvergence(TransactionCase):
         writing it, so it is planted the way an old database holds it."""
         cls.env.flush_all()
         cls.env.cr.execute(
-            "UPDATE hr_employee SET work_contact_id = %s WHERE id = %s",
+            "UPDATE hr_employee SET partner_id = %s WHERE id = %s",
             (contact.id, employee.id),
         )
-        employee.invalidate_recordset(["work_contact_id"])
+        employee.invalidate_recordset(["partner_id"])
 
     @classmethod
     def setUpClass(cls):
@@ -81,20 +81,20 @@ class TestPartyConvergence(TransactionCase):
     def test_the_report_writes_nothing(self):
         """It is a dry run: reading it must not change the data it describes."""
         before = {
-            e.id: (e.work_contact_id.id, e.user_id.partner_id.id)
+            e.id: (e.partner_id.id, e.user_id.partner_id.id)
             for e in self.Emp.search([])
         }
         self.Emp.report_party_convergence()
         self.Emp.print_party_convergence()
         self.env.flush_all()
         after = {
-            e.id: (e.work_contact_id.id, e.user_id.partner_id.id)
+            e.id: (e.partner_id.id, e.user_id.partner_id.id)
             for e in self.Emp.search([])
         }
         self.assertEqual(before, after)
 
     def test_converging_merges_the_unambiguous_pair(self):
-        work_contact = self.mergeable.work_contact_id
+        work_contact = self.mergeable.partner_id
         user_partner = self.mergeable.user_id.partner_id
         self.assertNotEqual(work_contact, user_partner)
 
@@ -103,14 +103,14 @@ class TestPartyConvergence(TransactionCase):
         self.assertIn(self.mergeable.id, result["merged"])
         self.mergeable.invalidate_recordset()
         self.assertEqual(
-            self.mergeable.work_contact_id,
+            self.mergeable.partner_id,
             user_partner,
             "the user's partner is the row that survives",
         )
         self.assertFalse(work_contact.exists(), "the duplicate row is gone")
 
     def test_converging_refuses_the_conflicting_pair(self):
-        work_contact = self.conflicted.work_contact_id
+        work_contact = self.conflicted.partner_id
         user_partner = self.conflicted.user_id.partner_id
 
         result = self.Emp.converge_party_rows()
@@ -118,7 +118,7 @@ class TestPartyConvergence(TransactionCase):
         self.assertNotIn(self.conflicted.id, result["merged"])
         self.assertIn(self.conflicted.id, result["left_for_a_human"])
         self.conflicted.invalidate_recordset()
-        self.assertEqual(self.conflicted.work_contact_id, work_contact)
+        self.assertEqual(self.conflicted.partner_id, work_contact)
         self.assertTrue(work_contact.exists())
         self.assertNotEqual(work_contact, user_partner)
 
@@ -135,14 +135,14 @@ class TestPrivateAddressFollowsTheContact(TransactionCase):
         employee = self.env["hr.employee"].create(
             {"name": "Homed", "private_street": "Home Street 1"}
         )
-        old_contact = employee.work_contact_id
+        old_contact = employee.partner_id
         user = self.env["res.users"].create({"name": "Homed", "login": "homed"})
         employee.write({"user_id": user.id})
         return employee, old_contact, user
 
     def test_linking_a_user_moves_the_home_under_the_user_partner(self):
         employee, old_contact, user = self._link_user_to_an_employee_with_a_home()
-        self.assertEqual(employee.work_contact_id, user.partner_id)
+        self.assertEqual(employee.partner_id, user.partner_id)
         self.assertEqual(employee.private_address_id.parent_id, user.partner_id)
         self.assertEqual(employee.private_street, "Home Street 1")
         self.assertFalse(old_contact.child_ids)
@@ -163,7 +163,7 @@ class TestPrivateAddressFollowsTheContact(TransactionCase):
         self.assertIn(employee.id, report["misparented_home"])
         self.env["hr.employee"].converge_party_rows()
         self.assertEqual(
-            employee.private_address_id.parent_id, employee.work_contact_id
+            employee.private_address_id.parent_id, employee.partner_id
         )
 
 
@@ -174,12 +174,12 @@ class TestWorkContactFollowsTheUser(TransactionCase):
         employee = self.env["hr.employee"].create({"name": "Bound", "user_id": user.id})
         other = self.env["res.partner"].create({"name": "Someone Else"})
         with self.assertRaises(ValidationError):
-            employee.work_contact_id = other
+            employee.partner_id = other
 
     def test_linking_a_user_moves_the_work_contact_to_the_user_partner(self):
         employee = self.env["hr.employee"].create({"name": "Later User"})
-        own_contact = employee.work_contact_id
+        own_contact = employee.partner_id
         user = self.env["res.users"].create({"name": "Later User", "login": "later"})
         employee.user_id = user
-        self.assertEqual(employee.work_contact_id, user.partner_id)
-        self.assertNotEqual(employee.work_contact_id, own_contact)
+        self.assertEqual(employee.partner_id, user.partner_id)
+        self.assertNotEqual(employee.partner_id, own_contact)

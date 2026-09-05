@@ -27,8 +27,8 @@ class FleetVehicle(models.Model):
     @api.depends("driver_id")
     def _compute_driver_employee_id(self):
         employees_by_partner_id_and_company_id = self.env["hr.employee"]._read_group(
-            domain=[("work_contact_id", "in", self.driver_id.ids)],
-            groupby=["work_contact_id", "company_id"],
+            domain=[("partner_id", "in", self.driver_id.ids)],
+            groupby=["partner_id", "company_id"],
             aggregates=["id:recordset"],
         )
         employees_by_partner_id_and_company_id = {
@@ -44,8 +44,8 @@ class FleetVehicle(models.Model):
     @api.depends("future_driver_id")
     def _compute_future_driver_employee_id(self):
         employees_by_partner_id_and_company_id = self.env["hr.employee"]._read_group(
-            domain=[("work_contact_id", "in", self.future_driver_id.ids)],
-            groupby=["work_contact_id", "company_id"],
+            domain=[("partner_id", "in", self.future_driver_id.ids)],
+            groupby=["partner_id", "company_id"],
             aggregates=["id:recordset"],
         )
         employees_by_partner_id_and_company_id = {
@@ -64,7 +64,7 @@ class FleetVehicle(models.Model):
             employee = self.env["hr.employee"]
             if vehicle.driver_id:
                 employee = employee.search(
-                    [("work_contact_id", "=", vehicle.driver_id.id)], limit=1
+                    [("partner_id", "=", vehicle.driver_id.id)], limit=1
                 )
                 if not employee:
                     employee = employee.search(
@@ -79,7 +79,7 @@ class FleetVehicle(models.Model):
                 employee = (
                     self.env["hr.employee"].sudo().browse(vals["driver_employee_id"])
                 )
-                partner = employee.work_contact_id.id
+                partner = employee.partner_id.id
             vals["driver_id"] = partner
         elif "driver_id" in vals:
             employee = False
@@ -87,7 +87,7 @@ class FleetVehicle(models.Model):
                 employee_ids = (
                     self.env["hr.employee"]
                     .sudo()
-                    .search([("work_contact_id", "=", vals["driver_id"])], limit=2)
+                    .search([("partner_id", "=", vals["driver_id"])], limit=2)
                 )
                 if len(employee_ids) == 1:
                     employee = employee_ids[0].id
@@ -101,7 +101,7 @@ class FleetVehicle(models.Model):
                     .sudo()
                     .browse(vals["future_driver_employee_id"])
                 )
-                partner = employee.work_contact_id.id
+                partner = employee.partner_id.id
             vals["future_driver_id"] = partner
         elif "future_driver_id" in vals:
             employee = False
@@ -110,7 +110,7 @@ class FleetVehicle(models.Model):
                     self.env["hr.employee"]
                     .sudo()
                     .search(
-                        [("work_contact_id", "=", vals["future_driver_id"])], limit=2
+                        [("partner_id", "=", vals["future_driver_id"])], limit=2
                     )
                 )
                 if len(employee_ids) == 1:

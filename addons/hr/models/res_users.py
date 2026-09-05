@@ -13,7 +13,6 @@ HR_READABLE_FIELDS = [
     "is_hr_user",
     "is_system",
     "employee_resource_calendar_id",
-    "work_contact_id",
     "bank_account_ids",
     "work_location_name",
     "work_location_type",
@@ -82,9 +81,6 @@ class ResUsers(models.Model):
         string="Employee Tags",
         readonly=False,
         related_sudo=False,
-    )
-    work_contact_id = fields.Many2one(
-        related="employee_id.work_contact_id", readonly=False, related_sudo=False
     )
     work_location_id = fields.Many2one(
         related="employee_id.work_location_id", readonly=False, related_sudo=False

@@ -375,7 +375,7 @@
                                             <field
                                                 name="bank_account_ids"
                                                 widget="many2many_tags_salary_bank"
-                                                context="{'default_partner_id': work_contact_id}"
+                                                context="{'default_partner_id': partner_id}"
                                                 options="{'color_field': 'color', 'no_quick_create': True, 'edit_tags': True}"
                                                 readonly="not id" />
                                             <div class="pt-0 ms-2">
@@ -393,7 +393,7 @@
                                             <field
                                                 name="bank_account_ids"
                                                 widget="many2many_tags_salary_bank"
-                                                context="{'default_partner_id': work_contact_id}"
+                                                context="{'default_partner_id': partner_id}"
                                                 options="{'color_field': 'color', 'no_quick_create': True, 'edit_tags': True}"
                                                 readonly="not id" />
                                             <div
@@ -652,7 +652,7 @@
                                                 string="User"
                                                 placeholder="No user linked"
                                                 domain="[('company_ids', 'in', company_id)]"
-                                                context="{                                                     'default_create_employee_id': id,                                                     'default_name': name,                                                     'default_phone': work_phone,                                                     'default_mobile': mobile_phone,                                                     'default_login': work_email,                                                     'default_partner_id': work_contact_id,                                                     'search_default_filter_no_share': 1,                                                 }"
+                                                context="{                                                     'default_create_employee_id': id,                                                     'default_name': name,                                                     'default_phone': work_phone,                                                     'default_mobile': mobile_phone,                                                     'default_login': work_email,                                                     'default_partner_id': partner_id,                                                     'search_default_filter_no_share': 1,                                                 }"
                                                 widget="many2one_avatar_user"
                                                 groups="base.group_erp_manager" />
                                             <field
@@ -660,7 +660,7 @@
                                                 string="User"
                                                 placeholder="No user linked"
                                                 domain="[('company_ids', 'in', company_id)]"
-                                                context="{                                                     'default_create_employee_id': id,                                                     'default_name': name,                                                     'default_phone': work_phone,                                                     'default_mobile': mobile_phone,                                                     'default_login': work_email,                                                     'default_partner_id': work_contact_id,                                                     'search_default_filter_no_share': 1,                                                 }"
+                                                context="{                                                     'default_create_employee_id': id,                                                     'default_name': name,                                                     'default_phone': work_phone,                                                     'default_mobile': mobile_phone,                                                     'default_login': work_email,                                                     'default_partner_id': partner_id,                                                     'search_default_filter_no_share': 1,                                                 }"
                                                 widget="many2one_avatar_user"
                                                 groups="!base.group_erp_manager"
                                                 options="{'no_open': True}" />

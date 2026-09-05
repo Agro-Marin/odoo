@@ -184,7 +184,7 @@ class TestBankAccountEmployeeComputeAgreesWithSearch(TestHrCommon):
         cls.account = cls.env["res.partner.bank"].create(
             {
                 "acc_number": "BE68539007547034",
-                "partner_id": cls.staffer.work_contact_id.id,
+                "partner_id": cls.staffer.partner_id.id,
             }
         )
         cls.env.flush_all()
@@ -200,7 +200,7 @@ class TestBankAccountEmployeeComputeAgreesWithSearch(TestHrCommon):
         self.assertTrue(self._search_finds_the_account())
 
     def test_they_agree_with_the_stored_flag_cleared(self):
-        self.staffer.work_contact_id.employee = False
+        self.staffer.partner_id.employee = False
         self.env.flush_all()
         self.env.invalidate_all()
         self.assertEqual(
@@ -286,7 +286,7 @@ class TestRelatedContactsAction(TestHrCommon):
         employee = self.env["hr.employee"].create({"name": "One Contact"})
         self.env.flush_all()
         action = employee.action_view_related_contacts()
-        self.assertEqual(action["res_id"], employee.work_contact_id.id)
+        self.assertEqual(action["res_id"], employee.partner_id.id)
         self.assertEqual(action["view_mode"], "form")
 
 
@@ -295,7 +295,7 @@ class TestMultipleBankAccountsFlag(TestHrCommon):
     def test_the_flag_counts_accounts(self):
         employee = self.env["hr.employee"].create({"name": "Accounts"})
         self.env.flush_all()
-        partner = employee.work_contact_id
+        partner = employee.partner_id
         self.assertFalse(employee.has_multiple_bank_accounts)
         first, second = self.env["res.partner.bank"].create(
             [
@@ -577,7 +577,7 @@ class TestSalaryDistributionStaysCurrencyRounded(TestHrCommon):
             [
                 {
                     "acc_number": f"DIST{tag}{index:04d}",
-                    "partner_id": employee.work_contact_id.id,
+                    "partner_id": employee.partner_id.id,
                 }
                 for index in range(count)
             ]
@@ -629,7 +629,7 @@ class TestSalaryDistributionStaysCurrencyRounded(TestHrCommon):
                 extra = self.env["res.partner.bank"].create(
                     {
                         "acc_number": f"DISTX{count}9999",
-                        "partner_id": employee.work_contact_id.id,
+                        "partner_id": employee.partner_id.id,
                     }
                 )
                 employee.bank_account_ids = [Command.link(extra.id)]

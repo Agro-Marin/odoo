@@ -46,7 +46,7 @@ class TestProjectSaleExpenseProfitability(
                     "name": "foreign_employee",
                     "company_id": foreign_company.id,
                     "expense_manager_id": self.expense_user_manager.id,
-                    "work_contact_id": foreign_partner.id,
+                    "partner_id": foreign_partner.id,
                     "work_email": "email@email",
                 }
             )

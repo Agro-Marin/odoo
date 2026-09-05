@@ -21,7 +21,7 @@ test("many2one_avatar_employee widget in kanban view with skills on avatar card"
     const pierreEid = pyEnv["hr.employee"].create({
         name: "Pierre",
         user_id: pierreUid,
-        work_contact_id: pierrePid,
+        partner_id: pierrePid,
     });
     const [javaForPierre, tigrinyaForPierre] = pyEnv["hr.employee.skill"].create([
         { employee_id: pierreEid, skill_id: java },

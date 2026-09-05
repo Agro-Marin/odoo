@@ -27,13 +27,13 @@ test("many2one in list view", async () => {
         {
             name: "Mario",
             user_id: userId_1,
-            work_contact_id: partnerId_1,
+            partner_id: partnerId_1,
             work_email: "Mario@partner.com",
         },
         {
             name: "Luigi",
             user_id: userId_2,
-            work_contact_id: partnerId_2,
+            partner_id: partnerId_2,
         },
     ]);
     env["m2x.avatar.employee"].create([
@@ -90,7 +90,7 @@ test("many2one in kanban view", async () => {
     const userId = env["res.users"].create({ partner_id: partnerId });
     const employeeId = env["hr.employee.public"].create({
         user_id: userId,
-        work_contact_id: partnerId,
+        partner_id: partnerId,
     });
     env["m2x.avatar.employee"].create({
         employee_id: employeeId,
@@ -137,7 +137,7 @@ test("many2one with hr group widget in kanban view", async () => {
     const userId = env["res.users"].create({ partner_id: partnerId });
     const employeeId = env["hr.employee.public"].create({
         user_id: userId,
-        work_contact_id: partnerId,
+        partner_id: partnerId,
     });
     env["m2x.avatar.employee"].create({
         employee_id: employeeId,
@@ -168,7 +168,7 @@ test("many2one with relation set in options", async () => {
     const userId = env["res.users"].create({ partner_id: partnerId });
     const employeeId = env["hr.employee.public"].create({
         user_id: userId,
-        work_contact_id: partnerId,
+        partner_id: partnerId,
     });
     env["m2x.avatar.employee"].create({
         employee_id: employeeId,
@@ -244,14 +244,14 @@ test("many2one in form view", async () => {
     const [employeeId_1, employeeId_2] = env["hr.employee.public"].create([
         {
             user_id: userId_1,
-            work_contact_id: partnerId_1,
+            partner_id: partnerId_1,
             name: "Mario",
             work_email: "Mario@partner.com",
         },
         {
             name: "Luigi",
             user_id: userId_2,
-            work_contact_id: partnerId_2,
+            partner_id: partnerId_2,
         },
     ]);
     const avatarId_1 = env["m2x.avatar.employee"].create({
@@ -301,8 +301,8 @@ test("many2one with hr group widget in form view", async () => {
         { partner_id: partnerId_2 },
     ]);
     const [employeeData_1, employeeData_2] = [
-        { user_id: userId_1, work_contact_id: partnerId_1 },
-        { user_id: userId_2, work_contact_id: partnerId_2 },
+        { user_id: userId_1, partner_id: partnerId_1 },
+        { user_id: userId_2, partner_id: partnerId_2 },
     ];
     env["hr.employee"].create([{ ...employeeData_1 }, { ...employeeData_2 }]);
     const [employeeId_1, employeeId_2] = env["hr.employee.public"].create([
@@ -351,13 +351,13 @@ test("many2one widget in list view", async () => {
         {
             name: "Mario",
             user_id: userId_1,
-            work_contact_id: partnerId_1,
+            partner_id: partnerId_1,
             work_email: "Mario@partner.com",
         },
         {
             name: "Yoshi",
             user_id: userId_2,
-            work_contact_id: partnerId_2,
+            partner_id: partnerId_2,
         },
     ]);
     env["m2x.avatar.employee"].create({
@@ -404,14 +404,14 @@ test("many2many in kanban view", async () => {
     const [employeeId_1, employeeId_2] = env["hr.employee.public"].create([
         {
             user_id: userId_1,
-            work_contact_id: partnerId_1,
+            partner_id: partnerId_1,
             name: "Mario",
             work_email: "Mario@partner.com",
         },
         {
             name: "Luigi",
             user_id: userId_2,
-            work_contact_id: partnerId_2,
+            partner_id: partnerId_2,
         },
     ]);
     env["m2x.avatar.employee"].create({
@@ -478,7 +478,7 @@ test("many2many: click on an employee not associated with a user", async () => {
         {
             name: "Luigi",
             user_id: userId,
-            work_contact_id: partnerId,
+            partner_id: partnerId,
         },
     ]);
     const avatarId = env["m2x.avatar.employee"].create({

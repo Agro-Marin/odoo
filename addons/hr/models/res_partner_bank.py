@@ -62,10 +62,10 @@ class ResPartnerBank(models.Model):
         if wanted_ids:
             partners = Employee.search(
                 in_companies & Domain("id", "in", wanted_ids)
-            ).work_contact_id
+            ).partner_id
             matched |= Domain("partner_id", "in", partners.ids)
         if any(not record_id for record_id in value):
-            employee_partners = Employee.search(in_companies).work_contact_id
+            employee_partners = Employee.search(in_companies).partner_id
             matched |= Domain("partner_id", "not in", employee_partners.ids)
         return matched if operator == "in" else ~matched
 

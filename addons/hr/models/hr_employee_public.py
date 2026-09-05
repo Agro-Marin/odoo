@@ -28,7 +28,7 @@ class HrEmployeePublic(models.Model):
     phone = fields.Char(related="employee_id.phone")
     im_status = fields.Char(related="employee_id.im_status")
     email = fields.Char(related="employee_id.email")
-    work_contact_id = fields.Many2one("res.partner", readonly=True)
+    partner_id = fields.Many2one("res.partner", readonly=True)
     work_location_id = fields.Many2one("hr.work.location", readonly=True)
     work_location_name = fields.Char(related="employee_id.work_location_name")
     work_location_type = fields.Selection(related="employee_id.work_location_type")

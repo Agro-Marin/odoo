@@ -56,7 +56,7 @@ class TestHrEmployee(TestHrCommon):
         (e1 | e2)._compute_related_partners_count()
         self.assertEqual(e1.related_partners_count, 1)
         self.assertEqual(e2.related_partners_count, 1)
-        self.assertNotEqual(e1.work_contact_id, e2.work_contact_id)
+        self.assertNotEqual(e1.partner_id, e2.partner_id)
 
     def test_user_image_is_the_employee_image(self):
         import base64
@@ -94,14 +94,14 @@ class TestHrEmployee(TestHrCommon):
         self.env["hr.employee"].create(
             {
                 "name": "employee_A",
-                "work_contact_id": partner.id,
+                "partner_id": partner.id,
                 "company_id": company_A.id,
             }
         )
         self.env["hr.employee"].create(
             {
                 "name": "employee_B",
-                "work_contact_id": partner.id,
+                "partner_id": partner.id,
                 "company_id": company_B.id,
             }
         )
@@ -125,7 +125,7 @@ class TestHrEmployee(TestHrCommon):
 
     def test_employee_linked_partner(self):
         user_partner = self.user_without_image.partner_id
-        work_contact = self.employee_without_image.work_contact_id
+        work_contact = self.employee_without_image.partner_id
         self.assertEqual(user_partner, work_contact)
 
     def test_employee_resource(self):
@@ -181,7 +181,7 @@ class TestHrEmployee(TestHrCommon):
         # before is replaced by the party's, and renaming afterwards renames
         # the party.
         self.assertEqual(employee.name, self.res_users_hr_officer.name)
-        self.assertEqual(employee.work_contact_id, self.res_users_hr_officer.partner_id)
+        self.assertEqual(employee.partner_id, self.res_users_hr_officer.partner_id)
         employee.name = "Raoul Grosbedon"
         self.assertEqual(self.res_users_hr_officer.name, "Raoul Grosbedon")
         self.assertEqual(employee.work_email, self.res_users_hr_officer.email)
@@ -246,7 +246,7 @@ class TestHrEmployee(TestHrCommon):
         self.env.flush_all()
         self.assertTrue(employee.image_1920)
         self.assertEqual(
-            employee.work_contact_id.image_1920,
+            employee.partner_id.image_1920,
             employee.image_1920,
             "the work contact keeps the bytes the employee was given",
         )
@@ -398,9 +398,9 @@ class TestHrEmployee(TestHrCommon):
         employee_B.work_email = "new_email@example.com"
         self.assertEqual(employee_A.work_email, "employee_A@example.com")
         self.assertEqual(employee_B.work_email, "new_email@example.com")
-        self.assertTrue(employee_A.work_contact_id)
-        self.assertNotEqual(employee_A.work_contact_id, user.partner_id)
-        self.assertEqual(employee_B.work_contact_id, user.partner_id)
+        self.assertTrue(employee_A.partner_id)
+        self.assertNotEqual(employee_A.partner_id, user.partner_id)
+        self.assertEqual(employee_B.partner_id, user.partner_id)
 
     def test_availability_user_infos_employee(self):
         user = self.env["res.users"].create(
@@ -534,7 +534,7 @@ class TestHrEmployee(TestHrCommon):
             }
         )
         employee.user_id = None
-        self.assertEqual(employee.work_contact_id, user.partner_id)
+        self.assertEqual(employee.partner_id, user.partner_id)
         self.assertFalse(employee.user_id)
         user._compute_employee_id()
         user.action_create_employee()
@@ -542,10 +542,10 @@ class TestHrEmployee(TestHrCommon):
             len(user.employee_ids) == 1,
             "Test user should have exactly one employee associated with it",
         )
-        self.assertTrue(employee.work_contact_id)
-        self.assertNotEqual(employee.work_contact_id, user.partner_id)
+        self.assertTrue(employee.partner_id)
+        self.assertNotEqual(employee.partner_id, user.partner_id)
         new_employee = user.employee_ids
-        self.assertEqual(new_employee.work_contact_id, user.partner_id)
+        self.assertEqual(new_employee.partner_id, user.partner_id)
         self.assertEqual(new_employee.user_id, user)
 
     def test_change_user_on_employee_multi_company(self):
@@ -611,9 +611,9 @@ class TestHrEmployee(TestHrCommon):
         self.assertTrue(employee_georgette.image_1920)
         self.assertTrue(employee_georgette.avatar_1920)
 
-        self.assertTrue(employee_georgette.work_contact_id)
-        self.assertTrue(employee_georgette.work_contact_id.image_1920)
-        self.assertTrue(employee_georgette.work_contact_id.avatar_1920)
+        self.assertTrue(employee_georgette.partner_id)
+        self.assertTrue(employee_georgette.partner_id.image_1920)
+        self.assertTrue(employee_georgette.partner_id.avatar_1920)
 
         user_norbert = self.env["res.users"].create(
             {"name": "Norbert Comidofisse", "login": "Norbert6870"}
@@ -870,7 +870,7 @@ class TestHrEmployee(TestHrCommon):
         first_employee = self.env["hr.employee"].create(
             {
                 "name": "First Employee",
-                "work_contact_id": partner.id,
+                "partner_id": partner.id,
                 "company_id": first_company.id,
             }
         )
@@ -887,7 +887,7 @@ class TestHrEmployee(TestHrCommon):
         second_employee = self.env["hr.employee"].create(
             {
                 "name": "Second Employee",
-                "work_contact_id": partner.id,
+                "partner_id": partner.id,
                 "company_id": second_company.id,
             }
         )

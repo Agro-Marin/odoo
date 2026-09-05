@@ -5,7 +5,7 @@ import { fields, makeKwArgs } from "@web/../tests/web_test_helpers";
 export class ResPartner extends mailModels.ResPartner {
     employee_ids = fields.One2many({
         relation: "hr.employee",
-        inverse: "work_contact_id",
+        inverse: "partner_id",
     });
 
     _get_fields_store_avatar_card() {

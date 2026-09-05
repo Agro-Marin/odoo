@@ -75,7 +75,7 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
                 self.assertFalse(verdict(accepted))
 
     def test_assert_initial_values(self):
-        self.assertTrue(self.test_employee.work_contact_id)
+        self.assertTrue(self.test_employee.partner_id)
         self.assertFalse(self.test_employee.message_partner_ids)
         # The party's channels are the employee's work channels now.
         self.assertEqual(self.test_employee.email, self.test_employee.work_email)
@@ -90,7 +90,7 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
             {
                 "email_cc": "",
                 "email_to": "",
-                "partner_ids": self.test_employee.work_contact_id.ids,
+                "partner_ids": self.test_employee.partner_id.ids,
             },
         )
 
@@ -102,9 +102,9 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
             [
                 {
                     "create_values": {},
-                    "email": self.test_employee.work_contact_id.email_normalized,
-                    "name": self.test_employee.work_contact_id.name,
-                    "partner_id": self.test_employee.work_contact_id.id,
+                    "email": self.test_employee.partner_id.email_normalized,
+                    "name": self.test_employee.partner_id.name,
+                    "partner_id": self.test_employee.partner_id.id,
                 },
             ],
         )
@@ -121,6 +121,6 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
         )
         self.assertEqual(
             message.notified_partner_ids,
-            self.test_employee.work_contact_id,
+            self.test_employee.partner_id,
             "Matches suggested recipients",
         )

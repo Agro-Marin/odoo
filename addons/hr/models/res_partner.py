@@ -9,7 +9,7 @@ class ResPartner(models.Model):
 
     employee_ids = fields.One2many(
         "hr.employee",
-        "work_contact_id",
+        "partner_id",
         string="Employees",
         groups="hr.group_hr_user",
         help="Related employees based on their private address",
@@ -31,10 +31,10 @@ class ResPartner(models.Model):
             .sudo()
             ._read_group(
                 [
-                    ("work_contact_id", "in", self.ids),
+                    ("partner_id", "in", self.ids),
                     ("company_id", "in", self.env.companies.ids),
                 ],
-                groupby=["work_contact_id"],
+                groupby=["partner_id"],
                 aggregates=["__count"],
             )
         )
@@ -83,8 +83,8 @@ class ResPartner(models.Model):
             self.env["hr.employee"]
             .sudo()
             ._read_group(
-                domain=[("work_contact_id", "in", self.ids)],
-                groupby=["work_contact_id"],
+                domain=[("partner_id", "in", self.ids)],
+                groupby=["partner_id"],
             )
         )
         employees = {employee for [employee] in employee_data}

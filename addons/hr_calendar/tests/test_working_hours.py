@@ -206,7 +206,7 @@ class TestWorkingHours(TestHrCalendarCommon):
                 "name": "Partner B2 - Calendar 35h night",
                 "tz": "Europe/Brussels",
                 "resource_calendar_id": self.calendar_35h_night.id,
-                "work_contact_id": self.partnerB.id,
+                "partner_id": self.partnerB.id,
                 "company_id": self.company_A.id,
             }
         )

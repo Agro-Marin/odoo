@@ -4,7 +4,7 @@ export class HrEmployee extends models.ServerModel {
     _name = "hr.employee";
 
     _load_pos_data_fields() {
-        return ["name", "user_id", "work_contact_id"];
+        return ["name", "user_id", "partner_id"];
     }
 
     _records = [
@@ -12,13 +12,13 @@ export class HrEmployee extends models.ServerModel {
             id: 2,
             name: "Administrator",
             user_id: 2,
-            work_contact_id: 3,
+            partner_id: 3,
         },
         {
             id: 3,
             name: "Employee1",
             user_id: 3,
-            work_contact_id: 3,
+            partner_id: 3,
         },
     ];
 

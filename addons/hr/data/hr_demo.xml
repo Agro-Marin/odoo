@@ -229,7 +229,7 @@ If you have development competencies, we can propose you specific traineeships</
                 name="resource_calendar_id"
                 ref="resource.resource_calendar_std_38h" />
             <field name="work_location_id" ref="work_location_1" />
-            <field name="work_contact_id" ref="hr.work_contact_ngh" />
+            <field name="partner_id" ref="hr.work_contact_ngh" />
             <field
                 name="image_1920"
                 type="base64"
@@ -252,7 +252,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="name">Marc Demo</field>
             <field name="user_id" ref="base.user_demo" />
             <field name="tag_ids" eval="[Command.set([ref('employee_category_4')])]" />
-            <field name="work_contact_id" ref="base.partner_demo" />
+            <field name="partner_id" ref="base.partner_demo" />
             <field
                 name="date_version"
                 eval="(DateTime.today() + relativedelta(years=-1, month=1, day=1))" />
@@ -293,7 +293,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field
                 name="tag_ids"
                 eval="[Command.set([ref('employee_category_4'), ref('employee_category_3')])]" />
-            <field name="work_contact_id" ref="hr.work_contact_al" />
+            <field name="partner_id" ref="hr.work_contact_al" />
             <field
                 name="image_1920"
                 type="base64"
@@ -328,7 +328,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field
                 name="tag_ids"
                 eval="[Command.set([ref('employee_category_4'), ref('employee_category_7')])]" />
-            <field name="work_contact_id" ref="hr.work_contact_vad" />
+            <field name="partner_id" ref="hr.work_contact_vad" />
             <field
                 name="image_1920"
                 type="base64"
@@ -371,7 +371,7 @@ If you have development competencies, we can propose you specific traineeships</
                 name="resource_calendar_id"
                 ref="resource.resource_calendar_std_38h" />
             <field name="work_location_id" ref="work_location_1" />
-            <field name="work_contact_id" ref="hr.work_contact_hne" />
+            <field name="partner_id" ref="hr.work_contact_hne" />
             <field
                 name="image_1920"
                 type="base64"
@@ -408,7 +408,7 @@ If you have development competencies, we can propose you specific traineeships</
                 eval="[Command.set([ref('employee_category_4'), ref('employee_category_5')])]" />
             <field name="private_country_id" ref="base.us" />
             <field name="private_email">Audrey.peterson2020@example.com</field>
-            <field name="work_contact_id" ref="hr.work_contact_fpi" />
+            <field name="partner_id" ref="hr.work_contact_fpi" />
             <field
                 name="image_1920"
                 type="base64"
@@ -455,7 +455,7 @@ If you have development competencies, we can propose you specific traineeships</
                 name="resource_calendar_id"
                 ref="resource.resource_calendar_std_38h" />
             <field name="work_location_id" ref="work_location_1" />
-            <field name="work_contact_id" ref="hr.work_contact_lur" />
+            <field name="partner_id" ref="hr.work_contact_lur" />
             <field
                 name="image_1920"
                 type="base64"
@@ -482,7 +482,7 @@ If you have development competencies, we can propose you specific traineeships</
                 name="resource_calendar_id"
                 ref="resource.resource_calendar_std_38h" />
             <field name="work_location_id" ref="work_location_1" />
-            <field name="work_contact_id" ref="hr.work_contact_jod" />
+            <field name="partner_id" ref="hr.work_contact_jod" />
             <field
                 name="image_1920"
                 type="base64"
@@ -502,7 +502,7 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="employee_fme" model="hr.employee">
             <field name="name">Keith Byrd</field>
             <field name="tag_ids" eval="[Command.set([ref('employee_category_4')])]" />
-            <field name="work_contact_id" ref="hr.work_contact_fme" />
+            <field name="partner_id" ref="hr.work_contact_fme" />
             <field
                 name="image_1920"
                 type="base64"
@@ -545,7 +545,7 @@ If you have development competencies, we can propose you specific traineeships</
                 name="resource_calendar_id"
                 ref="resource.resource_calendar_std_38h" />
             <field name="work_location_id" ref="work_location_1" />
-            <field name="work_contact_id" ref="hr.work_contact_jep" />
+            <field name="partner_id" ref="hr.work_contact_jep" />
             <field
                 name="image_1920"
                 type="base64"
@@ -573,7 +573,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field
                 name="resource_calendar_id"
                 ref="resource.resource_calendar_std_38h" />
-            <field name="work_contact_id" ref="hr.work_contact_jgo" />
+            <field name="partner_id" ref="hr.work_contact_jgo" />
             <field
                 name="image_1920"
                 type="base64"
@@ -595,7 +595,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field
                 name="tag_ids"
                 eval="[Command.set([ref('employee_category_4'), ref('employee_category_5'), ref('employee_category_6')])]" />
-            <field name="work_contact_id" ref="hr.work_contact_jth" />
+            <field name="partner_id" ref="hr.work_contact_jth" />
             <field
                 name="image_1920"
                 type="base64"
@@ -632,7 +632,7 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="employee_mit" model="hr.employee">
             <field name="name">Anita Oliver</field>
             <field name="tag_ids" eval="[Command.set([ref('employee_category_4')])]" />
-            <field name="work_contact_id" ref="hr.work_contact_mit" />
+            <field name="partner_id" ref="hr.work_contact_mit" />
             <field
                 name="image_1920"
                 type="base64"
@@ -670,7 +670,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field
                 name="tag_ids"
                 eval="[Command.set([ref('employee_category_4'), ref('employee_category_7')])]" />
-            <field name="work_contact_id" ref="hr.work_contact_niv" />
+            <field name="partner_id" ref="hr.work_contact_niv" />
             <field
                 name="image_1920"
                 type="base64"
@@ -708,7 +708,7 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="employee_stw" model="hr.employee">
             <field name="name">Randall Lewis</field>
             <field name="tag_ids" eval="[Command.set([ref('employee_category_4')])]" />
-            <field name="work_contact_id" ref="hr.work_contact_stw" />
+            <field name="partner_id" ref="hr.work_contact_stw" />
             <field
                 name="image_1920"
                 type="base64"
@@ -744,7 +744,7 @@ If you have development competencies, we can propose you specific traineeships</
             <field
                 name="tag_ids"
                 eval="[Command.set([ref('employee_category_4'), ref('employee_category_7')])]" />
-            <field name="work_contact_id" ref="hr.work_contact_chs" />
+            <field name="partner_id" ref="hr.work_contact_chs" />
             <field
                 name="image_1920"
                 type="base64"
@@ -781,7 +781,7 @@ If you have development competencies, we can propose you specific traineeships</
         </record>
         <record id="employee_jve" model="hr.employee">
             <field name="name">Paul Williams</field>
-            <field name="work_contact_id" ref="hr.work_contact_jve" />
+            <field name="partner_id" ref="hr.work_contact_jve" />
             <field
                 name="image_1920"
                 type="base64"
@@ -818,7 +818,7 @@ If you have development competencies, we can propose you specific traineeships</
         </record>
         <record id="employee_han" model="hr.employee">
             <field name="name">Walter Horton</field>
-            <field name="work_contact_id" ref="hr.work_contact_han" />
+            <field name="partner_id" ref="hr.work_contact_han" />
             <field
                 name="image_1920"
                 type="base64"
@@ -860,7 +860,7 @@ If you have development competencies, we can propose you specific traineeships</
                 name="resource_calendar_id"
                 ref="resource.resource_calendar_std_38h" />
             <field name="work_location_id" ref="work_location_1" />
-            <field name="work_contact_id" ref="hr.work_contact_jog" />
+            <field name="partner_id" ref="hr.work_contact_jog" />
             <field
                 name="image_1920"
                 type="base64"
@@ -876,7 +876,7 @@ If you have development competencies, we can propose you specific traineeships</
         </record>
         <record id="employee_barty_mcbly" model="hr.employee">
             <field name="name">Barty McBly</field>
-            <field name="work_contact_id" ref="hr.work_contact_barty_mcbly" />
+            <field name="partner_id" ref="hr.work_contact_barty_mcbly" />
             <field name="date_version">1885-09-02</field>
             <field name="contract_date_start">1885-09-02</field>
             <field name="contract_date_end">1885-09-07</field>

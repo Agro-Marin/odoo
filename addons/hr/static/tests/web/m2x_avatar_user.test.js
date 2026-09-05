@@ -44,7 +44,7 @@ test("avatar card preview with hr", async () => {
     });
     env["hr.employee"].write(employeeId, {
         user_id: userId,
-        work_contact_id: partnerId,
+        partner_id: partnerId,
     });
     env["m2x.avatar.user"].create({ user_id: userId });
     await mountView({
@@ -100,7 +100,7 @@ test("avatar card preview with hr (partner_id field)", async () => {
         work_phone: "+585555555",
     });
     env["hr.employee"].write(employeeId, {
-        work_contact_id: partnerId,
+        partner_id: partnerId,
     });
     env["m2x.avatar.user"].create({ partner_id: partnerId });
     await mountView({

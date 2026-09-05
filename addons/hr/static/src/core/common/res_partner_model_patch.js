@@ -9,7 +9,7 @@ patch(ResPartner.prototype, {
     setup() {
         super.setup();
         this.employee_ids = fields.Many("hr.employee", {
-            inverse: "work_contact_id",
+            inverse: "partner_id",
         });
         this.employee_id = fields.One("hr.employee", {
             compute() {

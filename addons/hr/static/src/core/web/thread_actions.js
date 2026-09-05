@@ -25,7 +25,7 @@ registerThreadAction("open-hr-profile", {
         ) {
             const employees = await this.store.env.services.orm.silent.searchRead(
                 "hr.employee.public",
-                [["work_contact_id", "=", thread.correspondent.partner_id.id]],
+                [["partner_id", "=", thread.correspondent.partner_id.id]],
                 ["id"],
             );
             employeeId = employees[0]?.id;

@@ -649,7 +649,7 @@ class TestRecruitment(TransactionCase):
         self.assertEqual(employee.job_id, job)
         self.assertEqual(employee.department_id, department)
         self.assertEqual(employee.job_title, job.name)
-        self.assertEqual(employee.work_contact_id, applicant.partner_id)
+        self.assertEqual(employee.partner_id, applicant.partner_id)
         self.assertEqual(employee.applicant_ids, applicant)
 
     def test_job_activity_count_counts_my_activities_on_open_applicants(self):

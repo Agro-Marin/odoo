@@ -18,8 +18,8 @@ class FleetVehicleAssignationLog(models.Model):
     @api.depends("driver_id")
     def _compute_driver_employee_id(self):
         employees_by_partner_id_and_company_id = self.env["hr.employee"]._read_group(
-            domain=[("work_contact_id", "in", self.driver_id.ids)],
-            groupby=["work_contact_id", "company_id"],
+            domain=[("partner_id", "in", self.driver_id.ids)],
+            groupby=["partner_id", "company_id"],
             aggregates=["id:recordset"],
         )
         employees_by_partner_id_and_company_id = {

@@ -21,7 +21,7 @@ class TestPrivateFacetIdentity(TransactionCase):
             }
         )
         home = employee.private_address_id
-        self.assertEqual(home.parent_id, employee.work_contact_id)
+        self.assertEqual(home.parent_id, employee.partner_id)
         self.assertEqual(home.gender, "female")
         self.assertEqual(str(home.birthdate), "1990-04-05")
         self.assertEqual(home.nationality_id, self.env.ref("base.mx"))
@@ -42,7 +42,7 @@ class TestPrivateFacetIdentity(TransactionCase):
         employee = self.env["hr.employee"].create(
             {"name": "Facet Party", "sex": "male", "birthday": "1975-06-06"}
         )
-        contact = employee.work_contact_id
+        contact = employee.partner_id
         self.assertFalse(contact.gender)
         self.assertFalse(contact.birthdate)
 
@@ -57,3 +57,12 @@ class TestPrivateFacetIdentity(TransactionCase):
             employee.with_user(colleague).read(["sex"])
         with self.assertRaises(AccessError):
             employee.with_user(colleague).read(["birthday"])
+
+    def test_a_new_record_reads_its_origin_facet(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "Facet Origin", "private_email": "home@example.com"}
+        )
+        fresh = employee.new(origin=employee)
+        self.assertEqual(fresh.private_address_id, employee.private_address_id)
+        self.assertEqual(fresh.private_email, "home@example.com")
+

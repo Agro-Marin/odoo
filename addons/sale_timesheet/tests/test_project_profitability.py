@@ -103,7 +103,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             {
                 "name": "test",
                 "company_id": foreign_company.id,
-                "work_contact_id": foreign_partner.id,
+                "partner_id": foreign_partner.id,
                 "hourly_cost": 200,
             }
         )
@@ -111,7 +111,7 @@ class TestSaleTimesheetProjectProfitability(TestCommonSaleTimesheet):
             {
                 "name": "test",
                 "company_id": foreign_company.id,
-                "work_contact_id": foreign_partner.id,
+                "partner_id": foreign_partner.id,
                 "hourly_cost": 500,
             }
         )

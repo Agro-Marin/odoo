@@ -867,8 +867,8 @@ class HrExpense(models.Model):
                 {
                     "product_id": expense.product_id.id,
                     "product_categ_id": expense.product_id.categ_id.id,
-                    "partner_id": expense.employee_id.work_contact_id.id,
-                    "partner_tag_id": expense.employee_id.work_contact_id.tag_ids.ids,
+                    "partner_id": expense.employee_id.partner_id.id,
+                    "partner_tag_id": expense.employee_id.partner_id.tag_ids.ids,
                     "account_prefix": expense.account_id.code,
                     "company_id": expense.company_id.id,
                 }
@@ -1909,8 +1909,8 @@ class HrExpense(models.Model):
                     **expenses_sudo._prepare_move_vals(),
                     "ref": move_ref,
                     "move_type": "in_receipt",
-                    "partner_id": employee_sudo.work_contact_id.id,
-                    "commercial_partner_id": employee_sudo.work_contact_id.commercial_partner_id.id,
+                    "partner_id": employee_sudo.partner_id.id,
+                    "commercial_partner_id": employee_sudo.partner_id.commercial_partner_id.id,
                     "currency_id": expenses_sudo.company_currency_id.id,
                     "line_ids": [
                         Command.create(expense_sudo._prepare_move_lines_vals())
@@ -2045,7 +2045,7 @@ class HrExpense(models.Model):
             "expense_id": self.id,
             "partner_id": False
             if self.payment_mode == "company_account"
-            else self.employee_id.sudo().work_contact_id.id,
+            else self.employee_id.sudo().partner_id.id,
             "tax_ids": [Command.set(self.tax_ids.ids)],
         }
 
@@ -2107,7 +2107,7 @@ class HrExpense(models.Model):
                     expense.payment_channel_id.payment_account_id
                     or expense._get_outstanding_account_id()
                 )
-            elif not expense.employee_id.sudo().work_contact_id:
+            elif not expense.employee_id.sudo().partner_id:
                 raise UserError(
                     self.env._(
                         "No work contact found for the employee %(name)s, please configure one.",
@@ -2115,7 +2115,7 @@ class HrExpense(models.Model):
                     )
                 )
             else:
-                partner = expense.employee_id.sudo().work_contact_id.with_company(
+                partner = expense.employee_id.sudo().partner_id.with_company(
                     expense.company_id
                 )
                 account_dest = (

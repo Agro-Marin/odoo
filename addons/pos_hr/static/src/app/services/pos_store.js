@@ -97,7 +97,7 @@ patch(PosStore.prototype, {
     },
     /**
      * If pos_hr is activated, return the cashier's `hr.employee` record:
-     * {id: int, name: string, user_id: res.users, work_contact_id: res.partner,
+     * {id: int, name: string, user_id: res.users, partner_id: res.partner,
      * _role: string, _barcode: string, _pin: string}
      * @returns {null|*}
      */
@@ -126,7 +126,7 @@ patch(PosStore.prototype, {
         }
         await this.data.call("pos.session", "log_partner_message", [
             this.session.id,
-            this.cashier.work_contact_id?.id,
+            this.cashier.partner_id?.id,
             action,
             message,
         ]);

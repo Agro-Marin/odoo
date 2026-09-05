@@ -13,15 +13,15 @@ class ResPartner(models.Model):
 
     def _get_employees_from_attendees(self, everybody=False):
         domain = Domain("company_id", "in", self.env.companies.ids) & Domain(
-            "work_contact_id", "!=", False
+            "partner_id", "!=", False
         )
         if not everybody:
-            domain &= Domain("work_contact_id", "in", self.ids)
+            domain &= Domain("partner_id", "in", self.ids)
         return dict(
             self.env["hr.employee"]
             .sudo()
             ._read_group(
-                domain, groupby=["work_contact_id"], aggregates=["id:recordset"]
+                domain, groupby=["partner_id"], aggregates=["id:recordset"]
             )
         )
 

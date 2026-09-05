@@ -32,8 +32,8 @@ class HrEmployee(models.Model):
     ]
     _mail_post_access = "read"
     _primary_email = "work_email"
-    _mail_partner_fields = ("work_contact_id",)
-    _inherits = {"res.partner": "work_contact_id", "hr.version": "version_id"}
+    _mail_partner_fields = ("partner_id",)
+    _inherits = {"hr.version": "version_id", "res.partner": "partner_id"}
 
     _DIRTY_HACK_PRIVATE_FIELDS = (
         "activity_calendar_event_id",
@@ -61,6 +61,10 @@ class HrEmployee(models.Model):
         groups="base.group_system,hr.group_hr_user",
         string="Company Country Code",
     )
+    country_code = fields.Char(
+        related="version_id.country_code",
+        inherited=True,
+    )
     currency_id = fields.Many2one(
         "res.currency",
         related="company_id.currency_id",
@@ -72,7 +76,7 @@ class HrEmployee(models.Model):
         required=True,
     )
     name = fields.Char(
-        related="work_contact_id.name",
+        related="partner_id.name",
         inherited=True,
         string="Employee Name",
         store=True,
@@ -197,9 +201,9 @@ class HrEmployee(models.Model):
         store=True,
         inverse="_inverse_work_contact_details",
     )
-    work_contact_id = fields.Many2one(
+    partner_id = fields.Many2one(
         "res.partner",
-        "Work Contact",
+        "Contact",
         required=True,
         ondelete="restrict",
         copy=False,
@@ -427,7 +431,7 @@ class HrEmployee(models.Model):
         relation="employee_bank_account_rel",
         column1="employee_id",
         column2="bank_account_id",
-        domain="[('partner_id', '=', work_contact_id), '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
+        domain="[('partner_id', '=', partner_id), '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
         string="Bank Accounts",
         tracking=True,
         groups="hr.group_hr_user",
@@ -606,18 +610,18 @@ class HrEmployee(models.Model):
         "A user cannot be linked to multiple employees in the same company.",
     )
 
-    @api.constrains("user_id", "work_contact_id")
+    @api.constrains("user_id", "partner_id")
     def _check_work_contact_is_the_user_partner(self):
         for employee in self:
             user_partner = employee.user_id.partner_id
-            if user_partner and employee.work_contact_id != user_partner:
+            if user_partner and employee.partner_id != user_partner:
                 raise ValidationError(
                     self.env._(
                         "%(employee)s is linked to user %(user)s, so their work "
                         "contact must be that user's contact, not %(contact)s.",
                         employee=employee.display_name,
                         user=employee.user_id.display_name,
-                        contact=employee.work_contact_id.display_name,
+                        contact=employee.partner_id.display_name,
                     )
                 )
 
@@ -820,8 +824,8 @@ class HrEmployee(models.Model):
                     {**vals, "resource_calendar_id": company.resource_calendar_id.id}
                 )
                 return True
-        if "work_contact_id" in vals:
-            self.message_unsubscribe(self.work_contact_id.ids)
+        if "partner_id" in vals:
+            self.message_unsubscribe(self.partner_id.ids)
         user_to_sync = None
         if "user_id" in vals:
             user_to_sync = self.env["res.users"].browse(vals["user_id"])
@@ -858,8 +862,8 @@ class HrEmployee(models.Model):
                 )
         new_vals, version_vals = self._split_employee_and_version_vals(vals)
         res = super().write(new_vals)
-        if "work_contact_id" in vals:
-            self._update_bank_account_contact(vals["work_contact_id"])
+        if "partner_id" in vals:
+            self._update_bank_account_contact(vals["partner_id"])
             self._reparent_private_address()
         if "name" in vals:
             self.resource_id.write({"name": vals["name"]})
@@ -1131,14 +1135,14 @@ class HrEmployee(models.Model):
             if employee.current_version_id != new_current_version:
                 employee.current_version_id = new_current_version
 
-    @api.depends("work_contact_id")
+    @api.depends("partner_id")
     def _compute_private_address_id(self):
         Partner = self.env["res.partner"].sudo()
         unresolved = self.filtered(lambda e: not e.private_address_id)
         existing_by_contact = {}
         for home in Partner.search(
             [
-                ("parent_id", "in", unresolved.work_contact_id.ids),
+                ("parent_id", "in", unresolved.partner_id.ids),
                 ("type", "=", "private"),
             ],
             order="id",
@@ -1146,19 +1150,19 @@ class HrEmployee(models.Model):
             existing_by_contact.setdefault(home.parent_id, home)
         to_create = []
         for employee in unresolved:
-            contact = employee.work_contact_id
+            contact = employee.partner_id
             if not contact:
                 employee.private_address_id = False
             elif contact in existing_by_contact:
                 employee.private_address_id = existing_by_contact[contact]
             elif not employee.id:
-                employee.private_address_id = False
+                employee.private_address_id = employee._origin.private_address_id
             else:
                 to_create.append(employee)
         if to_create:
             homes = Partner.create(
                 [
-                    {"parent_id": employee.work_contact_id.id, "type": "private"}
+                    {"parent_id": employee.partner_id.id, "type": "private"}
                     for employee in to_create
                 ]
             )
@@ -1177,13 +1181,13 @@ class HrEmployee(models.Model):
             elif not version.coach_id:
                 version.coach_id = False
 
-    @api.depends("work_contact_id", "work_contact_id.phone", "work_contact_id.email")
+    @api.depends("partner_id", "partner_id.phone", "partner_id.email")
     def _compute_work_contact_details(self):
         for employee in self:
-            if employee.work_contact_id:
-                if len(employee.work_contact_id.employee_ids) <= 1:
-                    employee.work_phone = employee.work_contact_id.phone
-                    employee.work_email = employee.work_contact_id.email
+            if employee.partner_id:
+                if len(employee.partner_id.employee_ids) <= 1:
+                    employee.work_phone = employee.partner_id.phone
+                    employee.work_email = employee.partner_id.email
 
     def _has_field_access(self, field, operation):
         if not super()._has_field_access(field, operation):
@@ -1608,8 +1612,8 @@ class HrEmployee(models.Model):
 
     def _inverse_work_contact_details(self):
         for employee in self:
-            if len(employee.work_contact_id.employee_ids) <= 1:
-                employee.work_contact_id.sudo().write(
+            if len(employee.partner_id.employee_ids) <= 1:
+                employee.partner_id.sudo().write(
                     {
                         "email": employee.work_email,
                         "phone": employee.work_phone,
@@ -1699,7 +1703,7 @@ class HrEmployee(models.Model):
             employee.work_permit_name = "%swork_permit%s" % (name, permit_no)
 
     def _get_partner_count_depends(self):
-        return ["user_id", "work_contact_id"]
+        return ["user_id", "partner_id"]
 
     @api.depends(lambda self: self._get_partner_count_depends())
     def _compute_related_partners_count(self):
@@ -1707,7 +1711,7 @@ class HrEmployee(models.Model):
             employee.related_partners_count = len(employee._get_related_partners())
 
     def _get_related_partners(self):
-        return self.work_contact_id | self.user_id.partner_id
+        return self.partner_id | self.user_id.partner_id
 
     def action_view_related_contacts(self):
         related_partners = self._get_related_partners()
@@ -1744,7 +1748,7 @@ class HrEmployee(models.Model):
                 "default_phone": self.work_phone,
                 "default_mobile": self.mobile_phone,
                 "default_login": self.work_email,
-                "default_partner_id": self.work_contact_id.id,
+                "default_partner_id": self.partner_id.id,
             },
         }
 
@@ -1816,7 +1820,7 @@ class HrEmployee(models.Model):
                     "name": employee.name,
                     "phone": employee.work_phone,
                     "login": login,
-                    "partner_id": employee.work_contact_id.id,
+                    "partner_id": employee.partner_id.id,
                 }
             )
         return create_vals, blocked
@@ -1987,8 +1991,8 @@ class HrEmployee(models.Model):
             if fname not in public_fields and self._is_public_party_field(fname)
         ]
         public_names = [fname for fname in field_names if fname not in party_names]
-        if party_names and "work_contact_id" not in public_names:
-            public_names.append("work_contact_id")
+        if party_names and "partner_id" not in public_names:
+            public_names.append("partner_id")
         return public_names, party_names
 
     def _check_no_private_fields(self, field_names):
@@ -2722,12 +2726,12 @@ class HrEmployee(models.Model):
             )
         )
         for employee, partner in zip(squatters, fresh, strict=True):
-            employee.work_contact_id = partner
+            employee.partner_id = partner
 
     def _generate_missing_avatars(self):
         if not self.env["ir.ui.view"].sudo(False).has_access("write"):
             return
-        for partner in self.work_contact_id:
+        for partner in self.partner_id:
             if partner.image_1920 or not (partner.name or "").strip():
                 continue
             partner.image_1920 = partner._prepare_avatar_svg()
@@ -2735,7 +2739,7 @@ class HrEmployee(models.Model):
     def _sync_user(self, user):
         vals = {"user_id": user.id}
         if user:
-            vals["work_contact_id"] = user.partner_id.id
+            vals["partner_id"] = user.partner_id.id
         if user.tz:
             vals["tz"] = user.tz
         return vals
@@ -2753,21 +2757,21 @@ class HrEmployee(models.Model):
     def _reparent_private_address(self):
         for employee in self.sudo():
             home = employee.private_address_id
-            contact = employee.work_contact_id
+            contact = employee.partner_id
             if home and contact and home.parent_id != contact:
                 home.parent_id = contact
 
-    def _update_bank_account_contact(self, work_contact_id):
+    def _update_bank_account_contact(self, partner_id):
         accounts_sudo = (
             self.env["res.partner.bank"].sudo().browse(self.bank_account_ids.ids)
         )
         to_move = accounts_sudo.filtered(
-            lambda account: account.partner_id.id != work_contact_id
+            lambda account: account.partner_id.id != partner_id
         )
         if not to_move:
             return
         trusted = to_move.filtered("allow_out_payment")
         if trusted:
             trusted.allow_out_payment = False
-        if work_contact_id:
-            to_move.partner_id = work_contact_id
+        if partner_id:
+            to_move.partner_id = partner_id

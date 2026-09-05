@@ -143,7 +143,7 @@
                 file="hr/static/img/partner_root-image.jpg" />
             <field name="work_phone">(555)-768-6230</field>
             <field name="mobile_phone">(555)-768-6235</field>
-            <field name="work_contact_id" ref="work_contact_mw" />
+            <field name="partner_id" ref="work_contact_mw" />
         </record>
         <record id="employee_eg" model="hr.employee" forcecreate="1">
             <field name="active">True</field>
@@ -168,7 +168,7 @@
                 file="hr/static/img/employee_awa-image.jpg" />
             <field name="work_phone">(555)-768-6230</field>
             <field name="mobile_phone">(555)-768-6235</field>
-            <field name="work_contact_id" ref="work_contact_eg" />
+            <field name="partner_id" ref="work_contact_eg" />
             <field name="coach_id" ref="employee_mw" />
             <field name="parent_id" ref="employee_mw" />
         </record>
@@ -194,7 +194,7 @@
                 file="hr/static/img/employee_qdp-image.png" />
             <field name="work_phone">(555)-768-6230</field>
             <field name="mobile_phone">(555)-768-6235</field>
-            <field name="work_contact_id" ref="work_contact_sj" />
+            <field name="partner_id" ref="work_contact_sj" />
             <field name="coach_id" ref="employee_mw" />
             <field name="parent_id" ref="employee_mw" />
         </record>

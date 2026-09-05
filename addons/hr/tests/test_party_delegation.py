@@ -9,27 +9,27 @@ class TestPartyDelegation(TransactionCase):
         employee = self.env["hr.employee"].create(
             {"name": "Party Bare", "work_email": "bare@example.com"}
         )
-        self.assertTrue(employee.work_contact_id)
-        self.assertEqual(employee.work_contact_id.name, "Party Bare")
+        self.assertTrue(employee.partner_id)
+        self.assertEqual(employee.partner_id.name, "Party Bare")
         self.assertEqual(employee.email, "bare@example.com")
         self.assertEqual(employee.resource_id.name, "Party Bare")
 
     def test_a_rename_reaches_the_party_and_the_resource(self):
         employee = self.env["hr.employee"].create({"name": "Party Before"})
         employee.name = "Party After"
-        self.assertEqual(employee.work_contact_id.name, "Party After")
+        self.assertEqual(employee.partner_id.name, "Party After")
         self.assertEqual(employee.resource_id.name, "Party After")
 
     def test_the_party_name_reads_back_through_the_employee(self):
         employee = self.env["hr.employee"].create({"name": "Party Read"})
-        employee.work_contact_id.name = "Party Renamed Elsewhere"
+        employee.partner_id.name = "Party Renamed Elsewhere"
         employee.invalidate_recordset(["name"])
         self.assertEqual(employee.name, "Party Renamed Elsewhere")
 
     def test_the_avatar_lives_on_the_party_only(self):
         employee = self.env["hr.employee"].create({"name": "Party Avatar"})
-        self.assertTrue(employee.work_contact_id.image_1920)
-        self.assertEqual(employee.image_1920, employee.work_contact_id.image_1920)
+        self.assertTrue(employee.partner_id.image_1920)
+        self.assertEqual(employee.image_1920, employee.partner_id.image_1920)
         self.env.cr.execute(
             "SELECT count(*) FROM ir_attachment"
             " WHERE res_model = 'hr.employee' AND res_id = %s AND res_field LIKE 'image_%%'",
@@ -42,15 +42,15 @@ class TestPartyDelegation(TransactionCase):
             {"name": "Party User", "login": "party_user"}
         )
         squatter = self.env["hr.employee"].create(
-            {"name": "Party Squatter", "work_contact_id": user.partner_id.id}
+            {"name": "Party Squatter", "partner_id": user.partner_id.id}
         )
         owner = self.env["hr.employee"].create(
             {"name": "Party Owner", "user_id": user.id}
         )
-        self.assertEqual(owner.work_contact_id, user.partner_id)
-        self.assertTrue(squatter.work_contact_id)
-        self.assertNotEqual(squatter.work_contact_id, user.partner_id)
-        self.assertEqual(squatter.work_contact_id.name, "Party Squatter")
+        self.assertEqual(owner.partner_id, user.partner_id)
+        self.assertTrue(squatter.partner_id)
+        self.assertNotEqual(squatter.partner_id, user.partner_id)
+        self.assertEqual(squatter.partner_id.name, "Party Squatter")
 
     def test_a_user_rename_reaches_the_employee_without_a_sync(self):
         user = self.env["res.users"].create(

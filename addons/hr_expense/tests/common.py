@@ -55,7 +55,7 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
                     "name": "expense_employee",
                     "user_id": cls.expense_user_employee.id,
                     "expense_manager_id": cls.expense_user_manager.id,
-                    "work_contact_id": cls.expense_user_employee.partner_id.id,
+                    "partner_id": cls.expense_user_employee.partner_id.id,
                     "bank_account_ids": [
                         Command.create(
                             {
@@ -70,7 +70,7 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
             .sudo(False)
         )
 
-        cls.expense_employee.work_contact_id.parent_id = cls.env.company.partner_id
+        cls.expense_employee.partner_id.parent_id = cls.env.company.partner_id
 
         cls.env.user.group_ids |= group_expense_manager
 
@@ -179,6 +179,6 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
             )
             self.assertEqual(
                 payment_register.partner_bank_id.partner_id,
-                expenses.employee_id.work_contact_id,
+                expenses.employee_id.partner_id,
             )
             return payment_register._create_payments()

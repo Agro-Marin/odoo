@@ -14,7 +14,7 @@ class TestExpensesAccessRights(TestExpenseCommon, HttpCase):
                 {
                     "name": "expense_employee_2",
                     "user_id": self.env.user.id,
-                    "work_contact_id": self.env.user.partner_id.id,
+                    "partner_id": self.env.user.partner_id.id,
                 }
             )
             .sudo(False)
@@ -64,7 +64,7 @@ class TestExpensesAccessRights(TestExpenseCommon, HttpCase):
                 {
                     "name": "expense_employee_base_user",
                     "user_id": user.id,
-                    "work_contact_id": user.partner_id.id,
+                    "partner_id": user.partner_id.id,
                     "expense_manager_id": self.expense_user_manager.id,
                     "address_id": user.partner_id.id,
                 }
@@ -126,7 +126,7 @@ class TestExpensesAccessRights(TestExpenseCommon, HttpCase):
                 {
                     "name": "another_employee",
                     "user_id": another_standard_user.id,
-                    "work_contact_id": another_standard_user.partner_id.id,
+                    "partner_id": another_standard_user.partner_id.id,
                     "expense_manager_id": self.expense_user_manager.id,
                 }
             )

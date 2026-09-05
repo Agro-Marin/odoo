@@ -103,7 +103,7 @@ class TestPrivateAddressOnCreate(TestHrCommon):
         self.assertEqual(home.city, "Brussels")
         self.assertEqual(home.zip, "1000")
         self.assertEqual(home.type, "private")
-        self.assertEqual(home.parent_id, employee.work_contact_id)
+        self.assertEqual(home.parent_id, employee.partner_id)
 
     def test_a_batch_create_lands_each_address_on_its_own_employee(self):
         first, second = self.env["hr.employee"].create(
@@ -219,7 +219,7 @@ class TestFixedSalaryAllocationIsValidated(TestHrCommon):
     def _employee_with_account(self):
         employee = self.env["hr.employee"].create({"name": "Paid"})
         account = self.env["res.partner.bank"].create(
-            {"acc_number": "R5-0001", "partner_id": employee.work_contact_id.id}
+            {"acc_number": "R5-0001", "partner_id": employee.partner_id.id}
         )
         employee.bank_account_ids = [Command.link(account.id)]
         return employee, account

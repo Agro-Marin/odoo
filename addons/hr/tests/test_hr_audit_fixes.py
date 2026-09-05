@@ -21,7 +21,7 @@ class TestHrAuditFixes(TestHrCommon):
 
     def _add_bank_account(self, employee, acc_number):
         return self.env["res.partner.bank"].create(
-            {"acc_number": acc_number, "partner_id": employee.work_contact_id.id}
+            {"acc_number": acc_number, "partner_id": employee.partner_id.id}
         )
 
     def test_version_id_context_is_per_record(self):
@@ -137,13 +137,13 @@ class TestHrAuditFixes(TestHrCommon):
 
     def test_employees_count_batched(self):
         emp = self._new_employee("Counted Guy")
-        partner = emp.work_contact_id
+        partner = emp.partner_id
         self.assertEqual(partner.employees_count, 1)
         self.env["hr.employee"].create(
             {
                 "name": "Counted Guy 2",
                 "date_version": "2020-01-01",
-                "work_contact_id": partner.id,
+                "partner_id": partner.id,
             }
         )
         partner.invalidate_recordset(["employees_count"])
@@ -283,7 +283,7 @@ class TestHrAuditRound2(TestHrCommon):
     def test_bank_account_masking_end_to_end_non_hr(self):
         emp = self._new_employee("Masked Guy")
         ba = self.env["res.partner.bank"].create(
-            {"acc_number": "123456", "partner_id": emp.work_contact_id.id}
+            {"acc_number": "123456", "partner_id": emp.partner_id.id}
         )
         emp.bank_account_ids = [(4, ba.id)]
         plain = mail_new_test_user(

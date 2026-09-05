@@ -9,7 +9,7 @@ export class HrEmployee extends Record {
     company_id = fields.One("res.company");
     department_id = fields.One("hr.department");
     job_title;
-    work_contact_id = fields.One("res.partner");
+    partner_id = fields.One("res.partner");
     user_id = fields.One("res.users");
     work_email;
     work_location_id = fields.One("hr.work.location");

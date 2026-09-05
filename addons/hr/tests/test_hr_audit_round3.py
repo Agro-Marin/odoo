@@ -22,14 +22,14 @@ class TestHrAuditRound3(TestHrCommon):
     def test_unlink_user_on_several_employees_at_once(self):
         first = self.Employee.create({"name": "Batch A"})
         second = self.Employee.create({"name": "Batch B"})
-        contacts = (first | second).work_contact_id
+        contacts = (first | second).partner_id
         self.assertEqual(len(contacts), 2, "each employee got its own work contact")
 
         (first | second).write({"user_id": False})
 
         self.assertFalse((first | second).user_id)
         self.assertEqual(
-            (first | second).work_contact_id,
+            (first | second).partner_id,
             contacts,
             "clearing the user must not disturb the existing work contacts",
         )
@@ -57,18 +57,18 @@ class TestHrAuditRound3(TestHrCommon):
             {"name": "Shared Partner", "login": "shared_partner_r3"}
         )
         squatter = self.Employee.create(
-            {"name": "Squatter", "work_contact_id": user.partner_id.id}
+            {"name": "Squatter", "partner_id": user.partner_id.id}
         )
-        self.assertEqual(squatter.work_contact_id, user.partner_id)
+        self.assertEqual(squatter.partner_id, user.partner_id)
 
         self.Employee.create({"name": "Real Owner", "user_id": user.id})
 
         self.assertNotEqual(
-            squatter.work_contact_id,
+            squatter.partner_id,
             user.partner_id,
             "the userless employee must lose the partner now claimed by a user",
         )
-        self.assertEqual(squatter.work_contact_id.name, "Squatter")
+        self.assertEqual(squatter.partner_id.name, "Squatter")
 
     def test_department_subscription_covers_every_written_employee(self):
         dept_a = self.env["hr.department"].create({"name": "R3 A"})
@@ -247,7 +247,7 @@ class TestHrAuditRound3(TestHrCommon):
         )
         employee = self.Employee.create({"name": "R3 Banked"})
         banked = self.env["res.partner.bank"].create(
-            {"acc_number": "R3EMP00001", "partner_id": employee.work_contact_id.id}
+            {"acc_number": "R3EMP00001", "partner_id": employee.partner_id.id}
         )
         employee.bank_account_ids = [(6, 0, banked.ids)]
         self.env.flush_all()
@@ -269,7 +269,7 @@ class TestHrAuditRound3(TestHrCommon):
         )
         employee = self.Employee.create({"name": "R3 NonHR Banked"})
         banked = self.env["res.partner.bank"].create(
-            {"acc_number": "R3NHR0002", "partner_id": employee.work_contact_id.id}
+            {"acc_number": "R3NHR0002", "partner_id": employee.partner_id.id}
         )
         employee.bank_account_ids = [(6, 0, banked.ids)]
         plain_user = self.env["res.users"].create(
@@ -290,10 +290,10 @@ class TestHrAuditRound3(TestHrCommon):
     def test_bank_account_search_matches_its_own_compute(self):
         employee = self.Employee.create({"name": "R3 Two Accounts"})
         listed = self.env["res.partner.bank"].create(
-            {"acc_number": "R3TWO0001", "partner_id": employee.work_contact_id.id}
+            {"acc_number": "R3TWO0001", "partner_id": employee.partner_id.id}
         )
         unlisted = self.env["res.partner.bank"].create(
-            {"acc_number": "R3TWO0002", "partner_id": employee.work_contact_id.id}
+            {"acc_number": "R3TWO0002", "partner_id": employee.partner_id.id}
         )
         employee.bank_account_ids = [(6, 0, listed.ids)]
         self.env.flush_all()
