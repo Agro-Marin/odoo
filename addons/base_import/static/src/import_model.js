@@ -727,7 +727,11 @@ export class BaseImportModel {
             return res.preview.flatMap((preview, index) =>
                 this._createColumn(
                     res,
-                    preview[0],
+                    // No headers means no server-suggested match: a raw data
+                    // value must never stand in for a field match key, or a
+                    // column whose first row happens to equal a real field's
+                    // technical name gets spuriously pre-selected to it.
+                    this.importOptions.has_headers ? preview[0] : undefined,
                     this.importOptions.has_headers ? preview[0] : preview.join(", "),
                     index,
                     preview,
