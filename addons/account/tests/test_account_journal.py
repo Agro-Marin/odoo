@@ -314,6 +314,35 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
             "the stale sale-type account must be reset when type changes via write()",
         )
 
+    def test_batch_type_change_on_same_named_journals_does_not_crash(self):
+        # Two journals sharing a name derive the same mail alias; a batch type
+        # change used to regenerate that alias per-journal with no cross-record
+        # dedup, so the second journal's alias creation raised a UserError.
+        company = self.env.company
+        journals = self.env["account.journal"].create(
+            [
+                {
+                    "name": "Vendor",
+                    "code": "ZZ01",
+                    "type": "general",
+                    "company_id": company.id,
+                },
+                {
+                    "name": "Vendor",
+                    "code": "ZZ02",
+                    "type": "general",
+                    "company_id": company.id,
+                },
+            ]
+        )
+        journals.write({"type": "purchase"})
+        self.assertEqual(journals.mapped("type"), ["purchase", "purchase"])
+        self.assertNotEqual(
+            journals[0].alias_name,
+            journals[1].alias_name,
+            "two same-named journals must not end up sharing one alias",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestAccountJournalSelectableDomain(AccountTestInvoicingCommon):
