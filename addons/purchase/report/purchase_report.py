@@ -15,6 +15,15 @@ class PurchaseReport(models.Model):
         selection=[("purchase.order", "Purchase Order")],
         aggregator="count_distinct",
     )
+    # `order_reference` opens the order (see `mixin.order.report`) but cannot
+    # group it: `reference` is absent from the web client's `GROUPABLE_TYPES`,
+    # so it reaches neither a quick filter nor "Add Custom Group". This is the
+    # groupable half of the same column; `o.id` is already in the GROUP BY.
+    order_id = fields.Many2one(
+        comodel_name="purchase.order",
+        string="Purchase Order",
+        readonly=True,
+    )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
         string="Currency",
@@ -96,6 +105,7 @@ class PurchaseReport(models.Model):
         return {
             "id": "MIN(l.id)",
             "order_reference": "CONCAT('purchase.order', ',', o.id)",
+            "order_id": "o.id",
             "company_id": "o.company_id",
             "currency_id": "c.currency_id",
             "dest_address_id": "o.dest_address_id",
