@@ -221,11 +221,17 @@ class ProjectMilestone(models.Model):
                 milestone_mapping[old_milestone.id] = new_milestone.id
         return new_milestones
 
-    @api.depends_context("lang", "display_milestone_deadline")
+    @api.depends_context("lang", "display_milestone_deadline", "formatted_display_name")
     def _compute_display_name(self) -> None:
         super()._compute_display_name()
         if not self.env.context.get("display_milestone_deadline"):
             return
+        formatted = self.env.context.get("formatted_display_name")
         for milestone in self:
-            if milestone.deadline:
-                milestone.display_name = f"{milestone.display_name} - {format_date(self.env, milestone.deadline)}"
+            if not milestone.deadline:
+                continue
+            deadline = format_date(self.env, milestone.deadline)
+            if formatted:
+                milestone.display_name = f"{milestone.display_name}\t--{deadline}--"
+            else:
+                milestone.display_name = f"{milestone.display_name} - {deadline}"
