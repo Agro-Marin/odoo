@@ -430,6 +430,41 @@ class TestTransitiveSpecifierDiscovery(BaseCase):
             self.assertEqual(self._discover(["@web/nope/nope"]), set())
 
 
+class TestCollectingUrlsIsNotRenderingThem(TransactionCase):
+    BUNDLE = "test_assetsbundle.native_esm"
+
+    def _with_request(self, req, fn):
+        with patch.object(ir_qweb_assets, "request", req):
+            return fn(self.env["ir.qweb"])
+
+    def test_the_urls_query_leaves_the_pages_first_map_slot_free(self):
+        req = SimpleNamespace()
+        urls = self._with_request(req, lambda q: q._get_asset_urls(self.BUNDLE))
+        self.assertTrue(urls)
+        self.assertFalse(getattr(req, "_esm_import_map_rendered", False))
+        self.assertEqual(getattr(req, "_esm_page_bundles", ()), ())
+
+        pre, _post = self._with_request(
+            req, lambda q: q._get_native_module_nodes(self.BUNDLE)
+        )
+        IrQweb = self.env["ir.qweb"]
+        self.assertTrue(any(IrQweb._is_import_map_node(n) for n in pre))
+        self.assertTrue(any(IrQweb._is_loader_shim_node(n) for n in pre))
+        self.assertTrue(req._esm_import_map_rendered)
+
+    def test_a_second_render_on_the_page_still_drops_the_map(self):
+        req = SimpleNamespace()
+        first, _ = self._with_request(
+            req, lambda q: q._get_native_module_nodes(self.BUNDLE)
+        )
+        second, _ = self._with_request(
+            req, lambda q: q._get_native_module_nodes(self.BUNDLE)
+        )
+        IrQweb = self.env["ir.qweb"]
+        self.assertTrue(any(IrQweb._is_import_map_node(n) for n in first))
+        self.assertFalse(any(IrQweb._is_import_map_node(n) for n in second))
+
+
 class TestDebugNodesAreRequestIndependent(TransactionCase):
     BUNDLE = "test_assetsbundle.native_esm"
 

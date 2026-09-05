@@ -85,6 +85,7 @@ class IrQweb(models.AbstractModel):
         lazy_load: bool = False,
         media: str | None = None,
         autoprefix: bool = False,
+        page: bool = True,
     ) -> list[AssetNode]:
         media = (css and media) or None
         links = self._get_asset_links(
@@ -98,6 +99,7 @@ class IrQweb(models.AbstractModel):
             pre_nodes, post_nodes = self._get_native_module_nodes(
                 bundle,
                 debug=debug,
+                page=page,
             )
             has_native = bool(pre_nodes) or bool(post_nodes)
 
@@ -136,7 +138,9 @@ class IrQweb(models.AbstractModel):
         debug: str | None = None,
     ) -> list[str]:
         urls = []
-        for _tag, attrs in self._get_asset_nodes(bundle, css=css, js=js, debug=debug):
+        for _tag, attrs in self._get_asset_nodes(
+            bundle, css=css, js=js, debug=debug, page=False
+        ):
             url = attrs.get("src") or attrs.get("href")
             if url and url not in urls:
                 urls.append(url)
@@ -526,6 +530,7 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         debug: str = "",
         assets_params: dict[str, Any] | None = None,
+        page: bool = True,
     ) -> EsmNodePair:
         debug_assets = self._is_debug_assets(debug)
         if assets_params is None:
@@ -568,6 +573,8 @@ class IrQweb(models.AbstractModel):
                 page_scope=page_scope,
                 esbuild_ok=False,
             )
+        if not page:
+            return pre, post
         self._record_esm_page_bundle(bundle)
         return self._dedup_request_page_scripts(bundle, pre), post
 
