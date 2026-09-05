@@ -26,6 +26,16 @@ does not run on a 19.0 database today.
 The second gate is the silent half. A directory name the loader's own
 ``VERSION_RE`` does not match is skipped with a log line nobody reads, so a
 migration that never runs looks exactly like one that ran and did nothing.
+
+Both scans walk the filesystem, and a directory holding nothing but
+``__pycache__`` is not on the branch: git tracks no empty directory, so a
+rename leaves the old name behind in every working tree that had imported it,
+in no ``git status`` and in no diff. Such a directory is inert to
+``MigrationManager`` -- ``_get_scripts_by_version`` globs ``*.py`` and finds
+none -- so counting it reports a regression that no commit contains and that
+no clean checkout reproduces. A directory holding any other file is still
+scanned, including one holding only a non-``.py`` file, which is a real defect
+this gate should keep seeing.
 """
 
 import logging
@@ -42,6 +52,10 @@ MIGRATION_DIRECTORIES = ("migrations", "upgrades")
 SERIES_PREFIX = release.major_version + "."
 
 
+def _holds_something_git_can_track(entry):
+    return any(child.name != "__pycache__" for child in entry.iterdir())
+
+
 def version_directories():
     for root in lint_case.core_module_roots():
         for kind in MIGRATION_DIRECTORIES:
@@ -49,7 +63,11 @@ def version_directories():
             if not base.is_dir():
                 continue
             for entry in sorted(base.iterdir()):
-                if entry.is_dir() and entry.name != "tests":
+                if (
+                    entry.is_dir()
+                    and entry.name != "tests"
+                    and _holds_something_git_can_track(entry)
+                ):
                     yield entry
 
 

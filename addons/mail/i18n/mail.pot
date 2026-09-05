@@ -13669,38 +13669,6 @@ msgstr ""
 
 #. module: mail
 #. odoo-python
-#: code:addons/mail/models/discuss/discuss_channel.py:0
-msgid ""
-"A %(channel_type)s cannot have more than %(limit)s members. Create a group "
-"instead."
-msgstr ""
-
-#. module: mail
-#. odoo-python
-#: code:addons/mail/models/mail_message.py:0
-msgid "You cannot read the following messages: %(ids)s"
-msgstr ""
-
-#. module: mail
-#. odoo-python
-#: code:addons/mail/models/mail_message.py:0
-msgid "A message can only reply to a message of the same document."
-msgstr ""
-
-#. module: mail
-#. odoo-python
-#: code:addons/mail/models/mail_push_device.py:0
-msgid "Invalid push subscription keys: %(reason)s"
-msgstr ""
-
-#. module: mail
-#. odoo-python
-#: code:addons/mail/models/mail_push_device.py:0
-msgid "Invalid push subscription expiration time %(value)s"
-msgstr ""
-
-#. module: mail
-#. odoo-python
 #: code:addons/mail/models/mail_template.py:0
 msgid "%(model)s has no field or attribute %(name)r"
 msgstr ""
