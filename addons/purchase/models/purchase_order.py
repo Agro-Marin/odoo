@@ -1,3 +1,4 @@
+from collections import defaultdict
 from urllib.parse import urlencode
 
 from dateutil.relativedelta import relativedelta
@@ -660,24 +661,32 @@ class PurchaseOrder(models.Model):
         )
         partners = partner | self.partner_id
 
-        suppinfo_vals_list = []
-        seen_tmpls = set()
+        # One entry per template, holding one prepared pricelist per *variant*
+        # bought. This used to be a `seen_tmpls` blocklist, which dropped every
+        # line after the first of a template: three variants at three prices
+        # became one template-level pricelist carrying the first line's price,
+        # and the other two variants stayed mispriced for good.
+        vals_by_tmpl = defaultdict(list)
 
         for line in self.line_ids:
             if not line.product_id:
                 continue
             tmpl = line.product_id.product_tmpl_id
-            if tmpl.id in seen_tmpls:
-                continue
             already_seller = partners & line.product_id.seller_ids.mapped("partner_id")
             if (
                 already_seller
                 or len(line.product_id.seller_ids) >= const.MAX_SUPPLIERS_PER_PRODUCT
             ):
-                seen_tmpls.add(tmpl.id)
                 continue
 
-            seen_tmpls.add(tmpl.id)
+            # False on a template with a single variant, so a product with no
+            # attributes keeps getting exactly the template-level pricelist it
+            # got before -- including the de-duplication of a repeated line.
+            variant_id = line.product_id.id if tmpl.product_variant_count > 1 else False
+            prepared = vals_by_tmpl[tmpl]
+            if any(vals["product_id"] == variant_id for vals in prepared):
+                continue
+
             price = line.price_unit
             if tmpl.uom_id != line.product_uom_id:
                 price = line.product_uom_id._compute_price(price, tmpl.uom_id)
@@ -693,7 +702,21 @@ class PurchaseOrder(models.Model):
                 supplierinfo["product_code"] = line.selected_seller_id.product_code
                 supplierinfo["product_uom_id"] = line.product_uom_id.id
             supplierinfo["product_tmpl_id"] = tmpl.id
-            suppinfo_vals_list.append(supplierinfo)
+            supplierinfo["product_id"] = variant_id
+            prepared.append(supplierinfo)
+
+        suppinfo_vals_list = []
+        for prepared in vals_by_tmpl.values():
+            reference = prepared[0]
+            if len(prepared) > 1 and all(
+                vals["price"] == reference["price"]
+                and vals["delay"] == reference["delay"]
+                for vals in prepared
+            ):
+                # Every variant agrees: one template-level pricelist reads
+                # better than N identical variant ones.
+                prepared = [{**reference, "product_id": False}]
+            suppinfo_vals_list.extend(prepared)
 
         if suppinfo_vals_list:
             self.env["product.supplierinfo"].sudo().with_company(
@@ -937,8 +960,26 @@ class PurchaseOrder(models.Model):
             "price": price,
             "currency_id": currency.id,
             "discount": line.discount,
-            "delay": 0,
+            "delay": self._get_supplier_delay(line),
         }
+
+    def _get_supplier_delay(self, line):
+        """Lead time the vendor just committed to, in whole local days.
+
+        This was a literal `0`, which is not merely wrong but worse than the
+        field's own default of 1: the scheduler then plans every purchase from
+        this vendor for the day it is ordered.
+
+        Both ends go through `context_today` rather than `.date()` so the count
+        is in the user's calendar days; at UTC-6 a raw UTC `.date()` shifts the
+        boundary by one for anything confirmed after 18:00 local.
+        """
+        if not line.date_commitment:
+            return 0
+        confirmed = self.date_confirmed or fields.Datetime.now()
+        arrival_date = fields.Date.context_today(self, timestamp=line.date_commitment)
+        confirmed_date = fields.Date.context_today(self, timestamp=confirmed)
+        return max(0, (arrival_date - confirmed_date).days)
 
     def _send_reminder_mail(self, send_single=False):
         if not self.env.user.has_group("purchase.group_send_reminder"):
