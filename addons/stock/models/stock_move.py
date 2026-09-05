@@ -1573,16 +1573,24 @@ class StockMove(models.Model):
             lot if lot.get("quantity") else {**lot, "quantity": qty}
             for lot, qty in zip(lot_names, lot_qties, strict=True)
         ]
+        line_uom = self.env["uom.uom"].browse(
+            default_vals.get("uom_id", product.uom_id.id)
+        )
         locations = loc_dest._get_putaway_strategy_batch(
             product,
-            [lot["quantity"] for lot in lots],
+            [
+                line_uom._compute_quantity(
+                    lot["quantity"], product.uom_id, rounding_method="HALF-UP"
+                )
+                for lot in lots
+            ],
         )
         return [
             {
                 **default_vals,
                 **lot,
                 "location_dest_id": location.id,
-                "product_uom_id": default_vals.get("uom_id", product.uom_id.id),
+                "product_uom_id": line_uom.id,
             }
             for lot, location in zip(lots, locations, strict=True)
         ]

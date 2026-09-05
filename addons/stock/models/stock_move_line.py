@@ -991,7 +991,7 @@ class StockMoveLine(models.Model):
             putaway_location = sml.move_id.location_dest_id.with_context(
                 exclude_sml_ids=excluded_smls,
                 locations=locations,
-            )._get_putaway_strategy(sml.product_id, quantity=sml.quantity)
+            )._get_putaway_strategy(sml.product_id, quantity=sml.quantity_product_uom)
             if putaway_location != sml.location_dest_id:
                 sml.location_dest_id = putaway_location
             excluded_smls.discard(sml.id)
@@ -1006,7 +1006,7 @@ class StockMoveLine(models.Model):
                 exclude_sml_ids=excluded_smls,
             )._get_putaway_strategy(
                 sml.product_id,
-                quantity=sml.quantity,
+                quantity=sml.quantity_product_uom,
                 packaging=sml.move_id.packaging_uom_id,
             )
             if putaway_location != sml.location_dest_id:
@@ -1388,7 +1388,10 @@ class StockMoveLine(models.Model):
         if strict:
             return aggregated_move_lines
         self._add_undelivered_quantities(
-            aggregated_move_lines, undelivered_key, backorder_lines_by_base, get_line_key
+            aggregated_move_lines,
+            undelivered_key,
+            backorder_lines_by_base,
+            get_line_key,
         )
         self._aggregate_empty_moves(
             aggregated_move_lines, agg_keys_by_base, self.picking_id | backorders
@@ -1396,7 +1399,11 @@ class StockMoveLine(models.Model):
         return aggregated_move_lines
 
     def _add_undelivered_quantities(
-        self, aggregated_move_lines, undelivered_key, backorder_lines_by_base, get_line_key
+        self,
+        aggregated_move_lines,
+        undelivered_key,
+        backorder_lines_by_base,
+        get_line_key,
     ):
         for move, line_key in undelivered_key.items():
             entry = aggregated_move_lines[line_key]
@@ -1881,7 +1888,9 @@ class StockMoveLine(models.Model):
         if len(self) == 1:
             default_dest_location = self._get_default_dest_location()
             self.location_dest_id = default_dest_location._get_putaway_strategy(
-                product=self.product_id, quantity=self.quantity, package=package
+                product=self.product_id,
+                quantity=self.quantity_product_uom,
+                package=package,
             )
         self.write({"result_package_id": package.id})
         return package

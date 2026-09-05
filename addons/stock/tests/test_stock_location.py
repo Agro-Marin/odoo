@@ -313,3 +313,65 @@ class TestStockLocationFieldBounds(TestStockCommon):
                 {"name": "Shared B", "barcode": "SHARED-BC", "company_id": False},
             )
             self.env.flush_all()
+
+
+@tagged("post_install", "-at_install")
+class TestPutawayQuantityUnit(TestStockCommon):
+    def test_capacity_is_checked_in_the_product_uom(self):
+        product = self.env["product.product"].create(
+            {"name": "Capped", "is_storable": True, "uom_id": self.uom_unit.id}
+        )
+        category = self.env["stock.storage.category"].create(
+            {
+                "name": "Twelve units",
+                "product_capacity_ids": [
+                    (0, 0, {"product_id": product.id, "quantity": 12.0})
+                ],
+            }
+        )
+        zone = self.env["stock.location"].create(
+            {
+                "name": "Capped Zone",
+                "usage": "internal",
+                "location_id": self.warehouse_1.view_location_id.id,
+            }
+        )
+        shelf = self.env["stock.location"].create(
+            {
+                "name": "Capped Shelf",
+                "usage": "internal",
+                "location_id": zone.id,
+                "storage_category_id": category.id,
+            }
+        )
+        self.env["stock.putaway.rule"].create(
+            {
+                "product_id": product.id,
+                "location_in_id": zone.id,
+                "location_out_id": zone.id,
+                "storage_category_id": category.id,
+                "sublocation": "closest_location",
+            }
+        )
+        self.env["stock.quant"]._update_available_quantity(product, shelf, 6.0)
+
+        move = self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "product_uom_id": self.uom_dozen.id,
+                "product_uom_qty": 1.0,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": zone.id,
+                "picking_type_id": self.warehouse_1.in_type_id.id,
+            }
+        )
+        move._action_confirm()
+        move._action_assign()
+
+        self.assertEqual(move.move_line_ids.quantity_product_uom, 12.0)
+        self.assertNotEqual(
+            move.move_line_ids.location_dest_id,
+            shelf,
+            "a dozen is twelve units against a shelf that has room for six,"
+            " whatever unit the line is written in",
+        )
