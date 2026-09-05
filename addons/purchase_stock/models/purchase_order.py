@@ -97,6 +97,14 @@ class PurchaseOrder(models.Model):
             if to_log:
                 order._log_decrease_ordered_quantity(to_log)
 
+        if "priority" in vals and "locked" not in vals:
+            # `action_lock` clears `priority` in the very write that sets
+            # `locked` (purchase/models/purchase_order.py). That is the buyer's
+            # dashboard flag being retired along with the order, not an
+            # instruction to the warehouse, so a lock must not quietly demote a
+            # receipt that has not arrived yet.
+            self._propagate_priority_to_pickings(vals["priority"])
+
         return res
 
     @api.depends("picking_type_id")
@@ -597,7 +605,13 @@ class PurchaseOrder(models.Model):
             "company_id": self.company_id.id,
             "state": "draft",
             "reference_ids": [Command.set(self.reference_ids.ids)],
+            "priority": self.priority,
         }
+
+    def _propagate_priority_to_pickings(self, priority):
+        self.picking_ids.filtered(
+            lambda picking: picking.state not in ("done", "cancel"),
+        ).priority = priority
 
     def _prepare_reference_vals(self):
         self.check_singleton()
