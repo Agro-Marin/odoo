@@ -67,7 +67,7 @@ test("Opening full composer in 'send message' mode should copy selected suggeste
     const def = new Deferred();
     mockService("action", {
         async doAction(action) {
-            if (action?.res_model === "res.fake") {
+            if (typeof action !== "object" || action.res_model === "res.fake") {
                 return super.doAction(...arguments);
             }
             asyncStep("do-action");
@@ -107,7 +107,7 @@ test("Opening full composer in 'log note' mode should not copy selected suggeste
     const def = new Deferred();
     mockService("action", {
         async doAction(action) {
-            if (action?.res_model === "res.fake") {
+            if (typeof action !== "object" || action.res_model === "res.fake") {
                 return super.doAction(...arguments);
             }
             asyncStep("do-action");

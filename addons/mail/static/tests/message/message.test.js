@@ -1858,7 +1858,7 @@ test("data-oe-id & data-oe-model link redirection on click", async () => {
     });
     mockService("action", {
         doAction(action) {
-            if (action?.res_model === "res.partner") {
+            if (typeof action !== "object" || action.res_model === "res.partner") {
                 return super.doAction(...arguments);
             }
             expect(action.type).toBe("ir.actions.act_window");

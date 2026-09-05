@@ -245,14 +245,17 @@ test("Edit a scheduled message", async () => {
         };
     });
     mockService("action", {
-        doAction(action, { onClose }) {
-            if (action.name === "Edit Scheduled Message") {
+        doAction(action, options) {
+            if (
+                typeof action === "object" &&
+                action.name === "Edit Scheduled Message"
+            ) {
                 pyEnv["mail.scheduled.message"].write(scheduledMessageId, {
                     subject: "Hi there",
                     body: "<p>Rescheduled later</p>",
                     scheduled_date: "2024-10-20 13:00:00",
                 });
-                return onClose();
+                return options.onClose();
             }
             return super.doAction(...arguments);
         },
@@ -288,15 +291,15 @@ test("Scheduling a message", async () => {
     const pyEnv = await startServer();
     const partnerId = pyEnv.user.partner_id;
     mockService("action", {
-        doAction(action, { onClose }) {
-            if (action.name === "Compose Email") {
+        doAction(action, options) {
+            if (typeof action === "object" && action.name === "Compose Email") {
                 pyEnv["mail.scheduled.message"].create({
                     body: "New scheduled message",
                     model: action.context.default_model,
                     res_id: action.context.default_res_ids[0],
                     scheduled_date: "2024-10-20 13:00:00",
                 });
-                return onClose(undefined);
+                return options.onClose(undefined);
             }
             return super.doAction(...arguments);
         },
