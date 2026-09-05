@@ -210,6 +210,17 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
         self.assertIn(self.task_1.name, response.text)
         self.assertNotIn(self.task_2.name, response.text)
 
+        # The projects listing must be searchable too, not only the tasks one.
+        url = "/my/projects"
+        response = self.url_open(url)
+        self.assertIn(self.project_1.name, response.text)
+        self.assertIn(self.project_2.name, response.text)
+
+        url = "/my/projects?search=%s" % (self.project_1.name)
+        response = self.url_open(url)
+        self.assertIn(self.project_1.name, response.text)
+        self.assertNotIn(self.project_2.name, response.text)
+
     def test_task_templates_visibility_portal(self) -> None:
         self.authenticate(self.user_portal.login, self.user_portal.login)
         portal_project = self.env["project.project"].create({"name": "Portal Project"})
