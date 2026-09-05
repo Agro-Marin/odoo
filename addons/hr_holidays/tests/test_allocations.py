@@ -28,9 +28,7 @@ class TestAllocations(TestHrHolidaysCommon):
                 "name": "Test Department",
             }
         )
-        cls.category_tag = cls.env["res.partner.tag"].create(
-            {"name": "Test category"}
-        )
+        cls.category_tag = cls.env["res.partner.tag"].create({"name": "Test category"})
         cls.employee = cls.env["hr.employee"].create(
             {
                 "name": "My Employee",
@@ -720,7 +718,7 @@ class TestAllocations(TestHrHolidaysCommon):
                     "number_of_days": 12,
                     "allocation_type": "regular",
                     "date_from": date(2025, 1, 1),
-                    "date_to": date.today(),
+                    "date_to": Date.context_today(self.env.user),
                 }
             )
         )

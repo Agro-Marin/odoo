@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime, time, timedelta
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
@@ -115,7 +115,7 @@ class HrEmployee(models.Model):
         employees.update({"hr_presence_state": "absent"})
 
     def _compute_allocation_counts(self):
-        current_date = date.today()
+        current_date = fields.Date.context_today(self)
         data = self.env["hr.leave.allocation"]._read_group(
             [
                 ("employee_id", "in", self.ids),
@@ -137,7 +137,7 @@ class HrEmployee(models.Model):
             employee.allocations_count = count
 
     def _compute_allocation_displays(self):
-        current_date = date.today()
+        current_date = fields.Date.context_today(self)
         allocations = self.env["hr.leave.allocation"].search(
             [("employee_id", "in", self.ids)]
         )
@@ -329,7 +329,7 @@ class HrEmployee(models.Model):
                 manager = self.env["hr.employee"].browse(vals["parent_id"]).user_id
                 vals["leave_manager_id"] = vals.get("leave_manager_id", manager.id)
             if approver_group and vals.get("leave_manager_id"):
-                group_updates.append((4, vals["leave_manager_id"]))
+                group_updates.append(Command.link(vals["leave_manager_id"]))
         if group_updates:
             approver_group.sudo().write({"user_ids": group_updates})
         return super().create(vals_list)
@@ -363,7 +363,9 @@ class HrEmployee(models.Model):
                 if approver_group and not leave_manager.has_group(
                     "hr_holidays.group_hr_holidays_responsible"
                 ):
-                    leave_manager.sudo().write({"group_ids": [(4, approver_group.id)]})
+                    leave_manager.sudo().write(
+                        {"group_ids": [Command.link(approver_group.id)]}
+                    )
 
         res = super().write(values)
         old_managers.sudo()._clean_leave_responsible_users()
@@ -620,7 +622,7 @@ class HrEmployee(models.Model):
             )
 
         if not target_date:
-            target_date = fields.Date.today()
+            target_date = fields.Date.context_today(self)
         if ignore_future:
             leaves_domain.append(("date_from", "<=", target_date))
         leaves = self.env["hr.leave"].search(leaves_domain)

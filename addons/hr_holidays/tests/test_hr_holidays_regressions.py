@@ -1,4 +1,7 @@
 from datetime import date
+from unittest.mock import patch
+
+from freezegun import freeze_time
 
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
@@ -370,4 +373,219 @@ class TestConsumedLeavesExcess(TestHrHolidaysCommon):
             sorted((morning + afternoon).ids),
             "both same-day leaves overran the allocation; keying excess_days "
             "by end date alone let the second overwrite the first",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestApprovalRightsCacheKey(TestHrHolidaysCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.manager_type = cls.env["hr.leave.type"].create(
+            {
+                "name": "Manager Validated",
+                "requires_allocation": False,
+                "leave_validation_type": "manager",
+                "company_id": cls.company.id,
+            }
+        )
+        cls.leave = cls.env["hr.leave"].create(
+            {
+                "employee_id": cls.employee_emp_id,
+                "holiday_status_id": cls.manager_type.id,
+                "request_date_from": date(2026, 10, 5),
+                "request_date_to": date(2026, 10, 5),
+            }
+        )
+
+    def test_leave_rights_are_computed_per_user(self):
+        as_manager = self.leave.with_user(self.user_responsible)
+        as_employee = self.leave.with_user(self.user_employee)
+        self.assertTrue(as_manager.can_validate)
+        self.assertTrue(as_manager.can_refuse)
+        self.assertFalse(
+            as_employee.can_validate,
+            "the employee must not inherit the approver's cached answer "
+            "inside the same transaction",
+        )
+        self.assertFalse(as_employee.can_refuse)
+        self.assertFalse(as_employee.can_approve)
+        self.assertFalse(as_employee.can_back_to_approve)
+
+    def test_allocation_rights_are_computed_per_user(self):
+        allocation_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Manager Allocated",
+                "requires_allocation": True,
+                "allocation_validation_type": "manager",
+                "employee_requests": True,
+                "company_id": self.company.id,
+            }
+        )
+        allocation = self.env["hr.leave.allocation"].create(
+            {
+                "name": "alloc",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": allocation_type.id,
+                "number_of_days": 2,
+            }
+        )
+        as_manager = allocation.with_user(self.user_responsible)
+        as_employee = allocation.with_user(self.user_employee)
+        self.assertTrue(as_manager.can_validate)
+        self.assertFalse(as_employee.can_validate)
+        self.assertFalse(as_employee.can_refuse)
+
+
+@tagged("post_install", "-at_install")
+class TestLeaveWithoutDates(TestHrHolidaysCommon):
+    def test_missing_request_dates_is_a_validation_error(self):
+        leave_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Dated",
+                "requires_allocation": False,
+                "company_id": self.company.id,
+            }
+        )
+        with self.assertRaises(ValidationError):
+            self.env["hr.leave"].create(
+                {
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": leave_type.id,
+                    "request_date_from": False,
+                    "request_date_to": False,
+                }
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestVersionCreateWithRpcDates(TestHrHolidaysCommon):
+    def test_string_dates_are_accepted(self):
+        leave_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Plain",
+                "requires_allocation": False,
+                "company_id": self.company.id,
+            }
+        )
+        self.env["hr.leave"].create(
+            {
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": leave_type.id,
+                "request_date_from": date(2026, 11, 2),
+                "request_date_to": date(2026, 11, 2),
+            }
+        )
+        other_calendar = self.env["resource.calendar"].create(
+            {"name": "Other", "company_id": self.company.id}
+        )
+        version = self.env["hr.version"].create(
+            {
+                "employee_id": self.employee_emp_id,
+                "resource_calendar_id": other_calendar.id,
+                "date_version": "2026-12-01",
+                "contract_date_start": "2026-10-01",
+            }
+        )
+        self.assertEqual(version.contract_date_start, date(2026, 10, 1))
+
+
+@tagged("post_install", "-at_install")
+class TestEmployeeDeletesOwnAllocation(TestHrHolidaysCommon):
+    def test_pending_allocation_can_be_deleted_by_its_employee(self):
+        leave_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Requestable",
+                "requires_allocation": True,
+                "employee_requests": True,
+                "allocation_validation_type": "hr",
+                "company_id": self.company.id,
+            }
+        )
+        allocation = (
+            self.env["hr.leave.allocation"]
+            .with_user(self.user_employee)
+            .create(
+                {
+                    "name": "mine",
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": leave_type.id,
+                    "number_of_days": 1,
+                }
+            )
+        )
+        self.assertEqual(allocation.state, "confirm")
+        allocation.with_user(self.user_employee).unlink()
+        self.assertFalse(allocation.exists())
+
+
+@tagged("post_install", "-at_install")
+class TestDurationComputesOnlyWhatItReads(TestHrHolidaysCommon):
+    def test_hourly_type_skips_the_per_day_listing(self):
+        hour_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Hourly",
+                "requires_allocation": False,
+                "request_unit": "hour",
+                "company_id": self.company.id,
+            }
+        )
+        leave = self.env["hr.leave"].create(
+            {
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": hour_type.id,
+                "request_date_from": date(2026, 10, 6),
+                "request_date_to": date(2026, 10, 6),
+                "request_hour_from": 9,
+                "request_hour_to": 11,
+            }
+        )
+        with patch.object(
+            type(self.env["hr.employee"]),
+            "_list_work_time_per_day",
+            side_effect=AssertionError("per-day listing is not needed for hours"),
+        ):
+            _days, hours = leave._get_durations()[leave.id]
+        self.assertEqual(hours, 2)
+
+
+@tagged("post_install", "-at_install")
+class TestBalanceUsesTheUsersToday(TestHrHolidaysCommon):
+    @freeze_time("2026-09-04 23:30:00")
+    def test_allocation_created_today_counts_today(self):
+        leave_type = self.env["hr.leave.type"].create(
+            {
+                "name": "Today",
+                "requires_allocation": True,
+                "allocation_validation_type": "no_validation",
+                "employee_requests": True,
+                "company_id": self.company.id,
+            }
+        )
+        ahead = (
+            self.env["res.users"]
+            .browse(self.env.uid)
+            .with_context(tz="Europe/Brussels")
+        )
+        allocation = (
+            self.env["hr.leave.allocation"]
+            .with_env(ahead.env)
+            .create(
+                {
+                    "name": "alloc",
+                    "employee_id": self.employee_emp_id,
+                    "holiday_status_id": leave_type.id,
+                    "number_of_days": 5,
+                }
+            )
+        )
+        allocation.action_approve()
+        balance = leave_type.with_env(ahead.env).with_context(
+            employee_id=self.employee_emp_id
+        )
+        self.assertEqual(
+            balance.max_leaves,
+            5,
+            "an allocation dated the user's today must be in the balance even "
+            "when UTC is still on the previous day",
         )

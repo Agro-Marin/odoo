@@ -97,6 +97,8 @@ class HrLeaveReportCalendar(models.Model):
         );
         """)
 
+    @api.depends("name", "employee_id.name")
+    @api.depends_context("hide_employee_name", "group_by")
     def _compute_display_name(self):
         if self.env.context.get(
             "hide_employee_name"

@@ -231,7 +231,6 @@ class HrLeaveAllocation(models.Model):
             )
 
     @api.depends_context("uid")
-    @api.depends("allocation_type")
     def _compute_is_officer(self):
         self.is_officer = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
 
@@ -299,11 +298,12 @@ class HrLeaveAllocation(models.Model):
             allocation.name_validity = name_validity
 
     @api.depends("employee_id", "holiday_status_id")
+    @api.depends_context("default_date_from")
     def _compute_leaves(self):
         date_from = (
             fields.Date.from_string(self.env.context["default_date_from"])
             if "default_date_from" in self.env.context
-            else fields.Date.today()
+            else fields.Date.context_today(self)
         )
         employee_days_per_allocation = self.employee_id._get_consumed_leaves(
             self.holiday_status_id, date_from
@@ -348,6 +348,7 @@ class HrLeaveAllocation(models.Model):
                 _("hours") if allocation.type_request_unit == "hour" else _("days"),
             )
 
+    @api.depends_context("uid")
     @api.depends("state", "employee_id")
     def _compute_can_approve(self):
         for allocation in self:
@@ -355,6 +356,7 @@ class HrLeaveAllocation(models.Model):
                 "validate1", raise_if_not_possible=False
             )
 
+    @api.depends_context("uid")
     @api.depends("state", "employee_id")
     def _compute_can_validate(self):
         for allocation in self:
@@ -362,6 +364,7 @@ class HrLeaveAllocation(models.Model):
                 "validate", raise_if_not_possible=False
             )
 
+    @api.depends_context("uid")
     @api.depends("state", "employee_id")
     def _compute_can_refuse(self):
         for allocation in self:
@@ -1073,16 +1076,6 @@ class HrLeaveAllocation(models.Model):
         for values in vals_list:
             if "state" in values and values["state"] != "confirm":
                 raise UserError(_("Incorrect state for new allocation"))
-            employee_id = values.get("employee_id", False)
-            if not values.get("department_id"):
-                values.update(
-                    {
-                        "department_id": self.env["hr.employee"]
-                        .sudo()
-                        .browse(employee_id)
-                        .department_id.id
-                    }
-                )
         allocations = super(
             HrLeaveAllocation, self.with_context(mail_create_nosubscribe=True)
         ).create(vals_list)
@@ -1138,13 +1131,13 @@ class HrLeaveAllocation(models.Model):
             self._add_lastcalls()
         for allocation in self:
             current_excess = (
-                dict(consumed_leaves[1])
+                consumed_leaves[1]
                 .get(allocation.employee_id, {})
                 .get(allocation.holiday_status_id, {})
                 .get("excess_days", {})
             )
             previous_excess = (
-                dict(previous_consumed_leaves[1])
+                previous_consumed_leaves[1]
                 .get(allocation.employee_id, {})
                 .get(allocation.holiday_status_id, {})
                 .get("excess_days", {})
@@ -1203,11 +1196,6 @@ class HrLeaveAllocation(models.Model):
                     "You cannot delete an allocation request which has some validated leaves."
                 )
             )
-
-    def copy(self, default=None):
-        new_allocations = super().copy(default)
-        new_allocations.state = "confirm"
-        return new_allocations
 
     def _get_redirect_suggested_company(self):
         return self.holiday_status_id.company_id
@@ -1331,9 +1319,9 @@ class HrLeaveAllocation(models.Model):
             else:
                 try:
                     allocation.check_access("write")
-                except UserError as e:
+                except UserError:
                     if raise_if_not_possible:
-                        raise UserError(e) from e
+                        raise
                     return False
                 else:
                     continue

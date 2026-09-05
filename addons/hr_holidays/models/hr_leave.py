@@ -737,6 +737,7 @@ Versions:
                 leave.has_mandatory_day = bool(mandatory_days.filtered_domain(domain))
 
     @api.depends("leave_type_request_unit", "number_of_days")
+    @api.depends_context("lang")
     def _compute_leave_type_increases_duration(self):
         durations = self._get_durations(check_leave_type=False)
         for leave in self:
@@ -760,67 +761,48 @@ Versions:
     def _get_durations(self, check_leave_type=True, resource_calendar=None):
         result = {}
         employee_leaves = self.filtered("employee_id")
-        employees_by_dates_calendar = defaultdict(lambda: self.env["hr.employee"])
+        per_day_employees = defaultdict(lambda: self.env["hr.employee"])
+        work_data_employees = defaultdict(lambda: self.env["hr.employee"])
         for leave in employee_leaves:
             if not leave.date_from or not leave.date_to:
                 continue
-            employees_by_dates_calendar[
-                (
-                    leave.date_from,
-                    leave.date_to,
-                    leave.holiday_status_id.include_public_holidays_in_duration,
-                    resource_calendar or leave.resource_calendar_id,
-                )
-            ] += leave.employee_id
+            if (
+                leave.employee_id.sudo().is_flexible
+                and leave.request_date_to == leave.request_date_from
+            ):
+                continue
+            key = (
+                leave.date_from,
+                leave.date_to,
+                leave.holiday_status_id.include_public_holidays_in_duration,
+                resource_calendar or leave.resource_calendar_id,
+            )
+            if leave.leave_type_request_unit == "day" and check_leave_type:
+                per_day_employees[key] += leave.employee_id
+            else:
+                work_data_employees[key] += leave.employee_id
         domain = [
             ("time_type", "=", "leave"),
-            (
-                "company_id",
-                "in",
-                self.env.companies.ids
-                + self.env.context.get("allowed_company_ids", []),
-            ),
+            ("company_id", "in", self.env.companies.ids),
             "|",
             ("holiday_id", "=", False),
             ("holiday_id", "not in", employee_leaves.ids),
         ]
         work_time_per_day_mapped = {
-            (
-                date_from,
-                date_to,
-                include_public_holidays_in_duration,
-                calendar,
-            ): employees.with_context(
-                compute_leaves=not include_public_holidays_in_duration
-            )._list_work_time_per_day(
-                date_from, date_to, domain=domain, calendar=calendar
-            )
-            for (
-                date_from,
-                date_to,
-                include_public_holidays_in_duration,
-                calendar,
-            ), employees in employees_by_dates_calendar.items()
+            key: employees.with_context(
+                compute_leaves=not key[2]
+            )._list_work_time_per_day(key[0], key[1], domain=domain, calendar=key[3])
+            for key, employees in per_day_employees.items()
         }
         work_days_data_mapped = {
-            (
-                date_from,
-                date_to,
-                include_public_holidays_in_duration,
-                calendar,
-            ): employees._get_work_days_data_batch(
-                date_from,
-                date_to,
-                compute_leaves=not include_public_holidays_in_duration,
+            key: employees._get_work_days_data_batch(
+                key[0],
+                key[1],
+                compute_leaves=not key[2],
                 domain=domain,
-                calendar=calendar,
+                calendar=key[3],
             )
-            for (
-                date_from,
-                date_to,
-                include_public_holidays_in_duration,
-                calendar,
-            ), employees in employees_by_dates_calendar.items()
+            for key, employees in work_data_employees.items()
         }
         for leave in self:
             calendar = resource_calendar or leave.resource_calendar_id
@@ -915,7 +897,7 @@ Versions:
             leave.number_of_hours = hours
             leave.number_of_days = days
 
-    @api.depends("employee_company_id")
+    @api.depends("employee_company_id", "department_id.company_id")
     def _compute_company_id(self):
         for holiday in self:
             holiday.company_id = (
@@ -936,7 +918,7 @@ Versions:
             leave.tz_mismatch = leave.tz != self.env.user.tz
 
     @api.depends("resource_calendar_id.tz")
-    @api.depends_context("uid")
+    @api.depends_context("uid", "company")
     def _compute_tz(self):
         for leave in self:
             leave.tz = (
@@ -963,6 +945,7 @@ Versions:
                 display = f"{duration} {unit}"
             leave.duration_display = display
 
+    @api.depends_context("uid")
     @api.depends("state", "employee_id", "department_id")
     def _compute_can_approve(self):
         for holiday in self:
@@ -970,6 +953,7 @@ Versions:
                 "validate1", raise_if_not_possible=False
             )
 
+    @api.depends_context("uid")
     @api.depends("state", "employee_id", "department_id")
     def _compute_can_back_to_approve(self):
         for holiday in self:
@@ -980,6 +964,7 @@ Versions:
                 )
             )
 
+    @api.depends_context("uid")
     @api.depends("state", "employee_id", "department_id")
     def _compute_can_validate(self):
         for holiday in self:
@@ -987,6 +972,7 @@ Versions:
                 "validate", raise_if_not_possible=False
             )
 
+    @api.depends_context("uid")
     @api.depends("state", "employee_id", "department_id")
     def _compute_can_refuse(self):
         for holiday in self:
@@ -1015,11 +1001,12 @@ Versions:
             holiday.supported_attachment_ids_count = len(holiday.attachment_ids.ids)
 
     @api.depends("employee_id", "holiday_status_id")
+    @api.depends_context("default_request_date_from")
     def _compute_leaves(self):
         date_from = (
             fields.Date.from_string(self.env.context["default_request_date_from"])
             if "default_request_date_from" in self.env.context
-            else fields.Date.today()
+            else fields.Date.context_today(self)
         )
         employee_days_per_allocation = self.employee_id._get_consumed_leaves(
             self.holiday_status_id, date_from
@@ -1063,7 +1050,19 @@ Versions:
                     _("This modification is not allowed in the current state.")
                 )
 
+    def _raise_missing_allocation(self):
+        raise ValidationError(
+            _(
+                "You do not have any allocation for this time off type.\n"
+                "Please request an allocation before submitting your time off request."
+            )
+        )
+
     def _check_validity(self):
+        if any(not leave.date_from or not leave.date_to for leave in self):
+            raise ValidationError(
+                _("A time off request needs both a start date and an end date.")
+            )
         sorted_leaves = defaultdict(lambda: self.env["hr.leave"])
         for leave in self:
             sorted_leaves[(leave.holiday_status_id, leave.date_from.date())] |= leave
@@ -1074,19 +1073,11 @@ Versions:
             leave_data = leave_type.get_allocation_data(employees, date_from)
             if leave_type.allows_negative:
                 max_excess = leave_type.max_allowed_negative
-                is_cancellation = all(
-                    leave.state in ("cancel", "refuse") for leave in leaves
-                )
+                if all(leave.state in ("cancel", "refuse") for leave in leaves):
+                    continue
                 for employee in employees:
-                    if is_cancellation:
-                        continue
                     if not leave_data[employee][0][1]["max_leaves"]:
-                        raise ValidationError(
-                            _(
-                                "You do not have any allocation for this time off type.\n"
-                                "Please request an allocation before submitting your time off request."
-                            )
-                        )
+                        self._raise_missing_allocation()
                     if (
                         leave_data[employee]
                         and leave_data[employee][0][1]["virtual_remaining_leaves"]
@@ -1110,12 +1101,7 @@ Versions:
                     and leave_data[employee][0][1]["virtual_excess_data"]
                 )
                 if not leave_data[employee][0][1]["max_leaves"]:
-                    raise ValidationError(
-                        _(
-                            "You do not have any allocation for this time off type.\n"
-                            "Please request an allocation before submitting your time off request."
-                        )
-                    )
+                    self._raise_missing_allocation()
                 if not previous_emp_data and not emp_data:
                     continue
                 if previous_emp_data != emp_data and len(emp_data) >= len(
@@ -1141,7 +1127,7 @@ Versions:
         "number_of_days",
         "department_id",
     )
-    @api.depends_context("short_name", "hide_employee_name", "groupby", "lang")
+    @api.depends_context("short_name", "hide_employee_name", "group_by", "lang")
     def _compute_display_name(self):
         for leave in self:
             user_tz = timezone(leave.tz)
@@ -1336,16 +1322,11 @@ Versions:
             not VALIDITY_TRIGGER_FIELDS.isdisjoint(values)
             or self._get_consumption_signature() != consumption_before
         ):
-            if not values.get("state") or values.get("state") not in (
-                "refuse",
-                "cancel",
-            ):
+            if values.get("state") not in ("refuse", "cancel"):
                 self._check_validity()
             self._invalidate_allocation_computes()
-        if not self.env.context.get("leave_fast_create"):
-            for holiday in self:
-                if employee_id:
-                    holiday.add_follower(employee_id)
+        if employee_id and not self.env.context.get("leave_fast_create"):
+            self.add_follower(employee_id)
 
         return result
 
@@ -1358,7 +1339,7 @@ Versions:
             elem[0]: elem[1]
             for elem in self._fields["state"]._description_selection(self.env)
         }
-        now = fields.Datetime.now().date()
+        today = fields.Date.today()
 
         if not self.env.user.has_group("hr_holidays.group_hr_holidays_user"):
             for hol in self:
@@ -1367,7 +1348,7 @@ Versions:
                         error_message
                         % {"state": state_description_values.get(hol.state)}
                     )
-                if hol.date_from.date() < now:
+                if hol.date_from and hol.date_from.date() < today:
                     raise UserError(
                         _("You can't delete a time off request that is in the past.")
                     )
@@ -1375,9 +1356,6 @@ Versions:
             for holiday in self.filtered(
                 lambda holiday: holiday.state not in ["cancel", "confirm"]
             ):
-                error_message = self.env._(
-                    "Oops! %(state)s Time-Off requests can only be deleted by Administrators."
-                )
                 raise UserError(
                     error_message
                     % {"state": state_description_values.get(holiday.state)}
@@ -1465,14 +1443,17 @@ Versions:
             Holiday.browse(meeting.res_id).meeting_id = meeting
 
         for holiday in holidays:
-            user_tz = timezone(holiday.tz)
-            utc_tz = holiday.date_from.replace(tzinfo=UTC).astimezone(user_tz)
+            date_from_local = (
+                holiday.date_from.replace(tzinfo=UTC)
+                .astimezone(timezone(holiday.tz))
+                .replace(tzinfo=None)
+            )
             notify_partner_ids = holiday.employee_id.user_id.partner_id.ids
             holiday.message_post(
                 body=_(
                     "Your %(leave_type)s planned on %(date)s has been accepted",
                     leave_type=holiday.holiday_status_id.display_name,
-                    date=utc_tz.replace(tzinfo=None),
+                    date=date_from_local,
                 ),
                 partner_ids=notify_partner_ids,
             )
@@ -1520,14 +1501,14 @@ Versions:
                 "allday": allday_value,
                 "privacy": "confidential",
                 "event_tz": user.tz,
-                "activity_ids": [(5, 0, 0)],
+                "activity_ids": [Command.clear()],
                 "res_id": holiday.id,
             }
             partner_id = (user and user.partner_id) or (
                 holiday.employee_id and holiday.employee_id.work_contact_id
             )
             if partner_id:
-                meeting_values["partner_ids"] = [(4, partner_id.id)]
+                meeting_values["partner_ids"] = [Command.link(partner_id.id)]
             result[user.id].append(meeting_values)
         return result
 
@@ -1567,7 +1548,7 @@ Versions:
         )
         leave_to_validate._action_validate(check_state)
         if not self.env.context.get("leave_fast_create"):
-            self.activity_update()
+            leave_to_approve.activity_update()
         return True
 
     def action_back_to_approval(self):
@@ -1927,9 +1908,9 @@ is approved, validated or refused."
             elif state != "cancel":
                 try:
                     holiday.check_access("write")
-                except UserError as e:
+                except UserError:
                     if raise_if_not_possible:
-                        raise UserError(e) from e
+                        raise
                     return False
                 else:
                     continue
@@ -2153,20 +2134,23 @@ is approved, validated or refused."
                 leave.holiday_status_id in accrual_allocations.holiday_status_id
             )
         )
-        reason = _("the accruated amount is insufficient for that duration.")
+        reason = _("the accrued amount is insufficient for that duration.")
+        leaves_by_type_and_date = defaultdict(lambda: self.env["hr.leave"])
         for leave in concerned_leaves:
-            leave_type = leave.holiday_status_id
-            date = leave.date_from.date()
-            leave_type_data = leave_type.get_allocation_data(leave.employee_id, date)
-            if not leave_type_data[leave.employee_id][0][1]["max_leaves"]:
-                leave._force_cancel(reason, "mail.mt_note")
-                continue
-            exceeding_duration = leave_type_data[leave.employee_id][0][1][
-                "total_virtual_excess"
-            ]
+            leaves_by_type_and_date[
+                (leave.holiday_status_id, leave.date_from.date())
+            ] |= leave
+        for (leave_type, date), leaves in sorted(
+            leaves_by_type_and_date.items(), key=lambda item: item[0][1], reverse=True
+        ):
+            leave_type_data = leave_type.get_allocation_data(leaves.employee_id, date)
             excess_limit = (
                 leave_type.max_allowed_negative if leave_type.allows_negative else 0
             )
-            if exceeding_duration <= excess_limit:
-                continue
-            leave._force_cancel(reason, "mail.mt_note")
+            for leave in leaves:
+                employee_data = leave_type_data[leave.employee_id][0][1]
+                if (
+                    not employee_data["max_leaves"]
+                    or employee_data["total_virtual_excess"] > excess_limit
+                ):
+                    leave._force_cancel(reason, "mail.mt_note")

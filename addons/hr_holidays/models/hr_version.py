@@ -24,11 +24,16 @@ class HrVersion(models.Model):
                 created_versions |= super().create(vals)
                 continue
             leaves = self._get_leaves_from_vals(vals)
+            contract_date_start = fields.Date.to_date(
+                vals.get("contract_date_start")
+                or vals.get("date_version")
+                or fields.Date.today()
+            )
             is_created = False
             for leave in leaves:
                 leaves_state = (
                     self._refuse_leave(leave, leaves_state)
-                    if leave.request_date_from < vals["contract_date_start"]
+                    if leave.request_date_from < contract_date_start
                     else self._set_leave_draft(leave, leaves_state)
                 )
                 if not is_created:
@@ -135,33 +140,25 @@ class HrVersion(models.Model):
         return self.env["hr.leave"].search(domain)
 
     def _get_leaves_from_vals(self, vals):
-        domain = [
-            ("state", "!=", "refuse"),
-            ("employee_id", "in", vals["employee_id"]),
-            (
-                "date_to",
-                ">=",
-                fields.Date.from_string(
-                    vals.get(
-                        "contract_date_start",
-                        vals.get("date_version", fields.Date.today()),
-                    )
+        domain = Domain(
+            [
+                ("state", "!=", "refuse"),
+                ("employee_id", "=", vals["employee_id"]),
+                (
+                    "date_to",
+                    ">=",
+                    fields.Date.to_date(
+                        vals.get("contract_date_start")
+                        or vals.get("date_version")
+                        or fields.Date.today()
+                    ),
                 ),
-            ),
-            ("resource_calendar_id", "!=", vals.get("resource_calendar_id")),
-        ]
+                ("resource_calendar_id", "!=", vals.get("resource_calendar_id")),
+            ]
+        )
         if vals.get("contract_date_end"):
-            domain = Domain.AND(
-                [
-                    domain,
-                    [
-                        (
-                            "date_from",
-                            "<=",
-                            fields.Date.from_string(vals["contract_date_end"]),
-                        )
-                    ],
-                ]
+            domain &= Domain(
+                "date_from", "<=", fields.Date.to_date(vals["contract_date_end"])
             )
         return self.env["hr.leave"].search(domain)
 

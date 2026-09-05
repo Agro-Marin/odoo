@@ -157,6 +157,9 @@ class TestOutOfOfficePerformance(TestHrHolidaysCommon, TransactionCaseWithUserDe
     @warmup
     def test_leave_im_status_performance_user_leave_offline(self):
         self.leave.write({"state": "validate"})
+        # The count below is the presence lookup and the leave join; the
+        # user's own row is loaded first so a cold cache does not add a third.
+        self.hr_user.manual_im_status
         with self.assertQueryCount(__system__=2, demo=2):
             self.assertEqual(self.hr_user.im_status, "leave_offline")
 

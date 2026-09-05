@@ -295,22 +295,19 @@ class HrLeaveType(models.Model):
                     )
                 )
 
+    @api.model
+    def _current_year_domain(self):
+        year = fields.Date.context_today(self).year
+        return [
+            ("holiday_status_id", "in", self.ids),
+            ("date_from", ">=", datetime(year, 1, 1)),
+            ("date_from", "<=", datetime(year, 12, 31, 23, 59, 59)),
+            ("state", "in", ("validate", "validate1", "confirm")),
+        ]
+
     @api.constrains("include_public_holidays_in_duration")
     def _check_overlapping_public_holidays(self):
-        now = datetime.now()
-        min_datetime = now.replace(
-            month=1, day=1, hour=0, minute=0, second=0, microsecond=0
-        )
-        max_datetime = now.replace(month=12, day=31, hour=23, minute=59, second=59)
-
-        leaves = self.env["hr.leave"].search(
-            [
-                ("holiday_status_id", "in", self.ids),
-                ("date_from", ">=", fields.Datetime.to_string(min_datetime)),
-                ("date_from", "<=", fields.Datetime.to_string(max_datetime)),
-                ("state", "in", ("validate", "validate1", "confirm")),
-            ]
-        )
+        leaves = self.env["hr.leave"].search(self._current_year_domain())
         if not leaves:
             return
 
@@ -437,7 +434,7 @@ class HrLeaveType(models.Model):
         leaves = defaultdict(int)
 
         if employee:
-            today = fields.Date.today()
+            today = fields.Date.context_today(self)
             grouped = self.env["hr.leave.allocation"]._read_group(
                 [
                     ("employee_id", "=", employee.id),
@@ -489,57 +486,28 @@ class HrLeaveType(models.Model):
             )
 
     def _compute_allocation_count(self):
-        min_datetime = fields.Datetime.to_string(
-            datetime.now().replace(
-                month=1, day=1, hour=0, minute=0, second=0, microsecond=0
-            )
-        )
-        max_datetime = fields.Datetime.to_string(
-            datetime.now().replace(month=12, day=31, hour=23, minute=59, second=59)
-        )
-        domain = [
-            ("holiday_status_id", "in", self.ids),
-            ("date_from", ">=", min_datetime),
-            ("date_from", "<=", max_datetime),
-            ("state", "in", ("confirm", "validate", "validate1")),
-        ]
-
         grouped_res = self.env["hr.leave.allocation"]._read_group(
-            domain,
+            self._current_year_domain(),
             ["holiday_status_id"],
             ["__count"],
         )
         grouped_dict = {
             holiday_status.id: count for holiday_status, count in grouped_res
         }
-        for allocation in self:
-            allocation.allocation_count = grouped_dict.get(allocation.id, 0)
+        for leave_type in self:
+            leave_type.allocation_count = grouped_dict.get(leave_type.id, 0)
 
     def _compute_group_days_leave(self):
-        min_datetime = fields.Datetime.to_string(
-            datetime.now().replace(
-                month=1, day=1, hour=0, minute=0, second=0, microsecond=0
-            )
-        )
-        max_datetime = fields.Datetime.to_string(
-            datetime.now().replace(month=12, day=31, hour=23, minute=59, second=59)
-        )
-        domain = [
-            ("holiday_status_id", "in", self.ids),
-            ("date_from", ">=", min_datetime),
-            ("date_from", "<=", max_datetime),
-            ("state", "in", ("validate", "validate1", "confirm")),
-        ]
         grouped_res = self.env["hr.leave"]._read_group(
-            domain,
+            self._current_year_domain(),
             ["holiday_status_id"],
             ["__count"],
         )
         grouped_dict = {
             holiday_status.id: count for holiday_status, count in grouped_res
         }
-        for allocation in self:
-            allocation.group_days_leave = grouped_dict.get(allocation.id, 0)
+        for leave_type in self:
+            leave_type.group_days_leave = grouped_dict.get(leave_type.id, 0)
 
     def _compute_accrual_count(self):
         accrual_allocations = self.env["hr.leave.accrual.plan"]._read_group(
@@ -701,7 +669,7 @@ class HrLeaveType(models.Model):
                     ("state", "=", "validate"),
                     ("allocation_type", "=", "accrual"),
                     "|",
-                    ("date_to", ">", date.today()),
+                    ("date_to", ">", fields.Date.context_today(self)),
                     ("date_to", "=", False),
                 ],
                 limit=1,
@@ -712,7 +680,7 @@ class HrLeaveType(models.Model):
     def get_allocation_data_request(self, target_date=None, hidden_allocations=True):
         domain = [
             "|",
-            ("company_id", "in", self.env.context.get("allowed_company_ids")),
+            ("company_id", "in", self.env.companies.ids),
             ("company_id", "=", False),
         ]
         if not hidden_allocations:
@@ -735,7 +703,8 @@ class HrLeaveType(models.Model):
         elif target_date and isinstance(target_date, datetime):
             target_date = target_date.date()
         elif not target_date:
-            target_date = fields.Date.today()
+            target_date = fields.Date.context_today(self)
+        today = fields.Date.context_today(self)
 
         allocations_leaves_consumed, extra_data = employees.with_context(
             ignored_leave_ids=self.env.context.get("ignored_leave_ids")
@@ -799,7 +768,6 @@ class HrLeaveType(models.Model):
                     leave_type
                 ].items():
                     if allocation:
-                        today = fields.Date.today()
                         if allocation.date_from <= today and (
                             not allocation.date_to or allocation.date_to >= today
                         ):
@@ -873,7 +841,7 @@ class HrLeaveType(models.Model):
                     lt_info[1]["accrual_bonus"] > 0
                     or bool(allocations_date - allocations_now)
                     or bool(allocations_now - allocations_date)
-                ) and target_date != fields.Date.today()
+                ) and target_date != today
                 lt_info[1].update(
                     {
                         "closest_allocation_remaining": closest_allocation_remaining,
