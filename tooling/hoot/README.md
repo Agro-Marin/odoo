@@ -209,7 +209,27 @@ returns the full set.
 
 ## `hoot-shard` — what it schedules, and why it isolates
 
-The suite list is **read from `web/tests/test_js.py`**, not restated. It used to
+**The default is `web`, and `web` is not the JavaScript surface.** 184 addons
+ship a `static/tests/**/*.test.js`; **16** of them wrote the `tests/test_js.py`
+runner that suite discovery reads. So a bare `hoot-shard` schedules 849 of the
+1,979 test files in the workspace and reports the other 1,130 as neither passed
+nor failed. That is how `@hr` carried eight failing tests through a sharded run
+that printed `0 failed / 16294 passed`: nothing in the plan named `@hr`, and no
+command anyone runs would have.
+
+`--addons` schedules every addon that ships a suite, enumerated from the tree by
+`hoot_lib.filesystem_suites()` rather than from who remembered to write a
+runner. Give it its own `--db-prefix`: a shard installs every module its suites
+name, so these databases are much larger than the web ones and should not share
+their names.
+
+```bash
+./hoot-shard --addons -j 4 --db-prefix hoot_all --timeout 3000
+./hoot-shard --addons --plan -j 4          # see the partition without running
+```
+
+The suite list for the default web plan is **read from `web/tests/test_js.py`**,
+not restated. It used to
 be a hand-kept copy marked "KEEP IN SYNC" and had drifted: `@html_editor` (4766
 tests, 494 s — over a third of the desktop pass) and `@web/libs` were missing, so
 a run presenting itself as the full web suite covered 66% of the tests.

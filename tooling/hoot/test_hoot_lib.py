@@ -1166,6 +1166,66 @@ class TestUntrackedServerDiscovery:
             assert f"--db-filter=^{db}$" in argv
 
 
+class TestFilesystemSuiteDiscovery:
+    """The runner files name a small minority of the JS surface."""
+
+    def test_every_addon_with_a_test_file_is_discovered(self):
+        suites = H.filesystem_suites()
+        for addon_dir in H.iter_addon_dirs():
+            tests_root = addon_dir / "static" / "tests"
+            if not tests_root.is_dir():
+                continue
+            if next(tests_root.rglob("*.test.js"), None) is None:
+                continue
+            assert f"@{addon_dir.name}" in suites, (
+                f"{addon_dir.name} ships a HOOT suite that filesystem_suites "
+                f"does not name, so no sharded run would ever reach it"
+            )
+
+    def test_nothing_without_a_test_file_is_discovered(self):
+        for suite in H.filesystem_suites():
+            assert H.suite_test_files(suite), (
+                f"{suite} resolves to no test file; a shard would boot a "
+                f"database for it and run nothing"
+            )
+
+    def test_it_finds_far_more_than_the_runner_files_declare(self):
+        """The gap is the point of this function, so pin that it exists.
+
+        @hr sat with eight failing tests while `hoot-shard` reported 0 failed,
+        because that run is web and html_editor and no runner file names @hr.
+        """
+        by_runner = {s.split("/")[0] for s in H.ci_runner_suites()}
+        by_tree = H.filesystem_suites()
+        assert by_tree > by_runner, (
+            "filesystem discovery found no addon the runner files miss; if the "
+            "runners have caught up, this test has done its job and can go"
+        )
+        assert "@hr" in by_tree - by_runner
+
+    def test_mobile_narrowing_survives_a_sibling_repo_suite(self):
+        """A derived plan must not crash on its own contents.
+
+        `mobile_suites` resolves each addon through `odoo.tools.file_path`,
+        which reads the config's addons path; the bootstrap sets none, so it
+        saw `odoo/addons` alone and raised FileNotFoundError on the first
+        enterprise or agromarin suite. Only a DERIVED plan hits this -- an
+        explicit suite list skips the narrowing -- so it stayed invisible
+        while the only derived plan was web's.
+        """
+        sibling = sorted(
+            s
+            for s in H.filesystem_suites()
+            if not (H.WEB_ADDONS_ROOT / s.lstrip("@")).is_dir()
+        )
+        if not sibling:
+            pytest.skip("no sibling-repo addon checked out beside odoo")
+        H.mobile_suites([sibling[0], "@web"])
+
+    def test_web_is_discovered_too_so_addons_mode_is_a_superset(self):
+        assert "@web" in H.filesystem_suites()
+
+
 class TestShardRunnerCoversCI:
     def test_ci_runner_suites_is_not_empty(self):
         assert H.ci_runner_suites("web"), (

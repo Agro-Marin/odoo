@@ -1070,6 +1070,17 @@ def _iter_src_files() -> list[Path]:
     return _iter_static_files("src", "*.js")
 
 
+def filesystem_suites() -> set[str]:
+    suites: set[str] = set()
+    for addon_dir in iter_addon_dirs():
+        tests_root = addon_dir / "static" / "tests"
+        if not tests_root.is_dir():
+            continue
+        if next(tests_root.rglob("*.test.js"), None) is not None:
+            suites.add(f"@{addon_dir.name}")
+    return suites
+
+
 def ci_runner_suites(addon: str | None = None) -> set[str]:
 
     prefixes: set[str] = set()
@@ -1085,8 +1096,20 @@ def ci_runner_suites(addon: str | None = None) -> set[str]:
 
 
 def mobile_suites(prefixes: list[str]) -> list[str]:
+    """Narrow a plan to the file suites that own a mobile test.
 
+    `_mobile_suites_under` resolves each addon through `odoo.tools.file_path`,
+    which reads the running config's addons path. The bootstrap sets none, so
+    it sees `odoo/addons` alone and raises `FileNotFoundError` on the first
+    enterprise or agromarin suite -- while `ADDONS_ROOTS`, which this module
+    already uses to enumerate addons, knows all of them. The two views of the
+    addons path have to agree or a derived plan crashes on its own contents.
+    """
     _bootstrap_odoo()
+    from odoo.tools import config
+
+    config["addons_path"] = ",".join(str(root) for root in ADDONS_ROOTS)
+
     import odoo.modules.module
 
     odoo.modules.module.initialize_sys_path()

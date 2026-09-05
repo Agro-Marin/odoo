@@ -33,7 +33,12 @@ _color = H.color
 
 
 def default_web_suites() -> list[str]:
+    """web's own suites, as its `tests/test_js.py` declares them.
 
+    This is the DEFAULT and it is not the whole surface: 184 addons ship a
+    `*.test.js` and 16 of them wrote the runner file this reads. `--addons`
+    takes the rest, enumerated from the tree.
+    """
     return sorted(H.ci_runner_suites("web"))
 
 
@@ -317,13 +322,25 @@ def main() -> int:
     p.add_argument(
         "--stop", action="store_true", help="Stop every shard's warm server and exit."
     )
+    p.add_argument(
+        "--addons",
+        action="store_true",
+        help="Shard every addon that ships a HOOT suite, not just web. The "
+        "default covers web and html_editor; the other 182 addons are named "
+        "by no runner file and so are enumerated from the tree.",
+    )
     args = p.parse_args()
 
     if args.stop:
         stop_all(args.db_prefix)
         return 0
 
-    suites = args.suites or default_web_suites()
+    if args.suites:
+        suites = args.suites
+    elif args.addons:
+        suites = sorted(H.filesystem_suites())
+    else:
+        suites = default_web_suites()
     if args.preset == "mobile" and not args.suites:
         suites = H.mobile_suites(suites)
     if not suites:
