@@ -33,7 +33,7 @@ import { registry } from "@web/core/registry";
 /**
  * @typedef {Object} LoadViewsParams
  * @property {string} resModel
- * @property {[number, string][]} views
+ * @property {[number | false, string][]} views
  * @property {Object} context
  */
 
@@ -89,26 +89,22 @@ class ViewService {
      */
     async loadViews(params, /** @type {any} */ options = {}) {
         const { context, resModel, views } = params;
+        const {
+            actionId,
+            embeddedActionId,
+            embeddedParentResId,
+            loadIrFilters,
+            loadActionMenus,
+            ...forwardedOptions
+        } = options;
         const loadViewsOptions = {
-            action_id: options.actionId || false,
-            embedded_action_id: options.embeddedActionId || false,
-            embedded_parent_res_id: options.embeddedParentResId || false,
-            load_filters: options.loadIrFilters || false,
-            toolbar: (!context?.disable_toolbar && options.loadActionMenus) || false,
+            action_id: actionId || false,
+            embedded_action_id: embeddedActionId || false,
+            embedded_parent_res_id: embeddedParentResId || false,
+            load_filters: loadIrFilters || false,
+            toolbar: (!context?.disable_toolbar && loadActionMenus) || false,
+            ...forwardedOptions,
         };
-        for (const key of Object.keys(options)) {
-            if (
-                ![
-                    "actionId",
-                    "embeddedActionId",
-                    "embeddedParentResId",
-                    "loadIrFilters",
-                    "loadActionMenus",
-                ].includes(key)
-            ) {
-                loadViewsOptions[key] = options[key];
-            }
-        }
         if (this.env.isSmall) {
             loadViewsOptions.mobile = true;
         }

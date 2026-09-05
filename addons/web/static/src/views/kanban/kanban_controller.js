@@ -18,7 +18,7 @@ import { MultiRecordController } from "@web/views/multi_record_controller";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_button";
 import { SelectionBox } from "@web/views/view_components/selection_box";
-import { buildMultiRecordModelParams } from "@web/views/view_utils";
+import { buildMultiRecordModelParams, exportableFields } from "@web/views/view_utils";
 
 import { KanbanCogMenu } from "./kanban_cog_menu.js";
 import { KanbanRenderer } from "./kanban_renderer.js";
@@ -327,11 +327,8 @@ export class KanbanController extends MultiRecordController {
 
     /** @returns {Object[]} */
     getExportableFields() {
-        return Object.keys(this.model.root.config.activeFields)
-            .map((e) => this.model.root.fields[e])
-            .filter(Boolean)
-            .filter((field) => field.exportable !== false)
-            .filter((field) => field.type !== "properties");
+        const { activeFields, fields } = this.model.root;
+        return exportableFields(fields, activeFields);
     }
 
     async beforeUnload() {}

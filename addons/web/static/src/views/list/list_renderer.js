@@ -231,6 +231,8 @@ export class ListRenderer extends Component {
     _renderedRowIds;
     /** @type {Column[] | undefined} */
     _stableColumns;
+    /** @type {Column[]} */
+    visibleOptionalColumns = [];
     /** @type {any} */
     _defaultActiveActions;
     /** @type {() => void} */
@@ -428,6 +430,22 @@ export class ListRenderer extends Component {
         });
     }
 
+    /**
+     * The optional columns the current record set can show, active or not.
+     *
+     * Read once per render in `syncRenderState`: `hasOptionalFields` and
+     * `optionalFieldGroups` both used to re-evaluate `column_invisible` over
+     * every optional column, and `hasOptionalFields` sits behind
+     * `displayOptionalFields`, which `getRowProps` reads for every row.
+     *
+     * @returns {Column[]}
+     */
+    getVisibleOptionalColumns() {
+        return this.allColumns.filter(
+            (col) => col.optional && !this.evalColumnInvisible(col.column_invisible),
+        );
+    }
+
     get hasSelectors() {
         return this.props.allowSelectors && !this.env.isSmall;
     }
@@ -474,7 +492,6 @@ export class ListRenderer extends Component {
             readonly:
                 this.props.readonly ||
                 this.isCellReadonly(column, record) ||
-                this.isRecordReadonly(record) ||
                 (column.widget === "handle" && !this.canResequenceRows),
         };
     }
@@ -584,6 +601,7 @@ export class ListRenderer extends Component {
 
         perfMark("list:getActiveColumns:start");
         this.columns = this._toStableColumns(this.getActiveColumns());
+        this.visibleOptionalColumns = this.getVisibleOptionalColumns();
         perfMeasure("list:getActiveColumns", "list:getActiveColumns:start");
 
         this.withHandleColumn = this.columns.some((col) => col.widget === "handle");
@@ -816,10 +834,7 @@ export class ListRenderer extends Component {
     get optionalFieldGroups() {
         const propertyGroups = {};
         const optionalFields = [];
-        const optionalColumns = this.allColumns.filter(
-            (col) => col.optional && !this.evalColumnInvisible(col.column_invisible),
-        );
-        for (const col of optionalColumns) {
+        for (const col of this.visibleOptionalColumns) {
             const optionalField = {
                 label: col.label,
                 name: col.name,
@@ -849,9 +864,7 @@ export class ListRenderer extends Component {
     }
 
     get hasOptionalFields() {
-        return this.allColumns.some(
-            (col) => col.optional && !this.evalColumnInvisible(col.column_invisible),
-        );
+        return this.visibleOptionalColumns.length > 0;
     }
 
     get displayOptionalFields() {

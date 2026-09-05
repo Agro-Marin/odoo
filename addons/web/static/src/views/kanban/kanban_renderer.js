@@ -16,7 +16,7 @@ import { ActionHelper } from "@web/views/action_helper";
 import { useGroupManagement } from "@web/views/multi_record_group";
 import { useRecordSelection } from "@web/views/multi_record_selection";
 import { useBounceButton } from "@web/views/view_hook";
-import { isNull } from "@web/views/view_utils";
+import { archiveConfirmationProps, isNull } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
 import { ColumnProgress } from "./column_progress.js";
@@ -403,12 +403,10 @@ export class KanbanRenderer extends Component {
     async archiveRecord(record, active) {
         const reload = () => this.props.list.model.load();
         if (active) {
-            this.dialog.add(ConfirmationDialog, {
-                body: _t("Are you sure that you want to archive this record?"),
-                confirmLabel: _t("Archive"),
-                confirm: () => record.archive(reload),
-                cancel: () => {},
-            });
+            this.dialog.add(
+                ConfirmationDialog,
+                archiveConfirmationProps(() => record.archive(reload)),
+            );
         } else {
             return record.unarchive(reload);
         }

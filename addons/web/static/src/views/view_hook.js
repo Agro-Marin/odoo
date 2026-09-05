@@ -203,6 +203,26 @@ export function useExportRecords(env, getDefaultExportList) {
 }
 
 /**
+ * The confirmation every view asks before deleting records.
+ *
+ * @param {() => any} confirm
+ * @param {{ multi?: boolean }} [options]
+ * @returns {Record<string, any>}
+ */
+export function deleteConfirmationProps(confirm, { multi = false } = {}) {
+    return {
+        body: multi
+            ? _t("Are you sure you want to delete these records?")
+            : deleteConfirmationMessage,
+        cancel: () => {},
+        cancelLabel: _t("No, keep it"),
+        confirm,
+        confirmLabel: _t("Delete"),
+        title: _t("Bye-bye, record!"),
+    };
+}
+
+/**
  * @param {Object} model
  * @returns {(dialogProps?: Object, records?: Object[]) => void}
  */
@@ -210,26 +230,14 @@ export function useDeleteRecords(model) {
     const dialog = useService("dialog");
     function getDefaultDialogProps(records) {
         const isDynamicList = model.root instanceof DynamicList;
-        let body = deleteConfirmationMessage;
-        if (
+        const multi =
             records?.length > 1 ||
             (isDynamicList &&
-                (model.root.isDomainSelected || model.root.selection.length > 1))
-        ) {
-            body = _t("Are you sure you want to delete these records?");
-        }
-        let confirm = () => Promise.all((records ?? []).map((r) => r.delete()));
-        if (isDynamicList) {
-            confirm = () => model.root.deleteRecords(records);
-        }
-        return {
-            body,
-            cancel: () => {},
-            cancelLabel: _t("No, keep it"),
-            confirm,
-            confirmLabel: _t("Delete"),
-            title: _t("Bye-bye, record!"),
-        };
+                (model.root.isDomainSelected || model.root.selection.length > 1));
+        const confirm = isDynamicList
+            ? () => model.root.deleteRecords(records)
+            : () => Promise.all((records ?? []).map((r) => r.delete()));
+        return deleteConfirmationProps(confirm, { multi });
     }
     return (dialogProps, records) => {
         const defaultProps = getDefaultDialogProps(records);

@@ -5588,7 +5588,7 @@ test(`calendar sidebar state is saved on session storage`, async () => {
         getItem(key) {
             if (key === "calendar.showSideBar") {
                 expect.step(`${key}-read`);
-                return false;
+                return "false";
             }
         },
     });

@@ -281,6 +281,22 @@ export function useControllerServices() {
 }
 
 /**
+ * The fields of `activeFields` a view may offer for export.
+ *
+ * @param {Record<string, any>} fields
+ * @param {Record<string, any>} activeFields
+ * @param {(field: any) => boolean} [keep] a view-specific filter, applied first
+ * @returns {any[]}
+ */
+export function exportableFields(fields, activeFields, keep = () => true) {
+    return Object.keys(activeFields)
+        .map((fieldName) => fields[fieldName])
+        .filter(Boolean)
+        .filter(keep)
+        .filter((field) => field.exportable !== false && field.type !== "properties");
+}
+
+/**
  * @param {Object} fields
  * @param {Object} [options]
  * @param {Object} [options.presentIn=fields]

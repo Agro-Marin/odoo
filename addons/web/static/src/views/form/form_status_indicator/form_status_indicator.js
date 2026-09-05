@@ -45,14 +45,18 @@ export class FormStatusIndicator extends Component {
         return this.indicatorMode !== "saved";
     }
 
+    /** @returns {boolean} */
+    get isDirty() {
+        return this.hasUnsavedEdits() || this.coordinator?.status === "error";
+    }
+
     /** @returns {"dirty" | "invalid" | "saving" | "saved"} */
     get indicatorMode() {
         const { isNew, isValid } = this.props.model.root;
         if (this.coordinator?.isSaving) {
             return "saving";
         }
-        const isDirty = this.hasUnsavedEdits() || this.coordinator?.status === "error";
-        if (isNew || isDirty) {
+        if (isNew || this.isDirty) {
             return isValid ? "dirty" : "invalid";
         }
         return "saved";
@@ -63,8 +67,7 @@ export class FormStatusIndicator extends Component {
      */
     get saveButtonDisabled() {
         const { isNew, isValid } = this.props.model.root;
-        const isDirty = this.hasUnsavedEdits() || this.coordinator?.status === "error";
-        return !isNew && isDirty && !isValid;
+        return !isNew && this.isDirty && !isValid;
     }
 
     /**

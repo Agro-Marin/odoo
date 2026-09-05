@@ -196,9 +196,6 @@ export const viewProps = {
 const FORWARDED_TO_CONTROLLER = ["noBreadcrumbs"];
 
 /**
- * @type {string[]}
- */
-/**
  * The props of `props` that a component declares.
  *
  * `loadView` builds two prop bags. The controller's has always been
@@ -234,6 +231,104 @@ const ACTIONS = [
     "group_delete",
     "group_edit",
 ];
+
+/**
+ * @typedef {{ views: [number | false, string][], viewId: number | false | undefined, searchViewId: number | false | undefined }} ViewSelection
+ * @typedef {{
+ * viewDescription: any,
+ * arch: string | undefined,
+ * fields: Record<string, any> | undefined,
+ * relatedModels: Record<string, any> | undefined,
+ * actionMenus: Record<string, any> | undefined,
+ * searchViewId: number | false | undefined,
+ * searchViewArch: string | undefined,
+ * searchViewFields: Record<string, any> | undefined,
+ * irFilters: Record<string, any>[] | undefined,
+ * }} LoadedView
+ */
+
+/**
+ * The `views` list the loader works from, with the requested view and search
+ * view ids folded in: a view already listed takes the id from `props`, an
+ * unlisted one is appended.
+ *
+ * @param {ViewProps} props
+ * @param {any[]} configViews
+ * @returns {ViewSelection}
+ */
+function resolveViewSelection(props, configViews) {
+    const { type } = props;
+    let { viewId, searchViewId } = props;
+    const views = deepCopy(props.views || configViews);
+    const view = views.find((/** @type {any} */ v) => v[1] === type) || [];
+    if (view.length) {
+        view[0] = viewId !== undefined ? viewId : view[0];
+        viewId = view[0];
+    } else {
+        view.push(viewId || false, type);
+        views.push(view);
+    }
+    const searchView = views.find((/** @type {any} */ v) => v[1] === "search");
+    if (searchView) {
+        searchView[0] = searchViewId !== undefined ? searchViewId : searchView[0];
+        searchViewId = searchView[0];
+    } else if (searchViewId !== undefined) {
+        views.push([searchViewId, "search"]);
+    }
+    return { views, viewId, searchViewId };
+}
+
+/**
+ * An action context that disables an action (`create: False`, ...) is written
+ * onto the arch, where every parser reads it.
+ *
+ * @param {string | undefined} arch
+ * @param {Record<string, any>} context
+ * @returns {Element}
+ */
+function parseViewArch(arch, context) {
+    const archXmlDoc = parseXML((arch ?? "").replaceAll("&amp;nbsp;", nbsp));
+    for (const action of ACTIONS) {
+        if (action in context && !context[action]) {
+            archXmlDoc.setAttribute(action, "0");
+        }
+    }
+    return archXmlDoc;
+}
+
+/**
+ * @param {ViewProps} props
+ * @param {Element} archXmlDoc
+ * @returns {boolean}
+ */
+function resolveUseSampleModel(props, archXmlDoc) {
+    if ("useSampleModel" in props) {
+        return /** @type {boolean} */ (props.useSampleModel);
+    }
+    const sample = archXmlDoc.getAttribute("sample");
+    return sample ? evaluateBooleanExpr(sample) : false;
+}
+
+/**
+ * A view's own `display` overrides the caller's key by key; a key both spell
+ * as objects is merged, and a key the caller set to `false` stays `false`.
+ *
+ * @param {Record<string, any> | undefined} display
+ * @param {Record<string, any>} viewDisplay
+ * @returns {Record<string, any>}
+ */
+function mergeViewDisplay(display, viewDisplay) {
+    const merged = { ...display };
+    for (const [key, value] of Object.entries(deepCopy(viewDisplay))) {
+        const current = merged[key];
+        if (current && typeof current === "object") {
+            merged[key] = { ...current, ...value };
+        } else if (!(key in merged) || current) {
+            merged[key] = value;
+        }
+    }
+    return merged;
+}
 
 /** @extends {Component<ViewProps, import("@web/env").OdooEnv>} */
 export class View extends Component {
@@ -309,47 +404,72 @@ export class View extends Component {
      */
     async loadView(props) {
         const loadId = ++this.loadViewId;
-        const type = props.type;
-        viewLog("load", type, props.resModel || "");
+        const { resModel, type } = props;
+        viewLog("load", type, resModel || "");
         const config = /** @type {ViewConfig & Record<string, any>} */ (
             this.env.config
         );
-
         if (!session.view_info[type]) {
             throw new Error(`Invalid view type: ${type}`);
         }
 
-        let { viewId, searchViewId } = props;
-
-        const views = deepCopy(props.views || config.views);
-        const view = views.find((/** @type {any} */ v) => v[1] === type) || [];
-        if (view.length) {
-            view[0] = viewId !== undefined ? viewId : view[0];
-            viewId = view[0];
-        } else {
-            view.push(viewId || false, type);
-            views.push(view);
+        const selection = resolveViewSelection(props, config.views);
+        const loaded = await this.loadViewDescriptions(props, selection, config);
+        if (loadId !== this.loadViewId) {
+            return;
         }
+        config.views = selection.views;
 
-        const searchView = views.find((/** @type {any} */ v) => v[1] === "search");
-        if (searchView) {
-            searchView[0] = searchViewId !== undefined ? searchViewId : searchView[0];
-            searchViewId = searchView[0];
-        } else if (searchViewId !== undefined) {
-            views.push([searchViewId, "search"]);
-        }
+        const archXmlDoc = parseViewArch(loaded.arch, props.context ?? {});
+        const jsClass = archXmlDoc.hasAttribute("js_class")
+            ? /** @type {string} */ (archXmlDoc.getAttribute("js_class"))
+            : props.jsClass || type;
+        const descr = /** @type {any} */ (viewRegistry.get(jsClass));
 
-        const { resModel, loadActionMenus, loadIrFilters } = props;
+        Object.assign(config, {
+            rawArch: loaded.arch,
+            viewArch: archXmlDoc,
+            viewId: loaded.viewDescription.id,
+            searchViewId: loaded.searchViewId,
+            viewType: type,
+            viewSubType: jsClass,
+            noBreadcrumbs: props.noBreadcrumbs,
+            ...extractLayoutComponents(descr),
+        });
+
+        const searchMenuTypes =
+            props.searchMenuTypes ||
+            descr.searchMenuTypes ||
+            /** @type {any} */ (this.constructor).searchMenuTypes;
+        const controllerProps = this.buildControllerProps(props, loaded, archXmlDoc, {
+            searchMenuTypes,
+        });
+        this.Controller = descr.Controller;
+        this.componentProps = descr.props
+            ? descr.props(controllerProps, descr, config)
+            : controllerProps;
+        this.withSearchProps = this.buildWithSearchProps(props, loaded, archXmlDoc, {
+            descr,
+            searchMenuTypes,
+        });
+    }
+
+    /**
+     * Fetch whatever `props` did not hand over: the view arch and fields, the
+     * action menus, the search view and its filters.
+     *
+     * @param {ViewProps} props
+     * @param {ViewSelection} selection
+     * @param {ViewConfig & Record<string, any>} config
+     * @returns {Promise<LoadedView>}
+     */
+    async loadViewDescriptions(props, selection, config) {
+        const { views, viewId } = selection;
+        const { resModel, type, loadActionMenus, loadIrFilters } = props;
         const context = /** @type {Record<string, any>} */ (props.context ?? {});
-        let {
-            arch,
-            fields,
-            relatedModels,
-            searchViewArch,
-            searchViewFields,
-            irFilters,
-            actionMenus,
-        } = props;
+        let { searchViewId } = selection;
+        let { arch, fields, relatedModels, searchViewArch, searchViewFields } = props;
+        let { irFilters, actionMenus } = props;
 
         const hasSearchView = views.some((/** @type {any} */ v) => v[1] === "search");
         const mustLoadView = !arch || (!actionMenus && loadActionMenus);
@@ -360,7 +480,6 @@ export class View extends Component {
 
         /** @type {any} */
         let viewDescription = { id: viewId, resModel, type };
-        let searchViewDescription;
         if (mustLoadView || mustLoadSearchView) {
             const options = {
                 actionId: config.actionId,
@@ -376,11 +495,8 @@ export class View extends Component {
                 { context, resModel, views },
                 options,
             );
-            if (loadId !== this.loadViewId) {
-                return;
-            }
             viewDescription = result.views[type];
-            searchViewDescription = /** @type {any} */ (result.views).search;
+            const searchViewDescription = /** @type {any} */ (result.views).search;
             if (mustLoadSearchView) {
                 searchViewId = searchViewId || searchViewDescription.id;
                 if (!searchViewArch) {
@@ -395,141 +511,108 @@ export class View extends Component {
             relatedModels = relatedModels || markRaw(result.relatedModels);
         }
 
-        config.views = views;
-
-        if (!arch) {
-            arch = viewDescription.arch;
-        }
-        if (!actionMenus) {
-            actionMenus = viewDescription.actionMenus;
-        }
-
-        const archXmlDoc = parseXML((arch ?? "").replaceAll("&amp;nbsp;", nbsp));
-        for (const action of ACTIONS) {
-            if (action in context && !context[action]) {
-                archXmlDoc.setAttribute(action, "0");
-            }
-        }
-
-        const jsClass = archXmlDoc.hasAttribute("js_class")
-            ? /** @type {string} */ (archXmlDoc.getAttribute("js_class"))
-            : props.jsClass || type;
-        const descr = /** @type {any} */ (viewRegistry.get(jsClass));
-
-        const sample = archXmlDoc.getAttribute("sample");
-        const className = computeViewClassName(type, archXmlDoc, [
-            "o_view_controller",
-            ...(props.className || "").split(" "),
-        ]);
-
-        Object.assign(config, {
-            rawArch: arch,
-            viewArch: archXmlDoc,
-            viewId: viewDescription.id,
+        return {
+            viewDescription,
+            arch: arch || viewDescription.arch,
+            fields,
+            relatedModels,
+            actionMenus: actionMenus || viewDescription.actionMenus,
             searchViewId,
-            viewType: type,
-            viewSubType: jsClass,
-            noBreadcrumbs: props.noBreadcrumbs,
-            ...extractLayoutComponents(descr),
-        });
-        const info = {
-            actionMenus,
-            mode: props.display?.mode,
-            irFilters,
             searchViewArch,
             searchViewFields,
-            searchViewId,
+            irFilters,
         };
+    }
 
+    /**
+     * @param {ViewProps} props
+     * @param {LoadedView} loaded
+     * @param {Element} archXmlDoc
+     * @param {{ searchMenuTypes: string[] }} params
+     * @returns {Record<string, any>}
+     */
+    buildControllerProps(props, loaded, archXmlDoc, { searchMenuTypes }) {
+        const { resModel } = props;
+        const { viewDescription, fields, relatedModels } = loaded;
+        const info = {
+            actionMenus: loaded.actionMenus,
+            mode: props.display?.mode,
+            irFilters: loaded.irFilters,
+            searchViewArch: loaded.searchViewArch,
+            searchViewFields: loaded.searchViewFields,
+            searchViewId: loaded.searchViewId,
+        };
+        if (viewDescription.custom_view_id) {
+            info.customViewId = viewDescription.custom_view_id;
+        }
+        if (props.noContentHelp) {
+            info.noContentHelp = props.noContentHelp;
+        }
+
+        /** @type {Record<string, any>} */
         const controllerProps = {
             info,
             arch: archXmlDoc,
             fields,
             relatedModels,
             resModel,
-            useSampleModel: false,
-            className,
+            useSampleModel: resolveUseSampleModel(props, archXmlDoc),
+            className: computeViewClassName(props.type, archXmlDoc, [
+                "o_view_controller",
+                ...(props.className || "").split(" "),
+            ]),
+            searchMenuTypes,
         };
-        if (viewDescription.custom_view_id) {
-            controllerProps.info.customViewId = viewDescription.custom_view_id;
-        }
         if (props.globalState) {
             controllerProps.globalState = props.globalState;
         }
-
-        if ("useSampleModel" in props) {
-            controllerProps.useSampleModel = /** @type {boolean} */ (
-                props.useSampleModel
-            );
-        } else if (sample) {
-            controllerProps.useSampleModel = evaluateBooleanExpr(sample);
-        }
-
         for (const key of Object.keys(props)) {
             if (!STANDARD_PROPS.includes(key)) {
                 controllerProps[key] = props[key];
             }
         }
+        return controllerProps;
+    }
 
-        const { noContentHelp } = props;
-        if (noContentHelp) {
-            controllerProps.info.noContentHelp = noContentHelp;
-        }
-
-        const searchMenuTypes =
-            props.searchMenuTypes ||
-            descr.searchMenuTypes ||
-            /** @type {any} */ (this.constructor).searchMenuTypes;
-        const defaultGroupBy = archXmlDoc.hasAttribute("default_group_by")
-            ? (archXmlDoc.getAttribute("default_group_by") ?? "").split(",")
-            : null;
-        controllerProps.searchMenuTypes = searchMenuTypes;
-        const canOrderByCount =
-            descr.canOrderByCount ||
-            /** @type {any} */ (this.constructor).canOrderByCount;
-
-        const finalProps = descr.props
-            ? descr.props(controllerProps, descr, config)
-            : controllerProps;
-        this.Controller = descr.Controller;
-        this.componentProps = finalProps;
+    /**
+     * @param {ViewProps} props
+     * @param {LoadedView} loaded
+     * @param {Element} archXmlDoc
+     * @param {{ descr: Record<string, any>, searchMenuTypes: string[] }} params
+     * @returns {Record<string, any>}
+     */
+    buildWithSearchProps(props, loaded, archXmlDoc, { descr, searchMenuTypes }) {
         /** @type {Record<string, any>} */
-        this.withSearchProps = {
+        const withSearchProps = {
             ...pickDeclaredProps(toRaw(props), WithSearch.props),
             hideCustomGroupBy: props.hideCustomGroupBy || descr.hideCustomGroupBy,
             searchMenuTypes,
-            canOrderByCount,
+            canOrderByCount:
+                descr.canOrderByCount ||
+                /** @type {any} */ (this.constructor).canOrderByCount,
             SearchModel: descr.SearchModel,
         };
-
-        if (searchViewId !== undefined) {
-            this.withSearchProps.searchViewId = searchViewId;
+        if (loaded.searchViewId !== undefined) {
+            withSearchProps.searchViewId = loaded.searchViewId;
         }
-        if (searchViewArch) {
-            this.withSearchProps.searchViewArch = searchViewArch;
-            this.withSearchProps.searchViewFields = searchViewFields;
+        if (loaded.searchViewArch) {
+            withSearchProps.searchViewArch = loaded.searchViewArch;
+            withSearchProps.searchViewFields = loaded.searchViewFields;
         }
-        if (irFilters) {
-            this.withSearchProps.irFilters = irFilters;
+        if (loaded.irFilters) {
+            withSearchProps.irFilters = loaded.irFilters;
         }
-
         if (descr.display) {
-            const viewDisplay = deepCopy(descr.display);
-            const display = { ...this.withSearchProps.display };
-            for (const key of Object.keys(viewDisplay)) {
-                const current = display[key];
-                if (current && typeof current === "object") {
-                    display[key] = { ...current, ...viewDisplay[key] };
-                } else if (!(key in display) || current) {
-                    display[key] = viewDisplay[key];
-                }
-            }
-            this.withSearchProps.display = display;
+            withSearchProps.display = mergeViewDisplay(
+                withSearchProps.display,
+                descr.display,
+            );
         }
-
-        if (defaultGroupBy?.length) {
-            this.withSearchProps.defaultGroupBy = defaultGroupBy;
+        const defaultGroupBy = archXmlDoc.getAttribute("default_group_by");
+        if (defaultGroupBy) {
+            withSearchProps.defaultGroupBy = defaultGroupBy.split(",");
         }
+        return withSearchProps;
     }
 
     /**

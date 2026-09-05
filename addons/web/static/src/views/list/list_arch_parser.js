@@ -58,10 +58,11 @@ export class ListArchParser extends ViewArchParser {
      * @param {Element} node
      * @param {Record<string, any>} models
      * @param {string} modelName
+     * @param {string} [jsClass]
      * @returns {any}
      */
-    parseFieldNode(node, models, modelName) {
-        return parseFieldNode(node, models, modelName, "list");
+    parseFieldNode(node, models, modelName, jsClass) {
+        return parseFieldNode(node, models, modelName, "list", jsClass);
     }
 
     /**
@@ -85,6 +86,7 @@ export class ListArchParser extends ViewArchParser {
      * xmlDoc: Element,
      * models: Record<string, any>,
      * modelName: string,
+     * jsClass: string | undefined,
      * fields: Record<string, any>,
      * fieldNodes: Record<string, any>,
      * widgetNodes: Record<string, any>,
@@ -114,6 +116,7 @@ export class ListArchParser extends ViewArchParser {
             xmlDoc,
             models,
             modelName,
+            jsClass: xmlDoc.getAttribute("js_class") ?? undefined,
             fields: models[modelName].fields,
             fieldNodes: {},
             widgetNodes: {},
@@ -211,7 +214,12 @@ export class ListArchParser extends ViewArchParser {
      * @returns {false}
      */
     parseFieldColumn(node, state) {
-        const fieldInfo = this.parseFieldNode(node, state.models, state.modelName);
+        const fieldInfo = this.parseFieldNode(
+            node,
+            state.models,
+            state.modelName,
+            state.jsClass,
+        );
         if (!(fieldInfo.name in state.fieldNextIds)) {
             state.fieldNextIds[fieldInfo.name] = 0;
         }
@@ -276,6 +284,7 @@ export class ListArchParser extends ViewArchParser {
             node,
             state.models,
             coModelName,
+            state.jsClass,
         );
         state.groupBy.buttons[fieldName] = groupByArchInfo.buttons;
         state.groupBy.fields[fieldName] = {
@@ -307,11 +316,11 @@ export class ListArchParser extends ViewArchParser {
     }
 
     /**
-     * @param {Element} node
+     * @param {Element} _node
      * @param {ListParseState} state
      * @returns {undefined}
      */
-    parseRootNode(node, state) {
+    parseRootNode(_node, state) {
         const { xmlDoc, treeAttr } = state;
         const activeActions = {
             ...getActiveActions(xmlDoc),
@@ -325,7 +334,7 @@ export class ListArchParser extends ViewArchParser {
         treeAttr.className = xmlDoc.getAttribute("class") || null;
         treeAttr.editable = xmlDoc.getAttribute("editable");
         treeAttr.multiEdit = activeActions.edit
-            ? exprToBoolean(node.getAttribute("multi_edit") || "")
+            ? exprToBoolean(xmlDoc.getAttribute("multi_edit") || "")
             : false;
 
         treeAttr.openFormView = treeAttr.editable
@@ -335,16 +344,16 @@ export class ListArchParser extends ViewArchParser {
             ? /** @type {string} */ (xmlDoc.getAttribute("default_group_by")).split(",")
             : null;
 
-        const limitAttr = node.getAttribute("limit");
+        const limitAttr = xmlDoc.getAttribute("limit");
         treeAttr.limit = limitAttr && Number.parseInt(limitAttr, 10);
 
-        const countLimitAttr = node.getAttribute("count_limit");
+        const countLimitAttr = xmlDoc.getAttribute("count_limit");
         treeAttr.countLimit = countLimitAttr && Number.parseInt(countLimitAttr, 10);
 
-        const groupsLimitAttr = node.getAttribute("groups_limit");
+        const groupsLimitAttr = xmlDoc.getAttribute("groups_limit");
         treeAttr.groupsLimit = groupsLimitAttr && Number.parseInt(groupsLimitAttr, 10);
 
-        treeAttr.noOpen = exprToBoolean(node.getAttribute("no_open") || "");
+        treeAttr.noOpen = exprToBoolean(xmlDoc.getAttribute("no_open") || "");
         treeAttr.rawExpand = xmlDoc.getAttribute("expand");
         treeAttr.decorations = getDecoration(xmlDoc);
 

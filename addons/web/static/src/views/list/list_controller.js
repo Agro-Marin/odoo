@@ -21,6 +21,7 @@ import { SelectionBox } from "@web/views/view_components/selection_box";
 import {
     buildMultiRecordModelParams,
     buildOpenActionParams,
+    exportableFields,
     handleBeforeUnload,
 } from "@web/views/view_utils";
 
@@ -237,17 +238,11 @@ export class ListController extends MultiRecordController {
                 .filter((col) => !col.optional || this.optionalActiveFields[col.name])
                 .map((col) => col.name),
         );
-        return Object.keys(activeFields)
-            .map((fieldName) => fields[fieldName])
-            .filter(Boolean)
-            .filter((field) => {
-                if (field.relatedPropertyField) {
-                    return this.optionalActiveFields[field.name];
-                }
-                return visibleColumns.has(field.name);
-            })
-            .filter((field) => field.exportable !== false)
-            .filter((field) => field.type !== "properties");
+        return exportableFields(fields, activeFields, (field) =>
+            field.relatedPropertyField
+                ? this.optionalActiveFields[field.name]
+                : visibleColumns.has(field.name),
+        );
     }
 
     /**

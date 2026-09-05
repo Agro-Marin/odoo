@@ -15,15 +15,13 @@ import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
-import {
-    ConfirmationDialog,
-    deleteConfirmationMessage,
-} from "@web/ui/dialog/confirmation_dialog";
+import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { CalendarSidePanel } from "@web/views/calendar/calendar_side_panel/calendar_side_panel";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { MultiSelectionButtons } from "@web/views/view_components/multi_selection_buttons";
 import { ViewScaleSelector } from "@web/views/view_components/view_scale_selector";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
+import { deleteConfirmationProps } from "@web/views/view_hook";
 
 import { CalendarMobileFilterPanel } from "./mobile_filter_panel/calendar_mobile_filter_panel.js";
 import { CalendarQuickCreate } from "./quick_create/calendar_quick_create.js";
@@ -103,13 +101,8 @@ export class CalendarController extends Component {
         const sessionShowSidebar =
             browser.sessionStorage.getItem("calendar.showSideBar");
         this.state = useState({
-            isWeekendVisible:
-                storedWeekendVisible !== "false" &&
-                /** @type {any} */ (storedWeekendVisible) !== false,
-            showSideBar:
-                !this.env.isSmall &&
-                sessionShowSidebar !== "false" &&
-                /** @type {any} */ (sessionShowSidebar) !== false,
+            isWeekendVisible: storedWeekendVisible !== "false",
+            showSideBar: !this.env.isSmall && sessionShowSidebar !== "false",
         });
 
         this.searchBarToggler = useSearchBarToggler();
@@ -375,16 +368,9 @@ export class CalendarController extends Component {
     }
 
     deleteConfirmationDialogProps(record) {
-        return {
-            title: _t("Bye-bye, record!"),
-            body: deleteConfirmationMessage,
-            confirm: () => {
-                this.model.unlinkRecord(record.id);
-            },
-            confirmLabel: _t("Delete"),
-            cancel: () => {},
-            cancelLabel: _t("No, keep it"),
-        };
+        return deleteConfirmationProps(() => {
+            this.model.unlinkRecord(record.id);
+        });
     }
 
     deleteRecord(record) {
