@@ -1955,6 +1955,11 @@ class TestPointOfSaleFlow(CommonPosTest):
             reversal_moves,
             "Reversal move should be set for the order invoiced after the session is closed.",
         )
+        self.assertTrue(
+            reversal_moves <= current_session._get_related_account_moves(),
+            "The session's Journal Items button should list the reversal moves"
+            " too, not only the closing entry they reverse.",
+        )
 
     def test_payment_difference_accounting_items(self):
         self.product1 = self.env["product.product"].create(
