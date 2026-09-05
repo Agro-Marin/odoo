@@ -238,6 +238,21 @@ class CustomerPortal(Controller):
             ),
         }
 
+    @route(
+        "/my/profile/save",
+        type="jsonrpc",
+        auth="user",
+        website=True,
+        methods=["POST"],
+    )
+    def profile_picture_save(self, image_1920=False):
+        if image_1920 and not isinstance(image_1920, str):
+            raise UserError(request.env._("The profile picture must be base64 data."))
+        # No user is taken: this always writes the session's own record.
+        # `image_1920` is self-writeable, so `res.users.write` elevates it to
+        # sudo by itself -- see `SELF_WRITEABLE_FIELDS`.
+        request.env.user.write({"image_1920": image_1920 or False})
+
     @route("/my/addresses", type="http", auth="user", readonly=True, website=True)
     def my_addresses(self, **query_params):
         partner_sudo = request.env.user.partner_id
@@ -381,9 +396,7 @@ class CustomerPortal(Controller):
         callback = _parse_callback_url(callback, "")
 
         current_partner = request.env["res.partner"]._get_current_partner(**kwargs)
-        commercial_partner = (
-            current_partner.commercial_partner_id
-        )
+        commercial_partner = current_partner.commercial_partner_id
 
         if partner_sudo:
             state_id = partner_sudo.state_id.id
@@ -520,9 +533,7 @@ class CustomerPortal(Controller):
                 partner_sudo.name or ""
             ).strip():
                 address_values.pop("name", None)
-            partner_sudo.write(
-                address_values
-            )
+            partner_sudo.write(address_values)
             if "phone" in address_values and hasattr(
                 partner_sudo, "_onchange_phone_validation"
             ):
@@ -874,7 +885,6 @@ class CustomerPortal(Controller):
 
         address_sudo.action_archive()
 
-
     @route(
         "/my/security", type="http", auth="user", website=True, methods=["GET", "POST"]
     )
@@ -900,7 +910,9 @@ class CustomerPortal(Controller):
         values = self._prepare_portal_layout_values()
         values["get_error"] = get_error
         values["allow_api_keys"] = str2bool(
-            request.env["ir.config_parameter"].sudo().get_param("portal.allow_api_keys"),
+            request.env["ir.config_parameter"]
+            .sudo()
+            .get_param("portal.allow_api_keys"),
             default=False,
         )
         values["open_deactivate_modal"] = False
@@ -963,9 +975,7 @@ class CustomerPortal(Controller):
             values["errors"] = {"deactivate": "validation"}
         else:
             try:
-                request.env.user._check_credentials(
-                    credential, {"interactive": True}
-                )
+                request.env.user._check_credentials(credential, {"interactive": True})
                 request.env.user.sudo()._deactivate_portal_user(**post)
                 request.session.logout()
                 return request.redirect(
@@ -1017,7 +1027,6 @@ class CustomerPortal(Controller):
             )
 
         return attachment_sudo.unlink()
-
 
     def _document_check_access(self, model_name, document_id, access_token=None):
         document = request.env[model_name].browse(document_id)
