@@ -617,15 +617,7 @@ class AccountTax(models.Model):
         """
 
         def ordered(tax):
-            return tax.repartition_line_ids.sorted(
-                lambda line: (
-                    line.document_type,
-                    line.repartition_type,
-                    line.sequence,
-                    line.factor_percent,
-                    line.account_id.id or 0,
-                )
-            )
+            return tax.repartition_line_ids._sorted_for_positional_pairing()
 
         source_lines = ordered(self)
         companies = self.env["res.company"].browse(
@@ -1252,6 +1244,24 @@ class AccountTaxRepartitionLine(models.Model):
         help="Dynamic domain used for the tag that can be set on tax",
         compute="_compute_tag_ids_domain",
     )
+
+    def _sorted_for_positional_pairing(self):
+        """Canonical order for pairing one tax's distribution lines to another's.
+
+        Two sets of repartition lines that describe the same distribution sort
+        identically under this key, so zipping the two sorted results pairs each
+        line with its counterpart. Shared by every caller that relies on this
+        pairing (unmerge, tax merge) so the invariant can't drift between them.
+        """
+        return self.sorted(
+            lambda line: (
+                line.document_type,
+                line.repartition_type,
+                line.sequence,
+                line.factor_percent,
+                line.account_id.id or 0,
+            )
+        )
 
     @api.depends_context("company")
     def _compute_tag_ids_domain(self):
