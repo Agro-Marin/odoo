@@ -1868,39 +1868,51 @@ class PosOrder(models.Model):
         )
 
     def _is_real_time_picking_forced(self):
-        return self.company_id.anglo_saxon_accounting and self.to_invoice
+        return (self.company_id.anglo_saxon_accounting and self.to_invoice) or bool(
+            self.refunded_order_id.shipping_date
+        )
+
+    def _create_pickings_from_order_lines(self):
+        self.check_singleton()
+        picking_type = self.config_id.picking_type_id
+        if self.partner_id.property_stock_customer:
+            destination_id = self.partner_id.property_stock_customer.id
+        elif not picking_type or not picking_type.default_location_dest_id:
+            destination_id = self.env["stock.warehouse"]._get_partner_locations()[0].id
+        else:
+            destination_id = picking_type.default_location_dest_id.id
+
+        pickings = (
+            self.env["stock.picking"]
+            .sudo()
+            ._create_picking_from_pos_order_lines(
+                destination_id, self.lines, picking_type, self.partner_id
+            )
+        )
+        (pickings | pickings.backorder_ids).write(
+            {
+                "pos_session_id": self.session_id.id,
+                "pos_order_id": self.id,
+                "origin": self.name,
+            }
+        )
+        return pickings
 
     def _create_order_picking(self):
         self.check_singleton()
         if self.picking_ids:
             return
         if self.shipping_date:
-            self.sudo().lines._launch_stock_rule_from_pos_order_lines()
-        elif self._is_real_time_picking_required():
-            picking_type = self.config_id.picking_type_id
-            if self.partner_id.property_stock_customer:
-                destination_id = self.partner_id.property_stock_customer.id
-            elif not picking_type or not picking_type.default_location_dest_id:
-                destination_id = (
-                    self.env["stock.warehouse"]._get_partner_locations()[0].id
-                )
+            if self.is_refund and self.refunded_order_id:
+                # Refunding a ship-later order that has not gone out yet must
+                # undo its picking, not book a second one against it. The
+                # stock rules only get the full-refund case right, so both go
+                # through the picking flow instead.
+                self._create_pickings_from_order_lines()
             else:
-                destination_id = picking_type.default_location_dest_id.id
-
-            pickings = (
-                self.env["stock.picking"]
-                .sudo()
-                ._create_picking_from_pos_order_lines(
-                    destination_id, self.lines, picking_type, self.partner_id
-                )
-            )
-            (pickings | pickings.backorder_ids).write(
-                {
-                    "pos_session_id": self.session_id.id,
-                    "pos_order_id": self.id,
-                    "origin": self.name,
-                }
-            )
+                self.sudo().lines._launch_stock_rule_from_pos_order_lines()
+        elif self._is_real_time_picking_required():
+            self._create_pickings_from_order_lines()
 
     def add_payment(self, data):
         self.check_singleton()

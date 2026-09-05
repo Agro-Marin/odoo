@@ -66,6 +66,11 @@ class StockPicking(models.Model):
 
             pickings |= positive_picking
         if negative_lines:
+            undelivered = self._reduce_refunded_order_picking(negative_lines)
+            if undelivered:
+                # Nothing left the warehouse, so there is nothing to take
+                # back: the original picking was cancelled or shrunk instead.
+                return pickings
             if picking_type.return_picking_type_id:
                 return_picking_type = picking_type.return_picking_type_id
                 return_location_id = return_picking_type.default_location_dest_id.id
@@ -92,6 +97,68 @@ class StockPicking(models.Model):
                 )
             pickings |= negative_picking
         return pickings
+
+    @api.model
+    def _reduce_refunded_order_picking(self, negative_lines):
+        """Undo the original picking of a refunded order that never shipped.
+
+        A ship-later order books its delivery for a future date. A full refund
+        of one was already cancelled by the stock rules; a PARTIAL refund was
+        not: the refunded line stayed in the picking, so the warehouse still
+        saw goods to prepare that nobody had bought any more.
+
+        Returns whether the original picking absorbed the refund, in which
+        case the caller must not create a return picking.
+        """
+        refunded_order = negative_lines.refunded_orderline_id.order_id
+        if len(refunded_order) != 1:
+            return False
+
+        pickings_to_undo = refunded_order.picking_ids.filtered(
+            lambda p: p.state not in ("done", "cancel")
+        )
+        if not pickings_to_undo or refunded_order.picking_ids.filtered(
+            lambda p: p.state == "done"
+        ):
+            return False
+
+        refundable_lines = refunded_order.lines.filtered(
+            lambda l: (
+                l.product_id.type == "consu" and not l.product_uom_id.is_zero(l.qty)
+            )
+        )
+        is_full_refund = all(
+            line.product_uom_id.is_zero(line.qty - line.refunded_qty)
+            for line in refundable_lines
+        )
+        if is_full_refund:
+            pickings_to_undo.action_cancel()
+            return True
+
+        moves_to_reassign = self.env["stock.move"]
+        for negative_line in negative_lines:
+            refunded_line = negative_line.refunded_orderline_id
+            moves = pickings_to_undo.move_ids.filtered(
+                lambda m, line=refunded_line: (
+                    m.product_id == line.product_id
+                    and m.never_product_template_attribute_value_ids.ids
+                    == line.attribute_value_ids.ids
+                )
+            )
+            cancel_qty = abs(negative_line.qty)
+            for move in moves:
+                new_qty = max(0, move.product_uom_qty - cancel_qty)
+                if move.product_uom_id.is_zero(new_qty):
+                    move._action_cancel()
+                    move.unlink()
+                else:
+                    move.product_uom_qty = new_qty
+                    moves_to_reassign |= move
+        # Lowering the demand unreserves the move (chained moves then fall back
+        # to 'waiting'); re-reserve so the picking stays ready to prepare.
+        moves_to_reassign._action_assign()
+        self.env.flush_all()
+        return True
 
     def _prepare_stock_move_vals(self, first_line, order_lines):
         return {

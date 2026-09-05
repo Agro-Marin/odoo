@@ -2527,3 +2527,128 @@ class TestPoSBasicConfig(TestPoSCommon):
             [report["report_name"] for report in reports],
             ["stock.report_deliveryslip"],
         )
+
+    def _create_ship_later_order(self, lines, paid, uuid):
+        self.config.write(
+            {
+                "ship_later": True,
+                "payment_method_ids": [(6, 0, self.cash_pm1.ids)],
+            }
+        )
+        self.open_new_session()
+        orders_map = self._create_orders(
+            [
+                {
+                    "pos_order_lines_ui_args": lines,
+                    "payments": [(self.cash_pm1, paid)],
+                    "uuid": uuid,
+                    "customer": self.customer,
+                    "pos_order_ui_args": {
+                        "shipping_date": fields.Date.to_string(
+                            fields.Date.today() + relativedelta(days=1)
+                        ),
+                    },
+                }
+            ]
+        )
+        order = orders_map[uuid]
+        self.assertEqual(order.state, "paid")
+        return order
+
+    def _pay_refund(self, refund_order, amount):
+        payment_context = {
+            "active_ids": [refund_order.id],
+            "active_id": refund_order.id,
+        }
+        self.env["pos.make.payment"].with_context(**payment_context).create(
+            {"payment_method_id": self.cash_pm1.id, "amount": amount}
+        ).action_make_payment()
+        self.assertEqual(refund_order.state, "paid")
+
+    def test_full_refund_of_undelivered_ship_later_cancels_the_picking(self):
+        """A full refund before delivery cancels the picking. Regression guard.
+
+        This already holds on `19.0-marin`: a full refund goes through
+        `_launch_stock_rule_from_pos_order_lines`, which cancels the original
+        move. Routing refunds through the picking flow instead must not lose
+        that, so the case is pinned here rather than claimed as a gain.
+        """
+        order = self._create_ship_later_order(
+            [(self.product1, 2)], 20, "SHIP-LATER-REFUND"
+        )
+        self.assertTrue(
+            order.picking_ids.filtered(lambda p: p.state not in ("done", "cancel"))
+        )
+
+        refund_order = order._refund()
+        self._pay_refund(refund_order, -20)
+
+        order.invalidate_recordset()
+        self.assertEqual(set(order.picking_ids.mapped("state")), {"cancel"})
+        self.assertFalse(refund_order.picking_ids)
+
+    def test_partial_refund_of_undelivered_ship_later_reduces_the_picking(self):
+        """A partial refund before delivery must shrink the original picking.
+
+        product1 (2 units) is refunded in full, so its move goes away;
+        product2 (3 units) is refunded by 1, so its move drops to 2; product3
+        is untouched. No return picking is created, and the picking stays
+        reserved so the warehouse can still prepare what remains.
+        """
+        order = self._create_ship_later_order(
+            [(self.product1, 2), (self.product2, 3), (self.product3, 2)],
+            20 + 60 + 60,
+            "SHIP-LATER-PARTIAL",
+        )
+        picking = order.picking_ids.filtered(
+            lambda p: p.state not in ("done", "cancel")
+        )
+        self.assertTrue(picking)
+        moves = picking.move_ids.grouped("product_id")
+        self.assertEqual(moves[self.product1].product_uom_qty, 2.0)
+        self.assertEqual(moves[self.product2].product_uom_qty, 3.0)
+        self.assertEqual(moves[self.product3].product_uom_qty, 2.0)
+
+        refund_order = order._refund()
+        refund_order.lines.filtered(lambda l: l.product_id == self.product3).unlink()
+        refund_order.lines.filtered(lambda l: l.product_id == self.product2).write(
+            {"qty": -1}
+        )
+        refund_order._recompute_prices()
+        self._pay_refund(refund_order, -(20 + 20))
+
+        order.invalidate_recordset()
+        picking.invalidate_recordset()
+        self.assertEqual(picking.state, "assigned")
+        self.assertFalse(
+            picking.move_ids.filtered(lambda m: m.product_id == self.product1),
+            "the fully refunded move must be gone, not left greyed out",
+        )
+        moves = picking.move_ids.grouped("product_id")
+        self.assertEqual(moves[self.product2].product_uom_qty, 2.0)
+        self.assertEqual(moves[self.product3].product_uom_qty, 2.0)
+        self.assertFalse(refund_order.picking_ids)
+
+    def test_full_refund_of_a_delivered_ship_later_still_returns(self):
+        """Once delivered, a refund must still create the return picking.
+
+        Also green on `19.0-marin`: the shrink-the-picking path must only
+        apply while nothing has left the warehouse, so this pins the boundary
+        rather than claiming a gain.
+        """
+        order = self._create_ship_later_order(
+            [(self.product1, 2)], 20, "SHIP-LATER-DELIVERED"
+        )
+        picking = order.picking_ids.filtered(
+            lambda p: p.state not in ("done", "cancel")
+        )
+        picking.move_ids.picked = True
+        picking.button_validate()
+        self.assertEqual(picking.state, "done")
+
+        refund_order = order._refund()
+        self._pay_refund(refund_order, -20)
+
+        order.invalidate_recordset()
+        self.assertEqual(picking.state, "done")
+        self.assertTrue(refund_order.picking_ids)
