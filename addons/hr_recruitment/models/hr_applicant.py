@@ -1112,8 +1112,8 @@ class HrApplicant(models.Model):
             "lang": address_sudo.lang,
             "department_id": self.department_id.id,
             "address_id": self.company_id.partner_id.id,
-            "work_email": self.company_id.email or self.email_from,
-            "work_phone": self.company_id.phone,
+            "work_email": self.department_id.company_id.email or self.email_from,
+            "work_phone": self.department_id.company_id.phone,
             "applicant_ids": self.ids,
             "phone": self.partner_phone,
         }
