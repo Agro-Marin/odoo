@@ -3701,6 +3701,18 @@ class ProjectTask(models.Model):
                 "url": f"/my/projects/{self.project_id.id}/project_sharing/{self.id}",
                 "target": "self",
             }
+        if (
+            user
+            and not user.share
+            and not force_website
+            and self.project_id
+            and self.with_user(user).has_access("read")
+        ):
+            return {
+                "type": "ir.actions.act_url",
+                "url": f"/odoo/project/{self.project_id.id}/tasks/{self.id}",
+                "target": "self",
+            }
         return super()._get_access_action(access_uid, force_website)
 
     def _send_task_rating_mail(self, force_send=False) -> None:
