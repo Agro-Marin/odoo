@@ -131,13 +131,19 @@ class MixinOrderLineStockMatch(models.AbstractModel):
     @api.onchange("product_uom_qty")
     def _inverse_product_uom_qty(self):
         for line in self:
+            if line.product_id:
+                qty = line.product_uom_id._compute_quantity(
+                    line.product_uom_qty, line.line_uom_id
+                )
+            else:
+                qty = line.product_uom_qty
             if line.move_id:
                 if line.move_id.state == "done":
-                    line.move_id.quantity = line.product_uom_qty
+                    line.move_id.quantity = qty
                 else:
-                    line.move_id.product_uom_qty = line.product_uom_qty
+                    line.move_id.product_uom_qty = qty
             else:
-                line.order_line_id.product_qty = line.product_uom_qty
+                line.order_line_id.product_qty = qty
 
     def action_view_line(self):
         self.check_singleton()
