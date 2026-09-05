@@ -439,7 +439,9 @@ class TestHolidaysOvertime(TransactionCase):
         )
 
     def test_worked_leave_type_overtime(self):
-        calendar = self.env["resource.calendar"].create({"name": "Calendar"})
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Calendar", "company_id": self.company.id}
+        )
         self.env["hr.version"].create(
             {
                 "date_version": datetime(2021, 1, 1),

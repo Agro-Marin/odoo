@@ -49,7 +49,6 @@ class HrVersion(models.Model):
         compute="_compute_company_id",
         readonly=False,
         store=True,
-        default=lambda self: self.env.company,
         tracking=True,
     )
     employee_id = fields.Many2one(
@@ -287,9 +286,15 @@ class HrVersion(models.Model):
 
     @api.depends("employee_id.company_id")
     def _compute_company_id(self):
+        # A version belongs to its employee's company; a value given at
+        # creation could only ever have been the current company's, which is
+        # wrong for every employee of another company.
         for version in self:
-            if version.employee_id:
-                version.company_id = version.employee_id.company_id
+            version.company_id = (
+                version.employee_id.company_id
+                or version.company_id
+                or self.env.company
+            )
 
     @api.depends("job_id.name")
     def _compute_job_title(self):
@@ -323,6 +328,26 @@ class HrVersion(models.Model):
     @staticmethod
     def _is_day_in_period(start, end, day):
         return HrVersion._has_period_overlap(start, end, day, day)
+
+    @api.constrains("resource_calendar_id", "company_id")
+    def _check_resource_calendar_company(self):
+        for version in self:
+            calendar_company = version.resource_calendar_id.company_id
+            if (
+                calendar_company
+                and version.company_id
+                and calendar_company != version.company_id
+            ):
+                raise ValidationError(
+                    self.env._(
+                        "The working hours %(calendar)s belong to %(calendar_company)s "
+                        "and cannot be used by %(employee)s of %(company)s.",
+                        calendar=version.resource_calendar_id.display_name,
+                        calendar_company=calendar_company.display_name,
+                        employee=version.display_name,
+                        company=version.company_id.display_name,
+                    )
+                )
 
     @api.constrains("employee_id", "contract_date_start", "contract_date_end")
     def _check_dates(self):
@@ -461,7 +486,26 @@ class HrVersion(models.Model):
             )
         return dates_vals
 
+    def _follow_company_calendar(self, vals):
+        # A version moved to another company takes that company's working
+        # hours when the ones it has belong to the company it leaves.
+        if not vals.get("company_id") or "resource_calendar_id" in vals:
+            return self.browse()
+        company = self.env["res.company"].browse(vals["company_id"])
+        return self.filtered(
+            lambda version: version.resource_calendar_id.company_id
+            and version.resource_calendar_id.company_id != company
+        )
+
     def write(self, vals):
+        moving = self._follow_company_calendar(vals)
+        if moving:
+            company = self.env["res.company"].browse(vals["company_id"])
+            (self - moving).write(vals)
+            moving.write(
+                {**vals, "resource_calendar_id": company.resource_calendar_id.id}
+            )
+            return True
         self._check_employee_keeps_a_version(vals)
 
         if self.env.context.get("sync_contract_dates") or (

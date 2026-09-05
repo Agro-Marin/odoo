@@ -16,6 +16,7 @@ class TestHrLeaveMandatoryDays(TransactionCase):
         cls.default_calendar = cls.env["resource.calendar"].create(
             {
                 "name": "moon calendar",
+                "company_id": False,
             }
         )
 

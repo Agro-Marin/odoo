@@ -758,6 +758,19 @@ class HrEmployee(models.Model):
         )
         return employee
 
+    @api.model
+    def _follow_company_calendar(self, company_id, vals_list):
+        # The working-hours default is the current company's calendar, taken
+        # before the record's company is known; an employee of another company
+        # gets that company's calendar instead, never a calendar it cannot use.
+        default_calendar = self.env.company.resource_calendar_id
+        if company_id == self.env.company.id or not default_calendar.company_id:
+            return
+        company = self.env["res.company"].browse(company_id)
+        for vals in vals_list:
+            if vals.get("resource_calendar_id", default_calendar.id) == default_calendar.id:
+                vals["resource_calendar_id"] = company.resource_calendar_id.id
+
     @api.model_create_multi
     def create(self, vals_list):
         vals_per_company = defaultdict(list)
@@ -775,6 +788,7 @@ class HrEmployee(models.Model):
         employees = self.env["hr.employee"]
         for company, company_vals_list in vals_per_company.items():
             idxs, company_vals_list = zip(*company_vals_list, strict=True)
+            self._follow_company_calendar(company, company_vals_list)
             new_employees = super(HrEmployee, self.with_company(company)).create(
                 company_vals_list
             )
@@ -824,6 +838,20 @@ class HrEmployee(models.Model):
 
     def write(self, vals):
         vals = dict(vals)
+        if vals.get("company_id") and "resource_calendar_id" not in vals:
+            # Moving an employee to another company moves the working hours
+            # with it: a calendar owned by the old company stays behind.
+            company = self.env["res.company"].browse(vals["company_id"])
+            moving = self.filtered(
+                lambda employee: employee.resource_calendar_id.company_id
+                and employee.resource_calendar_id.company_id != company
+            )
+            if moving:
+                (self - moving).write(vals)
+                moving.write(
+                    {**vals, "resource_calendar_id": company.resource_calendar_id.id}
+                )
+                return True
         if "work_contact_id" in vals:
             self.message_unsubscribe(self.work_contact_id.ids)
         user_to_sync = None
