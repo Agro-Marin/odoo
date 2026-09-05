@@ -1129,7 +1129,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   305
 §2.4.2   … of those, spelled ``_check_<field>``                        137
 §2.4.2   Multi-field constraints named for one trigger                  57
-§2.4.3   Non-test methods declared on a model class                 25,518
+§2.4.3   Non-test methods declared on a model class                 25,526
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               101
 §2.4.4   Model methods with an abolished verb behind a noun            137
@@ -1141,7 +1141,7 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   153
 §2.4.5   ``X_to_Y`` converter definitions                               98
 §2.4.5   … distinct names                                               56
-§2.4.7   ``_get_*`` definitions                                      5,833
+§2.4.7   ``_get_*`` definitions                                      5,841
 §2.4.7   Abolished payload verbs, the four between them                 16
 §2.4.7   ``_generate_*`` definitions                                   130
 §2.4.7   ``_calculate_*`` model methods                                  7
@@ -1166,9 +1166,9 @@ Section  Population                                                  Count
 §2.4.12  ``_sync_*`` definitions                                        67
 §2.4.12  ``_synchronize_*`` definitions                                 13
 §2.4.12  ``_post_*`` definitions                                       136
-§2.4.13  Module-level functions under ``models/`` and ``wizard/``      338
-§2.4.13  Methods on plain classes in model files                       395
-§2.4.13  … such classes                                                157
+§2.4.13  Module-level functions under ``models/`` and ``wizard/``      346
+§2.4.13  Methods on plain classes in model files                       405
+§2.4.13  … such classes                                                162
 §2.4.13  Functions nested inside model methods                         570
 §2.4.14  Private method names reached from stored Python               112
 §2.4.14  … code blocks reaching them                                   121
@@ -1960,7 +1960,7 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **A ``bool`` return does not make a predicate** ``[review]``. **360** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **262**
+this repository are annotated ``-> bool`` and are not predicates, against **261**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**

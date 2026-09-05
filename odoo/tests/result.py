@@ -21,8 +21,8 @@ __unittest = True
 _max_failed = env_int("ODOO_TEST_MAX_FAILED_TESTS", 0)
 ODOO_TEST_MAX_FAILED_TESTS = _max_failed if _max_failed > 0 else sys.maxsize
 
-REQUIRE_INFRA = bool(env_int("ODOO_REQUIRE_INFRA", 0))
-"""Promote InfrastructureUnavailable to a hard error (CI opt-in)."""
+REQUIRE_INFRA = bool(env_int("ODOO_REQUIRE_INFRA", 1))
+"""Require selected tests to have their infrastructure unless explicitly opted out."""
 
 stats_logger = logging.getLogger("odoo.tests.stats")
 
@@ -188,7 +188,7 @@ class OdooTestResult:
             self.log(
                 logging.WARNING,
                 "skipped %s : %s (environment cannot run it; "
-                "set ODOO_REQUIRE_INFRA=1 to make this an error)",
+                "ODOO_REQUIRE_INFRA=0 explicitly permits this incomplete run)",
                 self.getDescription(test),
                 reason,
                 test=test,

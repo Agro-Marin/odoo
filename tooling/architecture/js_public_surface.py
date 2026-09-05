@@ -11,6 +11,7 @@ from _repo_root import find_odoo_root
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _ast_cache
+import _sources
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_public_surface")
 
@@ -74,7 +75,7 @@ def measure_detailed(
 
     found: dict[str, dict[str, list[int]]] = {}
     for name, root in _named_roots(consumer_roots):
-        for path in root.rglob("*.js"):
+        for path in _sources.iter_files(root, "*.js"):
             text = path.as_posix()
             if "/static/lib/" in text or "/node_modules/" in text:
                 continue

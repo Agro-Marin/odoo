@@ -15,6 +15,7 @@ from _repo_root import find_odoo_root
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _ast_cache
+import _sources
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_env_config_surface")
 WEB = ROOT / "addons" / "web"
@@ -72,7 +73,7 @@ def _named_roots(consumer_roots=CONSUMER_ROOTS) -> list[tuple[str, Path]]:
 
 def _js_files(root: Path):
 
-    for path in root.rglob("*.js"):
+    for path in _sources.iter_files(root, "*.js"):
         parts = path.parts
         if "node_modules" in parts or "lib" in parts or ".git" in parts:
             continue

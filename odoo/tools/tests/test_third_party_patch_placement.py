@@ -1,5 +1,7 @@
 import ast
 import pathlib
+import subprocess
+import sys
 import unittest
 
 _CORE = pathlib.Path(__file__).resolve().parents[3] / "odoo"
@@ -37,10 +39,6 @@ KNOWN_PATCHES: dict[tuple[str, str], str] = {
     ("tools/config.py", "optparse._"): (
         "Neutralises optparse's gettext so option help is not translated at "
         "import time. DEBT: this is a textbook _monkeypatches/optparse.py."
-    ),
-    ("tools/safe_eval.py", "dateutil.tz.gettz"): (
-        "Pins tz lookup for sandboxed evaluation. DEBT: belongs in "
-        "_monkeypatches/dateutil.py."
     ),
 }
 
@@ -115,6 +113,31 @@ def find_patches() -> list[tuple[str, str, int]]:
 
 
 class TestThirdPartyPatchPlacement(unittest.TestCase):
+    def test_sandbox_timezone_configuration_does_not_patch_dateutil(self):
+        process = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                """
+import dateutil.tz
+original_gettz = dateutil.tz.gettz
+from odoo.tools import safe_eval
+assert dateutil.tz.gettz is original_gettz
+assert safe_eval.dateutil.tz is not dateutil.tz
+assert safe_eval.dateutil.tz.gettz is safe_eval.pytz.timezone
+assert safe_eval.safe_eval(
+    "dateutil.tz.gettz('UTC')", {'dateutil': safe_eval.dateutil}
+) is safe_eval.pytz.timezone('UTC')
+""",
+            ],
+            cwd=_CORE.parent,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
+
     def test_every_patch_outside_monkeypatches_is_acknowledged(self):
         found = {(rel, target) for rel, target, _ in find_patches()}
         detectable_known = {

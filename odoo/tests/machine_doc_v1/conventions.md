@@ -73,9 +73,11 @@ classes individually silently stops covering new ones.
   without standing a suite up) — which must release the registry lock too, or
   every later HttpCase request stalls 20s and 500s, blamed on the wrong test.
 - Every environment failure raises `InfrastructureUnavailable`, not bare
-  `SkipTest`: it subclasses SkipTest so the test still skips, but it is
-  counted apart, named in the summary line, and `ODOO_REQUIRE_INFRA=1` makes it
-  an error. A host with no Chrome used to run zero tour assertions and exit 0.
+  `SkipTest`: it subclasses SkipTest for runner compatibility, but Odoo counts it
+  apart, names it in the summary, and treats it as an error by default. Setting
+  `ODOO_REQUIRE_INFRA=0` explicitly permits an incomplete local run and emits a
+  warning; ordinary deliberate skips are unchanged. A host with no Chrome used
+  to run zero tour assertions and exit 0.
   This covers `browser.py` throughout and `HttpCase.setUpClass` in `http.py`,
   which raises it when there is no HTTP server (`--no-http`, a port-bind
   failure, a crashed `http_spawn`).

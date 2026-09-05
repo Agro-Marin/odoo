@@ -1097,7 +1097,7 @@ class TestAddonRelativePath(BaseCase):
 
 
 class TestInfrastructureUnavailable(BaseCase):
-    def test_it_is_still_a_skip_by_default(self):
+    def test_it_remains_compatible_with_the_unittest_skip_protocol(self):
         self.assertTrue(issubclass(InfrastructureUnavailable, SkipTest))
 
     def test_counted_apart_from_a_deliberate_skip(self):

@@ -74,7 +74,7 @@ def _reaches(consumer_roots, web_src: Path, collect) -> list[dict[str, object]]:
     for root in consumer_roots:
         if not root.is_dir():
             continue
-        for path in root.rglob("*.js"):
+        for path in _sources.iter_files(root, "*.js"):
             text = path.as_posix()
             if "/static/lib/" in text or "/node_modules/" in text:
                 continue

@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+import _sources
 import doc_link_gate as gate
 import pytest
 from _repo_root import find_odoo_root
@@ -27,6 +28,19 @@ class TestRootResolution:
 
 
 class TestScanCoverage:
+    def test_recursive_globs_do_not_include_nested_checkouts(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(gate, "REPO_ROOT", tmp_path)
+        active = tmp_path / "doc" / "architecture.md"
+        active.parent.mkdir()
+        active.write_text("Current architecture.\n", encoding="utf-8")
+        nested = tmp_path / "archive" / "old"
+        nested.mkdir(parents=True)
+        (nested / ".git").write_text("gitdir: /elsewhere/old\n", encoding="utf-8")
+        (nested / "obsolete.md").write_text("[broken](missing.md)\n", encoding="utf-8")
+        assert gate._glob_files(["**/*.md"], []) == [active]
+
     def test_default_globs_match_a_nonzero_number_of_files(self):
         files = gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
         assert files, (
@@ -45,8 +59,11 @@ class TestScanCoverage:
     def test_every_machine_doc_tree_is_covered_not_just_web_s(self):
         files = gate._glob_files(gate.DEFAULT_SCAN_GLOBS, gate.DEFAULT_EXCLUDES)
         scanned = {f.parent for f in files if f.parent.name == "machine_doc_v1"}
-        on_disk = {p for p in gate.REPO_ROOT.glob("**/machine_doc_v1") if p.is_dir()}
-        on_disk = {p for p in on_disk if "node_modules" not in p.parts}
+        on_disk = {
+            directory
+            for directory, _dirs, _files in _sources.walk_sources(gate.REPO_ROOT)
+            if directory.name == "machine_doc_v1"
+        }
         assert scanned == on_disk, f"unwatched machine_doc trees: {on_disk - scanned}"
 
     def test_every_architecture_document_is_covered(self):

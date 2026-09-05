@@ -19,6 +19,7 @@ from _repo_root import find_odoo_root
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "architecture"))
 import _ast_cache
+import _sources
 
 REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="doc_link_gate")
 
@@ -184,10 +185,10 @@ def _resolve_ref(source_file: Path, raw_path: str) -> Path | None:
 
 def _glob_files(globs: list[str], excludes: list[str]) -> list[Path]:
     matched: set[Path] = set()
-    for glob in globs:
-        for path in REPO_ROOT.glob(glob):
-            if path.is_file():
-                matched.add(path)
+    for path in _sources.iter_files(REPO_ROOT):
+        relative = path.relative_to(REPO_ROOT)
+        if any(relative.full_match(glob) for glob in globs):
+            matched.add(path)
 
     if not excludes:
         return sorted(matched)

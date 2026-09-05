@@ -18,6 +18,7 @@ from _repo_root import find_odoo_root
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _ast_cache
+import _sources
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_extension_surface")
 WEB = ROOT / "addons" / "web"
@@ -210,7 +211,7 @@ class Index:
         self.files: dict[Path, dict] = {}
         self.scope_of: dict[Path, str] = {}
         for name, root in self.roots:
-            for path in root.rglob("*.js"):
+            for path in _sources.iter_files(root, "*.js"):
                 if _skip(path):
                     continue
                 source = _ast_cache.read_source(path)

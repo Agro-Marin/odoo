@@ -239,3 +239,73 @@ makes the missing-package, wrong-version and uninstalled-wheel regressions fail.
 The validated main-checkout gate passed the combined 809-file type check and
 Ruff over tooling and tests. This closes a concrete reproducibility gap; it does
 not establish deployed CI enforcement or close the browser-coverage risk R8.
+
+## Continuation: selected infrastructure is required, 2026-09-05
+
+The infrastructure exception was already distinct from a deliberate skip, but
+its error policy was opt-in. Both a small mixed suite and a real Odoo process
+reproduced a successful result when database tests ran and selected HTTP tests
+could not start. A guard against phases that started nothing did not cover
+this mixed case.
+
+`ODOO_REQUIRE_INFRA` now defaults to 1. Missing HTTP, browser or other declared
+infrastructure is an error for selected tests. Ordinary deliberate skips are
+unchanged. Explicitly setting the variable to 0 permits a partial local run,
+with a warning naming that incomplete coverage; the all-unstarted-phase guard
+still applies. Infrastructure failures during class setup and test methods are
+both covered by the framework contract.
+
+The loading contract exercises real process exit codes for strict mixed
+selections, explicit partial selections, the existing empty-phase guard and
+normal database-only execution. Its positive served selection sends an actual
+XML-RPC request to a server on an ephemeral port. This strengthens R8's result
+contract; it does not certify that every business tour has been run or fixed.
+
+The broader review caught an obsolete third-party patch exception left by the
+earlier `safe_eval` import-alias correction. Its timezone assignment configures
+a sandbox wrapper, not the real `dateutil` module. Removed that exception and
+added a fresh-process regression proving the original library function retains
+its identity while sandbox evaluation uses the fork's timezone resolver.
+The architecture gate also detected the newly committed add-ons changing the
+bundled-module count from 647 to 650; the documented count now matches the tree.
+
+All six real-process loading contracts passed, including the base add-on's
+infrastructure accounting tests. Machine-document checks passed for `odoo.tests`
+(98) and `base` (967); architecture documentation and its mutation checks passed
+(156 tests, 32 subtests). The `odoo.tests` type check passed across 18 files.
+Core Ruff is clean; function-length excess remains zero and class-length excess
+remains 22,366. The two permission-dependent lint scanner tests skipped by an
+elevated run passed separately as the normal user.
+
+The full real-import framework run passed 4,188 tests and 975 subtests. The
+separate leaf/tooling run exposed another architecture defect: consumer scanners
+descended into the nested `.worktrees/architecture-review` checkout. Obsolete
+code then appeared as current consumers, doubling widget figures and expanding
+several JavaScript surfaces. Ten failures traced to this scope contamination;
+one further test found four stale prose figures after recent core changes.
+
+The shared source traversal now prunes nested Git checkouts before descent,
+recognizing both `.git` files and directories, and excludes `.worktrees` and
+cache trees. An explicitly selected worktree root remains a valid scope. Five
+affected JavaScript scanners and the documentation scanner use this traversal;
+the existing public, extension, field-record and environment surface pins are
+unchanged. Documentation coverage compares directories from the same source
+scope rather than unrelated checkouts. The four prose figures were refreshed
+from their owning measurements.
+
+New fixtures exercise named worktree directories, arbitrarily named nested
+clones and worktrees, and explicit worktree roots. Restoring unbounded traversal
+in a test process makes all three nested-checkout fixtures fail. A separate
+regression ensures recursive documentation globs do not read another checkout.
+
+The broad leaf/tooling run recorded 5,291 passes, 881 subtests, 11 failures and
+three skips before these corrections. Its two permission skips passed as the
+normal user; the remaining skip is the deliberate absence of oversized literal
+service `start()` methods. Rerunning the affected suites passed 239 tests and
+five subtests, leaving only two further prose counts that changed during
+concurrent add-on work; those counts were refreshed separately. Core framework
+and loading contracts are distinct runs and were not shadowed by leaf stubs.
+The final prose-count suite passed all 29 tests and five subtests. Every failing
+suite from the broad run was rechecked after its correction; the entire
+leaf/tooling suite was not repeated. Ruff, formatting and the typed traversal
+helper also passed their final checks.

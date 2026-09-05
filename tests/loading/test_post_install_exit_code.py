@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 
@@ -5,9 +6,23 @@ from .conftest import REPO_ROOT, requires_pg
 
 AT_INSTALL_CLASS = "/base:TestIrDefault"
 POST_INSTALL_HTTP_CLASS = "/base:TestHttpCase"
+POST_INSTALL_DB_TEST = (
+    "/base:TestCopyDataContract.test_deduplicated_recordset_copies_normally"
+)
 
 
-def _update_base_with_tests(base_db, tmp_path, tags):
+def _update_base_with_tests(
+    base_db, tmp_path, tags, *, require_infra=None, serve_http=False
+):
+    environment = dict(os.environ)
+    environment.pop("ODOO_REQUIRE_INFRA", None)
+    if require_infra is not None:
+        environment["ODOO_REQUIRE_INFRA"] = require_infra
+    http_options = (
+        ["--http-interface", "127.0.0.1", "--http-port", "0"]
+        if serve_http
+        else ["--no-http"]
+    )
     return subprocess.run(
         [
             sys.executable,
@@ -24,7 +39,7 @@ def _update_base_with_tests(base_db, tmp_path, tags):
             "--test-tags",
             tags,
             "--stop-after-init",
-            "--no-http",
+            *http_options,
             "--max-cron-threads",
             "0",
             "--log-level",
@@ -36,6 +51,7 @@ def _update_base_with_tests(base_db, tmp_path, tags):
         text=True,
         timeout=900,
         check=False,
+        env=environment,
     )
 
 
@@ -58,7 +74,10 @@ class TestAHollowPostInstallPhaseFailsTheProcess:
 
     def test_a_prepared_but_unstarted_phase_exits_non_zero(self, base_db, tmp_path):
         proc = _update_base_with_tests(
-            base_db, tmp_path, f"{AT_INSTALL_CLASS},{POST_INSTALL_HTTP_CLASS}"
+            base_db,
+            tmp_path,
+            f"{AT_INSTALL_CLASS},{POST_INSTALL_HTTP_CLASS}",
+            require_infra="0",
         )
         log = (tmp_path / "run.log").read_text(encoding="utf-8", errors="replace")
         assert "post_install prepared" in log, (
@@ -77,3 +96,60 @@ class TestAHollowPostInstallPhaseFailsTheProcess:
         assert proc.returncode == 0, f"exit {proc.returncode}:\n" + "\n".join(
             _summary(tmp_path)
         )
+
+    def test_missing_http_fails_even_when_the_same_phase_runs_database_tests(
+        self, base_db, tmp_path
+    ):
+        proc = _update_base_with_tests(
+            base_db, tmp_path, f"{POST_INSTALL_DB_TEST},{POST_INSTALL_HTTP_CLASS}"
+        )
+        log = (tmp_path / "run.log").read_text(encoding="utf-8", errors="replace")
+        assert (
+            "Starting TestCopyDataContract.test_deduplicated_recordset_copies_normally"
+            in log
+        )
+        assert "requires a running HTTP server" in log
+        assert proc.returncode != 0, (
+            "a mixed phase silently accepted missing HTTP coverage"
+        )
+
+    def test_explicit_partial_run_reports_its_missing_http_coverage(
+        self, base_db, tmp_path
+    ):
+        proc = _update_base_with_tests(
+            base_db,
+            tmp_path,
+            f"{POST_INSTALL_DB_TEST},{POST_INSTALL_HTTP_CLASS}",
+            require_infra="0",
+        )
+        log = (tmp_path / "run.log").read_text(encoding="utf-8", errors="replace")
+        assert "explicitly permits this incomplete run" in log
+        assert proc.returncode == 0, log[-4000:]
+
+    def test_served_http_and_database_tests_run_successfully(self, base_db, tmp_path):
+        http_test = (
+            "/base:TestAllowRequests.test_allow_all_requests_flag_restored_after_xmlrpc"
+        )
+        proc = _update_base_with_tests(
+            base_db, tmp_path, f"{POST_INSTALL_DB_TEST},{http_test}", serve_http=True
+        )
+        log = (tmp_path / "run.log").read_text(encoding="utf-8", errors="replace")
+        assert (
+            "Starting TestAllowRequests.test_allow_all_requests_flag_restored_after_xmlrpc"
+            in log
+        )
+        assert (
+            "Starting TestCopyDataContract.test_deduplicated_recordset_copies_normally"
+            in log
+        )
+        assert proc.returncode == 0, log[-4000:]
+
+    def test_infrastructure_result_accounting_contract_runs_under_the_default(
+        self, base_db, tmp_path
+    ):
+        proc = _update_base_with_tests(
+            base_db, tmp_path, "/base:TestInfrastructureUnavailable"
+        )
+        log = (tmp_path / "run.log").read_text(encoding="utf-8", errors="replace")
+        assert "Starting TestInfrastructureUnavailable." in log
+        assert proc.returncode == 0, log[-4000:]

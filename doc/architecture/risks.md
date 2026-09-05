@@ -359,7 +359,8 @@ re-added flag fails the run instead of passing it. A HOOT run does not reach a
 tour either: it mounts components against a mock server — it is the browser
 without the framework, where a tour is the framework driven through the browser.
 Between the two, a tour runs nowhere unless someone runs the suite with a
-server.
+server. The 2026-09-05 default-policy correction below makes missing
+infrastructure fail the selected run rather than silently validating it.
 
 **Evidence.** `hr_holidays`'s `time_off_request_calendar_view` tour fails at its
 last step on a pristine checkout — the click that should open the new-leave
@@ -369,15 +370,26 @@ floor comment records the shape from the other side: a headless run reports
 fewer tests than a served one, and every test in the difference is an `HttpCase`
 skipped as a success. Since `c430b51ef26` the exit code does catch one edge of
 this — a post-install phase that *prepared* tests and *started none* fails the
-run, so a run whose whole selected suite is `HttpCase` goes red — but a mixed
-suite that skips its browser half and runs its database half is exactly the
-shape the exit code still calls a pass.
+run, so a run whose whole selected suite is `HttpCase` goes red — but until 2026-09-05 a mixed
+suite that skipped its browser half and ran its database half was still
+reported as a pass.
 
 **Cost.** A tour regression lands green, and stays green until somebody runs the
 suite by hand with a server. Every tour in a headless run's suites is coverage
 the run claims and does not have; every `--no-http` flag is a decision that the
 tour classes of that suite are deferred, taken once and then re-read as a pass
 on every run.
+
+**Mitigated 2026-09-05.** `OdooTestResult` now treats missing infrastructure as
+an error by default, including class setup failures in mixed selections.
+Ordinary deliberate skips retain their behavior. `ODOO_REQUIRE_INFRA=0` is an
+explicit opt-out for incomplete local runs and warns that coverage is missing.
+The all-unstarted-phase guard remains active even with that opt-out.
+`tests/framework/test_required_infrastructure.py` checks setup-time and
+method-time failures alongside passing and deliberately skipped tests.
+`tests/loading/test_post_install_exit_code.py` checks actual process exit codes
+for mixed database/HTTP selections and a served HTTP request. This prevents an
+implicit successful result without claiming that the missing tours ran.
 
 **What would close it.** Chrome on the machine and the flag dropped suite by
 suite, each drop paired with its count floor raised to the served figure — the

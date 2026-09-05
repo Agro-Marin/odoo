@@ -20,6 +20,7 @@ from _repo_root import find_odoo_root
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import _ast_cache
 import _consumer_scopes
+import _sources
 import doc_measured
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_field_record_surface")
@@ -54,7 +55,7 @@ def _named_roots(consumer_roots=CONSUMER_ROOTS) -> list[tuple[str, Path]]:
 def widget_files() -> list[Path]:
     found: list[Path] = []
     for _scope, root in _named_roots():
-        for path in root.rglob("*.js"):
+        for path in _sources.iter_files(root, "*.js"):
             parts = path.parts
             if "node_modules" in parts or "lib" in parts or "tests" in parts:
                 continue
