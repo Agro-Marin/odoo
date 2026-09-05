@@ -8,6 +8,7 @@ from odoo import api, fields, models
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
+from odoo.tools import SQL
 from odoo.tools.misc import OrderedSet, clean_context, groupby
 from odoo.tools.translate import _
 
@@ -457,14 +458,52 @@ class StockMove(models.Model):
         compute="_compute_show_info",
     )
 
+    completion_sequence = fields.Integer(
+        string="Completion Order",
+        copy=False,
+        readonly=True,
+        index="btree_not_null",
+        help="Position of this move among all moves that reached 'Done'. `date` has"
+        " one-second resolution and a move's id is its creation order, so neither"
+        " tells two moves done in the same second apart; this does.",
+    )
+
     _product_location_index = models.Index(
         "(product_id, location_id, location_dest_id, company_id, state)",
     )
+
+    def init(self):
+        super().init()
+        self.env.cr.execute("CREATE SEQUENCE IF NOT EXISTS stock_move_completion_seq")
+
+    def _assign_completion_sequence(self):
+        pending = self.filtered(
+            lambda m: m.state == "done" and not m.completion_sequence
+        )
+        if not pending:
+            return
+        self.env.execute_query(
+            SQL(
+                """
+                UPDATE stock_move m
+                   SET completion_sequence = numbered.seq
+                  FROM (
+                        SELECT u.id, nextval('stock_move_completion_seq') AS seq
+                          FROM unnest(%s::int[]) AS u(id)
+                       ) AS numbered
+                 WHERE m.id = numbered.id
+                   AND m.completion_sequence IS NULL
+                """,
+                list(pending.ids),
+            )
+        )
+        pending.invalidate_recordset(["completion_sequence"])
 
     @api.model_create_multi
     def create(self, vals_list):
         vals_list = self._prepare_create_vals(vals_list)
         res = super().create(vals_list)
+        res._assign_completion_sequence()
         res._update_orderpoints()
         res._update_references()
         return res
@@ -522,6 +561,8 @@ class StockMove(models.Model):
 
         res = super().write(vals)
 
+        if vals.get("state") == "done":
+            self._assign_completion_sequence()
         if "date" in vals:
             moves_done = self.filtered(lambda m: m.state == "done")
             moves_done.move_line_ids.date = vals["date"]

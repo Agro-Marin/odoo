@@ -538,7 +538,9 @@ class ProductProduct(models.Model):
         if date:
             last_in_domain &= Domain([("date", "<=", date)])
         return self.env["stock.move"].search(
-            last_in_domain, order="date desc, id desc", limit=1
+            last_in_domain,
+            order="date desc, completion_sequence desc, id desc",
+            limit=1,
         )
 
     def _is_negative_owned_offset_by_consignment(self, at_date=None):
@@ -677,7 +679,9 @@ class ProductProduct(models.Model):
         self.env["product.value"].invalidate_model()
 
         moves = self.env["stock.move"].search_fetch(
-            moves_domain, field_names=["id"], order="product_id, date, id"
+            moves_domain,
+            field_names=["id"],
+            order="product_id, date, completion_sequence, id",
         )
         move_fields = [
             "date",
@@ -851,7 +855,9 @@ class ProductProduct(models.Model):
 
         initial_limit = 100
         moves_in = self.env["stock.move"].search(
-            moves_domain, order="date desc, id desc", limit=initial_limit
+            moves_domain,
+            order="date desc, completion_sequence desc, id desc",
+            limit=initial_limit,
         )
 
         remaining_qty_on_first_stack_move = 0
@@ -867,7 +873,7 @@ class ProductProduct(models.Model):
                 current_offset += 1
                 moves_in = self.env["stock.move"].search(
                     moves_domain,
-                    order="date desc, id desc",
+                    order="date desc, completion_sequence desc, id desc",
                     offset=current_offset * initial_limit,
                     limit=initial_limit,
                 )
