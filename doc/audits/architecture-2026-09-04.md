@@ -31,7 +31,7 @@ of every business addon, production configuration, or deployed CI service.
 | P0 | The retry loop suppresses rollback and state-reset errors before executing the handler again. An existing test explicitly pins replay after failed rollback. | Require successful recovery before replay; preserve the triggering error when rollback fails, with the recovery error chained. | Implemented; tests cover rollback, closed cursor and both state resets. |
 | P0 | A naive move of commit into the loop would replay successful work when a post-commit hook raises a concurrency exception. `db/cursor.py` advances `commit_count` before callbacks. | Use that existing durability boundary to forbid replay and local registry reset after commit; continue signaling peers. Unknown connection-loss outcomes must propagate. | Implemented; unit and real-cursor tests cover durable callback failure. |
 | P1 | `modules/db.py` reaches `Manifest` through the package that imports `db`; the cycle checker pins that cycle. | Import from the owning module and delete the obsolete exception; retain the public facade. | Implemented; the cycle gate now rejects its return. |
-| P1 | `InMemoryBackend.search` calls `flush_all()`; R9 explains how this erases pending-compute state needed to reproduce recursive stored-field defects. | Define selective flush semantics for the backend port, then run identical recursive-compute scenarios against memory and PostgreSQL. Verify the known regression fails against the pre-fix implementation in both. | Implemented in the continuation; shared planning, selective flush, and ordinary-write recursion scenarios on both backends. R9 closed. |
+| P1 | `InMemoryBackend.search` calls `flush_all()`; R9 explains how this erases pending-compute state needed to reproduce recursive stored-field defects. | Define selective flush semantics for the backend port, then run identical recursive-compute scenarios against memory and PostgreSQL. Verify the known regression fails against the pre-fix implementation in both. | Implemented in the continuation; metadata-based selective flush, and ordinary-write recursion scenarios on both backends. R9 closed. |
 | P1 | Migration stage selection is syntactic; R3 documents that a post-stage script cannot recover data already removed by schema setup. | Require populated-database upgrade fixtures for representation changes, asserting preserved business values as well as schema visibility. | Follow-up for schema-changing addons; this patch changes no schema. |
 | P1 | R8 records browser suites skipped by headless runs. The reproduction loops in `gates.md` print failures with `echo` without aggregating a failing exit status. This checkout has no GitHub workflow directory. | Provide a reproducible validation entry point that aggregates failures, separates pytest tiers into processes and requires actual browser execution for selected tours. Connect it to the chosen CI system. | Follow-up; deployed enforcement was not inspected, so local absence does not prove absent CI. |
 | P2 | Public-surface validation reports undeclared imports without failing; R6 records independently versioned sibling consumers. | Classify supported exports, migrate deep imports by consumer scope, and validate the assembled release before publication. | Follow-up; migrate consumers before tightening facades. |
@@ -103,11 +103,10 @@ this audit does not certify a completed “best in class” architecture.
 
 ## Continuation: selective backend flushing
 
-Both storage adapters now share search-query assembly. In-memory search uses
-the same flush metadata as PostgreSQL for domain, relational and ordering
-dependencies. It no longer eagerly flushes unrelated computes or populates
-every stored column in cache. The protocol and production query behavior stay
-unchanged; the in-memory adapter now preserves deferred work and dirty values.
+In-memory search now discovers flush dependencies from field metadata and
+preserves deferred work and dirty values. PostgreSQL retains its SQL query
+planner. The initial continuation used shared SQL compilation; the correctness
+review below records why that implementation was wrong and how it was replaced.
 
 Search tests cover identifier-only queries, computed-field filters/order,
 related-model dependencies and cache preservation. Recursive tests exercise
@@ -128,3 +127,42 @@ the selected architecture and document suites passed 257 tests. Core Ruff and
 changed-file formatting checks passed. Non-incremental mypy over the ORM
 reported the same seven existing diagnostics with both the original and
 changed backend source supplied through `--shadow-file`.
+
+## Adversarial correctness review
+
+Two regressions in the continuation were reproduced before correction:
+
+- A timezone-aware datetime property domain queried `pg_timezone_names` during
+  SQL compilation and failed in the in-memory adapter.
+- A custom domain with a Python predicate invoked its PostgreSQL callback.
+
+SQL compilation is not a pure dependency-discovery API. In-memory searches now
+walk domain, relation and ordering metadata directly. Regression tests also
+cover non-stored related ordering, dirty one-to-many inverses and an explicit
+error for SQL-only custom domains. Opaque Python predicates conservatively
+retain the historical full flush because their dependencies cannot be inferred.
+This is a bounded backend contract, not proof of universal SQL/Python equivalence.
+
+The previous PostgreSQL transaction contracts used a real cursor but mocked
+transaction and registry state. A separate loading-tier test now uses an
+installed base database, real registry, field cache and stored compute queue.
+It requires a serialization rejection at commit, verifies the replay reads the
+original partner name rather than the aborted cached write, and checks only the
+second attempt survives. Loading and lightweight contract tests must run in
+separate processes because installed addon classes contaminate the latter's
+synthetic registry.
+
+Review validation: 27 focused regressions passed; eight PostgreSQL contracts
+and the real-ORM loading test passed in separate processes, without skips.
+Restoring the earlier shared-planner backend in an isolated process fails both
+new regressions. Restoring the pre-fix retry implementation fails the real-ORM
+test at PostgreSQL COMMIT. The architecture/documentation selection passed 287
+tests and 38 subtests. Core Ruff, changed-file formatting, layer/cycle checks,
+subsystem-map coherence and the unchanged function/class size floors passed.
+
+The final full framework run passed 4,121 tests and 975 subtests, with eight
+skips and seven failures. All seven failures are in inotify watch setup with
+ENOSPC (host watch capacity exhausted), including tests of the installed
+inotify package directly. This is not a fully green framework run. Earlier
+restricted runs also hit socket restrictions and missing worktree Sass assets;
+the final run had socket access and the existing workspace dependencies linked.

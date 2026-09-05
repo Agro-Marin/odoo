@@ -24,6 +24,7 @@ from ..primitives import (
     UPDATE_BATCH_SIZE,
     NewId,
 )
+from ._search_flush import flush_search_dependencies
 
 if typing.TYPE_CHECKING:
     from ..components.storage import DictBackend
@@ -171,7 +172,7 @@ class StorageBackend(typing.Protocol):
     ) -> None: ...
 
 
-def _prepare_search_query(
+def _prepare_postgres_search_query(
     model: BaseModel,
     domain: Domain,
     offset: int,
@@ -181,11 +182,7 @@ def _prepare_search_query(
     check_access: bool = True,
     prof: typing.Any = None,
 ) -> Query:
-    """Compile search and ordering dependencies for either persistence adapter.
-
-    PostgreSQL flushes this metadata when executing the query. The in-memory
-    adapter consumes the same metadata before evaluating records in Python.
-    """
+    """Compile the PostgreSQL query and its flush dependencies."""
     if prof is None:
         prof = _OrmProfile(_orm_read)
     query = Query(model.env, model._table, model._table_sql)
@@ -497,7 +494,7 @@ class PostgresBackend:
         check_access: bool = True,
         prof: typing.Any = None,
     ) -> Query:
-        return _prepare_search_query(
+        return _prepare_postgres_search_query(
             model, domain, offset, limit, order, check_access=check_access, prof=prof
         )
 
@@ -906,10 +903,7 @@ class InMemoryBackend:
         check_access: bool = True,
         prof: typing.Any = None,
     ) -> Query:
-        query = _prepare_search_query(
-            model, domain, offset, limit, order, check_access=check_access, prof=prof
-        )
-        model.env.flush_query(query.select())
+        flush_search_dependencies(model, domain, order)
         # Descriptors preserve dirty values and fetch only what is read.
         # Bulk-loading stored rows here would overwrite deferred writes.
         all_ids = self.storage.table_ids(model._table)

@@ -425,12 +425,14 @@ the partner field the value is an access anchor, and whether a stale one was
 ever reachable through those rules is unmeasured; `e8ff3f09c9e^` against
 `e8ff3f09c9e` is the clean before/after for anyone who needs to know.
 
-**How it was closed.** Search query assembly now lives in one shared planner
-in `runtime/backend.py`. Both adapters consume its domain, join and order
-field dependencies. The in-memory adapter uses `env.flush_query` rather than
-`flush_all`, and evaluates records through descriptors rather than loading all
-stored columns into cache. Unrelated pending computes survive a search; dirty
-cached values are not overwritten by storage.
+**How it was closed.** The in-memory adapter discovers ordinary domain,
+relation and ordering dependencies from field metadata in
+`runtime/_search_flush.py`. It selectively flushes those fields and evaluates
+records through descriptors, leaving unrelated computes pending and dirty
+cached values intact. An initial shared SQL planner was corrected during
+adversarial review: SQL compilation can access PostgreSQL catalogs and invoke
+custom SQL callbacks. Opaque Python predicates retain a full flush, and SQL-only
+custom domains are unsupported; the recursive scenarios use ordinary domains.
 
 `odoo/orm/tests/test_search_flush.py` pins selective flushing and cache behavior.
 `odoo/orm/tests/test_recursive_compute_batching.py` now reproduces the shape

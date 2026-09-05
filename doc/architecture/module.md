@@ -632,14 +632,16 @@ implementors read side by side in one file, and what stays on the model is
 query *compilation* — `_field_to_sql`, `_order_to_sql`, `_traverse_related_sql`
 — which `Domain._to_sql` and `read_group` call too.
 
-Search query assembly is shared through
-`runtime/backend.py::_prepare_search_query`. Its SQL metadata identifies fields
-required by domains, joins and ordering. PostgreSQL flushes that metadata at
-execution; the in-memory adapter flushes it before evaluating records in Python.
-Search no longer flushes every pending compute or copies unread stored columns
-into cache. This makes deferred recursive computes observable in the fast tier;
-`tests/contract/test_search_flush.py` exercises the same recursion scenarios
-against PostgreSQL.
+PostgreSQL search compiles SQL and flushes its metadata at execution. The
+in-memory adapter discovers domain, relation and ordering dependencies directly
+from field metadata in `runtime/_search_flush.py`, without compiling SQL:
+compilation can query PostgreSQL catalogs or invoke backend-specific callbacks.
+Ordinary searches leave unrelated computes deferred and preserve dirty cache
+values. Opaque custom Python predicates retain the conservative full flush;
+SQL-only custom domains are explicitly unsupported by the in-memory adapter.
+`tests/contract/test_search_flush.py` exercises the same recursive-compute
+scenarios against PostgreSQL, while `odoo/orm/tests/test_search_flush_boundaries.py`
+pins the database-free boundary.
 
 Production CRUD sniffs the test backend neither via
 `transaction.storage` nor via a null check. Until 2026-08-08 a null
