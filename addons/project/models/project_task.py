@@ -1255,13 +1255,6 @@ class ProjectTask(models.Model):
                 else:
                     task[f] = False
 
-    def _is_recurrence_valid(self) -> bool:
-        self.check_singleton()
-        return self.repeat_interval > 0 and (
-            self.repeat_type != "until"
-            or (self.repeat_until and self.repeat_until > fields.Date.today())
-        )
-
     @api.depends("recurrence_id")
     def _compute_recurring_count(self) -> None:
         self.recurring_count = 0

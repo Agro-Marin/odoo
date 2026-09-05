@@ -174,7 +174,7 @@
                             name="action_project_sharing_view_parent_task"
                             type="object"
                             class="oe_stat_button"
-                            icon="fa-tasks"
+                            icon="fa-check"
                             invisible="not display_parent_task_button">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">Parent Task</span>
@@ -210,7 +210,7 @@
                             type="object"
                             invisible="not successor_count or not allow_dependencies"
                             class="oe_stat_button"
-                            icon="fa-tasks">
+                            icon="fa-check">
                             <div class="o_field_widget o_stat_info">
                                 <span class="o_stat_text">Blocked Tasks</span>
                                 <span class="o_stat_value ">
@@ -227,7 +227,8 @@
                         title="Archived"
                         bg_color="text-bg-danger"
                         invisible="active" />
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div
+                        class="d-flex flex-wrap-reverse flex-lg-nowrap justify-content-between align-items-center gap-2 mb-3 mb-lg-0">
                         <h1 class="d-flex w-100">
                             <field
                                 name="name"
@@ -237,7 +238,7 @@
                                 placeholder="Task Title..." />
                         </h1>
                         <div
-                            class="d-flex justify-content-end align-items-center px-1"
+                            class="d-flex justify-content-between justify-content-lg-end align-items-center px-1 w-100 w-lg-auto"
                             invisible="not active or is_template">
                             <field name="priority" class="h3 pe-2" widget="priority" />
                             <field

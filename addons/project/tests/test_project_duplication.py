@@ -85,3 +85,16 @@ class TestProjectDuplication(TestProjectCommon):
         self.assertEqual(
             archived.task_count, 2, "archived project must still count its tasks"
         )
+
+    def test_copy_keeps_project_on_the_dashboard(self) -> None:
+        # is_user_favorite is per-user, so this has to run as a real active
+        # user: __system__ is inactive and gets filtered out of the m2m read.
+        project = self.project_pigs.with_user(self.user_projectmanager)
+        project.action_toggle_user_favorite()
+        self.assertTrue(project.is_user_favorite)
+        copy = project.copy()
+        self.assertTrue(
+            copy.is_user_favorite,
+            "duplicating a project the user keeps on their dashboard must put "
+            "the copy on their dashboard too",
+        )

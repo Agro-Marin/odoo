@@ -216,3 +216,27 @@ class TestProjectEmbeddedActionSettings(TestProjectCommon):
             0,
             "There should be no more embedded action settings for the unlinked project.",
         )
+
+    def test_burndown_chart_reachable_from_the_project_topbar(self) -> None:
+        # is_visible only computes against the project actually open, which is
+        # what active_id/active_model carry in from the webclient.
+        project = self.project_pigs
+        for action_xmlid in (
+            "project.act_project_project_2_project_task_all",
+            "project.project_update_all_action",
+        ):
+            action = (
+                self.env.ref(action_xmlid)
+                .with_user(self.user_projectmanager)
+                .with_context(active_id=project.id, active_model="project.project")
+            )
+            names = [
+                embedded["name"]
+                for embedded in action._get_action_dict()["embedded_action_ids"]
+            ]
+            self.assertIn(
+                "Burndown Chart",
+                names,
+                f"a project manager must reach the burndown chart from the top "
+                f"bar of {action_xmlid}, got {names}",
+            )

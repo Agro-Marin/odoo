@@ -357,3 +357,20 @@ test("project.task: Parent id is set when creating new task from subtask form's 
         MockServer.current._models[ProjectTask._name].find((rec) => rec.id === 1).name,
     );
 });
+
+test("project.task (form): deleting a sub-task names the action in the dialog", async () => {
+    await mountView({
+        resModel: "project.task",
+        resId: 1,
+        type: "form",
+    });
+
+    await click(".o_list_record_remove");
+    await animationFrame();
+    expect(".modal-title").toHaveText("Delete Sub-task", {
+        message: "the dialog must say what is being deleted, not 'Confirmation'",
+    });
+    expect(".modal-footer button:first-child").toHaveText("Delete", {
+        message: "the confirm button must name the action, not say 'Ok'",
+    });
+});

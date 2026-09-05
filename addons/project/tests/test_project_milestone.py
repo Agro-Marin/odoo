@@ -482,6 +482,22 @@ class TestProjectMilestone(TestProjectCommon):
             "Expected project_goats to not be able to mark the milestone as done.",
         )
 
+    def test_milestone_display_name_marks_the_deadline_for_m2x(self) -> None:
+        self.milestone_pigs.deadline = fields.Date.to_date("2026-09-30")
+        plain = self.milestone_pigs.with_context(
+            display_milestone_deadline=True
+        ).display_name
+        self.assertIn(" - ", plain)
+        self.assertNotIn("\t", plain)
+        formatted = self.milestone_pigs.with_context(
+            display_milestone_deadline=True, formatted_display_name=True
+        ).display_name
+        self.assertTrue(
+            formatted.startswith("Milestone Pigs\t--") and formatted.endswith("--"),
+            "the M2X dropdown must get the deadline as an odoomark muted "
+            f"segment, got {formatted!r}",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestMilestoneCopyAndCompletion(TestProjectCommon):
