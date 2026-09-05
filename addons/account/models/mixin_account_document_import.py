@@ -377,25 +377,9 @@ class MixinAccountDocumentImport(models.AbstractModel):
 
     @api.model
     def _get_xml_tree(self, file_data):
-        if (
-            "text/plain" in file_data["mimetype"]
-            and (
-                guess_mimetype(file_data["raw"] or b"").endswith("/xml")
-                or file_data["name"].endswith(".xml")
-            )
-        ) or file_data["mimetype"].endswith("/xml"):
-            try:
-                return etree.fromstring(
-                    file_data["raw"],
-                    parser=etree.XMLParser(
-                        remove_comments=True, resolve_entities=False
-                    ),
-                )
-            except etree.ParseError as e:
-                _logger.info(
-                    'Error when reading the xml file "%s": %s', file_data["name"], e
-                )
-        return None
+        if not file_data["raw"]:
+            return None
+        return Document(file_data["raw"], file_data["mimetype"], file_data["name"]).tree
 
     @api.model
     def _unwrap_attachments(self, files_data, recurse=True):
