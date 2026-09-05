@@ -229,10 +229,14 @@ class HrEmployee(models.Model):
     )
     private_phone = fields.Char(
         string="Private Phone",
+        related="private_address_id.phone",
+        readonly=False,
         groups="hr.group_hr_user",
     )
     private_email = fields.Char(
         string="Private Email",
+        related="private_address_id.email",
+        readonly=False,
         groups="hr.group_hr_user",
     )
     lang = fields.Selection(
@@ -248,6 +252,8 @@ class HrEmployee(models.Model):
     country_id = fields.Many2one(
         "res.country",
         "Nationality (Country)",
+        related="private_address_id.nationality_id",
+        readonly=False,
         tracking=True,
         groups="hr.group_hr_user",
     )
@@ -259,6 +265,9 @@ class HrEmployee(models.Model):
     )
     birthday = fields.Date(
         "Birthday",
+        related="private_address_id.birthdate",
+        readonly=False,
+        store=True,
         tracking=True,
         groups="hr.group_hr_user",
     )
@@ -294,12 +303,9 @@ class HrEmployee(models.Model):
         groups="hr.group_hr_user",
     )
     sex = fields.Selection(
-        [
-            ("male", "Male"),
-            ("female", "Female"),
-            ("other", "Other"),
-        ],
         string="Gender",
+        related="private_address_id.gender",
+        readonly=False,
         tracking=True,
         groups="hr.group_hr_user",
         help="This is the legal sex recognized by the state.",

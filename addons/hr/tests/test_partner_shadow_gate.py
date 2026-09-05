@@ -29,7 +29,9 @@ KEEP_SHADOWED = frozenset(
 SEPARATE_DESTINATION = frozenset(
     {
         "barcode",  # a Badge ID, and goes to res.partner.identifier
-        "country_id",  # Nationality, not the partner's ADDRESS country
+        # Nationality, read from the private facet's nationality_id; the party's
+        # country_id is its ADDRESS country and must stay a different field.
+        "country_id",
     }
 )
 DELEGATION_PROVIDES = frozenset(
