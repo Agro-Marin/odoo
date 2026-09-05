@@ -247,7 +247,7 @@ class AuthSignupHome(Home):
 
     def _prepare_signup_values(self, qcontext):
         values = {key: qcontext.get(key) for key in ("login", "name", "password")}
-        if not values:
+        if not values.get("login") or not values.get("name"):
             raise UserError(_("The form was not properly filled in."))
         if values.get("password") != qcontext.get("confirm_password"):
             raise UserError(_("Passwords do not match; please retype them."))
