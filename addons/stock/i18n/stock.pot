@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-29 21:24+0000\n"
-"PO-Revision-Date: 2026-08-29 21:24+0000\n"
+"POT-Creation-Date: 2026-09-05 08:54+0000\n"
+"PO-Revision-Date: 2026-09-05 08:54+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -57,7 +57,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid ""
 "\n"
 "(%(serial_number)s) exists in location %(location)s"
@@ -90,6 +90,12 @@ msgid ""
 "(b) The shipping policy is \"When all products are ready\": all product have been reserved.\n"
 " * Done: The transfer has been processed.\n"
 " * Cancelled: The transfer has been cancelled."
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move_line.py:0
+msgid " - %(lot)s, on %(product)s"
 msgstr ""
 
 #. module: stock
@@ -528,8 +534,8 @@ msgid ""
 "                <p style=\"margin: 0px; padding: 0px; font-size: 13px;\"> Hello <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>,<br/><br/> We are\n"
 "                    glad to inform you that your order has been shipped. <t t-if=\"hasattr(object, 'carrier_tracking_ref') and object.carrier_tracking_ref\">\n"
 "                    Your tracking reference is <strong>\n"
-"                        <t t-if=\"object.carrier_tracking_url\">\n"
-"                            <t t-set=\"multiple_carrier_tracking\" t-value=\"object.get_multiple_carrier_tracking()\"/>\n"
+"                        <t t-if=\"hasattr(object, 'carrier_tracking_url') and object.carrier_tracking_url\">\n"
+"                            <t t-set=\"multiple_carrier_tracking\" t-value=\"hasattr(object, 'get_multiple_carrier_tracking') and object.get_multiple_carrier_tracking()\"/>\n"
 "                            <t t-if=\"multiple_carrier_tracking\">\n"
 "                                <t t-foreach=\"multiple_carrier_tracking\" t-as=\"line\">\n"
 "                                    <br/>\n"
@@ -1258,16 +1264,15 @@ msgstr ""
 #. module: stock
 #: model:res.groups,comment:stock.group_override_hard_block
 msgid ""
-"Allows ALL operations on hard-blocked locations (inventory counts,\n"
-"            audits, legal holds).\n"
-"            Requires highest authorization level."
+"Allows ALL operations on hard-blocked locations (inventory counts, audits, "
+"legal holds). Requires highest authorization level."
 msgstr ""
 
 #. module: stock
 #: model:res.groups,comment:stock.group_force_blocked_location_in
 msgid ""
-"Allows adding stock to soft-blocked incoming locations (e.g.,\n"
-"            maintenance areas)"
+"Allows adding stock to soft-blocked incoming locations (e.g., maintenance "
+"areas)"
 msgstr ""
 
 #. module: stock
@@ -1278,8 +1283,8 @@ msgstr ""
 #. module: stock
 #: model:res.groups,comment:stock.group_force_blocked_location_out
 msgid ""
-"Allows removing stock from soft-blocked outgoing locations (e.g.,\n"
-"            quarantine, quality hold)"
+"Allows removing stock from soft-blocked outgoing locations (e.g., "
+"quarantine, quality hold)"
 msgstr ""
 
 #. module: stock
@@ -2052,7 +2057,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move_line.py:0
+#: code:addons/stock/models/stock_move_line_package.py:0
 msgid "Choose destination location"
 msgstr ""
 
@@ -3002,6 +3007,14 @@ msgid ""
 "That would be like going back in time to revert all operations triggered after this move. Who knows what the end result would be, So let's not do it.\n"
 "\n"
 "Try changing the “done” quantity to 0 instead."
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_location.py:0
+msgid ""
+"Deleting the hard-blocked location %(locations)s requires the \"Unlock "
+"Locations: All (Hard)\" permission."
 msgstr ""
 
 #. module: stock
@@ -4721,7 +4734,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid "Invalid mode %s."
 msgstr ""
 
@@ -5791,7 +5804,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid "Missing required values to generate Serials/Lots: %(keys)s."
 msgstr ""
 
@@ -6147,7 +6160,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid "No product found to generate Serials/Lots for."
 msgstr ""
 
@@ -6461,7 +6474,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_forecast.py:0
 msgid "Operation not supported"
 msgstr ""
 
@@ -8484,7 +8497,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move_line.py:0
+#: code:addons/stock/models/stock_move_line_quant.py:0
 msgid "Reverted Moves"
 msgstr ""
 
@@ -8773,7 +8786,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_forecast.py:0
 msgid "Search not supported without a value."
 msgstr ""
 
@@ -9806,7 +9819,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid "The Serials/Lots to import must be text."
 msgstr ""
 
@@ -9879,7 +9892,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid "The first Serial/Lot must be text."
 msgstr ""
 
@@ -9945,13 +9958,13 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid "The number of Serial Numbers to generate must be greater than zero."
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid "The number of Serials/Lots to generate must be a whole number."
 msgstr ""
 
@@ -10033,7 +10046,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid "The quantity and the quantity per lot must be numbers."
 msgstr ""
 
@@ -10065,7 +10078,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid "The quantity per lot should always be a positive value."
 msgstr ""
 
@@ -10131,7 +10144,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move_line.py:0
+#: code:addons/stock/models/stock_move_line_quant.py:0
 msgid "There are no inventory adjustments to revert."
 msgstr ""
 
@@ -10146,6 +10159,16 @@ msgstr ""
 #. module: stock
 #: model_terms:ir.actions.act_window,help:stock.stock_move_line_action
 msgid "There's no product move yet"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_move_line.py:0
+msgid ""
+"These Lot/Serial Numbers exist but are archived, so they cannot receive stock:\n"
+"%(lots)s\n"
+"\n"
+"Un-archive one to use it again, or enter a different number."
 msgstr ""
 
 #. module: stock
@@ -10812,7 +10835,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid ""
 "Unavailable Serial numbers. Please correct the serial numbers encoded: "
 "%(serial_numbers_to_locations)s"
@@ -11247,8 +11270,8 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
 #: code:addons/stock/models/stock_move_line.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 #: code:addons/stock/models/stock_putaway_rule.py:0
 #: code:addons/stock/models/stock_quant.py:0
 #: code:addons/stock/models/stock_scrap.py:0
@@ -11678,7 +11701,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_lot.py:0
 msgid "You cannot generate more than %s Serials/Lots at once."
 msgstr ""
 
@@ -11698,7 +11721,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move_line.py:0
+#: code:addons/stock/models/stock_move_line_package.py:0
 msgid ""
 "You cannot pack products into the same package when they are from different "
 "transfers with different operation types"
@@ -11720,13 +11743,13 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_merge.py:0
 msgid "You cannot split a draft move. It needs to be confirmed first."
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_merge.py:0
 msgid "You cannot split a stock move that has been set to 'Done' or 'Cancel'."
 msgstr ""
 
@@ -11740,7 +11763,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_reservation.py:0
 msgid "You cannot unreserve a stock move that has been set to 'Done'."
 msgstr ""
 
@@ -12141,6 +12164,11 @@ msgid "processed instead of"
 msgstr ""
 
 #. module: stock
+#: model_terms:ir.ui.view,arch_db:stock.stock_package_destination_form_view
+msgid "quantity"
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.stock_report_view_graph
 msgid "report_stock_quantity_graph"
 msgstr ""
@@ -12215,28 +12243,4 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/stock/static/src/widgets/generate_serial.js:0
 msgid "“%s” is not a whole number."
-msgstr ""
-
-#. module: stock
-#. odoo-python
-#: code:addons/stock/models/stock_move_line.py:0
-msgid " - %(lot)s, on %(product)s"
-msgstr ""
-
-#. module: stock
-#. odoo-python
-#: code:addons/stock/models/stock_location.py:0
-msgid ""
-"Deleting the hard-blocked location %(locations)s requires the \"Unlock "
-"Locations: All (Hard)\" permission."
-msgstr ""
-
-#. module: stock
-#. odoo-python
-#: code:addons/stock/models/stock_move_line.py:0
-msgid ""
-"These Lot/Serial Numbers exist but are archived, so they cannot receive stock:\n"
-"%(lots)s\n"
-"\n"
-"Un-archive one to use it again, or enter a different number."
 msgstr ""
