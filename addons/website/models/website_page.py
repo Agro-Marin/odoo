@@ -174,7 +174,7 @@ class WebsitePage(models.Model):
             vals["group_ids"] = False
 
         if "url" in vals or "name" in vals:
-            shared_vals = {k: v for k, v in vals.items() if k not in ("url", "key")}
+            shared_vals = {k: v for k, v in vals.items() if k != "url"}
             for page in self:
                 page_vals = dict(shared_vals)
                 website_id = vals.get("website_id") or page.website_id.id or False
@@ -208,7 +208,7 @@ class WebsitePage(models.Model):
                         websites.homepage_url = url
                     page_vals["url"] = url
 
-                if "name" in vals and page.name != vals["name"]:
+                if "key" not in vals and "name" in vals and page.name != vals["name"]:
                     page_vals["key"] = (
                         self.env["website"]
                         .with_context(website_id=website_id)

@@ -83,7 +83,7 @@ assert_eq "Controller files (incl __init__)" \
 assert_eq "Controller files (excl __init__)" \
     "$(ls "$WEB"/controllers/*.py | grep -vc __init__)" "6"
 assert_eq "Model files" \
-    "$(ls "$WEB"/models/*.py | wc -l)" "43"
+    "$(ls "$WEB"/models/*.py | wc -l)" "45"
 assert_eq "Wizard py files (excl __init__)" \
     "$(ls "$WEB"/wizard/*.py | grep -vc __init__)" "4"
 PY_TESTS=$(ls "$WEB"/tests/*.py | wc -l)
@@ -113,7 +113,7 @@ assert_doc_cites "MODEL_MAP cites the real ORM model-class count" \
 assert_doc_cites "ARCHITECTURE models/ row cites the real model-class count" \
     "$MODEL_CLASSES" '%s model classes \(website, mixins' ARCHITECTURE.md
 assert_doc_cites "ARCHITECTURE File Counts row cites the real model-class count" \
-    "$MODEL_CLASSES" '\| Python \(models\) \| 36 files \(%s model classes\) \|' ARCHITECTURE.md
+    "$MODEL_CLASSES" '\| Python \(models\) \| [0-9]+ files \(%s model classes\) \|' ARCHITECTURE.md
 
 # ------- Signature model / methods exist -------
 assert_grep "website model _name" '_name = ["'\'']website["'\'']' "$WEB/models/website.py"

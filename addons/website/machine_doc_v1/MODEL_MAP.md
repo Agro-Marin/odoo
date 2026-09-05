@@ -1,7 +1,7 @@
 # Website Module Model Map
 
 Every Python model defined or extended by the `website` module, with the fields,
-methods, and invariants that matter for the multi-website CMS. **61 model
+methods, and invariants that matter for the multi-website CMS. **63 model
 classes** defined across `models/` (36 `.py` files) and `wizard/` (5 `.py`
 files, 4 of which define models).
 
@@ -37,7 +37,9 @@ plain ORM models:
 ### models/website.py — Website (`_name = "website"`) — NEW
 
 `_order = "sequence, id"`. The central multi-website configuration record and
-the hub for frontend resolution, search, the configurator, and caching. ~44
+the hub for frontend resolution, pages, and caching; the configurator lives in
+`website_configurator.py` and the search stack in `website_search.py`, both
+`_inherit = "website"` extensions in this module. ~44
 fields.
 
 **Notable fields:** `name`, `sequence`, `domain` (public URL, unique SQL
@@ -277,7 +279,9 @@ Quick lookup — file → model → role.
 
 | File | Model (`_name` / `_inherit`) | Kind | Role |
 |------|------|------|------|
-| website.py | `website` | NEW | Central multi-website config; frontend resolution, search, configurator, caching hub |
+| website.py | `website` | NEW | Central multi-website config; frontend resolution, pages, caching hub |
+| website_configurator.py | `website` | INHERIT | Configurator: IAP calls, snippet preconfiguration, `configurator_apply` |
+| website_search.py | `website` | INHERIT | Frontend search: exact, trigram/basic fuzzy term enumeration, result rendering |
 | mixins.py | `mixin.website.seo.metadata` | ABSTRACT | SEO/OpenGraph/Twitter metadata |
 | mixins.py | `mixin.website.cover_properties` | ABSTRACT | Cover image JSON properties |
 | mixins.py | `mixin.website.page_visibility_options` | ABSTRACT | header/footer visible flags |

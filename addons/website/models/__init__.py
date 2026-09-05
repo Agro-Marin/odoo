@@ -21,6 +21,8 @@ from . import mixin_website_published_multi
 from . import mixin_website_searchable
 from . import models
 from . import website
+from . import website_configurator
+from . import website_search
 from . import website_menu
 from . import website_page_properties
 from . import website_page

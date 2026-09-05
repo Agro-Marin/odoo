@@ -934,3 +934,18 @@ class TestCdnFiltersAreValidated(TransactionCase):
             website.get_cdn_url("/web/assets/x.js"),
             "https://cdn.example.com/web/assets/x.js",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestPageWriteKeepsAnExplicitKey(TransactionCase):
+    def test_key_written_beside_name_is_kept(self):
+        result = self.env["website"].new_page(
+            "keyed", page_values={"is_published": True}
+        )
+        page = self.env["website.page"].browse(result["page_id"])
+        page.write({"name": "Renamed", "key": "website.explicit_key"})
+        self.assertEqual(page.key, "website.explicit_key")
+        self.assertEqual(page.name, "Renamed")
+        page.write({"name": "Renamed again"})
+        self.assertNotEqual(page.key, "website.explicit_key")
+        self.assertTrue(page.key.startswith("website.renamed-again"), page.key)
