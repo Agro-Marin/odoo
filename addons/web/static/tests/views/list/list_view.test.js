@@ -87,6 +87,8 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { omit } from "@web/core/utils/collections/objects";
 import { useBus } from "@web/core/utils/hooks";
+import { registerField } from "@web/fields/_registry";
+import { charField } from "@web/fields/basic/char/char_field";
 import { floatField } from "@web/fields/basic/float/float_field";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
@@ -3411,6 +3413,28 @@ test(`opening records when clicking on record`, async () => {
     await contains(`th.o_group_name`).click();
     await contains(`tr:not(.o_group_header) td:not(.o_list_record_selector)`).click();
     expect.verifySteps(["openRecord", "openRecord"]);
+});
+
+test(`a field widget registered for the arch's js_class renders in a list`, async () => {
+    class ScopedChar extends Component {
+        static template = xml`<span class="o_scoped_char" t-esc="props.record.data[props.name]"/>`;
+        static props = ["*"];
+    }
+    registerField(
+        { name: "scoped_widget", view: "scoped_list" },
+        { ...charField, component: ScopedChar },
+    );
+    registry
+        .category("views")
+        .add("scoped_list", registry.category("views").get("list"));
+
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list js_class="scoped_list"><field name="foo" widget="scoped_widget"/><field name="text"/></list>`,
+    });
+    expect(`.o_data_row [name=foo] .o_scoped_char`).toHaveCount(4);
+    expect(`.o_data_row [name=text] .o_scoped_char`).toHaveCount(0);
 });
 
 test(`execute an action before and after each valid save in a list view`, async () => {
