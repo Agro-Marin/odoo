@@ -153,6 +153,35 @@ class StockPickingType(models.Model):
     _name = "stock.picking.type"
     _inherit = ["stock.picking.type", "mixin.pos.load"]
 
+    has_stock_reports_to_print = fields.Boolean(
+        compute="_compute_has_stock_reports_to_print",
+    )
+
+    # The seven flags `_prepare_actions_autoprint` actually consults.
+    # `auto_print_package_label` is deliberately absent: it is consumed by
+    # `stock.move.line`, not by that method, so it would announce a report
+    # the register can never get.
+    @api.depends(
+        "auto_print_delivery_slip",
+        "auto_print_return_slip",
+        "auto_print_reception_report",
+        "auto_print_reception_report_labels",
+        "auto_print_product_labels",
+        "auto_print_lot_labels",
+        "auto_print_packages",
+    )
+    def _compute_has_stock_reports_to_print(self):
+        for picking_type in self:
+            picking_type.has_stock_reports_to_print = (
+                picking_type.auto_print_delivery_slip
+                or picking_type.auto_print_return_slip
+                or picking_type.auto_print_reception_report
+                or picking_type.auto_print_reception_report_labels
+                or picking_type.auto_print_product_labels
+                or picking_type.auto_print_lot_labels
+                or picking_type.auto_print_packages
+            )
+
     @api.depends("warehouse_id")
     def _compute_hide_reservation_method(self):
         super()._compute_hide_reservation_method()
@@ -185,7 +214,12 @@ class StockPickingType(models.Model):
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ["id", "use_create_lots", "use_existing_lots"]
+        return [
+            "id",
+            "use_create_lots",
+            "use_existing_lots",
+            "has_stock_reports_to_print",
+        ]
 
 
 class StockMove(models.Model):

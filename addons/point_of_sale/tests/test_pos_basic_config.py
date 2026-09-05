@@ -13,7 +13,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSBasicConfig(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
         self.config = self.basic_config
@@ -2053,7 +2052,6 @@ class TestPoSBasicConfig(TestPoSCommon):
         self.config.is_closing_entry_by_product = True
         self.open_new_session()
 
-
         orders = []
 
         orders = []
@@ -2471,3 +2469,61 @@ class TestPoSBasicConfig(TestPoSCommon):
             "You cannot archive a product that is set as a special product in a Point of Sale configuration. Please change the configuration first.",
         ):
             special_product.product_variant_ids[0].unlink()
+
+    def test_get_stock_reports_to_print(self):
+        """Auto-print reports configured on the operation type must reach POS.
+
+        `button_validate` runs them for a picking validated from the backend,
+        but a POS order validates its picking on its own, so nothing fired.
+        The register needs the flag in its session payload to know whether it
+        is worth asking, and a method to ask with.
+        """
+        picking_type = self.config.picking_type_id
+        self.assertFalse(picking_type.has_stock_reports_to_print)
+        self.assertIn(
+            "has_stock_reports_to_print",
+            self.env["stock.picking.type"]._load_pos_data_fields(self.config),
+        )
+
+        picking_type.auto_print_delivery_slip = True
+        self.assertTrue(picking_type.has_stock_reports_to_print)
+
+        self.config.open_ui()
+        session = self.config.current_session_id
+        order = self.env["pos.order"].create(
+            {
+                "company_id": self.env.company.id,
+                "session_id": session.id,
+                "partner_id": self.customer.id,
+                "lines": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "OL/0001",
+                            "product_id": self.product1.id,
+                            "price_unit": 10.0,
+                            "qty": 1,
+                            "tax_ids": [[6, False, []]],
+                            "price_subtotal": 10.0,
+                            "price_subtotal_incl": 10.0,
+                        },
+                    )
+                ],
+                "pricelist_id": self.config.pricelist_id.id,
+                "amount_paid": 10.0,
+                "amount_total": 10.0,
+                "amount_tax": 0.0,
+                "amount_return": 0.0,
+                "last_order_preparation_change": "{}",
+                "to_invoice": False,
+            }
+        )
+        self.make_payment(order, self.cash_pm1, 10.0)
+        self.assertTrue(order.picking_ids)
+
+        reports = order.get_stock_reports_to_print()
+        self.assertEqual(
+            [report["report_name"] for report in reports],
+            ["stock.report_deliveryslip"],
+        )

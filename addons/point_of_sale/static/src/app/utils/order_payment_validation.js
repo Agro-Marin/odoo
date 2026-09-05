@@ -195,6 +195,17 @@ export default class OrderPaymentValidation {
                 }
             }
 
+            if (this.order.picking_type_id?.has_stock_reports_to_print) {
+                const reports = await this.pos.data.call(
+                    "pos.order",
+                    "get_stock_reports_to_print",
+                    [this.order.id],
+                );
+                for (const report of reports) {
+                    await this.pos.action.doAction(report);
+                }
+            }
+
             const postPushOrders = syncOrderResult.filter((order) =>
                 order.waitForPushOrder(),
             );
