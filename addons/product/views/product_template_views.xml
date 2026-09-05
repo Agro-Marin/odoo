@@ -246,6 +246,18 @@
                         <span id="button_website" invisible="1" />
                         <span id="button_documents_before" invisible="1" />
                         <span id="button_documents_after" invisible="1" />
+                        <button
+                            class="oe_stat_button"
+                            icon="fa-barcode"
+                            type="object"
+                            name="action_open_packaging_barcodes"
+                            groups="uom.group_uom"
+                            invisible="not uom_ids">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">Packaging</span>
+                                <span class="o_stat_text">Barcodes</span>
+                            </div>
+                        </button>
                     </div>
                     <widget
                         name="web_ribbon"

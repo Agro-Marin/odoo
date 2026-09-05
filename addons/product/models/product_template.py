@@ -712,6 +712,26 @@ class ProductTemplate(models.Model):
         action["context"] = {"default_product_tmpl_ids": self.ids}
         return action
 
+    def action_open_packaging_barcodes(self):
+        # Every packaging barcode of this product, across all of its units.  The
+        # uom.uom stat button only ever scopes by unit, so this is the one
+        # product-scoped view of them.
+        self.check_singleton()
+        variants = self.product_variant_ids
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.env._("Packaging Barcodes"),
+            "res_model": "product.uom",
+            "view_mode": "list",
+            "view_id": self.env.ref("product.product_uom_list_view").id,
+            "domain": [("product_id", "in", variants.ids)],
+            "context": {
+                "default_product_id": variants[:1].id,
+                "product_ids": variants.ids,
+                "show_variant_name": len(variants) > 1,
+            },
+        }
+
     def _cartesian_product(
         self, product_template_attribute_values_per_line, parent_combination
     ):
