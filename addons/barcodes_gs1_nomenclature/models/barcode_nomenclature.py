@@ -115,6 +115,14 @@ class BarcodeNomenclature(models.Model):
                     )
                 ) from e
         elif rule.gs1_content_type == "identifier":
+            if not match.group(2):
+                raise ValidationError(
+                    _(
+                        'There is something wrong with the barcode rule "%s" pattern.\n'
+                        "Its value must match at least one digit to compute a check digit.",
+                        rule.name,
+                    )
+                )
             # Reject the barcode if its check digit (last char) is invalid
             if match.group(2)[-1] != str(
                 get_barcode_check_digit(
