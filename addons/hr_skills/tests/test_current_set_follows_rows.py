@@ -200,3 +200,51 @@ class TestEveryX2ManyCommandIsAnswered(SkillsCase):
             self.env["hr.employee.skill"]._get_transformed_commands(
                 [(9, 0, 0)], self.employee
             )
+
+
+@tagged("post_install", "-at_install")
+class TestOneCommandPerRow(SkillsCase):
+    """Closing a skill and creating its successor in one batch closed the old
+    row twice: once for the DELETE or CLEAR, once more when the CREATE found it
+    still live. The ORM tolerated the duplicate, so nothing failed; the batch
+    simply did the same work twice."""
+
+    def _commands_for(self, *client_commands):
+        employee = self.env["hr.employee"].create({"name": "One command employee"})
+        old = self.env["hr.employee.skill"].create(
+            {
+                "employee_id": employee.id,
+                "skill_id": self.skill_piano.id,
+                "skill_level_id": self.level_novice.id,
+                "skill_type_id": self.skill_type.id,
+                "valid_from": date.today() - relativedelta(months=2),
+            },
+        )
+        self.env.flush_all()
+        successor = Command.create(
+            {
+                "skill_id": self.skill_piano.id,
+                "skill_level_id": self.level_expert.id,
+                "skill_type_id": self.skill_type.id,
+            },
+        )
+        commands = self.env["hr.employee.skill"]._get_transformed_commands(
+            [command(old) for command in client_commands] + [successor], employee
+        )
+        return old, commands
+
+    def _assert_each_row_once(self, old, commands):
+        touched = [command[1] for command in commands if command[0] != Command.CREATE]
+        self.assertEqual(touched, [old.id])
+        self.assertEqual(
+            [command for command in commands if command[0] == Command.CREATE].__len__(),
+            1,
+        )
+
+    def test_delete_then_create_closes_the_old_row_once(self):
+        old, commands = self._commands_for(lambda row: Command.delete(row.id))
+        self._assert_each_row_once(old, commands)
+
+    def test_clear_then_create_closes_the_old_row_once(self):
+        old, commands = self._commands_for(lambda row: Command.clear())
+        self._assert_each_row_once(old, commands)

@@ -424,7 +424,9 @@ class MixinHrIndividualSkill(models.AbstractModel):
             )
         )
 
-    def _create_individual_skills(self, vals_list, individuals=None):
+    def _create_individual_skills(self, vals_list, individuals=None, ended=None):
+        """``ended`` names rows another command in the same batch already closes,
+        so a CREATE that supersedes one of them does not close it a second time."""
         can_edit_certification_validity_period = (
             self._can_edit_certification_validity_period()
         )
@@ -440,6 +442,8 @@ class MixinHrIndividualSkill(models.AbstractModel):
         vals_to_return = []
 
         existing_skills = self._search_live_skills_for(vals_list, linked_ids_of)
+        if ended:
+            existing_skills -= ended
         existing_skills_grouped = existing_skills.grouped(
             lambda skill: (skill[linked_field].id, skill.skill_id.id)
         )
@@ -602,16 +606,15 @@ class MixinHrIndividualSkill(models.AbstractModel):
             command for command in updated_commands if command[1] not in unlinked_ids
         ]
         updated_ids = [command[1] for command in updated_commands]
-        unlinked_commands = (
-            self.env[self._name].browse(list(unlinked_ids))._expire_individual_skills()
-        )
+        unlinked = self.env[self._name].browse(list(unlinked_ids))
+        unlinked_commands = unlinked._expire_individual_skills()
         updated_commands = (
             self.env[self._name]
             .browse(updated_ids)
             ._write_individual_skills(updated_commands)
         )
         created_commands = self.env[self._name]._create_individual_skills(
-            created_values, individuals
+            created_values, individuals, ended=unlinked
         )
         return unlinked_commands + updated_commands + created_commands
 
