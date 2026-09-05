@@ -330,9 +330,7 @@ class TestPrivateReadGroupingSets(common.TransactionCase):
 
             expected_result = [
                 tasks._read_group(domain, groupby, aggregates, order=order)
-                for groupby, order in zip(
-                    grouping_sets, read_group_orders, strict=False
-                )
+                for groupby, order in zip(grouping_sets, read_group_orders, strict=True)
             ]
             with (
                 self.subTest(f"Case {i} - {grouping_sets!r} - {aggregates!r}"),
@@ -442,9 +440,7 @@ class TestFormattedReadGroupingSets(common.TransactionCase):
 
             expected_result = [
                 tasks.formatted_read_group(domain, groupby, aggregates, order=order)
-                for groupby, order in zip(
-                    grouping_sets, read_group_orders, strict=False
-                )
+                for groupby, order in zip(grouping_sets, read_group_orders, strict=True)
             ]
             with (
                 self.subTest(f"Case {i} - {grouping_sets!r} - {aggregates!r}"),
