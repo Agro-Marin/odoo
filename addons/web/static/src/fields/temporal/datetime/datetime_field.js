@@ -436,6 +436,29 @@ function dateTimeListViewWidth(options) {
         : FIELD_WIDTHS.datetime;
 }
 
+/**
+ * @param {Record<string, any>} staticInfo
+ * @param {Record<string, any>} dynamicInfo
+ * @param {{ numeric: boolean, showSeconds?: boolean, showTime?: boolean }} format
+ * @returns {Record<string, any>}
+ */
+function extractDateProps({ options, placeholder, type }, dynamicInfo, format) {
+    return {
+        endDateField: options[END_DATE_FIELD_OPTION],
+        maxDate: options.max_date,
+        minDate: options.min_date,
+        alwaysRange: exprToBoolean(options.always_range),
+        placeholder: getFormattedPlaceholder(placeholder, type, format),
+        required: dynamicInfo.required,
+        rounding: options.rounding && Number.parseInt(options.rounding, 10),
+        startDateField: options[START_DATE_FIELD_OPTION],
+        warnFuture: exprToBoolean(options.warn_future),
+        minPrecision: options.min_precision,
+        maxPrecision: options.max_precision,
+        ...format,
+    };
+}
+
 /** @type {import("registries").FieldsRegistryItemShape} */
 export const dateField = {
     component: DateTimeField,
@@ -479,23 +502,10 @@ export const dateField = {
         placeholderFieldOption(["date", "char"]),
     ],
     supportedTypes: ["date"],
-    extractProps: ({ options, placeholder, type }, dynamicInfo) => {
-        const numeric = exprToBoolean(options.numeric ?? false);
-        return /** @type {any} */ ({
-            endDateField: options[END_DATE_FIELD_OPTION],
-            maxDate: options.max_date,
-            minDate: options.min_date,
-            alwaysRange: exprToBoolean(options.always_range),
-            placeholder: getFormattedPlaceholder(placeholder, type, { numeric }),
-            required: dynamicInfo.required,
-            rounding: options.rounding && Number.parseInt(options.rounding, 10),
-            startDateField: options[START_DATE_FIELD_OPTION],
-            numeric,
-            warnFuture: exprToBoolean(options.warn_future),
-            minPrecision: options.min_precision,
-            maxPrecision: options.max_precision,
-        });
-    },
+    extractProps: (staticInfo, dynamicInfo) =>
+        extractDateProps(staticInfo, dynamicInfo, {
+            numeric: exprToBoolean(staticInfo.options.numeric ?? false),
+        }),
     listViewWidth: ({ options }) => dateListViewWidth(options),
     fieldDependencies: ({ type, attrs, options }) => {
         const modifiers = pick(attrs, "invisible", "readonly", "required");
@@ -548,24 +558,13 @@ export const dateTimeField = {
         },
         placeholderFieldOption(["datetime", "char"]),
     ],
-    extractProps: ({ attrs, options, placeholder, type }, dynamicInfo) => {
-        const showSeconds = exprToBoolean(options.show_seconds ?? false);
-        const showTime = exprToBoolean(options.show_time ?? true);
-        const numeric = exprToBoolean(options.numeric ?? false);
-        return {
-            ...dateField.extractProps(
-                /** @type {any} */ ({ attrs, options, placeholder, type }),
-                dynamicInfo,
-            ),
-            placeholder: getFormattedPlaceholder(placeholder, type, {
-                numeric,
-                showSeconds,
-                showTime,
-            }),
-            numeric,
-            showSeconds,
-            showTime,
-        };
+    extractProps: (staticInfo, dynamicInfo) => {
+        const { options } = staticInfo;
+        return extractDateProps(staticInfo, dynamicInfo, {
+            numeric: exprToBoolean(options.numeric ?? false),
+            showSeconds: exprToBoolean(options.show_seconds ?? false),
+            showTime: exprToBoolean(options.show_time ?? true),
+        });
     },
     supportedTypes: ["datetime"],
     listViewWidth: ({ options }) => dateTimeListViewWidth(options),

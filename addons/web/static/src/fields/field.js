@@ -172,9 +172,12 @@ export function getFieldFromRegistry(fieldType, widget, viewType, jsClass) {
     /** @param {string} key */
     const findInRegistry = (key) => {
         for (const prefix of prefixes) {
-            const _key = prefix ? `${prefix}.${key}` : key;
-            if (fieldRegistry.contains(_key)) {
-                return fieldRegistry.get(_key);
+            const field = fieldRegistry.get(
+                prefix ? `${prefix}.${key}` : key,
+                undefined,
+            );
+            if (field) {
+                return field;
             }
         }
     };

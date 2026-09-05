@@ -20,27 +20,35 @@ export class FilterableSelectionField extends SelectionField {
      * @returns {Array<[string, string]>}
      */
     get options() {
-        /** @type {Array<[string, string]>} */
-        let options = super.options;
-        if (this.props.whitelistField) {
-            const whitelist = this.props.record.data[this.props.whitelistField] || [];
-            options = options.filter(
-                (option) => option[0] === this.value || whitelist.includes(option[0]),
-            );
-        } else if (this.props.whitelistedValues) {
-            options = options.filter(
-                (option) =>
-                    option[0] === this.value ||
-                    this.props.whitelistedValues.includes(option[0]),
-            );
-        } else if (this.props.blacklistedValues) {
-            options = options.filter(
-                (option) =>
-                    option[0] === this.value ||
-                    !this.props.blacklistedValues.includes(option[0]),
-            );
+        const isAllowed = this.allowedValuePredicate;
+        if (!isAllowed) {
+            return super.options;
         }
-        return options;
+        const current = this.value;
+        return super.options.filter(
+            (option) => option[0] === current || isAllowed(option[0]),
+        );
+    }
+
+    /**
+     * The whitelist field wins over the two literal lists, and a whitelist
+     * over a blacklist; the current value always stays selectable.
+     *
+     * @returns {((value: string) => boolean) | null}
+     */
+    get allowedValuePredicate() {
+        const { whitelistField, whitelistedValues, blacklistedValues } = this.props;
+        if (whitelistField) {
+            const whitelist = this.props.record.data[whitelistField] || [];
+            return (value) => whitelist.includes(value);
+        }
+        if (whitelistedValues) {
+            return (value) => whitelistedValues.includes(value);
+        }
+        if (blacklistedValues) {
+            return (value) => !blacklistedValues.includes(value);
+        }
+        return null;
     }
 }
 

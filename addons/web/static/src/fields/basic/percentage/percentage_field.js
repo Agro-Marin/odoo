@@ -8,7 +8,7 @@ import { extractDigits } from "@web/core/utils/format/digits";
 import { Operation } from "@web/core/utils/operation";
 import { registerField } from "@web/fields/_registry";
 import { digitsAttribute } from "@web/fields/field_options";
-import { isFalseEmpty } from "@web/fields/field_utils";
+import { isFalseEmpty, unscaleParsedNumber } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { NumericInputFieldBase } from "../numeric_input_field_base.js";
@@ -26,10 +26,9 @@ export class PercentageField extends NumericInputFieldBase {
      */
     parse(v) {
         const parsed = parsePercentage(v, { allowOperation: true });
-        if (parsed instanceof Operation && ["+", "-"].includes(parsed.operator)) {
-            return new Operation(parsed.operator, parsed.operand / 100);
-        }
-        return parsed;
+        // parsePercentage already divides a plain number by 100; only an
+        // operation's operand is still in percent.
+        return parsed instanceof Operation ? unscaleParsedNumber(parsed, 100) : parsed;
     }
 
     /**

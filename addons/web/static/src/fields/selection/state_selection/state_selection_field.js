@@ -71,10 +71,6 @@ export class StateSelectionField extends FieldComponent {
     }
     /** @returns {string} */
     get label() {
-        const stateValue = this.field.value;
-        if (stateValue && this.props.record.data[`legend_${stateValue}`]) {
-            return this.props.record.data[`legend_${stateValue}`];
-        }
         return formatSelection(this.currentValue, { selection: this.options });
     }
 

@@ -10,9 +10,9 @@ import { nbsp } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import {
-    archAttribute,
     enableFormattingOption,
     hideTrailingZerosOption,
+    numericInputTypeOption,
 } from "@web/fields/field_options";
 import { extractFormatNumber, isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -129,6 +129,7 @@ export const monetaryField = {
     component: MonetaryField,
     supportedOptions: [
         enableFormattingOption(),
+        numericInputTypeOption(),
         {
             label: _t("Hide symbol"),
             name: "no_symbol",
@@ -148,13 +149,6 @@ export const monetaryField = {
         },
         hideTrailingZerosOption(),
     ],
-    supportedAttributes: [
-        archAttribute("type", _t("Input type"), {
-            help: _t(
-                "Set to `number` for a native numeric input; the value is then left unformatted while editing.",
-            ),
-        }),
-    ],
     supportedTypes: ["monetary", "float", "integer"],
     displayName: _t("Monetary"),
     isEmpty: isFalseEmpty,
@@ -162,10 +156,10 @@ export const monetaryField = {
         options.currency_field
             ? [{ name: options.currency_field, optional: true, readonly: true }]
             : [],
-    extractProps: ({ attrs, options }) => ({
+    extractProps: ({ options }) => ({
         currencyField: options.currency_field,
         formatNumber: extractFormatNumber(options),
-        inputType: attrs.type,
+        inputType: options.type,
         useFieldDigits: options.field_digits,
         hideSymbol: options.no_symbol,
         trailingZeros: !options.hide_trailing_zeros,

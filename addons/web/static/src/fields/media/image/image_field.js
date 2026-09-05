@@ -31,7 +31,23 @@ export const fileTypeMagicWordMap = {
     P: "svg+xml",
     U: "webp",
 };
-const placeholder = "/web/static/img/placeholder.png";
+export const IMAGE_PLACEHOLDER = "/web/static/img/placeholder.png";
+
+/**
+ * The `src` for a binary field's image: the server route when the record only
+ * carries the file's size, a data URI when it carries the bytes themselves.
+ *
+ * @param {string} value the binary field's value, non-empty
+ * @param {{ model: string, resId: number | false, field: string, unique?: any }} location
+ * @returns {string}
+ */
+export function binaryImageSrc(value, { model, resId, field, unique }) {
+    if (isBinarySize(value)) {
+        return imageUrl(model, /** @type {number} */ (resId), field, { unique });
+    }
+    const magic = fileTypeMagicWordMap[value[0]] || "png";
+    return `data:image/${magic};base64,${value}`;
+}
 
 export class ImageField extends FieldComponent {
     static template = "web.ImageField";
@@ -173,30 +189,25 @@ export class ImageField extends FieldComponent {
 
     getUrl(imageFieldName) {
         if (!this.field.value || !this.state.isValid) {
-            return placeholder;
+            return IMAGE_PLACEHOLDER;
         }
         if (!this.props.reload && this.urlCache.has(imageFieldName)) {
             return /** @type {string} */ (this.urlCache.get(imageFieldName));
         }
-        let url;
-        if (this.fieldType === "many2one") {
-            url = imageUrl(
-                this.field.definition.relation,
-                this.field.value.id,
-                imageFieldName,
-                { unique: this.rawCacheKey },
-            );
-        } else if (isBinarySize(this.field.value)) {
-            url = imageUrl(
-                this.props.record.resModel,
-                this.props.record.resId,
-                imageFieldName,
-                { unique: this.rawCacheKey },
-            );
-        } else {
-            const magic = fileTypeMagicWordMap[this.field.value[0]] || "png";
-            url = `data:image/${magic};base64,${this.field.value}`;
-        }
+        const url =
+            this.fieldType === "many2one"
+                ? imageUrl(
+                      this.field.definition.relation,
+                      this.field.value.id,
+                      imageFieldName,
+                      { unique: this.rawCacheKey },
+                  )
+                : binaryImageSrc(this.field.value, {
+                      model: this.props.record.resModel,
+                      resId: this.props.record.resId,
+                      field: imageFieldName,
+                      unique: this.rawCacheKey,
+                  });
         this.urlCache.set(imageFieldName, url);
         return url;
     }

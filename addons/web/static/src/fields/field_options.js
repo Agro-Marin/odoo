@@ -186,15 +186,25 @@ export function enableFormattingOption() {
 }
 
 /**
+ * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>[number]}
+ */
+export function numericInputTypeOption() {
+    return {
+        label: _t("Type"),
+        name: "type",
+        type: "string",
+        help: _t(
+            "Set to `number` for a native numeric input; the value is then left unformatted while editing.",
+        ),
+    };
+}
+
+/**
  * @returns {NonNullable<FieldsRegistryItemShape["supportedOptions"]>}
  */
 export function numericInputOptions() {
     return [
-        {
-            label: _t("Type"),
-            name: "type",
-            type: "string",
-        },
+        numericInputTypeOption(),
         {
             label: _t("Step"),
             name: "step",

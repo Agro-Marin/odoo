@@ -174,12 +174,7 @@ export class PropertyDefinition extends Component {
      */
     onPropertyLabelChange(event) {
         const newString = /** @type {HTMLInputElement} */ (event.target).value;
-        const propertyDefinition = {
-            ...this.state.propertyDefinition,
-            string: newString,
-        };
-        this.props.onChange(propertyDefinition);
-        this.state.propertyDefinition = propertyDefinition;
+        this._commitDefinition({ string: newString });
     }
 
     /**
@@ -196,12 +191,7 @@ export class PropertyDefinition extends Component {
      * @param {object} newDefault
      */
     onDefaultChange(newDefault) {
-        const propertyDefinition = {
-            ...this.state.propertyDefinition,
-            default: newDefault,
-        };
-        this.props.onChange(propertyDefinition);
-        this.state.propertyDefinition = propertyDefinition;
+        this._commitDefinition({ default: newDefault });
     }
 
     /**
@@ -234,8 +224,7 @@ export class PropertyDefinition extends Component {
             }
         });
 
-        this.props.onChange(propertyDefinition);
-        this.state.propertyDefinition = propertyDefinition;
+        this._commitDefinition(propertyDefinition, { replace: true });
         if (!propertyDefinition.comodel) {
             this.state.resModel = "";
             this.state.resModelDescription = "";
@@ -254,15 +243,12 @@ export class PropertyDefinition extends Component {
         this.state.resModel = technical;
         this.state.resModelDescription = label;
 
-        const propertyDefinition = {
-            ...this.state.propertyDefinition,
+        this._commitDefinition({
             comodel: technical,
             default: modelChanged ? false : this.state.propertyDefinition.default,
             value: modelChanged ? false : this.state.propertyDefinition.value,
             domain: modelChanged ? false : this.state.propertyDefinition.domain,
-        };
-        this.props.onChange(propertyDefinition);
-        this.state.propertyDefinition = propertyDefinition;
+        });
         await this._updateMatchingRecordsCount();
     }
 
@@ -270,13 +256,10 @@ export class PropertyDefinition extends Component {
      * @param {string} newDomain
      */
     async onDomainChange(newDomain) {
-        const propertyDefinition = {
-            ...this.state.propertyDefinition,
+        this._commitDefinition({
             domain: newDomain,
             default: false,
-        };
-        this.props.onChange(propertyDefinition);
-        this.state.propertyDefinition = propertyDefinition;
+        });
         await this._updateMatchingRecordsCount();
     }
 
@@ -308,67 +291,54 @@ export class PropertyDefinition extends Component {
      * @param {array} newOptions
      */
     onSelectionOptionChange(newOptions) {
-        const propertyDefinition = {
-            ...this.state.propertyDefinition,
-            selection: newOptions,
-        };
-        this.props.onChange(propertyDefinition);
-        this.state.propertyDefinition = propertyDefinition;
+        this._commitDefinition({ selection: newOptions });
     }
 
     /**
      * @param {Event & { target: HTMLInputElement }} ev
      */
     onSuffixChange(ev) {
-        const propertyDefinition = {
-            ...this.state.propertyDefinition,
-            suffix: ev.target.value,
-        };
-        this.props.onChange(propertyDefinition);
-        this.state.propertyDefinition = propertyDefinition;
+        this._commitDefinition({ suffix: ev.target.value });
     }
 
     /**
      * @param {array} newTags
      */
     onTagsChange(newTags) {
-        const propertyDefinition = {
-            ...this.state.propertyDefinition,
-            tags: newTags,
-        };
-        this.props.onChange(propertyDefinition);
-        this.state.propertyDefinition = propertyDefinition;
+        this._commitDefinition({ tags: newTags });
     }
 
     /**
      * @param {boolean} newValue
      */
     onViewInKanbanChange(newValue) {
-        const propertyDefinition = {
-            ...this.state.propertyDefinition,
-            view_in_cards: newValue,
-        };
-        this.props.onChange(propertyDefinition);
-        this.state.propertyDefinition = propertyDefinition;
+        this._commitDefinition({ view_in_cards: newValue });
     }
 
     /**
      * @param {boolean} checked
      */
     onFoldByDefaultChange(checked) {
-        const propertyDefinition = {
-            ...this.state.propertyDefinition,
-            fold_by_default: checked,
-        };
-        this.props.onChange(propertyDefinition);
-        this.state.propertyDefinition = propertyDefinition;
+        this._commitDefinition({ fold_by_default: checked });
     }
 
     onCurrencyFieldUpdate(path) {
-        const propertyDefinition = {
-            ...this.state.propertyDefinition,
-            currency_field: path,
-        };
+        this._commitDefinition({ currency_field: path });
+    }
+
+    /**
+     * Every edit of the definition goes through here: the change is reported
+     * to the owner first, then mirrored in the local state, so that the
+     * owner's `onWillUpdateProps` and the local render agree on one object.
+     *
+     * @param {Record<string, any>} patch fields to change, or the whole
+     *  definition with `replace`
+     * @param {{ replace?: boolean }} [options]
+     */
+    _commitDefinition(patch, { replace = false } = {}) {
+        const propertyDefinition = replace
+            ? patch
+            : { ...this.state.propertyDefinition, ...patch };
         this.props.onChange(propertyDefinition);
         this.state.propertyDefinition = propertyDefinition;
     }

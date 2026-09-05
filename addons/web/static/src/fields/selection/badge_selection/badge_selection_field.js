@@ -61,25 +61,16 @@ export class BadgeSelectionField extends SelectionLikeField {
      */
     onChange(value) {
         switch (this.type) {
-            case "many2one":
+            case "many2one": {
                 if (value === this.value) {
                     return;
                 }
-                if (value === false) {
-                    this.field.update(false);
-                } else {
-                    const option = this.options.find(
-                        (/** @type {any[]} */ option) => option[0] === value,
-                    );
-                    if (!option) {
-                        return;
-                    }
-                    this.field.update({
-                        id: option[0],
-                        display_name: option[1],
-                    });
+                const next = this.many2oneValueFor(value, this.options);
+                if (next !== undefined) {
+                    this.field.update(next);
                 }
                 break;
+            }
             case "selection":
                 if (value === this.value) {
                     const { required } = this.field.definition;

@@ -1,11 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { isBinarySize } from "@web/core/utils/format/binary";
-import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
 import {
-    fileTypeMagicWordMap,
+    binaryImageSrc,
     ImageField,
     imageField,
 } from "@web/fields/media/image/image_field";
@@ -20,18 +18,13 @@ export class ContactImageField extends ImageField {
     getUrl(imageFieldName) {
         if (this.props.previewImage && (!this.field.value || !this.state.isValid)) {
             const previewData = this.props.record.data[imageFieldName];
-            if (isBinarySize(previewData)) {
-                const url = imageUrl(
-                    this.props.record.resModel,
-                    this.props.record.resId,
-                    imageFieldName,
-                    { unique: this.rawCacheKey },
-                );
-                this.lastURL = { field: imageFieldName, url };
-                return url;
-            } else if (previewData) {
-                const magic = fileTypeMagicWordMap[previewData[0]] || "png";
-                const url = `data:image/${magic};base64,${previewData}`;
+            if (previewData) {
+                const url = binaryImageSrc(previewData, {
+                    model: this.props.record.resModel,
+                    resId: this.props.record.resId,
+                    field: imageFieldName,
+                    unique: this.rawCacheKey,
+                });
                 this.lastURL = { field: imageFieldName, url };
                 return url;
             }

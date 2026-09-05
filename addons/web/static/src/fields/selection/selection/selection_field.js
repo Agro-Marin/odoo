@@ -47,23 +47,17 @@ export class SelectionField extends SelectionLikeField {
     }
 
     onChange(value) {
+        const options = { save: this.props.autosave };
         switch (this.type) {
-            case "many2one":
-                if (value === null) {
-                    this.field.update(false, { save: this.props.autosave });
-                } else {
-                    const option = this.options.find((option) => option[0] === value);
-                    if (!option) {
-                        return;
-                    }
-                    this.field.update(
-                        { id: option[0], display_name: option[1] },
-                        { save: this.props.autosave },
-                    );
+            case "many2one": {
+                const next = this.many2oneValueFor(value, this.options);
+                if (next !== undefined) {
+                    this.field.update(next, options);
                 }
                 break;
+            }
             case "selection":
-                this.field.update(value ?? false, { save: this.props.autosave });
+                this.field.update(value ?? false, options);
                 break;
         }
     }

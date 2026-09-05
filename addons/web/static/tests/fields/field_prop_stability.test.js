@@ -32,6 +32,7 @@ class Partner extends models.Model {
     flag = fields.Boolean();
     tag_id = fields.Many2one({ relation: "tag" });
     tag_ids = fields.Many2many({ relation: "tag" });
+    line_ids = fields.One2many({ relation: "line", relation_field: "partner_id" });
     ref = fields.Reference({ selection: [["tag", "Tag"]] });
     _records = [
         {
@@ -41,8 +42,19 @@ class Partner extends models.Model {
             flag: false,
             tag_id: 1,
             tag_ids: [1],
+            line_ids: [1, 2],
             ref: "tag,1",
         },
+    ];
+}
+
+class Line extends models.Model {
+    _name = "line";
+    name = fields.Char();
+    partner_id = fields.Many2one({ relation: "partner" });
+    _records = [
+        { id: 1, name: "l1", partner_id: 1 },
+        { id: 2, name: "l2", partner_id: 1 },
     ];
 }
 
@@ -53,7 +65,7 @@ class ResUsers extends models.Model {
     }
 }
 
-defineModels([Partner, Tag, Msg, ResUsers]);
+defineModels([Partner, Tag, Msg, Line, ResUsers]);
 
 /**
  * @param {() => Promise<void>} workload
@@ -182,6 +194,60 @@ test("many2many_tags does not re-render its tag list on an unrelated edit", asyn
 
     expect(stats["fields.CharField"]).toBe(5);
     expect(stats["components.TagsList"] || 0).toBe(0);
+});
+
+// The x2many field itself re-renders with its record, which is expected; what
+// must not happen is that render reaching the sub-view. It did: `rendererProps`
+// bound `openRecord` afresh and built `nestedKeyOptionalFieldsData` (list) or
+// the draggable-patched `archInfo` (kanban) as a new object every render, so
+// OWL saw changed props and re-rendered the whole list -- every row -- for an
+// edit of an unrelated char field on the parent. The sub-view still follows its
+// own records through reactivity, so nothing it shows depends on this render.
+test("x2many list does not re-render its sub-view on an unrelated edit", async () => {
+    const mounted = await mountCounting({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="name"/>
+                <field name="line_ids">
+                    <list><field name="name"/></list>
+                </field>
+            </form>`,
+    });
+    expect(mounted["list.ListRenderer"]).toBeGreaterThan(0);
+    expect(".o_field_x2many_list .o_data_row").toHaveCount(2);
+
+    const stats = await renderCounts(editUnrelatedFiveTimes);
+
+    expect(stats["fields.CharField"]).toBe(5);
+    expect(stats["list.ListRenderer"] || 0).toBe(0);
+    expect(stats["list.ListRecordRow"] || 0).toBe(0);
+});
+
+test("x2many kanban does not re-render its sub-view on an unrelated edit", async () => {
+    const mounted = await mountCounting({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="name"/>
+                <field name="line_ids">
+                    <kanban><t t-name="card"><field name="name"/></t></kanban>
+                </field>
+            </form>`,
+    });
+    expect(mounted["kanban.KanbanRenderer"]).toBeGreaterThan(0);
+    expect(".o_field_x2many_kanban .o_kanban_record:contains(l1)").toHaveCount(1);
+    expect(".o_field_x2many_kanban .o_kanban_record:contains(l2)").toHaveCount(1);
+
+    const stats = await renderCounts(editUnrelatedFiveTimes);
+
+    expect(stats["fields.CharField"]).toBe(5);
+    expect(stats["kanban.KanbanRenderer"] || 0).toBe(0);
+    expect(stats["kanban.KanbanRecord"] || 0).toBe(0);
 });
 
 // Each toggle saves, and the save reloads the x2many, so its record objects are

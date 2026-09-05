@@ -261,16 +261,6 @@ async function getFormViewInfo({ list, context, activeField, viewService, env })
 }
 
 /**
- * @param {Object} params
- * @param {Object} params.activeField
- * @param {Object} params.activeActions
- * @param {Function} params.getList
- * @param {Function} params.updateRecord
- * @param {Function} params.saveRecord
- * @param {boolean} params.isMany2Many
- * @returns {Function}
- */
-/**
  * @param {{ string: string }} activeField
  * @param {any} record
  * @param {string} [title]

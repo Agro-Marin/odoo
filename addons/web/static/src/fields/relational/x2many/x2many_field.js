@@ -9,6 +9,7 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { sharedComponents as shared } from "@web/core/shared_components";
 import { _t } from "@web/core/translation";
+import { shallowEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
@@ -69,8 +70,46 @@ export class X2ManyField extends FieldComponent {
     /** @type {Record<string, any>} */
     fieldDefinition;
 
+    /**
+     * The callbacks handed to the sub-renderer, bound once. `rendererProps` is
+     * read on every render, and OWL compares props by value, so a bound
+     * function or an object literal built there re-renders the whole sub-view
+     * -- every row -- on an edit of an unrelated field of the parent record.
+     *
+     * @type {{
+     * openRecord: (record: any) => any,
+     * onAdd: (params: any) => any,
+     * onListAdd: (params: any) => any,
+     * onOpenFormView: (record: any, options: any) => any,
+     * deleteRecord: (record: any) => any,
+     * }}
+     */
+    rendererCallbacks;
+
+    /** @type {{ source: Record<string, any> | null, recordsDraggable: boolean | undefined, archInfo: Record<string, any> | null }} */
+    _kanbanArchInfoMemo = { source: null, recordsDraggable: undefined, archInfo: null };
+
+    /** @type {{ field: string, model: string, viewMode: string } | null} */
+    _nestedKeyOptionalFieldsData = null;
+
+    /** @type {Record<string, any> | null} */
+    _rendererActiveActions = null;
+
     setup() {
         this.fieldDefinition = this.field.definition;
+        this.rendererCallbacks = {
+            openRecord: (record) => this.openRecord(record),
+            onAdd: (params) => this.onAdd(params),
+            onListAdd: (params) => {
+                params.editable =
+                    !this.props.readonly &&
+                    ("editable" in params ? params.editable : this.listEditable);
+                return this.onAdd(params);
+            },
+            onOpenFormView: (record, options) => this.switchToForm(record, options),
+            deleteRecord: (record) =>
+                this.isMany2Many ? this.list.forget(record) : this.list.delete(record),
+        };
         const crud = useX2ManyCrud(() => this.list, this.isMany2Many);
 
         this.setupSubView();
@@ -201,11 +240,64 @@ export class X2ManyField extends FieldComponent {
 
     /** @returns {{ field: string, model: string, viewMode: string }} */
     get nestedKeyOptionalFieldsData() {
-        return {
-            field: this.props.name,
-            model: this.props.record.resModel,
-            viewMode: "form",
+        const { name: field } = this.props;
+        const { resModel: model } = this.props.record;
+        const memo = this._nestedKeyOptionalFieldsData;
+        if (memo && memo.field === field && memo.model === model) {
+            return memo;
+        }
+        this._nestedKeyOptionalFieldsData = { field, model, viewMode: "form" };
+        return this._nestedKeyOptionalFieldsData;
+    }
+
+    /**
+     * The inline-edit position (`"top"` / `"bottom"`) the list adds rows at,
+     * or a falsy value when rows are not edited inline. A string, not a
+     * boolean: it is handed on as the `position` of the new row.
+     *
+     * @returns {string | false | undefined}
+     */
+    get listEditable() {
+        return (
+            (this.archInfo.activeActions.edit && this.archInfo.editable) ||
+            this.props.editable
+        );
+    }
+
+    /**
+     * `useActiveActions` updates one object in place, which the sub-renderer
+     * cannot see through props; this hands it a copy whose identity changes
+     * exactly when a permission does, so a `create` or `delete` domain that
+     * flips on a record edit still reaches the rows.
+     *
+     * @returns {Record<string, any>}
+     */
+    get rendererActiveActions() {
+        const memo = this._rendererActiveActions;
+        if (memo && shallowEqual(memo, this.activeActions)) {
+            return memo;
+        }
+        this._rendererActiveActions = { ...this.activeActions };
+        return this._rendererActiveActions;
+    }
+
+    /**
+     * @param {boolean} recordsDraggable
+     * @returns {Record<string, any>}
+     */
+    kanbanArchInfo(recordsDraggable) {
+        const { archInfo } = this;
+        const memo = this._kanbanArchInfoMemo;
+        if (memo.source === archInfo && memo.recordsDraggable === recordsDraggable) {
+            return /** @type {Record<string, any>} */ (memo.archInfo);
+        }
+        const next = { ...archInfo, recordsDraggable };
+        this._kanbanArchInfoMemo = {
+            source: archInfo,
+            recordsDraggable,
+            archInfo: next,
         };
+        return next;
     }
 
     /**
@@ -249,47 +341,38 @@ export class X2ManyField extends FieldComponent {
 
     /** @returns {Object} */
     get rendererProps() {
-        const { archInfo } = this;
+        const { archInfo, rendererCallbacks } = this;
         const props = {
             archInfo,
             list: this.list,
-            openRecord: this.openRecord.bind(this),
+            openRecord: rendererCallbacks.openRecord,
             readonly: this.props.readonly || !this.activeActions.write,
         };
 
         if (this.props.viewMode === "kanban") {
-            const recordsDraggable = !this.props.readonly && archInfo.recordsDraggable;
-            props.archInfo = { ...archInfo, recordsDraggable };
+            const recordsDraggable = Boolean(
+                !this.props.readonly && archInfo.recordsDraggable,
+            );
+            props.archInfo = this.kanbanArchInfo(recordsDraggable);
             props.Compiler = views.get("kanban").Compiler;
-            props.deleteRecord = (record) => {
-                if (this.isMany2Many) {
-                    return this.list.forget(record);
-                }
-                return this.list.delete(record);
-            };
+            props.deleteRecord = rendererCallbacks.deleteRecord;
             if (this.canCreate && !this.controls.length) {
                 props.addLabel =
                     this.props.addLabel || _t("Add %s", this.fieldDefinition.string);
-                props.onAdd = this.onAdd.bind(this);
+                props.onAdd = rendererCallbacks.onAdd;
             }
             return props;
         }
 
-        const editable =
-            (this.archInfo.activeActions.edit && archInfo.editable) ||
-            this.props.editable;
-        props.activeActions = this.activeActions;
+        props.activeActions = this.rendererActiveActions;
         props.cycleOnTab = false;
-        props.editable = !this.props.readonly && editable;
+        props.editable = !this.props.readonly && this.listEditable;
         props.nestedKeyOptionalFieldsData = this.nestedKeyOptionalFieldsData;
-        props.onAdd = (params) => {
-            params.editable =
-                !this.props.readonly &&
-                ("editable" in params ? params.editable : editable);
-            this.onAdd(params);
-        };
-        props.onOpenFormView = this.switchToForm.bind(this);
-        props.hasOpenFormViewButton = archInfo.editable ? archInfo.openFormView : false;
+        props.onAdd = rendererCallbacks.onListAdd;
+        props.onOpenFormView = rendererCallbacks.onOpenFormView;
+        props.hasOpenFormViewButton = Boolean(
+            archInfo.editable ? archInfo.openFormView : false,
+        );
         return props;
     }
 

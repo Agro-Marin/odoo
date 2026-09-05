@@ -2,9 +2,9 @@
 /** @odoo-module native */
 
 import { _t } from "@web/core/translation";
-import { Operation } from "@web/core/utils/operation";
 import { registerField } from "@web/fields/_registry";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
+import { unscaleParsedNumber } from "@web/fields/field_utils";
 
 export class FloatFactorField extends FloatField {
     static props = {
@@ -28,17 +28,10 @@ export class FloatFactorField extends FloatField {
 
     /**
      * @param {string} value
-     * @returns {number|Operation}
+     * @returns {number | import("@web/core/utils/operation").Operation}
      */
     parse(value) {
-        const parsed = super.parse(value);
-        if (parsed instanceof Operation) {
-            if (parsed.operator === "+" || parsed.operator === "-") {
-                return new Operation(parsed.operator, parsed.operand / this.factor);
-            }
-            return parsed;
-        }
-        return parsed / this.factor;
+        return unscaleParsedNumber(super.parse(value), this.factor);
     }
 
     /** @returns {number|false} */

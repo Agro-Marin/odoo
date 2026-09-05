@@ -10,6 +10,7 @@ import {
     queryAllValues,
     queryAttribute,
     queryFirst,
+    select,
     waitFor,
 } from "@odoo/hoot-dom";
 import { animationFrame, mockDate, runAllTimers } from "@odoo/hoot-mock";
@@ -3343,4 +3344,61 @@ test("properties: an entry that parses to the stored value still reformats", asy
     expect(input).toHaveValue("0.00", {
         message: "garbage must not survive in the input",
     });
+});
+
+// Clearing a many2one property handed `false` to a branch that read `[0]` off
+// it, so the value written was `undefined` and the key vanished from the
+// definition sent to the server; clearing a selection wrote the `<select>`'s
+// empty string. Both are `false` now, which is what every other cleared
+// property writes.
+test.tags("desktop");
+test("properties: clearing a many2one property writes false", async () => {
+    onRpc("has_access", () => true);
+    onRpc("web_save", ({ args }) => {
+        const property = args[1].properties.find((p) => p.name === "property_m2o");
+        expect.step(`value:${JSON.stringify(property.value)}`);
+    });
+    ResCompany._records[0].definitions.push({
+        name: "property_m2o",
+        string: "My User",
+        type: "many2one",
+        comodel: "res.users",
+    });
+    Partner._records[0].properties.property_m2o = [1, "Alice"];
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="company_id"/><field name="properties"/></form>`,
+    });
+    expect(".o_field_property_many2one_value input").toHaveValue("Alice");
+
+    await click(".o_field_property_many2one_value input");
+    await edit("", { confirm: "blur" });
+    await runAllTimers();
+    await animationFrame();
+    await clickSave();
+    expect.verifySteps(["value:false"]);
+});
+
+test("properties: clearing a selection property writes false", async () => {
+    onRpc("has_access", () => true);
+    onRpc("web_save", ({ args }) => {
+        const property = args[1].properties.find((p) => p.name === "property_2");
+        expect.step(`value:${JSON.stringify(property.value)}`);
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="company_id"/><field name="properties"/></form>`,
+    });
+    expect(".o_property_field_value select").toHaveValue("b");
+
+    await select("", { target: ".o_property_field_value select" });
+    await animationFrame();
+    await clickSave();
+    expect.verifySteps(["value:false"]);
 });

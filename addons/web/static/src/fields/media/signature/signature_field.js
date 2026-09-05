@@ -5,18 +5,14 @@ import { onWillRender, useState } from "@odoo/owl";
 import { SignatureDialog } from "@web/components/signature/signature_dialog";
 import { getSignatureDefaultName } from "@web/components/signature/signature_name";
 import { _t } from "@web/core/translation";
-import { isBinarySize } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
-import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { fieldHandleFor } from "@web/fields/field_handle";
 import { imageDimensionAttributes, imageSizeOption } from "@web/fields/field_options";
 import { parseDimensionAttr } from "@web/fields/field_utils";
-import { fileTypeMagicWordMap } from "@web/fields/media/image/image_field";
+import { binaryImageSrc, IMAGE_PLACEHOLDER } from "@web/fields/media/image/image_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-
-const placeholder = "/web/static/img/placeholder.png";
 
 export class SignatureField extends FieldComponent {
     static template = "web.SignatureField";
@@ -72,19 +68,17 @@ export class SignatureField extends FieldComponent {
     }
 
     /** @returns {string} */
-    get getUrl() {
+    get url() {
         const { name, previewImage, record } = this.props;
         if (this.state.isValid && this.value) {
-            if (isBinarySize(this.value)) {
-                return imageUrl(record.resModel, record.resId, previewImage || name, {
-                    unique: this.rawCacheKey,
-                });
-            } else {
-                const magic = fileTypeMagicWordMap[this.value[0]] || "png";
-                return `data:image/${magic};base64,${this.field.value}`;
-            }
+            return binaryImageSrc(this.value, {
+                model: record.resModel,
+                resId: record.resId,
+                field: previewImage || name,
+                unique: this.rawCacheKey,
+            });
         }
-        return placeholder;
+        return IMAGE_PLACEHOLDER;
     }
 
     /** @returns {string} */

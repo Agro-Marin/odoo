@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { exprToBoolean } from "@web/core/utils/format/strings";
+import { Operation } from "@web/core/utils/operation";
 
 /**
  * @param {Record<string, any>} options
@@ -53,6 +54,29 @@ export function extractNumericOptions({ options }) {
         step: options.step,
         decimals: options.decimals || 0,
     };
+}
+
+/**
+ * A parsed numeric input, re-scaled for a widget that displays a multiple of
+ * the stored value: a plain number is divided, and so is the operand of a
+ * relative `+`/`-` operation, while `*` and `/` operations are scale-free and
+ * pass through as they are.
+ *
+ * @template {number | Operation} T
+ * @param {T} parsed
+ * @param {number} divisor
+ * @returns {T}
+ */
+export function unscaleParsedNumber(parsed, divisor) {
+    if (parsed instanceof Operation) {
+        if (parsed.operator === "+" || parsed.operator === "-") {
+            return /** @type {T} */ (
+                new Operation(parsed.operator, parsed.operand / divisor)
+            );
+        }
+        return parsed;
+    }
+    return /** @type {T} */ (/** @type {number} */ (parsed) / divisor);
 }
 
 /**

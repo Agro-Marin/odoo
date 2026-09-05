@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useExternalListener } from "@odoo/owl";
+import { useEffect } from "@odoo/owl";
 import { useDynamicPlaceholder } from "@web/fields/dynamic_placeholder_hook";
 
 import { TrimmingInputFieldBase } from "./trimming_input_field_base.js";
@@ -26,7 +26,17 @@ export class TextInputFieldBase extends TrimmingInputFieldBase {
     setupDynamicPlaceholder(ref) {
         if (this.props.dynamicPlaceholder) {
             this.dynamicPlaceholder = useDynamicPlaceholder(ref);
-            useExternalListener(document, "keydown", this.dynamicPlaceholder.onKeydown);
+            const { onKeydown } = this.dynamicPlaceholder;
+            useEffect(
+                (el) => {
+                    if (!el) {
+                        return;
+                    }
+                    el.addEventListener("keydown", onKeydown);
+                    return () => el.removeEventListener("keydown", onKeydown);
+                },
+                () => [ref.el],
+            );
             useEffect(
                 () =>
                     this.dynamicPlaceholder.updateModel(

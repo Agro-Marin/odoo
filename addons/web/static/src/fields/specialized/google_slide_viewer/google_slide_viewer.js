@@ -30,18 +30,16 @@ export class GoogleSlideViewer extends CharField {
     setup() {
         super.setup();
         this.notification = useService("notification");
-        this.page = 1;
     }
 
-    _get_slide_page() {
-        return this.props.record.data[this.props.name + "_page"]
-            ? this.props.record.data[this.props.name + "_page"]
-            : this.page;
+    /** @returns {string | number} */
+    get page() {
+        return this.props.record.data[`${this.props.name}_page`] || 1;
     }
 
     get url() {
         const value = this.field.value;
-        return value ? getGoogleSlideUrl(value, this._get_slide_page()) : false;
+        return value ? getGoogleSlideUrl(value, this.page) : false;
     }
 
     onLoadFailed() {

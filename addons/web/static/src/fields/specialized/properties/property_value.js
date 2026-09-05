@@ -279,7 +279,7 @@ export class PropertyValue extends Component {
                 newValue = 0;
             }
         } else if (["many2one", "many2many"].includes(this.props.type)) {
-            newValue = newValue[0];
+            newValue = (Array.isArray(newValue) && newValue[0]) || false;
             if (newValue && newValue.id && newValue.display_name === undefined) {
                 newValue = await this._nameGet(newValue.id);
             }
@@ -299,6 +299,8 @@ export class PropertyValue extends Component {
             } catch {
                 newValue = 0;
             }
+        } else if (this.props.type === "selection") {
+            newValue = newValue || false;
         }
 
         const committed = this.props.onChange(newValue);

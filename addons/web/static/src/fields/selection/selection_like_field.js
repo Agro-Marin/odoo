@@ -53,6 +53,23 @@ export class SelectionLikeField extends FieldComponent {
         return this.type === "many2one" && rawValue ? rawValue.id : rawValue;
     }
 
+    /**
+     * The `{ id, display_name }` pair a many2one is written as, for an option
+     * id picked from `options`; `false` clears, and an id no option carries
+     * returns `undefined` so the caller can decline the write.
+     *
+     * @param {unknown} id an option's id, or `false`/`null` to clear
+     * @param {Array<[any, string]>} options
+     * @returns {{ id: number, display_name: string } | false | undefined}
+     */
+    many2oneValueFor(id, options) {
+        if (id === false || id === null || id === undefined) {
+            return false;
+        }
+        const option = options.find((option) => option[0] === id);
+        return option && { id: option[0], display_name: option[1] };
+    }
+
     stringify(/** @type {any} */ value) {
         return JSON.stringify(value);
     }

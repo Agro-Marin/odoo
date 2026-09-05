@@ -57,9 +57,7 @@ async function commitInputChanges(ctx, urgent) {
         try {
             value = params.parse(value);
         } catch (error) {
-            if (!urgent) {
-                component.props.record.setInvalidField(fieldName);
-            }
+            component.props.record.setInvalidField(fieldName);
             if (!(error instanceof ParseError)) {
                 console.error(
                     `[useInputField] parsing "${fieldName}" threw a non-ParseError; ` +

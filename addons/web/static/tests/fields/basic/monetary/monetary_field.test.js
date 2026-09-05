@@ -151,7 +151,7 @@ test("type number does not misparse a dot-decimal value in a dot-thousands local
         resId: 5,
         arch: `
             <form>
-                <field name="monetary_field" type="number"/>
+                <field name="monetary_field" options="{'type': 'number'}"/>
                 <field name="currency_id" invisible="1"/>
             </form>`,
     });

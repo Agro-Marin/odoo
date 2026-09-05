@@ -24,7 +24,7 @@ export class LabelSelectionField extends FieldComponent {
     /** @returns {string} */
     get string() {
         return formatSelection(this.field.value, {
-            selection: Array.from(this.field.definition.selection),
+            selection: this.field.definition.selection,
         });
     }
 }
