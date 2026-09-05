@@ -5,7 +5,7 @@ import time
 import typing
 from contextlib import suppress
 
-from psycopg import IntegrityError, OperationalError, errors
+from psycopg import IntegrityError, OperationalError
 
 from odoo.db.errors import (
     PG_RETRY_EXCEPTIONS,
@@ -31,11 +31,19 @@ BASE_CONCURRENCY_BACKOFF_SECONDS = 0.2
 
 MAX_CONCURRENCY_BACKOFF_SECONDS = 2.0
 
+_RECOVERY_EXCEPTIONS: tuple[type[Exception], ...] = (
+    IntegrityError,
+    OperationalError,
+    ConcurrencyError,
+    *PG_STALE_PLAN_EXCEPTIONS,
+)
+
 
 def _integrity_error_to_validation_error(
     env: Environment, exc: IntegrityError
 ) -> ValidationError:
-    rclass = env.registry.models_by_table.get(exc.diag.table_name)
+    table_name = exc.diag.table_name
+    rclass = env.registry.models_by_table.get(table_name) if table_name else None
     model = env[rclass._name] if rclass is not None else env["base"]
     message = env._(
         "The operation cannot be completed: %s",
@@ -104,7 +112,7 @@ def _rollback_transaction(env: Environment, exc: Exception) -> None:
 
 def _retry_error_name(exc: Exception) -> str | None:
     if isinstance(exc, PG_RETRY_EXCEPTIONS):
-        return errors.lookup(exc.sqlstate).__name__
+        return type(exc).__name__
     if isinstance(exc, ConcurrencyError):
         return repr(exc)
     if is_stale_cached_plan(exc):
@@ -129,12 +137,7 @@ def retrying[T](
                 env.cr.flush()
                 _commit_and_signal_changes(env)
                 break
-            except (
-                IntegrityError,
-                OperationalError,
-                ConcurrencyError,
-                *PG_STALE_PLAN_EXCEPTIONS,
-            ) as exc:
+            except _RECOVERY_EXCEPTIONS as exc:
                 if env.cr.closed or env.cr.commit_count > commits_before:
                     raise
                 _rollback_transaction(env, exc)

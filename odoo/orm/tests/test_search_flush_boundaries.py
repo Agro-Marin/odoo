@@ -2,6 +2,7 @@ import pytest
 
 from odoo import api, fields, models
 from odoo.orm.model_test_env import model_test_env
+from odoo.tools import SQL
 
 _MOD = "test_search_flush_boundaries"
 
@@ -55,7 +56,7 @@ def test_custom_python_predicate_does_not_compile_sql(env):
         raise AssertionError("the Python adapter must not compile custom SQL")
 
     domain = fields.Domain.custom(
-        to_sql=sql_only, predicate=lambda record: record.name == "keep"
+        to_sql=sql_only, predicate=lambda record: record["name"] == "keep"
     ) & fields.Domain("id", "in", records.ids)
 
     assert Item.search(domain) == records[0]
@@ -64,7 +65,7 @@ def test_custom_python_predicate_does_not_compile_sql(env):
 def test_sql_only_custom_domain_fails_without_recursive_search(env):
     Item = env["flush.boundary.item"]
     Item.create({"name": "existing"})
-    domain = fields.Domain.custom(to_sql=lambda *args: None)
+    domain = fields.Domain.custom(to_sql=lambda *args: SQL("TRUE"))
 
     with pytest.raises(NotImplementedError, match="require a Python predicate"):
         Item.search(domain)

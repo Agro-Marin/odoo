@@ -49,7 +49,7 @@ class RecAlternating(models.Model):
     def _compute_upward(self):
         for node in self:
             node.upward = (
-                f"{node.parent_id.downward} / {node.name}"
+                f"{node.parent_id['downward']} / {node.name}"
                 if node.parent_id
                 else node.name
             )
@@ -58,7 +58,7 @@ class RecAlternating(models.Model):
     def _compute_downward(self):
         for node in self:
             node.downward = (
-                f"{node.parent_id.upward} / {node.name}"
+                f"{node.parent_id['upward']} / {node.name}"
                 if node.parent_id
                 else node.name
             )

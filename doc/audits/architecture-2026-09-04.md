@@ -166,3 +166,51 @@ ENOSPC (host watch capacity exhausted), including tests of the installed
 inotify package directly. This is not a fully green framework run. Earlier
 restricted runs also hit socket restrictions and missing worktree Sass assets;
 the final run had socket access and the existing workspace dependencies linked.
+
+## Follow-through: preexisting failures, 2026-09-05
+
+The inotify failures were actionable. Read-only process inspection found VS Code
+holding 65,057 watches against a host budget of 65,536. Workspace editor settings
+now exclude generated trees, dependencies, caches and secondary worktrees; the
+reusable template is `tooling/vscode-settings.json`. Host limits were not raised
+and other processes were not terminated.
+
+The fork also had resource-ownership defects: watcher shutdown depended on
+reference collection, and a failed tree constructor could retain descriptors
+through its exception traceback. The inotify adapter now owns explicit,
+idempotent closure of both the inotify descriptor and epoll object. Construction
+failure closes partially acquired resources. The event thread releases its
+resources on exit; a timed-out join leaves closure to that thread instead of
+closing descriptors beneath a live reader. Tests retain references and exception
+tracebacks, and prove the prior implementation leaks in both cases. Watcher
+fixtures now close their trees and no longer skip host-capacity failures.
+
+The previous Python type-check reports used a development mypy version that
+was older than the repository pin. The shared environment now uses the pinned
+version and has pinned dateutil stubs. Newly introduced search typing errors
+and existing load-path, HTML-value and WSGI interface mismatches were corrected.
+The HTML annotation preserves the existing empty-string result; request timeout
+configuration now targets the connection directly and is tested on real sockets.
+Recovery exception classification is named and typed, with absent PostgreSQL
+table metadata handled explicitly.
+
+The final order-dependent framework skip was replaced with a subprocess import
+boundary check. A deprecated-config test now captures its own warning instead
+of leaving it buffered for an unrelated test. These changes strengthen the
+checks rather than treating untested behavior as a passing result.
+
+The freshly built pinned toolchain also exposed dateutil boundaries previously
+hidden by missing stubs. Date helpers now use the public weekday constants and
+explicitly select calendar-component construction. Variadic forwarding retains
+the constructor's full argument surface; safe evaluation distinguishes the raw
+module import from its published restricted wrapper.
+
+Integrated on `19.0-marin`. Final framework verification passed 4,140 tests and
+975 subtests with no failures, skips or warnings. The date helper tier passed
+82 tests and four subtests. The combined isolated type check passed across all
+13 scoped packages (809 source files); the dependency-rich ORM/service/module
+check also passed. PostgreSQL search/retry contracts passed eight tests and the
+separate real-ORM loading test passed. Layering, import cycles, core Ruff and the
+unchanged size floors passed. Architecture documentation and launcher checks
+passed; the launcher integration check was rerun after building its local
+pinned environment instead of accepting its missing-environment skip.

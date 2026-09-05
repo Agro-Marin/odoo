@@ -612,7 +612,7 @@ class Html(BaseString):
     @override
     def convert_to_record(
         self, value: typing.Any, record: ModelLike
-    ) -> Markup | typing.Literal[False]:
+    ) -> Markup | typing.Literal["", False]:
         r = super().convert_to_record(value, record)
         if isinstance(r, bytes):
             r = r.decode()
@@ -624,7 +624,7 @@ class Html(BaseString):
         value: typing.Any,
         record: ModelLike,
         use_display_name: bool = True,
-    ) -> Markup | typing.Literal[False]:
+    ) -> Markup | typing.Literal["", False]:
         r = super().convert_to_read(value, record, use_display_name)
         if isinstance(r, bytes):
             r = r.decode()

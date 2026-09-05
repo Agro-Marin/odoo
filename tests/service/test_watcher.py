@@ -1,4 +1,3 @@
-import errno
 import pathlib
 import shutil
 import time
@@ -164,21 +163,13 @@ class TestFSWatcherInotifyRewatch:
         w.FSWatcherBase.__init__(obj)
         obj.started = False
         obj.thread = None
-        try:
-            obj._arm_watcher([str(root)], block_duration_s=0.05)
-        except OSError as exc:
-            if exc.errno != errno.ENOSPC:
-                raise
-            pytest.skip(str(exc))
+        obj._arm_watcher([str(root)], block_duration_s=0.05)
         obj.handle_file = seen.append
         obj.start()
         try:
             yield obj, seen, root
         finally:
-            obj.started = False
-            (root / "_wake").write_text("x")
-            if obj.thread is not None:
-                obj.thread.join(timeout=5)
+            obj.stop()
 
     @staticmethod
     def _wait_for(predicate, timeout=10.0):
@@ -266,6 +257,9 @@ class TestFSWatcherInotifyRewatch:
 
         def _watcher_raising(type_name):
             class _W:
+                def close(self):
+                    pass
+
                 def event_gen(self, **kwargs):
                     raise w.TerminalEventException(type_name, None)
                     yield  # pragma: no cover - generator marker

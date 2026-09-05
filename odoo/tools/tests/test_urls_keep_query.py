@@ -1,5 +1,6 @@
 import ast
 import contextlib
+import subprocess
 import sys
 import types
 import unittest
@@ -108,11 +109,19 @@ class TestToolsStaysBelowTheServingTier(unittest.TestCase):
                 )
 
     def test_importing_it_does_not_pull_in_the_http_stack(self):
-        if "odoo.http" in sys.modules:
-            self.skipTest("odoo.http already imported by another suite")
-        importlib = __import__("importlib")
-        importlib.reload(urls)
-        self.assertNotIn("odoo.http", sys.modules)
+        process = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import sys; import odoo.tools.urls; assert 'odoo.http' not in sys.modules",
+            ],
+            cwd=Path(urls.__file__).parents[2],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
 
     def test_all_covers_what_libs_web_publishes(self):
         from odoo.libs import web

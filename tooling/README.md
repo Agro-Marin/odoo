@@ -66,3 +66,18 @@ when its provider closure (the addons-path dependency direction) is checked
 out, so a repo-alone run judges `odoo` and the full workspace judges all
 four; the pre-existing danglers are pinned in
 `architecture/xml_reference_coherence.txt`, shrink-only per scope.
+
+## Local workspace watch scope
+
+Merge `vscode-settings.json` into the `.vscode/settings.json` of the folder
+opened in VS Code. For the multi-repository Odoo workspace that is the workspace
+root, one directory above this checkout. Existing personal settings should be
+preserved. The template excludes dependencies, build outputs, caches, database
+files and secondary worktrees from recursive editor watches; it does not hide
+those files or change Odoo's own reload watches. Open a secondary worktree in
+its own editor window when working there.
+
+Linux inotify capacity is shared per user. Inspect watch ownership before
+raising host limits: a recursively watched generated tree can exhaust the
+budget even while every Odoo watcher closes correctly. Service tests deliberately
+fail on capacity exhaustion rather than turning untested behavior into a skip.

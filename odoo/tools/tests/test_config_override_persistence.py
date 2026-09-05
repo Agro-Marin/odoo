@@ -59,8 +59,10 @@ class TestOverridePersistence(unittest.TestCase):
     def test_deprecated_rcfile_setter_behaves_like_the_documented_form(self):
         import warnings
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
+        with (
+            patch.object(self.config, "_warn", side_effect=warnings.warn),
+            self.assertWarns(DeprecationWarning),
+        ):
             self.config.rcfile = "/tmp/some-odoorc"
         self.assertEqual(self.config._override_options["config"], "/tmp/some-odoorc")
 

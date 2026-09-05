@@ -9,7 +9,7 @@ class TestSetUnitTerm(unittest.TestCase):
         from dateutil.relativedelta import relativedelta
 
         for unit in _TRUNCATE_UNIT:
-            relativedelta(**{unit: 1})
+            relativedelta(dt1=None, dt2=None, **{unit: 1})
 
     def test_setting_a_day_of_month(self):
         self.assertEqual(

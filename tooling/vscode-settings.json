@@ -1,0 +1,15 @@
+{
+  "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/.worktrees/**": true,
+    "**/node_modules/**": true,
+    "**/crates/target/**": true,
+    "**/__pycache__/**": true,
+    "**/.mypy_cache/**": true,
+    "**/.pytest_cache/**": true,
+    "**/.ruff_cache/**": true,
+    "**/.venv*/**": true,
+    "**/p314o19m/**": true,
+    "**/.data/**": true
+  }
+}

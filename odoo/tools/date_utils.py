@@ -109,7 +109,7 @@ def _apply_unit_term(dt: datetime | date, operator: str, term: str) -> datetime 
             raise ValueError(f"{term[-1]!r} cannot be set with '='; use '+' or '-'")
         if isinstance(dt, datetime):
             dt += _TRUNCATE_UNIT[unit]
-    return dt + relativedelta(**{unit: number})
+    return dt + relativedelta(dt1=None, dt2=None, **{unit: number})
 
 
 def parse_date_expression(value: str, env: Environment) -> date | datetime:

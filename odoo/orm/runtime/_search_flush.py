@@ -62,6 +62,8 @@ def flush_search_dependencies(model, domain, order):
         records._check_qorder(specification)
         for part in specification.split(","):
             match = regex_order.match(part)
+            if match is None:
+                raise ValueError(f"Invalid order term {part!r}")
             field = collect_field(records, match["field"])
             if (
                 field.is_many2one

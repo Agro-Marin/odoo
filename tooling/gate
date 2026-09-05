@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# Run a gate under the toolchain CI runs it with, and nothing else.
+# Run a gate under the pinned tools and explicit stubs, without Odoo runtime dependencies.
 #
-# py_typecheck.yml installs mypy alone and ruff.yml installs ruff alone, both at
-# the versions requirements-dev.txt pins, so a count taken in the development
-# virtualenv (a different mypy major, real lxml/psycopg stubs) is not the gate's.
-# This launcher keeps one small virtualenv, tooling/.venv-gates, built from that
-# file, refuses to run if its ruff or mypy drift from the pins, and executes the
-# given command with that virtualenv first on PATH.
+# requirements-dev.txt pins the tools and explicitly selected type stubs.
+# A count taken in the full development environment can differ because its
+# runtime dependencies expose additional types. Keep that measurement separate.
+# This launcher builds tooling/.venv-gates from the requirements and refuses to
+# run when its ruff or mypy version differs from the pin.
 #
 #   tooling/gate ruff check odoo/ --no-cache --statistics
 #   tooling/gate mypy --no-incremental --config-file mypy.ini -p odoo.orm

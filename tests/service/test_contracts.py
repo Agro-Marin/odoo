@@ -1,4 +1,3 @@
-import errno
 import inspect
 import os
 import pathlib
@@ -148,30 +147,27 @@ class TestSignalsDoNotSurfaceAsEINTR:
 
 @requires_inotify
 class TestInotifyPrivateSurface:
-    def _trees(self, tmp_path):
+    @pytest.fixture
+    def trees(self, tmp_path):
         from odoo.service._watcher import INOTIFY_LISTEN_EVENTS, InotifyTrees
 
+        trees = InotifyTrees(
+            [str(tmp_path)], mask=INOTIFY_LISTEN_EVENTS, block_duration_s=0.05
+        )
         try:
-            return InotifyTrees(
-                [str(tmp_path)], mask=INOTIFY_LISTEN_EVENTS, block_duration_s=0.05
-            )
-        except OSError as exc:
-            if exc.errno != errno.ENOSPC:
-                raise
-            pytest.skip(str(exc))
+            yield trees
+        finally:
+            trees.close()
 
-    def test_inotify_trees_still_exposes_i_and_mask(self, tmp_path):
-        trees = self._trees(tmp_path)
+    def test_inotify_trees_still_exposes_i_and_mask(self, trees):
         assert hasattr(trees, "_i"), "InotifyTrees._i moved"
         assert hasattr(trees, "_mask"), "InotifyTrees._mask moved"
 
-    def test_the_watch_descriptor_map_is_still_name_mangled_watches_r(self, tmp_path):
-        trees = self._trees(tmp_path)
+    def test_the_watch_descriptor_map_is_still_name_mangled_watches_r(self, trees):
         mapping = getattr(trees._i, "_Inotify__watches_r", None)
         assert isinstance(mapping, dict), "Inotify.__watches_r moved or changed type"
 
-    def test_remove_watch_still_takes_superficial(self, tmp_path):
-        trees = self._trees(tmp_path)
+    def test_remove_watch_still_takes_superficial(self, trees):
         parameters = inspect.signature(trees._i.remove_watch).parameters
         assert "superficial" in parameters, "Inotify.remove_watch signature changed"
         assert parameters["superficial"].default is False

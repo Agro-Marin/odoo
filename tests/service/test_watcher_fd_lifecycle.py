@@ -34,6 +34,44 @@ def _make_watcher(tmp_path, monkeypatch):
 
 
 class TestInotifyDescriptorLifecycle:
+    def test_stop_closes_even_when_a_tree_reference_survives(
+        self, tmp_path, monkeypatch
+    ):
+        before = _inotify_fds()
+        watcher = _make_watcher(tmp_path, monkeypatch)
+        retained_tree = watcher.watcher
+        descriptors = watcher.internals.get_descriptors()
+        watcher.stop()
+        assert _inotify_fds() == before
+        for fd in descriptors:
+            with pytest.raises(OSError):
+                os.fstat(fd)
+        # Repeated closure must not close a descriptor reused by another owner.
+        with Path(os.devnull).open("rb") as other:
+            retained_tree.close()
+            assert os.fstat(other.fileno())
+
+    def test_failed_construction_closes_descriptors_before_traceback_dies(
+        self, tmp_path, monkeypatch
+    ):
+        before = _inotify_fds()
+        descriptors = []
+
+        def fail_after_arming(tree, paths):
+            tree._load_tree(paths[0])
+            descriptors.extend(_watcher._InotifyInternals(tree).get_descriptors())
+            raise RuntimeError("failure after allocating watches")
+
+        monkeypatch.setattr(_watcher.InotifyTrees, "_load_trees", fail_after_arming)
+        with pytest.raises(RuntimeError, match="failure after allocating") as retained:
+            _make_watcher(tmp_path, monkeypatch)
+        assert retained.value.__traceback__ is not None
+        assert _inotify_fds() == before
+        assert descriptors
+        for fd in descriptors:
+            with pytest.raises(OSError):
+                os.fstat(fd)
+
     def test_stop_releases_the_inotify_descriptor(self, tmp_path, monkeypatch):
         before = _inotify_fds()
         watcher = _make_watcher(tmp_path, monkeypatch)

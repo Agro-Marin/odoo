@@ -41,7 +41,7 @@ class LoadMixin(_ModelStubs):
                 continue
             model_fields = self._fields
             for field_name in field_path:
-                if field_name in (None, "id", ".id"):
+                if field_name is None or field_name in ("id", ".id"):
                     break
 
                 if isinstance(o2m_field := model_fields.get(field_name), One2many):
@@ -220,7 +220,7 @@ class LoadMixin(_ModelStubs):
                 continue
             model = self
             for index, field_name in enumerate(field_path[:-1]):
-                if field_name in (None, "id", ".id"):
+                if field_name is None or field_name in ("id", ".id"):
                     break
                 field = model._fields.get(field_name)
                 if field is None:

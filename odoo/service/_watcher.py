@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import errno
-import gc
 import logging
 import os
 import threading
+from contextlib import suppress
 from pathlib import Path
 
 import odoo.addons
@@ -15,7 +15,8 @@ from .settings import current
 if os.name == "posix":
     try:
         import inotify
-        from inotify.adapters import InotifyTrees, TerminalEventException
+        from inotify.adapters import Inotify, TerminalEventException
+        from inotify.adapters import InotifyTrees as _InotifyTrees
         from inotify.constants import (
             IN_CREATE,
             IN_MODIFY,
@@ -49,14 +50,6 @@ _OBSERVER_JOIN_TIMEOUT_S = 5.0
 _WATCHER_JOIN_TIMEOUT_S = 5.0
 
 
-def _is_fd_open(fd: int) -> bool:
-    try:
-        os.fstat(fd)
-    except OSError:
-        return False
-    return True
-
-
 ASSET_SUFFIXES = (".js", ".xml", ".scss", ".css")
 
 OVERFLOW_WD = -1
@@ -84,8 +77,9 @@ def get_inotify_limit_diagnosis(exc: BaseException) -> str:
     return (
         "inotify is out of capacity (ENOSPC — not disk space). One of these is "
         f"at its cap: {', '.join(limits)}. Instances are consumed one per "
-        "watcher and shared across every process you run as this user, so "
-        "concurrent servers, test runs and an editor will reach that one first."
+        "watcher; watches are consumed per directory. Both budgets are shared "
+        "across this user's servers, tests and editor. Check their watch scope "
+        "and resource ownership before increasing host limits."
     )
 
 
@@ -239,6 +233,55 @@ class FSWatcherWatchdog(FSWatcherBase):
             )
 
 
+if inotify:
+
+    class _OwnedInotify(Inotify):
+        """Own descriptor closure independently of third-party finalization."""
+
+        def __init__(self, **kwargs):
+            try:
+                super().__init__(**kwargs)
+            except BaseException:
+                self.close()
+                raise
+
+        def close(self) -> None:
+            epoll = getattr(self, "_Inotify__epoll", None)
+            fd = getattr(self, "_Inotify__inotify_fd", None)
+            self._Inotify__epoll = None
+            self._Inotify__inotify_fd = None
+            try:
+                if epoll is not None:
+                    epoll.close()
+            finally:
+                if fd is not None:
+                    os.close(fd)
+
+        def __del__(self):
+            with suppress(Exception):
+                self.close()
+
+    class InotifyTrees(_InotifyTrees):
+        """Retain upstream event handling with explicit resource ownership."""
+
+        def __init__(self, paths, mask, block_duration_s):
+            self._mask = (
+                mask
+                | inotify.constants.IN_ISDIR
+                | inotify.constants.IN_CREATE
+                | inotify.constants.IN_DELETE
+            )
+            self._i = _OwnedInotify(block_duration_s=block_duration_s)
+            try:
+                self._load_trees(paths)
+            except BaseException:
+                self.close()
+                raise
+
+        def close(self) -> None:
+            self._i.close()
+
+
 class _InotifyInternals:
     def __init__(self, trees: InotifyTrees) -> None:
         self._trees = trees
@@ -285,6 +328,8 @@ class FSWatcherInotify(FSWatcherBase):
         super().__init__()
         self.started = False
         self.thread: threading.Thread | None = None
+        self.watcher: InotifyTrees | None = None
+        self.internals: _InotifyInternals | None = None
         inotify.adapters._LOGGER.setLevel(logging.ERROR)
         paths = self.get_watch_paths()
         _logger.info("Watching %d folder(s) for changes", len(paths))
@@ -323,6 +368,8 @@ class FSWatcherInotify(FSWatcherBase):
         path = str(directory)
         try:
             internals = self.internals
+            if internals is None:
+                return
             if internals.add_watch(path) is not None:
                 return
             try:
@@ -339,11 +386,21 @@ class FSWatcherInotify(FSWatcherBase):
             )
 
     def run(self) -> None:
+        try:
+            self._run()
+        finally:
+            self.started = False
+            self._release_watcher()
+
+    def _run(self) -> None:
         _logger.info("AutoReload watcher running with inotify")
+        watcher = self.watcher
+        if watcher is None:
+            return
         dir_creation_events = {"IN_MOVED_TO", "IN_CREATE"}
         while self.started:
             try:
-                for event in self.watcher.event_gen(timeout_s=0, yield_nones=False):
+                for event in watcher.event_gen(timeout_s=0, yield_nones=False):
                     _, type_names, path, filename = event
                     if "IN_ISDIR" not in type_names:
                         if "IN_DELETE" not in type_names:
@@ -382,23 +439,14 @@ class FSWatcherInotify(FSWatcherBase):
                     "continuing shutdown without it",
                     _WATCHER_JOIN_TIMEOUT_S,
                 )
+                self.thread = None
+                return
             self.thread = None
         self._release_watcher()
 
     def _release_watcher(self) -> None:
-        internals = getattr(self, "internals", None)
-        self.internals = None  # type: ignore[assignment]
+        watcher = getattr(self, "watcher", None)
+        self.internals = None
         self.watcher = None
-        if internals is None:
-            return
-        fds = internals.get_descriptors()
-        del internals
-        gc.collect()
-        still_open = [fd for fd in fds if _is_fd_open(fd)]
-        if still_open:
-            _logger.warning(
-                "autoreload: the inotify descriptors %s outlived the watcher; "
-                "something still holds a reference to the tree. They carry "
-                "FD_CLOEXEC, so a re-exec will not inherit them.",
-                still_open,
-            )
+        if watcher is not None:
+            watcher.close()

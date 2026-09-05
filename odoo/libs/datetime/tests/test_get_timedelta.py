@@ -41,8 +41,9 @@ class TestGetTimedelta:
                 super().__init__(*args, **kwargs)
 
         monkeypatch.setattr("odoo.libs.datetime.date_utils.relativedelta", Counting)
-        get_timedelta(3, "day")
-        assert built == [{"days": 3}]
+        result = get_timedelta(3, "day")
+        assert len(built) == 1
+        assert result == relativedelta(days=3)
 
     def test_an_unknown_granularity_raises_a_named_error(self):
         with pytest.raises(ValueError, match="Granularity must be"):

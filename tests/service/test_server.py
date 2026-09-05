@@ -1760,6 +1760,25 @@ class TestRequestHandlerBeforeHeadersParsed:
 
 
 class TestRequestHandlerSocketTimeout:
+    @pytest.mark.parametrize("test_enable", [False, True])
+    def test_timeout_reaches_the_connection(self, test_enable, monkeypatch):
+        from odoo.service.wsgi import RequestHandler
+
+        monkeypatch.setenv("ODOO_HTTP_SOCKET_TIMEOUT", "2.5")
+        thread = threading.current_thread()
+        original_name = thread.name
+        connection, peer = socket.socketpair()
+        with connection, peer:
+            handler = object.__new__(RequestHandler)
+            handler.request = connection
+            try:
+                with server_settings.override(test_enable=test_enable, dev_mode=[]):
+                    handler.setup()
+                assert connection.gettimeout() == (5 if test_enable else 2.5)
+            finally:
+                thread.name = original_name
+                handler.finish()
+
     @pytest.fixture
     def wsgi_mod(self):
         import odoo.service.wsgi as mod
@@ -1768,7 +1787,7 @@ class TestRequestHandlerSocketTimeout:
 
     def _handler(self, srv):
         h = object.__new__(srv.RequestHandler)
-        h.timeout = None
+        h.connection = MagicMock()
         return h
 
     def _setup_with(self, wsgi_mod, handler, test_enable):
@@ -1787,13 +1806,14 @@ class TestRequestHandlerSocketTimeout:
     def test_timeout_is_armed_outside_test_mode(self, srv, wsgi_mod):
         h = self._handler(srv)
         self._setup_with(wsgi_mod, h, test_enable=False)
-        assert h.timeout == wsgi_mod.get_http_socket_timeout()
-        assert h.timeout > 0
+        h.connection.settimeout.assert_called_once_with(
+            wsgi_mod.get_http_socket_timeout()
+        )
 
     def test_test_mode_keeps_the_longer_preconnect_grace(self, srv, wsgi_mod):
         h = self._handler(srv)
         self._setup_with(wsgi_mod, h, test_enable=True)
-        assert h.timeout >= 5
+        assert h.connection.settimeout.call_args.args[0] >= 5
 
     def test_prefork_and_threaded_share_one_knob(
         self, srv, wsgi_mod, multi, monkeypatch

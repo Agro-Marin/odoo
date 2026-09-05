@@ -11,7 +11,7 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from io import BytesIO
-from typing import Any
+from typing import Any, Protocol, cast
 
 import werkzeug.serving
 from werkzeug.urls import uri_to_iri
@@ -65,7 +65,7 @@ def _parse_http_date(value: str) -> datetime | None:
 
 
 class LoggingBaseWSGIServerMixIn:
-    def handle_error(self, request: Any, client_address: tuple[str, int]) -> None:
+    def handle_error(self, request: Any, client_address: tuple[str, int] | str) -> None:
         exc = sys.exception()
         if isinstance(exc, BrokenPipeError):
             return
@@ -183,10 +183,11 @@ class CommonRequestHandler(werkzeug.serving.WSGIRequestHandler):
 
 class RequestHandler(CommonRequestHandler):
     def setup(self) -> None:
-        self.timeout = get_http_socket_timeout()
+        timeout = get_http_socket_timeout()
         if current().test_enable:
-            self.timeout = max(self.timeout, 5)
+            timeout = max(timeout, 5)
         super().setup()
+        self.connection.settimeout(timeout)
         me = threading.current_thread()
         me.name = f"odoo.service.http.request.{me.ident}"
 
@@ -227,6 +228,12 @@ class RequestHandler(CommonRequestHandler):
             release = getattr(self.server, "release_upgraded_request_slot", None)
             if release is not None:
                 release(self.request)
+
+
+class _NonblockingRequestServer(Protocol):
+    """socketserver's accept-loop hook, omitted from its public type stubs."""
+
+    def _handle_request_noblock(self) -> None: ...
 
 
 class ThreadedWSGIServerReloadable(
@@ -302,7 +309,9 @@ class ThreadedWSGIServerReloadable(
         if not self.reload_socket:
             super().server_activate()
 
-    def process_request(self, request: Any, client_address: tuple[str, int]) -> None:
+    def process_request(
+        self, request: Any, client_address: tuple[str, int] | str
+    ) -> None:
         t = threading.Thread(
             target=self.process_request_thread, args=(request, client_address)
         )
@@ -327,7 +336,7 @@ class ThreadedWSGIServerReloadable(
     def _handle_request_noblock(self) -> None:
         if self.max_http_threads and not self.http_threads_sem.acquire(timeout=0.1):
             return
-        super()._handle_request_noblock()
+        cast("_NonblockingRequestServer", super())._handle_request_noblock()
 
     def get_request(self) -> Any:
         try:

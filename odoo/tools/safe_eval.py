@@ -10,7 +10,7 @@ import typing
 from opcode import opmap, opname
 from types import CodeType
 
-import dateutil
+import dateutil as _dateutil
 import werkzeug
 from markupsafe import EscapeFormatter
 from psycopg import OperationalError
@@ -714,7 +714,7 @@ datetime = wrap_module(
     ],
 )
 dateutil = wrap_module(
-    dateutil,
+    _dateutil,
     {
         "tz": ["UTC", "tzutc"],
         "parser": ["isoparse", "parse"],

@@ -31,7 +31,7 @@ import time as _time
 from datetime import date, datetime, time, timedelta, tzinfo
 from typing import TYPE_CHECKING, Any, Literal
 
-from dateutil.relativedelta import relativedelta, weekdays
+from dateutil.relativedelta import FR, MO, SA, SU, TH, TU, WE, relativedelta
 
 from odoo.libs.numbers.float_utils import float_round
 
@@ -149,6 +149,8 @@ def get_fiscal_year[D: (date, datetime)](
     return date_from, date_to
 
 
+_WEEKDAYS = (MO, TU, WE, TH, FR, SA, SU)
+
 _RELATIVEDELTA_ARGUMENT = {
     "hour": "hours",
     "day": "days",
@@ -167,7 +169,8 @@ def get_timedelta(
     except KeyError:
         msg = f"Granularity must be hour, day, week, month or year, got {granularity!r}"
         raise ValueError(msg) from None
-    return relativedelta(**{argument: qty})
+    # Select calendar components, rather than the constructor's date-pair form.
+    return relativedelta(dt1=None, dt2=None, **{argument: qty})
 
 
 def start_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
@@ -228,11 +231,11 @@ def end_of[D: (date, datetime)](value: D, granularity: Granularity) -> D:
     return result
 
 
-def add[D: (date, datetime)](value: D, *args: int, **kwargs: int) -> D:
+def add[D: (date, datetime)](value: D, *args: Any, **kwargs: Any) -> D:
     return value + relativedelta(*args, **kwargs)
 
 
-def subtract[D: (date, datetime)](value: D, *args: int, **kwargs: int) -> D:
+def subtract[D: (date, datetime)](value: D, *args: Any, **kwargs: Any) -> D:
     return value - relativedelta(*args, **kwargs)
 
 
@@ -305,7 +308,7 @@ def weeknumber(
     if first_week_day == 0 and locale.min_week_days == 4:
         return date.isocalendar()[:2]
 
-    delta = relativedelta(weekday=weekdays[first_week_day](-1))
+    delta = relativedelta(weekday=_WEEKDAYS[first_week_day](-1))
     fdny = date.replace(year=date.year + 1, month=1, day=1) - delta
     if date >= fdny:
         return date.year + 1, 1
@@ -317,7 +320,7 @@ def weeknumber(
 
 
 def weekstart(locale: babel.Locale, date: date) -> date:
-    return date + relativedelta(weekday=weekdays[locale.first_week_day](-1))
+    return date + relativedelta(weekday=_WEEKDAYS[locale.first_week_day](-1))
 
 
 def weekend(locale: babel.Locale, date: date) -> date:
