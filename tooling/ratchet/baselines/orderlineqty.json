@@ -1,6 +1,6 @@
 {
-  "count": 34,
-  "measured_at": "8f4a84e81517082ea9f85bce41f01c5a7dc36aaa",
+  "count": 31,
+  "measured_at": "11a56e483ff43ea54206cc7b1471287bf29274c7",
   "measured_root": "",
-  "note": "Rebase resolution set this to the replayed side (36); origin had 34 and the merged tree measures 34. order_line_qty.py --count on a clean tree at this commit reads 34."
+  "note": "34 -> 31 at 11a56e483ff, measured in a detached worktree: l10n_it_stock_ddt's three tests wrote product_uom_qty on sale order lines and now write product_qty (5a7489aebe7). No other unit moved.\n\nPREVIOUS NOTE, kept because a floor that loses its history costs more than the stamp gains:\n\nRebase resolution set this to the replayed side (36); origin had 34 and the merged tree measures 34. order_line_qty.py --count on a clean tree at this commit reads 34."
 }
