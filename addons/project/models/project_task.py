@@ -1764,6 +1764,21 @@ class ProjectTask(models.Model):
             lambda task, title: task._extract_priority(title),
         ]
 
+    @api.depends("name", "project_id.name")
+    @api.depends_context("formatted_display_name", "show_muted_project")
+    def _compute_display_name(self) -> None:
+        super()._compute_display_name()
+        context = self.env.context
+        if not (
+            context.get("formatted_display_name") and context.get("show_muted_project")
+        ):
+            return
+        # `\t --...--` is the markup `odoomark` renders as muted text in the
+        # many2one autocomplete; see web/static/src/core/utils/dom/html.js.
+        for task in self:
+            if task.project_id:
+                task.display_name = f"{task.name} \t --{task.project_id.sudo().name}--"
+
     def _inverse_display_name(self) -> None:
         for task in self:
             if not task.display_name:

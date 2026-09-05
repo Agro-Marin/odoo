@@ -978,3 +978,31 @@ class TestProjectSubtasks(TestProjectCommon):
                 "each command must start with an int code, so that "
                 "`command[0] == Command.SET` is a valid comparison",
             )
+
+    def test_parent_task_autocomplete_shows_the_project(self) -> None:
+        """Two tasks sharing a name are told apart by the project in the dropdown.
+
+        `web_name_search` asks for the formatted flavour of `display_name`; the
+        `\t --...--` markers are what `odoomark` turns into muted text in the
+        many2one autocomplete.
+        """
+        homonym = self.env["project.task"].create(
+            [
+                {"name": "Same name", "project_id": self.project_pigs.id},
+                {"name": "Same name", "project_id": self.project_goats.id},
+            ]
+        )
+        self.assertEqual(
+            homonym.with_context(
+                formatted_display_name=True, show_muted_project=True
+            ).mapped("display_name"),
+            [
+                f"Same name \t --{self.project_pigs.name}--",
+                f"Same name \t --{self.project_goats.name}--",
+            ],
+        )
+        self.assertEqual(
+            homonym.mapped("display_name"),
+            ["Same name", "Same name"],
+            "the plain display name is untouched outside the autocomplete",
+        )
