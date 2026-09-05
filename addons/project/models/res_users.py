@@ -7,6 +7,15 @@ from odoo.api import ValuesType
 class ResUsers(models.Model):
     _inherit = "res.users"
 
+    project_role_ids = fields.Many2many(
+        "resource.role",
+        "resource_role_res_users_rel",
+        "user_id",
+        "role_id",
+        string="Project Roles",
+        export_string_translation=False,
+        copy=False,
+    )
     followed_project_ids = fields.Many2many(
         "project.project",
         string="Followed Projects",

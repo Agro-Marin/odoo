@@ -27,6 +27,7 @@
         "views/project_update_views.xml",
         "views/project_update_templates.xml",
         "views/project_phase_views.xml",
+        "views/resource_role_views.xml",
         "wizard/project_share_wizard_views.xml",
         "views/project_workflow_step_views.xml",
         "views/project_risk_views.xml",

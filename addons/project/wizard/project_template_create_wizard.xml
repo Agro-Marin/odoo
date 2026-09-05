@@ -47,6 +47,8 @@
                             name="user_ids"
                             widget="many2many_avatar_user"
                             options="{'no_open': True, 'no_quick_create': True}" />
+                        <!-- read by the user_ids domain, never shown -->
+                        <field name="role_user_ids" column_invisible="1" />
                     </list>
                 </field>
                 <footer>

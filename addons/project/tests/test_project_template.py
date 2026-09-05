@@ -2,6 +2,7 @@ from datetime import date
 
 from odoo import Command
 from odoo.tests import freeze_time
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.project.tests.test_project_base import TestProjectCommon
 
@@ -378,6 +379,60 @@ class TestProjectTemplates(TestProjectCommon):
             role,
             "A subtask of a copied task template must keep its roles too.",
         )
+
+    def test_template_wizard_only_offers_the_members_of_the_role(self) -> None:
+        """The wizard proposes the role's team, not every internal user.
+
+        The domain is evaluated by the client against the row being edited, so
+        the test evaluates it the same way: `role_id` and `role_user_ids` come
+        from the row, everything else from the field.
+        """
+        role = self.env["resource.role"].create(
+            {"name": "Developer", "user_ids": [Command.set(self.user_projectuser.ids)]}
+        )
+        Map = self.env["project.template.role.to.users.map"]
+        domain = Map._fields["user_ids"].domain
+        if callable(domain):
+            domain = domain(Map)
+        candidates = self.env["res.users"].search(
+            safe_eval(
+                str(domain),
+                {"role_id": role.id, "role_user_ids": role.user_ids.ids},
+            )
+        )
+
+        self.assertIn(
+            self.user_projectuser,
+            candidates,
+            "A member of the role must be offered for it.",
+        )
+        self.assertNotIn(
+            self.user_projectmanager,
+            candidates,
+            "A project user who is not a member of the role must not be offered.",
+        )
+        self.assertNotIn(
+            self.user_portal,
+            candidates,
+            "A portal user must never be offered as an assignee.",
+        )
+
+    def test_template_wizard_offers_everyone_for_a_role_with_no_team(self) -> None:
+        """A role nobody belongs to keeps proposing every project user."""
+        role = self.env["resource.role"].create({"name": "Designer"})
+        Map = self.env["project.template.role.to.users.map"]
+        domain = Map._fields["user_ids"].domain
+        if callable(domain):
+            domain = domain(Map)
+        candidates = self.env["res.users"].search(
+            safe_eval(
+                str(domain),
+                {"role_id": role.id, "role_user_ids": role.user_ids.ids},
+            )
+        )
+
+        self.assertIn(self.user_projectuser, candidates)
+        self.assertIn(self.user_projectmanager, candidates)
 
     @freeze_time("2025-06-15")
     def test_create_from_template_no_dates(self) -> None:
