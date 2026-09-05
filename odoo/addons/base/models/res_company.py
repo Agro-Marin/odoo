@@ -75,6 +75,39 @@ class ResCompany(models.Model):
         related="partner_id.bank_ids",
         readonly=False,
     )
+    street = fields.Char(
+        related="partner_id.street",
+        readonly=False,
+    )
+    street2 = fields.Char(
+        related="partner_id.street2",
+        readonly=False,
+    )
+    zip = fields.Char(
+        related="partner_id.zip",
+        readonly=False,
+    )
+    city = fields.Char(
+        related="partner_id.city",
+        readonly=False,
+    )
+    state_id = fields.Many2one(
+        "res.country.state",
+        related="partner_id.state_id",
+        readonly=False,
+        string="Fed. State",
+        domain="[('country_id', '=?', country_id)]",
+    )
+    country_id = fields.Many2one(
+        "res.country",
+        related="partner_id.country_id",
+        readonly=False,
+        string="Country",
+    )
+    country_code = fields.Char(
+        related="country_id.code",
+        depends=["country_id"],
+    )
 
     code = fields.Char(
         string="Short Code",
@@ -135,27 +168,6 @@ class ResCompany(models.Model):
         "cid",
         "user_id",
         string="Accepted Users",
-    )
-    street = fields.Char(related="partner_id.street", readonly=False)
-    street2 = fields.Char(related="partner_id.street2", readonly=False)
-    zip = fields.Char(related="partner_id.zip", readonly=False)
-    city = fields.Char(related="partner_id.city", readonly=False)
-    state_id = fields.Many2one(
-        "res.country.state",
-        related="partner_id.state_id",
-        readonly=False,
-        string="Fed. State",
-        domain="[('country_id', '=?', country_id)]",
-    )
-    country_id = fields.Many2one(
-        "res.country",
-        related="partner_id.country_id",
-        readonly=False,
-        string="Country",
-    )
-    country_code = fields.Char(
-        related="country_id.code",
-        depends=["country_id"],
     )
     logo_web = fields.Binary(
         compute="_compute_logo_web",
