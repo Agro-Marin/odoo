@@ -103,6 +103,24 @@ class ProjectCustomerPortal(CustomerPortal):
             "name": {"label": _("Name"), "order": "name"},
         }
 
+    def _project_get_searchbar_inputs(self) -> dict[str, dict[str, Any]]:
+        return {
+            "name": {
+                "input": "name",
+                "label": _(
+                    "Search%(left)s Projects%(right)s",
+                    left=Markup('<span class="nolabel">'),
+                    right=Markup("</span>"),
+                ),
+                "sequence": 10,
+            },
+        }
+
+    def _project_get_search_domain(self, search_in: str, search: str) -> list:
+        if search_in in self._project_get_searchbar_inputs():
+            return [(search_in, "ilike", search)]
+        return ["|", ("name", "ilike", search), ("id", "ilike", search)]
+
     @http.route(
         ["/my/projects", "/my/projects/page/<int:page>"],
         type="http",
@@ -115,6 +133,8 @@ class ProjectCustomerPortal(CustomerPortal):
         date_begin: str | None = None,
         date_end: str | None = None,
         sortby: str | None = None,
+        search: str | None = None,
+        search_in: str = "name",
         **kw: Any,
     ) -> Response:
         values = self._prepare_portal_layout_values()
@@ -124,6 +144,17 @@ class ProjectCustomerPortal(CustomerPortal):
         searchbar_sortings = self._prepare_searchbar_sortings()
         sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "name")
         order = searchbar_sortings[sortby]["order"]
+
+        searchbar_inputs = dict(
+            sorted(
+                self._project_get_searchbar_inputs().items(),
+                key=lambda item: item[1]["sequence"],
+            )
+        )
+        search_in = self._resolve_searchbar_option(searchbar_inputs, search_in, "name")
+        if search:
+            search = search.strip()
+            domain += self._project_get_search_domain(search_in, search)
 
         if date_begin and date_end:
             domain += [
@@ -138,6 +169,8 @@ class ProjectCustomerPortal(CustomerPortal):
                 "date_begin": date_begin,
                 "date_end": date_end,
                 "sortby": sortby,
+                "search_in": search_in,
+                "search": search,
             },
             total=project_count,
             page=page,
@@ -161,6 +194,9 @@ class ProjectCustomerPortal(CustomerPortal):
                 "default_url": "/my/projects",
                 "pager": pager,
                 "searchbar_sortings": searchbar_sortings,
+                "searchbar_inputs": searchbar_inputs,
+                "search_in": search_in,
+                "search": search,
                 "sortby": sortby,
             }
         )

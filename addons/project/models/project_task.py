@@ -204,7 +204,7 @@ class ProjectTask(models.Model):
         recursive=True,
         readonly=False,
         index=True,
-        tracking=True,
+        tracking=4,
         change_default=True,
         falsy_value_label=_lt("🔒 Private"),
     )
@@ -237,7 +237,7 @@ class ProjectTask(models.Model):
         "res.partner",
         string="Customer",
         recursive=True,
-        tracking=True,
+        tracking=10,
         compute="_compute_partner_id",
         store=True,
         readonly=False,
@@ -254,7 +254,7 @@ class ProjectTask(models.Model):
     )
     name = fields.Char(
         string="Title",
-        tracking=True,
+        tracking=1,
         required=True,
         index="trigram",
     )
@@ -287,13 +287,13 @@ class ProjectTask(models.Model):
     )
     planned_date_begin = fields.Datetime(
         "Start date",
-        tracking=True,
+        tracking=9,
         copy=False,
     )
     date_end = fields.Datetime(
         string="Deadline",
         index=True,
-        tracking=True,
+        tracking=7,
         copy=False,
     )
     _planned_dates_check = models.Constraint(
@@ -311,7 +311,7 @@ class ProjectTask(models.Model):
         default="0",
         index=True,
         string="Priority",
-        tracking=True,
+        tracking=2,
     )
     state = fields.Selection(
         [
@@ -332,7 +332,7 @@ class ProjectTask(models.Model):
         store=True,
         index=True,
         recursive=True,
-        tracking=True,
+        tracking=5,
     )
     is_closed = fields.Boolean(
         "Closed state",
@@ -343,7 +343,7 @@ class ProjectTask(models.Model):
         comodel_name="project.task.lost.reason",
         ondelete="restrict",
         index=True,
-        tracking=True,
+        tracking=13,
     )
 
     step_id = fields.Many2one(
@@ -353,7 +353,7 @@ class ProjectTask(models.Model):
         store=True,
         readonly=False,
         ondelete="restrict",
-        tracking=True,
+        tracking=6,
         index=True,
         default=_default_step_id,
         group_expand="_read_group_step_ids",
@@ -389,9 +389,12 @@ class ProjectTask(models.Model):
         column2="user_id",
         string="Assignees",
         context={"active_test": False},
-        tracking=True,
+        tracking=3,
         default=_default_user_ids,
-        domain="[('share', '=', False), ('active', '=', True)]",
+        domain="""[
+            ('share', '=', False), ('active', '=', True),
+            '|', ('company_id', '=?', company_id), ('company_ids', 'in', company_id),
+        ]""",
         falsy_value_label=_lt("👤 Unassigned"),
     )
     tag_ids = fields.Many2many("project.tags", string="Tags")
@@ -407,7 +410,7 @@ class ProjectTask(models.Model):
     planned_resources = fields.Integer(
         "Planned Resources",
         default=1,
-        tracking=True,
+        tracking=14,
         help="Number of parallel resources the PM expects to need to deliver "
         "this task in its scheduled window.  Multiplies scheduled_hours to "
         "derive total effort (planned_hours).  Example: 2-day window (16h) "
@@ -438,7 +441,7 @@ class ProjectTask(models.Model):
     )
     allocated_hours = fields.Float(
         "Allocated Hours",
-        tracking=True,
+        tracking=8,
         help="Working hours committed across all assigned employees "
         "(sum of reservation_ids.allocated_hours).  PMBOK: Resource "
         "Assignment Work / total person-hours.",
@@ -531,7 +534,7 @@ class ProjectTask(models.Model):
         inverse="_inverse_parent_id",
         index=True,
         domain="['!', ('id', 'child_of', id)]",
-        tracking=True,
+        tracking=21,
     )
     child_ids = fields.One2many(
         "project.task",
@@ -560,7 +563,7 @@ class ProjectTask(models.Model):
         column1="task_id",
         column2="depends_on_id",
         string="Blocked By",
-        tracking=True,
+        tracking=22,
         copy=False,
         domain="[('project_id', '!=', False), ('id', '!=', id)]",
     )
@@ -715,7 +718,7 @@ class ProjectTask(models.Model):
 
     cost_of_delay = fields.Float(
         "Cost of Delay",
-        tracking=True,
+        tracking=15,
         help=(
             "Estimated weekly cost of not completing this task (in currency). "
             "Used to compute CD3 score for value-based prioritization."
@@ -737,7 +740,7 @@ class ProjectTask(models.Model):
         string="Sprint",
         index="btree_not_null",
         domain="[('project_id', '=', project_id)]",
-        tracking=True,
+        tracking=12,
         copy=False,
     )
     use_sprints = fields.Boolean(
@@ -821,7 +824,7 @@ class ProjectTask(models.Model):
         compute="_compute_milestone_id",
         readonly=False,
         store=True,
-        tracking=True,
+        tracking=11,
         index="btree_not_null",
         help="Deliver your services automatically when a milestone is reached by linking it to a sales order item.",
     )
