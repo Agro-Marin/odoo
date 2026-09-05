@@ -345,7 +345,7 @@ class TestWriteValuesPreflight(TransactionCase):
         self._check("create", [[{"name": "a"}, {"name": "b"}]])
 
     def test_command_tuple_values_are_not_read_as_fields(self):
-        self._check("write", [[1], {"category_id": [(6, 0, [])]}])
+        self._check("write", [[1], {"tag_ids": [(6, 0, [])]}])
         self._check("write", [[1], {"child_ids": [(0, 0, {"name": "kid"})]}])
 
     def test_unknown_field_in_each_write_method_is_400(self):

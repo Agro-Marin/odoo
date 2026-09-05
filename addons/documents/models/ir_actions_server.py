@@ -3,7 +3,6 @@ from odoo.exceptions import UserError
 
 
 class IrActionsServer(models.Model):
-
     _inherit = "ir.actions.server"
 
     usage = fields.Selection(
@@ -45,6 +44,22 @@ class IrActionsServer(models.Model):
             "views": [(False, "list"), (form_view.id if form_view else False, "form")],
             "search_view_id": [search_view.id if search_view else False, "search"],
         }
+
+    def _run(self, records: models.Model, eval_context: dict) -> dict | bool:
+        # A pinned action is the folder editor's delegation: the caller has been
+        # checked for the pin and for write on the records, and the action then
+        # runs with the pinner's authority rather than the caller's.
+        if self.usage == "documents_embedded" and not records.env.su:
+            env = eval_context["env"](su=True)
+            records = records.with_env(env)
+            eval_context = {
+                **eval_context,
+                "env": env,
+                "model": eval_context["model"].with_env(env),
+                "records": records or None,
+                "record": records[:1] or None,
+            }
+        return super()._run(records, eval_context)
 
     def _check_access_to_run(self, records: models.Model) -> None:
         if self.usage == "documents_embedded":
