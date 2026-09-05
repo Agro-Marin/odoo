@@ -11,6 +11,7 @@ class StockPicking(models.Model):
         copy=False,
     )
 
+    @api.depends(lambda self: self._get_source_order_date_paths())
     def _compute_delay_pass(self):
         for picking in self:
             picking.delay_pass = (
