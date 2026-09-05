@@ -37,7 +37,6 @@ class AccountTax(models.Model):
     _name = "account.tax"
     _inherit = ["account.tax", "mixin.company.split"]
 
-
     fiscal_position_ids = fields.Many2many(
         comodel_name="account.fiscal.position",
         relation="account_fiscal_position_account_tax_rel",
@@ -632,7 +631,9 @@ class AccountTax(models.Model):
         companies = self.env["res.company"].browse(
             company.id for company in new_record_by_company
         )
-        descendants = self.env["res.company"].search([("id", "child_of", companies.ids)])
+        descendants = self.env["res.company"].search(
+            [("id", "child_of", companies.ids)]
+        )
         descendant_ids_by_company = {
             company.id: [
                 descendant.id
