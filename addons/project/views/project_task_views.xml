@@ -1293,12 +1293,18 @@
                     <t t-name="card">
                         <main
                             t-att-class="['done', 'canceled'].includes(record.state.raw_value) ? 'opacity-50' : ''">
+                            <a
+                                t-if="record.parent_id.raw_value"
+                                class="o_kanban_parent mw-100 me-auto pe-3 btn-link o_small-fs text-dark text-truncate"
+                                title="See Parent Task"
+                                name="action_view_parent_task"
+                                type="object"
+                                role="button">
+                                <i class="fa fa-level-down me-1" />
+                                <field name="parent_id" />
+                            </a>
                             <field name="name" class="fw-bold fs-5" />
                             <div class="text-muted d-flex flex-column">
-                                <field
-                                    t-if="record.parent_id.raw_value"
-                                    invisible="context.get('default_parent_id', False)"
-                                    name="parent_id" />
                                 <field
                                     invisible="context.get('default_project_id', False)"
                                     name="project_id"
@@ -1366,7 +1372,7 @@
                                     </t>
                                     <field
                                         name="priority"
-                                        class="pt-1"
+                                        class="lh-1"
                                         widget="priority" />
                                     <field name="is_rotting" invisible="1" />
                                     <field

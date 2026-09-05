@@ -978,3 +978,23 @@ class TestProjectSubtasks(TestProjectCommon):
                 "each command must start with an int code, so that "
                 "`command[0] == Command.SET` is a valid comparison",
             )
+
+    def test_kanban_card_links_to_the_parent_task(self) -> None:
+        arch = etree.fromstring(
+            self.env["project.task"].get_view(
+                self.env.ref("project.view_task_kanban").id, "kanban"
+            )["arch"]
+        )
+        links = arch.xpath("//t[@t-name='card']//a[@type='object']")
+        self.assertTrue(
+            links,
+            "a sub-task card must offer a clickable way back to its parent; "
+            "today the parent is a read-only field under the title",
+        )
+        for link in links:
+            method = link.get("name")
+            self.assertTrue(
+                hasattr(self.env["project.task"], method),
+                f"the card links to {method}(), which project.task has no such "
+                "method for",
+            )
