@@ -16,17 +16,14 @@
                 <field
                     name="approver_ids"
                     widget="many2many_tags"
-                    invisible="action_type not in ('add_approver', 'set_approvers')" />
+                    invisible="action_type != 'add_approver'" />
                 <field
                     name="approver_required"
-                    invisible="action_type not in ('add_approver', 'set_approvers')" />
+                    invisible="action_type != 'add_approver'" />
                 <field
                     name="approver_sequence"
                     optional="hide"
                     invisible="action_type != 'add_approver'" />
-                <field
-                    name="approval_minimum"
-                    invisible="action_type != 'set_approvers'" />
                 <field
                     name="company_id"
                     groups="base.group_multi_company"
@@ -71,15 +68,10 @@
                         <group>
                             <field name="action_type" widget="radio" />
                         </group>
-                        <group invisible="action_type not in ('add_approver', 'set_approvers')">
+                        <group invisible="action_type != 'add_approver'">
                             <field name="approver_ids" widget="many2many_tags" />
                             <field name="approver_required" />
-                            <field
-                                name="approver_sequence"
-                                invisible="action_type != 'add_approver'" />
-                            <field
-                                name="approval_minimum"
-                                invisible="action_type != 'set_approvers'" />
+                            <field name="approver_sequence" />
                         </group>
                     </group>
                 </sheet>

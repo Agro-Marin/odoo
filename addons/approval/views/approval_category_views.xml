@@ -477,17 +477,10 @@
                                         <field name="condition_field" />
                                         <field name="operator" />
                                         <field name="threshold" />
-                                        <field name="action_type" />
                                         <field
                                             name="approver_ids"
-                                            widget="many2many_tags"
-                                            invisible="action_type not in ('add_approver', 'set_approvers')" />
-                                        <field
-                                            name="approver_required"
-                                            invisible="action_type not in ('add_approver', 'set_approvers')" />
-                                        <field
-                                            name="approval_minimum"
-                                            invisible="action_type != 'set_approvers'" />
+                                            widget="many2many_tags" />
+                                        <field name="approver_required" />
                                     </list>
                                 </field>
                             </group>
