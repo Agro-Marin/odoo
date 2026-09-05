@@ -12,6 +12,9 @@
                 <field name="condition_field" />
                 <field name="operator" />
                 <field name="threshold" />
+                <field
+                    name="threshold_max"
+                    invisible="operator != 'between'" />
                 <field name="action_type" />
                 <field
                     name="approver_ids"
@@ -60,6 +63,9 @@
                             <field name="condition_field" />
                             <field name="operator" />
                             <field name="threshold" />
+                            <field
+                                name="threshold_max"
+                                invisible="operator != 'between'" />
                             <field
                                 name="currency_id"
                                 invisible="condition_field != 'amount'"
