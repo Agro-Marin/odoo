@@ -1011,7 +1011,7 @@ class ShareRoute(http.Controller):
     def _documents_direct_upload_response(
         self, document_ids: list, file_size: str
     ) -> Any:
-        document_sudo = request.env["documents.document"].sudo().browse(document_ids)
+        document_sudo = request.env["document.document"].sudo().browse(document_ids)
         document_sudo.check_singleton()
         attachment_sudo = document_sudo.attachment_id
         attachment_sudo._post_add_create(cloud_storage=True)

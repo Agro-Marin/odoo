@@ -644,7 +644,7 @@ export class DocumentService {
         return (
             session.cloud_storage_min_file_size !== undefined &&
             file.size > session.cloud_storage_min_file_size &&
-            !session.cloud_storage_unsupported_models.includes("documents.document")
+            !session.cloud_storage_unsupported_models.includes("document.document")
         );
     }
 

@@ -54,4 +54,4 @@ class TestCloudStorage(TransactionCase):
     def test_documents_are_not_excluded_from_the_cloud(self):
         """Only main-attachment models keep their bytes on the server."""
         unsupported = self.env["ir.attachment"]._get_cloud_storage_unsupported_models()
-        self.assertNotIn("documents.document", unsupported)
+        self.assertNotIn("document.document", unsupported)

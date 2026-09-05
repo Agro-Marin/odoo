@@ -58,7 +58,7 @@ CONDITIONAL = {
     "currency_id": "account",
     # documents_hr counts the employee's own documents; the partner's count is
     # the contact's. Same name, different subject.
-    "document_count": "documents_hr",
+    "document_count": "document_hr",
 }
 
 EXPECTED = (KEEP_SHADOWED | SEPARATE_DESTINATION | WRONG_PARENT) | set(CONDITIONAL)

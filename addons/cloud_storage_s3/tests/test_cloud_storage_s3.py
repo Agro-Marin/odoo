@@ -325,7 +325,7 @@ class TestCloudStorageS3Hybrid(TestCloudStorageS3Common):
             [{"name": "late.pdf", "raw": b"pdf-bytes"}]
         )
         self.assertFalse(attachment.s3_mirror_pending)
-        attachment.write({"res_model": "documents.document", "res_id": 99})
+        attachment.write({"res_model": "document.document", "res_id": 99})
         self.assertTrue(attachment.s3_mirror_pending)
 
     def test_blob_name_mirrors_filestore(self):
@@ -419,8 +419,8 @@ def _page(*objects):
 class TestDriveImport(TestCloudStorageS3Common):
     def setUp(self):
         super().setUp()
-        if "documents.document" not in self.env:
-            self.skipTest("documents is not installed")
+        if "document.document" not in self.env:
+            self.skipTest("document is not installed")
         self.user = self.env["res.users"].create(
             {"name": "Drive Viewer", "login": "drive_viewer"}
         )
@@ -449,12 +449,12 @@ class TestDriveImport(TestCloudStorageS3Common):
 
     def test_objects_become_a_folder_tree_over_the_existing_keys(self):
         result = self._import()
-        root = self.env["documents.document"].browse(result["root_id"])
+        root = self.env["document.document"].browse(result["root_id"])
         self.assertEqual(root.type, "folder")
         self.assertTrue(root._is_company_root_folder())
         self.assertEqual(result["folders"], 3)
         self.assertEqual(result["files"], 3)
-        contract = self.env["documents.document"].search(
+        contract = self.env["document.document"].search(
             [("name", "=", "contract.pdf")]
         )
         self.assertEqual(contract.folder_id.name, "ACME")
@@ -469,7 +469,7 @@ class TestDriveImport(TestCloudStorageS3Common):
         )
         self.assertEqual(attachment.mimetype, "application/pdf")
         self.assertEqual(attachment.file_size, 1234)
-        self.assertEqual(attachment.res_model, "documents.document")
+        self.assertEqual(attachment.res_model, "document.document")
         self.assertEqual(attachment.res_id, contract.id)
         self.assertEqual(
             contract.attachment_id._get_s3_info()["blob_name"],
@@ -501,7 +501,7 @@ class TestDriveImport(TestCloudStorageS3Common):
         )
         self.assertEqual(result["grants"], 3)
         self.assertEqual([g["path"] for g in result["skipped_grants"]], ["missing"])
-        documents = self.env["documents.document"]
+        documents = self.env["document.document"]
         partners = documents.search([("name", "=", "06 Partners")])
         self.assertEqual(partners.access_ids.partner_id, self.user.partner_id)
         self.assertEqual(partners.access_ids.role, "view")
@@ -518,7 +518,7 @@ class TestDriveImport(TestCloudStorageS3Common):
 
     def test_cloud_images_thumbnails_are_client_generated(self):
         self._import()
-        logo = self.env["documents.document"].search([("name", "=", "logo.png")])
+        logo = self.env["document.document"].search([("name", "=", "logo.png")])
         self.assertEqual(logo.thumbnail_status, "client_generated")
 
 
@@ -526,8 +526,8 @@ class TestDriveImport(TestCloudStorageS3Common):
 class TestDocumentsDirectUpload(EncryptionKeyCase, HttpCase):
     def setUp(self):
         super().setUp()
-        if "documents.document" not in self.env:
-            self.skipTest("documents is not installed")
+        if "document.document" not in self.env:
+            self.skipTest("document is not installed")
         icp = self.env["ir.config_parameter"]
         icp.set_param("cloud_storage_s3_enabled", "True")
         icp.set_param("cloud_storage_provider", "s3")
@@ -544,7 +544,7 @@ class TestDocumentsDirectUpload(EncryptionKeyCase, HttpCase):
                 "login": "uploader",
                 "password": "uploader_pwd",
                 "group_ids": [
-                    (6, 0, [self.env.ref("documents.group_documents_user").id])
+                    (6, 0, [self.env.ref("document.group_documents_user").id])
                 ],
             }
         )
@@ -568,7 +568,7 @@ class TestDocumentsDirectUpload(EncryptionKeyCase, HttpCase):
         )
         response.raise_for_status()
         payload = response.json()
-        document = self.env["documents.document"].browse(payload["document_ids"])
+        document = self.env["document.document"].browse(payload["document_ids"])
         self.assertEqual(payload["upload_info"]["method"], "PUT")
         self.assertEqual(
             payload["upload_info"]["url"], "https://presigned.example.com/put"
@@ -577,9 +577,9 @@ class TestDocumentsDirectUpload(EncryptionKeyCase, HttpCase):
         self.assertEqual(attachment.type, "cloud_storage")
         self.assertEqual(attachment.file_size, 4096)
         self.assertEqual(document.file_size, 4096)
-        self.assertIn("documents_document/", attachment.url)
+        self.assertIn("document_document/", attachment.url)
         self.assertEqual(attachment.res_id, document.id)
         self.assertNotIn(
-            "documents.document",
+            "document.document",
             self.env["ir.attachment"]._get_cloud_storage_unsupported_models(),
         )

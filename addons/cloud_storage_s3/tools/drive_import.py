@@ -19,7 +19,7 @@ class DriveImport:
         self.bucket = bucket
         self.region = region
         self.documents = (
-            env["documents.document"]
+            env["document.document"]
             .sudo()
             .with_context(mail_create_nolog=True, mail_notrack=True)
         )
@@ -88,7 +88,7 @@ class DriveImport:
                     "url": s3.object_url(self.bucket, self.region, key),
                     "mimetype": _mimetype_of(name),
                     "file_size": size,
-                    "res_model": "documents.document",
+                    "res_model": "document.document",
                 }
                 for key, _folder, name, size in pending
             ]
@@ -138,7 +138,7 @@ def _mimetype_of(name):
 
 
 def import_bucket(env, client, bucket, region, root_name="Cloud", grants=()):
-    if "documents.document" not in env:
+    if "document.document" not in env:
         raise UserError(
             env._("The Documents app must be installed to import a bucket.")
         )

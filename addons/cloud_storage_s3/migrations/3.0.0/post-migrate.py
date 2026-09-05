@@ -16,8 +16,8 @@ DRIVE_PARAM_BUCKET = "cloud_drive_s3.bucket_name"
 DRIVE_PARAM_REGION = "cloud_drive_s3.region"
 DRIVE_CREDENTIAL_CODE = "drive_s3"
 DRIVE_GROUP_TO_DOCUMENTS = {
-    "group_drive_read": "documents.group_documents_user",
-    "group_drive_admin": "documents.group_documents_manager",
+    "group_drive_read": "document.group_documents_user",
+    "group_drive_admin": "document.group_documents_manager",
 }
 
 
@@ -62,7 +62,7 @@ def _absorb_cloud_drive(env):
     region = icp.get_param(DRIVE_PARAM_REGION)
     if not (bucket and region and _table_exists(cr, "cloud_drive_access")):
         return
-    if "documents.document" not in env:
+    if "document.document" not in env:
         _logger.warning(
             "cloud_storage_s3: a Cloud Drive bucket (%s) is configured but "
             "Documents is not installed; nothing imported",
