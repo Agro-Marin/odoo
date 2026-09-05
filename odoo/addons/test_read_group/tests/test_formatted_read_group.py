@@ -1812,6 +1812,11 @@ class TestFormattedReadGroup(common.TransactionCase):
             field_info["foo_id_bar_name_sudo"]["aggregator"], "count_distinct"
         )
 
+        # This call's result is intentionally discarded: it warms the ORM
+        # cache so the identical call right below - the one whose SQL/result
+        # is actually checked - reflects steady-state behavior rather than a
+        # cold cache. The same discard-then-recall pattern repeats several
+        # times further down this file for the same reason.
         RelatedBase.formatted_read_group([], ["foo_id_name_sudo"], ["__count"])
         self.assertEqual(
             RelatedBase.formatted_read_group([], ["foo_id_name_sudo"], ["__count"]),
