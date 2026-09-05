@@ -2701,7 +2701,7 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        line.with_context(prefetch_fields=False).move_id
+        self.assertEqual(line.with_context(prefetch_fields=False).move_id, move1)
 
         line.move_id = move2
         self.assertEqual(line.move_id, move2)
@@ -5394,7 +5394,7 @@ class TestComputeSudo(TransactionCaseWithUserDemo):
         )
 
 
-class test_shared_cache(TransactionCaseWithUserDemo):
+class TestSharedCache(TransactionCaseWithUserDemo):
     def test_shared_cache_computed_field(self):
 
         task = self.env["test_orm.model_shared_cache_compute_parent"].create(
