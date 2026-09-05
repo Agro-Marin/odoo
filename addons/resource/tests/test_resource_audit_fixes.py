@@ -248,7 +248,7 @@ class TestTwoWeeksWeekType(TransactionCase):
                 {
                     "calendar_id": plain.id,
                     "name": "normal",
-                    "dayofweek": "2",
+                    "dayofweek": "5",
                     "hour_from": 9,
                     "hour_to": 17,
                     "day_period": "morning",

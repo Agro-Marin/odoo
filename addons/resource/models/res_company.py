@@ -20,33 +20,12 @@ class ResCompany(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        preexisting_calendar_ids = set(
-            self.env["resource.calendar"]
-            .sudo()
-            .browse(
-                {
-                    vals["resource_calendar_id"]
-                    for vals in vals_list
-                    if vals.get("resource_calendar_id")
-                }
-            )
-            .exists()
-            .ids
-        )
         companies = super().create(vals_list)
         companies_without_calendar = companies.filtered(
             lambda c: not c.resource_calendar_id
         )
         if companies_without_calendar:
             companies_without_calendar.sudo()._create_resource_calendar()
-        for company in companies:
-            calendar = company.resource_calendar_id
-            if (
-                calendar
-                and not calendar.company_id
-                and calendar.id not in preexisting_calendar_ids
-            ):
-                calendar.company_id = company.id
         return companies
 
     @api.model

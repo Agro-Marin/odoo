@@ -5,7 +5,6 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.fields import Datetime
 from odoo.libs.datetime import timezone
 from odoo.models import ValuesType
 
@@ -77,11 +76,11 @@ class ResourceCalendarLeaves(models.Model):
             and not res.get("date_from")
             and not res.get("date_to")
         ):
-            today = Datetime.now()
             calendar = self.env.company.resource_calendar_id
             if "calendar_id" in res:
                 calendar = self.env["resource.calendar"].browse(res["calendar_id"])
             tz = timezone(calendar.tz or "UTC")
+            today = datetime.now(tz).date()
             date_from = datetime.combine(today, time.min).replace(tzinfo=tz)
             date_to = datetime.combine(today, time.max).replace(tzinfo=tz)
             res.update(

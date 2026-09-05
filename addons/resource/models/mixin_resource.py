@@ -153,10 +153,8 @@ class MixinResource(models.AbstractModel):
         else:
             calendar_by_resource = self._get_calendars(from_datetime)
             mapped_resources = defaultdict(lambda: self.env["resource.resource"])
-            for resource in self:
-                mapped_resources[calendar_by_resource[resource.id]] |= (
-                    resource.resource_id
-                )
+            for record in self:
+                mapped_resources[calendar_by_resource[record.id]] |= record.resource_id
 
         for calendar, calendar_resources in mapped_resources.items():  # noqa: PLR1704
             if not calendar:

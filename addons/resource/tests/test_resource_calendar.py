@@ -23,7 +23,7 @@ class TestResourceCalendar(TransactionCase):
             {
                 "name": "TEMP",
                 "calendar_id": calendar.id,
-                "dayofweek": "2",
+                "dayofweek": "5",
                 "hour_from": 14,
                 "hour_to": 17,
             }

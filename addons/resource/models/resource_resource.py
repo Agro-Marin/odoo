@@ -1,7 +1,8 @@
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from random import randint
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
+from zoneinfo import ZoneInfo
 
 from dateutil.relativedelta import MO, relativedelta
 
@@ -16,6 +17,9 @@ from odoo.tools.date_utils import (
 )
 
 from odoo.addons.base.models.res_partner import _tz_get
+
+if TYPE_CHECKING:
+    from odoo.addons.base.models.res_company import ResCompany
 
 
 class ResourceResource(models.Model):
@@ -152,38 +156,73 @@ class ResourceResource(models.Model):
         revert_end_tz = to_timezone(end.tzinfo)
         start = localized(start)
         end = localized(end)
+        empty_meta = self.env["resource.calendar.attendance"]
+        windows = {}
+        by_calendar = defaultdict(lambda: self.env["resource.resource"])
         result = {}
         for resource in self:
             resource_tz = timezone(resource.tz)
             local_start = start.astimezone(resource_tz)
             local_end = end.astimezone(resource_tz)
-            search_range = [
-                local_start + relativedelta(hour=0, minute=0, second=0),
-                local_end + relativedelta(days=1, hour=0, minute=0, second=0),
-            ]
+            day_start = local_start + relativedelta(hour=0, minute=0, second=0)
+            day_end = local_end + relativedelta(days=1, hour=0, minute=0, second=0)
             calendar = (
                 resource.calendar_id
                 or resource.company_id.resource_calendar_id
                 or self.env.company.resource_calendar_id
             )
-            calendar_start = calendar._get_closest_work_time(
-                local_start,
-                resource=resource,
-                search_range=search_range,
-                compute_leaves=compute_leaves,
+            if resource._is_flexible():
+                calendar_start = calendar._get_closest_work_time(
+                    local_start,
+                    resource=resource,
+                    search_range=[day_start, day_end],
+                    compute_leaves=compute_leaves,
+                )
+                calendar_end = calendar._get_closest_work_time(
+                    max(local_start, local_end),
+                    match_end=True,
+                    resource=resource,
+                    search_range=[local_start, day_end],
+                    compute_leaves=compute_leaves,
+                )
+                result[resource] = (
+                    calendar_start and revert_start_tz(calendar_start),
+                    calendar_end and revert_end_tz(calendar_end),
+                )
+                continue
+            windows[resource] = (local_start, local_end, day_start, day_end)
+            by_calendar[calendar] |= resource
+
+        for calendar, resources in by_calendar.items():
+            batch_start = min(windows[r][2] for r in resources)
+            batch_end = max(windows[r][3] for r in resources)
+            intervals_batch = calendar._work_intervals_batch(
+                batch_start, batch_end, resources, compute_leaves=compute_leaves
             )
-            search_range[0] = local_start
-            calendar_end = calendar._get_closest_work_time(
-                max(local_start, local_end),
-                match_end=True,
-                resource=resource,
-                search_range=search_range,
-                compute_leaves=compute_leaves,
-            )
-            result[resource] = (
-                calendar_start and revert_start_tz(calendar_start),
-                calendar_end and revert_end_tz(calendar_end),
-            )
+            for resource in resources:
+                local_start, local_end, day_start, day_end = windows[resource]
+                intervals = intervals_batch[resource.id]
+                calendar_start = None
+                if day_start <= local_start <= day_end:
+                    own = intervals & Intervals([(day_start, day_end, empty_meta)])
+                    calendar_start = min(
+                        (interval[0] for interval in own),
+                        key=lambda dt: abs(dt - local_start),
+                        default=None,
+                    )
+                calendar_end = None
+                target = max(local_start, local_end)
+                if local_start <= target <= day_end:
+                    own = intervals & Intervals([(local_start, day_end, empty_meta)])
+                    calendar_end = min(
+                        (interval[1] for interval in own),
+                        key=lambda dt: abs(dt - target),
+                        default=None,
+                    )
+                result[resource] = (
+                    calendar_start and revert_start_tz(calendar_start),
+                    calendar_end and revert_end_tz(calendar_end),
+                )
         return result
 
     def _get_unavailable_intervals(
@@ -211,7 +250,7 @@ class ResourceResource(models.Model):
         self,
         start: datetime,
         end: datetime,
-        default_company: Self | None = None,
+        default_company: ResCompany | None = None,
     ) -> dict[int | bool, dict]:
         if not (start.tzinfo and end.tzinfo):
             raise ValueError("start and end datetimes must be timezone-aware")
@@ -274,7 +313,9 @@ class ResourceResource(models.Model):
 
         return resource_work_intervals, calendar_work_intervals
 
-    def _get_calendar_at(self, date_target: datetime, tz: bool = False) -> dict:
+    def _get_calendar_at(
+        self, date_target: datetime, tz: ZoneInfo | None = None
+    ) -> dict:
         return {resource: resource.calendar_id for resource in self}
 
     def _get_flexible_resources_default_work_intervals(
@@ -291,7 +332,7 @@ class ResourceResource(models.Model):
 
         resources_per_tz = defaultdict(list)
         for resource in self:
-            resources_per_tz[timezone(resource.tz or "UTC")].append(resource)
+            resources_per_tz[timezone(resource.tz)].append(resource)
 
         for tz, resources in resources_per_tz.items():
             day = start_date
@@ -353,7 +394,7 @@ class ResourceResource(models.Model):
     ):
         leave_start_day = leave[0].date()
         leave_end_day = leave[1].date()
-        tz = timezone(self.tz or self.env.user.tz or "UTC")
+        tz = timezone(self.tz)
 
         while leave_start_day <= leave_end_day:
             if not self._is_fully_flexible():
@@ -483,7 +524,7 @@ class ResourceResource(models.Model):
                     resource_work_intervals[resource_id] -= Intervals(ranges_to_remove)
 
         for resource_id, work_intervals in resource_work_intervals.items():
-            tz = timezone(resource_by_id[resource_id].tz or self.env.user.tz or "UTC")
+            tz = timezone(resource_by_id[resource_id].tz)
             resource_work_intervals[resource_id] = work_intervals & Intervals(
                 [
                     (

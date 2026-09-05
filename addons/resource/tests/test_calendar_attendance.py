@@ -13,12 +13,12 @@ class TestResourceCalendarAttendance(TransactionCase):
             {"name": "Attendance Calendar", "tz": "UTC"}
         )
 
-    def _attendance(self, hour_from, hour_to, day_period="morning"):
+    def _attendance(self, hour_from, hour_to, day_period="morning", dayofweek="5"):
         return self.env["resource.calendar.attendance"].create(
             {
                 "name": "Slot",
                 "calendar_id": self.calendar.id,
-                "dayofweek": "0",
+                "dayofweek": dayofweek,
                 "hour_from": hour_from,
                 "hour_to": hour_to,
                 "day_period": day_period,
@@ -50,7 +50,10 @@ class TestResourceCalendarAttendance(TransactionCase):
             self._attendance(12.0, 13.0, day_period="lunch").duration_days, 0
         )
         self.assertEqual(
-            self._attendance(8.0, 18.0, day_period="full_day").duration_days, 1
+            self._attendance(
+                8.0, 18.0, day_period="full_day", dayofweek="6"
+            ).duration_days,
+            1,
         )
 
     def test_get_week_type_parity(self):

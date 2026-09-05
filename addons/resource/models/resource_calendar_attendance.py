@@ -1,8 +1,7 @@
-import math
 from datetime import date
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import ValidationError
 from odoo.models import ValuesType
 
 
@@ -92,7 +91,7 @@ class ResourceCalendarAttendance(models.Model):
     def _check_day_period(self):
         for attendance in self:
             if attendance.day_period == "lunch" and attendance.duration_based:
-                raise UserError(
+                raise ValidationError(
                     self.env._(
                         "%(att)s is a break attendance, You should not have such record on duration based calendar",
                         att=attendance.name,
@@ -110,6 +109,12 @@ class ResourceCalendarAttendance(models.Model):
                         name=attendance.name,
                     )
                 )
+
+    @api.constrains(
+        "calendar_id", "dayofweek", "week_type", "hour_from", "hour_to", "display_type"
+    )
+    def _check_overlap(self):
+        self.calendar_id._check_attendance_ids()
 
     @api.constrains("hour_from", "hour_to")
     def _check_hours(self):
@@ -151,7 +156,7 @@ class ResourceCalendarAttendance(models.Model):
 
     @api.model
     def get_week_type(self, date: date) -> int:
-        return int(math.floor((date.toordinal() - 1) / 7) % 2)
+        return (date.toordinal() - 1) // 7 % 2
 
     def _derived_duration_hours(self) -> float:
         self.check_singleton()
@@ -173,16 +178,20 @@ class ResourceCalendarAttendance(models.Model):
                         attendance.duration_hours = derived
                 continue
             for attendance in attendances:
+                duration = attendance.duration_hours
                 if attendance.day_period == "full_day":
-                    period_duration = attendance.duration_hours / 2
-                    attendance.hour_to = 12 + period_duration
-                    attendance.hour_from = 12 - period_duration
+                    bounds = (12 - duration / 2, 12 + duration / 2)
                 elif attendance.day_period == "morning":
-                    attendance.hour_to = 12
-                    attendance.hour_from = 12 - attendance.duration_hours
+                    bounds = (12 - duration, 12)
                 elif attendance.day_period == "afternoon":
-                    attendance.hour_to = 12 + attendance.duration_hours
-                    attendance.hour_from = 12
+                    bounds = (12, 12 + duration)
+                else:
+                    continue
+                vals = {"hour_from": bounds[0], "hour_to": bounds[1]}
+                if isinstance(attendance.id, int):
+                    attendance.write(vals)
+                else:
+                    attendance.update(vals)
 
     @api.depends("day_period", "duration_hours", "calendar_id.hours_per_day")
     def _compute_duration_days(self):
