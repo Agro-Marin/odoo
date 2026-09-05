@@ -1342,6 +1342,45 @@ class TestProductAuditFixes(ProductCommon):
             [["DatedProbe", "DPROBE", "5400000000017", "Units", 100.0]],
         )
 
+    def test_is_in_selected_section_of_order_is_not_a_stored_column(self):
+        """A search-only field must not own a column nobody ever writes.
+
+        `is_in_selected_section_of_order` exists to be put in a domain by the
+        product catalog; it has no compute and nothing assigns it, so the
+        column it used to reserve held NULL on every row of every database.
+        """
+        field = self.env["product.product"]._fields["is_in_selected_section_of_order"]
+        self.assertFalse(field.store, "the field must not be stored")
+
+        self.env.cr.execute(
+            """
+            SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'product_product'
+               AND column_name = 'is_in_selected_section_of_order'
+            """
+        )
+        self.assertIsNone(
+            self.env.cr.fetchone(),
+            "the column must be dropped by the migration, not merely orphaned: "
+            "declaring store=False stops the ORM creating it on a new database "
+            "but leaves it behind on every existing one",
+        )
+
+    def test_is_in_selected_section_of_order_is_still_searchable(self):
+        """Dropping the column must not change what the domain does.
+
+        `_search_is_in_selected_section_of_order` returns an empty domain when
+        the catalog context is absent, so outside the catalog the condition is
+        a no-op rather than a filter. That is pre-existing behaviour; this
+        guards that going column-less does not alter it.
+        """
+        Product = self.env["product.product"]
+        self.assertEqual(
+            Product.search([("is_in_selected_section_of_order", "=", True)]),
+            Product.search([]),
+            "without the catalog context the condition must stay a no-op",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestAttributeNameUniqueness(ProductCommon):
