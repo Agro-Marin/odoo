@@ -150,8 +150,11 @@ cd tooling/hoot
 ./hoot '@web/core/domain'                  # one suite
 ./hoot --affected <changed files…>         # suites those files touch
 ./hoot --preset mobile '@web/webclient'    # mobile pass — resizes Chrome, toggles touch
-./hoot-shard -j 4                          # the whole web suite, sharded
+./hoot-shard -j 4                          # the whole WEB suite, sharded
+./hoot-shard --addons -j 4 --db-prefix hoot_all   # every addon that ships a suite
 ```
+
+**`hoot-shard` without `--addons` is web and `html_editor`, which is 849 of the 1,979 JS test files in the workspace.** Its plan comes from each addon's `tests/test_js.py`, and 16 of the 184 addons that ship a `static/tests/**/*.test.js` wrote one — so everything else is reported as neither passed nor failed, not as skipped. `@hr` carried eight failing tests through a run printing `0 failed / 16294 passed` for exactly this reason. `--addons` enumerates from the tree instead; give it its own `--db-prefix`, because a shard installs every module its suites name.
 
 **Name the paths for `--affected`.** Bare, it selects from the entire `git diff`, widening the run beyond your change.
 
