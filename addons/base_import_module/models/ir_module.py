@@ -743,16 +743,21 @@ class IrModuleModule(models.Model):
         Whether the module is installed here, and the URLs that are only
         meaningful relative to this deployment's series.
         """
+        existing_modules = self.search(
+            [
+                ("name", "in", [mod["name"] for mod in modules_list]),
+                ("state", "=", "installed"),
+            ]
+        )
+        existing_module_ids = {mod.name: mod.id for mod in existing_modules}
         for mod in modules_list:
             mod_name = mod["name"]
-            existing_mod = self.search(
-                [("name", "=", mod_name), ("state", "=", "installed")]
-            )
-            mod["id"] = existing_mod.id if existing_mod else -1
+            existing_mod_id = existing_module_ids.get(mod_name)
+            mod["id"] = existing_mod_id or -1
             if "icon" in fields:
                 mod["icon"] = f"{APPS_URL}{mod['icon']}"
             if "state" in fields:
-                mod["state"] = "installed" if existing_mod else "uninstalled"
+                mod["state"] = "installed" if existing_mod_id else "uninstalled"
             if "module_type" in fields:
                 mod["module_type"] = module_type
             if "website" in fields:

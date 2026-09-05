@@ -528,6 +528,27 @@ class TestImportModule(odoo.tests.TransactionCase):
             "form Upgrade button must stay hidden for imported modules",
         )
 
+    def test_decorate_apps_modules_batches_search(self):
+        """t30855 r2 f2: `_decorate_apps_modules` ran one `self.search(...)`
+        per module returned by the apps.odoo.com catalog response, an N+1
+        query pattern scaling with the full catalog size. It must issue a
+        single batched search regardless of how many modules are decorated."""
+        self.env["ir.module.module"].create(
+            {"name": "module_a", "state": "installed", "imported": True}
+        )
+        modules_list = [
+            {"name": "module_a"},
+            {"name": "module_b"},
+            {"name": "module_c"},
+        ]
+        with self.assertQueryCount(default=1):
+            self.env["ir.module.module"]._decorate_apps_modules(
+                modules_list, ["name", "state"], "official"
+            )
+        self.assertEqual(modules_list[0]["state"], "installed")
+        self.assertEqual(modules_list[1]["state"], "uninstalled")
+        self.assertEqual(modules_list[2]["state"], "uninstalled")
+
     def test_import_and_uninstall_module(self):
         bundle = "web.assets_backend"
         path = "/test_module/static/src/js/test.js"
