@@ -282,3 +282,17 @@ class TestProjectSharingUi(HttpCase):
             "portal_project_sharing_chatter_mention_users",
             login="georges1",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestProjectTaskTitleSpacingUi(HttpCase):
+    browser_size = "375x667"
+
+    def test_task_title_keeps_its_row_on_a_narrow_screen(self) -> None:
+        project = self.env["project.project"].create({"name": "Title Spacing Project"})
+        self.env["project.task"].create(
+            {"name": "Title Spacing Task", "project_id": project.id}
+        )
+        self.start_tour(
+            "/odoo/project", "project_task_title_spacing_tour", login="admin"
+        )
