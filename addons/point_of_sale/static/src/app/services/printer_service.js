@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { waitImages } from "@point_of_sale/utils";
+import { _t } from "@web/core/translation";
 import { SignalStore } from "@web/core/utils/reactive";
 
 import { logPosMessage } from "../utils/pretty_console_log.js";
@@ -41,7 +42,7 @@ export class PrinterService extends SignalStore {
             return printResult;
         }
         throw {
-            title: printResult.message.title || "Error",
+            title: printResult.message.title || _t("Error"),
             body: printResult.message.body,
             canRetry: printResult.canRetry,
             errorCode: printResult.errorCode,

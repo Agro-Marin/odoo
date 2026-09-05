@@ -7,6 +7,7 @@ import { EventRegistrationPopup } from "../../components/popup/event_registratio
 import { EventSlotSelectionPopup } from "../../components/popup/event_slot_selection_popup/event_slot_selection_popup.js";
 
 import { patch } from "@web/core/utils/patch";
+import { _t } from "@web/core/translation";
 const { DateTime } = luxon;
 
 patch(ProductScreen.prototype, {
@@ -27,7 +28,7 @@ patch(ProductScreen.prototype, {
         }
 
         if (product.event_id.seats_available === 0 && product.event_id.seats_limited) {
-            this.notification.add("No more seats available for this event", {
+            this.notification.add(_t("No more seats available for this event"), {
                 type: "danger",
             });
             return;
@@ -97,7 +98,7 @@ patch(ProductScreen.prototype, {
                 Object.values(av).some((a) => typeof a === "number" && a > 0),
             );
             if (!isAvailable || eventSeats === 0) {
-                this.notification.add("All slots are booked out for this event.", {
+                this.notification.add(_t("All slots are booked out for this event."), {
                     type: "danger",
                 });
                 return;
