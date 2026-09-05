@@ -17,9 +17,6 @@ class Test_RpcModel_A(models.Model):
     def private_method(self):
         return "private"
 
-    def filtered(self, func):
-        return super().filtered(func)
-
     @api.model
     def not_depending_on_id(self, vals=None):
         return f"got {vals}"
