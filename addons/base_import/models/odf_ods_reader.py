@@ -1,6 +1,42 @@
+import zipfile
+
 from odf import opendocument
 from odf.table import Table, TableCell, TableRow
 from odf.text import P
+
+from odoo import _
+
+# `.ods` is a zip archive, and `opendocument.load` reads every member --
+# `content.xml`, embedded pictures, thumbnails -- fully into memory via plain
+# `zipfile`-backed `z.read()`, with no size guard of its own. A member's
+# declared uncompressed size is fully controlled by the file's author, so a
+# small upload can decompress to gigabytes before this reader's own
+# MAX_CELL_REPEAT/MAX_ROW_REPEAT below ever see a single cell (a zip bomb).
+# Checked ahead of `opendocument.load`, against the archive's own declared
+# sizes -- cheap, since it only reads the central directory, never a member's
+# data.
+MAX_UNCOMPRESSED_MEMBER_SIZE = 100 * 1024 * 1024  # 100 MiB
+
+
+def _check_zip_member_sizes(file):
+    """Raise if any member of the ``.ods`` archive would decompress past
+    :data:`MAX_UNCOMPRESSED_MEMBER_SIZE`, before handing it to odfpy.
+
+    :param file: a file-like object holding the .ods archive
+    :raises ValueError: on the first oversized member
+    """
+    with zipfile.ZipFile(file) as archive:
+        for info in archive.infolist():
+            if info.file_size > MAX_UNCOMPRESSED_MEMBER_SIZE:
+                raise ValueError(
+                    _(
+                        "Import file %(member)s would expand to more than "
+                        "%(cap)s MiB, which is not supported.",
+                        member=info.filename,
+                        cap=MAX_UNCOMPRESSED_MEMBER_SIZE // (1024 * 1024),
+                    )
+                )
+
 
 # ODF lets a single element stand in for N identical cells/rows via
 # `number-columns-repeated` / `number-rows-repeated`. Both counts are fully
@@ -74,6 +110,8 @@ class ODSReader:
     """
 
     def __init__(self, file=None, content=None):
+        if content is None:
+            _check_zip_member_sizes(file)
         self.doc = content if content is not None else opendocument.load(file)
         self.sheets = {}
         for sheet in self.doc.spreadsheet.getElementsByType(Table):
