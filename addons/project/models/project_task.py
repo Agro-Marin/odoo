@@ -391,7 +391,13 @@ class ProjectTask(models.Model):
         context={"active_test": False},
         tracking=True,
         default=_default_user_ids,
-        domain="[('share', '=', False), ('active', '=', True)]",
+        domain=(
+            "['|',"
+            "     ('share', '=', False),"
+            "     '&', ('share', '=', True),"
+            "          ('followed_project_ids', '=', project_id),"
+            " ('active', '=', True)]"
+        ),
         falsy_value_label=_lt("👤 Unassigned"),
     )
     tag_ids = fields.Many2many("project.tags", string="Tags")
@@ -2318,6 +2324,7 @@ class ProjectTask(models.Model):
         self._write_apply_assignment(vals, now, task_ids_without_user_set)
         self._write_send_step_rating(vals)
         self._write_apply_state(vals, now, state_changed, steps_before)
+        self._write_drop_unfollowing_portal_assignees(vals)
 
         if "parent_id" in vals:
             self.env.remove_to_compute(self._fields["state"], self)
@@ -2561,6 +2568,24 @@ class ProjectTask(models.Model):
             self.env["project.task.triage"].sudo().search(
                 [("task_id", "in", self.ids), ("user_id", "=", self.env.uid)]
             ).triage_id = False
+
+    def _write_drop_unfollowing_portal_assignees(self, vals: dict[str, Any]) -> None:
+        """Drop portal assignees a task leaves behind when it changes project.
+
+        A portal user is only assignable while they follow the project, so a
+        task landing on a project they do not follow must not keep them.
+        Runs after the write, on the destination project.
+        """
+        if "project_id" not in vals:
+            return
+        for task in self:
+            leaving = task.user_ids.filtered("share")
+            if not leaving:
+                continue
+            followers = task.project_id.sudo().message_partner_ids
+            leaving = leaving.filtered(lambda user: user.partner_id not in followers)
+            if leaving:
+                task.user_ids -= leaving
 
     def _write_prepare_transfer_notice(
         self, vals: dict[str, Any]
