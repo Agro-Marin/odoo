@@ -29,6 +29,7 @@ from odoo.libs.documents import (
     decode,
     guess_encoding,
     infer_separators,
+    mimetype_for,
     mimetypes_for,
     register_reader,
     strip_currency_symbol,
@@ -50,10 +51,7 @@ DEFAULT_CHUNK_SIZE = 32768
 SEPARATOR_SNIFF_ROWS = 100
 _logger = logging.getLogger(__name__)
 MIMETYPE_TO_READER = {
-    "text/csv": "csv",
-    "application/vnd.ms-excel": "xls",  # legacy .xls (BIFF), read via xlrd
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-    "application/vnd.oasis.opendocument.spreadsheet": "ods",
+    mimetype_for(extension): extension for extension in ("csv", "xls", "xlsx", "ods")
 }
 
 # Explicit allow-list of the formats `_read_file` may dispatch to. This exists

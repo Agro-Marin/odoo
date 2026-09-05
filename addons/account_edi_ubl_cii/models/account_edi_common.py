@@ -4,6 +4,7 @@ from markupsafe import Markup
 
 from odoo import _, api, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.documents import mimetype_for
 from odoo.libs.numbers import float_round
 from odoo.tools import float_is_zero, float_repr
 from odoo.tools.misc import clean_context, formatLang, html_escape
@@ -212,12 +213,8 @@ TAX_EXEMPTION_MAPPING = {
 # SUPPORTED FILE TYPES FOR IMPORT
 # -------------------------------------------------------------------------
 SUPPORTED_FILE_TYPES = {
-    'application/pdf': '.pdf',
-    'application/vnd.oasis.opendocument.spreadsheet': '.ods',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
-    'image/jpeg': '.jpeg',
-    'image/png': '.png',
-    'text/csv': '.csv',
+    mimetype_for(extension): f'.{extension}'
+    for extension in ('pdf', 'ods', 'xlsx', 'jpeg', 'png', 'csv')
 }
 
 

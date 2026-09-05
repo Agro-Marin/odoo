@@ -16,6 +16,7 @@ from odoo import _, fields, http
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Domain
 from odoo.http import content_disposition, request
+from odoo.libs.documents import mimetype_for
 from odoo.tools import format_date, format_datetime, is_html_empty
 from odoo.tools.urls import keep_query
 
@@ -1722,10 +1723,7 @@ class Survey(http.Controller):
         return request.prepare_response(
             output.getvalue(),
             headers=[
-                (
-                    "Content-Type",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                ),
+                ("Content-Type", mimetype_for("xlsx")),
                 ("Content-Disposition", content_disposition(filename)),
             ],
         )

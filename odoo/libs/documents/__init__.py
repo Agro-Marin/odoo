@@ -46,6 +46,7 @@ from .format import (
 )
 from .formats import (
     Format,
+    canonical_mimetypes,
     extension_for,
     get_format,
     get_format_of_extension,
@@ -120,6 +121,7 @@ __all__ = [
     "Field",
     "Format",
     "Layout",
+    "canonical_mimetypes",
     "coerce",
     "cues_as_text",
     "decode",

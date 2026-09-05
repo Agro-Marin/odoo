@@ -6,6 +6,7 @@ from .representations import CUES, DATA, IMAGES, REPRESENTATIONS, ROWS, TEXT, TR
 
 __all__ = [
     "Format",
+    "canonical_mimetypes",
     "extension_for",
     "get_format",
     "get_format_of_extension",
@@ -118,12 +119,29 @@ def mimetypes_for(*extensions: str) -> frozenset[str]:
     and answering an empty set would register a reader that reads nothing.
     """
     claimed: set[str] = set()
+    for fmt in _formats_of(extensions):
+        claimed |= fmt.mimetypes
+    return frozenset(claimed)
+
+
+def canonical_mimetypes(*extensions: str) -> frozenset[str]:
+    """The one mimetype each of these formats is written under, aliases out.
+
+    An allow-list is a statement about what a file *is*, which is the
+    canonical spelling; `mimetypes_for` is what a reader *tolerates*. Raises
+    for a name nobody registered, for the same reason.
+    """
+    return frozenset(fmt.mimetype for fmt in _formats_of(extensions))
+
+
+def _formats_of(extensions: tuple[str, ...]) -> tuple[Format, ...]:
+    found = []
     for extension in extensions:
         fmt = get_format_of_extension(extension)
         if fmt is None:
             raise ValueError(f"No format is registered under {extension!r}")
-        claimed |= fmt.mimetypes
-    return frozenset(claimed)
+        found.append(fmt)
+    return tuple(found)
 
 
 def known_formats() -> tuple[Format, ...]:
@@ -193,7 +211,16 @@ _BUILTIN_FORMATS = (
         (),
         "OpenDocument graphics",
     ),
+    ("application/msword", "doc", TEXT, (), "Word 97-2003 document"),
+    (
+        "application/vnd.ms-powerpoint",
+        "ppt",
+        TEXT,
+        (),
+        "PowerPoint 97-2003 presentation",
+    ),
 )
+_BUILTIN_EXTENSION_ALIASES = (("jpeg", "image/jpeg"),)
 
 for _mimetype, _extension, _representation, _accepts, _label in _BUILTIN_FORMATS:
     register_format(
@@ -205,3 +232,5 @@ for _mimetype, _extension, _representation, _accepts, _label in _BUILTIN_FORMATS
             label=_label,
         )
     )
+for _extension, _mimetype in _BUILTIN_EXTENSION_ALIASES:
+    register_extension(_extension, _mimetype)

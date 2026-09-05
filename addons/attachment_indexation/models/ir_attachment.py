@@ -3,7 +3,7 @@ import io
 import logging
 
 from odoo import api, models
-from odoo.libs.documents import Document
+from odoo.libs.documents import Document, canonical_mimetypes
 from odoo.libs.lru import LRU
 
 from ..tools.readers import (
@@ -146,17 +146,8 @@ class IrAttachment(models.Model):
     # streamed document larger than _INDEX_MAX_BYTES is parsed from a truncated
     # prefix and silently loses its index. This matches the buffered create
     # path, which already hands _index the full content.
-    _INDEXED_DOC_MIMETYPES = frozenset(
-        {
-            "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            "application/vnd.oasis.opendocument.text",
-            "application/vnd.oasis.opendocument.spreadsheet",
-            "application/vnd.oasis.opendocument.presentation",
-            "application/vnd.oasis.opendocument.graphics",
-        }
+    _INDEXED_DOC_MIMETYPES = canonical_mimetypes(
+        "pdf", "docx", "xlsx", "pptx", "odt", "ods", "odp", "odg"
     )
 
     @api.model

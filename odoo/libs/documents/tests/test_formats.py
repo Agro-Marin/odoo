@@ -3,6 +3,7 @@ import unittest
 from odoo.libs.documents.formats import (
     _BY_EXTENSION,
     Format,
+    canonical_mimetypes,
     extension_for,
     get_format,
     get_format_of_extension,
@@ -46,6 +47,17 @@ class TestLookup(unittest.TestCase):
         # An empty set would register a reader that reads nothing, silently.
         with self.assertRaises(ValueError):
             mimetypes_for("zzz")
+
+    def test_canonical_mimetypes_leaves_the_aliases_out(self):
+        self.assertEqual(
+            canonical_mimetypes("csv", "xml"), {"text/csv", "application/xml"}
+        )
+        with self.assertRaises(ValueError):
+            canonical_mimetypes("zzz")
+
+    def test_jpeg_is_a_second_spelling_of_the_jpg_extension(self):
+        self.assertEqual(mimetype_for("jpeg"), "image/jpeg")
+        self.assertEqual(extension_for("image/jpeg"), "jpg")
 
     def test_a_format_lists_its_own_spellings(self):
         self.assertEqual(

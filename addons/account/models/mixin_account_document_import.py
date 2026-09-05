@@ -9,7 +9,7 @@ from markupsafe import Markup
 
 from odoo import api, models, modules, tools
 from odoo.exceptions import RedirectWarning
-from odoo.libs.documents import Document
+from odoo.libs.documents import Document, canonical_mimetypes
 from odoo.libs.filesystem import guess_mimetype
 from odoo.tools import groupby
 
@@ -65,6 +65,11 @@ def extract_pdf_embedded_files(filename, content):
     return [
         (child.name, child.data) for child in Document(content, name=filename).children
     ]
+
+
+ATTACHABLE_MIMETYPES = canonical_mimetypes(
+    "csv", "pdf", "xls", "xlsx", "ods", "doc", "docx", "ppt", "pptx", "odp"
+)
 
 
 class MixinAccountDocumentImport(models.AbstractModel):
@@ -322,19 +327,7 @@ class MixinAccountDocumentImport(models.AbstractModel):
         return (
             attachment
             and not attachment.res_field
-            and attachment.mimetype
-            in {
-                "text/csv",
-                "application/pdf",
-                "application/vnd.ms-excel",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "application/vnd.oasis.opendocument.spreadsheet",
-                "application/msword",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "application/vnd.ms-powerpoint",
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                "application/vnd.oasis.opendocument.presentation",
-            }
+            and attachment.mimetype in ATTACHABLE_MIMETYPES
         )
 
     @api.model
