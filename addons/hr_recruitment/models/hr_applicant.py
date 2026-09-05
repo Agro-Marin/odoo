@@ -7,7 +7,7 @@ from markupsafe import Markup
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.tools import SQL, clean_context
+from odoo.tools import clean_context
 from odoo.tools.translate import _
 
 AVAILABLE_PRIORITIES = [
@@ -453,55 +453,15 @@ class HrApplicant(models.Model):
         if operator != "in":
             return NotImplemented
 
-        return [
-            (
-                "id",
-                "in",
-                SQL("""
-                WITH talent_pool_applicants AS (
-                    SELECT
-                           a.id as id,
-                           email_normalized,
-                           partner_phone_sanitized,
-                           linkedin_profile
-                      FROM hr_applicant a
-                 LEFT JOIN hr_applicant_hr_talent_pool_rel rel
-                        ON a.id = rel.hr_applicant_id
-                     WHERE pool_applicant_id IS NOT NULL
-                        OR hr_talent_pool_id IS NOT NULL
-                )
-                SELECT a.id
-                FROM hr_applicant a
-                WHERE
-                    -- Check if directly linked to a pool
-                    (a.id IN (
-                        SELECT DISTINCT id
-                        from talent_pool_applicants
-                    ))
-                    OR
-                    -- Check if email matches any talent pool applicant
-                    (a.email_normalized IN (
-                        SELECT DISTINCT email_normalized
-                        FROM talent_pool_applicants
-                        WHERE email_normalized IS NOT NULL
-                    ))
-                    OR
-                    -- Check if phone matches any talent pool applicant
-                    (a.partner_phone_sanitized IN (
-                        SELECT DISTINCT partner_phone_sanitized
-                        FROM talent_pool_applicants
-                        WHERE partner_phone_sanitized IS NOT NULL
-                    ))
-                    OR
-                    -- Check if LinkedIn profile matches any talent pool applicant
-                    (a.linkedin_profile IN (
-                        SELECT DISTINCT linkedin_profile
-                        FROM talent_pool_applicants
-                        WHERE linkedin_profile IS NOT NULL
-                    ))
-        """),
-            )
-        ]
+        pool_domain = Domain("talent_pool_ids", "!=", False) | Domain(
+            "pool_applicant_id", "!=", False
+        )
+        Applicant = self.env["hr.applicant"]
+        domain = Domain("id", "in", Applicant._search(pool_domain).subselect())
+        for fname in self._DUPLICATE_KEY_FIELDS:
+            keyed = Applicant._search(pool_domain & Domain(fname, "!=", False))
+            domain |= Domain(fname, "in", keyed.subselect(fname))
+        return domain
 
     @api.depends("date_open", "date_closed")
     def _compute_delay_close(self):
@@ -717,7 +677,12 @@ class HrApplicant(models.Model):
 
         talent_vals = {
             fname: vals[fname]
-            for fname in ("email_from", "partner_phone", "linkedin_profile", "degree_id")
+            for fname in (
+                "email_from",
+                "partner_phone",
+                "linkedin_profile",
+                "degree_id",
+            )
             if fname in vals
         }
         if talent_vals:

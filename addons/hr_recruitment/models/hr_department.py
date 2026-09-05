@@ -18,7 +18,9 @@ class HrDepartment(models.Model):
 
     def _compute_new_applicant_count(self):
         self.new_applicant_count = 0
-        if not self.env.user.has_group("hr_recruitment.group_hr_recruitment_interviewer"):
+        if not self.env.user.has_group(
+            "hr_recruitment.group_hr_recruitment_interviewer"
+        ):
             return
         jobs = self.env["hr.job"].search([("department_id", "in", self.ids)])
         first_stage_by_job = self.env["hr.recruitment.stage"]._get_first_stage_by_job(

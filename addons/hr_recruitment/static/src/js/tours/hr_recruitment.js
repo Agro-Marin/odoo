@@ -42,19 +42,19 @@ registry.category("web_tour.tours").add("hr_recruitment_tour", {
             trigger: ".o_hr_job_simple_form",
         },
         {
-            trigger: ".o_job_name",
+            trigger: ".o_job_name input",
             content: _t("What do you want to recruit today? Choose a job title..."),
             tooltipPosition: "right",
-            run: "click",
+            run: "edit Test Developer",
         },
         {
             trigger: ".o_hr_job_simple_form",
         },
         {
-            trigger: ".o_job_alias",
+            trigger: ".o_job_alias input",
             content: _t("Choose an application email."),
             tooltipPosition: "right",
-            run: "click",
+            run: "edit test-developer",
         },
         {
             trigger: ".o_create_job",
@@ -85,7 +85,7 @@ registry.category("web_tour.tours").add("hr_recruitment_tour", {
             trigger: ".o_hr_recruitment_kanban",
         },
         {
-            trigger: "button.oe_kanban_action",
+            trigger: ".o_hr_recruitment_kanban .o_kanban_record:first",
             content: markup(
                 _t(
                     "<b>Did you apply by sending an email?</b> Check incoming applications.",
@@ -131,7 +131,13 @@ registry.category("web_tour.tours").add("hr_recruitment_tour", {
             trigger: ".o_applicant_form",
         },
         {
-            trigger: ".o-mail-Chatter .o-mail-Composer button[aria-label='Send']",
+            isActive: ["auto"],
+            trigger: ".o-mail-Chatter .o-mail-Composer-input",
+            run: "edit Thank you for applying, we will get back to you shortly.",
+        },
+        {
+            trigger:
+                ".o-mail-Chatter .o-mail-Composer button[aria-label='Send']:enabled",
             content: _t(
                 "Send your email. Followers will get a copy of the communication.",
             ),
@@ -160,6 +166,7 @@ registry.category("web_tour.tours").add("hr_recruitment_tour", {
             trigger: ".o_hr_employee_form_view",
         },
         {
+            isActive: ["manual"],
             trigger: ".o_form_button_save",
             content: _t("Save it!"),
             tooltipPosition: "bottom",
