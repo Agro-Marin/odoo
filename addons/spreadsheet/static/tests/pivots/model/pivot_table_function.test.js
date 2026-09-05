@@ -40,7 +40,7 @@ test("full PIVOT() values", async function () {
         [2,             "",             15,             15],
         [12,            10,             "",             10],
         [17,            "",             95,             95],
-        ["Total",       10,             121,            131],
+        ["Total",       10,             121 / 3,            131 / 4],
     ]);
 });
 
@@ -95,7 +95,7 @@ test("PIVOT(include_column_titles=FALSE)", async function () {
         [2,         "",             15,             15],
         [12,        10,             "",             10],
         [17,        "",             95,             95],
-        ["Total",   10,             121,            131],
+        ["Total",   10,             121 / 3,            131 / 4],
     ]);
 });
 
@@ -112,7 +112,7 @@ test("PIVOT(include_total=FALSE) with no groupbys applied", async function () {
     expect(getEvaluatedGrid(model, "A1:B3", "42")).toEqual([
             ["Partner Pivot",       "Total"],
             ["",                    "Probability"],
-            ["Total",               131],
+            ["Total",               131 / 4],
         ]);
 });
 
@@ -130,7 +130,7 @@ test("PIVOT(include_total=FALSE) with multiple measures and no groupbys applied"
     expect(getEvaluatedGrid(model, "A1:C3", "42")).toEqual([
             ["Partner Pivot",       "Total",        ""],
             ["",                    "Probability",  "Foo"],
-            ["Total",               131,            32],
+            ["Total",               131 / 4,            32],
         ]);
 });
 
@@ -202,7 +202,7 @@ test("PIVOT(include_total=FALSE) with multiple measures and only row groupby app
             ["Partner Pivot",           "Total",            "",        null],
             ["",                        "Probability",      "Foo",     null],
             ["xphone",                  10,                 12,        null],
-            ["xpad",                    121,                20,        null],
+            ["xpad",                    121 / 3,                20,        null],
             [null,                      null,               null,      null],
         ]);
 });
@@ -221,7 +221,7 @@ test("PIVOT(include_total=FALSE) with only col groupby applied", async function 
     expect(getEvaluatedGrid(model, "A1:D4", "42")).toEqual([
             ["Partner Pivot",          "xphone",          "xpad",            null],
             ["",                       "Probability",     "Probability",     null],
-            ["Total",                  10,                121,               null],
+            ["Total",                  10,                121 / 3,               null],
             [null,                     null,              null,              null],
         ]);
 });
@@ -287,7 +287,7 @@ test("PIVOT with multiple row groups", async function () {
         ["Raoul",               10,             "",             10],
         [17,                    "",             95,             95],
         ["Taylor",              "",             95,             95],
-        ["Total",               10,             121,            131],
+        ["Total",               10,             121 / 3,            131 / 4],
     ]);
     model.dispatch("CREATE_SHEET", { sheetId: "42" });
     setCellContent(model, "A1", `=PIVOT("1")`, "42");
@@ -304,7 +304,7 @@ test("PIVOT with multiple row groups", async function () {
         ["Raoul",               10,             "",             10],
         [17,                    "",             95,             95],
         ["Taylor",              "",             95,             95],
-        ["Total",               10,             121,            131],
+        ["Total",               10,             121 / 3,            131 / 4],
     ]);
     setCellContent(model, "A1", `=PIVOT("1",,FALSE)`, "42");
     // values from the PIVOT function without any group totals
@@ -335,7 +335,7 @@ test("edit pivot groups", async function () {
         [2,             "",             15,             15],
         [12,            10,             "",             10],
         [17,            "",             95,             95],
-        ["Total",       10,             121,            131],
+        ["Total",       10,             121 / 3,            131 / 4],
     ]);
     const [pivotId] = model.getters.getPivotIds();
     model.dispatch("UPDATE_PIVOT", {
@@ -351,7 +351,7 @@ test("edit pivot groups", async function () {
     expect(getEvaluatedGrid(model, "A1:B3", "42")).toEqual([
         ["Partner Pivot",       "Total"],
         ["",                    "Probability"],
-        ["Total",               131],
+        ["Total",               131 / 4],
     ]);
     model.dispatch("REQUEST_UNDO");
     await animationFrame();
@@ -382,7 +382,7 @@ test("can hide a measure", async function () {
     expect(getEvaluatedGrid(model, "A10:C12")).toEqual([
         ["Partner Pivot",           "Total",            "",],
         ["",                        "Probability",      "Foo"],
-        ["Total",                   131,                32],
+        ["Total",                   131 / 4,                32],
     ]);
     const [pivotId] = model.getters.getPivotIds();
     const definition = model.getters.getPivotCoreDefinition(pivotId);
@@ -412,8 +412,8 @@ test("can have a dimension with a field of a relational field", async function (
     expect(getEvaluatedGrid(model, "A1:B5")).toEqual([
         ["Partner Pivot", "Total"],
         ["",              "Probability"],
-        ["xpad",          121],
+        ["xpad",          121 / 3],
         ["xphone",        10],
-        ["Total",         131],
+        ["Total",         131 / 4],
     ]);
 });

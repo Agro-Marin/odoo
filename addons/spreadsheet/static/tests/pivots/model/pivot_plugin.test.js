@@ -1677,8 +1677,8 @@ test("PIVOT year are correctly formatted at evaluation", async function () {
     expect(getEvaluatedCell(model, "B1").value).toBe(2016);
     expect(getEvaluatedCell(model, "B1").formattedValue).toBe("2016");
     expect(getEvaluatedCell(model, "B3").format).toBe("#,##0.00");
-    expect(getEvaluatedCell(model, "B3").value).toBe(131);
-    expect(getEvaluatedCell(model, "B3").formattedValue).toBe("131.00");
+    expect(getEvaluatedCell(model, "B3").value).toBe(131 / 4);
+    expect(getEvaluatedCell(model, "B3").formattedValue).toBe("32.75");
 });
 
 test("PIVOT.HEADER formulas are correctly formatted at evaluation", async function () {
@@ -1935,8 +1935,8 @@ test("can add a calculated measure", async function () {
     await waitForDataLoaded(model);
     setCellContent(model, "A1", '=PIVOT.VALUE(1,"probability")');
     setCellContent(model, "A2", '=PIVOT.VALUE(1,"probability*2")');
-    expect(getEvaluatedCell(model, "A1").value).toBe(131);
-    expect(getEvaluatedCell(model, "A2").value).toBe(262);
+    expect(getEvaluatedCell(model, "A1").value).toBe(131 / 4);
+    expect(getEvaluatedCell(model, "A2").value).toBe(262 / 4);
     expect.verifySteps(["formatted_read_grouping_sets"]);
 });
 
@@ -2034,8 +2034,8 @@ test("can import a pivot with a calculated field", async function () {
         },
     });
     await waitForDataLoaded(model);
-    expect(getEvaluatedCell(model, "A1").value).toBe(131);
-    expect(getEvaluatedCell(model, "A2").value).toBe(262);
+    expect(getEvaluatedCell(model, "A1").value).toBe(131 / 4);
+    expect(getEvaluatedCell(model, "A2").value).toBe(262 / 4);
     expect.verifySteps(["formatted_read_grouping_sets"]);
 });
 
@@ -2479,8 +2479,8 @@ test("Can change display type of a measure", async function () {
         A1: "Partner Pivot",      B1: "xphone",       C1: "xpad",         D1: "Total",
         A2: "",                   B2: "Probability",  C2: "Probability",  D2: "Probability",
         A3: "No",                 B3: "",             C3: "15.00",        D3: "15.00",
-        A4: "Yes",                B4: "10.00",        C4: "106.00",       D4: "116.00",
-        A5: "Total",              B5: "10.00",        C5: "121.00",       D5: "131.00",
+        A4: "Yes",                B4: "10.00",        C4: "53.00" ,       D4: "38.67",
+        A5: "Total",              B5: "10.00",        C5: "40.33" ,       D5: "32.75",
     });
 
     const pivotId = model.getters.getPivotIds()[0];
