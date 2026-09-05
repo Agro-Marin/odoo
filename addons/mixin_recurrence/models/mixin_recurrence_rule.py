@@ -47,6 +47,9 @@ class MixinRecurrenceRule(models.AbstractModel):
     # consumer overriding the compute would keep this one's dependency edges as
     # well as its own, permanently and invisibly.
     repeat_interval = fields.Integer(string="Repeat Every", default=1)
+    # Both labels below are technical, mixin-owned vocabulary, never copy a
+    # consumer's own view renders standalone -- neither is meant to be
+    # retranslated app-wide (e.g. via Studio) independently of the mixin.
     repeat_unit = fields.Selection(
         [
             ("day", "Days"),
@@ -64,6 +67,7 @@ class MixinRecurrenceRule(models.AbstractModel):
         ],
         default="forever",
         string="Until",
+        export_string_translation=False,
     )
 
     @api.constrains("repeat_interval")
