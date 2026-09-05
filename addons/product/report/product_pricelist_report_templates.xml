@@ -15,9 +15,13 @@
                             t-att-data-res-id="pricelist.id">
                             <span t-field="pricelist.display_name">Gold Member Pricelist</span>
                         </a>
+                        <span> - </span>
+                        <span t-out="date" t-options="{&quot;widget&quot;: &quot;date&quot;}">2025-05-25</span>
                     </h2>
                     <h2 t-else=""> Pricelist <span t-if="display_pricelist_title">:</span>
                         <span t-if="display_pricelist_title" t-field="pricelist.display_name">Gold Member Pricelist</span>
+                        <span> - </span>
+                        <span t-out="date" t-options="{&quot;widget&quot;: &quot;date&quot;}">2025-05-25</span>
                     </h2>
                 </div>
             </div>
@@ -31,6 +35,7 @@
                             </tr>
                             <tr>
                                 <th class="px-1">Products</th>
+                                <th class="px-1">Internal Reference</th>
                                 <th class="px-1" groups="uom.group_uom">UOM</th>
                                 <t t-foreach="quantities" t-as="qty">
                                     <th class="text-end px-1">
@@ -40,7 +45,19 @@
                             </tr>
                         </thead>
                         <tbody>
+                            <t t-set="current_category" t-value="False" />
                             <t t-foreach="products" t-as="product">
+                                <t t-if="product['category'] != current_category">
+                                    <t
+                                        t-set="current_category"
+                                        t-value="product['category']" />
+                                    <tr>
+                                        <th
+                                            class="px-1"
+                                            colspan="100%"
+                                            t-out="current_category">Services</th>
+                                    </tr>
+                                </t>
                                 <tr>
                                     <td
                                         t-att-class="is_product_tmpl and 'fw-bold px-1' or None">
@@ -54,6 +71,9 @@
                                         </a>
                                         <span t-else="" t-out="product['name']">Acme Widget</span>
                                     </td>
+                                    <td
+                                        class="px-1"
+                                        t-out="product['default_code'] or ''">VINT_1000</td>
                                     <td
                                         groups="uom.group_uom"
                                         class="px-1"
@@ -81,6 +101,9 @@
                                             <span t-else="" class="ms-4" t-out="variant['name']">Acme
                                                 Widget - Blue</span>
                                         </td>
+                                        <td
+                                            class="px-1"
+                                            t-out="variant['default_code'] or ''">VINT_1000</td>
                                         <td
                                             groups="uom.group_uom"
                                             class="px-1"

@@ -1,6 +1,6 @@
 import math
 
-from odoo import _, api, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -24,6 +24,7 @@ class ReportProductReport_Pricelist(models.AbstractModel):
 
     def _get_report_data(self, data, report_type="html"):
         quantities = self._parse_quantities(data.get("quantities"))
+        date = self._parse_date(data.get("date"))
         try:
             data_pricelist_id = data.get("pricelist_id")
             pricelist_id = data_pricelist_id and int(data_pricelist_id)
@@ -54,8 +55,11 @@ class ReportProductReport_Pricelist(models.AbstractModel):
             ProductClass.browse(active_ids).exists() if active_ids else ProductClass
         )
         products_data = self._get_products_data(
-            is_product_tmpl, products, pricelist, quantities
+            is_product_tmpl, products, pricelist, quantities, date
         )
+        # The template prints a heading row whenever the category changes, so the
+        # rows have to reach it grouped.
+        products_data.sort(key=lambda row: row["category"] or "")
 
         return {
             "is_html_type": report_type == "html",
@@ -66,6 +70,7 @@ class ReportProductReport_Pricelist(models.AbstractModel):
             "products": products_data,
             "quantities": quantities,
             "docs": pricelist,
+            "date": date,
         }
 
     def _parse_quantities(self, quantities):
@@ -93,7 +98,17 @@ class ReportProductReport_Pricelist(models.AbstractModel):
             raise UserError(_("Quantities must be positive."))
         return quantities
 
-    def _get_products_data(self, is_product_tmpl, products, pricelist, quantities):
+    def _parse_date(self, date):
+        if not date:
+            return fields.Date.context_today(self)
+        try:
+            return fields.Date.to_date(date)
+        except ValueError, TypeError:
+            raise UserError(_("Invalid date.")) from None
+
+    def _get_products_data(
+        self, is_product_tmpl, products, pricelist, quantities, date=None
+    ):
         if not products:
             return []
 
@@ -107,18 +122,24 @@ class ReportProductReport_Pricelist(models.AbstractModel):
         prices_by_qty = {}
         variant_prices_by_qty = {}
         for qty in quantities:
-            prices_by_qty[qty] = pricelist._get_products_price(products, qty)
+            prices_by_qty[qty] = pricelist._get_products_price(products, qty, date=date)
             if all_variants:
                 variant_prices_by_qty[qty] = pricelist._get_products_price(
-                    all_variants, qty
+                    all_variants, qty, date=date
                 )
 
         def build(product, prices, tmpl_row):
             return {
                 "id": product.id,
-                "name": (tmpl_row and product.name) or product.display_name,
+                # The reference has a column of its own now, so keep it out of
+                # the name instead of printing it twice.
+                "name": (tmpl_row and product.name)
+                or product.with_context(display_default_code=False).display_name,
                 "price": {qty: prices[qty].get(product.id, 0.0) for qty in quantities},
                 "uom": product.uom_id.name,
+                "default_code": product.default_code,
+                "barcode": product.barcode,
+                "category": product.categ_id.name,
             }
 
         products_data = []
@@ -132,7 +153,9 @@ class ReportProductReport_Pricelist(models.AbstractModel):
             products_data.append(data)
         return products_data
 
-    def _get_product_data(self, is_product_tmpl, product, pricelist, quantities):
-        return self._get_products_data(is_product_tmpl, product, pricelist, quantities)[
-            0
-        ]
+    def _get_product_data(
+        self, is_product_tmpl, product, pricelist, quantities, date=None
+    ):
+        return self._get_products_data(
+            is_product_tmpl, product, pricelist, quantities, date
+        )[0]
