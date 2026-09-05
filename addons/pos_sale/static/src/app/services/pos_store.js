@@ -90,6 +90,18 @@ patch(PosStore.prototype, {
         );
         return result["sale.order"][0];
     },
+    /**
+     * Whether a line built from a sale order line has nothing left to settle.
+     * Rounded through the product's UoM so a residue below its precision does
+     * not put a visually empty line on the ticket.
+     *
+     * @param {'pos.order.line'} line
+     * @returns {boolean}
+     */
+    isSettledLineEmpty(line) {
+        const uom = line.product_id?.uom_id;
+        return uom ? uom.isZero(line.qty) : !line.qty;
+    },
     async settleSO(sale_order, orderFiscalPos) {
         if (sale_order.pricelist_id) {
             this.getOrder().setPricelist(sale_order.pricelist_id);
@@ -161,9 +173,24 @@ patch(PosStore.prototype, {
                 }
             });
             const newLine = await this.addLineToCurrentOrder(newLineValues, {}, false);
+            const converted_line = converted_lines_by_id.get(line.id);
+
+            // What is left to sell for this sale order line. `setQuantityFromSOL`
+            // is the single place that rule lives -- `pos_repair` and
+            // `pos_sale_loyalty` both override it -- so ask it rather than
+            // recomputing here. A line that is already delivered (or invoiced) in
+            // full lands on zero and has nothing to settle: drop it instead of
+            // leaving an empty line on the ticket, and skip the SN/Lots prompt it
+            // would otherwise raise.
+            await newLine.setQuantityFromSOL(converted_line);
+            if (this.isSettledLineEmpty(newLine)) {
+                newLine.delete();
+                // `previousProductLine` is left alone: a following line_note
+                // still belongs to the last line that made it onto the ticket.
+                continue;
+            }
             previousProductLine = newLine;
 
-            const converted_line = converted_lines_by_id.get(line.id);
             if (
                 newLine.getProduct().tracking !== "none" &&
                 (this.pickingType.use_create_lots ||
@@ -190,7 +217,11 @@ patch(PosStore.prototype, {
                     });
                 }
             }
-            newLine.setQuantityFromSOL(converted_line);
+            // Re-applied on purpose: `setPackLotLines` above ends in
+            // `setQuantityByLot()`, which resets the quantity to the number of
+            // lots loaded. The sale order remains the authority on how much is
+            // being settled.
+            await newLine.setQuantityFromSOL(converted_line);
             newLine.setUnitPrice(converted_line.price_unit);
             newLine.setDiscount(line.discount);
 
@@ -342,6 +373,9 @@ patch(PosStore.prototype, {
         return true;
     },
     async addDownPaymentProductOrderlineToOrder(saleOrder, amount, isPercentage) {
+        // `amount` is the percentage itself when `isPercentage`, and is
+        // overwritten below with the money it resolves to. Keep it.
+        const percentageValue = isPercentage ? amount : 0;
         const result = await this.loadDownPaymentProduct();
         if (!result) {
             return;
@@ -433,6 +467,9 @@ patch(PosStore.prototype, {
                         product_uom_qty: saleOrderLine.product_uom_qty,
                         price_unit: saleOrderLine.price_unit,
                         total: saleOrderLine.price_total,
+                        // Carried so the invoice line can say which percentage
+                        // the down payment was; 0 for a fixed amount.
+                        percentage_value: percentageValue,
                     })),
                 ),
                 tax_ids: [["link", ...baseLine.tax_ids]],
