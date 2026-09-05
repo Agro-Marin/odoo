@@ -53,6 +53,12 @@
             <field
                 name="domain_force">['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]</field>
         </record>
+        <record id="product_category_comp_rule" model="ir.rule">
+            <field name="name">Product category multi-company rule</field>
+            <field name="model_id" ref="model_product_category" />
+            <field
+                name="domain_force">['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]</field>
+        </record>
         <record id="product_combo_comp_rule" model="ir.rule">
             <field name="name">Product combo multi-company rule</field>
             <field name="model_id" ref="model_product_combo" />

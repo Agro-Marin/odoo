@@ -48,6 +48,11 @@
                     </div>
                     <group name="first" col="2">
                         <field name="parent_id" class="oe_inline" />
+                        <field
+                            name="company_id"
+                            class="oe_inline"
+                            groups="base.group_multi_company"
+                            placeholder="All Companies" />
                     </group>
                 </sheet>
                 <chatter />
