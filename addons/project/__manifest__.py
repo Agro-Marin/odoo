@@ -1,6 +1,6 @@
 {
     "name": "Project",
-    "version": "1.20",
+    "version": "1.21",
     "category": "Services/Project",
     "sequence": 45,
     "summary": "Organize and plan your projects",
