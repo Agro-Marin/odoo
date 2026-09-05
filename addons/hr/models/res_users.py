@@ -243,9 +243,6 @@ class ResUsers(models.Model):
             ).create(employee_create_vals)
         return res
 
-    def _get_employee_field_names_to_sync(self):
-        return ["tz"]
-
     def _get_notify_reason_and_partner_ids(self, employee):
         if employee.version_id.hr_responsible_id:
             return (
@@ -285,16 +282,6 @@ class ResUsers(models.Model):
                 partner_ids=partner_ids,
             )
 
-    def _update_employees_from_user_vals(self, vals, employee_domain):
-        employee_values = {
-            fname: vals[fname]
-            for fname in self._get_employee_field_names_to_sync()
-            if fname in vals
-        }
-        if not employee_values:
-            return
-        self.env["hr.employee"].sudo().search(employee_domain).write(employee_values)
-
     def write(self, vals):
         hr_fields = [
             field_name
@@ -326,7 +313,6 @@ class ResUsers(models.Model):
         ]
         if changed_hr_fields:
             self._notify_hr_of_personal_info_change(changed_hr_fields, employee_domain)
-        self._update_employees_from_user_vals(vals, employee_domain)
         return result
 
     @api.model

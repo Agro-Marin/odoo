@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from dateutil.relativedelta import MO, relativedelta
 
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.models import ValuesType
@@ -171,6 +172,16 @@ class ResourceResource(models.Model):
     def _compute_tz(self):
         for resource in self:
             resource.tz = resource.partner_id.tz or resource.tz
+
+    @api.constrains("tz")
+    def _check_tz(self):
+        for resource in self:
+            if not resource.tz:
+                raise ValidationError(
+                    self.env._(
+                        "A resource needs a timezone: %s has none.", resource.name
+                    )
+                )
 
     def _inverse_tz(self):
         for resource in self.filtered("partner_id"):

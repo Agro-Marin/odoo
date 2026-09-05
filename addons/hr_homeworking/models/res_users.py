@@ -49,9 +49,6 @@ class ResUsers(models.Model):
         string="Sundays",
     )
 
-    def _get_employee_field_names_to_sync(self):
-        return super()._get_employee_field_names_to_sync() + DAYS
-
     @property
     def SELF_READABLE_FIELDS(self):
         return super().SELF_READABLE_FIELDS + DAYS

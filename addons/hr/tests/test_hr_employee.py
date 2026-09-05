@@ -155,11 +155,12 @@ class TestHrEmployee(TestHrCommon):
         employee.tz = "Europe/London"
         self.assertEqual(self.res_users_hr_officer.tz, employee.tz)
 
-        with mute_logger("odoo.db"), self.assertRaises(NotNullViolation):
+        with self.assertRaises(ValidationError):
             employee.tz = False
 
-        with mute_logger("odoo.db"), self.assertRaises(NotNullViolation):
-            self.res_users_hr_officer.tz = False
+        # A person may have no timezone; the resource then keeps its own.
+        self.res_users_hr_officer.tz = False
+        self.assertEqual(employee.tz, "Europe/London")
 
         with mute_logger("odoo.db"), self.assertRaises(NotNullViolation):
             self.res_users_hr_officer.company_id.resource_calendar_id.write(
