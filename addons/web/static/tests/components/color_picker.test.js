@@ -550,3 +550,29 @@ test("the custom tab re-previews a swatch focused, left and focused again", asyn
     expect(cycle.leftForSibling).toEqual(["reset"]);
     expect(cycle.focusedAgain.length).toBe(1);
 });
+
+test("a colour applied from the hex input is offered as a swatch on the next apply", async () => {
+    /** @type {Set<string>} */
+    const applied = new Set();
+    await mountWithCleanup(ColorPicker, {
+        props: {
+            state: { selectedColor: "", defaultTab: "custom" },
+            // A fresh array per call, as the editor providers rebuild theirs.
+            getUsedCustomColors: () => [...applied],
+            applyColor: (/** @type {string} */ color) => applied.add(color),
+            applyColorPreview() {},
+            applyColorResetPreview() {},
+            colorPrefix: "",
+        },
+    });
+    expect(".o_colorpicker_section:first .o_color_button[data-color]").toHaveCount(0);
+
+    await contains(".o_hex_input").edit("#123456");
+    await contains(".o_hex_input").edit("#654321");
+    expect(applied.size).toBe(2);
+    // The first colour is no longer the current one, so it is a swatch now;
+    // the picker is still open, nothing remounted the tab.
+    expect(
+        ".o_colorpicker_section:first .o_color_button[data-color='#123456']",
+    ).toHaveCount(1);
+});

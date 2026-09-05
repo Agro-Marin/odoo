@@ -128,7 +128,7 @@ test("Can display avatars with the right model", async () => {
     expect("span.o_avatar img").toHaveCount(3);
     expect("span.o_avatar img:eq(1)").toHaveAttribute(
         "data-src",
-        "/web/image/res.partner/2/avatar_128",
+        "https://www.hoot.test/web/image/res.partner/2/avatar_128",
     );
     await click("li.o-autocomplete--dropdown-item:eq(1)");
     await animationFrame();

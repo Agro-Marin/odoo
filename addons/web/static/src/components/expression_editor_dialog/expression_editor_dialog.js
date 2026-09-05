@@ -1,17 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useState } from "@odoo/owl";
+import { EditorDialog } from "@web/components/editor_dialog/editor_dialog";
 import { ExpressionEditor } from "@web/components/expression_editor/expression_editor";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { useService } from "@web/core/utils/hooks";
-import { useConfirmButton } from "@web/ui/dialog/confirm_button_hook";
-import { Dialog } from "@web/ui/dialog/dialog";
 
-export class ExpressionEditorDialog extends Component {
-    static components = { Dialog, ExpressionEditor };
+export class ExpressionEditorDialog extends EditorDialog {
+    static components = { ...EditorDialog.components, ExpressionEditor };
     static template = "web.ExpressionEditorDialog";
     static props = {
         close: Function,
@@ -21,29 +18,22 @@ export class ExpressionEditorDialog extends Component {
         onConfirm: Function,
     };
 
-    /** @type {(disabled: boolean) => void} */
-    setConfirmDisabled;
-    /** @type {import("services").ServiceFactories["notification"]} */
-    notification;
-    /** @type {{ expression: any }} */
-    state;
+    /** @returns {string} */
+    get initialValue() {
+        return this.props.expression;
+    }
 
-    setup() {
-        this.notification = useService("notification");
-        this.state = useState({
-            expression: this.props.expression,
-        });
-        this.setConfirmDisabled = useConfirmButton();
+    /** @returns {string} */
+    get invalidMessage() {
+        return _t("Expression is invalid. Please correct it");
     }
 
     get expressionEditorProps() {
         return {
             resModel: this.props.resModel,
             fields: this.props.fields,
-            expression: this.state.expression,
-            update: (expression) => {
-                this.state.expression = expression;
-            },
+            expression: this.state.value,
+            update: (/** @type {string} */ expression) => this.update(expression),
         };
     }
 
@@ -70,9 +60,9 @@ export class ExpressionEditorDialog extends Component {
     /**
      * @returns {boolean}
      */
-    isExpressionValid() {
+    isValueValid() {
         try {
-            evaluateExpr(this.state.expression, {
+            evaluateExpr(this.state.value, {
                 ...user.context,
                 ...this.makeDefaultRecord(),
             });
@@ -80,22 +70,5 @@ export class ExpressionEditorDialog extends Component {
         } catch {
             return false;
         }
-    }
-
-    onConfirm() {
-        this.setConfirmDisabled(true);
-        if (!this.isExpressionValid()) {
-            this.setConfirmDisabled(false);
-            this.notification.add(_t("Expression is invalid. Please correct it"), {
-                type: "danger",
-            });
-            return;
-        }
-        this.props.onConfirm(this.state.expression);
-        this.props.close();
-    }
-
-    onDiscard() {
-        this.props.close();
     }
 }

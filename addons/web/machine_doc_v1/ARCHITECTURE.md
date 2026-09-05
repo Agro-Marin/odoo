@@ -80,7 +80,7 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 | `models/` | 25 `.py` — ORM extensions (24 model classes: web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
 | `static/src/` | 850 JavaScript/OWL source files across 248 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 18 directories (17 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
-| `static/tests/` | 767 `.js` (incl. 704 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
+| `static/tests/` | 768 `.js` (incl. 705 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
 | `tests/` | 61 Python test files (`test_*.py`) | `TEST_TAGS.md` |
 | `machine_doc_v1/` | This directory: `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) · `LAZY_VIEW_LOADING.md` · `VIEW_TEARDOWN_COST.md` (both decision records: investigated, not pursued) · `LIST_EDIT_RENDER_COST.md` (decision record: row-level waste fixed, renderer-level amplification measured and not pursued) · the maps below · `factcheck.sh` | — |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
@@ -95,7 +95,7 @@ Layered organization under `static/src/`:
 |-------|-----------|---------|-------|
 | **Boot** | `boot/` | Backend entry points: `main.js`, `start.js` (`env.js`, `session.js`, `module_loader.js`, `service_worker.js` sit at `src/` root) | 2 JS |
 | **Primitives** | `core/` | Registry, utils, reactivity, browser abstraction, l10n, network + ORM, errors, py_js, tree, debug, hotkeys, navigation, `lib/` lazy ESM loaders | 188 JS |
-| **Components** | `components/` | Reusable OWL UI components (dropdown, pickers, editors, file handling) | 109 JS |
+| **Components** | `components/` | Reusable OWL UI components (dropdown, pickers, editors, file handling) | 111 JS |
 | **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 46 JS |
 | **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 113 fork-wide `registerField` / `registerFallbackField` sites | 128 JS |
 | **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 178 JS |
@@ -111,7 +111,7 @@ so `orm` lives under `core/network/`, `dialog` under `ui/dialog/`, `action` unde
 
 ## Module faces
 
-61 directories are fronted by a sibling `<name>.js` one level up — the module's
+62 directories are fronted by a sibling `<name>.js` one level up — the module's
 **published interface**. The face re-exports exactly what other addons import;
 the files behind it are private and may be renamed, split, or moved without
 touching a consumer. `@web/ui/dialog` is the face, `ui/dialog/dialog_service.js`
@@ -443,7 +443,7 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 | Python (models) | 25 (24 model files + `__init__.py`) |
 | Python (tests) | 61 (`test_*.py`; 62 files incl. `__init__.py`) |
 | JavaScript (src) | 850 (848 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
-| JavaScript (tests) | 767 (incl. 704 `*.test.js` Hoot suites) |
+| JavaScript (tests) | 768 (incl. 705 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 94 |
 | SCSS/CSS | 213 (34 in `static/src/scss/` shared base; remaining 179 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 293 (14 views + 5 data + 274 OWL templates) |

@@ -16,7 +16,7 @@
 | `@types/models/` | misc | 0 | Model-layer ambient types (`_runtime.d.ts`) |
 | `@types/registries/` | misc | 0 | Registry ambient types (fields, services, views, command, debug, view_widgets) |
 | `boot/` | misc | 2 | `main.js` / `start.js` — backend entry points that build the env and mount `WebClient` |
-| `components/` | features | 32 | Module faces for the component directories below (barcode, datetime, dropdown, dropzone, file_upload, file_viewer, model_field_selector, record_selectors, signature, tree_editor) |
+| `components/` | features | 33 | Module faces for the component directories below (barcode, datetime, dropdown, dropzone, editor_dialog, file_upload, file_viewer, model_field_selector, record_selectors, signature, tree_editor) |
 | `components/action_swiper/` | features | 1 | Touch swipe component that triggers actions on left/right swipe gestures |
 | `components/autocomplete/` | features | 2 | Generic autocomplete dropdown with multi-source results and keyboard navigation, plus the shared quick-search core (`name_search.js`) both record autocompletes consume |
 | `components/barcode/` | features | 4 | Camera barcode scanning: video scanner, its dialog, a draggable crop overlay, and a ZXing `BarcodeDetector` polyfill |
@@ -33,6 +33,7 @@
 | `components/dropdown/` | features | 6 | Dropdown system: toggler, menu items (plain, checkbox, accordion), grouping, shared open/close state hooks |
 | `components/dropdown/_behaviours/` | features | 3 | Dropdown internals: group membership, parent/child nesting and peer closing, the hosting popover |
 | `components/dropzone/` | features | 2 | Visual drop target overlay tracking drag enter/leave and firing `onDrop` |
+| `components/editor_dialog/` | features | 1 | Base for a dialog around one validated value; `DomainSelectorDialog` and `ExpressionEditorDialog` derive from it |
 | `components/emoji_picker/` | features | 3 | Emoji data (generated), the picker UI, and the `web.frequent.emoji` frequency service |
 | `components/errors/` | features | 2 | Error dialog components (RPC, client, network, validation) and the `connection_recovery` handler service |
 | `components/expression_editor/` | features | 2 | Visual tree editor for Python expressions with field-path selection |

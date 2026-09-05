@@ -1,22 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
+import { EditorDialog } from "@web/components/editor_dialog/editor_dialog";
 import { Domain } from "@web/core/domain";
 import { rpc } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { useService } from "@web/core/utils/hooks";
-import { useConfirmButton } from "@web/ui/dialog/confirm_button_hook";
-import { Dialog } from "@web/ui/dialog/dialog";
 
-export class DomainSelectorDialog extends Component {
+export class DomainSelectorDialog extends EditorDialog {
     static template = "web.DomainSelectorDialog";
-    static components = {
-        Dialog,
-        DomainSelector,
-    };
+    static components = { ...EditorDialog.components, DomainSelector };
     static props = {
         close: Function,
         onConfirm: Function,
@@ -42,18 +36,14 @@ export class DomainSelectorDialog extends Component {
         context: {},
     };
 
-    /** @type {(disabled: boolean) => void} */
-    setConfirmDisabled;
-    /** @type {import("services").ServiceFactories["notification"]} */
-    notification;
-    /** @type {{ domain: any }} */
-    state;
+    /** @returns {string} */
+    get initialValue() {
+        return this.props.domain;
+    }
 
-    setup() {
-        this.notification = useService("notification");
-        this.orm = useService("orm");
-        this.state = useState({ domain: this.props.domain });
-        this.setConfirmDisabled = useConfirmButton();
+    /** @returns {string} */
+    get invalidMessage() {
+        return _t("Domain is invalid. Please correct it");
     }
 
     get confirmButtonText() {
@@ -66,7 +56,7 @@ export class DomainSelectorDialog extends Component {
 
     get disabled() {
         if (this.props.disableConfirmButton) {
-            return this.props.disableConfirmButton(this.state.domain);
+            return this.props.disableConfirmButton(this.state.value);
         }
         return false;
     }
@@ -82,20 +72,18 @@ export class DomainSelectorDialog extends Component {
             readonly: this.props.readonly,
             isDebugMode: this.props.isDebugMode,
             defaultConnector: this.props.defaultConnector,
-            domain: this.state.domain,
-            update: (/** @type {string} */ domain) => {
-                this.state.domain = domain;
-            },
+            domain: this.state.value,
+            update: (/** @type {string} */ domain) => this.update(domain),
         };
     }
 
     /**
      * @returns {Promise<boolean>}
      */
-    async isDomainValid() {
+    async isValueValid() {
         let domain;
         try {
-            domain = new Domain(this.state.domain).toList({
+            domain = new Domain(this.state.value).toList({
                 ...user.context,
                 ...this.props.context,
             });
@@ -110,27 +98,5 @@ export class DomainSelectorDialog extends Component {
         } catch {
             return false;
         }
-    }
-
-    async onConfirm() {
-        this.setConfirmDisabled(true);
-        let valid;
-        try {
-            valid = await this.isDomainValid();
-        } finally {
-            this.setConfirmDisabled(false);
-        }
-        if (!valid) {
-            this.notification.add(_t("Domain is invalid. Please correct it"), {
-                type: "danger",
-            });
-            return;
-        }
-        this.props.onConfirm(this.state.domain);
-        this.props.close();
-    }
-
-    onDiscard() {
-        this.props.close();
     }
 }

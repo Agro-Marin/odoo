@@ -214,7 +214,7 @@ export class ColorPicker extends Component {
 
     deriveFromApplied() {
         this.defaultColorSet = this.getDefaultColorSet();
-        this.usedCustomColors = this.props.getUsedCustomColors();
+        this.usedCustomColors = [...this.props.getUsedCustomColors()];
     }
 
     getDefaultTab() {

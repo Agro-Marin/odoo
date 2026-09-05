@@ -54,7 +54,8 @@ export class BarcodeVideoScanner extends Component {
     detector = null;
     /** @type {{ x?: number, y?: number, width?: number, height?: number }} */
     overlayInfo = {};
-    zoomRatio = 1;
+    /** @type {MediaTrackSettings | null} */
+    streamSettings = null;
     scanPaused = false;
     consecutiveDetectErrors = 0;
     /** @type {MediaStreamTrack | null} */
@@ -110,13 +111,13 @@ export class BarcodeVideoScanner extends Component {
         }
         /** @type {HTMLVideoElement} */ (this.videoPreviewRef.el).srcObject =
             this.stream;
+        this.bindTrack(stream);
         if (!(await this.isVideoReady())) {
             return;
         }
         if (this.videoPreviewRef.el.paused) {
             await this.videoPreviewRef.el.play();
         }
-        this.setUpZoom(stream);
         this.detectorTimeout = browser.setTimeout(
             this.detectCode.bind(this),
             DETECT_INTERVAL,
@@ -152,23 +153,40 @@ export class BarcodeVideoScanner extends Component {
     }
 
     /**
+     * Runs before the overlay is told the video is ready: the overlay's first
+     * `onResize` arrives as soon as `isReady` renders, and it is scaled through
+     * `zoomRatio`, which needs the track settings this stores.
+     *
      * @param {MediaStream} stream
      */
-    setUpZoom(stream) {
-        if (!this.videoPreviewRef.el) {
-            return;
-        }
-        const { height, width } = getComputedStyle(this.videoPreviewRef.el);
+    bindTrack(stream) {
         const [track] = stream.getVideoTracks();
         const settings = track?.getSettings();
         if (!settings?.width || !settings.height) {
             return;
         }
-        this.zoomRatio = Math.min(
+        this.streamSettings = settings;
+        this.addZoomSlider(track, settings);
+    }
+
+    /**
+     * Preview pixels per source pixel. Read at each use rather than stored: the
+     * preview element is sized by CSS and follows the viewport, while the
+     * source size is fixed for the life of the track.
+     *
+     * @returns {number}
+     */
+    get zoomRatio() {
+        const el = this.videoPreviewRef.el;
+        const settings = this.streamSettings;
+        if (!el || !settings?.width || !settings.height) {
+            return 1;
+        }
+        const { height, width } = getComputedStyle(el);
+        return Math.min(
             parseFloat(width) / settings.width,
             parseFloat(height) / settings.height,
         );
-        this.addZoomSlider(track, settings);
     }
 
     cleanStreamAndTimeout() {
@@ -275,11 +293,12 @@ export class BarcodeVideoScanner extends Component {
 
     adaptValuesWithRatio(domRect, dividerRatio = false) {
         const newObject = pick(domRect, "x", "y", "width", "height");
+        const ratio = this.zoomRatio;
         for (const key of Object.keys(newObject)) {
             if (dividerRatio) {
-                newObject[key] /= this.zoomRatio;
+                newObject[key] /= ratio;
             } else {
-                newObject[key] *= this.zoomRatio;
+                newObject[key] *= ratio;
             }
         }
         return newObject;

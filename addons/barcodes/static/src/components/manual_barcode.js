@@ -50,5 +50,8 @@ export class ManualBarcodeScanner extends BarcodeDialog {
         ...BarcodeDialog.components,
         BarcodeInput,
     };
-    static props = [...BarcodeDialog.props, "placeholder?"];
+    static props = {
+        ...BarcodeDialog.props,
+        placeholder: { type: String, optional: true },
+    };
 }

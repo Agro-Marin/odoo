@@ -588,14 +588,7 @@ export class AutoComplete extends Component {
     }
 
     get autoCompleteRootClass() {
-        let classList = "";
-        if (this.props.class) {
-            classList += this.props.class;
-        }
-        if (this.props.dropdown) {
-            classList += " dropdown";
-        }
-        return classList;
+        return mergeClasses(this.props.class, { dropdown: this.props.dropdown });
     }
 
     get ulDropdownClass() {

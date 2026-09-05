@@ -16,7 +16,12 @@ export class BarcodeDialog extends Component {
         BarcodeVideoScanner,
         Dialog,
     };
-    static props = ["facingMode", "close", "onResult", "onError"];
+    static props = {
+        facingMode: String,
+        close: Function,
+        onResult: Function,
+        onError: Function,
+    };
 
     /** @type {{ barcodeScannerSupported: boolean, errorMessage: string }} */
     state;

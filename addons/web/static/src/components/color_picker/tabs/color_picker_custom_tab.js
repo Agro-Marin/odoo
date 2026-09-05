@@ -18,7 +18,7 @@ export class ColorPickerCustomTab extends Component {
         onColorPointerOut: Function,
         onFocusin: Function,
         onFocusout: Function,
-        getUsedCustomColors: { type: Function, optional: true },
+        usedCustomColors: { type: Array, element: String },
         currentColorPreview: { type: String, optional: true },
         currentCustomColor: { type: String, optional: true },
         defaultColorSet: { type: [String, Boolean], optional: true },
@@ -30,11 +30,6 @@ export class ColorPickerCustomTab extends Component {
         setOperationCallbacks: { type: Function, optional: true },
         "*": { optional: true },
     };
-
-    setup() {
-        /** @type {string[]} */
-        this.usedCustomColors = this.props.getUsedCustomColors();
-    }
 
     /**
      * @param {string} color

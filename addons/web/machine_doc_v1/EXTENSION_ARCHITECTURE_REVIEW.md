@@ -248,7 +248,7 @@ Outside it, essentially nothing does:
 
 | tree | files with `@ts-check` |
 |---|---|
-| `addons/web` | 848 |
+| `addons/web` | 850 |
 | all other `odoo/addons` JS (4,997 files) | **40** |
 | `enterprise` | **10** |
 

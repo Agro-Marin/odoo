@@ -214,7 +214,7 @@ export class CropOverlay extends Component {
         this.calculateAndSetTransparentRect();
     }
 
-    pointerUp(event) {
+    pointerUp() {
         if (!this.isMoving) {
             return;
         }

@@ -40,10 +40,6 @@ export function isVideoElementReady(video) {
     return video ? video.readyState > HAVE_METADATA : false;
 }
 
-/**
- * @param {any} ZXing
- * @returns {typeof BarcodeDetector}
- */
 export class ZXingBarcodeDetector {
     static cropsAtSource = true;
 

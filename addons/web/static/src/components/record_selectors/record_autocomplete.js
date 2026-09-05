@@ -13,11 +13,13 @@ import {
     splitOverflow,
     webNameSearch,
 } from "@web/components/autocomplete/name_search";
+import { isAvatarModel } from "@web/components/record_selectors/avatar_models";
 import { Domain } from "@web/core/domain";
 import { ConnectionAbortedError } from "@web/core/network/rpc";
 import { getSelectCreateDialog } from "@web/core/record_dialog_port";
 import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { imageUrl } from "@web/core/utils/urls";
 
 export class RecordAutocomplete extends Component {
     static props = {
@@ -31,7 +33,6 @@ export class RecordAutocomplete extends Component {
         className: { type: String, optional: true },
         fieldString: { type: String, optional: true },
         placeholder: { type: String, optional: true },
-        slots: { optional: true },
     };
     static components = { AutoComplete };
     static template = "web.RecordAutocomplete";
@@ -55,9 +56,22 @@ export class RecordAutocomplete extends Component {
             {
                 placeholder: _t("Loading..."),
                 options: this.loadOptionsSource.bind(this),
-                optionSlot: this.props.slots?.autoCompleteItem ? "option" : undefined,
+                optionSlot: "option",
             },
         ];
+    }
+
+    /** @returns {boolean} */
+    get isAvatarModel() {
+        return isAvatarModel(this.props.resModel);
+    }
+
+    /**
+     * @param {number} resId
+     * @returns {string}
+     */
+    avatarUrl(resId) {
+        return imageUrl(this.props.resModel, resId, "avatar_128");
     }
 
     /**

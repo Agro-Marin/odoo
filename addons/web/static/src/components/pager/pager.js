@@ -95,12 +95,9 @@ export class Pager extends Component {
         let minimum = this.props.offset + this.props.limit * direction;
         let total = this.props.total;
         if (this.props.updateTotal && minimum < 0) {
-            this.state.isDisabled = true;
-            try {
+            await this.whileDisabled(async () => {
                 total = await this.props.updateTotal();
-            } finally {
-                this.state.isDisabled = false;
-            }
+            });
         }
         if (minimum >= total) {
             if (!this.props.updateTotal) {
@@ -153,25 +150,29 @@ export class Pager extends Component {
      * @param {boolean} [hasNavigated]
      */
     async update(offset, limit, hasNavigated) {
-        if (this.state.isDisabled) {
-            return;
-        }
-        this.state.isDisabled = true;
-        try {
-            await this.props.onUpdate({ offset, limit }, hasNavigated);
-        } finally {
-            this.state.isDisabled = false;
-            this.state.isEditing = false;
-        }
+        await this.whileDisabled(async () => {
+            try {
+                await this.props.onUpdate({ offset, limit }, hasNavigated);
+            } finally {
+                this.state.isEditing = false;
+            }
+        });
     }
 
     async updateTotal() {
+        await this.whileDisabled(() => this.props.updateTotal());
+    }
+
+    /**
+     * @param {() => Promise<any> | any} operation
+     */
+    async whileDisabled(operation) {
         if (this.state.isDisabled) {
             return;
         }
         this.state.isDisabled = true;
         try {
-            await this.props.updateTotal();
+            await operation();
         } finally {
             this.state.isDisabled = false;
         }

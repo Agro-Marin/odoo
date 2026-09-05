@@ -4,7 +4,7 @@
         <div class="o_colorpicker_section" t-on-click="props.onColorClick"
             t-on-mouseover="props.onColorPointerOver" t-on-mouseout="props.onColorPointerOut"
             t-on-focusin="props.onFocusin" t-on-focusout="props.onFocusout">
-            <t t-foreach="usedCustomColors" t-as="color" t-key="color_index">
+            <t t-foreach="props.usedCustomColors" t-as="color" t-key="color_index">
                 <button t-if="color.toLowerCase() !== props.currentCustomColor?.toLowerCase()"
                     class="o_color_button o_color_picker_button btn p-0" t-att-data-color="color"
                     t-attf-style="background-color: {{color}}"/>
