@@ -327,16 +327,40 @@ class ApprovalDashboard(models.Model):
         metrics_model = self.env["approval.metrics"]
         performance_model = self.env["approver.performance"]
 
-        for dashboard in self:
-            slowest_category = metrics_model.search_read(
-                [
-                    ("avg_approval_hours", ">", 0),
-                ],
-                ["category_id", "avg_approval_hours"],
-                order="avg_approval_hours desc",
-                limit=1,
-            )
+        slowest_category = metrics_model.search_read(
+            [
+                ("avg_approval_hours", ">", 0),
+            ],
+            ["category_id", "avg_approval_hours"],
+            order="avg_approval_hours desc",
+            limit=1,
+        )
 
+        slowest_approver = next(
+            iter(
+                performance_model.search_read(
+                    [("avg_response_hours", ">", 0)],
+                    ["user_id", "avg_response_hours"],
+                    order="avg_response_hours desc",
+                    limit=1,
+                ),
+            ),
+            None,
+        )
+
+        most_pending = next(
+            iter(
+                performance_model.search_read(
+                    [("pending_count", ">", 0)],
+                    ["user_id", "pending_count"],
+                    order="pending_count desc",
+                    limit=1,
+                ),
+            ),
+            None,
+        )
+
+        for dashboard in self:
             if slowest_category:
                 row = slowest_category[0]
                 dashboard.slowest_category_id = (
@@ -346,18 +370,6 @@ class ApprovalDashboard(models.Model):
             else:
                 dashboard.slowest_category_id = False
                 dashboard.slowest_category_hours = 0.0
-
-            slowest_approver = next(
-                iter(
-                    performance_model.search_read(
-                        [("avg_response_hours", ">", 0)],
-                        ["user_id", "avg_response_hours"],
-                        order="avg_response_hours desc",
-                        limit=1,
-                    ),
-                ),
-                None,
-            )
 
             if slowest_approver:
                 dashboard.slowest_approver_id = (
@@ -369,18 +381,6 @@ class ApprovalDashboard(models.Model):
             else:
                 dashboard.slowest_approver_id = False
                 dashboard.slowest_approver_hours = 0.0
-
-            most_pending = next(
-                iter(
-                    performance_model.search_read(
-                        [("pending_count", ">", 0)],
-                        ["user_id", "pending_count"],
-                        order="pending_count desc",
-                        limit=1,
-                    ),
-                ),
-                None,
-            )
 
             if most_pending:
                 dashboard.most_pending_approver_id = (
