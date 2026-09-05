@@ -39,9 +39,9 @@ class AccountPaymentChannel(models.Model):
     @api.depends("journal_id")
     @api.depends_context("hide_payment_journal_id")
     def _compute_display_name(self):
+        if self.env.context.get("hide_payment_journal_id"):
+            return super()._compute_display_name()
         for method in self:
-            if self.env.context.get("hide_payment_journal_id"):
-                return super()._compute_display_name()
             method.display_name = f"{method.name} ({method.journal_id.name})"
         return None
 
