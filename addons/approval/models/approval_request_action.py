@@ -272,9 +272,7 @@ class ApprovalRequestAction(models.Model):
                 cancel_activities=True,
             )
             if not self.approve_sequentially:
-                self.approver_ids.sudo().filtered(
-                    lambda a: a.state not in self._TERMINAL_STATES,
-                ).write({"state": "refused"})
+                self._flip_unsettled_approvers("refused")
         self._get_user_approval_activities(user=acting_user).sudo().action_feedback()
         if self.state in self._TERMINAL_STATES:
             self._cancel_activities()

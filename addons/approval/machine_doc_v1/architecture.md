@@ -365,10 +365,11 @@ model's mapping and is picked up here automatically.
 **Purity (19.0.1.0.17).** `_compute_desired_approvers()` is now
 genuinely write-free: the `applied_rule_ids` write that hid inside
 `_get_additional_approvers()` moved up to `_sync_approvers`, which
-persists the `matched_rules` the decision step returns as its 5th
-element. The matching `add_approver` rules are evaluated once per
-request by `_matched_add_approver_rules()` and shared with the
-provenance mapping, instead of each running its own identical pass.
+persists the `matched_rules` the decision step returns on its
+`DesiredApprovers` result. The matching `add_approver` rules are evaluated
+once per request by `_matched_add_approver_rules()` and that one set feeds
+the staging merge, the provenance mapping and `applied_rule_ids`;
+`_get_additional_approvers()` is an extension hook only.
 
 ```
 _sync_approvers()   [batch-level]
@@ -382,10 +383,10 @@ _sync_approvers()   [batch-level]
     |   +-- Rows always stage as 'new' — the sync is DRAFT-ONLY
     |   |       (state == 'new' filter; every trigger is a draft write
     |   |       or reset-to-draft; mid-flight staging removed, SM-5)
-    |   +-- _get_additional_approvers() -> extension hook
-    |   |   +-- Evaluates add_approver rules (via prefetched rule_ids)
-    |   |       (returns tuples only — the applied_rule_ids write moved
-    |   |        OUT to _sync_approvers in 19.0.1.0.17; see Purity above)
+    |   +-- _matched_add_approver_rules() -> add_approver rules, evaluated once
+    |   +-- _get_additional_approvers() -> extension hook (base: [])
+    |   |       (returns tuples only — the applied_rule_ids write lives
+    |   |        in _sync_approvers since 19.0.1.0.17; see Purity above)
     |   +-- If group_approval != "exclusive":
     |   |   +-- _find_matching_replacement() -> its approvers REPLACE the category's
     |   |   +-- OR standard category approvers (category.approver_ids)
@@ -580,7 +581,7 @@ Rules evaluate conditions and take actions:
   `amount` is converted into the rule's `currency_id` first
 - Applies operator (gt, gte, lt, lte, eq, neq) against threshold
   (float equality uses `_FLOAT_EQ_ABS_TOL` / `_FLOAT_EQ_REL_TOL`)
-- `add_approver` rules evaluated in `_get_additional_approvers()` (during `_sync_approvers`)
+- `add_approver` rules evaluated once per sync in `_matched_add_approver_rules()` and merged by `_compute_desired_approvers()`
 - `auto_approve`/`auto_refuse` rules evaluated in `_check_auto_action_rules()` (during `action_confirm`)
 
 ### Escalation Pipeline

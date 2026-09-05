@@ -1,10 +1,29 @@
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 
 from odoo import api, models
 from odoo.exceptions import MissingError
 
 _logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DesiredApprovers:
+    staging: dict[int, dict]
+    existing_by_user: dict[int, Any]
+    duplicates: list[Any]
+    replacement: Any
+    matched_rules: Any
+    superseded_delegations: Any
+    to_create: dict[int, dict] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        self.to_create = {
+            user_id: vals
+            for user_id, vals in self.staging.items()
+            if user_id not in self.existing_by_user
+        }
 
 
 class ApprovalRequestHelper(models.Model):
@@ -89,10 +108,7 @@ class ApprovalRequestHelper(models.Model):
 
     def _get_additional_approvers(self) -> list[tuple[int, bool, int]]:
         self.check_singleton()
-        result: list[tuple[int, bool, int]] = []
-        for rule in self._matched_add_approver_rules():
-            result.extend(rule._get_approver_tuples())
-        return result
+        return []
 
     def _applied_rule_ids_after_sync(self, matched_rules):
         self.check_singleton()
@@ -194,7 +210,7 @@ class ApprovalRequestHelper(models.Model):
                 return True
 
             if rule.action_type == "auto_refuse":
-                self._flip_non_terminal_approvers("refused")
+                self._flip_unsettled_approvers("refused")
                 self._stamp_refusal_metadata(
                     self.env.ref("approval.refusal_reason_auto_rule"),
                     self.env._(
@@ -338,10 +354,11 @@ class ApprovalRequestHelper(models.Model):
         members = ", ".join(f"'{state}'" for state in sorted(self._DECISION_STATES))
         return f"({members})"
 
-    def _flip_non_terminal_approvers(self, new_state: str) -> None:
+    def _flip_unsettled_approvers(self, new_state: str) -> None:
         self.check_singleton()
+        settled = self.approver_ids._SETTLED_STATES
         self.approver_ids.sudo().filtered(
-            lambda a, terminal=self._TERMINAL_STATES: a.state not in terminal,
+            lambda a: a.state not in settled,
         ).write({"state": new_state})
 
     def _stamp_refusal_metadata(
@@ -376,7 +393,7 @@ class ApprovalRequestHelper(models.Model):
             if request.state in request._TERMINAL_STATES:
                 continue
             old_state = request.state
-            request._flip_non_terminal_approvers(new_state)
+            request._flip_unsettled_approvers(new_state)
             request._stamp_refusal_metadata(refusal_reason, refusal_note)
             request._cancel_activities()
             request._close_pending_change()
@@ -451,24 +468,22 @@ class ApprovalRequestHelper(models.Model):
         group_sequence = self._get_sequence_group()
 
         for request in self:
-            (
-                approver_staging,
-                users_to_approver,
-                duplicate_approvers_to_delete,
-                replacement,
-                matched_rules,
-                superseded_delegations,
-            ) = request._compute_desired_approvers(group_sequence)
+            desired = request._compute_desired_approvers(group_sequence)
+            approver_staging = desired.staging
+            users_to_approver = desired.existing_by_user
+            replacement = desired.replacement
 
-            if superseded_delegations:
-                request._retire_superseded_delegations(superseded_delegations)
+            if desired.superseded_delegations:
+                request._retire_superseded_delegations(desired.superseded_delegations)
 
-            desired_applied = request._applied_rule_ids_after_sync(matched_rules)
+            desired_applied = request._applied_rule_ids_after_sync(
+                desired.matched_rules
+            )
             if desired_applied != request.applied_rule_ids:
                 request.applied_rule_ids = desired_applied
 
             rows_to_delete.extend(
-                dup_approver.id for dup_approver in duplicate_approvers_to_delete
+                dup_approver.id for dup_approver in desired.duplicates
             )
 
             for user_id, vals in approver_staging.items():
@@ -539,24 +554,20 @@ class ApprovalRequestHelper(models.Model):
 
     def _extend_approvers_live_one(self, group_sequence: int) -> models.BaseModel:
         self.check_singleton()
-        (
-            approver_staging,
-            users_to_approver,
-            _duplicate_approvers,
-            replacement,
-            matched_rules,
-            superseded_delegations,
-        ) = self._compute_desired_approvers(group_sequence)
+        desired = self._compute_desired_approvers(group_sequence)
+        replacement = desired.replacement
+        matched_rules = desired.matched_rules
+        superseded_delegations = desired.superseded_delegations
 
         missing = {
             user_id: vals
-            for user_id, vals in approver_staging.items()
-            if user_id not in users_to_approver and vals.get("source_rule_id")
+            for user_id, vals in desired.to_create.items()
+            if vals.get("source_rule_id")
         }
         kept_orphans = [
             approver
-            for user_id, approver in users_to_approver.items()
-            if user_id not in approver_staging
+            for user_id, approver in desired.existing_by_user.items()
+            if user_id not in desired.staging
         ]
         if kept_orphans:
             _logger.info(
@@ -765,10 +776,7 @@ class ApprovalRequestHelper(models.Model):
                 message_type="notification",
             )
 
-    def _compute_desired_approvers(
-        self,
-        group_sequence: int,
-    ) -> tuple[dict[int, dict], dict[int, Any], list[Any], Any, Any, Any]:
+    def _compute_desired_approvers(self, group_sequence: int) -> DesiredApprovers:
         self.check_singleton()
         users_to_approver: dict[int, Any] = {}
         duplicate_approvers_to_delete: list[Any] = []
@@ -782,6 +790,12 @@ class ApprovalRequestHelper(models.Model):
         approver_staging: dict[int, dict] = {}
 
         matched_rules = self._matched_add_approver_rules()
+
+        for rule in matched_rules:
+            for user_id, required, sequence in rule._get_approver_tuples():
+                self._merge_approver_to_staging(
+                    approver_staging, user_id, required, sequence
+                )
 
         for user_id, required, sequence in self._get_additional_approvers():
             self._merge_approver_to_staging(
@@ -857,13 +871,13 @@ class ApprovalRequestHelper(models.Model):
             ),
         )
 
-        return (
-            approver_staging,
-            users_to_approver,
-            duplicate_approvers_to_delete,
-            replacement,
-            matched_rules,
-            superseded_delegations,
+        return DesiredApprovers(
+            staging=approver_staging,
+            existing_by_user=users_to_approver,
+            duplicates=duplicate_approvers_to_delete,
+            replacement=replacement,
+            matched_rules=matched_rules,
+            superseded_delegations=superseded_delegations,
         )
 
     @api.model
@@ -905,9 +919,10 @@ class ApprovalRequestHelper(models.Model):
             anchor = min(
                 ((a.sequence, a.id) for a in current_approver),
             )
+            settled = approval.approver_ids._SETTLED_STATES
             approvers_to_update = approval.approver_ids.filtered(
-                lambda a, anchor=anchor: (
-                    a.state not in self._TERMINAL_STATES and (a.sequence, a.id) > anchor
+                lambda a, anchor=anchor, settled=settled: (
+                    a.state not in settled and (a.sequence, a.id) > anchor
                 ),
             ).sorted(lambda a: (a.sequence, a.id))
             if only_next_approver and approvers_to_update:

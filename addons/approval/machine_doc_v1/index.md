@@ -253,7 +253,7 @@ Request states: `new`, `pending`, `approved`, `refused`, `cancelled`.
 That difference is a reporting contract, not just prose: the sibling
 `_DECISION_STATES = frozenset({"approved", "refused"})` is what every
 approval-RATE denominator divides by (`approval.metrics.approval_rate`,
-`approval.dashboard.overall_approval_rate`, `_compute_outcome_prediction`),
+`approval.dashboard.overall_approval_rate`, `_predict_outcomes`),
 so a retraction never counts as a vote against a request.
 All three terminals are recoverable via `action_reset_to_draft()` — the two
 failure terminals by the owner or a manager, and `approved` by a manager only

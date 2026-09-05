@@ -87,7 +87,7 @@ class MixinApproval(models.AbstractModel):
                 company_id = record.company_id.id if record.company_id else False
             key = (repr(record._get_domain_approval_category()), company_id)
             if key not in cache:
-                cache[key] = bool(record._get_approval_category())
+                cache[key] = bool(record._find_approval_category())
             record.approval_required = cache[key]
 
     @api.depends("approval_request_id", "approval_required")
@@ -352,34 +352,39 @@ class MixinApproval(models.AbstractModel):
     def _get_domain_approval_category(self) -> list[Any]:
         return []
 
-    def _get_approval_category(self) -> "ApprovalCategory | bool":  # noqa: UP037 — ORM methods are runtime-introspected (api_doc, /json/2); the TYPE_CHECKING import means the class isn't in the runtime namespace, so the annotation must stay quoted.
+    def _get_candidate_approval_categories(self) -> "ApprovalCategory":  # noqa: UP037 — ORM methods are runtime-introspected (api_doc, /json/2); the TYPE_CHECKING import means the class isn't in the runtime namespace, so the annotation must stay quoted.
         self.check_singleton()
         domain = self._get_domain_approval_category()
         if not domain:
-            return False
+            return self.env["approval.category"]
 
         company_id = False
         if "company_id" in self._fields:
             company_id = self.company_id.id if self.company_id else False
 
-        categories = self.env["approval.category"].search(
-            domain
-            + [
-                ("company_id", "in", (company_id, False)),
-            ],
+        return self.env["approval.category"].search(
+            domain + [("company_id", "in", (company_id, False))],
         )
-        if not categories:
-            self._raise_approval_category_not_configured()
-            return False
 
+    def _find_approval_category(self) -> "ApprovalCategory":  # noqa: UP037 — see _get_candidate_approval_categories.
+        self.check_singleton()
+        categories = self._get_candidate_approval_categories()
         for category in categories:
             if category._is_applicable_for(self):
                 return category
+        return self._get_approval_category_fallback(categories)
 
-        fallback = self._get_approval_category_fallback(categories)
-        if fallback:
-            return fallback
-
+    def _get_approval_category(self) -> "ApprovalCategory | bool":  # noqa: UP037 — see _get_candidate_approval_categories.
+        self.check_singleton()
+        if not self._get_domain_approval_category():
+            return False
+        categories = self._get_candidate_approval_categories()
+        if not categories:
+            self._raise_approval_category_not_configured()
+            return False
+        category = self._find_approval_category()
+        if category:
+            return category
         self._raise_approval_category_not_matched(categories)
         return False
 

@@ -268,8 +268,6 @@ so category names are unique per company, archived rows included.
 | `template_id` | Many2one(`approval.template`) | Yes | No | readonly, copy=False, index=btree_not_null |
 | `applied_rule_ids` | Many2many(`approval.rule`) | Yes | No | readonly, copy=False (cleared by reset-to-draft) |
 | `category_snapshot` | Json | Yes | No | readonly, copy=False (built at confirm; cleared by reset-to-draft) |
-| `predicted_outcome` | Selection(approve/refuse/uncertain) | No | No | compute (batched, memoised per category+partner; historic amounts converted into the request's currency before matching) |
-| `prediction_confidence` | Float | No | No | compute |
 | `res_model` | Char | Yes | No | readonly, index |
 | `res_id` | Many2oneReference | Yes | No | model_field=res_model, readonly |
 | `res_model_id` | Many2one(`ir.model`) | Yes | No | compute, store |
@@ -327,7 +325,7 @@ requester re-submits (`action_resubmit`).
 | `_compute_sla_status()` / `_search_sla_status()` | compute.py | Non-stored SLA status + SQL search (CASE mirrors the compute) |
 | `_compute_approval_deadline()` / `_get_snapshot_config()` | compute.py | Deadline from config frozen at confirm |
 | `_compute_date_approval_granted/refused/cancelled()` | compute.py | Append-only terminal-date stamps (cleared on state=`new`) |
-| `_compute_outcome_prediction()` | compute.py | Historical pattern-based prediction (batched) |
+| `_predict_outcomes()` / `action_predict_outcome()` | compute.py | On-demand outcome prediction from comparable decided requests (batched, memoised per category+partner). A button, not a field: computing it on every form read cost a bucket search per load and depended on the reader's record rules |
 | `action_confirm()` | action.py | Draft only: validate, assign sequence name, snapshot, stamp date_confirmed, auto-rules, start workflow |
 | `action_approve()` | action.py | Guard pending-change, then `_apply_decision("approve")` |
 | `action_refuse()` | action.py | Header path opens decision wizard; inline path `_apply_decision("refuse")` |
@@ -343,14 +341,14 @@ requester re-submits (`action_resubmit`).
 | `action_view_to_review()` | action.py | Pending-review inbox, includes requests delegated TO the user |
 | `_refuse_approval_request()` | action.py | No-op anchor for cooperative document rollback (account/purchase/sale override) |
 | `_sync_approvers()` | helper.py | **Core engine**: reconcile approver rows from all sources (write step) |
-| `_compute_desired_approvers()` | helper.py | Pure decision step of the sync (no writes, unit-testable) |
+| `_compute_desired_approvers()` | helper.py | Pure decision step of the sync (no writes, unit-testable); returns a `DesiredApprovers` dataclass |
 | `_force_terminal()` | helper.py | Non-decision termination funnel (cancel/expire/cascade); preserves terminal approver rows, stamps refusal metadata |
 | `_notify_if_terminal_transition()` | helper.py | Fire source-doc hook once on entering a terminal state |
 | `_lock_for_approval_action()` | helper.py | SELECT FOR UPDATE to prevent race conditions |
 | `_update_next_approvers_state()` | helper.py | Sequential propagation; anchors on min (sequence,id) of the acting rows; never re-promotes terminal rows |
 | `_check_auto_action_rules()` | helper.py | Auto-approve/refuse rules; auto-refuse stamps `refusal_reason_auto_rule` metadata |
 | `_find_matching_replacement()` | helper.py | The first `set_approvers` rule this request falls into, by `(sequence, id)` (via prefetched `category_id.rule_ids`) |
-| `_get_additional_approvers()` | helper.py | Extension hook + add_approver rule evaluation (via prefetched `rule_ids`) |
+| `_get_additional_approvers()` | helper.py | Extension hook only (base returns `[]`); `add_approver` rules are merged by `_compute_desired_approvers` from the one `_matched_add_approver_rules()` evaluation |
 | `_get_escalation_rules()` | helper.py | `ESCALATION_RULES` defaults + `approval.escalation.<priority>.<kind>` ir.config_parameter overrides |
 | `_get_escalation_manager()` | helper.py | Hook: manager to escalate to (base returns empty; approval_hr overrides) |
 | `_build_category_snapshot()` | helper.py | Audit snapshot incl. `effective_*` keys and the matched replacing rule |
@@ -502,6 +500,7 @@ so the comparison is never raw.
 | `_get_approval_request_name()` | **Override**: customize request name |
 | `_prepare_approval_request_values()` | **Override**: customize request creation values |
 | `_on_approval_state_changed()` | **Dispatcher — do NOT override.** Routes to `_on_approval_approved` / `_on_approval_refused` / `_on_approval_cancelled` / `_on_approval_revoked` / `_on_approval_reset`. Base posts a chatter note per state; for the `pending` revocation it also schedules a To-Do for the responsible user on activity-enabled models. See conventions.md |
+| `_find_approval_category()` | The lookup that never raises: candidates by domain + company, first `_is_applicable_for`, then the fallback. What `_compute_approval_required` reads |
 | `_get_approval_category()` | Find matching category (uses domain + company). Owns the whole selection algorithm; supply `_get_domain_approval_category()`, `approval.category._is_applicable_for()`, `_get_approval_category_fallback()` and the two `_raise_*` hooks instead of overriding it |
 | `_approval_side_effect(failure_note)` | Context manager wrapping any document-advancing call made from a hook: savepoint + `UserError`/`ValidationError` catch + chatter note. Hooks run inside the approver's transaction — do not hand-roll this |
 | `_approval_decider_names(state)` | The filter-and-join over `approver_ids` that opens a decision message |

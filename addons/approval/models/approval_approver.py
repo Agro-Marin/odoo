@@ -13,6 +13,8 @@ class ApprovalApprover(models.Model):
     _order = "sequence, id"
     _check_company_auto = True
 
+    _SETTLED_STATES = frozenset({"approved", "refused", "cancelled"})
+
     _request_user_uniq = models.Constraint(
         "unique(request_id, user_id)",
         "You cannot assign the same approver multiple times on the same request.",

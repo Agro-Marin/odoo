@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.exceptions import ValidationError
@@ -532,3 +533,31 @@ class TestRuleScopeFollowsCategory(ApprovalCommon):
         )
         self.assertFalse(rule.company_id)
         self.assertEqual(rule.currency_id, self.env.company.currency_id)
+
+
+class TestRulesAreEvaluatedOnce(ApprovalCommon):
+    def test_one_evaluation_per_add_approver_rule_per_sync(self):
+        category = self._make_category(name="Once", approvers=[self.approver_1])
+        self.env["approval.rule"].create(
+            {
+                "name": "adds two",
+                "category_id": category.id,
+                "condition_field": "amount",
+                "operator": "gt",
+                "threshold": 1,
+                "action_type": "add_approver",
+                "approver_ids": [(4, self.approver_2.id)],
+            }
+        )
+        rule_cls = self.env.registry["approval.rule"]
+        calls = []
+        original = rule_cls._evaluate
+
+        def counting(rule, request):
+            calls.append(rule.id)
+            return original(rule, request)
+
+        with patch.object(rule_cls, "_evaluate", counting):
+            request = self._prepare_request(category, confirm=False, amount=50)
+        self.assertEqual(len(calls), 1)
+        self.assertIn(self.approver_2, request.approver_ids.user_id)

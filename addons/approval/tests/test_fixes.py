@@ -1,9 +1,5 @@
-from unittest.mock import patch
-
 from odoo.exceptions import UserError
 from odoo.tests import common, tagged
-
-from odoo.addons.approval.models import ir_attachment as ir_attachment_module
 
 
 @tagged("post_install", "-at_install")
@@ -129,27 +125,17 @@ class TestAttachmentUnlinkProtection(common.TransactionCase):
         self.assertEqual(request.state, "approved")
         return attachment
 
-    def test_attachment_exempt_only_write_allowed_in_terminal(self):
-        attachment = self._terminal_attachment("Exempt Write OK")
-        with patch.object(
-            ir_attachment_module,
-            "_APPROVAL_LOCK_EXEMPT_FIELDS",
-            frozenset({"description"}),
-        ):
-            attachment.write({"description": "mirror bookkeeping probe"})
-        self.assertEqual(attachment.description, "mirror bookkeeping probe")
+    def test_attachment_storage_bookkeeping_write_allowed_in_terminal(self):
+        attachment = self._terminal_attachment("Bookkeeping Write OK")
+        attachment.write({"access_token": "storage-bookkeeping-probe"})
+        self.assertEqual(attachment.access_token, "storage-bookkeeping-probe")
 
     def test_attachment_mixed_write_blocked_in_terminal(self):
         attachment = self._terminal_attachment("Mixed Write Block")
-        with (
-            patch.object(
-                ir_attachment_module,
-                "_APPROVAL_LOCK_EXEMPT_FIELDS",
-                frozenset({"description"}),
-            ),
-            self.assertRaises(UserError),
-        ):
-            attachment.write({"description": "probe", "name": "renamed.pdf"})
+        with self.assertRaises(UserError):
+            attachment.write({"access_token": "probe", "name": "renamed.pdf"})
+        with self.assertRaises(UserError):
+            attachment.write({"description": "content changed"})
 
     def test_attachment_s3_mirror_flags_write_allowed_in_terminal(self):
         if "s3_mirror_pending" not in self.env["ir.attachment"]._fields:

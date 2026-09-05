@@ -65,8 +65,8 @@ class TestApprovalInsights(common.TransactionCase):
 
     def test_prediction_uncertain_with_no_history(self):
         request = self._create_request(amount=500.0)
-        self.assertEqual(request.predicted_outcome, "uncertain")
-        self.assertEqual(request.prediction_confidence, 0.0)
+        self.assertEqual(request._predict_outcome()[0], "uncertain")
+        self.assertEqual(request._predict_outcome()[1], 0.0)
 
     def test_prediction_approve_with_strong_history(self):
         for _ in range(4):
@@ -74,8 +74,8 @@ class TestApprovalInsights(common.TransactionCase):
         self._create_and_refuse(amount=500.0)
 
         request = self._create_request(amount=500.0)
-        self.assertEqual(request.predicted_outcome, "approve")
-        self.assertGreaterEqual(request.prediction_confidence, 0.75)
+        self.assertEqual(request._predict_outcome()[0], "approve")
+        self.assertGreaterEqual(request._predict_outcome()[1], 0.75)
 
     def test_prediction_refuse_with_rejection_history(self):
         self._create_and_approve(amount=500.0)
@@ -83,12 +83,12 @@ class TestApprovalInsights(common.TransactionCase):
             self._create_and_refuse(amount=500.0)
 
         request = self._create_request(amount=500.0)
-        self.assertEqual(request.predicted_outcome, "refuse")
-        self.assertGreaterEqual(request.prediction_confidence, 0.75)
+        self.assertEqual(request._predict_outcome()[0], "refuse")
+        self.assertGreaterEqual(request._predict_outcome()[1], 0.75)
 
     def test_prediction_skipped_for_terminal_states(self):
         request = self._create_and_approve(amount=500.0)
-        self.assertFalse(request.predicted_outcome)
+        self.assertFalse(request._predict_outcome()[0])
 
     def test_snapshot_captured_on_confirm(self):
         request = self._create_request(amount=100.0)
@@ -150,12 +150,12 @@ class TestApprovalInsightsAuditRegressions(ApprovalCommon):
         self.env.flush_all()
 
         queries_before = self.env.cr.sql_log_count
-        requests.mapped("predicted_outcome")
+        requests._predict_outcomes()
         queries_issued = self.env.cr.sql_log_count - queries_before
         self.assertLessEqual(
             queries_issued,
             3,
-            f"Reading predicted_outcome on 5 requests issued "
+            f"Predicting 5 requests issued "
             f"{queries_issued} queries; the batched compute should "
             f"cache per-(category, partner) and keep this close to 1.",
         )
@@ -189,7 +189,7 @@ class TestPredictionExcludesNonDecisions(ApprovalCommon):
     def _prediction_for_a_new_request(self):
         request = self._prepare_request(self.category, confirm=False, amount=100.0)
         request.invalidate_recordset()
-        return request.predicted_outcome, request.prediction_confidence
+        return request._predict_outcome()[0], request._predict_outcome()[1]
 
     def test_cancellations_do_not_dilute_a_clean_approval_record(self):
         for _ in range(5):
@@ -247,7 +247,7 @@ class TestPredictionOnNegativeAmounts(ApprovalCommon):
     def _prediction_for(self, amount):
         request = self._prepare_request(self.category, confirm=False, amount=amount)
         request.invalidate_recordset()
-        return request.predicted_outcome, request.prediction_confidence
+        return request._predict_outcome()[0], request._predict_outcome()[1]
 
     def test_negative_amounts_predict_from_their_own_history(self):
         for _ in range(5):

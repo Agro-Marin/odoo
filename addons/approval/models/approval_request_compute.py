@@ -333,8 +333,17 @@ class ApprovalRequestCompute(models.Model):
                 (approved_count / total_count) * 100.0 if total_count else 0.0
             )
 
-    @api.depends("category_id", "amount", "currency_id", "partner_id", "state")
-    def _compute_outcome_prediction(self) -> None:
+    _PREDICTION_LABELS = {
+        "approve": "Likely approved",
+        "refuse": "Likely refused",
+        "uncertain": "Uncertain",
+    }
+
+    def _predict_outcome(self) -> tuple[str | bool, float]:
+        self.check_singleton()
+        return self._predict_outcomes()[self.id]
+
+    def _predict_outcomes(self) -> dict[int, tuple[str | bool, float]]:
         stats_cache: dict[tuple[int, int], list] = {}
 
         def _fetch_bucket(category_id: int, partner_id: int) -> list:
@@ -356,10 +365,10 @@ class ApprovalRequestCompute(models.Model):
             stats_cache[cache_key] = rows
             return rows
 
+        predictions: dict[int, tuple[str | bool, float]] = {}
         for request in self:
             if request.state in self._TERMINAL_STATES:
-                request.predicted_outcome = False
-                request.prediction_confidence = 0.0
+                predictions[request.id] = (False, 0.0)
                 continue
 
             rows = _fetch_bucket(
@@ -380,22 +389,45 @@ class ApprovalRequestCompute(models.Model):
             ][:20]
 
             if len(similar) < 3:
-                request.predicted_outcome = "uncertain"
-                request.prediction_confidence = 0.0
+                predictions[request.id] = ("uncertain", 0.0)
                 continue
 
             approved = sum(1 for r in similar if r["state"] == "approved")
             rate = approved / len(similar)
 
             if rate >= 0.75:
-                request.predicted_outcome = "approve"
-                request.prediction_confidence = rate
+                predictions[request.id] = ("approve", rate)
             elif rate <= 0.25:
-                request.predicted_outcome = "refuse"
-                request.prediction_confidence = 1.0 - rate
+                predictions[request.id] = ("refuse", 1.0 - rate)
             else:
-                request.predicted_outcome = "uncertain"
-                request.prediction_confidence = 0.0
+                predictions[request.id] = ("uncertain", 0.0)
+        return predictions
+
+    def action_predict_outcome(self) -> dict[str, Any]:
+        self.check_singleton()
+        outcome, confidence = self._predict_outcome()
+        if not outcome:
+            message = self.env._("This request is already decided.")
+        elif outcome == "uncertain":
+            message = self.env._(
+                "Not enough comparable decided requests to predict an outcome."
+            )
+        else:
+            message = self.env._(
+                "%(label)s (%(confidence)d%% of comparable requests went this way).",
+                label=self.env._(self._PREDICTION_LABELS[outcome]),
+                confidence=round(confidence * 100),
+            )
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": self.env._("Outcome prediction"),
+                "message": message,
+                "type": "info",
+                "sticky": False,
+            },
+        }
 
     def _prediction_amount_in_own_currency(self, row: dict) -> float:
         self.check_singleton()

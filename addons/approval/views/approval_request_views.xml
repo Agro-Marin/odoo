@@ -301,14 +301,17 @@
                         string="Print"
                         type="action"
                         invisible="state != 'approved'" />
+                    <button
+                        name="action_predict_outcome"
+                        string="Predict Outcome"
+                        type="object"
+                        invisible="is_terminal or not id" />
                     <field
                         name="state"
                         widget="statusbar"
                         statusbar_visible="new,pending,approved" />
                 </header>
                 <sheet>
-                    <field name="predicted_outcome" invisible="1" />
-                    <field name="prediction_confidence" invisible="1" />
                     <field name="sla_status" invisible="1" />
                     <field name="pending_change_field" invisible="1" />
                     <div
@@ -329,26 +332,6 @@
                         <strong>Change requested</strong>
                         on <field name="pending_change_field" class="d-inline" readonly="1" />.
                         Update the field and press <em>Re-submit</em>. See the chatter for the approver's instructions.
-                    </div>
-                    <div
-                        class="alert alert-info"
-                        role="alert"
-                        invisible="predicted_outcome in (False, 'uncertain') or state not in ('new', 'pending') or pending_change_field">
-                        <strong>Prediction: </strong>
-                        <span
-                            invisible="predicted_outcome != 'approve'"
-                            class="text-success">
-                            Likely Approved
-                        </span>
-                        <span
-                            invisible="predicted_outcome != 'refuse'"
-                            class="text-danger">
-                            Likely Refused
-                        </span>
-                        <span class="text-muted ms-1">
-                            (<field name="prediction_confidence" widget="percentage" class="d-inline" /> confidence
-                            based on similar requests)
-                        </span>
                     </div>
                     <field name="has_date" invisible="1" />
                     <field name="has_date_deadline" invisible="1" />

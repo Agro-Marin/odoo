@@ -364,20 +364,6 @@ class ApprovalRequest(models.Model):
         help="Snapshot of category configuration at confirmation time",
     )
 
-    predicted_outcome = fields.Selection(
-        selection=[
-            ("approve", "Likely Approved"),
-            ("refuse", "Likely Refused"),
-            ("uncertain", "Uncertain"),
-        ],
-        compute="_compute_outcome_prediction",
-        help="Prediction based on similar historical requests",
-    )
-    prediction_confidence = fields.Float(
-        compute="_compute_outcome_prediction",
-        help="Confidence score (0-1) for the predicted outcome",
-    )
-
     res_model = fields.Char(
         readonly=True,
         index=True,

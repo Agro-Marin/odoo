@@ -693,7 +693,7 @@ class TestApproverSyncTriggerFields(ApprovalCommon):
             "the caller persists what it returns.",
         )
         self.assertEqual(
-            result[4],
+            result.matched_rules,
             rule,
             "It must hand the matched rules back so the caller can "
             "persist them without evaluating every rule a second time.",

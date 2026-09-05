@@ -331,7 +331,7 @@ class TestPredictionIsCurrencyAware(ApprovalCommon):
             category, confirm=False, amount=1000.0, currency_id=eur.id
         )
         self.assertEqual(
-            probe.predicted_outcome,
+            probe._predict_outcome()[0],
             "uncertain",
             "EUR 1000 is USD 250 at this rate and must not match a history "
             "of USD 1000 approvals: every other amount comparison in the "

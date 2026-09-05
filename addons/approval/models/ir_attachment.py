@@ -1,7 +1,21 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
-_APPROVAL_LOCK_EXEMPT_FIELDS = frozenset({"s3_blob_name", "s3_mirror_pending"})
+_APPROVAL_LOCKED_FIELDS = frozenset(
+    {
+        "name",
+        "description",
+        "datas",
+        "raw",
+        "mimetype",
+        "type",
+        "url",
+        "res_model",
+        "res_id",
+        "res_field",
+        "approval_requirement_id",
+    },
+)
 
 
 class IrAttachment(models.Model):
@@ -97,7 +111,7 @@ class IrAttachment(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
-        if vals and vals.keys() <= _APPROVAL_LOCK_EXEMPT_FIELDS:
+        if not vals.keys() & _APPROVAL_LOCKED_FIELDS:
             return super().write(vals)
         targeted = self._approval_attachments_in_self()
         blocked_ids = set(targeted.mapped("res_id"))
