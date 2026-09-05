@@ -717,7 +717,7 @@
         <field name="state">code</field>
         <field
             name="code">if records:
-    action = records.action_pos_order_cancel()</field>
+    records.action_pos_order_cancel_from_backend()</field>
         <field name="group_ids" eval="[(4, ref('point_of_sale.group_pos_user'))]" />
     </record>
 
