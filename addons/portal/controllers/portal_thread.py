@@ -11,7 +11,6 @@ from odoo.addons.portal.utils import get_portal_partner
 
 
 class PortalChatter(ThreadController):
-
     @http.route(
         "/mail/avatar/mail.message/<int:res_id>/author_avatar/<int:width>x<int:height>",
         type="http",
@@ -141,9 +140,3 @@ class PortalChatter(ThreadController):
 
     def _setup_portal_message_fetch_extra_domain(self, data) -> Domain:
         return Domain.TRUE
-
-    @http.route(["/mail/update_is_internal"], type="jsonrpc", auth="user", website=True)
-    def portal_message_update_is_internal(self, message_id, is_internal):
-        message = request.env["mail.message"].browse(to_record_id(message_id))
-        message.write({"is_internal": bool(is_internal)})
-        return message.is_internal

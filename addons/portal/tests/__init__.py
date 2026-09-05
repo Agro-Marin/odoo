@@ -15,6 +15,7 @@ from . import test_pager
 from . import test_portal
 from . import test_portal_avatar
 from . import test_portal_hardening_v2
+from . import test_portal_profile
 from . import test_portal_share
 from . import test_portal_wizard
 from . import test_signature_form_js
