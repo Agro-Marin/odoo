@@ -2,6 +2,8 @@ import psycopg
 
 import odoo
 from odoo.db.schema import index_exists
+from odoo.tools import mute_logger
+from odoo.tools.translate import code_translations
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
@@ -65,3 +67,27 @@ class TestPosSessionConcurrency(TestPoSCommon):
     def test_other_configs_are_unaffected(self):
         self._insert_session(self.config, "opened")
         self._assert_accepted(self.other_currency_config, "opened")
+
+    def test_close_refusal_title_is_translated(self):
+        """The alert title of a race between two cashiers must translate.
+
+        The body of the refusal already went through `_()`; its title did not,
+        so a Spanish cashier who lost the race got a Spanish message under an
+        English heading.
+        """
+        self.env["res.lang"]._activate_lang("es_ES")
+        with mute_logger("odoo.addons.base.models.ir_module", "odoo.tools.translate"):
+            self.env.ref("base.module_point_of_sale")._update_translations(["es_ES"])
+            code_translations.get_python_translations("point_of_sale", "es_ES")
+        code_translations.python_translations[("point_of_sale", "es_ES")] = {
+            **code_translations.python_translations[("point_of_sale", "es_ES")],
+            "Session already closed": "Sesion ya cerrada",
+        }
+        self.addCleanup(code_translations.python_translations.clear)
+
+        self.config.open_ui()
+        session = self.config.current_session_id
+        session.state = "closed"
+
+        refusal = session.with_context(lang="es_ES")._resolve_close_refusal()
+        self.assertEqual(refusal["title"], "Sesion ya cerrada")

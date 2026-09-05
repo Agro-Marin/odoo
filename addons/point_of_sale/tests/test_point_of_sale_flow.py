@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from freezegun import freeze_time
+from lxml import etree
 
 import odoo
 from odoo import fields
@@ -2728,3 +2729,84 @@ class TestPointOfSaleFlow(CommonPosTest):
             customer_account_receivable_entry.reconciled_lines_ids,
             reversal_receivable_entry,
         )
+
+    def test_action_view_pos_order_lists_child_contact_orders(self):
+        """The smart button must list what the counter counts.
+
+        `_compute_pos_order_count` walks up `parent_id` without looking at
+        `is_company`, so a person's counter already adds up its children's
+        orders. The action used to filter on the commercial entity, which for
+        a person is the person itself.
+        """
+        parent = self.env["res.partner"].create(
+            {"name": "Parent Person", "is_company": False}
+        )
+        child = self.env["res.partner"].create(
+            {"name": "Child Person", "parent_id": parent.id}
+        )
+
+        for partner in (parent, child):
+            self.create_backend_pos_order(
+                {
+                    "line_data": [
+                        {
+                            "product_id": self.ten_dollars_no_tax.product_variant_id.id,
+                            "qty": 1,
+                        }
+                    ],
+                    "order_data": {"partner_id": partner.id},
+                }
+            )
+
+        self.assertEqual(parent.pos_order_count, 2)
+        action = parent.action_view_pos_order()
+        self.assertEqual(self.env["pos.order"].search_count(action["domain"]), 2)
+
+    def test_invoice_report_spaces_source_invoice_from_reference(self):
+        """The "Source Invoice" block must keep its distance from "Reference".
+
+        Both sit in the same Bootstrap row of `account.report_invoice_document`.
+        Without a right margin a long invoice name runs straight into the
+        neighbouring column, so the two read as one string.
+        """
+        order, _ = self.create_backend_pos_order(
+            {
+                "line_data": [
+                    {
+                        "product_id": self.ten_dollars_no_tax.product_variant_id.id,
+                        "qty": 1,
+                    }
+                ],
+                "order_data": {"partner_id": self.partner.id, "to_invoice": True},
+                "payment_data": [
+                    {"payment_method_id": self.cash_payment_method.id, "amount": 10}
+                ],
+            }
+        )
+        order.action_pos_order_invoice()
+
+        refund, _ = self.create_backend_pos_order(
+            {
+                "line_data": [
+                    {
+                        "product_id": self.ten_dollars_no_tax.product_variant_id.id,
+                        "qty": -1,
+                        "refunded_orderline_id": order.lines[0].id,
+                    }
+                ],
+                "order_data": {"partner_id": self.partner.id, "to_invoice": True},
+                "payment_data": [
+                    {"payment_method_id": self.cash_payment_method.id, "amount": -10}
+                ],
+            }
+        )
+        refund.action_pos_order_invoice()
+        self.assertTrue(refund.account_move.pos_refunded_invoice_ids)
+
+        html = self.env["ir.actions.report"]._render_qweb_html(
+            "account.account_invoices", refund.account_move.ids
+        )[0]
+        tree = etree.fromstring(html, etree.HTMLParser())
+        blocks = tree.xpath("//div[@name='source_invoice']")
+        self.assertEqual(len(blocks), 1, "the Source Invoice block must be rendered")
+        self.assertIn("me-3", blocks[0].get("class").split())

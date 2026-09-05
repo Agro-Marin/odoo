@@ -772,9 +772,7 @@ class PosOrder(models.Model):
         vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
             if not vals.get("session_id"):
-                raise UserError(
-                    _("A point of sale order must belong to a session.")
-                )
+                raise UserError(_("A point of sale order must belong to a session."))
             session = self.env["pos.session"].browse(vals["session_id"])
             self._complete_values_from_session(session, vals)
         return super().create(vals_list)
@@ -1735,9 +1733,7 @@ class PosOrder(models.Model):
 
     @api.model
     def sync_from_ui(self, orders):
-        sync_token = randrange(
-            100_000_000
-        )
+        sync_token = randrange(100_000_000)
         _logger.info(
             "PoS synchronisation #%d started for PoS orders references: %s",
             sync_token,
@@ -1872,39 +1868,51 @@ class PosOrder(models.Model):
         )
 
     def _is_real_time_picking_forced(self):
-        return self.company_id.anglo_saxon_accounting and self.to_invoice
+        return (self.company_id.anglo_saxon_accounting and self.to_invoice) or bool(
+            self.refunded_order_id.shipping_date
+        )
+
+    def _create_pickings_from_order_lines(self):
+        self.check_singleton()
+        picking_type = self.config_id.picking_type_id
+        if self.partner_id.property_stock_customer:
+            destination_id = self.partner_id.property_stock_customer.id
+        elif not picking_type or not picking_type.default_location_dest_id:
+            destination_id = self.env["stock.warehouse"]._get_partner_locations()[0].id
+        else:
+            destination_id = picking_type.default_location_dest_id.id
+
+        pickings = (
+            self.env["stock.picking"]
+            .sudo()
+            ._create_picking_from_pos_order_lines(
+                destination_id, self.lines, picking_type, self.partner_id
+            )
+        )
+        (pickings | pickings.backorder_ids).write(
+            {
+                "pos_session_id": self.session_id.id,
+                "pos_order_id": self.id,
+                "origin": self.name,
+            }
+        )
+        return pickings
 
     def _create_order_picking(self):
         self.check_singleton()
         if self.picking_ids:
             return
         if self.shipping_date:
-            self.sudo().lines._launch_stock_rule_from_pos_order_lines()
-        elif self._is_real_time_picking_required():
-            picking_type = self.config_id.picking_type_id
-            if self.partner_id.property_stock_customer:
-                destination_id = self.partner_id.property_stock_customer.id
-            elif not picking_type or not picking_type.default_location_dest_id:
-                destination_id = (
-                    self.env["stock.warehouse"]._get_partner_locations()[0].id
-                )
+            if self.is_refund and self.refunded_order_id:
+                # Refunding a ship-later order that has not gone out yet must
+                # undo its picking, not book a second one against it. The
+                # stock rules only get the full-refund case right, so both go
+                # through the picking flow instead.
+                self._create_pickings_from_order_lines()
             else:
-                destination_id = picking_type.default_location_dest_id.id
-
-            pickings = (
-                self.env["stock.picking"]
-                .sudo()
-                ._create_picking_from_pos_order_lines(
-                    destination_id, self.lines, picking_type, self.partner_id
-                )
-            )
-            (pickings | pickings.backorder_ids).write(
-                {
-                    "pos_session_id": self.session_id.id,
-                    "pos_order_id": self.id,
-                    "origin": self.name,
-                }
-            )
+                self.sudo().lines._launch_stock_rule_from_pos_order_lines()
+        elif self._is_real_time_picking_required():
+            self._create_pickings_from_order_lines()
 
     def add_payment(self, data):
         self.check_singleton()
@@ -2118,6 +2126,10 @@ class PosOrder(models.Model):
 
     def _prepare_pos_log(self, body):
         return body
+
+    def get_stock_reports_to_print(self):
+        self.check_singleton()
+        return self.picking_ids._prepare_actions_autoprint()
 
 
 class PosOrderLine(models.Model):
@@ -2344,8 +2356,10 @@ class PosOrderLine(models.Model):
                     body + Markup("&rarr;") + str(new_qty)
                 )
             for order, bodies in bodies_per_order.items():
-                body = bodies[0] if len(bodies) == 1 else order._markup_list_message(
-                    bodies
+                body = (
+                    bodies[0]
+                    if len(bodies) == 1
+                    else order._markup_list_message(bodies)
                 )
                 order.message_post(body=order._prepare_pos_log(body))
             edited.is_edited = True

@@ -434,6 +434,17 @@
                     <h6 class="bg-secondary p-1 fw-bold">Session Control</h6>
                     <div class="oe_structure" />
                     <div style="break-inside: avoid;">
+                        <t t-if="cash_rounding_total">
+                            <strong>Cash Rounding:
+                                <span t-if="currency['position']">
+                                    <span t-out="cash_rounding_total" t-options="{'widget': 'float', 'precision': currency['precision']}">0.00</span><span t-out="currency[&quot;symbol&quot;]">$</span>
+                                </span>
+                                <span t-else="">
+                                    <span t-out="currency[&quot;symbol&quot;]">$</span><span t-out="cash_rounding_total" t-options="{'widget': 'float', 'precision': currency['precision']}">0.00</span>
+                                </span>
+                            </strong>
+                            <br />
+                        </t>
                         <strong>Total:
                             <span t-if="currency['position']">
                                 <span t-out="currency[&quot;total_paid&quot;]" t-options="{'widget': 'float', 'precision': currency['precision']}">99.99</span><span t-out="currency[&quot;symbol&quot;]">$</span>

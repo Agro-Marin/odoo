@@ -5,6 +5,7 @@ import { Component, useState } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { ProductCard } from "@point_of_sale/app/components/product_card/product_card";
 import { NumericInput } from "@point_of_sale/app/components/inputs/numeric_input/numeric_input";
+import { _t } from "@web/core/translation";
 
 export class EventRegistrationPopup extends Component {
     static template = "pos_event.EventRegistrationPopup";
@@ -83,8 +84,8 @@ export class EventRegistrationPopup extends Component {
 
         if (requiredByRegistration || requiredByOrder) {
             this.dialog.add(AlertDialog, {
-                title: "Error",
-                body: "Please fill in all required fields",
+                title: _t("Error"),
+                body: _t("Please fill in all required fields"),
             });
             return;
         }

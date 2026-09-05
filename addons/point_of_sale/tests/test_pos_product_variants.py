@@ -433,3 +433,50 @@ class TestPoSProductVariants(ProductVariantsCommon, TestPointOfSaleHttpCommon):
             "test_image_variants_displayed",
             login="pos_user",
         )
+
+    def test_product_info_reports_template_quantities(self):
+        """Long-pressing a product card sends no variant.
+
+        `product_screen.js` calls `onProductInfoClick(product)` with a single
+        argument, so `get_product_info_pos` receives no `product_variant_id`
+        and has to report the whole template's stock. It used to fall back to
+        `product_variant_id`, i.e. the first variant only.
+        """
+        template = self.env["product.template"].create(
+            {
+                "name": "Two sizes",
+                "type": "consu",
+                "is_storable": True,
+                "available_in_pos": True,
+                "taxes_id": False,
+            }
+        )
+        self.env["product.template.attribute.line"].create(
+            {
+                "product_tmpl_id": template.id,
+                "attribute_id": self.size_attribute.id,
+                "value_ids": [
+                    Command.set([self.size_attribute_s.id, self.size_attribute_m.id])
+                ],
+            }
+        )
+        variants = template.product_variant_ids
+        self.assertEqual(len(variants), 2)
+
+        warehouse = self.main_pos_config.picking_type_id.warehouse_id
+        for variant, qty in zip(variants, (3.0, 4.0), strict=True):
+            self.env["stock.quant"].create(
+                {
+                    "product_id": variant.id,
+                    "location_id": warehouse.lot_stock_id.id,
+                    "quantity": qty,
+                }
+            )
+
+        info = template.get_product_info_pos(
+            template.list_price, 1, self.main_pos_config.id
+        )
+        warehouse_info = next(w for w in info["warehouses"] if w["id"] == warehouse.id)
+        self.assertEqual(warehouse_info["available_quantity"], 7.0)
+        self.assertEqual(warehouse_info["qty_free"], 7.0)
+        self.assertEqual(warehouse_info["forecasted_quantity"], 7.0)

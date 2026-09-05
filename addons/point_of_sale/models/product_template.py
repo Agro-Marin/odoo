@@ -70,9 +70,7 @@ class ProductTemplate(models.Model):
     def set_pos_favorite(self, is_favorite):
         self.check_singleton()
         if not self.env.user.has_group("point_of_sale.group_pos_user"):
-            raise AccessError(
-                _("Only Point of Sale users can change a POS favorite.")
-            )
+            raise AccessError(_("Only Point of Sale users can change a POS favorite."))
         if not self.available_in_pos:
             raise AccessError(
                 _(
@@ -399,7 +397,11 @@ class ProductTemplate(models.Model):
             [("id", "in", self.ids), ("available_in_pos", "=", True)],
             limit=1,
         ):
-            if self.env["pos.session"].sudo().search_count([("state", "!=", "closed")], limit=1):
+            if (
+                self.env["pos.session"]
+                .sudo()
+                .search_count([("state", "!=", "closed")], limit=1)
+            ):
                 raise UserError(
                     _(
                         "To delete a product, make sure all point of sale sessions are closed.\n\n"
@@ -479,7 +481,7 @@ class ProductTemplate(models.Model):
             if product_variant_id
             else False
         )
-        template_or_variant = product_variant or self.product_variant_id
+        template_or_variant = product_variant or self
 
         tax_to_use = self.env["account.tax"]
         company = config.company_id
@@ -534,7 +536,17 @@ class ProductTemplate(models.Model):
                     "id": w.id,
                     "name": w.name,
                     "available_quantity": product_in_wh.qty_available,
-                    "qty_free": product_in_wh.qty_free,
+                    # `qty_free` only exists on the variant, so the template
+                    # has to add its variants up itself.
+                    "qty_free": (
+                        product_in_wh.qty_free
+                        if product_variant
+                        else sum(
+                            self.product_variant_ids.with_context(
+                                warehouse_id=w.id
+                            ).mapped("qty_free")
+                        )
+                    ),
                     "forecasted_quantity": product_in_wh.qty_available_virtual,
                     "uom": template_or_variant.uom_name,
                 }
