@@ -258,3 +258,96 @@ class TestBatchAuditFixes(TransactionCase):
         )
         with self.assertRaises(UserError):
             batch.action_confirm()
+
+    def test_an_in_progress_batch_emptied_from_the_picking_side_is_cancelled(self):
+        picking = self._picking()
+        batch = self._batch(picking)
+        batch.action_confirm()
+        picking.batch_id = False
+        self.assertEqual(batch.state, "cancel")
+
+    def test_a_draft_batch_emptied_from_the_picking_side_stays_draft(self):
+        picking = self._picking()
+        batch = self._batch(picking)
+        other = self.env["stock.picking.batch"].create(
+            {"picking_type_id": self.picking_type.id}
+        )
+        picking.batch_id = other
+        self.assertEqual(batch.state, "draft")
+        self.assertEqual(other.picking_ids, picking)
+
+    def test_waving_every_line_of_a_transfer_links_it_whole_despite_a_zeroed_line(
+        self,
+    ):
+        other_product = self.env["product.product"].create(
+            {"name": "Audit other", "is_storable": True}
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            other_product, self.stock_location, 10
+        )
+        picking = self._picking()
+        picking.move_ids.move_line_ids.quantity = 0
+        picking.write(
+            {
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": other_product.id,
+                            "product_uom_qty": 2,
+                            "location_id": self.stock_location.id,
+                            "location_dest_id": self.customer_location.id,
+                        }
+                    )
+                ]
+            }
+        )
+        picking.action_assign()
+        moves = picking.move_ids
+        self.assertEqual(len(moves.move_line_ids), 2)
+        pickings_before = self.env["stock.picking"].search_count([])
+        wave = self.env["stock.picking.batch"].create(
+            {"is_wave": True, "picking_type_id": self.picking_type.id}
+        )
+        picking.move_line_ids._add_to_wave(wave)
+        self.assertEqual(wave.picking_ids, picking, "the whole transfer joins")
+        self.assertEqual(picking.move_ids, moves, "and keeps every move")
+        self.assertEqual(
+            self.env["stock.picking"].search_count([]),
+            pickings_before,
+            "no copy of the transfer is split off",
+        )
+
+    def test_the_wave_wizard_in_new_mode_ignores_a_stale_existing_wave(self):
+        picking = self._picking()
+        stale = self.env["stock.picking.batch"].create(
+            {"is_wave": True, "picking_type_id": self.picking_type.id}
+        )
+        wizard = (
+            self.env["stock.add.to.wave"]
+            .with_context(
+                active_model="stock.move.line", active_ids=picking.move_line_ids.ids
+            )
+            .create({"mode": "new", "wave_id": stale.id})
+        )
+        wizard.attach_pickings()
+        self.assertTrue(picking.batch_id.is_wave)
+        self.assertNotEqual(picking.batch_id, stale)
+
+    def test_merging_moves_the_transfers_and_nothing_else(self):
+        first, second = self._batch(self._picking()), self._batch(self._picking())
+        lines = (first | second).move_line_ids
+        (first | second).action_merge()
+        self.assertFalse(second.exists())
+        self.assertEqual(first.move_line_ids, lines)
+        self.assertEqual(len(first.picking_ids), 2)
+
+    def test_a_cancelled_transfer_leaves_its_batch_and_a_wrong_type_is_refused(self):
+        cancelled, kept = self._picking(), self._picking()
+        batch = self._batch(cancelled | kept)
+        batch.action_confirm()
+        cancelled.action_cancel()
+        self.assertEqual(batch.picking_ids, kept)
+        self.assertEqual(batch.state, "in_progress")
+        other_type = self.picking_type.copy({"sequence_code": "AUDIT5"})
+        with self.assertRaises(UserError):
+            batch.picking_type_id = other_type

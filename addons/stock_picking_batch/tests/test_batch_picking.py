@@ -773,30 +773,12 @@ class TestBatchPicking(TransactionCase):
         self.batch.action_confirm()
         other_batch.action_confirm()
 
-        # Detach every picking from self.batch through the picking side
-        # (batch_id=False), the way button_validate's pickings_to_detach flow
-        # does. This never calls stock.picking.batch.write(), so self.batch is
-        # left in_progress with 0 pickings.
         (self.picking_client_1 | self.picking_client_2).batch_id = False
-        self.assertEqual(
-            self.batch.state,
-            "in_progress",
-            "Detaching pickings from the picking side must not itself "
-            "cancel the now-empty batch.",
-        )
         self.assertFalse(self.batch.picking_ids)
-
-        # A later, unrelated multi-record write (e.g. a bulk "assign
-        # responsible" from the list view) must still repair self.batch: the
-        # guard in write() must not skip it just because other_batch (in the
-        # same recordset) still has pickings.
-        (self.batch | other_batch).write({"user_id": self.env.uid})
-
         self.assertEqual(
             self.batch.state,
             "cancel",
-            "Emptied batch should be cancelled even when written together "
-            "with a batch that still has pickings.",
+            "An in-progress batch emptied from the picking side is cancelled.",
         )
         self.assertEqual(
             other_batch.state,
@@ -1550,3 +1532,45 @@ class TestBatchPickingSynchronization(HttpCase):
         )
         self.assertEqual(batch.picking_ids.move_ids.quantity, 7)
         self.assertEqual(batch.picking_ids.move_ids.move_line_ids.quantity, 7)
+
+    def test_add_pickings_from_the_wave_form(self):
+        productA = self.env["product.product"].create(
+            {"name": "Product A", "is_storable": True}
+        )
+        stock_location = self.env.ref("stock.stock_location_stock")
+        picking_type_out = self.env.ref("stock.picking_type_out")
+        self.env["stock.quant"]._update_available_quantity(productA, stock_location, 50)
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": picking_type_out.id,
+                "location_id": stock_location.id,
+                "location_dest_id": picking_type_out.default_location_dest_id.id,
+                "move_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "product_id": productA.id,
+                            "product_uom_qty": 5,
+                            "location_id": stock_location.id,
+                            "location_dest_id": (
+                                picking_type_out.default_location_dest_id.id
+                            ),
+                        },
+                    )
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.action_assign()
+        wave = self.env["stock.picking.batch"].create(
+            {"is_wave": True, "picking_type_id": picking_type_out.id}
+        )
+        self.start_tour(
+            f"/odoo/action-stock_picking_batch.action_picking_tree_wave/{wave.id}",
+            "test_stock_picking_batch_add_pickings_from_wave_form",
+            login="admin",
+            timeout=100,
+        )
+        self.assertEqual(wave.picking_ids, picking)
+        self.assertEqual(wave.state, "in_progress")

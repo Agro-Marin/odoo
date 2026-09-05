@@ -158,6 +158,19 @@ class StockPickingType(models.Model):
         self.check_singleton()
         return {key: criterion for key, criterion in criteria.items() if self[key]}
 
+    def _get_active_batch_criteria(self):
+        return self._get_active_grouping_criteria(self._get_batch_grouping_criteria())
+
+    def _get_active_wave_criteria(self):
+        return self._get_active_grouping_criteria(self._get_grouping_criteria())
+
+    def _get_nearest_wave_location(self, location):
+        self.check_singleton()
+        wave_location_ids = set(self.wave_location_ids.ids)
+        while location and location.id not in wave_location_ids:
+            location = location.location_id
+        return location
+
     @api.model
     def _get_batch_group_by_keys(self):
         return list(self._get_batch_grouping_criteria())
@@ -212,28 +225,16 @@ class StockPicking(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         pickings = super().create(vals_list)
-        for picking, vals in zip(pickings, vals_list, strict=True):
-            if vals.get("batch_id"):
-                if not picking.batch_id.picking_type_id:
-                    picking.batch_id.picking_type_id = picking.picking_type_id
-                picking.batch_id._check_pickings_are_allowed()
+        pickings.batch_id._set_picking_type_from_pickings()
+        pickings.batch_id._check_pickings_are_allowed()
         return pickings
 
     def write(self, vals):
-        old_batches = self.batch_id
         res = super().write(vals)
         if vals.get("batch_id"):
-            old_batches.filtered(lambda b: not b.picking_ids).state = "cancel"
-            for batch in self.batch_id.filtered(lambda b: not b.picking_type_id):
-                batch.picking_type_id = batch.picking_ids[:1].picking_type_id
+            self.batch_id._set_picking_type_from_pickings()
             self.batch_id._check_pickings_are_allowed()
             self.batch_id.picking_ids.update_batch_user(self.batch_id.user_id.id)
-        return res
-
-    def action_confirm(self):
-        res = super().action_confirm()
-        for picking in self:
-            picking._find_auto_batch()
         return res
 
     def button_validate(self):
@@ -285,15 +286,6 @@ class StockPicking(models.Model):
                 picking.batch_id = None
         return super()._create_backorder(backorder_moves)
 
-    def action_cancel(self):
-        res = super().action_cancel()
-        for picking in self:
-            if picking.batch_id and any(
-                picking.state != "cancel" for picking in picking.batch_id.picking_ids
-            ):
-                picking.batch_id = None
-        return res
-
     def _should_show_transfers(self):
         if len(self.batch_id) == 1 and len(self) == (
             len(self.batch_id.picking_ids)
@@ -305,8 +297,7 @@ class StockPicking(models.Model):
     def _find_auto_batch(self):
         self.check_singleton()
         if (
-            not self.picking_type_id.auto_batch
-            or not self.picking_type_id._is_auto_batch_grouped()
+            not self.picking_type_id._is_auto_batch_grouped()
             or self.batch_id
             or not self.move_ids
             or not self._is_auto_batchable()
@@ -328,7 +319,7 @@ class StockPicking(models.Model):
         )
         new_batch_data = {
             "picking_ids": [Command.link(self.id)],
-            "company_id": self.company_id.id if self.company_id else False,
+            "company_id": self.company_id.id,
             "picking_type_id": self.picking_type_id.id,
             "description": self._get_auto_batch_description(),
             "user_id": self.user_id.id,
@@ -361,25 +352,18 @@ class StockPicking(models.Model):
             res = res and self.picking_type_id.batch_max_pickings > 1
         return res
 
-    def _get_active_batch_criteria(self):
-        self.check_singleton()
-        picking_type = self.picking_type_id
-        return picking_type._get_active_grouping_criteria(
-            picking_type._get_batch_grouping_criteria()
-        )
-
     def _get_possible_pickings_domain(self):
         self.check_singleton()
         domain = [
             ("id", "!=", self.id),
-            ("company_id", "=", self.company_id.id if self.company_id else False),
+            ("company_id", "=", self.company_id.id),
             ("state", "=", "assigned"),
             ("picking_type_id", "=", self.picking_type_id.id),
             ("batch_id", "=", False),
         ]
         domain.extend(
             (criterion.picking_path, "=", self.mapped(criterion.picking_path).id)
-            for criterion in self._get_active_batch_criteria().values()
+            for criterion in self.picking_type_id._get_active_batch_criteria().values()
         )
 
         return Domain(domain)
@@ -395,12 +379,12 @@ class StockPicking(models.Model):
                 else ("draft",),
             ),
             ("picking_type_id", "=", self.picking_type_id.id),
-            ("company_id", "=", self.company_id.id if self.company_id else False),
+            ("company_id", "=", self.company_id.id),
             ("is_wave", "=", False),
         ]
         domain.extend(
             (criterion.batch_path, "=", self.mapped(criterion.picking_path).id)
-            for criterion in self._get_active_batch_criteria().values()
+            for criterion in self.picking_type_id._get_active_batch_criteria().values()
         )
         if self.env.context.get("batches_to_validate"):
             domain.append(("id", "not in", self.env.context.get("batches_to_validate")))
@@ -410,7 +394,7 @@ class StockPicking(models.Model):
     def _get_auto_batch_description(self):
         self.check_singleton()
         description_items = []
-        for criterion in self._get_active_batch_criteria().values():
+        for criterion in self.picking_type_id._get_active_batch_criteria().values():
             value = self.mapped(criterion.picking_path)
             if value:
                 description_items.append(value[criterion.label_field])

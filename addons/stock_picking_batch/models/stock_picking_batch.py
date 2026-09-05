@@ -2,6 +2,7 @@ from markupsafe import Markup
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 
 
 class StockPickingBatch(models.Model):
@@ -93,12 +94,12 @@ class StockPickingBatch(models.Model):
     is_wave = fields.Boolean("This batch is a wave")
     show_lots_text = fields.Boolean(compute="_compute_show_lots_text")
     estimated_shipping_weight = fields.Float(
-        "shipping_weight",
+        "Estimated Shipping Weight",
         compute="_compute_estimated_shipping_capacity",
         digits="Product Unit",
     )
     estimated_shipping_volume = fields.Float(
-        "shipping_volume",
+        "Estimated Shipping Volume",
         compute="_compute_estimated_shipping_capacity",
         digits="Product Unit",
     )
@@ -170,10 +171,20 @@ class StockPickingBatch(models.Model):
             batch.estimated_shipping_weight = estimated_shipping_weight
             batch.estimated_shipping_volume = estimated_shipping_volume
 
+    def _get_allowed_picking_domain(self):
+        self.check_singleton()
+        states = ["waiting", "confirmed", "assigned"]
+        if self.state == "draft":
+            states.append("draft")
+        domain = Domain("company_id", "=", self.company_id.id) & Domain(
+            "state", "in", states
+        )
+        if self.picking_type_id:
+            domain &= Domain("picking_type_id", "=", self.picking_type_id.id)
+        return domain
+
     @api.depends("company_id", "picking_type_id", "state")
     def _compute_allowed_picking_ids(self):
-        allowed_picking_states = ["waiting", "confirmed", "assigned"]
-
         grouped = self.grouped(
             lambda batch: (
                 batch.company_id,
@@ -181,15 +192,10 @@ class StockPickingBatch(models.Model):
                 batch.state == "draft",
             )
         )
-        for (company, picking_type, with_draft), batches in grouped.items():
-            domain_states = allowed_picking_states + (["draft"] if with_draft else [])
-            domain = [
-                ("company_id", "=", company.id),
-                ("state", "in", domain_states),
-            ]
-            if picking_type:
-                domain += [("picking_type_id", "=", picking_type.id)]
-            batches.allowed_picking_ids = self.env["stock.picking"].search(domain)
+        for batches in grouped.values():
+            batches.allowed_picking_ids = self.env["stock.picking"].search(
+                batches[:1]._get_allowed_picking_domain()
+            )
 
     @api.depends(
         "picking_ids",
@@ -227,6 +233,8 @@ class StockPickingBatch(models.Model):
         batchs = self.filtered(lambda batch: batch.state not in ["done", "cancel"])
         for batch in batchs:
             if not batch.picking_ids:
+                if batch.state == "in_progress":
+                    batch.state = "cancel"
                 continue
             if all(picking.state == "cancel" for picking in batch.picking_ids):
                 batch.state = "cancel"
@@ -287,9 +295,6 @@ class StockPickingBatch(models.Model):
                 lambda b: b.picking_type_id != picking_type
             )
         res = super().write(vals)
-        self.filtered(
-            lambda b: b.state == "in_progress" and not b.picking_ids
-        ).action_cancel()
         if vals.get("picking_type_id"):
             self._check_pickings_are_allowed()
             for batch in batches_to_rename:
@@ -298,8 +303,7 @@ class StockPickingBatch(models.Model):
                     picking_type, sequence_code, batch.company_id
                 )
         if vals.get("picking_ids"):
-            for batch in self.filtered(lambda batch: not batch.picking_type_id):
-                batch.picking_type_id = batch.picking_ids[:1].picking_type_id
+            self._set_picking_type_from_pickings()
         if "user_id" in vals:
             self.picking_ids.update_batch_user(vals["user_id"])
         return res
@@ -371,15 +375,8 @@ class StockPickingBatch(models.Model):
 
         for picking in pickings:
             picking.message_post(
-                body=Markup(
-                    "<b>%s:</b> %s <a href=#id=%s&view_type=form&model=stock.picking.batch>%s</a>"
-                )
-                % (
-                    _("Transferred by"),
-                    _("Batch Transfer"),
-                    picking.batch_id.id,
-                    picking.batch_id.name,
-                )
+                body=Markup("<b>%s:</b> %s %s")
+                % (_("Transferred by"), _("Batch Transfer"), self._get_html_link())
             )
 
         if empty_waiting_pickings:
@@ -479,7 +476,6 @@ class StockPickingBatch(models.Model):
         planned_batches = self.filtered("date_planned").sorted("date_planned")
         earliest_batch = planned_batches[:1] or target_batch
         merged_batch_vals = earliest_batch._get_merged_batch_vals()
-        target_batch.move_line_ids |= other_batches.move_line_ids
         target_batch.picking_ids |= other_batches.picking_ids
         target_batch.write(merged_batch_vals)
         other_batches.unlink()
@@ -566,10 +562,18 @@ class StockPickingBatch(models.Model):
         parts = [sequence_prefix, picking_type.sequence_code, sequence_number]
         return "/".join(part for part in parts if part)
 
+    def _set_picking_type_from_pickings(self):
+        for batch in self.filtered(
+            lambda batch: not batch.picking_type_id and batch.picking_ids
+        ):
+            batch.picking_type_id = batch.picking_ids[:1].picking_type_id
+
     def _check_pickings_are_allowed(self):
         for batch in self:
-            if not batch.picking_ids <= batch.allowed_picking_ids:
-                erroneous_pickings = batch.picking_ids - batch.allowed_picking_ids
+            erroneous_pickings = batch.picking_ids - batch.picking_ids.filtered_domain(
+                batch._get_allowed_picking_domain()
+            )
+            if erroneous_pickings:
                 raise UserError(
                     _(
                         "The following transfers cannot be added to batch transfer %(batch)s. "
@@ -607,3 +611,14 @@ class StockPickingBatch(models.Model):
             "description": self.description,
             "date_planned": self.date_planned,
         }
+
+    def _get_auto_wave_grouping_key(self, picking_type, nearest_parent_location):
+        self.check_singleton()
+        return (
+            self.company_id,
+            *(
+                self.mapped(criterion.batch_path)
+                for criterion in picking_type._get_active_wave_criteria().values()
+            ),
+            nearest_parent_location,
+        )

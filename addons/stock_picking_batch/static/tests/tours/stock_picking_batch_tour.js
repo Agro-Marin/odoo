@@ -128,3 +128,36 @@ registry
             },
         ],
     });
+
+registry
+    .category("web_tour.tours")
+    .add("test_stock_picking_batch_add_pickings_from_wave_form", {
+        steps: () => [
+            {
+                trigger: ".o_form_view .nav-link:contains(Transfers)",
+                run: "click",
+            },
+            {
+                trigger:
+                    ".o_field_widget[name=picking_ids] .o_field_x2many_list_row_add a",
+                run: "click",
+            },
+            {
+                trigger: ".modal .o_list_view .o_data_row td:contains(WH/OUT/)",
+                run: "click",
+            },
+            {
+                trigger:
+                    ".modal:contains(Add Operations) thead .o_list_record_selector input",
+                run: "click",
+            },
+            {
+                trigger: ".modal:contains(Add Operations) button:contains(Add to Wave)",
+                run: "click",
+            },
+            {
+                trigger:
+                    ".o_form_view .o_field_widget[name=picking_ids] .o_data_row:contains(WH/OUT/)",
+            },
+        ],
+    });

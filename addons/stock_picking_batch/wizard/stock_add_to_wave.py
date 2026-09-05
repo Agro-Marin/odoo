@@ -7,8 +7,8 @@ class StockAddToWave(models.TransientModel):
     _description = "Wave Transfer Lines"
 
     @api.model
-    def default_get(self, fields):
-        res = super().default_get(fields)
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
         if self.env.context.get("active_model") == "stock.move.line":
             lines = self.env["stock.move.line"].browse(
                 self.env.context.get("active_ids")
@@ -47,13 +47,14 @@ class StockAddToWave(models.TransientModel):
         self.check_singleton()
 
         self = self.with_context(active_owner_id=self.user_id.id)
+        wave = self.wave_id if self.mode == "existing" else self.wave_id.browse()
         if self.line_ids:
             company = self.line_ids.company_id
             if len(company) > 1:
                 raise UserError(
                     _("The selected operations should belong to a unique company.")
                 )
-            return self.line_ids._add_to_wave(self.wave_id)
+            return self.line_ids._add_to_wave(wave)
         if self.picking_ids:
             company = self.picking_ids.company_id
             if len(company) > 1:
@@ -80,7 +81,7 @@ class StockAddToWave(models.TransientModel):
             "context": dict(
                 self.env.context,
                 picking_to_wave=self.picking_ids.ids,
-                active_wave_id=self.wave_id.id,
+                active_wave_id=wave.id,
                 from_wave_form=self.env.context.get("from_wave_form"),
             ),
         }

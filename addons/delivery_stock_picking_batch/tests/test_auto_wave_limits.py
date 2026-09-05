@@ -85,3 +85,13 @@ class TestAutoWaveWeightLimit(TransactionCase):
             2,
             "auto-waving created more batch records than transfers",
         )
+
+    def test_a_lone_line_over_the_weight_cap_is_not_waved_either(self):
+        picking = self._pickings(45)[:1]
+        picking.action_confirm()
+        picking.action_assign()
+        self.assertEqual(picking.state, "assigned")
+        self.assertFalse(
+            picking.batch_id,
+            "a line no wave can hold is left alone whether or not it has a partner",
+        )
