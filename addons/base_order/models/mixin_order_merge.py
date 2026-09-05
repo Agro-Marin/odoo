@@ -141,7 +141,21 @@ class MixinOrderMerge(models.AbstractModel):
     def _merge_collapse_matches(self, matches, candidates):
         if len(matches) <= 1:
             return matches[:1]
-        keeper, folded = matches[0], matches[1:]
+        # Each candidate here only matched the *source* line's date -- two
+        # candidates can individually be within threshold of the source line
+        # while being more than the threshold apart from each other. Only
+        # fold candidates that also mutually match one another, or a source
+        # line would bridge two otherwise-unrelated lines into one.
+        mutual = matches.filtered(
+            lambda line: all(
+                self._merge_lines_match_date(line, other)
+                for other in matches
+                if other != line
+            ),
+        )
+        if len(mutual) <= 1:
+            return matches[:1]
+        keeper, folded = mutual[0], mutual[1:]
         keeper.product_qty += sum(folded.mapped("product_qty"))
         for line in folded:
             if line in candidates:
