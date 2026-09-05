@@ -310,6 +310,32 @@ class ResUsers(models.Model):
         index=True,
         help="Partner-related data of the user",
     )
+    active_partner = fields.Boolean(
+        related="partner_id.active",
+        readonly=True,
+        string="Partner is Active",
+    )
+    name = fields.Char(
+        related="partner_id.name",
+        inherited=True,
+        readonly=False,
+    )
+    phone = fields.Char(
+        related="partner_id.phone",
+        inherited=True,
+        readonly=False,
+    )
+    email = fields.Char(
+        related="partner_id.email",
+        inherited=True,
+        readonly=False,
+    )
+    email_domain_placeholder = fields.Char(
+        compute="_compute_email_domain_placeholder",
+    )
+
+    active = fields.Boolean(default=True)
+
     login = fields.Char(
         required=True,
         help="Used to log into the system",
@@ -338,31 +364,6 @@ class ResUsers(models.Model):
         compute="_compute_signature",
         readonly=False,
         store=True,
-    )
-
-    active = fields.Boolean(default=True)
-    active_partner = fields.Boolean(
-        related="partner_id.active",
-        readonly=True,
-        string="Partner is Active",
-    )
-    name = fields.Char(
-        related="partner_id.name",
-        inherited=True,
-        readonly=False,
-    )
-    phone = fields.Char(
-        related="partner_id.phone",
-        inherited=True,
-        readonly=False,
-    )
-    email = fields.Char(
-        related="partner_id.email",
-        inherited=True,
-        readonly=False,
-    )
-    email_domain_placeholder = fields.Char(
-        compute="_compute_email_domain_placeholder",
     )
 
     action_id = fields.Many2one(
