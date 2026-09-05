@@ -20782,3 +20782,9 @@ msgstr ""
 #: model:ir.model.constraint,message:website.constraint_website_controller_page_unique_name_slugified
 msgid "url should be unique per website"
 msgstr ""
+
+#. module: website
+#. odoo-python
+#: code:addons/website/models/website.py:0
+msgid "The CDN filter %(filter)s is not a valid regular expression: %(error)s"
+msgstr ""

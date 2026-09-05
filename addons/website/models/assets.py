@@ -6,7 +6,7 @@ from urllib.parse import quote, urlsplit
 import requests
 
 from odoo import api, models
-from odoo.tools import misc
+from odoo.tools import escape_psql, misc
 from odoo.tools.assets.constants import DOTTED_ASSET_EXTENSIONS as EXTENSIONS
 
 _logger = logging.getLogger(__name__)
@@ -329,7 +329,7 @@ class WebsiteAssets(models.AbstractModel):
     def _get_custom_asset(self, custom_url):
         website = self.env["website"].get_current_website()
         url = custom_url[1:] if custom_url.startswith(("/", "\\")) else custom_url
-        res = self.env["ir.asset"].search([("path", "like", url)])
+        res = self.env["ir.asset"].search([("path", "like", escape_psql(url))])
         return res.with_context(website_id=website.id)._filtered_most_specific()
 
     @api.model

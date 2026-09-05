@@ -503,7 +503,8 @@ class WebsitePage(models.Model):
 
         if not page:
             page_domain = (
-                Domain("url", "=ilike", req_page) & request.website.website_domain()
+                Domain("url", "=ilike", escape_psql(req_page))
+                & request.website.website_domain()
             )
             page = self.sudo().search_fetch(
                 page_domain, order="website_id asc", limit=1

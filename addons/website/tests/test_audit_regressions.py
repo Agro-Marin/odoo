@@ -5,7 +5,7 @@ import requests
 import werkzeug
 from lxml import html
 
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.http import request
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase, TransactionCase, new_test_user
@@ -858,3 +858,79 @@ class TestSecondAuditRegressions(TransactionCase):
             req.params = {"visibility_password": "any guess"}
             with self.assertRaises(werkzeug.exceptions.Forbidden):
                 protected._handle_visibility()
+
+
+@tagged("post_install", "-at_install")
+class TestPageLookupIsLiteral(HttpCase):
+    def test_underscore_and_percent_in_a_missing_url_are_not_wildcards(self):
+        website = self.env["website"].get_current_website()
+        self.env["website"].new_page(
+            "abc-literal", page_values={"is_published": True, "url": "/abc-literal"}
+        )
+        self.env["website.page"].search([("url", "=", "/abc-literal")]).write(
+            {"website_id": website.id}
+        )
+        for missing in ("/a_c-literal", "/%25bc-literal"):
+            res = self.url_open(missing, allow_redirects=False)
+            self.assertEqual(
+                res.status_code,
+                404,
+                (missing, res.status_code, res.headers.get("Location")),
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestAltAndLinkUpdatesEscapeOnce(TransactionCase):
+    def test_alt_and_href_are_escaped_by_the_serializer_only(self):
+        website = self.env["website"].get_current_website()
+        view = self.env["ir.ui.view"].create(
+            {
+                "name": "escape once",
+                "type": "qweb",
+                "key": "website.test_escape_once",
+                "arch": '<div><img src="/x"/><a href="/old">l</a></div>',
+            }
+        )
+        with MockRequest(self.env, website=website):
+            Website().update_alt_images(
+                [
+                    {
+                        "res_model": "ir.ui.view",
+                        "res_id": view.id,
+                        "field": "arch",
+                        "id": f"ir.ui.view-{view.id}-0",
+                        "decorative": False,
+                        "alt": 'Tom & "Jerry"',
+                    }
+                ]
+            )
+            Website().update_broken_links(
+                [
+                    {
+                        "res_model": "ir.ui.view",
+                        "res_id": view.id,
+                        "field": "arch",
+                        "oldLink": "/old",
+                        "newLink": "/x?a=1&b=2",
+                        "remove": False,
+                    }
+                ]
+            )
+        arch = view.arch
+        self.assertNotIn("&amp;amp;", arch, arch)
+        self.assertIn('alt="Tom &amp; &quot;Jerry&quot;"', arch, arch)
+        self.assertIn('href="/x?a=1&amp;b=2"', arch, arch)
+
+
+@tagged("post_install", "-at_install")
+class TestCdnFiltersAreValidated(TransactionCase):
+    def test_an_invalid_regex_is_refused_at_write_time(self):
+        website = self.env["website"].get_current_website()
+        with self.assertRaises(ValidationError):
+            website.write({"cdn_filters": "^/web/(\n^/ok/"})
+        website.write({"cdn_activated": True, "cdn_url": "https://cdn.example.com"})
+        website.write({"cdn_filters": "^/web/\n\n^/ok/"})
+        self.assertEqual(
+            website.get_cdn_url("/web/assets/x.js"),
+            "https://cdn.example.com/web/assets/x.js",
+        )

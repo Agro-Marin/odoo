@@ -154,29 +154,8 @@ class Website(models.Model):
         compute="_compute_blocked_third_party_domains",
     )
 
-    def _default_social_facebook(self):
-        return self.env.ref("base.main_company").social_facebook
-
-    def _default_social_github(self):
-        return self.env.ref("base.main_company").social_github
-
-    def _default_social_linkedin(self):
-        return self.env.ref("base.main_company").social_linkedin
-
-    def _default_social_youtube(self):
-        return self.env.ref("base.main_company").social_youtube
-
-    def _default_social_instagram(self):
-        return self.env.ref("base.main_company").social_instagram
-
-    def _default_social_twitter(self):
-        return self.env.ref("base.main_company").social_twitter
-
-    def _default_social_tiktok(self):
-        return self.env.ref("base.main_company").social_tiktok
-
-    def _default_social_discord(self):
-        return self.env.ref("base.main_company").social_discord
+    def _default_social(self, network):
+        return self.env.ref("base.main_company")[f"social_{network}"]
 
     def _default_logo(self):
         with tools.file_open("website/static/src/img/website_logo.svg", "rb") as f:
@@ -185,16 +164,30 @@ class Website(models.Model):
     logo = fields.Binary(
         "Website Logo", default=_default_logo, help="Display this logo on the website."
     )
-    social_twitter = fields.Char("X Account", default=_default_social_twitter)
-    social_facebook = fields.Char("Facebook Account", default=_default_social_facebook)
-    social_github = fields.Char("GitHub Account", default=_default_social_github)
-    social_linkedin = fields.Char("LinkedIn Account", default=_default_social_linkedin)
-    social_youtube = fields.Char("Youtube Account", default=_default_social_youtube)
-    social_instagram = fields.Char(
-        "Instagram Account", default=_default_social_instagram
+    social_twitter = fields.Char(
+        "X Account", default=lambda self: self._default_social("twitter")
     )
-    social_tiktok = fields.Char("TikTok Account", default=_default_social_tiktok)
-    social_discord = fields.Char("Discord Account", default=_default_social_discord)
+    social_facebook = fields.Char(
+        "Facebook Account", default=lambda self: self._default_social("facebook")
+    )
+    social_github = fields.Char(
+        "GitHub Account", default=lambda self: self._default_social("github")
+    )
+    social_linkedin = fields.Char(
+        "LinkedIn Account", default=lambda self: self._default_social("linkedin")
+    )
+    social_youtube = fields.Char(
+        "Youtube Account", default=lambda self: self._default_social("youtube")
+    )
+    social_instagram = fields.Char(
+        "Instagram Account", default=lambda self: self._default_social("instagram")
+    )
+    social_tiktok = fields.Char(
+        "TikTok Account", default=lambda self: self._default_social("tiktok")
+    )
+    social_discord = fields.Char(
+        "Discord Account", default=lambda self: self._default_social("discord")
+    )
     social_default_image = fields.Binary(
         string="Default Social Share Image",
         help="If set, replaces the website logo as the default social share image.",
@@ -491,6 +484,23 @@ class Website(models.Model):
                         "The domain path cannot contain relative path segments like '/./' or '/../'."
                     )
                 )
+
+    @api.constrains("cdn_filters")
+    def _check_cdn_filters(self):
+        for website in self.filtered("cdn_filters"):
+            for line in website.cdn_filters.splitlines():
+                if not line:
+                    continue
+                try:
+                    re.compile(line)
+                except re.error as e:
+                    raise ValidationError(
+                        _(
+                            "The CDN filter %(filter)s is not a valid regular expression: %(error)s",
+                            filter=line,
+                            error=e,
+                        )
+                    ) from None
 
     @api.constrains("homepage_url")
     def _check_homepage_url(self):
@@ -1507,7 +1517,7 @@ class Website(models.Model):
                 domains.append(
                     Domain.AND(
                         [
-                            [(field_name, "ilike", url)],
+                            [(field_name, "ilike", escape_psql(url))],
                             website_domain if hasattr(Model, "website_id") else [],
                         ]
                     )
