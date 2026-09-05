@@ -6,7 +6,7 @@ import { M2xAvatarEmployee } from "@hr/../tests/mock_server/mock_models/m2x_avat
 import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { registerMailMockRoutes } from "@mail/../tests/mock_server/mail_mock_server";
 import { ResourceResource } from "@resource/../tests/mock_server/mock_models/resource_resource";
-import { defineModels, onRpc } from "@web/../tests/web_test_helpers";
+import { defineModels, defineParams, onRpc } from "@web/../tests/web_test_helpers";
 
 import { HrJob } from "./mock_server/mock_models/hr_job.js";
 import { HrVersion } from "./mock_server/mock_models/hr_version.js";
@@ -22,6 +22,7 @@ export function defineHrModels() {
     // /discuss/get_or_create_chat -- comes back in a payload carrying no
     // DataResponse, so the chat window never opens.
     registerMailMockRoutes();
+    defineParams({ suite: "hr" }, "replace");
     onRpc("get_avatar_card_data", function getAvatarCardData({ args }) {
         const employeeId = args[0][0];
         const employees = this.env["hr.employee.public"].search_read([
