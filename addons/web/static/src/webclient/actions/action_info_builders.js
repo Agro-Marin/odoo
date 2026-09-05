@@ -159,13 +159,11 @@ function makeFormViewOpener(action, target, am) {
  * @param {Record<string, any>} context
  */
 function applyActionOverrides(viewProps, action, context) {
-    for (const key of ["help", "useSampleModel", "limit", "count"]) {
-        if (!(key in action)) {
-            continue;
-        }
-        if (key === "help") {
-            viewProps.noContentHelp = action.help;
-        } else {
+    if ("help" in action) {
+        viewProps.noContentHelp = action.help;
+    }
+    for (const key of ["useSampleModel", "limit", "count"]) {
+        if (key in action) {
             viewProps[key] = /** @type {Record<string, any>} */ (action)[key];
         }
     }
@@ -234,20 +232,13 @@ export function buildViewInfo(view, action, views, props, am) {
         selectRecord: openFormView,
         createRecord: () => openFormView(false),
     };
-    if (view.type === "form") {
-        if (target === "new") {
-            viewProps.readonly = false;
-            if (!viewProps.onSave) {
-                viewProps.onSave = (
-                    /** @type {any} */ record,
-                    /** @type {any} */ params,
-                ) => {
-                    if (params?.closable) {
-                        am.doAction({ type: "ir.actions.act_window_close" });
-                    }
-                };
+    if (view.type === "form" && target === "new") {
+        viewProps.readonly = false;
+        viewProps.onSave ??= (/** @type {any} */ record, /** @type {any} */ params) => {
+            if (params?.closable) {
+                am.doAction({ type: "ir.actions.act_window_close" });
             }
-        }
+        };
     }
 
     applyActionOverrides(viewProps, action, context);

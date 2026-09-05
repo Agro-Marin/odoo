@@ -85,15 +85,24 @@ export class SubscriptionManager {
         this.isWarningHidden = true;
     }
 
-    async buy() {
+    /**
+     * Internal users who logged in during the last fifteen days, the figure
+     * odoo.com prices a purchase or an upsell on.
+     *
+     * @returns {Promise<number>}
+     */
+    _countRecentlyActiveUsers() {
         const limitDate = serializeDate(DateTime.utc().minus({ days: 15 }));
-        const args = [
+        return this.orm.call("res.users", "search_count", [
             [
                 ["share", "=", false],
                 ["login_date", ">=", limitDate],
             ],
-        ];
-        const nbUsers = await this.orm.call("res.users", "search_count", args);
+        ]);
+    }
+
+    async buy() {
+        const nbUsers = await this._countRecentlyActiveUsers();
         browser.location.href = `https://www.odoo.com/odoo-enterprise/upgrade?num_users=${nbUsers}`;
     }
     /**
@@ -187,17 +196,11 @@ export class SubscriptionManager {
     }
 
     async upsell() {
-        const limitDate = serializeDate(DateTime.utc().minus({ days: 15 }));
         const [enterpriseCode, nbUsers] = await Promise.all([
             this.orm.call("ir.config_parameter", "get_param", [
                 "database.enterprise_code",
             ]),
-            this.orm.call("res.users", "search_count", [
-                [
-                    ["share", "=", false],
-                    ["login_date", ">=", limitDate],
-                ],
-            ]),
+            this._countRecentlyActiveUsers(),
         ]);
         const url = "https://www.odoo.com/odoo-enterprise/upsell";
         const contractQueryString = enterpriseCode ? `&contract=${enterpriseCode}` : "";

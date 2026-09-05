@@ -184,11 +184,15 @@ class MenuService {
                     if (!res?.menus) {
                         return;
                     }
-                    const changed = JSON.stringify(res.menus) !== this.storedRaw;
-                    if (changed || (res.hash && res.hash !== this.storedHash)) {
-                        this._persist(res.menus, res.hash);
-                    }
+                    // A hash the server sent answers the question without
+                    // re-serialising the whole payload; only a server that sends
+                    // none is compared by content.
+                    const changed =
+                        res.hash && this.storedHash
+                            ? res.hash !== this.storedHash
+                            : JSON.stringify(res.menus) !== this.storedRaw;
                     if (changed) {
+                        this._persist(res.menus, res.hash);
                         this.tree.setData(res.menus);
                         this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
                     }

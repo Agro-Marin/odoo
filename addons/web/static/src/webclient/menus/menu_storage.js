@@ -28,7 +28,7 @@ function isForeignUserVersion(storedVersion) {
     }
     return (
         /** @type {string} */ (storedVersion).slice(separatorIndex + 1) !==
-        String(session.uid ?? user.userId)
+        String(user.userId)
     );
 }
 

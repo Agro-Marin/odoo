@@ -10,6 +10,7 @@ import {
     pointerDown,
     press,
     queryOne,
+    runAllTimers,
     test,
 } from "@odoo/hoot";
 import {
@@ -322,6 +323,28 @@ test("The HomeMenu input takes the focus when you press a key only if no other e
     await press("a");
     await animationFrame();
     expect(".o_command_palette_search input").toBeFocused();
+});
+
+test("the search input takes the focus back after a blur onto the body", async () => {
+    await mountWithCleanup(HomeMenu, {
+        props: getDefaultHomeMenuProps(),
+    });
+    expect(".o_search_hidden").toBeFocused();
+
+    await pointerDown(document.body);
+    expect(document.body).toBeFocused();
+    await runAllTimers();
+    expect(".o_search_hidden").toBeFocused();
+
+    const activeElement = document.createElement("div");
+    getService("ui").activateElement(activeElement);
+    await pointerDown(document.body);
+    expect(document.body).toBeFocused();
+    await runAllTimers();
+    expect(document.body).toBeFocused({
+        message: "another active element owns the focus, the home menu leaves it alone",
+    });
+    getService("ui").deactivateElement(activeElement);
 });
 
 test("The HomeMenu input does not take the focus if it is already on another input", async () => {

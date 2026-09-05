@@ -42,9 +42,6 @@ export const homeMenuService = {
                             }
                         }
                     }
-                    // The next toggle reads the url, and doAction's push is
-                    // debounced, so wait a tick for it to land before returning.
-                    return new Promise((r) => setTimeout(r));
                 });
             }
         }

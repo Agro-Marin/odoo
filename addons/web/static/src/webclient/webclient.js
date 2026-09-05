@@ -7,7 +7,6 @@ import { router, routerBus } from "@web/core/browser/router";
 import { useOwnDebugContext } from "@web/core/debug/debug_context";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent, RouterEvent } from "@web/core/events";
-import { localization } from "@web/core/l10n/localization";
 import { registry } from "@web/core/registry";
 import { SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
@@ -40,7 +39,6 @@ export class WebClient extends Component {
         this.menuService = useService("menu");
         this.actionService = useService("action");
         this.hm = useService("home_menu");
-        this.title = useService("title");
         useOwnDebugContext({ categories: ["default"] });
         if (this.env.debug) {
             registry
@@ -51,7 +49,6 @@ export class WebClient extends Component {
                     { sequence: 100 },
                 );
         }
-        this.localization = localization;
         this.state = useState({
             fullscreen: false,
         });

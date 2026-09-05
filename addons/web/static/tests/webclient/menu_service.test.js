@@ -21,6 +21,7 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { redirect } from "@web/core/utils/urls";
+import { user } from "@web/core/user";
 import { session } from "@web/session";
 import { menuStorage } from "@web/webclient/menus/menu_storage";
 import { computeAppsAndMenuItems } from "@web/webclient/menus/menu_utils";
@@ -597,8 +598,10 @@ test(`menu cache is scoped per user on a shared browser`, async () => {
         root: { id: "root", name: "root", appID: "root", children: [1] },
     });
     expect(menuStorage.read().menus).not.toBe(null);
+    // `session.uid` is deleted at module evaluation by core/user.js; the
+    // current user is `user.userId`, so that is what a shared browser sees.
+    patchWithCleanup(user, { userId: 99 });
     patchWithCleanup(session, {
-        uid: 99,
         menus_cache_version: `${CURRENT_REGISTRY_HASH}:99`,
     });
     const read = menuStorage.read();

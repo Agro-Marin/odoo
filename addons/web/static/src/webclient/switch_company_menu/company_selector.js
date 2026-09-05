@@ -79,12 +79,15 @@ export class CompanySelector {
                 this.selectedCompaniesIds.splice(0, this.selectedCompaniesIds.length);
             }
             this._selectCompany(companyId, true);
-            Promise.resolve(this.apply()).catch((error) => {
-                console.warn("Failed to apply the company selection", error);
-            });
-
+            this.applyInBackground();
             this.dropdownState.close?.();
         }
+    }
+
+    applyInBackground() {
+        this.apply().catch((error) => {
+            console.warn("Failed to apply the company selection", error);
+        });
     }
 
     async apply() {

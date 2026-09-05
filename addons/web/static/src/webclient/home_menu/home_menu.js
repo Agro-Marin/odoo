@@ -10,6 +10,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { hasTouch, isIosApp, isMacOS } from "@web/core/browser/feature_detection";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { user } from "@web/core/user";
@@ -152,8 +153,8 @@ export class HomeMenu extends Component {
 
         onPatched(() => {
             if (this.state.focusedIndex !== null && !this.env.isSmall) {
-                const selectedItem = document.querySelector(
-                    ".o_home_menu .o_menuitem.o_focused",
+                const selectedItem = this.rootRef.el?.querySelector(
+                    ".o_menuitem.o_focused",
                 );
                 // When TAB is managed externally the class o_focused disappears.
                 if (selectedItem) {
@@ -406,14 +407,14 @@ export class HomeMenu extends Component {
         }
         // if we blur search input to focus on body (eg. click on any
         // non-interactive element) restore focus to avoid IME input issue
-        setTimeout(() => {
+        browser.setTimeout(() => {
             if (
                 document.activeElement === document.body &&
                 this.ui.activeElement === document
             ) {
                 this._focusInput();
             }
-        }, 0);
+        });
     }
 
     _onCompositionStart() {

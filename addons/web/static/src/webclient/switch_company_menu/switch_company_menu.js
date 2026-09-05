@@ -42,6 +42,21 @@ function childrenOf(company) {
     return (company.child_ids || []).map((id) => getCompany(id)).filter(Boolean);
 }
 
+/**
+ * The company under the keyboard cursor, or `undefined` when the cursor rests
+ * on something else (the search box, the confirm button).
+ *
+ * @param {{ activeItem?: { el: HTMLElement } }} navigator
+ * @returns {number | undefined}
+ */
+function activeCompanyId(navigator) {
+    const el = navigator.activeItem?.el;
+    if (!el?.classList.contains("o_switch_company_item")) {
+        return undefined;
+    }
+    return Number.parseInt(/** @type {string} */ (el.dataset.companyId), 10);
+}
+
 export class SwitchCompanyMenu extends Component {
     static template = "web.SwitchCompanyMenu";
     static components = {
@@ -91,32 +106,18 @@ export class SwitchCompanyMenu extends Component {
         this.navigationOptions = {
             hotkeys: {
                 space: (navigator) => {
-                    const navItem = navigator.activeItem;
-                    if (!navItem) {
-                        return;
-                    }
-                    if (navItem.el.classList.contains("o_switch_company_item")) {
-                        const companyId = Number.parseInt(
-                            navItem.el.dataset.companyId,
-                            10,
-                        );
+                    const companyId = activeCompanyId(navigator);
+                    if (companyId !== undefined) {
                         this.companySelector.switchCompany("toggle", companyId);
                     }
                 },
                 enter: (navigator) => {
-                    const navItem = navigator.activeItem;
-                    if (!navItem) {
-                        return;
-                    }
-                    if (navItem.el.classList.contains("o_switch_company_item")) {
-                        const companyId = Number.parseInt(
-                            navItem.el.dataset.companyId,
-                            10,
-                        );
+                    const companyId = activeCompanyId(navigator);
+                    if (companyId !== undefined) {
                         this.companySelector.switchCompany("loginto", companyId);
                         this.dropdown.close();
                     } else {
-                        navItem.select();
+                        navigator.activeItem?.select();
                     }
                 },
             },
@@ -250,9 +251,7 @@ export class SwitchCompanyMenu extends Component {
     }
 
     confirm() {
-        Promise.resolve(this.companySelector.apply()).catch((error) => {
-            console.warn("Failed to apply the company selection", error);
-        });
+        this.companySelector.applyInBackground();
         this.dropdown.close();
     }
 

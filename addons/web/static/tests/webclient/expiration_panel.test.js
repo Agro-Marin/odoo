@@ -408,7 +408,7 @@ test("One app installed, renew", async () => {
     await animationFrame();
 
     expect(".oe_instance_register").toHaveText(
-        "Your subscription expired 9 days ago. This database will be blocked soon.\n" +
+        "Your subscription expired 5 days ago. This database will be blocked soon.\n" +
             "Renew now\n" +
             "I paid, please recheck!",
     );

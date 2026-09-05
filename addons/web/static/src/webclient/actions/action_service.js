@@ -583,7 +583,7 @@ export class ActionManager {
             actionType: action.type,
         };
         if (action.name) {
-            actionDialogProps.title = action.name ?? null;
+            actionDialogProps.title = action.name;
         }
         const context = /** @type {Context} */ (action.context);
         const size = DIALOG_SIZES[context.dialog_size];
@@ -950,7 +950,7 @@ export class ActionManager {
         actionStorage.setCurrentState(newState);
 
         cStack.at(-1).state = newState;
-        this.router.pushState(newState, Object.assign({ replace: true }, options));
+        this.router.pushState(newState, { replace: true, ...options });
     }
 }
 
