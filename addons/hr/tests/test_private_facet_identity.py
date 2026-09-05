@@ -65,4 +65,3 @@ class TestPrivateFacetIdentity(TransactionCase):
         fresh = employee.new(origin=employee)
         self.assertEqual(fresh.private_address_id, employee.private_address_id)
         self.assertEqual(fresh.private_email, "home@example.com")
-

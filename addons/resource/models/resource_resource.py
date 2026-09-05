@@ -28,7 +28,21 @@ class ResourceResource(models.Model):
     _description = "Resources"
     _order = "name"
 
-    name = fields.Char(required=True)
+    name = fields.Char(
+        compute="_compute_name",
+        inverse="_inverse_name",
+        store=True,
+        precompute=True,
+        readonly=False,
+        required=True,
+    )
+    partner_id = fields.Many2one(
+        "res.partner",
+        string="Party",
+        index="btree_not_null",
+        ondelete="restrict",
+        help="The person this resource is. A material resource has none.",
+    )
     active = fields.Boolean(
         "Active",
         default=True,
@@ -53,8 +67,8 @@ class ResourceResource(models.Model):
     )
     avatar_128 = fields.Image(compute="_compute_avatar_128")
     share = fields.Boolean(related="user_id.share")
-    email = fields.Char(related="user_id.email")
-    phone = fields.Char(related="user_id.phone")
+    email = fields.Char(related="partner_id.email")
+    phone = fields.Char(related="partner_id.phone")
 
     calendar_id = fields.Many2one(
         "resource.calendar",
@@ -67,6 +81,11 @@ class ResourceResource(models.Model):
     tz = fields.Selection(
         _tz_get,
         string="Timezone",
+        compute="_compute_tz",
+        inverse="_inverse_tz",
+        store=True,
+        precompute=True,
+        readonly=False,
         required=True,
         default=lambda self: self.env.context.get("tz") or self.env.user.tz or "UTC",
     )
@@ -97,6 +116,11 @@ class ResourceResource(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         for values in vals_list:
+            if values.get("partner_id"):
+                party = self.env["res.partner"].browse(values["partner_id"])
+                values.pop("name", None)
+                if party.tz:
+                    values.pop("tz", None)
             if values.get("company_id") and "calendar_id" not in values:
                 values["calendar_id"] = (
                     self.env["res.company"]
@@ -105,7 +129,8 @@ class ResourceResource(models.Model):
                 )
             if not values.get("tz"):
                 tz = (
-                    self.env["res.users"].browse(values.get("user_id")).tz
+                    self.env["res.partner"].browse(values.get("partner_id")).tz
+                    or self.env["res.users"].browse(values.get("user_id")).tz
                     or self.env["resource.calendar"]
                     .browse(values.get("calendar_id"))
                     .tz
@@ -132,10 +157,32 @@ class ResourceResource(models.Model):
             return True
         return super().write(vals)
 
-    @api.depends("user_id")
+    @api.depends("partner_id.name")
+    def _compute_name(self):
+        for resource in self:
+            resource.name = resource.partner_id.name or resource.name
+
+    def _inverse_name(self):
+        for resource in self.filtered("partner_id"):
+            if resource.partner_id.name != resource.name:
+                resource.partner_id.name = resource.name
+
+    @api.depends("partner_id.tz")
+    def _compute_tz(self):
+        for resource in self:
+            resource.tz = resource.partner_id.tz or resource.tz
+
+    def _inverse_tz(self):
+        for resource in self.filtered("partner_id"):
+            if resource.partner_id.tz != resource.tz:
+                resource.partner_id.tz = resource.tz
+
+    @api.depends("partner_id.avatar_128", "user_id.avatar_128")
     def _compute_avatar_128(self):
         for resource in self:
-            resource.avatar_128 = resource.user_id.avatar_128
+            resource.avatar_128 = (
+                resource.partner_id.avatar_128 or resource.user_id.avatar_128
+            )
 
     @api.onchange("company_id")
     def _onchange_company_id(self):

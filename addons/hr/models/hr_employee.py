@@ -763,6 +763,7 @@ class HrEmployee(models.Model):
             index_per_employee.update(dict(zip(new_employees, idxs, strict=True)))
             employees |= new_employees
         employees = employees.sorted(key=lambda employee: index_per_employee[employee])
+        employees._bind_resource_to_party()
         for employee in employees:
             if address_vals := private_address_vals.get(index_per_employee[employee]):
                 employee.write(address_vals)
@@ -849,17 +850,6 @@ class HrEmployee(models.Model):
             user_to_sync = self.env["res.users"].browse(vals["user_id"])
             vals.update(self._sync_user(user_to_sync))
             self._remove_work_contact_id(user_to_sync, vals.get("company_id"))
-        if vals.get("tz"):
-            users_to_update = self.env["res.users"]
-            for employee in self:
-                if (
-                    employee.user_id
-                    and employee.company_id == employee.user_id.company_id
-                    and vals["tz"] != employee.user_id.tz
-                ):
-                    users_to_update |= employee.user_id
-            if users_to_update:
-                users_to_update.write({"tz": vals["tz"]})
         if vals.get("department_id") or vals.get("user_id"):
             department_ids = (
                 [vals["department_id"]]
@@ -883,8 +873,7 @@ class HrEmployee(models.Model):
         if "partner_id" in vals:
             self._update_bank_account_contact(vals["partner_id"])
             self._reparent_private_address()
-        if "name" in vals:
-            self.resource_id.write({"name": vals["name"]})
+            self._bind_resource_to_party()
         if version_vals:
             version_vals["last_modified_date"] = fields.Datetime.now()
             version_vals["last_modified_uid"] = self.env.uid
@@ -2758,9 +2747,12 @@ class HrEmployee(models.Model):
         vals = {"user_id": user.id}
         if user:
             vals["partner_id"] = user.partner_id.id
-        if user.tz:
-            vals["tz"] = user.tz
         return vals
+
+    def _bind_resource_to_party(self):
+        for employee in self:
+            if employee.resource_id.partner_id != employee.partner_id:
+                employee.resource_id.partner_id = employee.partner_id
 
     def _prepare_resource_values(self, vals, tz):
         resource_vals = super()._prepare_resource_values(vals, tz)

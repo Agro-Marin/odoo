@@ -13,3 +13,4 @@ from . import test_calendar_attendance
 from . import test_resource_resource_crud
 from . import test_resource_challenge
 from . import test_resource_calendar_integrity
+from . import test_resource_party

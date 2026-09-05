@@ -58,7 +58,7 @@ class TestPartyIdentifiers(TransactionCase):
         employees = self.env["hr.employee"].create(
             [{"name": "Gen A"}, {"name": "Gen B"}]
         )
-        employees.generate_random_barcode()
+        employees.action_generate_random_barcode()
         self.assertEqual(len(set(employees.mapped("barcode"))), 2)
         self.assertTrue(all(b.startswith("041") for b in employees.mapped("barcode")))
 

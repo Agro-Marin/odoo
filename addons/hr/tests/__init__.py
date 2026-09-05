@@ -23,6 +23,7 @@ from . import test_private_address_access
 from . import test_hr_audit_round3
 from . import test_hr_audit_round4
 from . import test_hr_audit_round5
-from . import test_party_delegation
-from . import test_private_facet_identity
 from . import test_version_delegation_gate
+from . import test_private_facet_identity
+from . import test_party_delegation
+from . import test_party_identifiers

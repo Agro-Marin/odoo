@@ -25,8 +25,8 @@ KEEP_SHADOWED = frozenset(
         # vocabulary; the party's tags stay the contact's.
         "tag_ids",
         # The resource's timezone drives scheduling and a material resource
-        # has one too; until resource.resource delegates to the party (step 7)
-        # the employee's tz stays the resource's.
+        # has one too; the resource follows its party's tz, and the employee
+        # reads the resource's.
         "tz",
         # A kanban colour index for the employee list, not the contact's.
         "color",

@@ -63,6 +63,7 @@
                     <group>
                         <group name="user_details">
                             <field name="name" />
+                            <field name="partner_id" invisible="resource_type != 'user'" />
                             <field
                                 name="user_id"
                                 invisible="resource_type == 'material'"

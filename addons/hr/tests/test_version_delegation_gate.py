@@ -16,15 +16,19 @@ class TestVersionDelegationGate(TransactionCase):
     def _restatements(self):
         Employee = self.env["hr.employee"]
         Version = self.env["hr.version"]
+        Partner = self.env["res.partner"]
         found = []
         for name, field in Employee._fields.items():
             related = field.related or ""
             if not related.startswith("version_id.") or related.count(".") != 1:
                 continue
+            if name in Partner._fields:
+                # Both parents declare it; the declaration says which one wins.
+                continue
             parent = Version._fields.get(related.split(".")[1])
             if parent is None or parent.name != name:
                 continue
-            for base in field._args__.get("_base_fields__", (field,)):
+            for base in getattr(field, "_base_fields__", ()):
                 args = dict(base._args__)
                 if "inherited_field" in args or base.type != parent.type:
                     continue

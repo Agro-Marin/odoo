@@ -62,3 +62,30 @@ class TestPartyDelegation(TransactionCase):
         user.name = "Party Login Renamed"
         employee.invalidate_recordset(["name"])
         self.assertEqual(employee.name, "Party Login Renamed")
+
+    def test_the_resource_is_bound_to_the_party(self):
+        employee = self.env["hr.employee"].create({"name": "Party Resource"})
+        self.assertEqual(employee.resource_id.partner_id, employee.partner_id)
+        user = self.env["res.users"].create(
+            {
+                "name": "Party Resource User",
+                "login": "party_resource",
+                "tz": "Asia/Tokyo",
+            }
+        )
+        employee.user_id = user
+        self.assertEqual(employee.resource_id.partner_id, user.partner_id)
+        self.assertEqual(employee.tz, "Asia/Tokyo")
+
+    def test_a_timezone_written_on_the_employee_reaches_the_user_through_the_party(
+        self,
+    ):
+        user = self.env["res.users"].create(
+            {"name": "Party TZ", "login": "party_tz", "tz": "UTC"}
+        )
+        employee = self.env["hr.employee"].create(
+            {"name": "Party TZ", "user_id": user.id}
+        )
+        employee.tz = "America/Mexico_City"
+        self.assertEqual(user.tz, "America/Mexico_City")
+        self.assertEqual(employee.resource_id.tz, "America/Mexico_City")
