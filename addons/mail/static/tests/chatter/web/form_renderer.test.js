@@ -210,14 +210,14 @@ test("read more/less should appear only once for the signature", async () => {
     const partnerId = pyEnv["res.partner"].create({});
 
     mockService("action", {
-        doAction(action, { onClose }) {
-            if (action.name === "Compose Email") {
+        doAction(action, options) {
+            if (typeof action === "object" && action.name === "Compose Email") {
                 pyEnv["mail.message"].create({
                     body: action.context.default_body.toString(),
                     model: action.context.default_model,
                     res_id: action.context.default_res_ids[0],
                 });
-                return onClose(undefined);
+                return options.onClose(undefined);
             }
             return super.doAction(...arguments);
         },

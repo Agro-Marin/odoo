@@ -644,7 +644,7 @@ test("schedule activities on draft record should prompt with scheduling an activ
     const wizardOpened = new Deferred();
     mockService("action", {
         doAction(action, options) {
-            if (action.res_model === "res.partner") {
+            if (typeof action !== "object" || action.res_model === "res.partner") {
                 return super.doAction(...arguments);
             } else if (action.res_model === "mail.activity.schedule") {
                 asyncStep("mail.activity.schedule");

@@ -155,7 +155,7 @@ test("activity mark done popover mark done and schedule next", async () => {
     });
     mockService("action", {
         doAction(action) {
-            if (action?.res_model !== "res.partner") {
+            if (typeof action === "object" && action.res_model !== "res.partner") {
                 asyncStep("activity_action");
                 throw new Error(
                     "The do-action event should not be triggered when the route doesn't return an action",
@@ -192,7 +192,7 @@ test("[technical] activity mark done & schedule next with new action", async () 
     const def = new Deferred();
     mockService("action", {
         doAction(action) {
-            if (action?.res_model !== "res.partner") {
+            if (typeof action === "object" && action.res_model !== "res.partner") {
                 def.resolve();
                 asyncStep("activity_action");
                 expect(action).toEqual(

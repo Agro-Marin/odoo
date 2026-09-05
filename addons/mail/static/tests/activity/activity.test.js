@@ -299,7 +299,7 @@ test("activity with mail template: preview mail", async () => {
     });
     mockService("action", {
         doAction(action) {
-            if (action?.res_model !== "res.partner") {
+            if (typeof action === "object" && action.res_model !== "res.partner") {
                 asyncStep("do_action");
                 expect(action.context.default_res_ids).toEqual([partnerId]);
                 expect(action.context.default_model).toBe("res.partner");
@@ -411,7 +411,7 @@ test("activity click on edit", async () => {
     });
     mockService("action", {
         doAction(action) {
-            if (action?.res_model !== "res.partner") {
+            if (typeof action === "object" && action.res_model !== "res.partner") {
                 asyncStep("do_action");
                 expect(action.type).toBe("ir.actions.act_window");
                 expect(action.res_model).toBe("mail.activity");
@@ -563,7 +563,7 @@ test("chatter 'activity' button open the activity schedule wizard", async () => 
     const fakeId = pyEnv["res.partner"].create({});
     mockService("action", {
         async doAction(action, options) {
-            if (action?.res_model !== "res.partner") {
+            if (typeof action === "object" && action.res_model !== "res.partner") {
                 asyncStep("doAction");
                 const expectedAction = {
                     context: {
