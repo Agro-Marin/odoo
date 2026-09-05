@@ -322,7 +322,9 @@ class TestSynchronizeQuantSignature(MoveLineAuditCase):
 
     def test_the_named_override_still_works(self):
         line = self._line()
-        available, _in_date = line._update_quant_at_location(-1.0, self.src, package=False)
+        available, _in_date = line._update_quant_at_location(
+            -1.0, self.src, package=False
+        )
         self.assertIsNotNone(available)
 
     def test_no_caller_asks_for_the_removed_action(self):

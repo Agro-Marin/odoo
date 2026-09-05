@@ -6513,7 +6513,8 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(scrap.name, "New", "Name should be New in draft state")
         scrap._action_done()
         self.assertTrue(
-            scrap.name.startswith("SP/"), "Sequence should be Changed after _action_done"
+            scrap.name.startswith("SP/"),
+            "Sequence should be Changed after _action_done",
         )
         self.assertEqual(scrap.state, "done")
         move = scrap.move_ids[0]
