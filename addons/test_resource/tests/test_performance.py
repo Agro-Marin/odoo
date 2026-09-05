@@ -49,3 +49,11 @@ class TestResourcePerformance(TransactionCase):
             # After
             # INFO master test_performance: Attendance Intervals Batch (100): --- 0.4092371463775635 seconds ---
             # INFO master test_performance: Attendance Intervals Batch (100): --- 0.3598649501800537 seconds ---
+
+    def test_attendance_lines_prefetch_after_invalidation(self):
+        calendar = self.env.company.resource_calendar_id
+        self.assertGreater(len(calendar.attendance_ids), 5)
+        self.env.flush_all()
+        self.env.invalidate_all()
+        with self.assertQueryCount(__system__=3):
+            [line.day_period for line in calendar.attendance_ids]

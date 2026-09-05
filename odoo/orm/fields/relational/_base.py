@@ -435,13 +435,17 @@ class _RelationalMulti(_Relational):
     def convert_to_record(
         self, value: tuple[int | NewId, ...], record: ModelLike
     ) -> BaseModel:
-        return self._prepare_corecords(record.env, value, PrefetchX2many(record, self))
+        return self._prepare_corecords(
+            record.env, value, PrefetchX2many(record, self, value)
+        )
 
     def convert_to_record_multi(
         self, values: list[tuple[int | NewId, ...]], records: BaseModel
     ) -> BaseModel:
         ids = tuple(unique(id_ for ids in values for id_ in ids))
-        return self._prepare_corecords(records.env, ids, PrefetchX2many(records, self))
+        return self._prepare_corecords(
+            records.env, ids, PrefetchX2many(records, self, ids)
+        )
 
     @override
     def convert_to_read(
@@ -701,24 +705,40 @@ class _RelationalMulti(_Relational):
 
 
 class PrefetchX2many(Reversible):
-    __slots__ = ("field", "record")
+    __slots__ = ("field", "ids", "record")
 
-    def __init__(self, record: ModelLike, field: _RelationalMulti) -> None:
+    def __init__(
+        self,
+        record: ModelLike,
+        field: _RelationalMulti,
+        ids: tuple[int | NewId, ...] = (),
+    ) -> None:
         self.record = record
         self.field = field
+        self.ids = ids
 
     def __iter__(self) -> Iterator[int | NewId]:
         field_cache = self.field._get_cache(self.record.env)
         return unique(
-            coid
-            for id_ in self.record._prefetch_ids
-            for coid in field_cache.get(id_, ())
+            itertools.chain(
+                (
+                    coid
+                    for id_ in self.record._prefetch_ids
+                    for coid in field_cache.get(id_, ())
+                ),
+                self.ids,
+            )
         )
 
     def __reversed__(self) -> Iterator[int | NewId]:
         field_cache = self.field._get_cache(self.record.env)
         return unique(
-            coid
-            for id_ in reversed(self.record._prefetch_ids)
-            for coid in field_cache.get(id_, ())
+            itertools.chain(
+                (
+                    coid
+                    for id_ in reversed(self.record._prefetch_ids)
+                    for coid in field_cache.get(id_, ())
+                ),
+                reversed(self.ids),
+            )
         )
