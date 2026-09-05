@@ -424,7 +424,14 @@
                     decoration-success="state == 'done'"
                     decoration-info="state == 'draft'"
                     optional="show" />
-                <field name="invoice_state" optional="hide" />
+                <field
+                    name="invoice_state"
+                    widget="badge"
+                    decoration-warning="invoice_state == 'to do'"
+                    decoration-info="invoice_state == 'partial'"
+                    decoration-success="invoice_state == 'done'"
+                    decoration-danger="invoice_state == 'over done'"
+                    optional="hide" />
                 <field
                     name="company_id"
                     readonly="1"
