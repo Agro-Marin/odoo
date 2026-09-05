@@ -149,7 +149,9 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
                 return 1 + warehouse_rank[wh.id] / (len(warehouse_rank) + 1)
             return 2
 
-        return all_locations.sorted(key=lambda loc: (get_usage_rank(loc), topo_rank[loc.id]))
+        return all_locations.sorted(
+            key=lambda loc: (get_usage_rank(loc), topo_rank[loc.id])
+        )
 
     @api.model
     def _topological_rank(self, locations, edges):

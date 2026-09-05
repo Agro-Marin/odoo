@@ -299,15 +299,15 @@ class TestQuantExpirationBoundary(TestStockCommon):
     def test_stock_never_names_a_product_expiry_field(self):
         import inspect
 
-        from odoo.addons.stock.models import stock_quant
+        from odoo.addons.stock.models import stock_quant, stock_quant_reservation
 
-        source = inspect.getsource(stock_quant)
-        self.assertNotIn(
-            "removal_date",
-            source,
-            "stock/models/stock_quant.py must reach expiry through "
-            "_get_expiration_domain / _filtered_not_expired, not by name",
-        )
+        for module in (stock_quant, stock_quant_reservation):
+            self.assertNotIn(
+                "removal_date",
+                inspect.getsource(module),
+                f"{module.__name__} must reach expiry through "
+                "_get_expiration_domain / _filtered_not_expired, not by name",
+            )
 
     def test_the_base_hooks_are_neutral(self):
         quant = self.env["stock.quant"]

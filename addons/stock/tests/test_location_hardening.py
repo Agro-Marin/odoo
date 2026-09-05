@@ -5,7 +5,7 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tests.common import TransactionCase, tagged
 
-from ..models.stock_location import PutawayScan
+from ..models.stock_location_putaway import PutawayScan
 
 
 class LocationHardeningCase(TransactionCase):

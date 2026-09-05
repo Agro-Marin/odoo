@@ -445,12 +445,12 @@ class TestOrderpointAudit(TransactionCase):
     def test_a_failed_procurement_batch_is_rolled_back(self):
         import inspect
 
-        from odoo.addons.stock.models.stock_orderpoint import (
-            StockWarehouseOrderpoint,
+        from odoo.addons.stock.models.stock_orderpoint_replenish import (
+            StockWarehouseOrderpointReplenish,
         )
 
         source = inspect.getsource(
-            StockWarehouseOrderpoint._procure_orderpoint_confirm,
+            StockWarehouseOrderpointReplenish._procure_orderpoint_confirm,
         )
         self.assertIn("cr.rollback()", source)
         self.assertIn("committed = True", source)

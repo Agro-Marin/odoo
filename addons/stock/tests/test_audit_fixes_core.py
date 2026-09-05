@@ -205,9 +205,9 @@ class TestAuditFixesCore(TestStockCommon):
         self.assertEqual(move_d.picking_id, move_b.picking_id)
 
     def _gather_spy(self):
-        import odoo.addons.stock.models.stock_quant as _sq
+        import odoo.addons.stock.models.stock_quant_reservation as _sq
 
-        return self._spy_calls(_sq, _sq.StockQuant, "_gather"), None
+        return self._spy_calls(_sq, _sq.StockQuantReservation, "_gather"), None
 
     def test_update_reserved_quantity_single_gather(self):
         self.Quant._update_available_quantity(self.productC, self.stock_location, 20.0)
@@ -237,7 +237,7 @@ class TestAuditFixesCore(TestStockCommon):
         )
 
     def test_reserve_new_move_lines_grouped(self):
-        import odoo.addons.stock.models.stock_quant as _sq
+        import odoo.addons.stock.models.stock_quant_reservation as _sq
 
         self.Quant._update_available_quantity(self.productE, self.stock_location, 10.0)
         move = self.env["stock.move"].create(
@@ -251,7 +251,9 @@ class TestAuditFixesCore(TestStockCommon):
             }
         )
         move._action_confirm()
-        calls = self._spy_calls(_sq, _sq.StockQuant, "_update_reserved_quantity")
+        calls = self._spy_calls(
+            _sq, _sq.StockQuantReservation, "_update_reserved_quantity"
+        )
         self.MoveLine.create(
             [
                 {"move_id": move.id, "product_id": self.productE.id, "quantity": 2.0},
@@ -277,7 +279,9 @@ class TestAuditFixesCore(TestStockCommon):
         quant = self.Quant._gather(self.productB, self.stock_location, strict=True)
         self.assertAlmostEqual(sum(quant.mapped("reserved_quantity")), 5.0)
 
-        calls = self._spy_calls(_sml, _sml.StockMoveLineQuant, "_update_quant_at_location")
+        calls = self._spy_calls(
+            _sml, _sml.StockMoveLineQuant, "_update_quant_at_location"
+        )
         line.location_dest_id = self.pack_location
         self.assertEqual(
             calls["n"],
@@ -631,7 +635,7 @@ class TestAuditFixesCore(TestStockCommon):
 @tagged("post_install", "-at_install")
 class TestAuditQuantTasksScope(TestStockCommon):
     def test_quant_tasks_propagates_recordset(self):
-        from odoo.addons.stock.models import stock_quant as _sq
+        from odoo.addons.stock.models import stock_quant_reservation as _sq
 
         product = self.env["product.product"].create(
             {"name": "QT Scope Product", "is_storable": True},
@@ -650,14 +654,14 @@ class TestAuditQuantTasksScope(TestStockCommon):
             limit=1,
         )
         seen_sizes = []
-        orig = _sq.StockQuant._merge_quants
+        orig = _sq.StockQuantReservation._merge_quants
 
         def spy(records, *args, **kwargs):
             seen_sizes.append(len(records))
             return orig(records, *args, **kwargs)
 
-        _sq.StockQuant._merge_quants = spy
-        self.addCleanup(setattr, _sq.StockQuant, "_merge_quants", orig)
+        _sq.StockQuantReservation._merge_quants = spy
+        self.addCleanup(setattr, _sq.StockQuantReservation, "_merge_quants", orig)
 
         quant._quant_tasks()
         self.assertEqual(

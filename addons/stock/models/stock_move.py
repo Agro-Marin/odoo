@@ -476,7 +476,7 @@ class StockMove(models.Model):
         super().init()
         self.env.cr.execute("CREATE SEQUENCE IF NOT EXISTS stock_move_completion_seq")
 
-    def _assign_completion_sequence(self):
+    def _update_completion_sequence(self):
         pending = self.filtered(
             lambda m: m.state == "done" and not m.completion_sequence
         )
@@ -503,7 +503,7 @@ class StockMove(models.Model):
     def create(self, vals_list):
         vals_list = self._prepare_create_vals(vals_list)
         res = super().create(vals_list)
-        res._assign_completion_sequence()
+        res._update_completion_sequence()
         res._update_orderpoints()
         res._update_references()
         return res
@@ -562,7 +562,7 @@ class StockMove(models.Model):
         res = super().write(vals)
 
         if vals.get("state") == "done":
-            self._assign_completion_sequence()
+            self._update_completion_sequence()
         if "date" in vals:
             moves_done = self.filtered(lambda m: m.state == "done")
             moves_done.move_line_ids.date = vals["date"]

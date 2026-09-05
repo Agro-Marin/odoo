@@ -6,7 +6,9 @@ from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
-from odoo.addons.stock.models.stock_orderpoint import StockWarehouseOrderpoint
+from odoo.addons.stock.models.stock_orderpoint_replenish import (
+    StockWarehouseOrderpointReplenish,
+)
 from odoo.addons.stock.models.stock_rule import StockRule
 
 
@@ -214,14 +216,14 @@ class TestAuditOrderpointFixes(TransactionCase):
         )
         self.assertEqual(orderpoint.qty_forecast, 10.0)
 
-        original = StockWarehouseOrderpoint._prepare_procurement_vals
+        original = StockWarehouseOrderpointReplenish._prepare_procurement_vals
 
         def flushing(orderpoint_record, date=False):
             orderpoint_record.env.flush_all()
             return original(orderpoint_record, date=date)
 
         with patch.object(
-            StockWarehouseOrderpoint,
+            StockWarehouseOrderpointReplenish,
             "_prepare_procurement_vals",
             flushing,
         ):
@@ -365,13 +367,15 @@ class TestAuditOrderpointFixes(TransactionCase):
         self.env.invalidate_all()
 
         in_progress_calls = []
-        original = StockWarehouseOrderpoint._get_quantity_in_progress
+        original = StockWarehouseOrderpointReplenish._get_quantity_in_progress
 
         def recording(records):
             in_progress_calls.append(len(records))
             return original(records)
 
-        self.patch(StockWarehouseOrderpoint, "_get_quantity_in_progress", recording)
+        self.patch(
+            StockWarehouseOrderpointReplenish, "_get_quantity_in_progress", recording
+        )
         with self.assertQueryCount(__system__=17):
             orderpoints._compute_qty_to_order_computed()
 

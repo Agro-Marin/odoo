@@ -626,7 +626,7 @@ class TestStockQuantImprovements(TestStockCommon):
         self.Quant._update_available_quantity(product, self.loc, 3.0)
         self.env.invalidate_all()
 
-        from odoo.addons.stock.models import stock_quant as _sq
+        from odoo.addons.stock.models import stock_quant_reservation as _sq
 
         seen = {}
         original = _sq.get_least_packages
@@ -700,7 +700,7 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_least_packages_no_packages_is_noop(self):
-        from odoo.addons.stock.models import stock_quant as _sq
+        from odoo.addons.stock.models import stock_quant_reservation as _sq
 
         strat = self.env["product.removal"].search(
             [("method", "=", "least_packages")], limit=1
@@ -807,9 +807,9 @@ class TestStockQuantImprovements(TestStockCommon):
     def test_gather_signature_is_override_safe(self):
         import inspect
 
-        import odoo.addons.stock.models.stock_quant as _sq
+        import odoo.addons.stock.models.stock_quant_reservation as _sq
 
-        gather_params = inspect.signature(_sq.StockQuant._gather).parameters
+        gather_params = inspect.signature(_sq.StockQuantReservation._gather).parameters
         self.assertNotIn(
             "removal_strategy",
             gather_params,
@@ -817,7 +817,7 @@ class TestStockQuantImprovements(TestStockCommon):
             "_gather_removal_strategy context key so fixed-signature overrides survive.",
         )
         avail_params = inspect.signature(
-            _sq.StockQuant._get_available_quantity
+            _sq.StockQuantReservation._get_available_quantity
         ).parameters
         self.assertNotIn("removal_strategy", avail_params)
         self.assertNotIn(
@@ -828,20 +828,20 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def _count_gather_calls(self, fn):
-        import odoo.addons.stock.models.stock_quant as _sq
+        import odoo.addons.stock.models.stock_quant_reservation as _sq
 
-        orig = _sq.StockQuant._gather
+        orig = _sq.StockQuantReservation._gather
         calls = {"n": 0}
 
         def spy(records, *args, **kwargs):
             calls["n"] += 1
             return orig(records, *args, **kwargs)
 
-        _sq.StockQuant._gather = spy
+        _sq.StockQuantReservation._gather = spy
         try:
             fn()
         finally:
-            _sq.StockQuant._gather = orig
+            _sq.StockQuantReservation._gather = orig
         return calls["n"]
 
     def test_reserve_reuses_gather_for_fifo(self):
@@ -884,20 +884,20 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def _count_strategy_calls(self, fn):
-        import odoo.addons.stock.models.stock_quant as _sq
+        import odoo.addons.stock.models.stock_quant_reservation as _sq
 
-        orig = _sq.StockQuant._get_removal_strategy
+        orig = _sq.StockQuantReservation._get_removal_strategy
         calls = {"n": 0}
 
         def spy(records, *args, **kwargs):
             calls["n"] += 1
             return orig(records, *args, **kwargs)
 
-        _sq.StockQuant._get_removal_strategy = spy
+        _sq.StockQuantReservation._get_removal_strategy = spy
         try:
             fn()
         finally:
-            _sq.StockQuant._get_removal_strategy = orig
+            _sq.StockQuantReservation._get_removal_strategy = orig
         return calls["n"]
 
     def test_reserve_resolves_strategy_once_fifo(self):

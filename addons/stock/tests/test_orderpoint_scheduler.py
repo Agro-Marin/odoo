@@ -5,7 +5,12 @@ from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.base.models.ir_cron import IrCron
-from odoo.addons.stock.models.stock_orderpoint import StockWarehouseOrderpoint
+from odoo.addons.stock.models.stock_orderpoint_lead_time import (
+    StockWarehouseOrderpointLeadTime,
+)
+from odoo.addons.stock.models.stock_orderpoint_replenish import (
+    StockWarehouseOrderpointReplenish,
+)
 
 
 class TestOrderpointSchedulerContract(TransactionCase):
@@ -66,7 +71,7 @@ class TestOrderpointSchedulerContract(TransactionCase):
 
         captured = {}
         procure_orderpoint_confirm = (
-            StockWarehouseOrderpoint._procure_orderpoint_confirm
+            StockWarehouseOrderpointReplenish._procure_orderpoint_confirm
         )
 
         def _probing_procure(records, *args, **kwargs):
@@ -77,7 +82,7 @@ class TestOrderpointSchedulerContract(TransactionCase):
         with self.registry.cursor() as scheduler_cr:
             scheduler_env = self.env(cr=scheduler_cr)
             with patch.object(
-                StockWarehouseOrderpoint,
+                StockWarehouseOrderpointReplenish,
                 "_procure_orderpoint_confirm",
                 _probing_procure,
             ):
@@ -97,7 +102,9 @@ class TestOrderpointSchedulerContract(TransactionCase):
     def test_scheduler_commits_between_recomputes_and_procurement(self):
         calls = []
         commit_progress = IrCron._commit_progress
-        compute_lead_time_stats = StockWarehouseOrderpoint._compute_lead_time_stats
+        compute_lead_time_stats = (
+            StockWarehouseOrderpointLeadTime._compute_lead_time_stats
+        )
 
         def _record_commit(records, *args, **kwargs):
             calls.append("commit")
@@ -117,12 +124,12 @@ class TestOrderpointSchedulerContract(TransactionCase):
             with (
                 patch.object(IrCron, "_commit_progress", _record_commit),
                 patch.object(
-                    StockWarehouseOrderpoint,
+                    StockWarehouseOrderpointLeadTime,
                     "_compute_lead_time_stats",
                     _record_lead_stats,
                 ),
                 patch.object(
-                    StockWarehouseOrderpoint,
+                    StockWarehouseOrderpointReplenish,
                     "_procure_orderpoint_confirm",
                     _record_procure,
                 ),
