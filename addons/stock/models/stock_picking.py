@@ -2075,9 +2075,8 @@ class StockPicking(models.Model):
             if not package:
                 continue
             pickings = package_move_lines.picking_id
-            if (
-                pickings._is_single_transfer()
-                and pickings._is_package_entirely_moved(package)
+            if pickings._is_single_transfer() and pickings._is_package_entirely_moved(
+                package
             ):
                 move_lines_to_pack = package_move_lines.filtered(
                     lambda ml: (

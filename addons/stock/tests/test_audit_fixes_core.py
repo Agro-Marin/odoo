@@ -267,7 +267,7 @@ class TestAuditFixesCore(TestStockCommon):
         self.assertEqual(move.state, "assigned")
 
     def test_write_location_dest_does_not_resync_reservation(self):
-        import odoo.addons.stock.models.stock_move_line as _sml
+        import odoo.addons.stock.models.stock_move_line_quant as _sml
 
         self.Quant._update_available_quantity(self.productB, self.stock_location, 5.0)
         picking = self._create_out_picking_with_moves(self.productB)
@@ -277,7 +277,7 @@ class TestAuditFixesCore(TestStockCommon):
         quant = self.Quant._gather(self.productB, self.stock_location, strict=True)
         self.assertAlmostEqual(sum(quant.mapped("reserved_quantity")), 5.0)
 
-        calls = self._spy_calls(_sml, _sml.StockMoveLine, "_update_quant_at_location")
+        calls = self._spy_calls(_sml, _sml.StockMoveLineQuant, "_update_quant_at_location")
         line.location_dest_id = self.pack_location
         self.assertEqual(
             calls["n"],
@@ -357,7 +357,7 @@ class TestAuditFixesCore(TestStockCommon):
         )
 
     def test_done_lines_batch_single_reassign(self):
-        import odoo.addons.stock.models.stock_move as _sm
+        import odoo.addons.stock.models.stock_move_reservation as _sm
 
         self.Quant._update_available_quantity(self.productE, self.stock_location, 10.0)
         m1 = self.env["stock.move"].create(
@@ -389,7 +389,7 @@ class TestAuditFixesCore(TestStockCommon):
         m2._action_confirm()
         m2._action_assign()
 
-        calls = self._spy_calls(_sm, _sm.StockMove, "_unreserve")
+        calls = self._spy_calls(_sm, _sm.StockMoveReservation, "_unreserve")
         self.MoveLine.create(
             [
                 {

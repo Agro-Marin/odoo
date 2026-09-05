@@ -96,11 +96,18 @@ class RemovalStrategy(typing.NamedTuple):
 
 
 class ReservationLedger:
-    __slots__ = ("_pending", "move_line_vals")
+    __slots__ = ("_by_move", "_pending", "move_line_vals")
 
     def __init__(self, move_line_vals=None):
         self._pending = defaultdict(float)
-        self.move_line_vals = move_line_vals if move_line_vals is not None else []
+        self._by_move = defaultdict(list)
+        self.move_line_vals = []
+        self.add_move_line_vals(move_line_vals or ())
+
+    def add_move_line_vals(self, vals_list):
+        for vals in vals_list:
+            self.move_line_vals.append(vals)
+            self._by_move[vals.get("move_id")].append(vals)
 
     def get_pending(self, quant):
         return self._pending.get(quant.id, 0.0)
@@ -112,8 +119,7 @@ class ReservationLedger:
         return sum(self._pending.values())
 
     def get_pending_move_line_vals(self, move_ids):
-        move_ids = set(move_ids)
-        return [vals for vals in self.move_line_vals if vals.get("move_id") in move_ids]
+        return [vals for move_id in move_ids for vals in self._by_move.get(move_id, ())]
 
 
 class ReservationCandidate(typing.NamedTuple):

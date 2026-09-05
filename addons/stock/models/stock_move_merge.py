@@ -1,0 +1,363 @@
+import logging
+from collections import defaultdict
+
+from odoo import models
+from odoo.exceptions import UserError
+from odoo.fields import Command
+from odoo.libs.numbers import float_round
+from odoo.tools.misc import groupby
+from odoo.tools.translate import _
+
+_logger = logging.getLogger(__name__)
+
+
+class StockMoveMerge(models.Model):
+    _inherit = "stock.move"
+
+    def _prepare_merge_moves_vals(self):
+        state = self._get_relevant_state_among_moves()
+        origin = "/".join(
+            dict.fromkeys(self.filtered(lambda m: m.origin).mapped("origin")),
+        )
+        return {
+            "product_uom_qty": sum(self.mapped("product_uom_qty")),
+            "date": (
+                min(self.mapped("date"))
+                if all(p.move_type == "direct" for p in self.picking_id)
+                else max(self.mapped("date"))
+            ),
+            "move_dest_ids": [Command.link(m.id) for m in self.move_dest_ids],
+            "move_orig_ids": [Command.link(m.id) for m in self.move_orig_ids],
+            "state": state,
+            "origin": origin,
+        }
+
+    def _get_merge_key(self, distinct_fields, excluded_fields=None):
+        field_names = set(distinct_fields or []) - set(excluded_fields or [])
+        float_fields = {
+            f_name for f_name in field_names if self._fields[f_name].type == "float"
+        }
+        non_float_fields = tuple(field_names - float_fields)
+
+        def get_non_float_key(move):
+            return tuple(move[f_name] for f_name in non_float_fields)
+
+        if not float_fields:
+            return get_non_float_key
+
+        float_precision = {
+            f_name: (self._fields[f_name].get_digits(self.env) or (False, 2))[1]
+            for f_name in float_fields
+        }
+        if "price_unit" in float_fields:
+            price_unit_prec = self.env["decimal.precision"].get_precision(
+                "Product Price",
+            )
+            currency_precision = (
+                min(self.company_id.mapped("currency_id.decimal_places"))
+                if self.company_id
+                else False
+            )
+            float_precision["price_unit"] = (
+                min(currency_precision, price_unit_prec)
+                if currency_precision
+                else price_unit_prec
+            )
+
+        def get_float_value_formatted(move, f_name, precision):
+            rounded_value = float_round(
+                move[f_name],
+                precision_digits=precision[f_name],
+            )
+            return "{:.{precision}f}".format(rounded_value, precision=precision[f_name])
+
+        return lambda move: (
+            get_non_float_key(move)
+            + tuple(
+                get_float_value_formatted(move, f_name, float_precision)
+                for f_name in float_fields
+            )
+        )
+
+    def _merge_moves(self, merge_into=False):
+        candidate_moves_set = set()
+        if not merge_into:
+            self._update_candidate_moves_list(candidate_moves_set)
+        else:
+            candidate_moves_set.add(merge_into | self)
+
+        distinct_fields = (
+            self | self.env["stock.move"].concat(*candidate_moves_set)
+        )._prepare_merge_moves_distinct_fields()
+
+        neg_qty_moves = self.filtered(
+            lambda m: m.product_uom_id.compare(m.product_qty, 0.0) < 0,
+        )
+        neg_qty_moves.picking_id = False
+        excluded_fields = self._prepare_merge_negative_moves_excluded_distinct_fields()
+        neg_key = self._get_merge_key(distinct_fields, excluded_fields)
+
+        moves_to_unlink, merged_moves, moves_by_neg_key = self._merge_positive_moves(
+            candidate_moves_set,
+            distinct_fields,
+            neg_qty_moves,
+            neg_key,
+        )
+        absorbed_moves, neg_to_unlink, moves_to_cancel = (
+            self._merge_absorb_negative_moves(neg_qty_moves, moves_by_neg_key, neg_key)
+        )
+        merged_moves |= absorbed_moves
+        moves_to_unlink |= neg_to_unlink
+
+        (moves_to_unlink | moves_to_cancel)._clean_merged()
+
+        if moves_to_unlink:
+            moves_to_unlink._action_cancel()
+            moves_to_unlink.sudo().unlink()
+
+        if moves_to_cancel:
+            moves_to_cancel.filtered(lambda m: not m.picked)._action_cancel()
+
+        return (self | merged_moves) - moves_to_unlink
+
+    def _merge_positive_moves(
+        self,
+        candidate_moves_set,
+        distinct_fields,
+        neg_qty_moves,
+        neg_key,
+    ):
+        moves_to_unlink = self.env["stock.move"]
+        merged_moves = self.env["stock.move"]
+        moves_by_neg_key = defaultdict(lambda: self.env["stock.move"])
+        merge_key = self._get_merge_key(distinct_fields)
+        for candidate_moves in candidate_moves_set:
+            candidate_moves = (
+                candidate_moves.filtered(
+                    lambda m: m.state not in ("done", "cancel", "draft"),
+                )
+                - neg_qty_moves
+            )
+            for __, g in groupby(candidate_moves, key=merge_key):
+                moves = self.env["stock.move"].concat(*g)
+                if len(moves) > 1:
+                    moves.mapped("move_line_ids").write({"move_id": moves[0].id})
+                    moves[0].write(moves._prepare_merge_moves_vals())
+                    moves_to_unlink |= moves[1:]
+                    merged_moves |= moves[0]
+                moves_by_neg_key[neg_key(moves[0])] |= moves[0]
+        return moves_to_unlink, merged_moves, moves_by_neg_key
+
+    def _merge_absorb_negative_moves(self, neg_qty_moves, moves_by_neg_key, neg_key):
+        merged_moves = self.env["stock.move"]
+        moves_to_unlink = self.env["stock.move"]
+        moves_to_cancel = self.env["stock.move"]
+        price_unit_prec = self.env["decimal.precision"].get_precision("Product Price")
+
+        def get_unit_price(total_value, quantity, uom):
+            if uom.is_zero(quantity):
+                return 0
+            return float_round(
+                total_value / quantity,
+                precision_digits=price_unit_prec,
+            )
+
+        for neg_move in neg_qty_moves:
+            for pos_move in moves_by_neg_key.get(neg_key(neg_move), []):
+                new_total_value = (
+                    pos_move.product_qty * pos_move.price_unit
+                    + neg_move.product_qty * neg_move.price_unit
+                )
+                if (
+                    pos_move.product_uom_id.compare(
+                        pos_move.product_uom_qty,
+                        abs(neg_move.product_uom_qty),
+                    )
+                    >= 0
+                ):
+                    new_product_qty = pos_move.product_qty + neg_move.product_qty
+                    pos_move.write(
+                        {
+                            "product_uom_qty": pos_move.product_uom_qty
+                            + neg_move.product_uom_qty,
+                            "price_unit": get_unit_price(
+                                new_total_value,
+                                new_product_qty,
+                                pos_move.product_id.uom_id,
+                            ),
+                            "move_dest_ids": [
+                                Command.link(m.id)
+                                for m in neg_move.mapped("move_dest_ids")
+                                if m.location_id == pos_move.location_dest_id
+                            ],
+                            "move_orig_ids": [
+                                Command.link(m.id)
+                                for m in neg_move.mapped("move_orig_ids")
+                                if m.location_dest_id == pos_move.location_id
+                            ],
+                        },
+                    )
+                    merged_moves |= pos_move
+                    moves_to_unlink |= neg_move
+                    if pos_move.product_uom_id.is_zero(pos_move.product_uom_qty):
+                        moves_to_cancel |= pos_move
+                    break
+                neg_move.write(
+                    {
+                        "product_uom_qty": neg_move.product_uom_qty
+                        + pos_move.product_uom_qty,
+                        "price_unit": get_unit_price(
+                            new_total_value,
+                            neg_move.product_qty + pos_move.product_qty,
+                            neg_move.product_id.uom_id,
+                        ),
+                    },
+                )
+                pos_move.product_uom_qty = 0
+                moves_to_cancel |= pos_move
+        return merged_moves, moves_to_unlink, moves_to_cancel
+
+    def _prepare_merge_moves_distinct_fields(self):
+        field_names = [
+            "product_id",
+            "price_unit",
+            "procure_method",
+            "location_id",
+            "location_dest_id",
+            "location_final_id",
+            "product_uom_id",
+            "restrict_partner_id",
+            "origin_returned_move_id",
+            "propagate_cancel",
+            "description_picking",
+            "never_product_template_attribute_value_ids",
+        ]
+        if (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("stock.merge_only_same_date")
+        ):
+            field_names.append("date")
+        if (
+            not self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("stock.merge_ignore_date_deadline")
+        ):
+            field_names.append("date_deadline")
+        return field_names
+
+    def _prepare_merge_negative_moves_excluded_distinct_fields(self):
+        return ["description_picking"]
+
+    def _clean_merged(self):
+        self.write({"propagate_cancel": False})
+
+    def _split(self, qty, restrict_partner_id=False):
+        self.check_singleton()
+        if self.state in ("done", "cancel"):
+            raise UserError(
+                _(
+                    "You cannot split a stock move that has been set to 'Done' or 'Cancel'.",
+                ),
+            )
+        if self.state == "draft":
+            raise UserError(
+                _("You cannot split a draft move. It needs to be confirmed first."),
+            )
+
+        if self.product_uom_id._is_zero_stored(qty, self.product_id.uom_id):
+            return []
+
+        uom_qty = self._uom_quantity_if_faithful(qty, self.product_uom_id)
+        if uom_qty is not None:
+            defaults = self._prepare_move_split_vals(uom_qty)
+        else:
+            defaults = self._prepare_move_split_vals(
+                qty,
+                force_uom_id=self.product_id.uom_id.id,
+            )
+
+        if restrict_partner_id:
+            defaults["restrict_partner_id"] = restrict_partner_id
+        new_move_vals = self.copy_data(defaults)
+
+        new_product_qty = self.product_uom_id.round(
+            self.product_id.uom_id._compute_quantity(
+                max(0, self.product_qty - qty),
+                self.product_uom_id,
+                round=False,
+            ),
+        )
+        self.with_context(do_not_unreserve=True).write(
+            {"product_uom_qty": new_product_qty},
+        )
+        self._recompute_state()
+        return new_move_vals
+
+    def _prepare_move_split_vals(self, qty, force_uom_id=False):
+        vals = {
+            "product_uom_qty": qty,
+            "procure_method": self.procure_method,
+            "move_dest_ids": [
+                Command.link(move.id)
+                for move in self.move_dest_ids
+                if move.state not in ("done", "cancel")
+            ],
+            "move_orig_ids": [Command.link(move.id) for move in self.move_orig_ids],
+            "origin_returned_move_id": self.origin_returned_move_id.id,
+            "price_unit": self.price_unit,
+            "date_deadline": self.date_deadline,
+        }
+        if force_uom_id:
+            vals["product_uom_id"] = force_uom_id
+        return vals
+
+    def _uom_quantity_if_faithful(self, quantity, to_uom):
+        self.check_singleton()
+        product_uom = self.product_id.uom_id
+        uom_quantity = product_uom.round(
+            product_uom._compute_quantity(
+                quantity,
+                to_uom,
+                rounding_method="HALF-UP",
+            ),
+        )
+        back_to_product_uom = to_uom._compute_quantity(
+            uom_quantity,
+            product_uom,
+            rounding_method="HALF-UP",
+        )
+        if product_uom.compare(quantity, back_to_product_uom) == 0:
+            return uom_quantity
+        return None
+
+    def _convert_to_move_uom(self, product_uom_qty):
+        self.check_singleton()
+        return self.product_id.uom_id._compute_quantity(
+            product_uom_qty,
+            self.product_uom_id,
+            round=False,
+        )
+
+    def _create_backorder(self):
+        backorder_moves_vals = []
+        for move in self:
+            if (
+                move.product_uom_id.compare(
+                    move.quantity,
+                    move.product_uom_qty,
+                )
+                < 0
+            ):
+                qty_split = move.product_uom_id._compute_quantity_stored(
+                    move.product_uom_qty - move.quantity,
+                    move.product_id.uom_id,
+                )
+                new_move_vals = move._split(qty_split)
+                backorder_moves_vals += new_move_vals
+        backorder_moves = self.env["stock.move"].create(backorder_moves_vals)
+        backorder_moves.with_context(bypass_entire_pack=True)._action_confirm(
+            merge=False,
+            create_proc=False,
+        )
+        return backorder_moves
