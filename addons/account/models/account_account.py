@@ -579,6 +579,11 @@ class AccountAccount(models.Model):
             bypass_access=True,
         )
         if not filter_never_used_accounts:
+            # Query._joins is private: keyed by alias, valued (kind, table, condition).
+            # Widening this one join to a RIGHT JOIN is what lets an account with zero
+            # matching account.move.line rows still appear in the result below (the
+            # public Domain/search API has no "outer join" primitive to express that).
+            # A Query internals change that touches this shape needs to update this call.
             _kind, rhs_table, condition = query._joins["account_move_line__account_id"]
             query._joins["account_move_line__account_id"] = (
                 SQL("RIGHT JOIN"),
