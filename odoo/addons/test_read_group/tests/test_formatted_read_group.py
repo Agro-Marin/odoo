@@ -1588,6 +1588,11 @@ class TestFormattedReadGroup(common.TransactionCase):
         self.assertEqual(res.mapped("value"), [98])
 
     def test_groupby_day_of_week_ordered_with_user_lang(self):
+        # date:day_of_week's own numbering is locale-independent (0=Sunday),
+        # but its label/order under lang=fr_BE follows the fr_BE week start
+        # (Monday), which reverses the two buckets here relative to the
+        # default (no-lang-context) order. Parametrized over ascending vs
+        # descending order: both share the same fixture and reversal logic.
         Model = self.env["test_read_group.fill_temporal"]
         Model.create(
             [
