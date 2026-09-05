@@ -42,12 +42,10 @@ class ResCompany(models.Model):
     )
     email = fields.Char(
         related="partner_id.email",
-        store=True,
         readonly=False,
     )
     phone = fields.Char(
         related="partner_id.phone",
-        store=True,
         readonly=False,
     )
     website = fields.Char(
@@ -138,33 +136,21 @@ class ResCompany(models.Model):
         "user_id",
         string="Accepted Users",
     )
-    street = fields.Char(
-        compute="_compute_address",
-        inverse="_inverse_street",
-    )
-    street2 = fields.Char(
-        compute="_compute_address",
-        inverse="_inverse_street2",
-    )
-    zip = fields.Char(
-        compute="_compute_address",
-        inverse="_inverse_zip",
-    )
-    city = fields.Char(
-        compute="_compute_address",
-        inverse="_inverse_city",
-    )
+    street = fields.Char(related="partner_id.street", readonly=False)
+    street2 = fields.Char(related="partner_id.street2", readonly=False)
+    zip = fields.Char(related="partner_id.zip", readonly=False)
+    city = fields.Char(related="partner_id.city", readonly=False)
     state_id = fields.Many2one(
         "res.country.state",
-        compute="_compute_address",
-        inverse="_inverse_state_id",
+        related="partner_id.state_id",
+        readonly=False,
         string="Fed. State",
         domain="[('country_id', '=?', country_id)]",
     )
     country_id = fields.Many2one(
         "res.country",
-        compute="_compute_address",
-        inverse="_inverse_country_id",
+        related="partner_id.country_id",
+        readonly=False,
         string="Country",
     )
     country_code = fields.Char(
@@ -439,10 +425,6 @@ class ResCompany(models.Model):
         if companies_needs_l10n:
             companies_needs_l10n.install_l10n_modules()
 
-        company_address_fields = self._get_address_field_names()
-        company_address_fields_upd = set(company_address_fields) & set(vals.keys())
-        if company_address_fields_upd:
-            self.invalidate_model(company_address_fields)
         return res
 
     def copy(self, default: ValuesType | None = None) -> Self:
@@ -464,18 +446,6 @@ class ResCompany(models.Model):
                 self.browse(company._ancestor_ids(include_self=True)) or company
             )
             company.root_id = company.parent_ids[0]
-
-    @api.depends(
-        lambda self: [
-            f"partner_id.{fname}" for fname in self._get_address_field_names()
-        ]
-    )
-    def _compute_address(self) -> None:
-        for company in self.filtered(lambda company: company.partner_id):
-            address_data = company.partner_id.sudo().address_get(adr_pref=["contact"])
-            if address_data["contact"]:
-                partner = company.partner_id.browse(address_data["contact"]).sudo()
-                company.update(company._get_company_address_update(partner))
 
     @api.depends("partner_id.image_1920")
     def _compute_logo_web(self) -> None:
@@ -558,30 +528,6 @@ class ResCompany(models.Model):
             record.is_company_details_empty = not html2plaintext(
                 record.company_details or ""
             )
-
-    def _inverse_street(self) -> None:
-        for company in self:
-            company.partner_id.street = company.street
-
-    def _inverse_street2(self) -> None:
-        for company in self:
-            company.partner_id.street2 = company.street2
-
-    def _inverse_zip(self) -> None:
-        for company in self:
-            company.partner_id.zip = company.zip
-
-    def _inverse_city(self) -> None:
-        for company in self:
-            company.partner_id.city = company.city
-
-    def _inverse_state_id(self) -> None:
-        for company in self:
-            company.partner_id.state_id = company.state_id
-
-    def _inverse_country_id(self) -> None:
-        for company in self:
-            company.partner_id.country_id = company.country_id
 
     def _inverse_color(self) -> None:
         for company in self:
@@ -678,12 +624,6 @@ class ResCompany(models.Model):
 
     def _get_field_names_delegated_to_root(self) -> list[str]:
         return ["currency_id"]
-
-    def _get_address_field_names(self) -> list[str]:
-        return ["street", "street2", "city", "zip", "state_id", "country_id"]
-
-    def _get_company_address_update(self, partner: Any) -> dict[str, Any]:
-        return {fname: partner[fname] for fname in self._get_address_field_names()}
 
     @ormcache()
     def _get_company_partner_ids(self):

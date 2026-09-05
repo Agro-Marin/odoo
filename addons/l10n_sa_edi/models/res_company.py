@@ -14,10 +14,8 @@ class ResCompany(models.Model):
         help="Specifies which API the system should use", required=True,
         default='sandbox', copy=False)
 
-    l10n_sa_edi_building_number = fields.Char(compute='_compute_address',
-                                              inverse='_inverse_l10n_sa_edi_building_number')
-    l10n_sa_edi_plot_identification = fields.Char(compute='_compute_address',
-                                                  inverse='_inverse_l10n_sa_edi_plot_identification')
+    l10n_sa_edi_building_number = fields.Char(related='partner_id.l10n_sa_edi_building_number', readonly=False)
+    l10n_sa_edi_plot_identification = fields.Char(related='partner_id.l10n_sa_edi_plot_identification', readonly=False)
 
     l10n_sa_edi_additional_identification_scheme = fields.Selection(
         related='partner_id.l10n_sa_edi_additional_identification_scheme', readonly=False)
@@ -40,19 +38,6 @@ class ResCompany(models.Model):
                 for journal in journals.filtered(lambda j: j.type == 'sale'):
                     journal.message_post(body=_("ZATCA API Mode changed to %s", api_mode))
         return super().write(vals)
-
-    def _get_address_field_names(self):
-        """ Override to add ZATCA specific address fields """
-        return super()._get_address_field_names() + \
-            ['l10n_sa_edi_building_number', 'l10n_sa_edi_plot_identification']
-
-    def _inverse_l10n_sa_edi_building_number(self):
-        for company in self:
-            company.partner_id.l10n_sa_edi_building_number = company.l10n_sa_edi_building_number
-
-    def _inverse_l10n_sa_edi_plot_identification(self):
-        for company in self:
-            company.partner_id.l10n_sa_edi_plot_identification = company.l10n_sa_edi_plot_identification
 
     def _l10n_sa_get_csr_invoice_type(self):
         """

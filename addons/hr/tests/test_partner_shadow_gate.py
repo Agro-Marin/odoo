@@ -19,10 +19,10 @@ KEEP_SHADOWED = frozenset(
         # An employee's tags are not their contact's tags. The tag merge
         # folded the two VOCABULARIES into res.partner.tag but deliberately kept
         # two ASSIGNMENTS: employee_tag_rel beside
-        # res_partner_res_partner_tag_rel. The collision is newly visible rather
-        # than new -- these were category_ids and category_id until the field
-        # rename, so they differed by name while already differing in storage.
-        # Whether they should converge is step 7's question, not the rename's.
+        # res_partner_res_partner_tag_rel. Decided 2026-09-05: they stay
+        # separate. A role tag ("forklift certified") on the party row would
+        # surface in every contact list and filter sales reads on HR
+        # vocabulary; the party's tags stay the contact's.
         "tag_ids",
     }
 )

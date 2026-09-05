@@ -1,13 +1,9 @@
-from unittest.mock import patch
-
 from psycopg import IntegrityError
 
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 from odoo.tools import mute_logger
-
-from odoo.addons.base.models.res_company import ResCompany
 
 
 class TestCompany(TransactionCase):
@@ -172,23 +168,14 @@ class TestCompany(TransactionCase):
             "partner_id writes must invalidate the company partner ids cache",
         )
 
-    def test_compute_address_calls_update_hook(self):
-        company = self.env["res.company"].create({"name": "hook co"})
-        company.partner_id.write({"street": "1 Hook St", "city": "Hookville"})
-        original = ResCompany._get_company_address_update
-        seen_partners = []
-
-        def _spy(self, partner):
-            seen_partners.append(partner)
-            return original(self, partner)
-
-        with patch.object(ResCompany, "_get_company_address_update", _spy):
-            company.invalidate_recordset(["street", "city"])
-            self.assertEqual(company.street, "1 Hook St")
-            self.assertEqual(company.city, "Hookville")
-        self.assertTrue(
-            seen_partners, "_compute_address must call _get_company_address_update"
-        )
+    def test_address_is_the_partner_address_in_both_directions(self):
+        company = self.env["res.company"].create({"name": "address co"})
+        company.partner_id.write({"street": "1 Partner St", "city": "Partnerville"})
+        self.assertEqual(company.street, "1 Partner St")
+        self.assertEqual(company.city, "Partnerville")
+        company.write({"street": "2 Company St", "zip": "9000"})
+        self.assertEqual(company.partner_id.street, "2 Company St")
+        self.assertEqual(company.partner_id.zip, "9000")
 
     def test_accessible_branches_is_scoped_to_the_branch_and_the_allowed_companies(
         self,
