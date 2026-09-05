@@ -2728,3 +2728,35 @@ class TestPointOfSaleFlow(CommonPosTest):
             customer_account_receivable_entry.reconciled_lines_ids,
             reversal_receivable_entry,
         )
+
+    def test_action_view_pos_order_lists_child_contact_orders(self):
+        """The smart button must list what the counter counts.
+
+        `_compute_pos_order_count` walks up `parent_id` without looking at
+        `is_company`, so a person's counter already adds up its children's
+        orders. The action used to filter on the commercial entity, which for
+        a person is the person itself.
+        """
+        parent = self.env["res.partner"].create(
+            {"name": "Parent Person", "is_company": False}
+        )
+        child = self.env["res.partner"].create(
+            {"name": "Child Person", "parent_id": parent.id}
+        )
+
+        for partner in (parent, child):
+            self.create_backend_pos_order(
+                {
+                    "line_data": [
+                        {
+                            "product_id": self.ten_dollars_no_tax.product_variant_id.id,
+                            "qty": 1,
+                        }
+                    ],
+                    "order_data": {"partner_id": partner.id},
+                }
+            )
+
+        self.assertEqual(parent.pos_order_count, 2)
+        action = parent.action_view_pos_order()
+        self.assertEqual(self.env["pos.order"].search_count(action["domain"]), 2)

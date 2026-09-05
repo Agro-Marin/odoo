@@ -70,9 +70,7 @@ class ResPartner(models.Model):
             partner[0] for partner in config.get_limited_partners_loading()
         }
 
-        limited_partner_ids.add(
-            self.env.user.partner_id.id
-        )
+        limited_partner_ids.add(self.env.user.partner_id.id)
         partner_ids = limited_partner_ids.union(loaded_order_partner_ids)
         return [("id", "in", list(partner_ids))]
 
@@ -146,10 +144,9 @@ class ResPartner(models.Model):
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "point_of_sale.action_pos_pos_form"
         )
-        if self.is_company:
-            action["domain"] = [("partner_id.commercial_partner_id", "=", self.id)]
-        else:
-            action["domain"] = [("partner_id", "=", self.id)]
+        # `_compute_pos_order_count` walks up `parent_id` regardless of
+        # `is_company`, so the smart button has to list the descendants too.
+        action["domain"] = [("partner_id", "child_of", self.id)]
         return action
 
     def open_commercial_entity(self):
