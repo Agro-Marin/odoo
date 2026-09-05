@@ -274,3 +274,45 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
             counted.filtered(lambda t: t.is_template or t.has_template_ancestor),
             "a template task is not listed, so it must not be counted",
         )
+
+    def test_portal_tasks_group_and_search_by_parent(self) -> None:
+        manager = self.env["res.users"].search(
+            [("group_ids", "in", [self.env.ref("project.group_project_manager").id])],
+            limit=1,
+        )
+        self.authenticate(manager.login, manager.login)
+        project = self.env["project.project"].create({"name": "Parent Groupby"})
+        parent = self.env["project.task"].create(
+            {
+                "name": "The Parent Task",
+                "project_id": project.id,
+                "user_ids": manager,
+            }
+        )
+        child = self.env["project.task"].create(
+            {
+                "name": "The Child Task",
+                "project_id": project.id,
+                "parent_id": parent.id,
+                "user_ids": manager,
+            }
+        )
+        loner = self.env["project.task"].create(
+            {
+                "name": "A Task With No Parent",
+                "project_id": project.id,
+                "user_ids": manager,
+            }
+        )
+
+        response = self.url_open("/my/tasks?groupby=parent_id")
+        self.assertIn(
+            "No Parent Task",
+            response.text,
+            "grouping by parent must render the parentless group header; the "
+            "option was ignored and fell back to another group by",
+        )
+
+        response = self.url_open("/my/tasks?search_in=parent_id&search=The+Parent")
+        self.assertIn(child.name, response.text)
+        self.assertNotIn(loner.name, response.text)
