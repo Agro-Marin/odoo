@@ -880,8 +880,8 @@ class Website(Home):
             )
 
         if ext_special_case:
-            return json.dumps({"view_id": page.get("view_id")})
-        return json.dumps({"url": url})
+            return request.prepare_json_response({"view_id": page.get("view_id")})
+        return request.prepare_json_response({"url": url})
 
     @http.route(
         "/website/get_new_page_templates",

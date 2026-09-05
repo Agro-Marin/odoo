@@ -52,8 +52,8 @@ class ProductDocumentsController(Controller):
                 message = _("No file could be uploaded.")
             else:
                 message = _("Some files could not be uploaded: %s", ", ".join(failed))
-            return json.dumps(self._error_result(message))
-        return json.dumps({"success": _("All files uploaded")})
+            return request.prepare_json_response(self._error_result(message))
+        return request.prepare_json_response({"success": _("All files uploaded")})
 
     @staticmethod
     def _error_result(message):

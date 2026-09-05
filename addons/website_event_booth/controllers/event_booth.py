@@ -125,7 +125,7 @@ class WebsiteEventBoothController(WebsiteEventController):
             booths, kwargs["contact_email"]
         )
         if error_code:
-            return json.dumps({"error": error_code})
+            return request.prepare_json_response({"error": error_code})
 
         booth_values = self._prepare_booth_registration_values(event, kwargs)
         booths.action_confirm(booth_values)

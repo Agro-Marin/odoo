@@ -1,5 +1,3 @@
-import json
-
 from odoo.exceptions import ValidationError
 from odoo.http import request, route
 from odoo.libs.text import nl2br_enclose
@@ -26,10 +24,10 @@ class WebsiteSaleForm(WebsiteForm):
         try:
             data = self.extract_data(model_record, kwargs)
         except ValidationError as e:
-            return json.dumps({"error_fields": e.args[0]})
+            return request.prepare_json_response({"error_fields": e.args[0]})
 
         if not (order_sudo := request.cart):
-            return json.dumps(
+            return request.prepare_json_response(
                 {"error": "No order found; please add a product to your cart."}
             )
 
@@ -45,7 +43,7 @@ class WebsiteSaleForm(WebsiteForm):
         if data["attachments"]:
             self.insert_attachment(model_record, order_sudo.id, data["attachments"])
 
-        return json.dumps({"id": order_sudo.id})
+        return request.prepare_json_response({"id": order_sudo.id})
 
 
 class Website(main.Website):

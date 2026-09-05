@@ -1,5 +1,4 @@
 import base64
-import json
 import operator
 from ast import literal_eval
 from collections import defaultdict
@@ -597,14 +596,6 @@ class EventTrackController(http.Controller):
             },
         )
 
-    @staticmethod
-    def _json_response(payload):
-        # type="http": a bare string goes out as text/html, and the client's
-        # post() helper refuses JSON typed that way.
-        return request.prepare_response(
-            json.dumps(payload), [("Content-Type", "application/json")]
-        )
-
     @http.route(
         ["""/event/<model("event.event"):event>/track_proposal/post"""],
         type="http",
@@ -614,7 +605,7 @@ class EventTrackController(http.Controller):
     )
     def event_track_proposal_post(self, event, **post):
         if not event.can_access_from_current_website():
-            return self._json_response({"error": "forbidden"})
+            return request.prepare_json_response({"error": "forbidden"})
 
         # Only accept existing tag indices. Use search instead of browse + exists:
         # this prevents users to register colorless tags if not allowed to (ACL).
@@ -657,7 +648,7 @@ class EventTrackController(http.Controller):
                         )
                     )
             else:
-                return self._json_response({"error": "invalidFormInputs"})
+                return request.prepare_json_response({"error": "invalidFormInputs"})
         # If the speaker email is the same as logged user's, then also uses its partner on track, same as above.
         else:
             valid_speaker_email = tools.email_normalize(post["partner_email"])
@@ -696,7 +687,7 @@ class EventTrackController(http.Controller):
         if request.env.user != request.website.user_id:
             track.sudo().message_subscribe(partner_ids=request.env.user.partner_id.ids)
 
-        return self._json_response({"success": True})
+        return request.prepare_json_response({"success": True})
 
     # ACL : This route is necessary since rpc search_read method in js is not accessible to all users (e.g. public user).
     @http.route(

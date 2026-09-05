@@ -33,7 +33,7 @@ Each rule carries a bracketed label naming what catches it.
    * - ``[ruff CODE]``
      - ``ruff check`` reports it.
    * - ``[test_lint CODE]``
-     - A ``test_lint`` rule fails on it. ``E8501``--``E8513`` are the AST
+     - A ``test_lint`` rule fails on it. ``E8501``--``E8515`` are the AST
        checkers; other ``test_lint`` gates have no code and are named by test.
    * - ``[fixer NAME]``
      - A behaviour-preserving fixer owns the formatting. Run it; do not hand-edit.
@@ -239,6 +239,15 @@ The AST rules. ``_rules.RULES`` is the registry; ``_py_scan`` is the engine.
      - ``E8513``
      - A class body defining the same member twice; Python silently keeps the
        last
+   * - ``tax-company-singular``
+     - ``E8514``
+     - ``t.company_id`` inside a ``filtered`` lambda over a tax field;
+       ``account.tax`` carries ``company_ids``
+   * - ``http-json-string``
+     - ``E8515``
+     - ``return json.dumps(...)`` from a ``type="http"`` route: the JSON goes
+       out as ``text/html`` and the client's ``post()``/``get()`` refuse it;
+       return ``request.prepare_json_response(payload)``
    * - ``noqa-rationale``
      - --
      - ``# noqa`` without a written rationale (§*Suppressing a rule*)
@@ -6758,6 +6767,12 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.15
+     - 2026-09-05
+     - ``[test_lint E8515]`` ``http-json-string``: a ``type="http"`` route
+       returning ``json.dumps`` bare answers ``text/html``, which the client's
+       ``post()``/``get()`` refuse; ``request.prepare_json_response`` is the
+       spelling. The rule table also gains the ``E8514`` row it was missing.
    * - 6.14
      - 2026-08-31
      - §2.4 tightened against a rename pass over ``addons/stock``. New §2.4.22:
@@ -7151,7 +7166,7 @@ One row per change, one clause. The argument lives in the section it moved.
      - 2026-08-27
      - Fact-check against the tree and a further narration cut. Corrections:
        every ``test_lint`` rule is an exact ratchet, so ``E8501`` does not "fail
-       the build" and ``E8507`` is not advisory; the AST codes run to ``E8513``
+       the build" and ``E8507`` is not advisory; the AST codes run to ``E8515``
        and six were undocumented; ``test_eslint`` does not exist; the manifest
        key order carries ``esm``; ``name_uniq_index`` is in ``mixin_catalog.py``;
        ``service/db.py`` is a package; the ratchet table is 13 of ~94 floors and

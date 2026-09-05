@@ -9,6 +9,7 @@ from . import (
     _checker_batch,
     _checker_config_patch,
     _checker_gettext,
+    _checker_http_json,
     _checker_noqa_rationale,
     _checker_onchange,
     _checker_orm_import,
@@ -1710,3 +1711,50 @@ class TestShadowedDefinitionLint(BaseCase):
                 pass
         """)
         )
+
+
+@no_retry
+class TestHttpJsonLint(BaseCase):
+    def _check(self, snippet):
+        source = dedent(snippet).strip()
+        tree = ast.parse(source)
+        return list(_checker_http_json.check(tree))
+
+    def test_bare_json_dumps_in_an_http_route(self):
+        violations = self._check("""
+        class C(http.Controller):
+            @http.route("/x", type="http", auth="public")
+            def x(self):
+                if not self.ok():
+                    return json.dumps({"error": "forbidden"})
+                return json.dumps({"id": 1})
+        """)
+        self.assertEqual([v.lineno for v in violations], [5, 6])
+
+    def test_type_defaults_to_http(self):
+        violations = self._check("""
+        class C(http.Controller):
+            @route("/x", auth="public")
+            def x(self):
+                return json.dumps([])
+        """)
+        self.assertTrue(violations)
+
+    def test_jsonrpc_routes_and_typed_answers_pass(self):
+        violations = self._check("""
+        class C(http.Controller):
+            @http.route("/x", type="jsonrpc", auth="public")
+            def x(self):
+                return json.dumps({"id": 1})
+
+            @http.route("/y", type="http", auth="public")
+            def y(self):
+                return request.prepare_json_response({"id": 1})
+
+            @http.route("/z", type="http", auth="public")
+            def z(self):
+                def inner():
+                    return json.dumps({})
+                return inner()
+        """)
+        self.assertFalse(violations)

@@ -50,12 +50,20 @@ database, and `test_checkers.py` does exactly that.
 | `_checker_translated_unique.py` | `unique-over-translated-column` (cross-unit) |
 | `_checker_pep649.py` | annotation resolution, used by `test_pep649` |
 | `_checker_tax_company.py` | `tax-company-singular` |
+| `_checker_http_json.py` | `http-json-string` |
 
 `tax-company-singular` (E8514) catches `.tax_ids.filtered(lambda t: t.company_id)`
 and the five other tax field names. `account.tax` carries `company_ids`, a
 many2many, so the singular reads `AttributeError` at runtime rather than an empty
 recordset — the checker only fires inside a `filtered` lambda over a tax field,
 where the parameter is known to be a tax.
+
+`http-json-string` (E8515) catches `return json.dumps(...)` inside a route whose
+`type` is `"http"` or absent. The string goes out as `text/html`, and the client's
+`post()`/`get()` helpers in `@web/core/network` refuse JSON typed that way, so the
+route works from Python and fails from every browser -- the website form was one.
+`type="jsonrpc"` routes are not its business; the spelling it wants is
+`request.prepare_json_response(payload)`.
 
 `shadowed-definition` (E8513) runs `_anywhere` rather than inside addons, because
 a member defined twice is dead code wherever it sits: Python keeps the last

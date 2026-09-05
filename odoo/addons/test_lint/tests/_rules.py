@@ -6,6 +6,7 @@ from . import (
     _checker_batch,
     _checker_config_patch,
     _checker_gettext,
+    _checker_http_json,
     _checker_noqa_rationale,
     _checker_onchange,
     _checker_orm_import,
@@ -162,6 +163,13 @@ RULES: tuple[Rule, ...] = (
         "`filtered_domain(env['account.tax']._check_company_domain(company))`",
     ),
     Rule(
+        "http-json-string",
+        "E8515",
+        'a type="http" route answering JSON must say so: return '
+        "request.prepare_json_response(payload); a bare json.dumps string goes "
+        "out as text/html and the client's post()/get() helpers refuse to parse it",
+    ),
+    Rule(
         "orm-import",
         "E8508",
         "reach the ORM through odoo.api / odoo.fields / odoo.models",
@@ -263,6 +271,10 @@ def _tax_company(unit: Unit) -> Iterable[object]:
     return _checker_tax_company.check(unit.tree, unit.nodes)
 
 
+def _http_json(unit: Unit) -> Iterable[object]:
+    return _checker_http_json.check(unit.tree, unit.nodes)
+
+
 def _anywhere(unit: Unit) -> bool:
     return True
 
@@ -313,6 +325,7 @@ CHECKERS: tuple[Checker, ...] = (
     Checker(_config_patch, _anywhere, frozenset({"config-chainmap-patch"})),
     Checker(_shadowed_def, _anywhere, frozenset({"shadowed-definition"})),
     Checker(_tax_company, _anywhere, frozenset({"tax-company-singular"})),
+    Checker(_http_json, _in_an_addon_outside_tests, frozenset({"http-json-string"})),
 )
 
 CROSS_UNIT_RULES = frozenset({"unique-over-translated-column", "unreadable-source"})

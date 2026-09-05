@@ -1,5 +1,3 @@
-import json
-
 from odoo.http import request, route
 
 from odoo.addons.website_event.controllers.main import WebsiteEventController
@@ -20,7 +18,7 @@ class WebsiteEventBoothController(WebsiteEventController):
             booths, kwargs["contact_email"], booth_category=booth_category
         )
         if error_code:
-            return json.dumps({"error": error_code})
+            return request.prepare_json_response({"error": error_code})
 
         booth_values = self._prepare_booth_registration_values(event, kwargs)
         order_sudo = request.cart or request.website._create_cart()
@@ -33,7 +31,7 @@ class WebsiteEventBoothController(WebsiteEventController):
             registration_values=booth_values,
         )
         if order_sudo.amount_total:
-            return json.dumps({"redirect": "/shop/cart"})
+            return request.prepare_json_response({"redirect": "/shop/cart"})
         else:
             order_sudo.action_confirm()
             request.website.sale_reset()
