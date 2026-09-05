@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase
@@ -315,6 +315,34 @@ class TestHrWorkEntry(TransactionCase):
         self.assertEqual(split.work_entry_type_id, other_type)
         self.assertEqual(split.name, "half")
         self.assertEqual((entry.state, split.state), ("draft", "draft"))
+
+    def test_generation_ignores_another_company_global_leave(self):
+        leave_type = self.env.ref("hr_work_entry.work_entry_type_leave")
+        self.env["resource.calendar.leaves"].with_company(self.company_b).create(
+            {
+                "name": "Company B shutdown",
+                "date_from": "2024-01-03 00:00:00",
+                "date_to": "2024-01-03 23:59:59",
+                "calendar_id": False,
+                "work_entry_type_id": leave_type.id,
+            }
+        )
+        vals_list = self.employee_a.version_id._get_work_entries_values(
+            datetime(2024, 1, 1, 0, 0), datetime(2024, 1, 5, 23, 59, 59)
+        )
+        january_third = [
+            vals for vals in vals_list if vals["date_start"].date() == date(2024, 1, 3)
+        ]
+        self.assertTrue(january_third)
+        self.assertNotIn(
+            leave_type.id,
+            {vals["work_entry_type_id"] for vals in january_third},
+            "A global time off of company B must not reach company A's employee. "
+            "The leave lookup used to filter on env.companies, which is every "
+            "company the caller may act in: the cron narrows that to one company, "
+            "but a leave approval or an attendance runs it in the user's own "
+            "environment, where it spans all of them.",
+        )
 
     def test_set_to_draft_rechecks_the_reactivated_entry(self):
         first = self.env["hr.work.entry"].create(

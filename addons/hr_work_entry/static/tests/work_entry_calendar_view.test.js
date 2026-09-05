@@ -4,6 +4,7 @@ import { animationFrame, mockDate } from "@odoo/hoot-mock";
 import {
     findComponent,
     makeMockServer,
+    mockService,
     mountView,
     onRpc,
 } from "@web/../tests/web_test_helpers";
@@ -147,4 +148,29 @@ test("a work entry type used on several days is offered once as a favourite", as
             "days comes back twice; reading [1, 1] renders two buttons with the same " +
             "t-key, which OWL rejects in debug mode.",
     });
+});
+
+test("the Reset wizard targets the calendar's employee even on an empty month", async () => {
+    onRpc("has_group", () => true);
+    mockService("action", {
+        doAction(action, options) {
+            expect.step(
+                `${action} for ${JSON.stringify(options.additionalContext.default_employee_ids)}`,
+            );
+        },
+    });
+    const view = await mountView({
+        type: "calendar",
+        resModel: "hr.work.entry",
+        context: { default_employee_id: 200 },
+    });
+    getCalendarController(view).onRegenerateWorkEntries();
+    expect.verifySteps(
+        ["hr_work_entry.hr_work_entry_regeneration_wizard_action for [200]"],
+        {
+            message:
+                "The employee ids used to come from the loaded records only, so a month " +
+                "with no work entry opened the wizard with no employee selected.",
+        },
+    );
 });

@@ -70,13 +70,16 @@ export class WorkEntryCalendarController extends CalendarController {
     }
 
     getEmployeeIds() {
-        return [
-            ...new Set(
-                Object.values(this.model.records).map(
-                    (rec) => rec.rawRecord.employee_id[0],
-                ),
+        const employeeIds = new Set(
+            Object.values(this.model.records).map(
+                (rec) => rec.rawRecord.employee_id[0],
             ),
-        ];
+        );
+        const defaultEmployeeId = this.model.meta.context.default_employee_id;
+        if (defaultEmployeeId) {
+            employeeIds.add(defaultEmployeeId);
+        }
+        return [...employeeIds];
     }
 
     getSelectedRecords(selectedCells) {

@@ -18,7 +18,9 @@ export async function fetchUserFavoritesWorkEntries(orm) {
         { order: "create_date:day desc" },
     );
     const workEntryTypeIds = [
-        ...new Set(groups.map((group) => group.work_entry_type_id?.[0]).filter(Boolean)),
+        ...new Set(
+            groups.map((group) => group.work_entry_type_id?.[0]).filter(Boolean),
+        ),
     ].slice(0, FAVORITES_COUNT);
     if (!workEntryTypeIds.length) {
         return [];
