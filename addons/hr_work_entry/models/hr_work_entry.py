@@ -268,6 +268,10 @@ class HrWorkEntry(models.Model):
         )
 
     @api.model
+    def _get_fields_to_nullify_on_regeneration(self):
+        return ["active"]
+
+    @api.model
     def _synchronise_state_and_active(self, vals):
         if "state" in vals:
             vals["active"] = vals["state"] != "cancelled"
@@ -323,7 +327,7 @@ class HrWorkEntry(models.Model):
             employee_ids.add(vals["employee_id"])
         siblings = self._reset_conflicts(employee_ids)
         result = super().write(vals)
-        siblings.exists()._check_if_error()
+        (siblings | siblings.browse(self.ids)).exists()._check_if_error()
         return result
 
     @api.ondelete(at_uninstall=False)

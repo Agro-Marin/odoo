@@ -141,9 +141,6 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
         )
         return date.strftime(user_date_format)
 
-    def _work_entry_fields_to_nullify(self):
-        return ["active"]
-
     def _check_regeneration_range(self):
         self.check_singleton()
         if not self.search_criteria_completed:

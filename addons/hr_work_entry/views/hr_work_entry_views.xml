@@ -110,7 +110,7 @@
                         This work entry cannot be validated. The work entry type is undefined.
                     </div>
                     <div invisible="not work_entry_type_id">
-                        The amount of work on the day should not exceed 24 hours.
+                        This work entry cannot be validated: the day exceeds 24 hours, already has a validated work entry, or this time off falls outside the working schedule.
                     </div>
                 </div>
                 <sheet>

@@ -316,6 +316,37 @@ class TestHrWorkEntry(TransactionCase):
         self.assertEqual(split.name, "half")
         self.assertEqual((entry.state, split.state), ("draft", "draft"))
 
+    def test_set_to_draft_rechecks_the_reactivated_entry(self):
+        first = self.env["hr.work.entry"].create(
+            {
+                "employee_id": self.employee_b.id,
+                "date": date(2024, 5, 7),
+                "duration": 8,
+                "work_entry_type_id": self.work_entry_type.id,
+            }
+        )
+        second = self.env["hr.work.entry"].create(
+            {
+                "employee_id": self.employee_b.id,
+                "date": date(2024, 5, 7),
+                "duration": 8,
+                "work_entry_type_id": self.work_entry_type.id,
+            }
+        )
+        (first | second).action_validate()
+
+        first.action_set_to_draft()
+
+        self.assertEqual(
+            first.state,
+            "conflict",
+            "The day still holds a validated entry, so the reactivated one cannot "
+            "be validated again on its own; the write must re-check the entry it "
+            "reactivates, not only its siblings.",
+        )
+        second.action_set_to_draft()
+        self.assertEqual((first.state, second.state), ("draft", "draft"))
+
     def test_leave_on_a_non_working_day_conflicts_whatever_the_calendar_timezone(self):
         leave_type = self.env.ref("hr_work_entry.work_entry_type_leave")
         for tz in ("America/Los_Angeles", "Asia/Tokyo"):

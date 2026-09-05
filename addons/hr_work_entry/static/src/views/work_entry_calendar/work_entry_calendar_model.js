@@ -1,11 +1,8 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
 import { serializeDate } from "@web/core/l10n/dates";
-import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { CalendarModel } from "@web/views/calendar";
-
-const { DateTime } = luxon;
+import { fetchUserFavoritesWorkEntries } from "@hr_work_entry/views/work_entry_favorites";
 
 export class WorkEntryCalendarModel extends CalendarModel {
     setup() {
@@ -23,48 +20,10 @@ export class WorkEntryCalendarModel extends CalendarModel {
         ]);
         await Promise.all([
             super.updateData(data),
-            this._fetchUserFavoritesWorkEntries(),
+            fetchUserFavoritesWorkEntries(this.orm).then((favorites) => {
+                this.userFavoritesWorkEntries = favorites;
+            }),
         ]);
-    }
-
-    async _fetchUserFavoritesWorkEntries() {
-        const userFavoritesWorkEntriesIds = await this.orm.formattedReadGroup(
-            "hr.work.entry",
-            [
-                ["create_uid", "=", user.userId],
-                [
-                    "create_date",
-                    ">",
-                    serializeDate(DateTime.local().minus({ months: 3 })),
-                ],
-            ],
-            ["work_entry_type_id", "create_date:day"],
-            [],
-            {
-                order: "create_date:day desc",
-                limit: 6,
-            },
-        );
-        if (userFavoritesWorkEntriesIds.length) {
-            const workEntryTypeIds = new Set(
-                userFavoritesWorkEntriesIds
-                    .map((r) => r.work_entry_type_id?.[0])
-                    .filter(Boolean),
-            );
-            this.userFavoritesWorkEntries = await this.orm.read(
-                "hr.work.entry.type",
-                [...workEntryTypeIds],
-                ["display_name", "display_code", "color"],
-            );
-            this.userFavoritesWorkEntries = this.userFavoritesWorkEntries.sort(
-                (a, b) =>
-                    a.display_code
-                        ? a.display_code.localeCompare(b.display_code)
-                        : a.display_name.localeCompare(b.display_name),
-            );
-        } else {
-            this.userFavoritesWorkEntries = [];
-        }
     }
 
     async multiReplaceRecords(values, dates, records) {

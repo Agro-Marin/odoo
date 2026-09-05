@@ -1414,3 +1414,8 @@ msgstr ""
 #: code:addons/hr_work_entry/wizard/hr_work_entry_regeneration_wizard.py:0
 msgid "The latest available date is %s"
 msgstr ""
+
+#. module: hr_work_entry
+#: model_terms:ir.ui.view,arch_db:hr_work_entry.hr_work_entry_view_form
+msgid "This work entry cannot be validated: the day exceeds 24 hours, already has a validated work entry, or this time off falls outside the working schedule."
+msgstr ""

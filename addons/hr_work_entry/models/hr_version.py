@@ -530,14 +530,11 @@ class HrVersion(models.Model):
             vals_list.extend(versions._get_work_entries_values(date_from, date_to))
 
         if not domain_to_nullify.is_false():
-            work_entry_null_vals = dict.fromkeys(
-                self.env[
-                    "hr.work.entry.regeneration.wizard"
-                ]._work_entry_fields_to_nullify(),
-                False,
-            )
-            self.env["hr.work.entry"].search(domain_to_nullify).write(
-                work_entry_null_vals
+            work_entries = self.env["hr.work.entry"]
+            work_entries.search(domain_to_nullify).write(
+                dict.fromkeys(
+                    work_entries._get_fields_to_nullify_on_regeneration(), False
+                )
             )
 
         if not vals_list:
@@ -770,24 +767,28 @@ class HrVersion(models.Model):
         today = fields.Date.today()
         start = datetime.combine(today + relativedelta(day=1), time.min)
         stop = datetime.combine(today + relativedelta(months=1, day=31), time.max)
-        all_versions = self.env[
-            "hr.employee"
-        ]._get_all_versions_with_contract_overlap_with_period(start.date(), stop.date())
-        versions_todo = all_versions.filtered(
-            lambda v: (
-                (v.date_generated_from > start or v.date_generated_to < stop)
-                and (not v.last_generation_date or v.last_generation_date < today)
-            )
+        versions_todo = self.search(
+            [
+                ("employee_id", "!=", False),
+                ("contract_date_start", "!=", False),
+                ("contract_date_start", "<=", stop.date()),
+                "|",
+                ("contract_date_end", ">=", start.date()),
+                ("contract_date_end", "=", False),
+                "|",
+                ("date_generated_from", ">", start),
+                ("date_generated_to", "<", stop),
+                "|",
+                ("last_generation_date", "=", False),
+                ("last_generation_date", "<", today),
+            ]
         )
         if not versions_todo:
             return
         version_todo_count = len(versions_todo)
         versions_todo = versions_todo.filtered(
             lambda v: v.company_id == versions_todo[0].company_id
-        )
-        versions_todo = versions_todo.sorted(
-            key=lambda v: 1 if v._has_static_work_entries() else 100
-        )
+        ).sorted(key=lambda v: 1 if v._has_static_work_entries() else 100)
         versions_todo[:CRON_BATCH_SIZE].generate_work_entries(
             start.date(), stop.date(), False
         )
