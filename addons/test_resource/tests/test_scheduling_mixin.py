@@ -573,6 +573,41 @@ class TestSchedulingMixin(TransactionCase):
         self.assertEqual(record.resource_calendar_id, half_calendar)
         self.assertEqual(record.allocated_hours, 4.0)
 
+    def test_allocated_hours_follow_the_ledger_after_a_replan(self):
+        record = self.Model.create(
+            {
+                "name": "Replanned",
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 17, 0),
+                "resource_id": self.resource.id,
+            }
+        )
+        self.assertEqual(record.allocated_hours, 8.0)
+        record.write({"date_end": datetime(2025, 1, 7, 17, 0)})
+        self.assertEqual(record.allocated_hours, 16.0)
+        self.assertEqual(sum(record.reservation_ids.mapped("allocated_hours")), 16.0)
+
+    def test_manual_estimate_survives_assignment_without_dates(self):
+        record = self.Model.create({"name": "Estimate only", "allocated_hours": 16.0})
+        record.write({"resource_id": self.resource.id})
+        self.assertFalse(record.reservation_ids)
+        self.assertEqual(record.allocated_hours, 16.0)
+
+    def test_allocated_hours_are_fresh_right_after_create(self):
+        records = self.Model.create(
+            [
+                {
+                    "name": f"Batch {i}",
+                    "date_start": datetime(2025, 1, 6, 8, 0),
+                    "date_end": datetime(2025, 1, 6, 17, 0),
+                    "resource_id": self.resource.id,
+                }
+                for i in range(3)
+            ]
+        )
+        with self.assertQueryCount(__system__=0):
+            self.assertEqual(records.mapped("allocated_hours"), [8.0, 8.0, 8.0])
+
 
 @tagged("post_install", "-at_install")
 class TestSchedulingMixinAllocationBounds(TransactionCase):

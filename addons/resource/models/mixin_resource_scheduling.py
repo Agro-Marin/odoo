@@ -61,6 +61,7 @@ class MixinResourceScheduling(models.AbstractModel):
                 record._get_reservation_vals_list(),
                 existing=existing_by_record.get(record.id, no_reservations),
             )
+        self.invalidate_recordset(["reservation_ids", "schedule_overlap_count"])
 
     def _active_for_sync(self):
         if "active" in self._fields:
