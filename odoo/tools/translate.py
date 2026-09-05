@@ -1147,7 +1147,7 @@ class PoFileWriter:
         now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M+0000")
         self.po.metadata = {
             "Project-Id-Version": "%s %s"
-            % (odoo.release.description, odoo.release.version),
+            % (odoo.release.description, odoo.release.series),
             "Report-Msgid-Bugs-To": "",
             "POT-Creation-Date": now,
             "PO-Revision-Date": now,

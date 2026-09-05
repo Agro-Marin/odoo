@@ -5942,9 +5942,11 @@ deleting one**, or the template keeps advertising a message that no longer exist
 
    odoo-bin --addons-path=odoo/addons,addons i18n export -d <db> <module>
 
-Export through the **community trees only**. The header records
-``odoo.release.version``, which an enterprise addons path turns into
-``Odoo Server 19.0+e``, writing a fact about your checkout into the template.
+Export through the **community trees only**, so the template lists only the
+strings the community module ships. The header records ``odoo.release.series``
+(``Odoo Server 19.0``): this fork's ``release.version`` is ``19.0+e`` on every
+checkout, and an edition marker is a fact about the build, not about the
+strings.
 
 Never hand-edit a ``msgid`` to "fix" the English -- change the source string and
 re-export. Duplicate entries in a ``.pot`` are a failure
