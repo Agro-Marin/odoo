@@ -25,6 +25,7 @@ rl.on("line", (line) => {
             }
         }
         const starFrom = [];
+        const reexportFrom = [];
         const importRecords = [];
         for (const i of imports) {
             if (i.d >= 0 || !i.n) {
@@ -34,6 +35,8 @@ rl.on("line", (line) => {
             if (/^\s*export\b/.test(stmt)) {
                 if (/^\s*export\s*\*\s*from\b/.test(stmt)) {
                     starFrom.push(i.n);
+                } else {
+                    reexportFrom.push(i.n);
                 }
                 continue;
             }
@@ -51,6 +54,7 @@ rl.on("line", (line) => {
         out.names = names;
         out.hasDefault = hasDefault;
         out.starFrom = starFrom;
+        out.reexportFrom = reexportFrom;
         out.imports = importRecords;
     } catch (err) {
         out.ok = false;

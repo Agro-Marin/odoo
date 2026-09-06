@@ -1,5 +1,7 @@
 import unittest
+from unittest.mock import patch
 
+from odoo.tools.assets import esm_graph
 from odoo.tools.assets.esm_graph import (
     _TRANSITIVE_IMPORT_RE,
     _scan_import_specifiers,
@@ -29,19 +31,24 @@ class TestNamedReExportsAreSeen(unittest.TestCase):
         }
         self.assertIn("../outside/thing", specs)
 
-    def test_the_lexer_alone_would_drop_them(self):
+    def test_the_lexer_reports_named_re_exports_itself(self):
         lexed = lex_module(SOURCE)
         if lexed is None:
             self.skipTest("no node on PATH; the lexer half cannot be exercised")
-        lexer_only = {imp["n"] for imp in lexed["imports"]}
-        lexer_only.update(lexed.get("starFrom") or ())
+        self.assertEqual(lexed["reexportFrom"], ["../outside/thing"])
+        self.assertEqual(lexed["starFrom"], ["../outside/star"])
         self.assertNotIn(
             "../outside/thing",
-            lexer_only,
-            "if the worker starts reporting named re-exports, the union in "
-            "_scan_import_specifiers is merely redundant rather than load-bearing",
+            {imp["n"] for imp in lexed["imports"]},
+            "a re-export is not an import binding",
         )
-        self.assertIn("../outside/star", lexer_only)
+
+    def test_the_regex_runs_only_when_the_lexer_cannot(self):
+        with patch.object(esm_graph, "lex_module", return_value=None):
+            self.assertEqual(
+                _scan_import_specifiers(SOURCE),
+                {"./sibling", "../outside/thing", "../outside/star"},
+            )
 
     def test_the_scan_reports_every_static_specifier(self):
         self.assertEqual(

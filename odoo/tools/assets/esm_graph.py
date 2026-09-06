@@ -147,16 +147,16 @@ _TRANSITIVE_IMPORT_RE = re.compile(
 
 
 def _scan_import_specifiers(src: str) -> set[str]:
-    specs: set[str] = set()
     lexed = lex_module(src)
     if lexed is not None:
-        specs.update(imp["n"] for imp in lexed["imports"])
+        specs = {imp["n"] for imp in lexed["imports"]}
         specs.update(lexed.get("starFrom") or ())
-    specs.update(
+        specs.update(lexed.get("reexportFrom") or ())
+        return specs
+    return {
         match.group("spec") or match.group("side")
         for match in _TRANSITIVE_IMPORT_RE.finditer(src)
-    )
-    return specs
+    }
 
 
 def get_escaping_relative_imports(
