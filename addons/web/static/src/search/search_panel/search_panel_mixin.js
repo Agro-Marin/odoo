@@ -242,6 +242,34 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
+         * First load of every section, with the filter values the context's
+         * `searchpanel_default_*` keys pre-checked. Awaited when a default
+         * was given or the data gates the first query.
+         *
+         * @param {Record<string, any>} searchPanelDefaults
+         * @returns {Promise<void>}
+         */
+        async _seedSearchPanel(searchPanelDefaults) {
+            this.searchDomain = /** @type {DomainListRepr} */ (
+                this._getDomain({ withSearchPanel: false })
+            );
+            for (const { fieldName, values } of this.filters) {
+                const rawDefault = searchPanelDefaults[fieldName];
+                for (const valueId of rawDefault ? [].concat(rawDefault) : []) {
+                    values.set(valueId, { id: valueId, checked: true });
+                }
+            }
+            this._sections = null;
+            this.sectionsPromise = this._fetchSections(this.categories, this.filters);
+            if (
+                Object.keys(searchPanelDefaults).length ||
+                this._shouldWaitForData(false)
+            ) {
+                await this.sectionsPromise;
+            }
+        }
+
+        /**
          * @param {Category[]} categoriesToLoad
          * @param {Filter[]} filtersToLoad
          * @returns {Promise<void>}

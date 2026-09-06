@@ -378,27 +378,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @param {Record<string, any>} searchPanelDefaults
-     */
-    async _seedSearchPanel(searchPanelDefaults) {
-        /** @type {DomainListRepr} */
-        this.searchDomain = /** @type {DomainListRepr} */ (
-            this._getDomain({ withSearchPanel: false })
-        );
-        for (const { fieldName, values } of this.filters) {
-            const rawDefault = searchPanelDefaults[fieldName];
-            for (const valueId of rawDefault ? [].concat(rawDefault) : []) {
-                values.set(valueId, { id: valueId, checked: true });
-            }
-        }
-        this._sections = null;
-        this.sectionsPromise = this._fetchSections(this.categories, this.filters);
-        if (Object.keys(searchPanelDefaults).length || this._shouldWaitForData(false)) {
-            await this.sectionsPromise;
-        }
-    }
-
-    /**
      * @param {object} [config={}]
      * @param {Record<string, any>} [config.context={}]
      * @param {any[]} [config.domain=[]]

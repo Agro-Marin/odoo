@@ -11,8 +11,6 @@ import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { SearchModel } from "@web/search/search_model";
 
-export { SEARCH_KEYS };
-
 export class WithSearch extends Component {
     static template = "web.WithSearch";
     static props = {

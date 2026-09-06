@@ -203,9 +203,9 @@ export class SearchBar extends Component {
             if (searchItem.type === "field" && searchItem.fieldType === "properties") {
                 tasks.push({
                     id,
-                    prom: Promise.resolve(
-                        this.getSearchItemsProperties(searchItem),
-                    ).catch(() => []),
+                    prom: this.env.searchModel
+                        .getSearchItemsProperties(searchItem)
+                        .catch(() => []),
                 });
             } else if (!subItems[id]) {
                 if (!this.state.subItemsLimits[id]) {
@@ -394,14 +394,6 @@ export class SearchBar extends Component {
                 ? searchItem.propertyFieldDefinition
                 : this.fields[searchItem.fieldName]) || {};
         return type === "reference" ? "char" : type;
-    }
-
-    /**
-     * @param {Object} searchItem
-     * @returns {Object[]}
-     */
-    getSearchItemsProperties(searchItem) {
-        return this.env.searchModel.getSearchItemsProperties(searchItem);
     }
 
     /**

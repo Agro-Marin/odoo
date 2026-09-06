@@ -58,11 +58,7 @@
  * What the rest of the composition may call on this unit.
  * @type {string[]}
  */
-export const SEARCH_PANEL_PUBLISHED = [
-    "_fetchSections",
-    "_reloadSections",
-    "_shouldWaitForData",
-];
+export const SEARCH_PANEL_PUBLISHED = ["_reloadSections", "_seedSearchPanel"];
 
 /**
  * Sibling operations this unit calls. Each one is a reason it cannot be
@@ -319,10 +315,9 @@ export const SEARCH_MODEL_PUBLISHED = [
 export const SEARCH_MODEL_REQUIRES = [
     "_activateDefaultSearchItems",
     "_createGroupOfFavorites",
-    "_fetchSections",
     "_reconciliateFavorites",
     "_reloadSections",
-    "_shouldWaitForData",
+    "_seedSearchPanel",
 ];
 
 /**
@@ -364,12 +359,10 @@ export const SEARCH_MODEL_SHARED_STATE = [
     "orm",
     "query",
     "referenceMoment",
-    "searchDomain",
     "searchMenuTypes",
     "searchPanelInfo",
     "searchViewArch",
     "sections",
-    "sectionsPromise",
     "treeProcessor",
     "viewService",
 ];
