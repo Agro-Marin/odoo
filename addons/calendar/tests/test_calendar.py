@@ -15,7 +15,6 @@ class TestCalendar(SavepointCaseWithUserDemo):
         super().setUp()
 
         self.CalendarEvent = self.env["calendar.event"]
-        # In Order to test calendar, I will first create One Simple Event with real data
         self.event_tech_presentation = self.CalendarEvent.create(
             {
                 "privacy": "private",
@@ -358,28 +357,46 @@ class TestCalendar(SavepointCaseWithUserDemo):
             .sudo()
             .create({"name": "web user", "login": "web", "company_id": web_company.id})
         )
-        self.CalendarEvent.with_user(web_user).with_company(web_company).sudo().create(
-            {
-                "name": "Test",
-                "allday": False,
-                "recurrency": False,
-                "partner_ids": [(6, 0, self.partner_demo.ids)],
-                "alarm_ids": [
-                    (
-                        0,
-                        0,
-                        {
-                            "name": "Alarm",
-                            "alarm_type": "notification",
-                            "interval": "minutes",
-                            "duration": 30,
-                        },
-                    )
-                ],
-                "user_id": self.user_demo.id,
-                "start": fields.Datetime.to_string(now + timedelta(hours=5)),
-                "stop": fields.Datetime.to_string(now + timedelta(hours=6)),
-            }
+        event = (
+            self.CalendarEvent.with_user(web_user)
+            .with_company(web_company)
+            .sudo()
+            .create(
+                {
+                    "name": "Test",
+                    "allday": False,
+                    "recurrency": False,
+                    "partner_ids": [(6, 0, self.partner_demo.ids)],
+                    "alarm_ids": [
+                        (
+                            0,
+                            0,
+                            {
+                                "name": "Alarm",
+                                "alarm_type": "notification",
+                                "interval": "minutes",
+                                "duration": 30,
+                            },
+                        )
+                    ],
+                    "user_id": self.user_demo.id,
+                    "start": fields.Datetime.to_string(now + timedelta(hours=5)),
+                    "stop": fields.Datetime.to_string(now + timedelta(hours=6)),
+                }
+            )
+        )
+        self.assertEqual(
+            event.user_id,
+            self.user_demo,
+            "Event organizer should be the user set on creation, not the sudo creator",
+        )
+        self.assertIn(
+            self.partner_demo,
+            event.partner_ids,
+            "Event should have the requested partner as attendee",
+        )
+        self.assertEqual(
+            len(event.alarm_ids), 1, "Event should have the requested alarm"
         )
 
     def test_meeting_creation_from_partner_form(self):
