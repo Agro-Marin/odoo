@@ -54,6 +54,19 @@ export class Orderline extends Component {
         return this.props.line;
     }
 
+    /**
+     * The group this line stands for when the order display collapsed it with
+     * its twins; only a displayed line inside an OrderDisplay has one.
+     *
+     * @returns {import("../order_display/orderline_groups").OrderlineGroup | undefined}
+     */
+    get group() {
+        if (this.props.mode !== "display") {
+            return undefined;
+        }
+        return this.env.orderlineGroupOf?.(this.line);
+    }
+
     get lineContainerClasses() {
         return {
             selected: this.line.isSelected() && this.props.mode === "display",
@@ -97,6 +110,26 @@ export class Orderline extends Component {
     }
 
     get lineScreenValues() {
+        const vals = this.singleLineScreenValues;
+        const group = this.group;
+        if (!group) {
+            return vals;
+        }
+        const { unitPart, decimalPart, decimalPoint } = this.line.quantityStrFor(
+            group.quantity,
+        );
+        return {
+            ...vals,
+            unitPart,
+            decimalPart: decimalPart && `${decimalPoint}${decimalPart}`,
+            price:
+                vals.price && formatCurrency(group.displayPrice, this.line.currency.id),
+            lotLines: vals.lotLines && group.lotLines,
+            location: group.location?.display_name,
+        };
+    }
+
+    get singleLineScreenValues() {
         const line = this.line;
 
         if (!line.order_id) {

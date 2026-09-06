@@ -28,6 +28,9 @@
             <span t-if="props.comboExtraPrice" style="font-size: 0.75rem;" class="price-extra px-2 py-0 rounded-pill text-bg-info position-absolute top-0 end-0 mt-1 me-1">
                 <t t-esc="props.comboExtraPrice"/>
             </span>
+            <span t-if="stockBadge"
+                t-attf-class="o_pos_stock_badge position-absolute m-1 px-1 badge rounded-0 fw-bold pe-none user-select-none {{ stockBadge.positionClass }} {{ stockBadge.statusClass }}"
+                t-esc="stockBadge.text"/>
             <t t-slot="quantityButtons" />
         </article>
     </t>

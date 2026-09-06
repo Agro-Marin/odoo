@@ -70,3 +70,26 @@
 .favorite-product {
     border-color: transparent #f3cc00 transparent transparent;
 }
+
+.o_pos_stock_badge {
+    z-index: 2;
+    font-size: 0.75rem;
+}
+
+.o_pos_stock_empty,
+.o_pos_stock_low {
+    animation: o_pos_stock_pulse 2s infinite;
+}
+
+@keyframes o_pos_stock_pulse {
+    50% {
+        opacity: 0.6;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .o_pos_stock_empty,
+    .o_pos_stock_low {
+        animation: none;
+    }
+}

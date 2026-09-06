@@ -19,6 +19,10 @@ export class ProductProduct extends models.ServerModel {
         ];
     }
 
+    get_pos_stock_quantities(productIds) {
+        return Object.fromEntries(productIds.map((id) => [id, 0]));
+    }
+
     _records = [
         {
             id: 1,

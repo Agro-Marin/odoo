@@ -250,6 +250,7 @@ export default class OrderPaymentValidation {
                 await this.pos.printReceipt({ order: this.order });
             }
         }
+        this.pos.env.services.pos_stock.refresh();
     }
 
     async askBeforeValidation() {

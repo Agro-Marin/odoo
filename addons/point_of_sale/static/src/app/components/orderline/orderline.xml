@@ -42,6 +42,10 @@
                             <li class="lot-number" t-foreach="vals.lotLines" t-as="lot" t-key="lot_index" t-esc="lot" />
                         </div>
                     </li>
+                    <li t-if="vals.location" class="line-location text-muted">
+                        <i class="fa-solid fa-location-dot me-1" role="img" aria-label="Location" title="Location"/>
+                        <t t-esc="vals.location" />
+                    </li>
                     <t t-slot="default" />
                 </ul>
             </div>

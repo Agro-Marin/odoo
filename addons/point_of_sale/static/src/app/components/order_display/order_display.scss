@@ -1,0 +1,17 @@
+.orderline-headers {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+
+    .header-quantity {
+        width: 3rem;
+        flex-shrink: 0;
+    }
+
+    .header-price {
+        width: 5rem;
+        flex-shrink: 0;
+    }
+}

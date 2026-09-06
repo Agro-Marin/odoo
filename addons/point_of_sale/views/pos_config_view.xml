@@ -163,6 +163,57 @@
                                 </div>
                             </div>
                         </setting>
+                        <setting
+                            string="Stock Display"
+                            help="Display product stock quantities on POS product cards">
+                            <field name="show_stock_in_pos" />
+                            <div
+                                class="content-group mt16"
+                                invisible="not show_stock_in_pos">
+                                <div class="row">
+                                    <label
+                                        for="stock_display_location"
+                                        string="Display Position"
+                                        class="col-lg-3 o_light_label" />
+                                    <field name="stock_display_location" />
+                                </div>
+                                <div class="row">
+                                    <label
+                                        for="low_stock_threshold"
+                                        string="Low Stock Threshold"
+                                        class="col-lg-3 o_light_label" />
+                                    <field name="low_stock_threshold" />
+                                </div>
+                                <div class="row mt8">
+                                    <label
+                                        for="stock_warehouse_id"
+                                        string="Stock Warehouse"
+                                        class="col-lg-3 o_light_label" />
+                                    <field
+                                        name="stock_warehouse_id"
+                                        placeholder="All Warehouses" />
+                                </div>
+                                <div class="row mt8">
+                                    <field
+                                        name="stock_warehouse_view_location_id"
+                                        invisible="1" />
+                                    <label
+                                        for="stock_location_ids"
+                                        string="Stock Locations"
+                                        class="col-lg-3 o_light_label" />
+                                    <field
+                                        name="stock_location_ids"
+                                        widget="many2many_tags"
+                                        placeholder="All locations from warehouse"
+                                        options="{'no_create': True}"
+                                        domain="[('usage', '=', 'internal'), ('location_id', 'child_of', stock_warehouse_view_location_id)]"
+                                        invisible="not stock_warehouse_id" />
+                                </div>
+                                <div class="row mt8" invisible="stock_warehouse_id">
+                                    <span class="text-muted ms-3">Select a warehouse first to filter by specific locations</span>
+                                </div>
+                            </div>
+                        </setting>
                         <div groups="base.group_system">
                             <p>
                                 More settings: <a href="#" name="%(action_pos_configuration)d" type="action" class="btn-link o_form_uri" role="button">Configurations &gt; Settings</a>

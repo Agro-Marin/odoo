@@ -34,6 +34,20 @@ class ProductProduct(models.Model):
             )
         )
 
+    @api.model
+    def get_pos_stock_quantities(self, product_ids, config_id):
+        config = self.env["pos.config"].browse(config_id)
+        config.check_access("read")
+        products = (
+            self.browse(product_ids)
+            .exists()
+            .with_context(**config._get_stock_quantity_context())
+        )
+        quantities = dict.fromkeys(product_ids, 0.0)
+        for product in products:
+            quantities[product.id] = product.qty_available
+        return quantities
+
     @api.ondelete(at_uninstall=False)
     def _unlink_except_active_pos_session(self):
         product_ctx = dict(self.env.context or {}, active_test=False)
