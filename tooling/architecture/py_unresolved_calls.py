@@ -46,6 +46,7 @@ EXTERNAL: frozenset[str] = frozenset(
         "_formatMessage",
         "_getframe",
         "_load_region",
+        "_load_trees",
         "_removeTestAtIndex",
     }
 )

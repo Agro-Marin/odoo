@@ -296,7 +296,7 @@ class HrLeaveType(models.Model):
                 )
 
     @api.model
-    def _current_year_domain(self):
+    def _get_domain_current_year(self):
         year = fields.Date.context_today(self).year
         return [
             ("holiday_status_id", "in", self.ids),
@@ -307,7 +307,7 @@ class HrLeaveType(models.Model):
 
     @api.constrains("include_public_holidays_in_duration")
     def _check_overlapping_public_holidays(self):
-        leaves = self.env["hr.leave"].search(self._current_year_domain())
+        leaves = self.env["hr.leave"].search(self._get_domain_current_year())
         if not leaves:
             return
 
@@ -487,7 +487,7 @@ class HrLeaveType(models.Model):
 
     def _compute_allocation_count(self):
         grouped_res = self.env["hr.leave.allocation"]._read_group(
-            self._current_year_domain(),
+            self._get_domain_current_year(),
             ["holiday_status_id"],
             ["__count"],
         )
@@ -499,7 +499,7 @@ class HrLeaveType(models.Model):
 
     def _compute_group_days_leave(self):
         grouped_res = self.env["hr.leave"]._read_group(
-            self._current_year_domain(),
+            self._get_domain_current_year(),
             ["holiday_status_id"],
             ["__count"],
         )

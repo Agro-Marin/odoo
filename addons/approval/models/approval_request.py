@@ -229,7 +229,7 @@ class ApprovalRequest(models.Model):
         "amount of Python discipline keeps in step.",
     )
     can_change_request_owner = fields.Boolean(
-        compute="_compute_request_access_rights",
+        compute="_compute_can_change_request_owner",
     )
     has_automation = fields.Selection(related="category_id.has_automation")
     has_date = fields.Selection(related="category_id.has_date")
@@ -681,7 +681,7 @@ class ApprovalRequest(models.Model):
             )
 
     @api.depends_context("uid")
-    def _compute_request_access_rights(self) -> None:
+    def _compute_can_change_request_owner(self) -> None:
         is_manager = is_approval_manager(self.env)
         for request in self:
             request.can_change_request_owner = is_manager
