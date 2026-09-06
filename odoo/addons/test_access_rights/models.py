@@ -14,6 +14,11 @@ class Test_Access_RightSome_Obj(models.Model):
     )
     forbidden2 = fields.Integer(groups="test_access_rights.test_group")
     forbidden3 = fields.Integer(groups=fields.NO_ACCESS)
+    forbidden_searchable = fields.Integer(
+        compute="_compute_forbidden_searchable",
+        search="_search_forbidden_searchable",
+        groups=fields.NO_ACCESS,
+    )
     write_gated = fields.Integer(write_groups="test_access_rights.test_group")
     write_gated_never = fields.Integer(write_groups=fields.NO_ACCESS)
     write_gated_on_stored = fields.Integer(
@@ -26,6 +31,13 @@ class Test_Access_RightSome_Obj(models.Model):
         groups="test_access_rights.test_group",
         write_groups="base.group_system",
     )
+
+    def _compute_forbidden_searchable(self):
+        for record in self:
+            record.forbidden_searchable = record.val
+
+    def _search_forbidden_searchable(self, operator, value):
+        return [("val", operator, value)]
 
 
 class Test_Access_RightContainer(models.Model):

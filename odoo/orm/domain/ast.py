@@ -943,8 +943,14 @@ class DomainCondition(Domain):
                 return DomainCondition(parent_fname, "any", parent_domain)
 
             if field.search and field.name == self.field_expr:
-                if field.related and not field.store:
-                    model._check_field_access(field, "read")
+                # A search method rewrites this condition into the fields it
+                # names, so this is the last point at which the field the
+                # caller asked about is still visible. A stored field is
+                # checked again in _to_sql, but a computed one never reaches
+                # there under its own name: without this its value would be
+                # searchable -- and therefore guessable -- by a user who
+                # cannot read it.
+                model._check_field_access(field, "read")
                 if field.is_boolean:
                     for opt in _OPTIMIZATIONS_FOR[level].get("boolean", ()):
                         collapsed = opt(self, model)

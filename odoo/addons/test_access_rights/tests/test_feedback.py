@@ -616,6 +616,23 @@ Groups: allowed for groups 'Role / Portal', 'Test Group'"""
             self.inherits_record.search([("forbidden3", "=", 58)])
 
     @mute_logger("odoo.models")
+    def test_a_search_method_does_not_open_a_field_the_user_cannot_read(self):
+        """A computed field's search method rewrites the domain into other
+        fields, so the field the caller named never reaches _to_sql under its
+        own name. Without a check where the rewrite happens, a confidential
+        value is searchable -- and a search that answers "=" is a way to read
+        it one guess at a time."""
+        self.env["test_access_right.some_obj"].sudo().create({"val": 58})
+        as_root = self.record.sudo().search([("forbidden_searchable", "=", 58)])
+        self.assertTrue(as_root, "the search method itself works")
+
+        with self.assertRaises(AccessError):
+            self.record.search([("forbidden_searchable", "=", 58)])
+
+        with self.assertRaises(AccessError):
+            self.record.search([("parent_id.forbidden_searchable", "=", 58)])
+
+    @mute_logger("odoo.models")
     def test_check_field_access_rights_order_drops_unreadable_terms(self):
         self.record.search([], order="val")
 
