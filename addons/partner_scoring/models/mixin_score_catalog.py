@@ -50,6 +50,71 @@ class MixinScoreCatalog(models.AbstractModel):
             for name in changed
         )
 
+    @api.model
+    def _score_ceilings(self, domain):
+        ceilings = []
+        for attribute in self.search(domain):
+            if attribute.aggregation_mode == "none":
+                continue
+            scores = [
+                score
+                for score in attribute.value_ids.mapped("score_value")
+                if score > 0
+            ]
+            if not scores:
+                continue
+            summable = (
+                attribute.value_type == "multi" and attribute.aggregation_mode == "sum"
+            )
+            ceilings.append((attribute.id, sum(scores) if summable else max(scores)))
+        return {
+            "model": self._name,
+            "attributes": tuple(ceilings),
+            "total": sum(ceiling for _attribute_id, ceiling in ceilings),
+        }
+
+    @api.model
+    def _score_labels(self, keys):
+        """Resolve 'dim:<attribute>:<value|none>' keys into reader-language labels.
+
+        Archived records still label their rows: a row outlives the archive
+        until the next refresh drops it, and a key is a worse label than the
+        name of the thing it names.
+        """
+        parsed = {}
+        for key in keys:
+            _dimension, attribute_id, value_id = key.split(":")
+            parsed[key] = (
+                int(attribute_id),
+                None if value_id == "none" else int(value_id),
+            )
+        attributes = self.sudo().with_context(active_test=False)
+        values = (
+            self.env[self._fields["value_ids"].comodel_name]
+            .sudo()
+            .with_context(active_test=False)
+        )
+        attribute_names = {
+            record.id: record.name
+            for record in attributes.browse({a for a, _v in parsed.values()}).exists()
+        }
+        value_names = {
+            record.id: record.name
+            for record in values.browse(
+                {v for _a, v in parsed.values() if v is not None}
+            ).exists()
+        }
+        labels = {}
+        for key, (attribute_id, value_id) in parsed.items():
+            attribute_name = attribute_names.get(attribute_id)
+            if attribute_name is None:
+                continue
+            if value_id is None:
+                labels[key] = attribute_name
+            elif value_id in value_names:
+                labels[key] = f"{attribute_name}: {value_names[value_id]}"
+        return labels
+
     def _notify_score_catalog_changed(self):
         self.env["res.partner"]._notify_score_ceiling_changed()
 

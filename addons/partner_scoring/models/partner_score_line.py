@@ -75,3 +75,42 @@ class PartnerScoreLine(models.Model):
             row.note = partner_model._score_row_note(
                 row.dimension, row.source_key, row.applied
             )
+
+    _SCORE_ROW_KEY = ("partner_id", "dimension", "source_key")
+    _SCORE_ROW_VALUES = ("points", "max_points", "applied")
+
+    @api.model
+    def _reconcile_rows(self, partners, rows):
+        score_model = self.env(su=True)[self._name]
+        existing = score_model.search([("partner_id", "in", partners.ids)])
+
+        by_key = {}
+        for row in existing:
+            key = (row.partner_id.id, row.dimension, row.source_key)
+            by_key.setdefault(key, []).append(row)
+
+        to_create = []
+        # Ids, not a recordset union: |= reallocates the whole id tuple on every
+        # row, which is quadratic in the number of audit rows in the batch.
+        matched_ids = set()
+        for vals in rows:
+            key = tuple(vals[name] for name in self._SCORE_ROW_KEY)
+            candidates = by_key.get(key)
+            if not candidates:
+                to_create.append(vals)
+                continue
+            row = candidates.pop(0)
+            matched_ids.add(row.id)
+            changed = {
+                name: vals[name]
+                for name in self._SCORE_ROW_VALUES
+                if row[name] != vals[name]
+            }
+            if changed:
+                row.write(changed)
+
+        stale = existing.filtered(lambda row: row.id not in matched_ids)
+        if stale:
+            stale.unlink()
+        if to_create:
+            score_model.create(to_create)

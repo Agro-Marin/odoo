@@ -1,9 +1,6 @@
 import hashlib
-import logging
 
 from odoo import api, fields, models
-
-_logger = logging.getLogger(__name__)
 
 _RECOMPUTE_BATCH_SIZE = 200
 
@@ -106,48 +103,8 @@ class ResPartner(models.Model):
         if any(field in vals for field in self._SCORE_TRIGGERS):
             self._update_profile_scores()
         if any(field in vals for field in self._COMMERCIAL_FIELDS):
-            self._follow_commercial_partner()
+            self.env["res.partner.attribute.line"]._follow_commercial_partner(self)
         return result
-
-    def _follow_commercial_partner(self):
-        """Move captured attributes up when the contact hierarchy moves.
-
-        _check_commercial_partner is an @api.constrains on the line's
-        partner_id, and the ORM has no cross-model constrains: nothing re-runs
-        it when the *partner* is demoted to a contact. The lines would keep
-        scoring a record that is no longer the commercial entity while the new
-        one scores as if nothing had ever been captured. Moving them is
-        preferred over rejecting the move, which would block a legitimate
-        hierarchy edit for a reason the user cannot act on.
-        """
-        line_model = self.env["res.partner.attribute.line"].with_context(
-            active_test=False
-        )
-        for partner in self:
-            commercial = partner.commercial_partner_id
-            if commercial == partner:
-                continue
-            stray = line_model.search([("partner_id", "=", partner.id)])
-            if not stray:
-                continue
-            taken = set(
-                line_model.search([("partner_id", "=", commercial.id)]).attribute_id.ids
-            )
-            movable = stray.filtered(
-                lambda line, taken=taken: line.attribute_id.id not in taken
-            )
-            if movable:
-                movable.partner_id = commercial
-            blocked = stray - movable
-            if blocked:
-                _logger.warning(
-                    "partner_scoring: %s moved under %s but keeps %s captured "
-                    "attribute(s) the commercial entity already answers: %s",
-                    partner.display_name,
-                    commercial.display_name,
-                    len(blocked),
-                    ", ".join(sorted(blocked.attribute_id.mapped("name"))),
-                )
 
     @api.depends(
         "score_line_ids.points",
@@ -251,31 +208,8 @@ class ResPartner(models.Model):
         )
 
     @api.model
-    def _attribute_score_ceilings(self, attribute_model, domain):
-        ceilings = []
-        for attribute in self.env[attribute_model].search(domain):
-            if attribute.aggregation_mode == "none":
-                continue
-            scores = [
-                score
-                for score in attribute.value_ids.mapped("score_value")
-                if score > 0
-            ]
-            if not scores:
-                continue
-            summable = (
-                attribute.value_type == "multi" and attribute.aggregation_mode == "sum"
-            )
-            ceilings.append((attribute.id, sum(scores) if summable else max(scores)))
-        return {
-            "model": attribute_model,
-            "attributes": tuple(ceilings),
-            "total": sum(ceiling for _attribute_id, ceiling in ceilings),
-        }
-
-    @api.model
     def _score_ceiling_partner_attr(self):
-        return self._attribute_score_ceilings("res.partner.attribute", [])
+        return self.env["res.partner.attribute"]._score_ceilings([])
 
     @api.job(channel="partner_scoring.recompute")
     def _update_profile_scores(self):
@@ -289,7 +223,7 @@ class ResPartner(models.Model):
                 rows += getattr(partner, f"_score_rows_{dimension}")(
                     ceilings[dimension]
                 )
-        self._reconcile_profile_score_rows(rows)
+        self.env["partner.score.line"]._reconcile_rows(self, rows)
         for field_name in ("score_points", "score_pct", "partner_profile_id"):
             self.env.add_to_compute(self._fields[field_name], self)
         self.flush_recordset()
@@ -369,44 +303,6 @@ class ResPartner(models.Model):
             [("score_line_ids", "!=", False)]
         )._delay_profile_scores_recompute()
 
-    _SCORE_ROW_KEY = ("partner_id", "dimension", "source_key")
-    _SCORE_ROW_VALUES = ("points", "max_points", "applied")
-
-    def _reconcile_profile_score_rows(self, rows):
-        score_model = self.env(su=True)["partner.score.line"]
-        existing = score_model.search([("partner_id", "in", self.ids)])
-
-        by_key = {}
-        for row in existing:
-            key = (row.partner_id.id, row.dimension, row.source_key)
-            by_key.setdefault(key, []).append(row)
-
-        to_create = []
-        # Ids, not a recordset union: |= reallocates the whole id tuple on every
-        # row, which is quadratic in the number of audit rows in the batch.
-        matched_ids = set()
-        for vals in rows:
-            key = tuple(vals[name] for name in self._SCORE_ROW_KEY)
-            candidates = by_key.get(key)
-            if not candidates:
-                to_create.append(vals)
-                continue
-            row = candidates.pop(0)
-            matched_ids.add(row.id)
-            changed = {
-                name: vals[name]
-                for name in self._SCORE_ROW_VALUES
-                if row[name] != vals[name]
-            }
-            if changed:
-                row.write(changed)
-
-        stale = existing.filtered(lambda row: row.id not in matched_ids)
-        if stale:
-            stale.unlink()
-        if to_create:
-            score_model.create(to_create)
-
     def _score_rows_partner_attr(self, ceiling):
         self.check_singleton()
         return self._prepare_attribute_score_rows(
@@ -467,48 +363,8 @@ class ResPartner(models.Model):
         }
 
     @api.model
-    def _score_labels_for_attribute_keys(self, attribute_model, value_model, keys):
-        """Resolve 'dim:<attribute>:<value|none>' keys into reader-language labels.
-
-        Archived records still label their rows: a row outlives the archive
-        until the next refresh drops it, and a key is a worse label than the
-        name of the thing it names.
-        """
-        parsed = {}
-        for key in keys:
-            _dimension, attribute_id, value_id = key.split(":")
-            parsed[key] = (
-                int(attribute_id),
-                None if value_id == "none" else int(value_id),
-            )
-        attributes = self.env[attribute_model].sudo().with_context(active_test=False)
-        values = self.env[value_model].sudo().with_context(active_test=False)
-        attribute_names = {
-            record.id: record.name
-            for record in attributes.browse({a for a, _v in parsed.values()}).exists()
-        }
-        value_names = {
-            record.id: record.name
-            for record in values.browse(
-                {v for _a, v in parsed.values() if v is not None}
-            ).exists()
-        }
-        labels = {}
-        for key, (attribute_id, value_id) in parsed.items():
-            attribute_name = attribute_names.get(attribute_id)
-            if attribute_name is None:
-                continue
-            if value_id is None:
-                labels[key] = attribute_name
-            elif value_id in value_names:
-                labels[key] = f"{attribute_name}: {value_names[value_id]}"
-        return labels
-
-    @api.model
     def _score_labels_partner_attr(self, keys):
-        return self._score_labels_for_attribute_keys(
-            "res.partner.attribute", "res.partner.attribute.value", keys
-        )
+        return self.env["res.partner.attribute"]._score_labels(keys)
 
     @api.model
     def _score_row_note(self, dimension, source_key, applied):
