@@ -171,7 +171,7 @@ Webclient user preferences.
 - `embedded_actions_config_ids` (One2many → `res.users.settings.embedded.action`)
 - `density` (Selection, `default='default'`, `required=True`): UI density — `default` / `compact` / `condensed`
 - `color_scheme` (Selection, `default='system'`, `required=True`): `system` / `light` / `dark`. `system` defers to the OS preference; `ir_http.color_scheme()` is the server-side override point
-- `homemenu_config` (Json, `readonly=True`): the user's app order on the home menu, a JSON array of menu xml ids written through `set_res_users_settings` when an app is dragged
+- `homemenu_config` (Json, `readonly=True`): the user's home menu layout, written through `set_res_users_settings` from the home menu's drag, pin, hide and reset actions. Version 2 is a JSON object `{version, order, pinned, hidden}` of menu xml ids; version 1 was the bare `order` array and still reads. Both are parsed and serialised only by `webclient/menus/menu_utils.js` (`parseHomeMenuConfig`, `serializeHomeMenuConfig`). What the user *opens* is not here: that is the localStorage usage table in `webclient/menus/menu_usage.js`
 
 **Key Methods:**
 - `_format_settings(fields_to_format)` (`@api.model`) — `super()` + replaces `embedded_actions_config_ids` with its formatted payload when requested. This is what puts `user_settings` into `session_info`.

@@ -150,6 +150,7 @@ never read or written by raw string literal from anywhere else:
 | Module | Keys | Notes |
 |---|---|---|
 | `webclient/actions/action_storage.js` | `current_action`, `current_state`, `current_lang` | The action-restore cache. Reads are **total**: missing, empty, or corrupt all resolve to `{}`, because the URL is the source of truth. `withTemporaryEntry()` performs the synchronous swap that seeds a new tab (sessionStorage is copied into an auxiliary browsing context at open time). |
+| `webclient/menus/menu_usage.js` | `webclient_menu_usage:<uid>` (localStorage) | What the user opens: `{xmlid: {n, t}}`, recorded by `menu_service.selectMenu` once the action is ready, ranked with a seven-day half-life, bounded at fifty entries. Read by the palette's `/` provider on an empty query and by `HomeMenu.recentApps`. Per user by key, never sent to the server. |
 | `webclient/menus/menu_storage.js` | `webclient_menus`, `webclient_menus_version`, `webclient_menus_hash` (localStorage), `menu_id` (sessionStorage) | The menu tree cache. Written as a unit with the **version last** (it gates reuse on the next boot); a corrupt read discards the whole trio. `menu_id` is the current app, written by `menu_service` and read by `webclient.js` — the one key that was still open-coded at both ends. |
 
 Both are centralised here rather than open-coded per consumer, so the parse

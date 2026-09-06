@@ -251,7 +251,7 @@
 | `webclient/errors/` | pages | 2 | Webclient error handlers: offline "Failed to fetch", visitor-facing errors |
 | `webclient/install_scoped_app/` | pages | 1 | Public page component for installing scoped PWAs |
 | `webclient/loading_indicator/` | pages | 1 | Counts active RPCs and blocks the UI after a 3 s delay |
-| `webclient/menus/` | pages | 4 | `menu` service, tree helpers, command providers, and the localStorage menu cache |
+| `webclient/menus/` | pages | 5 | `menu` service, tree helpers, the home menu layout parser, command providers, the localStorage menu cache, and the per-user usage table that ranks the palette's `/` namespace and the home menu's recent row |
 | `webclient/mobile/` | pages | 1 | Small-screen patches over views: pivot cells drop their tooltips and shrink their indent |
 | `webclient/navbar/` | pages | 1 | Navigation bar: home-menu toggle, app brand, sub-menus, systray, mobile sidebar |
 | `webclient/promote_studio/` | pages | 4 | Studio upsell: the install dialog, its systray item, the "Add Custom Field" entry patched into the list optional-columns menu and the "Automations" entry patched into the group config menu |
