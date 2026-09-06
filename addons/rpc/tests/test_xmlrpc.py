@@ -3,7 +3,7 @@ import datetime
 import time
 
 import odoo
-from odoo.exceptions import AccessDenied, AccessError
+from odoo.exceptions import AccessDenied, AccessError, UserError
 from odoo.http import _request_stack
 from odoo.service import common as auth
 from odoo.service import model
@@ -194,22 +194,40 @@ class TestXMLRPC(common.HttpCase):
             },
         )
 
-    def test_xmlrpc_attachment_raw(self):
-        ids = self.env["ir.attachment"].create({"name": "n", "raw": b"\x01\x09"}).ids
-        [att] = self.xmlrpc_object.execute(
-            common.get_db_name(),
-            self.admin_uid,
-            "admin",
-            "ir.attachment",
-            "read",
-            ids,
-            ["raw"],
+    def _read_attachment(self, raw, fields, **kwargs):
+        attachment = self.env["ir.attachment"].create({"name": "n", "raw": raw})
+        [values] = self.xmlrpc(
+            "ir.attachment", "read", attachment.ids, fields, **kwargs
         )
+        return values
+
+    def test_xmlrpc_attachment_raw_is_base64(self):
+        values = self._read_attachment(b"\x01\x09", ["raw"])
         self.assertEqual(
-            att["raw"],
-            "\t",
-            "on read, binary data should be decoded as a string and stripped from control character",
+            values["raw"],
+            "AQk=",
+            "raw must be base64-encoded on read; sending it as text loses the "
+            "control characters the marshaller strips, silently corrupting the value",
         )
+
+    def test_xmlrpc_attachment_raw_accepts_non_utf8_content(self):
+        # a PNG header: valid file content, invalid UTF-8
+        values = self._read_attachment(b"\x89PNG\r\n\x1a\n", ["raw"])
+        self.assertEqual(values["raw"], "iVBORw0KGgo=")
+
+    def test_xmlrpc_attachment_raw_and_datas_agree(self):
+        values = self._read_attachment(b"\x89PNG\r\n\x1a\n", ["raw", "datas"])
+        self.assertEqual(
+            values["raw"],
+            values["datas"],
+            "raw and datas hold the same bytes, so they must serialize the same way",
+        )
+
+    def test_xmlrpc_attachment_bin_size_is_not_base64(self):
+        values = self._read_attachment(
+            b"\x89PNG\r\n\x1a\n", ["raw"], context={"bin_size": True}
+        )
+        self.assertEqual(values["raw"], "8.00 bytes")
 
 
 @common.tagged("post_install", "-at_install")
@@ -379,4 +397,119 @@ class TestAPIKeys(common.HttpCase):
             model.dispatch(
                 "execute_kw",
                 [self.env.cr.dbname, self._user.id, k, "res.users", "context_get", []],
+            )
+
+    # -- programmatic key management -------------------------------------
+
+    def _expiration(self):
+        return odoo.fields.Datetime.now() + datetime.timedelta(hours=1)
+
+    def _make_key(self, name, user=None):
+        return (
+            self.env["res.users.apikeys.description"]
+            .with_user(user or self._user)
+            .create({"name": name})
+            .action_generate_key()["context"]["default_key"]
+        )
+
+    def _enable_programmatic_keys(self, enabled=True, limit=None):
+        ICP = self.env["ir.config_parameter"]
+        ICP.set_param("base.enable_programmatic_api_keys", "1" if enabled else "0")
+        if limit is not None:
+            ICP.set_param("base.programmatic_api_keys_limit", str(limit))
+
+    def test_apikey_programmatic_management_is_opt_in(self):
+        self._enable_programmatic_keys(False)
+        key = self._make_key("first")
+        Apikeys = self.env["res.users.apikeys"].with_user(self._user)
+        with self.assertRaisesRegex(UserError, "not enabled"):
+            Apikeys.generate(key, None, "second", self._expiration())
+        with self.assertRaisesRegex(UserError, "not enabled"):
+            Apikeys.revoke(key)
+
+    def test_apikey_is_renewed_over_rpc(self):
+        self._enable_programmatic_keys()
+        db = self.env.cr.dbname
+        first = self._make_key("first")
+
+        second = model.dispatch(
+            "execute_kw",
+            [
+                db,
+                self._user.id,
+                first,
+                "res.users.apikeys",
+                "generate",
+                [first, None, "second", self._expiration()],
+            ],
+        )
+        self.assertNotEqual(second, first)
+        self.assertEqual(
+            self.env["res.users.apikeys"]
+            .search([("user_id", "=", self._user.id)])
+            .mapped("name"),
+            ["first", "second"],
+        )
+
+        # the new key authenticates on its own
+        ctx = model.dispatch(
+            "execute_kw",
+            [db, self._user.id, second, "res.users", "context_get", []],
+        )
+        self.assertEqual(ctx["tz"], "Australia/Eucla")
+
+        # and it can retire itself, which is the point of a rotation
+        self.assertTrue(
+            model.dispatch(
+                "execute_kw",
+                [db, self._user.id, second, "res.users.apikeys", "revoke", [second]],
+            )
+        )
+        with self.assertRaises(AccessDenied):
+            model.dispatch(
+                "execute_kw",
+                [db, self._user.id, second, "res.users", "context_get", []],
+            )
+
+        # the key it was issued from is untouched
+        ctx = model.dispatch(
+            "execute_kw",
+            [db, self._user.id, first, "res.users", "context_get", []],
+        )
+        self.assertEqual(ctx["tz"], "Australia/Eucla")
+
+    def test_apikey_generate_accepts_a_serialized_expiration_date(self):
+        self._enable_programmatic_keys()
+        first = self._make_key("first")
+        expiration = self._expiration().replace(microsecond=0)
+        second = (
+            self.env["res.users.apikeys"]
+            .with_user(self._user)
+            .generate(first, None, "second", odoo.fields.Datetime.to_string(expiration))
+        )
+        self.assertEqual(
+            self.env["res.users.apikeys"]
+            .search([("user_id", "=", self._user.id), ("name", "=", "second")])
+            .expiration_date,
+            expiration,
+        )
+        self.assertTrue(second)
+
+    def test_apikey_generation_is_capped(self):
+        self._enable_programmatic_keys(limit=2)
+        first = self._make_key("first")
+        Apikeys = self.env["res.users.apikeys"].with_user(self._user)
+        Apikeys.generate(first, None, "second", self._expiration())
+        with self.assertRaisesRegex(UserError, "Limit of 2"):
+            Apikeys.generate(first, None, "third", self._expiration())
+
+    def test_apikey_generate_refuses_a_key_of_another_user(self):
+        self._enable_programmatic_keys()
+        other = self.env["res.users"].create(
+            {"name": "Otro", "login": "otro", "password": "anananana"}
+        )
+        stranger = self._make_key("stranger", user=other)
+        with self.assertRaises(AccessDenied):
+            self.env["res.users.apikeys"].with_user(self._user).generate(
+                stranger, None, "second", self._expiration()
             )
