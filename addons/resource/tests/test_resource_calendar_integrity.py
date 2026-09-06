@@ -58,6 +58,50 @@ class TestCalendarIntegrity(TransactionCase):
         self.assertEqual(half.hours_per_day, 4)
         self.assertEqual(set(half.attendance_ids.mapped("duration_days")), {1.0})
 
+    def test_copying_a_calendar_does_not_copy_its_global_time_off(self):
+        source = self.Calendar.create({"name": "With holidays"})
+        self.env["resource.calendar.leaves"].create(
+            {
+                "name": "Independence Day",
+                "calendar_id": source.id,
+                "date_from": datetime(2026, 9, 16, 0, 0),
+                "date_to": datetime(2026, 9, 16, 23, 59),
+            }
+        )
+        self.assertEqual(source.global_leave_ids.mapped("name"), ["Independence Day"])
+
+        copy = source.copy()
+
+        self.assertFalse(
+            copy.global_leave_ids,
+            "duplicating a working schedule must not duplicate its public holidays",
+        )
+        self.assertEqual(
+            source.global_leave_ids.mapped("name"),
+            ["Independence Day"],
+            "the source calendar must keep its own time off",
+        )
+        self.assertEqual(
+            len(copy.attendance_ids),
+            len(source.attendance_ids),
+            "only the time off is dropped -- the working hours are still copied",
+        )
+
+    def test_global_time_off_can_still_be_copied_on_demand(self):
+        source = self.Calendar.create({"name": "Explicit copy"})
+        leave = self.env["resource.calendar.leaves"].create(
+            {
+                "name": "Revolution Day",
+                "calendar_id": source.id,
+                "date_from": datetime(2026, 11, 16, 0, 0),
+                "date_to": datetime(2026, 11, 16, 23, 59),
+            }
+        )
+        copy = source.copy(
+            {"global_leave_ids": [Command.create(leave._copy_leave_vals())]}
+        )
+        self.assertEqual(copy.global_leave_ids.mapped("name"), ["Revolution Day"])
+
     def test_schedule_type_is_a_view_of_flexible_hours(self):
         flexible = self.Calendar.create({"name": "F", "schedule_type": "flexible"})
         self.assertTrue(flexible.flexible_hours)
