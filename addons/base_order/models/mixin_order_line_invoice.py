@@ -103,23 +103,30 @@ class MixinOrderLineInvoice(models.AbstractModel):
             )
         )
 
+    def _get_open_invoice_lines(self):
+        # A draft invoice already claims its quantity: counting only posted
+        # ones lets the same line be invoiced twice. Amounts stay posted-only.
+        self.check_singleton()
+        return self._get_invoice_lines().filtered(
+            lambda l: (
+                l.parent_state != "cancel"
+                or l.move_id.payment_state == "invoicing_legacy"
+            )
+        )
+
     def _prepare_qty_invoiced(self):
         invoiced_qties = defaultdict(float)
         invoice_type, refund_type = self._get_invoice_move_types()
         for line in self:
-            for inv_line in line._get_invoice_lines():
-                if (
-                    inv_line.move_id.state != "cancel"
-                    or inv_line.move_id.payment_state == "invoicing_legacy"
-                ):
-                    qty = inv_line.product_uom_id._compute_quantity(
-                        inv_line.quantity,
-                        line.product_uom_id,
-                    )
-                    if inv_line.move_id.move_type == invoice_type:
-                        invoiced_qties[line] += qty
-                    elif inv_line.move_id.move_type == refund_type:
-                        invoiced_qties[line] -= qty
+            for inv_line in line._get_open_invoice_lines():
+                qty = inv_line.product_uom_id._compute_quantity(
+                    inv_line.quantity,
+                    line.product_uom_id,
+                )
+                if inv_line.move_id.move_type == invoice_type:
+                    invoiced_qties[line] += qty
+                elif inv_line.move_id.move_type == refund_type:
+                    invoiced_qties[line] -= qty
         return invoiced_qties
 
     @api.depends_context("accrual_entry_date")

@@ -1,6 +1,6 @@
 {
     "name": "Events Sales",
-    "version": "1.3",
+    "version": "1.4",
     "category": "Marketing/Events",
     "description": """
 Creating registration with sales orders.

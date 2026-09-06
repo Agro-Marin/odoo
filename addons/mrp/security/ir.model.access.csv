@@ -51,3 +51,22 @@ access_mrp_workcenter_capacity_group_user,mrp.workcenter.capacity,model_mrp_work
 access_stock_move_mrp_user,stock.move mrp_user,stock.model_stock_move,mrp.group_mrp_user,1,1,1,1
 access_mrp_production_serials,access.mrp_production_serials,model_mrp_production_serials,mrp.group_mrp_user,1,1,1,0
 access_resource_reservation_mrp_user,resource.reservation mrp_user,resource.model_resource_reservation,mrp.group_mrp_user,1,1,1,1
+access_mrp_production_mrp_readonly,mrp.production.mrp.readonly,model_mrp_production,group_mrp_readonly,1,0,0,0
+access_mrp_production_group_mrp_readonly,mrp.production.group.mrp.readonly,model_mrp_production_group,group_mrp_readonly,1,0,0,0
+access_mrp_workorder_mrp_readonly,mrp.workorder.mrp.readonly,model_mrp_workorder,group_mrp_readonly,1,0,0,0
+access_mrp_bom_mrp_readonly,mrp.bom.mrp.readonly,model_mrp_bom,group_mrp_readonly,1,0,0,0
+access_mrp_bom_line_mrp_readonly,mrp.bom.line.mrp.readonly,model_mrp_bom_line,group_mrp_readonly,1,0,0,0
+access_mrp_bom_byproduct_mrp_readonly,mrp.bom.byproduct.mrp.readonly,model_mrp_bom_byproduct,group_mrp_readonly,1,0,0,0
+access_mrp_workcenter_mrp_readonly,mrp.workcenter.mrp.readonly,model_mrp_workcenter,group_mrp_readonly,1,0,0,0
+access_mrp_workcenter_capacity_mrp_readonly,mrp.workcenter.capacity.mrp.readonly,model_mrp_workcenter_capacity,group_mrp_readonly,1,0,0,0
+access_mrp_workcenter_tag_mrp_readonly,mrp.workcenter.tag.mrp.readonly,model_mrp_workcenter_tag,group_mrp_readonly,1,0,0,0
+access_mrp_workcenter_productivity_mrp_readonly,mrp.workcenter.productivity.mrp.readonly,model_mrp_workcenter_productivity,group_mrp_readonly,1,0,0,0
+access_mrp_workcenter_productivity_loss_mrp_readonly,mrp.workcenter.productivity.loss.mrp.readonly,model_mrp_workcenter_productivity_loss,group_mrp_readonly,1,0,0,0
+access_mrp_workcenter_productivity_loss_type_mrp_readonly,mrp.workcenter.productivity.loss.type.mrp.readonly,model_mrp_workcenter_productivity_loss_type,group_mrp_readonly,1,0,0,0
+access_mrp_routing_workcenter_mrp_readonly,mrp.routing.workcenter.mrp.readonly,model_mrp_routing_workcenter,group_mrp_readonly,1,0,0,0
+access_mrp_unbuild_mrp_readonly,mrp.unbuild.mrp.readonly,model_mrp_unbuild,group_mrp_readonly,1,0,0,0
+access_stock_move_mrp_readonly,stock.move.mrp.readonly,stock.model_stock_move,group_mrp_readonly,1,0,0,0
+access_stock_picking_mrp_readonly,stock.picking.mrp.readonly,stock.model_stock_picking,group_mrp_readonly,1,0,0,0
+access_stock_lot_mrp_readonly,stock.lot.mrp.readonly,stock.model_stock_lot,group_mrp_readonly,1,0,0,0
+access_stock_scrap_mrp_readonly,stock.scrap.mrp.readonly,stock.model_stock_scrap,group_mrp_readonly,1,0,0,0
+access_stock_scrap_reason_tag_mrp_readonly,stock.scrap.reason.tag.mrp.readonly,stock.model_stock_scrap_reason_tag,group_mrp_readonly,1,0,0,0

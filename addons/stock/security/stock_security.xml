@@ -6,11 +6,42 @@
             <field name="name">Inventory</field>
             <field name="category_id" ref="base.module_category_supply_chain" />
         </record>
+        <record id="group_stock_readonly" model="res.groups">
+            <field name="name">Read-only</field>
+            <field name="sequence">5</field>
+            <field name="privilege_id" ref="res_groups_privilege_inventory" />
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
+            <field
+                name="comment">Access to all Inventory data but in read-only mode, no actions allowed.</field>
+        </record>
+        <!--
+            Read-only's ACL rows list only what they add. Models base.group_user
+            already reads are absent, since the tier implies it; the tier's suite
+            asserts read on each of those, so upstream narrowing one fails loudly.
+
+            Wizards are split by what they do, not how they look. Three only
+            read and are reachable by the tier: stock.quantity.history,
+            stock.rules.report, stock.traceability.report, and get create as
+            well, because a wizard cannot be instantiated without it ("Inventory
+            at Date" was broken for exactly that reason). Every wizard that
+            fronts a write gets no row at all: return, backorder, relocate,
+            request-count, snooze, package-destination, inventory-adjust,
+            label-printing, replenish, and stock.replenishment.info/option,
+            whose related product_min_qty/product_max_qty write through to the
+            orderpoint and whose actions order stock.
+
+            The User tier implies Read-only, so the privilege ladder is strictly
+            Read-only < User < Administrator and an affordance gated positively
+            on the readonly group stays visible to a stock User. Hanging the
+            link off Administrator instead leaves Read-only beside User.
+        -->
         <record id="group_stock_user" model="res.groups">
             <field name="name">User</field>
             <field name="sequence">10</field>
             <field name="privilege_id" ref="res_groups_privilege_inventory" />
-            <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
+            <field
+                name="implied_ids"
+                eval="[(4, ref('base.group_user')), (4, ref('group_stock_readonly'))]" />
         </record>
         <record id="group_stock_manager" model="res.groups">
             <field name="name">Administrator</field>

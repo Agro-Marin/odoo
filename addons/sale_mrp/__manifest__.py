@@ -1,6 +1,6 @@
 {
     "name": "Sales and MRP Management",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Sales/Sales",
     "description": """
 This module provides facility to the user to install mrp and sales modules at a time.

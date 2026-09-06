@@ -328,8 +328,9 @@ class PurchaseOrderLine(models.Model):
 
         invoice_lines = self._get_posted_invoice_lines()
         invoiced = self._sum_invoiced_amounts(invoice_lines)
+        qty_invoiced = self._sum_invoiced_qty(self._get_open_invoice_lines())
 
-        self.qty_invoiced = invoiced["qty"]
+        self.qty_invoiced = qty_invoiced
         self.amount_taxexc_invoiced = invoiced["amount_taxexc"]
         self.amount_taxinc_invoiced = invoiced["amount_taxinc"]
 
@@ -337,9 +338,9 @@ class PurchaseOrderLine(models.Model):
             self._reset_to_invoice_amounts()
             return
 
-        self._compute_to_invoice_amounts(invoice_lines, invoiced)
+        self._compute_to_invoice_amounts(invoice_lines, invoiced, qty_invoiced)
 
-    def _compute_to_invoice_amounts(self, invoice_lines, invoiced):
+    def _compute_to_invoice_amounts(self, invoice_lines, invoiced, qty_invoiced):
         qty_to_consider = self._get_qty_to_consider_for_billing()
         price_subtotal = self._get_billable_subtotal(qty_to_consider)
 
@@ -358,7 +359,7 @@ class PurchaseOrderLine(models.Model):
         self.amount_taxinc_to_invoice = unit_price_total * (
             qty_to_consider - invoiced["qty"]
         )
-        self.qty_to_invoice = qty_to_consider - invoiced["qty"]
+        self.qty_to_invoice = qty_to_consider - qty_invoiced
 
     @api.depends(
         "qty_to_invoice",
@@ -818,18 +819,22 @@ class PurchaseOrderLine(models.Model):
             round=round,
         )
 
+    def _sum_invoiced_qty(self, invoice_lines):
+        return sum(
+            inv_line.move_id.direction_sign
+            * inv_line.product_uom_id._compute_quantity_reconcile(
+                inv_line.quantity,
+                self.product_uom_id,
+            )
+            for inv_line in invoice_lines
+        )
+
     def _sum_invoiced_amounts(self, invoice_lines):
-        qty = 0.0
+        qty = self._sum_invoiced_qty(invoice_lines)
         amount_taxexc = 0.0
         amount_taxinc = 0.0
 
         for inv_line in invoice_lines:
-            qty += inv_line.move_id.direction_sign * (
-                inv_line.product_uom_id._compute_quantity_reconcile(
-                    inv_line.quantity,
-                    self.product_uom_id,
-                )
-            )
             amount_taxexc += self._convert_invoiced_amount(
                 inv_line,
                 inv_line.price_subtotal,

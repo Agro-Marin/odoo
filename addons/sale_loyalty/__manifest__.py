@@ -1,6 +1,6 @@
 {
     "name": "Sale Loyalty",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Sales/Sales",
     "summary": "Use discounts and loyalty programs in sales orders",
     "description": "Integrate discount and loyalty programs mechanisms in sales orders.",

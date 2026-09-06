@@ -78,7 +78,7 @@ class TestSaleInvoicing(TestSaleCouponCommon):
 
         order.line_ids[0].qty_transferred = 1
         # Product is delivered, the two lines can be invoiced.
-        self.assertEqual(order.invoice_state, "to invoice")
+        self.assertEqual(order.invoice_state, "to do")
         invoiceable_lines = order._get_order_lines_invoiceable()
         self.assertEqual(order.line_ids, invoiceable_lines)
         account_move = order._create_invoices()

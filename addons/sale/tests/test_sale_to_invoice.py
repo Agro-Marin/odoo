@@ -651,16 +651,24 @@ class TestSaleToInvoice(TestSaleCommon):
                     "The invoiced amount should be zero, as no invoice are validated for now",
                 )
             else:
-                self.assertEqual(
-                    line.qty_to_invoice,
-                    line.product_uom_qty,
-                    "Draft invoices should not affect qty to invoice",
-                )
-                self.assertEqual(
-                    line.qty_invoiced,
-                    0.0,
-                    "Draft invoices should not affect qty invoiced",
-                )
+                # A draft invoice claims its quantity, so a second invoice
+                # cannot be raised for it; the amounts wait for it to post.
+                if line == self.sol_prod_order:
+                    self.assertEqual(
+                        line.qty_to_invoice,
+                        2.0,
+                        "Changing the quantity on a draft invoice updates the "
+                        "qty to invoice on SO lines",
+                    )
+                    self.assertEqual(line.qty_invoiced, 3.0)
+                else:
+                    self.assertEqual(
+                        line.qty_to_invoice,
+                        1.0,
+                        "Changing the quantity on a draft invoice updates the "
+                        "qty to invoice on SO lines",
+                    )
+                    self.assertEqual(line.qty_invoiced, 2.0)
                 self.assertEqual(
                     line.amount_taxexc_to_invoice,
                     line.product_uom_qty * line.price_unit,
@@ -1058,7 +1066,7 @@ class TestSaleToInvoice(TestSaleCommon):
         )
         invoicing_wizard.create_invoices()
 
-        self.assertEqual(sol_prod_deliver.qty_invoiced, 0.0)
+        self.assertEqual(sol_prod_deliver.qty_invoiced, 5.0)
 
         sale_order.invoice_ids.action_post()
         self.assertEqual(sol_prod_deliver.qty_invoiced, 5.0)
@@ -1832,7 +1840,7 @@ class TestSaleToInvoice(TestSaleCommon):
             .create_invoices()
         )
 
-        self.assertEqual(sol_prod_deliver.qty_invoiced, 0.0)
+        self.assertEqual(sol_prod_deliver.qty_invoiced, 5.0)
         self.assertEqual(
             sol_prod_deliver.amount_taxinc_to_invoice, sol_prod_deliver.price_total
         )

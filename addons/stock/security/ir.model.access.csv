@@ -77,3 +77,14 @@ access_stock_package_history_user,access_stock_package_history_user,model_stock_
 access_stock_put_in_pack_user,acess.stock.put.in.pack.user,model_stock_put_in_pack,stock.group_stock_user,1,1,1,0
 access_stock_reference,access_stock_reference,stock.model_stock_reference,base.group_user,1,0,0,0
 access_stock_reference_user,access_stock_reference_user,stock.model_stock_reference,stock.group_stock_user,1,1,1,0
+access_stock_picking_stock_readonly,stock.picking.stock.readonly,model_stock_picking,group_stock_readonly,1,0,0,0
+access_stock_lot_stock_readonly,stock.lot.stock.readonly,model_stock_lot,group_stock_readonly,1,0,0,0
+access_stock_move_stock_readonly,stock.move.stock.readonly,model_stock_move,group_stock_readonly,1,0,0,0
+access_stock_scrap_stock_readonly,stock.scrap.stock.readonly,model_stock_scrap,group_stock_readonly,1,0,0,0
+access_stock_scrap_reason_tag_stock_readonly,stock.scrap.reason.tag.stock.readonly,model_stock_scrap_reason_tag,group_stock_readonly,1,0,0,0
+access_stock_warehouse_orderpoint_stock_readonly,stock.warehouse.orderpoint.stock.readonly,model_stock_warehouse_orderpoint,group_stock_readonly,1,0,0,0
+access_stock_package_type_stock_readonly,stock.package.type.stock.readonly,model_stock_package_type,group_stock_readonly,1,0,0,0
+access_stock_traceability_report_stock_readonly,stock.traceability.report.stock.readonly,model_stock_traceability_report,group_stock_readonly,1,1,1,0
+access_stock_quantity_history_stock_readonly,stock.quantity.history.stock.readonly,model_stock_quantity_history,group_stock_readonly,1,1,1,0
+access_stock_rules_report_stock_readonly,stock.rules.report.stock.readonly,model_stock_rules_report,group_stock_readonly,1,1,1,0
+access_stock_package_history_stock_readonly,stock.package.history.stock.readonly,model_stock_package_history,group_stock_readonly,1,0,0,0

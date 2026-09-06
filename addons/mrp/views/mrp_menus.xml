@@ -5,7 +5,7 @@
         id="menu_mrp_root"
         name="Manufacturing"
         sequence="145"
-        groups="group_mrp_user,group_mrp_manager"
+        groups="group_mrp_user,group_mrp_manager,group_mrp_readonly"
         web_icon="mrp,static/description/icon.png">
         <menuitem id="menu_mrp_manufacturing" name="Operations" sequence="10" />
         <menuitem id="menu_mrp_planning" name="Planning" sequence="15" />

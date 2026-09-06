@@ -280,12 +280,14 @@
                         string="Apply All"
                         type="object"
                         class="btn btn-primary"
+                        groups="stock.group_stock_user"
                         invisible="not context.get('inventory_mode') or context.get('inventory_report_mode')"
                         display="always" />
                     <button
                         name="stock.action_stock_inventory_adjustement_name"
                         type="action"
-                        string="Apply" />
+                        string="Apply"
+                        groups="stock.group_stock_user" />
                     <button
                         name="action_reset"
                         type="object"
@@ -379,6 +381,7 @@
                     type="object"
                     string="Apply"
                     class="btn btn-link"
+                    groups="stock.group_stock_user"
                     icon="fa-save"
                     invisible="not inventory_quantity_set" />
                 <button
@@ -386,6 +389,7 @@
                     type="object"
                     string="Clear"
                     class="btn text-warning"
+                    groups="stock.group_stock_user"
                     icon="fa-times"
                     invisible="not inventory_quantity_set" />
             </list>
@@ -562,7 +566,9 @@
                 search_default_internal_loc=1,
                 always_show_loc=1,
             ).action_view_quants()</field>
-        <field name="group_ids" eval="[(4, ref('stock.group_stock_user'))]" />
+        <field
+            name="group_ids"
+            eval="[(4, ref('stock.group_stock_user')), (4, ref('stock.group_stock_readonly'))]" />
         <field name="path">stock-locations</field>
     </record>
 
@@ -571,7 +577,9 @@
         <field name="model_id" ref="model_stock_quant" />
         <field name="state">code</field>
         <field name="code">action = model.action_view_inventory()</field>
-        <field name="group_ids" eval="[(4, ref('stock.group_stock_user'))]" />
+        <field
+            name="group_ids"
+            eval="[(4, ref('stock.group_stock_user')), (4, ref('stock.group_stock_readonly'))]" />
         <field name="path">physical-inventory</field>
     </record>
 
@@ -582,7 +590,9 @@
         <field name="binding_view_types">list,kanban</field>
         <field name="state">code</field>
         <field name="code">action = records.action_set_inventory_quantity()</field>
-        <field name="group_ids" eval="[(4, ref('stock.group_stock_user'))]" />
+        <field
+            name="group_ids"
+            eval="[(4, ref('stock.group_stock_user')), (4, ref('stock.group_stock_readonly'))]" />
     </record>
 
     <record id="action_view_set_to_zero_quants_tree" model="ir.actions.server">

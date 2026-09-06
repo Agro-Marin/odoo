@@ -457,7 +457,9 @@ class TestPurchaseAmountToInvoice(AccountTestInvoicingCommon):
         line.qty_transferred = 5.0
 
         bill = po.create_invoice()
-        self.assertEqual(line.qty_invoiced, 0.0)
+        # A draft bill claims the quantity; the amounts wait for it to post.
+        self.assertEqual(line.qty_invoiced, 5.0)
+        self.assertEqual(line.qty_to_invoice, 0.0)
         self.assertEqual(line.amount_taxinc_to_invoice, line.price_total)
         self.assertEqual(line.amount_taxinc_invoiced, 0.0)
 
@@ -578,7 +580,7 @@ class TestPurchaseQtyInvoicedParity(AccountTestInvoicingCommon):
         po = self._confirmed_po(self.svc, 5)
         bill = po.create_invoice()
         bill.invoice_date = "2026-01-01"
-        self.assertEqual(po.line_ids.qty_invoiced, 0.0, "draft must not count")
+        self.assertEqual(po.line_ids.qty_invoiced, 5.0, "a draft bill counts")
         bill.invoice_line_ids.quantity = 5.13
         bill.action_post()
         self.assertEqual(po.line_ids.qty_invoiced, 5.13)

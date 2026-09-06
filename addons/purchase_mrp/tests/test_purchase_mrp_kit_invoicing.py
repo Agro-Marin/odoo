@@ -352,16 +352,23 @@ class TestBomCostShareGuard(AccountTestInvoicingCommon):
         )
         self.assertNotEqual(order.company_id, self.env.company)
 
-        move_dests = self.env["stock.move"].create(
-            {
-                "product_id": there.id,
-                "product_uom_id": there.uom_id.id,
-                "product_uom_qty": 14.0,
-                "bom_line_id": bom_there.bom_line_ids[0].id,
-                "location_id": self.env.ref("stock.stock_location_suppliers").id,
-                "location_dest_id": self.env.ref("stock.stock_location_stock").id,
-                "company_id": other_company.id,
-            },
+        warehouse_there = self.env["stock.warehouse"].search(
+            [("company_id", "=", other_company.id)], limit=1
+        )
+        move_dests = (
+            self.env["stock.move"]
+            .with_company(other_company)
+            .create(
+                {
+                    "product_id": there.id,
+                    "product_uom_id": there.uom_id.id,
+                    "product_uom_qty": 14.0,
+                    "bom_line_id": bom_there.bom_line_ids[0].id,
+                    "location_id": self.env.ref("stock.stock_location_suppliers").id,
+                    "location_dest_id": warehouse_there.lot_stock_id.id,
+                    "company_id": other_company.id,
+                },
+            )
         )
         self.assertEqual(
             order.line_ids._get_stock_move_dests_initial_demand(move_dests),

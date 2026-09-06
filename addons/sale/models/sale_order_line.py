@@ -634,27 +634,30 @@ class SaleOrderLine(models.Model):
                 else line.product_qty
             )
             qty_invoiced = 0.0
+            qty_invoiced_posted = 0.0
             amount_taxexc_invoiced = 0.0
             amount_taxinc_invoiced = 0.0
             has_different_discount = False
 
-            invoice_lines = line._get_invoice_lines().filtered(
-                lambda x: (
-                    x.parent_state == "posted"
-                    or x.move_id.payment_state == "invoicing_legacy"
-                )
-            )
-
-            for invoice_line in invoice_lines:
-                direction_sign = -invoice_line.move_id.direction_sign
-
-                qty_invoiced_unsigned = (
-                    invoice_line.product_uom_id._compute_quantity_reconcile(
+            for invoice_line in line._get_open_invoice_lines():
+                qty_invoiced -= (
+                    invoice_line.move_id.direction_sign
+                    * invoice_line.product_uom_id._compute_quantity_reconcile(
                         invoice_line.quantity,
                         line.product_uom_id,
                     )
                 )
-                qty_invoiced += qty_invoiced_unsigned * direction_sign
+
+            invoice_lines = line._get_posted_invoice_lines()
+            for invoice_line in invoice_lines:
+                direction_sign = -invoice_line.move_id.direction_sign
+                qty_invoiced_posted += (
+                    direction_sign
+                    * invoice_line.product_uom_id._compute_quantity_reconcile(
+                        invoice_line.quantity,
+                        line.product_uom_id,
+                    )
+                )
 
                 amount_taxexc_unsigned = invoice_line.currency_id._convert(
                     invoice_line.price_subtotal,
@@ -741,7 +744,7 @@ class SaleOrderLine(models.Model):
                 else line.price_total / line.product_qty
             )
             line.amount_taxinc_to_invoice = unit_price_total * (
-                qty_to_consider - line.qty_invoiced
+                qty_to_consider - qty_invoiced_posted
             )
 
             if line.product_type == "combo":

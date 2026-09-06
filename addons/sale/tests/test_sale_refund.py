@@ -225,13 +225,13 @@ class TestSaleRefund(TestSaleCommon):
             elif line == self.sol_prod_order:
                 self.assertEqual(
                     line.qty_to_invoice,
-                    0.0,
-                    "Qty to invoice is 0 because posted invoice covers all ordered qty",
+                    5.0,
+                    "The draft refund already cancels the invoiced quantity",
                 )
                 self.assertEqual(
                     line.qty_invoiced,
-                    5.0,
-                    "Qty invoiced is 5 from posted invoice (draft refund doesn't count)",
+                    0.0,
+                    "Invoice and draft refund cancel each other (5-5=0)",
                 )
                 self.assertEqual(
                     line.amount_taxexc_to_invoice,
@@ -251,13 +251,13 @@ class TestSaleRefund(TestSaleCommon):
             else:
                 self.assertEqual(
                     line.qty_to_invoice,
-                    0.0,
-                    "Qty to invoice is 0 because posted invoice covers all ordered qty",
+                    3.0,
+                    "The draft refund already cancels the invoiced quantity",
                 )
                 self.assertEqual(
                     line.qty_invoiced,
-                    3.0,
-                    "Qty invoiced is 3 from posted invoice (draft refund doesn't count)",
+                    0.0,
+                    "Invoice and draft refund cancel each other (3-3=0)",
                 )
                 self.assertEqual(
                     line.amount_taxexc_to_invoice,
@@ -511,13 +511,13 @@ class TestSaleRefund(TestSaleCommon):
             elif line == self.sol_prod_order:
                 self.assertEqual(
                     line.qty_to_invoice,
-                    5.0,
-                    "Full qty to invoice as posted invoices cancel out",
+                    2.0,
+                    "The draft invoice 2 claims its quantity",
                 )
                 self.assertEqual(
                     line.qty_invoiced,
-                    0.0,
-                    "Invoice and refund cancel each other (3-3=0)",
+                    3.0,
+                    "Invoice 1 and its refund cancel out; the draft invoice 2 counts",
                 )
                 self.assertEqual(
                     line.amount_taxexc_to_invoice,
@@ -537,13 +537,13 @@ class TestSaleRefund(TestSaleCommon):
             else:
                 self.assertEqual(
                     line.qty_to_invoice,
-                    3.0,
-                    "Full qty to invoice as posted invoices cancel out",
+                    1.0,
+                    "The draft invoice 2 claims its quantity",
                 )
                 self.assertEqual(
                     line.qty_invoiced,
-                    0.0,
-                    "Invoice and refund cancel each other (2-2=0)",
+                    2.0,
+                    "Invoice 1 and its refund cancel out; the draft invoice 2 counts",
                 )
                 self.assertEqual(
                     line.amount_taxexc_to_invoice,

@@ -19,3 +19,8 @@ access_customer_delay_report_manager,customer.delay.report,model_customer_delay_
 access_customer_delay_report_user,customer.delay.report user,model_customer_delay_report,sales_team.group_sale_salesman,1,0,0,0
 access_sale_delivery_line_match,sale.delivery.line.match user,model_sale_delivery_line_match,sales_team.group_sale_salesman,1,1,0,0
 access_sale_delivery_line_match_stock,sale.delivery.line.match stock,model_sale_delivery_line_match,stock.group_stock_user,1,1,0,0
+access_stock_picking_sale_readonly,stock.picking.sale.readonly,stock.model_stock_picking,sales_team.group_sale_readonly,1,0,0,0
+access_stock_move_sale_readonly,stock.move.sale.readonly,stock.model_stock_move,sales_team.group_sale_readonly,1,0,0,0
+access_stock_warehouse_orderpoint_sale_readonly,stock.warehouse.orderpoint.sale.readonly,stock.model_stock_warehouse_orderpoint,sales_team.group_sale_readonly,1,0,0,0
+access_stock_package_type_sale_readonly,stock.package.type.sale.readonly,stock.model_stock_package_type,sales_team.group_sale_readonly,1,0,0,0
+access_stock_package_history_sale_readonly,stock.package.history.sale.readonly,stock.model_stock_package_history,sales_team.group_sale_readonly,1,0,0,0

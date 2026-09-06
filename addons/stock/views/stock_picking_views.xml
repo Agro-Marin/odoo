@@ -356,7 +356,7 @@
                         string="Mark as Todo"
                         type="object"
                         class="oe_highlight"
-                        groups="base.group_user"
+                        groups="stock.group_stock_user"
                         data-hotkey="q" />
                     <button
                         name="action_assign"
@@ -364,7 +364,7 @@
                         string="Check Availability"
                         type="object"
                         class="oe_highlight"
-                        groups="base.group_user"
+                        groups="stock.group_stock_user"
                         data-hotkey="w" />
                     <button
                         name="button_validate"
@@ -430,7 +430,7 @@
                         name="action_cancel"
                         invisible="state not in ('assigned', 'confirmed', 'draft', 'waiting')"
                         string="Cancel"
-                        groups="base.group_user"
+                        groups="stock.group_stock_user"
                         type="object"
                         confirm="Are you sure you want to cancel this transfer?"
                         data-hotkey="x" />

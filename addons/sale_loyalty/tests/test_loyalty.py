@@ -1654,7 +1654,12 @@ class TestLoyalty(TestSaleCouponCommonWithCode10pc):
         loyalty_program = self.env["loyalty.program"].create(
             self.env["loyalty.program"]._get_template_values()["buy_x_get_y"]
         )
+        # The template picks whatever product sells first, which may be one
+        # that cannot be sold alone (an event ticket); name the product on
+        # both sides of the rule.
+        loyalty_program.rule_ids.product_ids = self.product_A
         reward = loyalty_program.reward_ids[0]
+        reward.reward_product_id = self.product_A
         updated_description = f"{reward.description} Adding manual description"
         reward.description = updated_description
 

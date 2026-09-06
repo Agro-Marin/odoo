@@ -29,14 +29,20 @@ class TestPartnerOrderActivity(TransactionCase):
             {"name": "Cycle product", "type": "consu", "list_price": 10.0},
         )
 
-    def _make_sale_order(self, days_ago, state="done"):
-        order = self.env["sale.order"].create(
-            {
-                "partner_id": self.partner.id,
-                "line_ids": [
-                    (0, 0, {"product_id": self.product.id, "product_qty": 1}),
-                ],
-            },
+    def _make_sale_order(self, days_ago, state="done", company=None):
+        company = company or self.env.company
+        order = (
+            self.env["sale.order"]
+            .with_company(company)
+            .create(
+                {
+                    "partner_id": self.partner.id,
+                    "company_id": company.id,
+                    "line_ids": [
+                        (0, 0, {"product_id": self.product.id, "product_qty": 1}),
+                    ],
+                },
+            )
         )
         order.write(
             {
@@ -123,8 +129,7 @@ class TestPartnerOrderActivity(TransactionCase):
         self.assertEqual(
             partner.recent_orders_count,
             0,
-            "the unreadable sale.order source contributes nothing "
-            "instead of raising",
+            "the unreadable sale.order source contributes nothing instead of raising",
         )
         self.assertIsInstance(
             partner.days_since_last_order,
@@ -211,8 +216,7 @@ class TestPartnerOrderActivity(TransactionCase):
         population disagree.
         """
         other_company = self.env["res.company"].create({"name": "Second company"})
-        order = self._make_sale_order(days_ago=5)
-        order.sudo().company_id = other_company
+        self._make_sale_order(days_ago=5, company=other_company)
 
         self.partner.invalidate_recordset(
             ["recent_orders_count", "days_since_last_order"],

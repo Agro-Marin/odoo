@@ -27,7 +27,13 @@
         <field name="model_id" ref="product.model_product_template" />
         <field name="state">code</field>
         <field name="code">action = model.action_view_routes_diagram()</field>
-        <field name="group_ids" eval="[(4,ref('stock.group_stock_user'))]" />
+        <!--
+            Runnable by the readonly tier: a pure read that returns the routes
+            diagram, behind a product-form button that carries no groups.
+        -->
+        <field
+            name="group_ids"
+            eval="[(4, ref('stock.group_stock_user')), (4, ref('stock.group_stock_readonly'))]" />
     </record>
 
     <record id="view_stock_product_template_tree" model="ir.ui.view">

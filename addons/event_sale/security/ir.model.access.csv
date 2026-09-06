@@ -4,3 +4,7 @@ access_registration_editor_line,access.registration.editor.line,model_registrati
 access_event_event_configurator,access.event.event.configurator,model_event_event_configurator,sales_team.group_sale_salesman,1,1,1,0
 access_event_sale_report_manager,access.event.sale.report.manager,model_event_sale_report,event.group_event_manager,1,0,0,0
 access_event_sale_report_user,access.event.sale.report.user,model_event_sale_report,event.group_event_user,1,0,0,0
+access_event_registration_sale_readonly,event.registration.sale.readonly,event.model_event_registration,sales_team.group_sale_readonly,1,0,0,0
+access_event_event_sale_readonly,event.event.sale.readonly,event.model_event_event,sales_team.group_sale_readonly,1,0,0,0
+access_event_event_ticket_sale_readonly,event.event.ticket.sale.readonly,event.model_event_event_ticket,sales_team.group_sale_readonly,1,0,0,0
+access_event_type_sale_readonly,event.type.sale.readonly,event.model_event_type,sales_team.group_sale_readonly,1,0,0,0

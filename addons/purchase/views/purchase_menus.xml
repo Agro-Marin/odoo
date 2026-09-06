@@ -6,7 +6,7 @@
         id="menu_purchase_root"
         name="Purchase"
         sequence="135"
-        groups="group_purchase_manager,group_purchase_user"
+        groups="group_purchase_manager,group_purchase_user,group_purchase_readonly"
         web_icon="purchase,static/description/icon.png" />
 
     <menuitem
@@ -123,7 +123,7 @@
         name="Reporting"
         parent="menu_purchase_root"
         sequence="99"
-        groups="purchase.group_purchase_manager" />
+        groups="purchase.group_purchase_manager,purchase.group_purchase_readonly" />
 
     <menuitem
         id="menu_purchase_report"
@@ -131,6 +131,6 @@
         parent="menu_purchase_reporting"
         action="action_purchase_report_all"
         sequence="99"
-        groups="purchase.group_purchase_manager" />
+        groups="purchase.group_purchase_manager,purchase.group_purchase_readonly" />
 
 </odoo>

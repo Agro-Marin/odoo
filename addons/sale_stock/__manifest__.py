@@ -1,6 +1,6 @@
 {
     "name": "Sales Stock",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Sales/Sales",
     "summary": "Quotation, Sales Orders, Delivery & Invoicing Control",
     "description": """

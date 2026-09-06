@@ -5,7 +5,7 @@
         id="menu_stock_root"
         name="Inventory"
         sequence="140"
-        groups="group_stock_manager,group_stock_user"
+        groups="group_stock_manager,group_stock_user,group_stock_readonly"
         web_icon="stock,static/description/icon.png" />
 
     <menuitem
@@ -91,7 +91,7 @@
         name="Reporting"
         parent="stock.menu_stock_root"
         sequence="99"
-        groups="group_stock_manager" />
+        groups="group_stock_manager,group_stock_readonly" />
 
     <!--
         ═══════════════════════════
@@ -116,7 +116,7 @@
         parent="menu_stock_transfers"
         action="stock.method_action_picking_tree_incoming"
         sequence="20"
-        groups="stock.group_stock_manager,stock.group_stock_user" />
+        groups="stock.group_stock_manager,stock.group_stock_user,stock.group_stock_readonly" />
 
     <menuitem
         id="menu_stock_picking_outgoing"
@@ -124,7 +124,7 @@
         parent="menu_stock_transfers"
         action="stock.method_action_picking_tree_outgoing"
         sequence="21"
-        groups="stock.group_stock_manager,stock.group_stock_user" />
+        groups="stock.group_stock_manager,stock.group_stock_user,stock.group_stock_readonly" />
 
     <menuitem
         id="menu_stock_picking_internal"

@@ -12,13 +12,13 @@
                 id="menu_sale_quotations"
                 action="action_quotations_with_onboarding"
                 sequence="10"
-                groups="sales_team.group_sale_salesman" />
+                groups="sales_team.group_sale_salesman,sales_team.group_sale_readonly" />
             <menuitem
                 id="menu_sale_order"
                 name="Orders"
                 action="action_sale_order"
                 sequence="20"
-                groups="sales_team.group_sale_salesman" />
+                groups="sales_team.group_sale_salesman,sales_team.group_sale_readonly" />
             <menuitem
                 id="report_sales_team"
                 name="Sales Teams"
@@ -29,7 +29,7 @@
                 id="res_partner_menu"
                 action="account.res_partner_action_customer"
                 sequence="40"
-                groups="sales_team.group_sale_salesman" />
+                groups="sales_team.group_sale_salesman,sales_team.group_sale_readonly" />
         </menuitem>
         <menuitem
             id="menu_sale_invoicing"
@@ -49,7 +49,7 @@
             id="product_menu_catalog"
             name="Products"
             sequence="30"
-            groups="sales_team.group_sale_salesman">
+            groups="sales_team.group_sale_salesman,sales_team.group_sale_readonly">
             <menuitem
                 id="menu_product_template_action"
                 action="action_product_template"
@@ -70,7 +70,7 @@
             id="menu_sale_report"
             name="Reporting"
             sequence="40"
-            groups="sales_team.group_sale_manager">
+            groups="sales_team.group_sale_manager,sales_team.group_sale_readonly">
             <menuitem
                 id="menu_reporting_sales"
                 name="Sales"
