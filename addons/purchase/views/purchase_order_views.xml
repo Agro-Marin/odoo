@@ -289,7 +289,12 @@
                 sample="1"
                 decoration-muted="state=='cancel'">
 
-                <field name="priority" widget="priority" nolabel="1" optional="show" />
+                <field
+                    name="priority"
+                    widget="priority"
+                    nolabel="1"
+                    optional="show"
+                    width="20px" />
                 <field
                     name="name"
                     string="Reference"
@@ -395,7 +400,12 @@
                     column_invisible="True"
                     readonly="state in ['done', 'cancel']" />
 
-                <field name="priority" optional="show" widget="priority" nolabel="1" />
+                <field
+                    name="priority"
+                    optional="show"
+                    widget="priority"
+                    nolabel="1"
+                    width="20px" />
                 <field name="name" string="Reference" readonly="1" decoration-bf="1" />
                 <field
                     name="date_order"
@@ -470,7 +480,12 @@
                         string="Cancel"
                         confirm="Are you sure you want to cancel the selected RFQs/Orders?" />
                 </header>
-                <field name="priority" optional="show" widget="priority" nolabel="1" />
+                <field
+                    name="priority"
+                    optional="show"
+                    widget="priority"
+                    nolabel="1"
+                    width="20px" />
                 <field name="partner_ref" optional="hide" />
                 <field
                     name="name"
