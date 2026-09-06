@@ -64,7 +64,7 @@ export class NavBar extends Component {
     pwa;
     /** @type {Set<string>} */
     failedSystrayKeys;
-    /** @type {{ isAllAppsMenuOpened: boolean, isAppMenuSidebarOpened: boolean }} */
+    /** @type {{ isAppMenuSidebarOpened: boolean }} */
     state;
     /** @type {SwipeTracker} */
     swipe;
@@ -122,7 +122,6 @@ export class NavBar extends Component {
         );
 
         this.state = useState({
-            isAllAppsMenuOpened: false,
             isAppMenuSidebarOpened: false,
         });
         this.swipe = new SwipeTracker(SWIPE_LEFT);
@@ -274,7 +273,6 @@ export class NavBar extends Component {
     }
 
     _closeAppMenuSidebar() {
-        this.state.isAllAppsMenuOpened = false;
         this.state.isAppMenuSidebarOpened = false;
     }
     _openAppMenuSidebar() {
@@ -324,7 +322,6 @@ export class NavBar extends Component {
         this.appSubMenus.el?.classList.toggle("o_hidden", !this.isInApp);
     }
     onAllAppsBtnClick() {
-        this.state.isAllAppsMenuOpened = !this.state.isAllAppsMenuOpened;
         this.hm.toggle(true);
         this._closeAppMenuSidebar();
     }

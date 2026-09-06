@@ -8,7 +8,6 @@
         data-command-category="disabled"
         t-ref="nav"
       >
-        <t t-set="apps" t-value="menuService.getApps()" />
         <a t-if="!isScopedApp" href="/odoo" class="o_menu_toggle border-0" t-att-class="{'hasImage': currentApp?.webIconData}" accesskey="h" t-ref="menuApps" t-on-click.prevent="_onMenuToggleClick">
             <t t-if="env.isSmall and !hm.hasHomeMenu">
                 <t t-call="web.NavBar.AppsMenu.Sidebar"/>
@@ -103,27 +102,14 @@
               <button class="o_sidebar_close oi oi-close btn d-flex align-items-center h-100 bg-transparent border-0 fs-2 text-reset" aria-label="Close menu" title="Close menu" t-on-click.stop="_closeAppMenuSidebar"/>
           </div>
           <nav class="o_burger_menu_content flex-grow-1 flex-shrink-1 overflow-auto o_burger_menu_app">
-                <div t-if="!state.isAllAppsMenuOpened and currentApp" class="d-flex align-items-center m-3 mb-0">
+                <div t-if="currentApp" class="d-flex align-items-center m-3 mb-0">
                   <img style="height: 2em;" t-if="currentApp.webIconData" class="o_app_icon me-2" t-attf-src="{{currentApp.webIconData}}" alt=""/>
                   <span class="fs-4 fw-bolder"><t t-esc="currentApp.name"/></span>
                 </div>
                 <ul class="list-unstyled py-2 ps-0 mb-0">
-                    <t t-if="!state.isAllAppsMenuOpened">
-                      <t t-foreach="currentAppSections" t-as="subMenu" t-key="subMenu_index">
-                        <t t-call="web.SectionMenu">
-                            <t t-set="section" t-value="subMenu" />
-                        </t>
-                      </t>
-                    </t>
-
-                    <t t-else="">
-                      <t t-foreach="apps" t-as="app" t-key="app_index">
-                        <li t-att-data-menu-xmlid="app.xmlid" class="o_app fw-bolder py-2" t-att-class="{'bg-primary-subtle': menuService.getCurrentApp() === app}" t-on-click="() => {this.onNavBarDropdownItemSelection(app); this._closeAppMenuSidebar();}">
-                          <div class="d-flex align-items-center">
-                            <img style="height: 3em;" t-if="app.webIconData" class="o_app_icon me-2" t-attf-src="{{app.webIconData}}" alt=""/>
-                            <t t-esc="app.name"/>
-                          </div>
-                        </li>
+                    <t t-foreach="currentAppSections" t-as="subMenu" t-key="subMenu_index">
+                      <t t-call="web.SectionMenu">
+                          <t t-set="section" t-value="subMenu" />
                       </t>
                     </t>
                 </ul>
