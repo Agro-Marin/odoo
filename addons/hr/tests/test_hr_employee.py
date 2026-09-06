@@ -5,7 +5,7 @@ from freezegun import freeze_time
 from psycopg.errors import NotNullViolation, UniqueViolation
 
 from odoo import Command, fields
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Domain
 from odoo.tests import Form, HttpCase, TransactionCase, new_test_user, tagged, users
 from odoo.tools import mute_logger
@@ -907,14 +907,17 @@ class TestHrEmployee(TestHrCommon):
 
 
 class TestHrEmployeeDisplayNameVisibility(TransactionCase):
-    def test_a_plain_employee_reads_the_name_of_a_manager_it_cannot_read(self):
+    def test_a_plain_employee_reads_a_manager_through_the_public_profile(self):
         user = new_test_user(self.env, "plain_employee", groups="base.group_user")
         manager = self.env["hr.employee"].create({"name": "Manager Mario"})
         employee = self.env["hr.employee"].create(
             {"name": "Plain Peach", "user_id": user.id, "parent_id": manager.id}
         )
         self.env.flush_all()
-        self.assertFalse(manager.with_user(user).has_access("read"))
+        self.assertTrue(manager.with_user(user).has_access("read"))
+        self.assertFalse(self.env["hr.employee"].with_user(user).has_access("read"))
+        with self.assertRaises(AccessError):
+            manager.with_user(user).read(["private_email"])
 
         [values] = employee.with_user(user).read(["parent_id"])
         self.assertEqual(values["parent_id"], (manager.id, manager.display_name))

@@ -767,6 +767,7 @@ class HrEmployee(models.Model):
         for employee in employees:
             if address_vals := private_address_vals.get(index_per_employee[employee]):
                 employee.write(address_vals)
+        employees.version_id._check_fields(["employee_id"])
         if self.env.context.get("salary_simulation"):
             return employees
         employees.sudo()._generate_missing_avatars()
@@ -805,6 +806,11 @@ class HrEmployee(models.Model):
         ]
         if not pairs:
             return result
+        explicit_version_fields = {
+            version_id: set(vals["inherited"].get("hr.version", ()))
+            for version_id, vals in zip(version_ids, data_list, strict=True)
+            if version_id
+        }
         versions = self.env["hr.version"].browse([pair[0] for pair in pairs])
         versions.flush_recordset()
         self.env.cr.execute(
@@ -822,7 +828,15 @@ class HrEmployee(models.Model):
         )
         versions.invalidate_recordset(["employee_id", "write_date", "write_uid"])
         versions.modified(["employee_id"])
-        versions._check_fields(["employee_id"])
+        # Binding the employee marks every field depending on it for recompute,
+        # transitively (company -> structure type -> pay schedule); a value
+        # this create was given explicitly must survive that, as it would
+        # survive the version's own create.
+        for version in versions:
+            for fname in explicit_version_fields[version.id]:
+                field = version._fields[fname]
+                if field.compute and field.store:
+                    self.env.remove_to_compute(field, version)
         return result
 
     def write(self, vals):
@@ -1446,6 +1460,18 @@ class HrEmployee(models.Model):
             if field_name not in copy_vals
         }
         version_fields = self.env["hr.version"]._fields
+        employee_vals = {
+            name: value
+            for name, value in new_version_vals.items()
+            if name not in version_fields
+        }
+        if employee_vals:
+            self.write(employee_vals)
+            new_version_vals = {
+                name: value
+                for name, value in new_version_vals.items()
+                if name in version_fields
+            }
         copy_vals = {
             k: v
             for k, v in version_to_copy.sudo().copy_data()[0].items()
@@ -1969,8 +1995,21 @@ class HrEmployee(models.Model):
             is _ALLOW_READ_HR_EMPLOYEE
         ):
             return None
-
-        return super()._check_access(operation)
+        denied = super()._check_access(operation)
+        if (
+            denied
+            and operation == "read"
+            and self._ids
+            and self.env.user._is_internal()
+        ):
+            # What an internal user may read of an employee is the public
+            # profile's decision; a denial here is answered by its rules.
+            return (
+                self.env["hr.employee.public"]
+                .browse(self._ids)
+                ._check_access(operation)
+            )
+        return denied
 
     def _is_party_field(self, fname):
         field = self._fields[fname]

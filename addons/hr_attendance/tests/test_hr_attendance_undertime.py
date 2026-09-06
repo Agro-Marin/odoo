@@ -14,6 +14,7 @@ class TestHrAttendanceUndertime(TransactionCase):
                 {
                     "name": f"Default Calendar ({tz})",
                     "tz": tz,
+                    "company_id": employee.company_id.id,
                 }
             )
 

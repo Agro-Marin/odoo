@@ -19,7 +19,7 @@ FIELDS_TRIGGERING_CHECK = frozenset(
 class HrWorkEntry(models.Model):
     _name = "hr.work.entry"
     _description = "HR Work Entry"
-    _order = "id"
+    _order = "date, id"
 
     name = fields.Char()
     active = fields.Boolean(default=True)

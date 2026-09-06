@@ -154,7 +154,11 @@ class HrVersion(models.Model):
 
     resource_calendar_id = fields.Many2one(
         "resource.calendar",
+        compute="_compute_resource_calendar_id",
         inverse="_inverse_resource_calendar_id",
+        store=True,
+        precompute=True,
+        readonly=False,
         check_company=True,
         string="Working Hours",
         tracking=True,
@@ -287,9 +291,7 @@ class HrVersion(models.Model):
         # wrong for every employee of another company.
         for version in self:
             version.company_id = (
-                version.employee_id.company_id
-                or version.company_id
-                or self.env.company
+                version.employee_id.company_id or version.company_id or self.env.company
             )
 
     @api.depends("job_id.name")
@@ -482,26 +484,19 @@ class HrVersion(models.Model):
             )
         return dates_vals
 
-    def _follow_company_calendar(self, vals):
-        # A version moved to another company takes that company's working
-        # hours when the ones it has belong to the company it leaves.
-        if not vals.get("company_id") or "resource_calendar_id" in vals:
-            return self.browse()
-        company = self.env["res.company"].browse(vals["company_id"])
-        return self.filtered(
-            lambda version: version.resource_calendar_id.company_id
-            and version.resource_calendar_id.company_id != company
-        )
+    @api.depends("company_id")
+    def _compute_resource_calendar_id(self):
+        # A version's working hours are its company's unless a schedule of that
+        # company (or a company-less one) was chosen; a version moved to another
+        # company leaves the schedule it cannot keep behind.
+        for version in self:
+            calendar = version.resource_calendar_id
+            if not calendar or (
+                calendar.company_id and calendar.company_id != version.company_id
+            ):
+                version.resource_calendar_id = version.company_id.resource_calendar_id
 
     def write(self, vals):
-        moving = self._follow_company_calendar(vals)
-        if moving:
-            company = self.env["res.company"].browse(vals["company_id"])
-            (self - moving).write(vals)
-            moving.write(
-                {**vals, "resource_calendar_id": company.resource_calendar_id.id}
-            )
-            return True
         self._check_employee_keeps_a_version(vals)
 
         if self.env.context.get("sync_contract_dates") or (

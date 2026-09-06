@@ -770,7 +770,7 @@ class TestPrivateFieldDomainIsAnAccessError(TestHrCommon):
         cls.plain_user = mail_new_test_user(
             cls.env, login="domain_probe", groups="base.group_user", name="Domain Probe"
         )
-        cls.env["hr.employee"].create({"name": "Domain Target", "ssnid": "SSN-X"})
+        cls.env["hr.employee"].create({"name": "Domain Target", "ssnid": "123456789"})
         cls.env.flush_all()
 
     def test_every_search_entry_point_raises_access_error(self):

@@ -296,7 +296,9 @@ class TestWorkEntryInvariants(TransactionCase):
         )
 
     def test_get_unusual_days_uses_the_employee_calendar(self):
-        part_time = self.env.company.resource_calendar_id.copy({"name": "Mon-Wed"})
+        part_time = self.env.company.resource_calendar_id.copy(
+            {"name": "Mon-Wed", "company_id": self.company.id}
+        )
         part_time.attendance_ids.filtered(lambda a: a.dayofweek in ("3", "4")).unlink()
         employee = self.env["hr.employee"].create(
             {
