@@ -143,7 +143,10 @@ class MrpWorkcenter(models.Model):
         copy=True,
     )
     kanban_dashboard_graph = fields.Text(compute="_compute_kanban_dashboard_graph")
-    resource_calendar_id = fields.Many2one(check_company=True)
+    resource_calendar_id = fields.Many2one(
+        check_company=True,
+        default=lambda self: self.env.company.resource_calendar_id,
+    )
 
     @api.depends("working_state")
     @api.depends_context("group_by", "show_workcenter_status")
