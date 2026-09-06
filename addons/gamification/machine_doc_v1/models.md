@@ -791,7 +791,7 @@ pending ──→ active ──→ completed (with rewards)
 | `badge_id` | Many2one `badge` | Per-step badge |
 | `skill_node_id` | Many2one `skill.node` | Linked skill tree node |
 
-**Constraint:** `_check_no_self_prerequisite` — a step cannot be its own prerequisite.
+**Constraint:** `_check_no_prerequisite_cycle` — a step cannot be its own prerequisite, directly or transitively.
 
 ### gamification.quest.enrollment
 
