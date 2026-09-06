@@ -4,7 +4,7 @@ from typing import Self
 
 from psycopg import IntegrityError
 
-from odoo import _, api, fields, models
+from odoo import _, api, exceptions, fields, models
 from odoo.libs.datetime import timezone
 from odoo.tools.safe_eval import safe_eval
 
@@ -258,6 +258,23 @@ class GamificationStreak(models.Model):
         due = self.filtered(lambda s: s.last_activity_date != today)
         if not due:
             return
+
+        # karma_per_user below is keyed by user_id alone: only the first
+        # streak processed for a given user supplies `source`/`reason`, so
+        # this method silently misattributes if `due` ever holds two
+        # different-type streaks for the same user. The sole caller
+        # (`_cron_update_streaks`) groups by streak_type_id before calling
+        # this, and `_user_streak_type_uniq` caps one streak per user per
+        # type, so today this can't happen -- guard it explicitly so a
+        # future caller can't silently reintroduce the collision.
+        if len(due) != len(due.user_id):
+            raise exceptions.UserError(
+                _(
+                    "_record_activity() received more than one streak for the"
+                    " same user in a single call; karma attribution would be"
+                    " ambiguous."
+                )
+            )
 
         karma_per_user: dict = {}
         feed_entries = []
