@@ -33,13 +33,17 @@ patch(ErrorDialog.prototype, {
                 const response = JSON.parse(upload.xhr.response);
                 if (response.length === 1) {
                     this.state.tracebackUrl = response[0];
+                    // Deferred so the upload service finishes its own bookkeeping
+                    // first; the copy is best effort, the URL is on screen anyway.
                     setTimeout(async () => {
-                        await browser.navigator.clipboard.writeText(response[0]);
+                        try {
+                            await browser.navigator.clipboard.writeText(response[0]);
+                        } catch {
+                            return;
+                        }
                         this.notification.add(
                             _t("The document URL has been copied to your clipboard."),
-                            {
-                                type: "success",
-                            },
+                            { type: "success" },
                         );
                     });
                 }

@@ -68,7 +68,7 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
                         "action_toggle_user_favorite",
                         [this.selection.map((record) => record.resId)],
                     );
-                    this.env.model.load();
+                    await this.env.model.load();
                 }
             },
             {

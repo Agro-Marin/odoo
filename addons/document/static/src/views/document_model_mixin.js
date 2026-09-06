@@ -443,9 +443,12 @@ export const DocumentsModelMixin = (component) =>
                     ]),
                 ]);
                 const resIds = await this.getResIds(domain);
-                this.documentService.downloadDocuments(this.targetRecords, resIds);
+                await this.documentService.downloadDocuments(
+                    this.targetRecords,
+                    resIds,
+                );
             } else {
-                this.documentService.downloadDocuments(this.targetRecords);
+                await this.documentService.downloadDocuments(this.targetRecords);
             }
         }
         async _loadDocumentToRestore(config, data) {

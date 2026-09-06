@@ -889,7 +889,11 @@ class ShareRoute(http.Controller):
         allowed_company_ids: str = "",
         cloud_storage: str = "",
         file_size: str = "",
+        **kw: Any,
     ) -> Any:
+        # The client marks its own upload payloads (document_id, and the
+        # traceback marker on the sibling route) to recognise them in the
+        # upload bus; the router would log every one as an ignored argument.
         if allowed_company_ids:
             with replace_exceptions(ValueError, by=BadRequest):
                 request.update_context(
@@ -1117,7 +1121,7 @@ class ShareRoute(http.Controller):
         auth="user",
         max_content_length=1 << 20,
     )
-    def documents_upload_traceback(self, ufile: Any) -> Any:
+    def documents_upload_traceback(self, ufile: Any, **kw: Any) -> Any:
         if not request.env.user._is_internal():
             raise Forbidden
 

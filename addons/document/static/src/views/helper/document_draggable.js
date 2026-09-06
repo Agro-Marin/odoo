@@ -311,7 +311,7 @@ export const useDraggableDocuments = makeDraggableHook({
 
         if (targetFolder.id === "COMPANY") {
             await model.documentService.moveToCompanyRoot(ctx.draggedRecords);
-            model.env.searchModel._reloadSearchModel(true);
+            await model.env.searchModel._reloadSearchModel(true);
             return;
         }
 

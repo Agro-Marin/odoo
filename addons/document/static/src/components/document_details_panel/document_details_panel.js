@@ -18,6 +18,7 @@ import {
     onWillRender,
     onWillUpdateProps,
     reactive,
+    status,
     useState,
 } from "@odoo/owl";
 
@@ -52,9 +53,12 @@ export class DocumentsDetailsPanel extends Component {
             resModelName: this.props.record.data.res_model_name || "",
             models: [],
         });
-        this.documentService
-            .getDetailsPanelResModels()
-            .then((models) => (this.state.models = models));
+        this.documentService.getDetailsPanelResModels().then((models) => {
+            // The panel may be gone by the time the RPC answers.
+            if (status(this) !== "destroyed") {
+                this.state.models = models;
+            }
+        });
         onWillUpdateProps((nextProps) => {
             this.state.resModel = nextProps.record.data.res_model;
             this.state.resModelName = nextProps.record.data.res_model_name || "";
