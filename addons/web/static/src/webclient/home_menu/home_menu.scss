@@ -66,6 +66,13 @@
         box-shadow: var(--AppSwitcherIcon-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.05));
     }
 
+    .o_app .o_app_badge {
+        top: 0;
+        right: calc(50% - #{$o-home-menu-app-icon-max-width * 0.5} - 0.75rem);
+        font-size: $font-size-sm * 0.85;
+        box-shadow: 0 0 0 2px var(--homeMenu-bg-color, var(--o-gray-200));
+    }
+
     .o_app.o_app_hidden {
         opacity: 0.45;
     }

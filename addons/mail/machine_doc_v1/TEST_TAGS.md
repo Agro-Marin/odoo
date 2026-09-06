@@ -1,7 +1,7 @@
 # Mail Module Test Tags
 
 Reference for running targeted subsets of the `mail` module's tests — Python
-(`tests/`, 63 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 149 `*.test.js`).
+(`tests/`, 63 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 150 `*.test.js`).
 
 > **See also**: `CONVENTIONS.md` (the mock-gateway / bus test helpers), `ROUTE_MAP.md`
 > (the controller-contract tests), `STATE_MANAGEMENT.md` (what the JS store tests exercise).
@@ -316,7 +316,7 @@ interactively at `/web/tests` (mail is included in `web.assets_unit_tests`).
 
 ### File groups (by subdirectory)
 
-Rows below sum to 149.
+Rows below sum to 150.
 
 | Directory | Files | Scope |
 |-----------|------:|-------|

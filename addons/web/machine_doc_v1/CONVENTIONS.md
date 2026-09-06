@@ -227,12 +227,12 @@ The 4 most frequently-used categories are:
 - `registry.category("fields")` — Field widget implementations
 - `registry.category("actions")` — Client action components
 
-The web module registers into 35 categories. The other 31:
+The web module registers into 36 categories. The other 32:
 `action_handlers`, `cogMenu`, `color_picker_tabs`, `command_categories`,
 `command_provider`, `command_setup`, `debug`, `debug_section`, `deserializers`,
 `dialogs`, `effects`, `error_dialogs`, `error_handlers`, `error_notifications`,
 `favoriteMenu`, `form_compilers`, `formatters`, `group_config_items`,
-`ir.actions.report handlers`, `lazy_components`, `main_components`, `parsers`,
+`home_menu_badges`, `ir.actions.report handlers`, `lazy_components`, `main_components`, `parsers`,
 `public.interactions`, `public_components`, `sample_server`, `serializers`,
 `share_target_apps`, `shared_components`, `systray`, `user_menuitems`,
 `view_widgets`. Re-derive with
@@ -582,7 +582,7 @@ When refactoring a widget:
     environment. In debug mode it throws (fail fast for developers); in production
     it emits a `console.warn` prefixed `[registry]` so a single malformed
     registration cannot crash the page while still surfacing schema mismatches.
-    Schema coverage is **35 of 39 web-module categories**; `serializers` and
+    Schema coverage is **36 of 40 web-module categories**; `serializers` and
     `deserializers` (`core/field_codec.js`) and `in_range_providers`
     (`core/tree/in_range_providers.js`) have no schema yet. The `debug` registry IS
     schemable despite being "parent-only": its entries are sub-Registry instances

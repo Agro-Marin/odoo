@@ -1,5 +1,6 @@
 import {
     advanceTime,
+    after,
     animationFrame,
     click,
     describe,
@@ -704,4 +705,34 @@ test("a user without a layout of their own gets the company default", async () =
     await mountWebClient({ WebClient });
     expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual(["App2", "App3"]);
     expect(".o_pinned_apps .o_app").toHaveCount(1);
+});
+
+test("tiles show the counts the badge providers answer with, summed", async () => {
+    const badgeRegistry = registry.category("home_menu_badges");
+    badgeRegistry.add("first", { provide: () => ({ "app.2": 3 }) });
+    badgeRegistry.add("second", {
+        provide: async () => ({ "app.2": 2, "app.3": 120 }),
+    });
+    badgeRegistry.add("broken", { provide: () => Promise.reject(new Error("no")) });
+    after(() => {
+        badgeRegistry.remove("first");
+        badgeRegistry.remove("second");
+        badgeRegistry.remove("broken");
+    });
+    expect.errors(0);
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    await animationFrame();
+    expect(".o_app[data-menu-xmlid='app.1'] .o_app_badge").toHaveCount(0);
+    expect(".o_app[data-menu-xmlid='app.2'] .o_app_badge").toHaveText("5");
+    expect(".o_app[data-menu-xmlid='app.2'] .o_app_badge").toHaveAttribute(
+        "aria-label",
+        "5 pending",
+    );
+    expect(".o_app[data-menu-xmlid='app.3'] .o_app_badge").toHaveText("99+");
+
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    expect(".o_app_badge").toHaveCount(0, {
+        message: "the edit buttons take the corner",
+    });
 });

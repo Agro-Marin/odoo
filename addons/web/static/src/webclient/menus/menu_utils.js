@@ -34,6 +34,7 @@ export function menuHref(menu) {
  * @property {number|string} [actionID]
  * @property {string} href
  * @property {number} [appID]
+ * @property {string} [module] the addon whose icon the app carries, for an app
  * @property {string} [webIconData]
  * @property {{ iconClass: string, color: string, backgroundColor: string }} [webIcon]
  */
@@ -67,6 +68,13 @@ export function computeAppsAndMenuItems(menuTree) {
         if (!isApp) {
             menuItems.push(item);
             return;
+        }
+        // "module,static/description/icon.png" names the addon; the three-part
+        // "iconClass,color,background" form of a Studio icon names none.
+        const iconParts =
+            typeof menuItem.webIcon === "string" ? menuItem.webIcon.split(",") : [];
+        if (iconParts.length === 2 && iconParts[0]) {
+            item.module = iconParts[0];
         }
         if (menuItem.webIconData) {
             item.webIconData = menuItem.webIconData;

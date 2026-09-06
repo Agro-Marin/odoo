@@ -32,6 +32,9 @@ const APPS_PER_ROW = 6;
 const RECENT_APPS = 6;
 const DIRECT_JUMP_HOTKEYS = 9;
 
+// A provider answers `provide(env, apps)` with counts by app xmlid, sync or not.
+registry.category("home_menu_badges").addValidation({ provide: Function });
+
 class FooterComponent extends Component {
     static template = "web.HomeMenu.CommandPalette.Footer";
     static props = {
@@ -52,6 +55,7 @@ class FooterComponent extends Component {
  *  id: number;
  *  label: string;
  *  parents: string;
+ *  module?: string;
  *  webIcon?: boolean | string | { iconClass: string; color: string; backgroundColor: string };
  *  webIconData?: string;
  *  xmlid: string;
@@ -80,6 +84,7 @@ export class HomeMenu extends Component {
                     id: Number,
                     label: String,
                     parents: String,
+                    module: { type: String, optional: true },
                     webIcon: {
                         type: [
                             Boolean,
@@ -115,7 +120,7 @@ export class HomeMenu extends Component {
         },
     };
 
-    /** @type {{ focusedIndex: number | null; isIosApp: boolean; editing: boolean }} */
+    /** @type {{ focusedIndex: number | null; isIosApp: boolean; editing: boolean; badges: Record<string, number> }} */
     state;
     /** @type {import("@web/webclient/menus/menu_utils").HomeMenuConfig} */
     config;
@@ -150,6 +155,7 @@ export class HomeMenu extends Component {
             focusedIndex: null,
             isIosApp: isIosApp(),
             editing: false,
+            badges: {},
         });
         this.config = useState(
             this.props.config ?? reactive(parseHomeMenuConfig(null)),
@@ -183,6 +189,7 @@ export class HomeMenu extends Component {
             if (!hasTouch()) {
                 this._focusInput();
             }
+            this._loadBadges();
         });
 
         onPatched(() => {
@@ -269,6 +276,14 @@ export class HomeMenu extends Component {
         return user.isAdmin;
     }
 
+    /**
+     * @param {HomeMenuApp} app
+     * @returns {number}
+     */
+    badgeFor(app) {
+        return app.xmlid === undefined ? 0 : this.state.badges[app.xmlid] || 0;
+    }
+
     /** @param {HomeMenuApp} app */
     isPinned(app) {
         return app.xmlid !== undefined && this.config.pinned.includes(app.xmlid);
@@ -313,6 +328,35 @@ export class HomeMenu extends Component {
     /** @param {HomeMenuApp} app */
     _isShown(app) {
         return this.state.editing || !this.isHidden(app);
+    }
+
+    /**
+     * Every `home_menu_badges` provider answers with counts by app xmlid; the
+     * tile shows their sum. A provider that fails costs its own counts only.
+     */
+    async _loadBadges() {
+        const providers = registry.category("home_menu_badges").getAll();
+        if (!providers.length) {
+            return;
+        }
+        const apps = this.displayedApps;
+        const settled = await Promise.allSettled(
+            providers.map((provider) => provider.provide(this.env, apps)),
+        );
+        /** @type {Record<string, number>} */
+        const badges = {};
+        for (const result of settled) {
+            if (result.status === "rejected") {
+                console.warn("Home menu badge provider failed", result.reason);
+                continue;
+            }
+            for (const [xmlid, count] of Object.entries(result.value || {})) {
+                if (count > 0) {
+                    badges[xmlid] = (badges[xmlid] || 0) + count;
+                }
+            }
+        }
+        this.state.badges = badges;
     }
 
     _persistConfig() {

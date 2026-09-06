@@ -205,3 +205,33 @@ test("serializeHomeMenuConfig round-trips through parseHomeMenuConfig", () => {
     expect(parseHomeMenuConfig(raw)).toEqual(config);
     expect(isDefaultHomeMenuConfig(config)).toBe(false);
 });
+
+test("computeAppsAndMenuItems names the addon an app's icon comes from", () => {
+    const tree = {
+        id: "root",
+        name: "root",
+        appID: "root",
+        childrenTree: [
+            {
+                id: 1,
+                name: "CRM",
+                appID: 1,
+                actionID: 10,
+                webIcon: "crm,static/description/icon.png",
+                webIconData: "data:image/png;base64,AAA",
+                childrenTree: [],
+            },
+            {
+                id: 2,
+                name: "Studio App",
+                appID: 2,
+                actionID: 20,
+                webIcon: "fa fa-leaf,#fff,#123456",
+                childrenTree: [],
+            },
+        ],
+    };
+    const { apps } = computeAppsAndMenuItems(tree);
+    expect(apps[0].module).toBe("crm");
+    expect(apps[1].module).toBe(undefined);
+});
