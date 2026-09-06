@@ -4,6 +4,7 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.db import get_or_create_row
+from odoo.exceptions import UserError
 from odoo.service.model import PG_CONCURRENCY_EXCEPTIONS_TO_RETRY
 
 _logger = logging.getLogger(__name__)
@@ -50,6 +51,11 @@ class RateLimitBucket(models.Model):
     last_request_at = fields.Datetime(
         string="Last Request",
         help="Timestamp of last request using this bucket",
+    )
+    can_reset = fields.Boolean(
+        compute="_compute_can_reset",
+        help="Whether the endpoint this bucket belongs to can still be "
+        "resolved, so a manual reset can look up its capacity.",
     )
 
     _bucket_key_uniq = models.Constraint(
@@ -393,9 +399,28 @@ class RateLimitBucket(models.Model):
             )
             return True
 
+    @api.depends("endpoint_model", "endpoint_id")
+    def _compute_can_reset(self):
+        for bucket in self:
+            resettable = False
+            if bucket.endpoint_model in self.env:
+                endpoint = self.env[bucket.endpoint_model].browse(
+                    bucket.endpoint_id,
+                )
+                resettable = endpoint.exists()
+            bucket.can_reset = resettable
+
     def reset_bucket(self) -> None:
         for bucket in self:
-            capacity, _period, _refill_rate = bucket._get_endpoint_config()
+            try:
+                capacity, _period, _refill_rate = bucket._get_endpoint_config()
+            except ValueError as exc:
+                raise UserError(
+                    self.env._(
+                        "This bucket's capacity is set by its caller at "
+                        "consume time and cannot be resolved for a reset."
+                    ),
+                ) from exc
             bucket.write(
                 {
                     "tokens": capacity,
