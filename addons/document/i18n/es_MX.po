@@ -437,3 +437,43 @@ msgstr ""
 msgid "e.g., Contract, Certificate, License"
 msgstr "p. ej., Contrato, Certificado, Licencia"
 
+#. module: document
+#: model:ir.model.constraint,message:document.constraint_document_document_renewal_document_uniq
+msgid "A document can be renewed by only one document."
+msgstr "Un documento solo puede ser renovado por un documento."
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__is_renewable
+msgid "Check if documents of this type can be renewed when they expire"
+msgstr "Marque si los documentos de este tipo pueden renovarse al vencer"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_document__is_renewable
+#: model:ir.model.fields,field_description:document.field_document_type__is_renewable
+msgid "Is Renewable"
+msgstr "Es renovable"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_document__renewal_ids
+msgid "Renewal"
+msgstr "Renovación"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_document__renewal_count
+msgid "Renewal Count"
+msgstr "Número de renovaciones"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_document__renewal_document_id
+msgid "Renewal Document"
+msgstr "Documento renovado"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_document__renewed_by_document_id
+msgid "Renewed By Document"
+msgstr "Renovado por el documento"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_document__renewed_by_document_id
+msgid "The newer document that renewed/replaced this one"
+msgstr "El documento más reciente que renovó o reemplazó a este"

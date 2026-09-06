@@ -82,6 +82,15 @@
                     domain="[('expiration_state', '=', 'missing')]" />
                 <separator />
                 <filter
+                    string="Renewal Due"
+                    name="renewal_due"
+                    domain="[('renewal_state', '=', 'due')]" />
+                <filter
+                    string="Renewed"
+                    name="renewal_renewed"
+                    domain="[('renewal_state', '=', 'renewed')]" />
+                <separator />
+                <filter
                     string="In My Drive"
                     name="my_drive_filter"
                     domain="[('user_folder_id', 'child_of', 'MY')]" />
@@ -194,6 +203,9 @@
                 <field name="date_expiration" />
                 <field name="days_left" />
                 <field name="expiration_state" />
+                <field name="is_renewable" />
+                <field name="renewed_by_document_id" />
+                <field name="renewal_state" />
                 <field name="access_url" />
                 <field name="access_via_link" />
                 <field name="access_internal" />
@@ -564,6 +576,15 @@
                     decoration-danger="expiration_state == 'expired'"
                     optional="hide"
                     invisible="not has_expiration" />
+                <field name="is_renewable" column_invisible="1" />
+                <field name="renewed_by_document_id" column_invisible="1" />
+                <field
+                    name="renewal_state"
+                    widget="badge"
+                    decoration-warning="renewal_state == 'due'"
+                    decoration-info="renewal_state == 'renewed'"
+                    optional="hide"
+                    invisible="not is_renewable" />
                 <field name="write_date" optional="show" />
                 <field name="file_extension" optional="hide" />
                 <field name="file_size" optional="show" widget="document_size" />

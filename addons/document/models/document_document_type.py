@@ -1,7 +1,8 @@
 from datetime import date, timedelta
+from typing import Any
 
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 
 EXPIRING_SOON_DAYS = 30
@@ -51,6 +52,40 @@ class DocumentDocument(models.Model):
         "not expire",
     )
 
+    is_renewable = fields.Boolean(
+        related="document_type_id.is_renewable",
+    )
+    renewal_document_id = fields.Many2one(
+        comodel_name="document.document",
+        help="The previous document this one renews",
+    )
+    renewal_ids = fields.One2many(
+        comodel_name="document.document",
+        inverse_name="renewal_document_id",
+    )
+    renewed_by_document_id = fields.Many2one(
+        comodel_name="document.document",
+        compute="_compute_renewed_by_document_id",
+        help="The newer document that renewed this one",
+    )
+    renewal_count = fields.Integer(
+        compute="_compute_renewal_count",
+        recursive=True,
+        help="Number of documents before this one in its renewal chain",
+    )
+    renewal_state = fields.Selection(
+        selection=[
+            ("due", "Renewal Due"),
+            ("renewed", "Renewed"),
+        ],
+        compute="_compute_renewal_state",
+        store=True,
+        help="Where a renewable document stands: Renewal Due (expiring soon, "
+        "expired or missing its date, and not yet renewed), Renewed (a newer "
+        "document renews it). Empty when the type is not renewable or nothing is "
+        "due",
+    )
+
     _legal_number_uniq = models.UniqueIndex(
         "(legal_number, document_type_id, company_id) NULLS NOT DISTINCT "
         "WHERE legal_number IS NOT NULL",
@@ -58,6 +93,10 @@ class DocumentDocument(models.Model):
     )
     _date_expiration_idx = models.Index(
         "(date_expiration) WHERE date_expiration IS NOT NULL"
+    )
+    _renewal_document_uniq = models.UniqueIndex(
+        "(renewal_document_id) WHERE renewal_document_id IS NOT NULL",
+        "A document can be renewed by only one document.",
     )
 
     @api.model
@@ -93,6 +132,46 @@ class DocumentDocument(models.Model):
                         type_company=type_company.name,
                     )
                 )
+
+    @api.constrains("renewal_document_id")
+    def _check_renewal_no_cycle(self) -> None:
+        for record in self:
+            seen = {record.id}
+            current = record.renewal_document_id
+            while current:
+                if current.id in seen:
+                    raise ValidationError(
+                        self.env._(
+                            "Circular reference detected in renewal chain. "
+                            "Document '%(doc)s' would create a cycle.",
+                            doc=record.name,
+                        )
+                    )
+                seen.add(current.id)
+                current = current.renewal_document_id
+
+    @api.depends("renewal_ids")
+    def _compute_renewed_by_document_id(self) -> None:
+        for doc in self:
+            doc.renewed_by_document_id = doc.renewal_ids[:1]
+
+    @api.depends("renewal_document_id.renewal_count")
+    def _compute_renewal_count(self) -> None:
+        for doc in self:
+            parent = doc.renewal_document_id
+            doc.renewal_count = parent.renewal_count + 1 if parent else 0
+
+    @api.depends("document_type_id.is_renewable", "expiration_state", "renewal_ids")
+    def _compute_renewal_state(self) -> None:
+        for doc in self:
+            if not doc.document_type_id.is_renewable:
+                doc.renewal_state = False
+            elif doc.renewal_ids:
+                doc.renewal_state = "renewed"
+            elif doc.expiration_state in ("expiring_soon", "expired", "missing"):
+                doc.renewal_state = "due"
+            else:
+                doc.renewal_state = False
 
     @api.depends("date_expiration", "company_id")
     def _compute_days_left(self) -> None:
@@ -138,6 +217,45 @@ class DocumentDocument(models.Model):
                 days=doc_type.default_validity_days
             )
 
+    def action_renew_document(self) -> dict[str, Any]:
+        self.check_singleton()
+
+        if not self.is_renewable:
+            raise UserError(self.env._("This document type is not renewable."))
+
+        if self.renewed_by_document_id:
+            raise UserError(
+                self.env._(
+                    "Document '%(doc)s' has already been renewed by '%(renewal)s'. "
+                    "Renew that one instead, so the chain stays a single line.",
+                    doc=self.name,
+                    renewal=self.renewed_by_document_id.name,
+                )
+            )
+
+        today = fields.Date.context_today(self)
+        validity = self.document_type_id.default_validity_days
+        new_doc = self.copy(
+            {
+                "name": self.env._("%(name)s (Renewal)", name=self.name),
+                "renewal_document_id": self.id,
+                "attachment_id": False,
+                "date_issued": today,
+                "date_expiration": today + timedelta(days=validity)
+                if validity
+                else False,
+                "legal_number": False,
+            }
+        )
+
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "document.document",
+            "res_id": new_doc.id,
+            "view_mode": "form",
+            "target": "current",
+        }
+
     @api.model
     def _cron_refresh_expiration_state(self) -> bool:
         stale = self.browse()
@@ -167,5 +285,6 @@ class DocumentDocument(models.Model):
         return True
 
     def _recompute_expiration_state(self) -> None:
-        self.env.add_to_compute(self._fields["expiration_state"], self)
-        self.flush_recordset(["expiration_state"])
+        for field_name in ("expiration_state", "renewal_state"):
+            self.env.add_to_compute(self._fields[field_name], self)
+            self.flush_recordset([field_name])

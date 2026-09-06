@@ -1,9 +1,10 @@
+import base64
 from datetime import date, timedelta
 
 from freezegun import freeze_time
 from psycopg import IntegrityError
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -56,6 +57,7 @@ class TestDocumentTypeDefaults(DocumentTypeCase):
         self.assertTrue(doc_type.active)
         self.assertEqual(doc_type.sequence, 10)
         self.assertTrue(doc_type.has_expiration)
+        self.assertTrue(doc_type.is_renewable)
         self.assertEqual(doc_type.default_validity_days, 0)
 
     def test_name_keeps_the_inherited_required_and_translate(self):
@@ -396,3 +398,134 @@ class TestOnchangeDocumentType(DocumentTypeCase):
         doc = self._new(date_issued=date.today(), date_expiration=existing)
 
         self.assertEqual(doc.date_expiration, existing)
+
+
+class TestRenewalChain(DocumentTypeCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.renewable_type = cls._type("RENEW", default_validity_days=365)
+        cls.non_renewable_type = cls._type("NORENEW", is_renewable=False)
+
+    def test_renewal_count_walks_the_chain_and_follows_inserts(self):
+        doc_b = self._doc(self.renewable_type, name="B")
+        doc_c = self._doc(self.renewable_type, name="C", renewal_document_id=doc_b.id)
+        self.assertEqual(doc_c.renewal_count, 1)
+
+        doc_a = self._doc(self.renewable_type, name="A")
+        doc_b.renewal_document_id = doc_a
+        self.assertEqual(doc_c.renewal_count, 2)
+        self.assertEqual(doc_b.renewed_by_document_id, doc_c)
+        self.assertEqual(doc_a.renewed_by_document_id, doc_b)
+
+    def test_cycles_are_rejected(self):
+        doc_a = self._doc(self.renewable_type, name="A")
+        doc_b = self._doc(self.renewable_type, name="B", renewal_document_id=doc_a.id)
+        doc_c = self._doc(self.renewable_type, name="C", renewal_document_id=doc_b.id)
+
+        for target in (doc_a, doc_b, doc_c):
+            with self.subTest(target=target.name), self.assertRaises(ValidationError):
+                doc_a.renewal_document_id = target
+
+    def test_two_documents_cannot_renew_the_same_one(self):
+        doc_a = self._doc(self.renewable_type, name="A")
+        self._doc(self.renewable_type, name="B", renewal_document_id=doc_a.id)
+        self.env.flush_all()
+
+        with self.assertRaises(IntegrityError), self.env.cr.savepoint():
+            self._doc(self.renewable_type, name="C", renewal_document_id=doc_a.id)
+            self.env.flush_all()
+
+    def test_renew_starts_a_fresh_linked_document_without_the_old_file(self):
+        original = self._doc(
+            self.renewable_type,
+            -10,
+            name="Original License",
+            legal_number="LN-ORIGINAL",
+            datas=base64.b64encode(b"OLD FILE"),
+            mimetype="text/plain",
+        )
+
+        action = original.action_renew_document()
+        new_doc = self.env["document.document"].browse(action["res_id"])
+
+        self.assertEqual(new_doc.renewal_document_id, original)
+        self.assertEqual(original.renewed_by_document_id, new_doc)
+        self.assertEqual(new_doc.renewal_count, 1)
+        self.assertIn("(Renewal)", new_doc.name)
+        self.assertFalse(
+            new_doc.attachment_id,
+            "a renewal awaits its own upload; the expired file must not travel",
+        )
+        self.assertEqual(new_doc.date_issued, date.today())
+        self.assertEqual(new_doc.date_expiration, date.today() + timedelta(days=365))
+        self.assertEqual(new_doc.expiration_state, "valid")
+        self.assertFalse(new_doc.legal_number)
+        self.assertEqual(original.legal_number, "LN-ORIGINAL")
+        self.assertEqual(original.attachment_id.raw, b"OLD FILE")
+
+    def test_a_document_cannot_be_renewed_twice(self):
+        original = self._doc(self.renewable_type, name="Twice")
+        first = self.env["document.document"].browse(
+            original.action_renew_document()["res_id"]
+        )
+
+        with self.assertRaises(UserError):
+            original.action_renew_document()
+
+        self.assertEqual(original.renewed_by_document_id, first)
+
+    def test_renew_non_renewable_raises(self):
+        doc = self._doc(self.non_renewable_type)
+
+        with self.assertRaises(UserError):
+            doc.action_renew_document()
+
+
+class TestRenewalState(DocumentTypeCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.renewable_type = cls._type("RSTATE", default_validity_days=365)
+
+    def _stored_renewal_state(self, doc):
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT renewal_state FROM document_document WHERE id = %s", (doc.id,)
+        )
+        return self.env.cr.fetchone()[0]
+
+    def test_states(self):
+        cases = (
+            (self.renewable_type, 60, False),
+            (self.renewable_type, 10, "due"),
+            (self.renewable_type, -10, "due"),
+            (self.renewable_type, None, "due"),
+            (self._type("RSTATE_NO", is_renewable=False), -10, False),
+            (self._type("RSTATE_STATIC", has_expiration=False), None, False),
+        )
+        for doc_type, days, expected in cases:
+            with self.subTest(type=doc_type.code, days=days):
+                doc = self._doc(doc_type, days)
+                self.assertEqual(doc.renewal_state, expected)
+
+    def test_renewing_moves_due_to_renewed_and_the_renewal_starts_clean(self):
+        original = self._doc(self.renewable_type, -10)
+        self.assertEqual(original.renewal_state, "due")
+
+        new_doc = self.env["document.document"].browse(
+            original.action_renew_document()["res_id"]
+        )
+
+        self.assertEqual(self._stored_renewal_state(original), "renewed")
+        self.assertFalse(new_doc.renewal_state)
+
+    def test_the_refresh_cron_moves_a_document_into_due(self):
+        with freeze_time("2026-08-27"):
+            doc = self._doc(self.renewable_type, date_expiration=date(2026, 10, 11))
+            self.assertIsNone(self._stored_renewal_state(doc))
+
+        with freeze_time("2026-09-27"):
+            self.env.invalidate_all()
+            self.env["document.document"]._cron_refresh_expiration_state()
+            self.assertEqual(self._stored_renewal_state(doc), "due")

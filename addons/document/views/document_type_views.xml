@@ -13,6 +13,10 @@
                     string="Has Expiration"
                     name="has_expiration"
                     domain="[('has_expiration', '=', True)]" />
+                <filter
+                    string="Renewable"
+                    name="renewable"
+                    domain="[('is_renewable', '=', True)]" />
                 <separator />
                 <filter
                     string="Active"
@@ -42,6 +46,7 @@
                 <field name="name" />
                 <field name="code" />
                 <field name="has_expiration" string="Expires" />
+                <field name="is_renewable" string="Renewable" />
                 <field name="default_validity_days" optional="hide" />
                 <field name="document_count" string="Docs" sum="Total" />
                 <field
@@ -128,6 +133,7 @@
                             <field
                                 name="default_validity_days"
                                 invisible="not has_expiration" />
+                            <field name="is_renewable" />
                         </group>
                     </group>
                     <notebook>

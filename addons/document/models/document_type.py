@@ -39,6 +39,10 @@ class DocumentType(models.Model):
     default_validity_days = fields.Integer(
         help="Default number of days a new document of this type is valid for (e.g., 365 for annual permits)",
     )
+    is_renewable = fields.Boolean(
+        default=True,
+        help="Check if documents of this type can be renewed when they expire",
+    )
 
     tag_ids = fields.Many2many(
         "document.tag",
