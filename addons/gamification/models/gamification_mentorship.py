@@ -184,8 +184,19 @@ class GamificationMentorship(models.Model):
         exist to prevent. `sudo()` (the `action_*` methods themselves, plus
         imports/migrations) still bypasses this, same pattern as
         `gamification.kudos.write()`'s value-field freeze.
+
+        Scoped to the mentorship's own mentor/mentee: a third party has no
+        business writing `state` either, but that case is already denied by
+        `mentorship_own_only` raising its own `AccessError` -- this only adds
+        a stricter rule for the one path that record rule *does* allow, a
+        party editing their own mentorship directly instead of through the
+        `action_*` methods.
         """
-        if "state" in vals and not self.env.su:
+        if (
+            "state" in vals
+            and not self.env.su
+            and any(self.env.user in (rec.mentor_id, rec.mentee_id) for rec in self)
+        ):
             raise exceptions.UserError(
                 _(
                     "Use Accept/Decline/Complete/Cancel instead of changing"
