@@ -4,6 +4,7 @@ from unittest.mock import patch
 from freezegun import freeze_time
 
 from odoo import fields
+from odoo.exceptions import UserError
 from odoo.tests import common
 
 from odoo.addons.mail.tests.common import mail_new_test_user
@@ -123,6 +124,41 @@ class TestStreak(TestStreakCommon):
         streak._record_activity()
 
         self.assertEqual(streak.current_count, 1, "Should not count same day twice")
+
+    def test_record_activity_rejects_mixed_streak_types_for_one_user(self):
+        """_record_activity's karma_per_user is keyed by user_id alone: two
+        different-type streaks for the same user in one call would silently
+        misattribute source/reason to whichever streak came first. The sole
+        production caller can't reach this (it groups by streak_type_id
+        first), but a direct call with a mixed recordset must raise rather
+        than silently misattribute.
+        """
+        other_streak_type = self.env["gamification.streak.type"].create(
+            {
+                "name": "Other Streak Type",
+                "model_id": self.partner_model.id,
+                "date_field_id": self.date_field.id,
+                "domain": "[('create_uid', '=', user.id)]",
+                "karma_bonus": 5,
+                "freeze_allowance": 2,
+            }
+        )
+        streak_a = self.env["gamification.streak"].create(
+            {
+                "user_id": self.test_user.id,
+                "streak_type_id": self.streak_type.id,
+                "freeze_remaining": self.streak_type.freeze_allowance,
+            }
+        )
+        streak_b = self.env["gamification.streak"].create(
+            {
+                "user_id": self.test_user.id,
+                "streak_type_id": other_streak_type.id,
+                "freeze_remaining": other_streak_type.freeze_allowance,
+            }
+        )
+        with self.assertRaises(UserError):
+            (streak_a | streak_b)._record_activity()
 
     def test_record_activity_grants_karma(self):
         """Daily streak activity grants karma bonus."""
