@@ -1,6 +1,7 @@
 import logging
 
-from odoo import fields, models
+from odoo import _, fields, models
+from odoo.exceptions import UserError
 from odoo.tools import str2bool
 
 from odoo.addons.base.models.ir_module import assert_log_admin_access
@@ -79,6 +80,13 @@ class CalendarProviderConfig(models.TransientModel):
         calendar_module = self.env["ir.module.module"].search(
             [("name", "=", f"{self.external_calendar_provider}_calendar")]
         )
+        if not calendar_module:
+            raise UserError(
+                _(
+                    "No module found to configure the %(provider)s calendar.",
+                    provider=self.external_calendar_provider,
+                )
+            )
 
         if calendar_module.state != "installed":
             calendar_module.button_immediate_install()
