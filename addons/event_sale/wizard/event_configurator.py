@@ -36,7 +36,9 @@ class EventEventConfigurator(models.TransientModel):
             if record.event_id.id != record.event_ticket_id.event_id.id:
                 error_messages.append(
                     _(
-                        'Invalid ticket choice "%(ticket_name)s" for event "%(event_name)s".'
+                        'Invalid ticket choice "%(ticket_name)s" for event "%(event_name)s".',
+                        ticket_name=record.event_ticket_id.display_name,
+                        event_name=record.event_id.display_name,
                     )
                 )
             if (
@@ -44,7 +46,11 @@ class EventEventConfigurator(models.TransientModel):
                 and record.event_id.id != record.event_slot_id.event_id.id
             ):
                 error_messages.append(
-                    _('Invalid slot choice "%(slot_name)s" for event "%(event_name)s".')
+                    _(
+                        'Invalid slot choice "%(slot_name)s" for event "%(event_name)s".',
+                        slot_name=record.event_slot_id.display_name,
+                        event_name=record.event_id.display_name,
+                    )
                 )
         if error_messages:
             raise ValidationError("\n".join(error_messages))
