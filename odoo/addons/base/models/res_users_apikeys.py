@@ -7,10 +7,10 @@ from typing import Any, Self
 
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
-from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.exceptions import AccessDenied, AccessError, UserError, ValidationError
 from odoo.http import request
 from odoo.libs.password import CryptContext
-from odoo.tools import SQL
+from odoo.tools import SQL, str2bool
 
 from .res_users import check_identity
 
@@ -18,6 +18,9 @@ _logger = logging.getLogger(__name__)
 
 API_KEY_SIZE = 20
 INDEX_SIZE = 8
+#: how many live keys a user may hold before `generate` refuses to issue more.
+#: Overridable per database with `base.programmatic_api_keys_limit`.
+PROGRAMMATIC_KEYS_LIMIT = 10
 KEY_CRYPT_CONTEXT = CryptContext(
     ["pbkdf2_sha512"],
     pbkdf2_sha512__rounds=6000,
@@ -215,6 +218,130 @@ class ResUsersApikeys(models.Model):
         )
 
         return k
+
+    def _check_programmatic_access(self) -> None:
+        """Issuing keys without a browser is opt-in, per database.
+
+        A system user is exempt: they can flip the parameter anyway, and doing
+        it around every call would leave a window in which *everyone* may
+        manage keys programmatically -- three writes that are not atomic, and
+        a server that dies between them leaves the door open.
+        """
+        enabled = str2bool(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("base.enable_programmatic_api_keys"),
+            False,
+        )
+        if not (self.env.is_system() or enabled):
+            raise UserError(_("Programmatic API keys are not enabled"))
+
+    def _get_programmatic_limit(self) -> int:
+        value = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("base.programmatic_api_keys_limit", PROGRAMMATIC_KEYS_LIMIT)
+        )
+        try:
+            return int(value)
+        except TypeError, ValueError:
+            _logger.warning(
+                "Ignoring invalid 'base.programmatic_api_keys_limit' %r, using %s",
+                value,
+                PROGRAMMATIC_KEYS_LIMIT,
+            )
+            return PROGRAMMATIC_KEYS_LIMIT
+
+    @api.model
+    def generate(
+        self,
+        key: str,
+        scope: str | None,
+        name: str,
+        expiration_date: datetime.datetime | str | None,
+    ) -> str:
+        """Issue a new API key, authenticated by an existing one.
+
+        `key` must be a live key of the calling user. A key with no scope
+        opens any scope; a scoped key only opens its own -- `_check_credentials`
+        is what decides, and the scope it accepted is the one handed to
+        `_generate`.
+
+        To rotate: generate the replacement, store it, then `revoke` the old
+        one. Doing it in that order means a crash in between costs a stale key,
+        not a locked-out integration.
+        """
+        self._check_programmatic_access()
+        with self.env["res.users"]._assert_can_auth(user=key[:INDEX_SIZE]):
+            if not isinstance(expiration_date, datetime.datetime):
+                expiration_date = fields.Datetime.from_string(expiration_date)
+
+            live_keys = self.search_count(
+                [
+                    ("user_id", "=", self.env.uid),
+                    "|",
+                    ("expiration_date", "=", False),
+                    ("expiration_date", ">=", self.env.cr.now()),
+                ]
+            )
+            limit = self._get_programmatic_limit()
+            if live_keys >= limit:
+                raise UserError(
+                    _(
+                        "Limit of %(limit)s API keys is reached for programmatic "
+                        "creation",
+                        limit=limit,
+                    )
+                )
+
+            uid = self._check_credentials(scope=scope or "rpc", key=key)
+            if not uid or uid != self.env.uid:
+                raise AccessDenied(
+                    _(
+                        "The provided API key is invalid or does not belong to "
+                        "the current user."
+                    )
+                )
+
+            new_key = self._generate(scope, name, expiration_date)
+            _logger.info(
+                "%s %r generated from %r",
+                self._description,
+                new_key[:INDEX_SIZE],
+                key[:INDEX_SIZE],
+            )
+            return new_key
+
+    @api.model
+    def revoke(self, key: str) -> bool:
+        """Remove an API key, given the key itself."""
+        self._check_programmatic_access()
+        if not key:
+            msg = "key required"
+            raise ValueError(msg)
+        with self.env["res.users"]._assert_can_auth(user=key[:INDEX_SIZE]):
+            self.env.cr.execute(
+                SQL(
+                    """
+                    SELECT id, key
+                    FROM %s
+                    WHERE
+                        index = %s
+                        AND (
+                            expiration_date IS NULL OR
+                            expiration_date >= now() at time zone 'utc'
+                        )
+                    """,
+                    SQL.identifier(self._table),
+                    key[:INDEX_SIZE],
+                )
+            )
+            for key_id, current_key in self.env.cr.fetchall():
+                if KEY_CRYPT_CONTEXT.verify(key, current_key):
+                    # _remove refuses a key that is neither yours nor system's
+                    self.browse(key_id)._remove()
+                    return True
+            raise AccessDenied(_("The provided API key is invalid."))
 
     @api.autovacuum
     def _gc_user_apikeys(self) -> None:
