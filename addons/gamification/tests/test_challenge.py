@@ -2,11 +2,13 @@ import datetime
 from datetime import timedelta
 
 from freezegun import freeze_time
+from lxml import etree
 
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.tools import mute_logger
 
 from odoo.addons.gamification.tests.common import TransactionCaseGamification
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 class TestGamificationCommon(TransactionCaseGamification):
@@ -516,6 +518,49 @@ class TestCompletionCap(TestGamificationCommon):
             "Challenge line 'name' related field must be readonly to prevent "
             "accidental rename of the global goal definition",
         )
+
+
+class TestChallengeStartRefreshButtonAccess(TestGamificationCommon):
+    """A plain gamification employee has no write access on challenges
+    (`challenge_employee` ACL, `perm_write=0`), and `action_start`/
+    `action_check` write directly (no `sudo()`) -- so the form's "Start
+    Challenge"/"Refresh Challenge" header buttons must be restricted to
+    managers, or a clicking employee hits an AccessError.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.employee_only_user = mail_new_test_user(
+            self.env,
+            login="challenge_employee_only",
+            name="Challenge Employee Only",
+            email="challenge_employee_only@example.com",
+            groups="base.group_user,gamification.group_gamification_user",
+        )
+        self.challenge = self.env.ref("gamification.challenge_base_discover")
+
+    def test_employee_direct_action_start_raises_access_error(self):
+        """Confirms the underlying ACL/action mismatch is real."""
+        with self.assertRaises(AccessError):
+            self.challenge.with_user(self.employee_only_user).action_start()
+
+    def test_employee_direct_action_check_raises_access_error(self):
+        with self.assertRaises(AccessError):
+            self.challenge.with_user(self.employee_only_user).action_check()
+
+    def test_start_and_refresh_buttons_are_manager_only_in_view(self):
+        """The header buttons must carry a manager-only `groups=` so an
+        employee never sees/clicks into the AccessError proven above."""
+        view = self.env.ref("gamification.challenge_form_view")
+        arch = etree.fromstring(view.arch_db)
+        for name in ("action_start", "action_check"):
+            button = arch.find(f'.//button[@name="{name}"]')
+            self.assertIsNotNone(button, f"button {name} not found in view")
+            self.assertEqual(
+                button.get("groups"),
+                "gamification.group_gamification_manager",
+                f"button {name} must be restricted to managers",
+            )
 
 
 class test_badge_wizard(TestGamificationCommon):
