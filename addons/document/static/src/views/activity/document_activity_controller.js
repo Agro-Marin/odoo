@@ -2,21 +2,12 @@
 import { _t } from "@web/core/translation";
 import { ActivityController } from "@mail/views/web/activity/activity_controller";
 
-import { preSuperSetup, useDocumentView } from "@document/views/hooks";
-import { useState } from "@odoo/owl";
+import { DocumentsControllerMixin } from "@document/views/document_controller_mixin";
 
-export class DocumentsActivityController extends ActivityController {
+export class DocumentsActivityController extends DocumentsControllerMixin(
+    ActivityController,
+) {
     static template = "document.DocumentsActivityController";
-    setup() {
-        preSuperSetup();
-        super.setup(...arguments);
-        const properties = useDocumentView(this.documentsViewHelpers());
-        Object.assign(this, properties);
-
-        this.documentStates = useState({
-            previewStore: {},
-        });
-    }
 
     get rendererProps() {
         const props = super.rendererProps;
@@ -28,16 +19,6 @@ export class DocumentsActivityController extends ActivityController {
         const modelParams = super.modelParams;
         modelParams.multiEdit = true;
         return modelParams;
-    }
-
-    documentsViewHelpers() {
-        return {
-            getSelectedDocumentsElements: () => [],
-            isRecordPreviewable: this.isRecordPreviewable.bind(this),
-            setPreviewStore: (previewStore) => {
-                this.documentStates.previewStore = previewStore;
-            },
-        };
     }
 
     /**

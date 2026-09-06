@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { documentActionRules } from "@document/views/document_action_rules";
 import { _t } from "@web/core/translation";
 
 import { DocumentsListActionItem } from "./document_list_action_item.js";
@@ -12,9 +13,8 @@ export class DocumentsListActionItemShare extends DocumentsListActionItem {
 
     get isVisible() {
         return (
-            this.props.record.isActive &&
             this.documentService.userIsInternal &&
-            this.documentService.isFolderSharable(this.props.record.data)
+            documentActionRules.share(this.documentService, this.props.record.data)
         );
     }
 

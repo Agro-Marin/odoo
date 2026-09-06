@@ -2,14 +2,12 @@
 import { STATIC_COG_GROUP_ACTION_ADVANCED } from "./document_cog_menu_group.js";
 import { DocumentsCogMenuItem } from "./document_cog_menu_item.js";
 import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
 
 export class DocumentsCogMenuItemStar extends DocumentsCogMenuItem {
     setup(isAdd) {
         this.icon = isAdd ? "fa-regular fa-star" : "fa-solid fa-star";
         this.label = isAdd ? _t("Add star") : _t("Remove star");
         super.setup();
-        this.documentService = useService("document.document");
     }
 
     async doActionOnFolder(folder) {

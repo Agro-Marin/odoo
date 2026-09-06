@@ -16,7 +16,6 @@ export class DocumentCogMenuPinAction extends Component {
 
     setup() {
         this.action = useService("action");
-        this.documentService = useService("document.document");
         this.notification = useService("notification");
 
         this.documentsState = useState({ actions: [], isLoading: true });

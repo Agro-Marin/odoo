@@ -1,15 +1,14 @@
 /** @odoo-module native */
+import { documentActionRules } from "@document/views/document_action_rules";
 import { STATIC_COG_GROUP_ACTION_BASIC } from "./document_cog_menu_group.js";
 import { DocumentsCogMenuItem } from "./document_cog_menu_item.js";
 import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
 
 export class DocumentsCogMenuItemRename extends DocumentsCogMenuItem {
     setup() {
         this.icon = "fa-solid fa-pen-to-square";
         this.label = _t("Rename");
         super.setup();
-        this.documentService = useService("document.document");
     }
 
     async doActionOnFolder(folder) {
@@ -23,6 +22,6 @@ export const documentsCogMenuItemRename = {
     groupNumber: STATIC_COG_GROUP_ACTION_BASIC,
     isDisplayed: (env) =>
         DocumentsCogMenuItem.isVisible(env, ({ folder, documentService }) =>
-            documentService.isEditable(folder),
+            documentActionRules.rename(documentService, folder),
         ),
 };

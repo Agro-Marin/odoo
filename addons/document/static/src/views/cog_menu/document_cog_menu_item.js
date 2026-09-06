@@ -40,6 +40,7 @@ export class DocumentsCogMenuItem extends Component {
 
     setup() {
         this.action = useService("action");
+        this.documentService = useService("document.document");
     }
 
     async onItemSelected() {

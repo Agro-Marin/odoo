@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { documentActionRules } from "@document/views/document_action_rules";
 import { _t } from "@web/core/translation";
 
 import { DocumentsListActionItem } from "./document_list_action_item.js";
@@ -11,9 +12,9 @@ export class DocumentsListActionItemDownload extends DocumentsListActionItem {
     }
 
     get isVisible() {
-        return (
-            this.props.record.data.type !== "binary" ||
-            this.props.record.data.attachment_id
+        return documentActionRules.download(
+            this.documentService,
+            this.props.record.data,
         );
     }
 

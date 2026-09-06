@@ -1,16 +1,27 @@
 /** @odoo-module native */
 import { getCommonEmbeddedActions } from "@document/views/utils";
-import { DETAIL_PANEL_REQUIRED_FIELDS } from "@document/views/hooks";
+import {
+    DETAIL_PANEL_REQUIRED_FIELDS,
+    preSuperSetup,
+    useDocumentView,
+} from "@document/views/hooks";
 import { makeActiveField } from "@web/model/relational_model";
 import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { omit } from "@web/core/utils/collections/objects";
-import { useSubEnv } from "@odoo/owl";
+import { onWillDestroy, onWillRender, useRef, useState, useSubEnv } from "@odoo/owl";
 
 export const DocumentsControllerMixin = (component) =>
     class extends component {
+        /**
+         * Selector of the DOM elements standing for the selected documents in
+         * this view, read by the file previewer; null when the view has none.
+         */
+        static selectedDocumentsSelector = null;
+
         setup() {
+            preSuperSetup();
             super.setup(...arguments);
             this.searchBarToggler = useSearchBarToggler();
             useSubEnv({
@@ -19,6 +30,53 @@ export const DocumentsControllerMixin = (component) =>
 
             this.documentService = useService("document.document");
             this.firstLoadSelectId = this.documentService.initData?.documentId;
+            this.uploadFileInputRef = useRef("uploadFileInput");
+            Object.assign(this, useDocumentView(this.documentsViewHelpers()));
+            this.documentStates = useState({ previewStore: {} });
+            this.rightPanelState = useState(this.documentService.rightPanelReactive);
+
+            // Registered synchronously: the control panel's DocumentsAction reads
+            // it from its own mounted effect, which runs before this component's.
+            const getSelectionActions = () => ({
+                getTopbarActions: () => this.getTopBarActionMenuItems(),
+                getMenuProps: () => this.actionMenuProps,
+            });
+            this.documentService.getSelectionActions = getSelectionActions;
+            onWillDestroy(() => {
+                // On a view switch the next controller has already registered its own.
+                if (this.documentService.getSelectionActions === getSelectionActions) {
+                    this.documentService.getSelectionActions = null;
+                }
+            });
+
+            onWillRender(() => this.openInitialPreview());
+        }
+
+        get hasSelectedRecords() {
+            return this.targetRecords.length;
+        }
+
+        get targetRecords() {
+            return this.model.targetRecords;
+        }
+
+        documentsViewHelpers() {
+            return {
+                getSelectedDocumentsElements: () => {
+                    const selector = this.constructor.selectedDocumentsSelector;
+                    return (
+                        (selector && this.root?.el?.querySelectorAll(selector)) || []
+                    );
+                },
+                setPreviewStore: (previewStore) => {
+                    this.documentStates.previewStore = previewStore;
+                },
+                isRecordPreviewable: this.isRecordPreviewable.bind(this),
+            };
+        }
+
+        isRecordPreviewable(record) {
+            return record.isViewable();
         }
 
         openInitialPreview() {
