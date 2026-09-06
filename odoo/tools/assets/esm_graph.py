@@ -161,14 +161,16 @@ def _scan_import_specifiers(src: str) -> set[str]:
 
 def get_escaping_relative_imports(
     modules: Iterable,
+    member_specs: Collection[str] | None = None,
 ) -> list[tuple[str, str, str]]:
     modules = list(modules)
-    member_specs = {m.module_path for m in modules}
-    member_specs.update(
-        m.module_path + "/index"
-        for m in modules
-        if getattr(m, "url", "").endswith("/index.js")
-    )
+    if member_specs is None:
+        member_specs = {m.module_path for m in modules}
+        member_specs.update(
+            m.module_path + "/index"
+            for m in modules
+            if getattr(m, "url", "").endswith("/index.js")
+        )
     escapes: list[tuple[str, str, str]] = []
     for module in modules:
         specs = _scan_import_specifiers(module.raw_content)
@@ -469,6 +471,29 @@ class _BridgeExportResolver:
 
 
 _VALID_EXPORT_NAME = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*\Z")
+
+
+def _strict_stub_source(specifier: str, src_names: set[str]) -> str:
+    names = [
+        name
+        for name in sorted(src_names)
+        if name != "default" and _VALID_EXPORT_NAME.match(name)
+    ]
+    quoted = json.dumps(specifier)
+    lines = [
+        f"const _m = odoo.loader.modules.get({quoted});",
+        "if (_m === undefined) {",
+        (
+            f'  throw new Error({quoted} + " is not registered: the bundle '
+            'importing it must load after the page bundle that owns it");'
+        ),
+        "}",
+        "const _d = _m.default ?? _m;",
+    ]
+    lines.extend(f"const _e{i} = _m.{name};" for i, name in enumerate(names))
+    exported = ["_d as default", *(f"_e{i} as {n}" for i, n in enumerate(names))]
+    lines.append("export { " + ", ".join(exported) + " };")
+    return "\n".join(lines)
 
 
 def _bridge_shim_source(

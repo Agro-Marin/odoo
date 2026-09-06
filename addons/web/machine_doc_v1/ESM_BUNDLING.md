@@ -110,8 +110,8 @@ wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical
 | `esm` manifest key | Purpose |
 |-----|---------|
 | `bundles` | This module's esbuild-compiled bundles |
-| `runtime_bundles` | Bundles fetched at runtime through `/web/bundle` (`loadBundle`). A property of the BUNDLE — no parent page is named. Aggregated into `EsmRegistry.runtime_bundle_names` (together with every `dynamic_children` child), which is the predicate `use_esm` reads in `web/controllers/webclient.py`; without it the route serves the legacy branch and every module-syntax file becomes a `console.error` stub while `loadBundle` still resolves |
-| `dynamic_children` | Parent → lazy children whose specifiers the parent's page must *not* bridge. A dynamic child is a runtime bundle without restating it. Since 2026-08-16 production no longer merges the children's specifiers into the page import map — the child carries its own through `/web/bundle` — so this key is now page-side only: bridge exclusion, and the debug per-file map |
+| `runtime_bundles` | Bundles fetched at runtime through `/web/bundle` (`loadBundle`). A property of the BUNDLE — no parent page is named. Aggregated into `EsmRegistry.runtime_bundle_names` (together with every `dynamic_children` child), which is the predicate `use_esm` reads in `web/controllers/webclient.py`; without it the route serves the legacy branch and every module-syntax file becomes a `console.error` stub while `loadBundle` still resolves. A runtime bundle with **no** declared parent is served **per file** (there is no page whose modules could be stubbed), so a bare `runtime_bundles` entry is the debug shape in production; declare the parent under `dynamic_children` to get the compiled child |
+| `dynamic_children` | Parent → lazy children. Declaring a parent does three things: the parent's page does not bridge the child's specifiers; the child is a runtime bundle without restating it; and, since 2026-09-06, the child is **compiled** against that parent (`_get_compiled_runtime_payload`, below) instead of being served per file. With several parents the child is compiled against the modules **every** installed parent owns (intersection), so it loads on any of their pages |
 | `import_map_includes` | Parent → satellites reusing the parent's import map, skipping esbuild; used for test-runner bundles |
 | `external_libs` | Bare specifier → root-relative URL for a library this module ships (`@odoo/owl`, `chartjs-chart-geo`, …). One specifier resolves to one URL and the owning module declares it; a second module declaring it differently is an error |
 | `secondary_import_map_includes` | Parent → satellites loaded as a separate later `<script>`; only the satellite's NEW import-map specifiers merge into the parent's map. **Gated**: the merge runs only when the satellites are actually rendered (`'tests' in debug or test_mode_enabled`), the same condition `web.conditional_assets_tests` uses |
@@ -155,15 +155,76 @@ Example:
 # point_of_sale/__manifest__.py — bundles-only (no children/includes).
 ```
 
-### Not every ESM bundle can be a runtime bundle
+### A dynamic child is compiled against the page that loads it
 
-`esm.runtime_bundles` switches a bundle to the **per-file** payload, and a bundle
-built for esbuild is not automatically servable that way. esbuild walks the
-import graph from disk, so a member's relative `./sibling.js` resolves whether or
-not the sibling is in the bundle's file list; served per-file there is no such
-walk, and the specifier would fetch a second copy of a module some other bundle
-on the page already owns. `_check_lazy_bundle_relative_imports` refuses that,
-and `TestDynamicBundleIntegrity` sweeps every bundle in `runtime_bundle_names` so
+`/web/bundle/<child>?page=<page bundle>` in production answers `{"is_esm": true,
+"esm_url": "/web/assets/esm/<group hash>/<child>.esm.js", ...}` and the client
+`import()`s that one URL (`assets.loadESMModule`, `core/assets.js`). The client
+reads `page` off the `data-bundle` attribute of the import map the server
+stamped on the document (`pageBundleOf`), so a cross-document load names the
+target document's page, and the descriptor cache is keyed by bundle and page.
+
+The server compiles every child declared under that page **together**
+(`_get_runtime_group_urls_cached`, `ir_qweb_assets.py`;
+`_compile_runtime_group`, `ir_qweb_assets_esbuild.py`; `EsbuildCompiler.compile_group`):
+
+1. the page's member specifiers are the "parent-owned" set
+   (`_get_runtime_parent_specs`). Every child member the page already owns is
+   **dropped from the child's entry** — a child manifest may list parent files
+   to feed the debug import map, and they must never be evaluated twice — and
+   so is every member whose URL is a declared `esm.external_libs` file, which
+   the browser resolves through the import map and dedups by URL;
+2. each addon a child touches is mirrored into a temp tree (`_esbuild_mirror_aliases`,
+   one symlink per real file) where every parent-owned module any child reaches
+   — by bare specifier or by relative import — is replaced by a **strict stub**
+   (`_strict_stub_source`: `odoo.loader.modules.get(spec)` or throw; a child
+   evaluates after its parent registered, so it reads once instead of
+   listening); `@addon` is aliased to the mirror and esbuild runs with
+   `--preserve-symlinks`, so relative imports stay inside the mirror;
+3. esbuild runs once with one entry per child, `--splitting`, `--entry-names=[name].esm`
+   and `--chunk-names=chunk-[hash].esm`: a module two siblings share (the three
+   `web_tour` bundles share `tour_step`) becomes a chunk both entries import by
+   relative URL, so the browser evaluates it once, as URL identity did on the
+   per-file path;
+4. each entry gets its templates appended exactly as a page bundle does, and
+   the whole output set is persisted under one content-addressed directory
+   `/web/assets/esm/<group hash>/` (`_save_esm_group`: immutable, one year, the
+   404 self-heal applies) with the esbuild metafile as a sidecar named group.meta.json. The
+   garbage collector keeps a directory alive while any entry in it is the
+   newest of its name (`_esm_gc_collectable`), because a chunk's hashed name is
+   reused by nothing.
+
+With no `page` (a caller outside the web client, or a page that is not a
+declared parent) the group is the children sharing the child's exact set of
+installed declared parents, compiled against the modules **all** of them own.
+Anything a child imports that neither it nor the page owns is bundled from
+disk and logged as `event=runtime_child_inlines` — on a page that also owns it,
+that is a singleton split, and the log line is the only warning. The circuit
+breaker, advisory lock and admin override apply per group (`runtime:<parents>`);
+a declined compile falls back to the per-file payload below; a read-only test
+cursor propagates `ReadOnlySqlTransaction` so the route retries read-write, as a
+page bundle does. The debug payload (`?debug=assets`) is per-file, unchanged.
+Pregeneration warms one group per installed parent.
+
+`TestDynamicBundleIntegrity.test_a_runtime_bundle_resolves_every_parent_module_through_a_stub`
+reads a group directory back and checks every parent-owned module a child
+reaches is a loader read and none is re-registered;
+`TestRuntimeBundlesInTheBrowser` loads every compiled child of `web.assets_web`
+in Chrome and fails on the first `rebind` event. Measured on the spreadsheet
+bundle before/after: 244 requests and 4.8 MB (raw, uncompressed, 7-day cached
+sources) with 7 rebinds per open, against 7 requests, one immutable file
+(497 KB gzip) and none.
+
+### Not every ESM bundle can be served per file
+
+A runtime bundle with no declared parent, and every runtime bundle under
+`?debug=assets`, is served **per file**, and a bundle built for esbuild is not
+automatically servable that way. esbuild walks the import graph from disk, so a
+member's relative `./sibling.js` resolves whether or not the sibling is in the
+bundle's file list; served per-file there is no such walk, and the specifier
+would fetch a second copy of a module some other bundle on the page already
+owns. `_check_lazy_bundle_relative_imports` refuses that, and
+`TestDynamicBundleIntegrity` sweeps every bundle in `runtime_bundle_names` so
 the refusal lands in CI rather than as an HTTP 500.
 
 Five declared bundles currently fail that check, and **all five are correct as

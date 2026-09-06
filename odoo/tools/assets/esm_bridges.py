@@ -16,6 +16,7 @@ from odoo.tools.assets.esm_graph import (
     _bridge_shim_source,
     _BridgeExportResolver,
     _extract_esm_exports,
+    _strict_stub_source,
 )
 from odoo.tools.assets.esm_lexer import lex_module
 from odoo.tools.assets.esm_registry import external_libs
@@ -258,7 +259,9 @@ class BridgeShimManager:
                     record(specifier, None)
         return discovered, ext_seen
 
-    def prepare_shim_sources(self, specifiers: set[str]) -> dict[str, str]:
+    def prepare_shim_sources(
+        self, specifiers: set[str], *, strict: bool = False
+    ) -> dict[str, str]:
         if not specifiers:
             return {}
         resolver = _BridgeExportResolver(
@@ -267,6 +270,9 @@ class BridgeShimManager:
         shims: dict[str, str] = {}
         for spec in sorted(specifiers):
             src_names, has_default = resolver.source_exports(spec)
+            if strict:
+                shims[spec] = _strict_stub_source(spec, src_names)
+                continue
             shim, _star = _bridge_shim_source(
                 spec, {"__default__"}, src_names, has_default
             )

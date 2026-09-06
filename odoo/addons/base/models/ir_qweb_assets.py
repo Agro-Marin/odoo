@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import time
 from collections.abc import Iterable, Sequence
@@ -399,18 +400,22 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         assets_params: dict[str, Any] | None = None,
         debug_assets: bool = False,
+        page: str | None = None,
     ) -> dict:
         if assets_params is None:
             assets_params = self.env["ir.asset"]._prepare_assets_params()
         if debug_assets:
             return self._get_esm_bundle_payload_uncached(bundle, assets_params)
-        return self._get_esm_bundle_payload_cached(bundle, assets_params)
+        return self._get_esm_bundle_payload_cached(
+            bundle, assets_params, self._get_runtime_group_parents(bundle, page)
+        )
 
     @tools.conditional(
         "xml" not in tools.config["dev_mode"],
         tools.ormcache(
             "bundle",
             "tuple(sorted(assets_params.items()))",
+            "parents",
             cache="assets",
         ),
     )
@@ -418,14 +423,199 @@ class IrQweb(models.AbstractModel):
         self,
         bundle: str,
         assets_params: dict[str, Any] | None = None,
+        parents: tuple[str, ...] = (),
     ) -> dict:
-        return self._get_esm_bundle_payload_uncached(bundle, assets_params)
+        return self._get_esm_bundle_payload_uncached(
+            bundle, assets_params, compiled=True, parents=parents
+        )
+
+    @staticmethod
+    def _is_runtime_child_compiled(bundle: str) -> bool:
+        registry = esm_registry()
+        return (
+            bundle in registry.runtime_bundle_names
+            and bundle not in registry.import_map_included_bundles
+            and any(bundle in kids for kids in registry.dynamic_children.values())
+        )
+
+    def _get_runtime_group_parents(
+        self, bundle: str, page: str | None = None
+    ) -> tuple[str, ...]:
+        registry = esm_registry()
+        installed = self.env["ir.asset"]._get_addons_installed()
+        declared = tuple(
+            sorted(
+                parent
+                for parent, children in registry.dynamic_children.items()
+                if bundle in children and parent.partition(".")[0] in installed
+            )
+        )
+        if page in declared:
+            return (page,)
+        return declared
+
+    @tools.conditional(
+        "xml" not in tools.config["dev_mode"],
+        tools.ormcache(
+            "parents",
+            "tuple(sorted(assets_params.items()))",
+            cache="assets",
+        ),
+    )
+    def _get_runtime_group_urls_cached(
+        self, parents: tuple[str, ...], assets_params: dict[str, Any]
+    ) -> dict[str, str]:
+        return self._get_runtime_group_urls_uncached(parents, assets_params)
+
+    def _get_runtime_group_urls_uncached(
+        self, parents: tuple[str, ...], assets_params: dict[str, Any] | None
+    ) -> dict[str, str]:
+        registry = esm_registry()
+        installed = self.env["ir.asset"]._get_addons_installed()
+        children = {}
+        for name in sorted(registry.runtime_bundle_names):
+            if name.partition(".")[0] not in installed:
+                continue
+            if not self._is_runtime_child_compiled(name):
+                continue
+            declared = self._get_runtime_group_parents(name)
+            in_group = (
+                parents[0] in declared if len(parents) == 1 else declared == parents
+            )
+            if not in_group:
+                continue
+            child = self._get_asset_bundle(
+                name,
+                js=True,
+                css=False,
+                debug_assets=False,
+                assets_params=assets_params,
+            )
+            if child.native_modules:
+                children[name] = child
+        if not children:
+            return {}
+        group = "runtime:" + "+".join(parents)
+        result = self._compile_runtime_group(group, parents, children, assets_params)
+        if not result.files:
+            log_event(
+                _fallback_log, logging.INFO, "runtime_group_per_file", bundle=group
+            )
+            return {}
+        files = {}
+        for filename, code in result.files.items():
+            name = filename.removesuffix(".esm.js")
+            if name in children:
+                code = self._combine_bundle_with_templates(
+                    code, children[name].generate_esm_template_bundle(use_import=False)
+                )
+            files[filename] = code.encode("utf-8")
+        if result.metafile:
+            files["group.meta.json"] = result.metafile.encode("utf-8")
+        try:
+            return self._save_esm_group(group, files, set(children))
+        except ReadOnlySqlTransaction:
+            # The route retries on a read-write cursor, as for a page bundle;
+            # a per-file fallback here would be the split this build removes.
+            raise
+        except Exception as exc:
+            log_event(
+                _attach_log,
+                logging.WARNING,
+                "runtime_group_save_failed",
+                bundle=group,
+                readonly=bool(self.env.cr.readonly),
+                err=type(exc).__name__,
+            )
+            return {}
+
+    def _save_esm_group(
+        self, group: str, files: dict[str, bytes], children: Iterable[str]
+    ) -> dict[str, str]:
+        digest = hashlib.sha256()
+        for filename in sorted(files):
+            digest.update(filename.encode())
+            digest.update(b"\0")
+            digest.update(files[filename])
+            digest.update(b"\0")
+        unique = digest.hexdigest()[:16]
+        prefix = f"/web/assets/esm/{unique}/"
+        IrAttachment = self.env["ir.attachment"].sudo()
+        existing = IrAttachment.search(
+            IrAttachment._generated_asset_domain(url_pattern=f"{prefix}%")
+        )
+        present = set(existing.mapped("url"))
+        vals_list = [
+            {
+                "name": filename,
+                "mimetype": (
+                    "text/javascript"
+                    if filename.endswith(".js")
+                    else "application/json"
+                ),
+                "res_model": "ir.ui.view",
+                "res_id": False,
+                "type": "binary",
+                "public": True,
+                "raw": content,
+                "url": f"{prefix}{filename}",
+            }
+            for filename, content in files.items()
+            if f"{prefix}{filename}" not in present
+        ]
+        self._save_esm_attachment_rows(vals_list, touch_ids=existing.ids, bundle=group)
+        log_event(
+            _attach_log,
+            logging.INFO,
+            "group_save" if vals_list else "group_reuse",
+            bundle=group,
+            url=prefix,
+            files=len(files),
+            new=len(vals_list),
+            bytes=sum(len(content) for content in files.values()),
+        )
+        return {name: f"{prefix}{name}.esm.js" for name in children}
+
+    def _get_compiled_runtime_payload(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+        parents: tuple[str, ...],
+    ) -> dict | None:
+        if not parents:
+            return None
+        urls = self._get_runtime_group_urls_cached(parents, assets_params or {})
+        url = urls.get(bundle)
+        if not url:
+            log_event(
+                _fallback_log, logging.INFO, "runtime_child_per_file", bundle=bundle
+            )
+            return None
+        asset_bundle = self._get_asset_bundle(
+            bundle,
+            js=True,
+            css=False,
+            debug_assets=False,
+            assets_params=assets_params,
+        )
+        return {
+            "esm_url": url,
+            "specifiers": sorted(a.module_path for a in asset_bundle.native_modules),
+            "import_map": dict(self._external_libs()),
+            "template_url": None,
+        }
 
     def _get_esm_bundle_payload_uncached(
         self,
         bundle: str,
         assets_params: dict[str, Any] | None,
+        compiled: bool = False,
+        parents: tuple[str, ...] = (),
     ) -> dict:
+        if compiled and self._is_runtime_child_compiled(bundle):
+            payload = self._get_compiled_runtime_payload(bundle, assets_params, parents)
+            if payload is not None:
+                return payload
         asset_bundle = self._get_asset_bundle(
             bundle,
             js=True,
@@ -1667,6 +1857,13 @@ class IrQweb(models.AbstractModel):
                     if url.startswith("/web/assets/esm/") and url not in links
                 )
                 self._pregenerate_secondary_page_scopes(bundle)
+        installed = self.env["ir.asset"]._get_addons_installed()
+        assets_params = self.env["ir.asset"]._prepare_assets_params()
+        for parent in sorted(esm_registry().dynamic_children):
+            if parent.partition(".")[0] not in installed:
+                continue
+            urls = self._get_runtime_group_urls_cached((parent,), assets_params)
+            links.extend(url for url in sorted(urls.values()) if url not in links)
         _logger.info("JS Assets bundles generated in %s seconds", time.time() - start)
         start = time.time()
         for bundle in sorted(css_bundles):

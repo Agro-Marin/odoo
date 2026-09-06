@@ -22,6 +22,7 @@ const log = makeAssetLog("js");
  * @typedef {{
  * cssLibs: string[];
  * jsLibs: string[];
+ * esmUrl: string | null;
  * esmSpecifiers: string[] | null;
  * esmImportMap: Record<string, string> | null;
  * }} BundleFileNames
@@ -270,11 +271,24 @@ const onLoadAndError = (el, onLoad, onError, onPageHideCleanup, onInterrupt) => 
 };
 
 /**
+ * The page bundle `targetDoc` rendered, read off the import map the server
+ * stamped, so a lazy child can be compiled against exactly that page.
+ *
+ * @param {Document} targetDoc
+ * @returns {string}
+ */
+function pageBundleOf(targetDoc) {
+    const mapEl = targetDoc.querySelector('script[type="importmap"][data-bundle]');
+    return (mapEl && mapEl.getAttribute("data-bundle")) || "";
+}
+
+/**
  * @param {string} bundleName
+ * @param {{ targetDoc?: Document }} [options]
  * @returns {Promise<BundleFileNames>}
  */
-export function getBundle(bundleName) {
-    return assets.getBundle(bundleName);
+export function getBundle(bundleName, options) {
+    return assets.getBundle(bundleName, options);
 }
 
 /**
@@ -653,9 +667,10 @@ function readBundleDescriptor(result, url) {
     const cssLibs = [];
     const jsLibs = [];
     if (result.is_esm) {
-        const esmSpecifiers = result.specifiers || [];
+        const esmUrl = result.esm_url || null;
+        const esmSpecifiers = esmUrl ? null : result.specifiers || [];
         const esmImportMap = result.import_map || null;
-        if (result.template_url) {
+        if (esmSpecifiers && result.template_url) {
             esmSpecifiers.push(result.template_url);
         }
         for (const { src, type } of Object.values(result.files || {})) {
@@ -665,7 +680,7 @@ function readBundleDescriptor(result, url) {
                 jsLibs.push(src);
             }
         }
-        return { cssLibs, jsLibs, esmSpecifiers, esmImportMap };
+        return { cssLibs, jsLibs, esmUrl, esmSpecifiers, esmImportMap };
     }
     let skippedEsm = 0;
     for (const { src, type } of Object.values(result)) {
@@ -683,7 +698,7 @@ function readBundleDescriptor(result, url) {
                 `${skippedEsm} ESM chunk(s) and no loadable script`,
         );
     }
-    return { cssLibs, jsLibs, esmSpecifiers: null, esmImportMap: null };
+    return { cssLibs, jsLibs, esmUrl: null, esmSpecifiers: null, esmImportMap: null };
 }
 
 /**
@@ -735,18 +750,24 @@ export const assets = {
 
     /**
      * @param {string} bundleName
+     * @param {{ targetDoc?: Document }} [options]
      * @returns {Promise<BundleFileNames>}
      */
-    getBundle(bundleName) {
+    getBundle(bundleName, { targetDoc = document } = {}) {
         const cacheMap = globalBundleCache;
-        if (cacheMap.has(bundleName)) {
+        const page = pageBundleOf(targetDoc);
+        const cacheKey = page ? `${bundleName}|${page}` : bundleName;
+        if (cacheMap.has(cacheKey)) {
             log("getBundle:cache-hit", bundleName);
-            return /** @type {Promise<BundleFileNames>} */ (cacheMap.get(bundleName));
+            return /** @type {Promise<BundleFileNames>} */ (cacheMap.get(cacheKey));
         }
-        log("getBundle:fetch", bundleName);
+        log("getBundle:fetch", bundleName, "page=", page);
         const url = new URL(`/web/bundle/${bundleName}`, browser.location.origin);
         for (const [key, value] of Object.entries(session.bundle_params || {})) {
             url.searchParams.set(key, value);
+        }
+        if (page) {
+            url.searchParams.set("page", page);
         }
         const promise = (async () => {
             const response = await browser.fetch(url);
@@ -766,7 +787,7 @@ export const assets = {
             });
             return files;
         })().catch((reason) => {
-            evictIfCurrent(cacheMap, bundleName, () => promise);
+            evictIfCurrent(cacheMap, cacheKey, () => promise);
             log("getBundle:error", bundleName, reason);
             if (reason instanceof AssetsLoadingError) {
                 throw reason;
@@ -775,7 +796,7 @@ export const assets = {
                 cause: reason,
             });
         });
-        cacheMap.set(bundleName, promise);
+        cacheMap.set(cacheKey, promise);
         return promise;
     },
 
@@ -805,13 +826,17 @@ export const assets = {
             "crossDoc=",
             targetDoc !== document,
         );
-        const { cssLibs, jsLibs, esmSpecifiers, esmImportMap } =
-            await getBundle(bundleName);
+        const { cssLibs, jsLibs, esmUrl, esmSpecifiers, esmImportMap } =
+            await getBundle(bundleName, { targetDoc });
         const promises = [];
         if (css && cssLibs) {
             promises.push(...cssLibs.map((url) => assets.loadCSS(url, { targetDoc })));
         }
-        if (js && esmSpecifiers) {
+        if (js && esmUrl) {
+            promises.push(
+                assets.loadESMModule(esmUrl, { targetDoc, importMap: esmImportMap }),
+            );
+        } else if (js && esmSpecifiers) {
             promises.push(
                 assets.loadESMBundle(esmSpecifiers, {
                     targetDoc,
@@ -857,6 +882,60 @@ export const assets = {
         return here
             ? loadESMBundleHere(specifiers, importMap)
             : loadESMBundleInto(targetDoc, specifiers, importMap);
+    },
+
+    /**
+     * Load one compiled ESM bundle. The bundle registers its own modules with
+     * `odoo.loader` and resolves the page bundle's modules through loader
+     * stubs compiled into it, so the only import-map entries it may still
+     * need are the external libraries it names. Same document: a dynamic
+     * `import()`; another document: a `<script type="module" src>` there,
+     * because `import()` here would resolve against this document.
+     *
+     * @param {string} url
+     * @param {{ targetDoc?: Document, importMap?: Record<string, string> | null }} [options]
+     * @returns {Promise<void>}
+     */
+    async loadESMModule(url, { targetDoc = document, importMap = null } = {}) {
+        const here = targetDoc === document || targetDoc.defaultView === window;
+        const injected = getInjectedImportMapKeys(targetDoc);
+        seedInjectedImportMapKeys(targetDoc, injected);
+        if (importMap) {
+            const { fresh, conflicts } = injectFreshImportMapEntries(
+                targetDoc,
+                importMap,
+                injected,
+            );
+            log(
+                "loadESMModule:importMap",
+                url,
+                "fresh=",
+                fresh,
+                "conflict=",
+                conflicts.length,
+            );
+        }
+        if (here) {
+            const cacheMap = getAssetCache(document);
+            if (!cacheMap.has(url)) {
+                const promise = runInBundleTransaction(() =>
+                    import(absoluteTarget(url, document)).then(() => undefined),
+                ).catch((reason) => {
+                    evictIfCurrent(cacheMap, url, () => promise);
+                    throw new AssetsLoadingError(`The loading of ${url} failed`, {
+                        cause: reason,
+                    });
+                });
+                cacheMap.set(url, promise);
+            }
+            return /** @type {Promise<void>} */ (cacheMap.get(url));
+        }
+        return loadElement("loadJS", url, targetDoc, 0, (doc) => {
+            const scriptEl = doc.createElement("script");
+            scriptEl.setAttribute("src", url);
+            scriptEl.type = "module";
+            return scriptEl;
+        });
     },
 
     /**

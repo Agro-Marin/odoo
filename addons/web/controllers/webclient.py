@@ -123,6 +123,7 @@ class WebClient(http.Controller):
             )
 
         debug = bundle_params.get("debug", request.session.debug)
+        page = bundle_params.pop("page", None) or None
 
         use_esm = bundle_name in esm_registry().bundles
         log_event(
@@ -135,29 +136,36 @@ class WebClient(http.Controller):
             params=sorted(bundle_params),
         )
 
-        files = request.env["ir.qweb"]._get_asset_nodes(
-            bundle_name, debug=debug, js=True, css=True
-        )
+        IrQweb = request.env["ir.qweb"]
+        if use_esm:
+            nodes = IrQweb._links_to_nodes(
+                IrQweb._get_asset_links(bundle_name, debug=debug, js=True, css=True)
+            )
+        else:
+            nodes = IrQweb._get_asset_nodes(bundle_name, debug=debug, js=True, css=True)
         data = [
             {
                 "type": tag,
                 "src": attrs.get("src") or attrs.get("data-src") or attrs.get("href"),
             }
-            for tag, attrs in files
+            for tag, attrs in nodes
             if tag != "link" or attrs.get("rel") == "stylesheet"
         ]
 
         if use_esm:
-            payload = request.env["ir.qweb"]._get_esm_bundle_payload(
+            payload = IrQweb._get_esm_bundle_payload(
                 bundle_name,
                 debug_assets=bool(debug) and "assets" in debug,
+                page=page,
             )
             specifiers = payload["specifiers"]
             import_map = payload["import_map"]
             tpl_url = payload["template_url"]
+            esm_url = payload.get("esm_url")
 
             data = {
                 "is_esm": True,
+                "esm_url": esm_url,
                 "specifiers": specifiers,
                 "import_map": import_map,
                 "files": data,
@@ -170,6 +178,7 @@ class WebClient(http.Controller):
                 logging.INFO,
                 "served_esm",
                 bundle=bundle_name,
+                compiled=bool(esm_url),
                 specs=len(specifiers),
                 imports=len(import_map),
                 url=_n_real_url,

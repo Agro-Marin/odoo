@@ -14,13 +14,6 @@
     ],
     "assets": {
         "spreadsheet.o_spreadsheet": [
-            "web/static/src/views/graph/graph_model.js",
-            "web/static/src/views/pivot/pivot_group_tree.js",
-            "web/static/src/views/pivot/pivot_value_utils.js",
-            "web/static/src/views/pivot/pivot_measurements.js",
-            "web/static/src/views/pivot/pivot_table.js",
-            "web/static/src/views/pivot/pivot_export.js",
-            "web/static/src/views/pivot/pivot_model.js",
             "spreadsheet/static/src/o_spreadsheet/chartjs_setup.js",
             "spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js",
             "spreadsheet/static/src/**/*.js",

@@ -334,9 +334,12 @@ test("loadBundle: load same bundle in main document and an iframe", async () => 
         "add document SCRIPT - text/javascript - file2.js",
     ]);
 
+    // The descriptor depends on the page bundle the document rendered, and
+    // the iframe rendered none, so it is fetched once more for that page.
     const iframeLoad = loadBundle("test.bundle", { targetDoc: iframeDocument });
     await animationFrame();
     expect.verifySteps([
+        "fetch bundle: /web/bundle/test.bundle",
         "add iframe document LINK - text/css - file1.css",
         "add iframe document LINK - text/css - file2.css",
         "add iframe document SCRIPT - text/javascript - file1.js",
@@ -459,6 +462,54 @@ test("loadESMBundle: same-document imports specifiers and registers them on odoo
 
     expect(registered.length).toBe(1);
     expect(registered[0][spec].answer).toBe(42);
+});
+
+test("loadBundle: a compiled runtime bundle is one import(), not a specifier walk", async () => {
+    const registered = [];
+    patchWithCleanup(odoo.loader, {
+        registerNativeModules: (modules) => registered.push(modules),
+    });
+    const marker = `__esm_bundle_${Date.now()}`;
+    mockFetch((input) => {
+        const route = /** @type {URL} */ (input);
+        expect.step(`fetch bundle: ${route.pathname}`);
+        return {
+            is_esm: true,
+            esm_url: `data:text/javascript,globalThis.${marker} = (globalThis.${marker} || 0) + 1;`,
+            specifiers: ["@web/ignored"],
+            import_map: {},
+            files: [],
+            template_url: null,
+        };
+    });
+
+    await loadBundle("compiled.bundle");
+    await loadBundle("compiled.bundle");
+    expect.verifySteps(["fetch bundle: /web/bundle/compiled.bundle"]);
+    expect(globalThis[marker]).toBe(1);
+    expect(registered).toEqual([]);
+    delete globalThis[marker];
+});
+
+test("loadBundle: a compiled runtime bundle reaches another document as a module script", async () => {
+    const { iframe, targetDoc, captured } = makeCrossDocTarget(new Map());
+    mockFetch(() => ({
+        is_esm: true,
+        esm_url: "/web/assets/esm/abc/lazy.esm.js",
+        specifiers: [],
+        import_map: { luxon: "/web/static/lib/luxon/luxon.js" },
+        files: [],
+        template_url: null,
+    }));
+
+    startLoad(loadBundle("compiled.crossdoc", { targetDoc }));
+    await animationFrame();
+    const script = captured.find((n) => n.tagName === "SCRIPT" && n.type === "module");
+    expect(script).not.toBe(undefined);
+    expect(script.getAttribute("src")).toBe("/web/assets/esm/abc/lazy.esm.js");
+    const imports = getInjectedImports(captured);
+    expect(imports.luxon).toBe("/web/static/lib/luxon/luxon.js");
+    iframe.remove();
 });
 
 /**

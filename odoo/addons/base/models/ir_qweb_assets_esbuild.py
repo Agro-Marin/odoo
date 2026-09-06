@@ -6,9 +6,15 @@ from typing import Any
 from odoo import models, tools
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.modules import module as _module
-from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
+from odoo.tools.assets.esbuild import (
+    EsbuildCompiler,
+    EsbuildGroupResult,
+    EsbuildResult,
+    module_specifiers,
+)
 from odoo.tools.assets.esbuild_policy import EsbuildCircuit
 from odoo.tools.assets.esm_graph import get_escaping_relative_imports
+from odoo.tools.assets.esm_registry import external_libs
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle
 
@@ -293,3 +299,130 @@ class IrQweb(models.AbstractModel):
                 bundle, asset_bundle, dynamic_child_specs, secondary_stubs
             )
         return result, child_bundles
+
+    def _get_runtime_parent_specs(
+        self, parents: tuple[str, ...], assets_params: dict[str, Any] | None
+    ) -> frozenset[str]:
+        spec_sets = []
+        for parent in parents:
+            specs = set(
+                self._get_asset_bundle(
+                    parent,
+                    js=True,
+                    css=False,
+                    debug_assets=False,
+                    assets_params=assets_params,
+                ).get_native_module_data(with_bridges=False)["import_map"]
+            )
+            if specs:
+                spec_sets.append(specs)
+        if not spec_sets:
+            return frozenset()
+        return frozenset(set.intersection(*spec_sets))
+
+    def _get_runtime_child_own_modules(
+        self,
+        bundle: str,
+        asset_bundle: AssetsBundle,
+        parent_specs: frozenset[str],
+    ) -> tuple[list, set[str], set[str]]:
+        external_urls = set(external_libs().values())
+        own_modules = [
+            asset
+            for asset in asset_bundle.native_modules
+            if asset.module_path not in parent_specs and asset.url not in external_urls
+        ]
+        own_specs = {name for asset in own_modules for name in module_specifiers(asset)}
+        discovered, _ext = asset_bundle._bridges._discover_bridge_specifiers(
+            own_specs, set(external_libs()), modules=own_modules
+        )
+        reached = set(discovered) | {
+            resolved
+            for _module, _spec, resolved in get_escaping_relative_imports(
+                own_modules, own_specs
+            )
+        }
+        inlined = sorted(set(discovered) - parent_specs)
+        if inlined:
+            log_event(
+                _fallback_log,
+                logging.WARNING,
+                "runtime_child_inlines",
+                bundle=bundle,
+                count=len(inlined),
+                specs=",".join(inlined[:5]),
+            )
+        log_event(
+            _fallback_log,
+            logging.DEBUG,
+            "runtime_child",
+            bundle=bundle,
+            members=len(asset_bundle.native_modules),
+            own=len(own_modules),
+            stubbed_members=len(asset_bundle.native_modules) - len(own_modules),
+        )
+        return own_modules, own_specs, reached & parent_specs
+
+    def _compile_runtime_group(
+        self,
+        group: str,
+        parents: tuple[str, ...],
+        children: dict[str, AssetsBundle],
+        assets_params: dict[str, Any] | None,
+    ) -> EsbuildGroupResult:
+        empty = EsbuildGroupResult({}, None)
+        if not self._can_compile_with_esbuild(group):
+            return empty
+        with self._get_esbuild_lock_cursor(group) as lock_cr:
+            if lock_cr is None:
+                log_event(_fallback_log, logging.INFO, "lock_unavailable", bundle=group)
+                return empty
+            if not self._acquire_esbuild_lock(group, cr=lock_cr):
+                log_event(_fallback_log, logging.INFO, "lock_contention", bundle=group)
+                return empty
+            parent_specs = self._get_runtime_parent_specs(parents, assets_params)
+            entries: dict[str, list] = {}
+            stubbed: set[str] = set()
+            for name, child in children.items():
+                own_modules, _own_specs, child_stubs = (
+                    self._get_runtime_child_own_modules(name, child, parent_specs)
+                )
+                entries[name] = own_modules
+                stubbed |= child_stubs
+            reference = next(iter(children.values()))
+            stubs = reference._bridges.prepare_shim_sources(stubbed, strict=True)
+            compiler = EsbuildCompiler(
+                group,
+                [module for modules in entries.values() for module in modules],
+                addon_flags_provider=reference._get_esbuild_addon_flags,
+            )
+            config = self._get_esbuild_config()
+            try:
+                result = compiler.compile_group(
+                    entries,
+                    timeout_s=config.get_param_int(
+                        "web.esbuild.timeout_s", EsbuildCompiler._ESBUILD_TIMEOUT_S
+                    ),
+                    target=config.get_param("web.esbuild.target")
+                    or EsbuildCompiler._ESBUILD_TARGET,
+                    source_maps=config.get_param("web.esbuild.source_maps")
+                    or EsbuildCompiler._ESBUILD_SOURCE_MAPS,
+                    secondary_parent_stubs=stubs or None,
+                )
+            except Exception as exc:
+                log_event(
+                    _fallback_log,
+                    logging.WARNING,
+                    "esbuild_exception",
+                    bundle=group,
+                    err=type(exc).__name__,
+                    msg=str(exc)[:200],
+                )
+                if self._is_esbuild_fail_closed():
+                    raise EsbuildBundleError(
+                        f"esbuild failed for runtime group {group!r}: {exc}"
+                    ) from exc
+                self._open_esbuild_circuit(group, reason=type(exc).__name__)
+                return empty
+            self._close_esbuild_circuit(group)
+            return result

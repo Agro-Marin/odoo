@@ -1887,7 +1887,7 @@ assert_doc_cites "OBSERVABILITY cites how many bundles session.js is a MEMBER of
 assert_eq "the third session.js mention is still a remove directive" \
     "$(grep -B2 'web/static/src/session.js' "$WEB/__manifest__.py" | grep -c '"remove"')" "1"
 assert_eq "esbuild registers only declared members (the blind spot's mechanism)" \
-    "$(grep -c 'for i, asset in enumerate(self.native_modules):' \
+    "$(grep -c 'for i, asset in enumerate(modules):' \
         "$REPO/odoo/tools/assets/esbuild.py")" "1"
 
 # The stamper's lint-cleanliness rests on three behaviours the first --apply

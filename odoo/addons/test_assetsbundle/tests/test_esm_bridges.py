@@ -226,6 +226,22 @@ class TestBridgeShimSources(TransactionCase):
     def test_no_specifiers_means_no_work(self):
         self.assertEqual(self._manager().prepare_shim_sources(set()), {})
 
+    def test_a_strict_stub_throws_instead_of_waiting(self):
+        stub = self._manager().prepare_shim_sources(
+            {"@web/core/registry"}, strict=True
+        )["@web/core/registry"]
+        self.assertIn('odoo.loader.modules.get("@web/core/registry")', stub)
+        self.assertIn("throw new Error(", stub)
+        self.assertNotIn(
+            "addEventListener",
+            stub,
+            "a runtime child evaluates after its parent registered, so the "
+            "stub reads once and fails loudly instead of listening",
+        )
+        self.assertRegex(stub, r"const (_e\d+) = _m\.registry;")
+        self.assertRegex(stub, r"_e\d+ as registry\b")
+        self.assertIn("_d as default", stub)
+
     def test_discovery_reads_the_import_kind_not_just_the_specifier(self):
         modules = [
             _Mod("@a/one", 'import def from "@web/core/a";\n'),

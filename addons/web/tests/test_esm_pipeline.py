@@ -2595,6 +2595,134 @@ class TestDynamicBundleIntegrity(TransactionCase):
             f"bundle (use the bare '@addon/...' specifier instead): {escapes}",
         )
 
+    def _compiled_runtime_bundles(self):
+        IrQweb = self.env["ir.qweb"]
+        installed = self.env["ir.asset"]._get_addons_installed()
+        names = [
+            name
+            for name in self._dynamic_bundle_names()
+            if name.partition(".")[0] in installed
+            and IrQweb._is_runtime_child_compiled(name)
+            and IrQweb._get_asset_bundle(
+                name, js=True, css=False, debug_assets=True, assets_params=None
+            ).native_modules
+        ]
+        self.assertTrue(names, "no installed runtime bundle carries a module")
+        return names
+
+    def _metafile_inputs(self, url):
+        meta_url = url.removesuffix(".esm.js") + ".meta.json"
+        row = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search([("url", "=", meta_url), ("public", "=", True)], limit=1)
+        )
+        self.assertTrue(row, f"no metafile beside {url}")
+        return set(json.loads(row.raw.decode())["inputs"])
+
+    def test_a_runtime_bundle_is_served_as_one_compiled_url(self):
+        IrQweb = self.env["ir.qweb"]
+        for name in self._compiled_runtime_bundles():
+            payload = IrQweb._get_esm_bundle_payload(name, debug_assets=False)
+            url = payload.get("esm_url")
+            self.assertTrue(url, f"{name}: no compiled artifact in the payload")
+            self.assertTrue(url.startswith("/web/assets/esm/"), (name, url))
+            self.assertIsNone(
+                payload["template_url"],
+                f"{name}: templates ride inside the compiled bundle",
+            )
+            raw = {
+                value
+                for value in payload["import_map"].values()
+                if "/static/src/" in value
+            }
+            self.assertFalse(
+                raw,
+                f"{name}: a compiled child must not map any module to a raw "
+                f"source file: {sorted(raw)[:3]}",
+            )
+            self.assertTrue(
+                self.env["ir.attachment"]
+                .sudo()
+                .search_count([("url", "=", url), ("public", "=", True)]),
+                f"{name}: {url} is not persisted",
+            )
+
+    def test_a_runtime_bundle_resolves_every_parent_module_through_a_stub(self):
+        from odoo.tools.assets.esbuild import module_specifiers
+        from odoo.tools.assets.esm_graph import get_escaping_relative_imports
+
+        IrQweb = self.env["ir.qweb"]
+        registry = esm_registry()
+        installed = self.env["ir.asset"]._get_addons_installed()
+        problems = []
+        checked = 0
+        for name in self._compiled_runtime_bundles():
+            parents = [
+                parent
+                for parent, children in registry.dynamic_children.items()
+                if name in children and parent.partition(".")[0] in installed
+            ]
+            parent_specs = set.intersection(
+                *(
+                    set(
+                        IrQweb._get_asset_bundle(
+                            parent, js=True, css=False, debug_assets=True
+                        ).get_native_module_data(with_bridges=False)["import_map"]
+                    )
+                    for parent in parents
+                )
+            )
+            child = IrQweb._get_asset_bundle(
+                name, js=True, css=False, debug_assets=True
+            )
+            own = [a for a in child.native_modules if a.module_path not in parent_specs]
+            own_specs = {n for a in own for n in module_specifiers(a)}
+            discovered, _ext = child._bridges._discover_bridge_specifiers(
+                own_specs, set(external_libs()), modules=own
+            )
+            reachable = (
+                set(discovered)
+                | {
+                    resolved
+                    for _m, _s, resolved in get_escaping_relative_imports(
+                        own, own_specs
+                    )
+                }
+            ) & parent_specs
+            url = IrQweb._get_esm_bundle_payload(name, debug_assets=False)["esm_url"]
+            # The stub of a module several siblings share lives in a chunk of
+            # the group, so the whole directory is the artifact under test.
+            code = "\n".join(
+                att.raw.decode()
+                for att in self.env["ir.attachment"]
+                .sudo()
+                .search([("url", "=like", url.rpartition("/")[0] + "/%.js")])
+            )
+            for spec in sorted(reachable):
+                checked += 1
+                if f'odoo.loader.modules.get("{spec}")' not in code:
+                    problems.append(f"{name}: {spec} is not read from the loader")
+            problems.extend(
+                f"{name}: registers {asset.module_path}, which its parent owns"
+                for asset in child.native_modules
+                if asset.module_path in parent_specs
+                and f'"{asset.module_path}":' in code
+            )
+        self.assertGreater(checked, 0, "no child reached a parent module at all")
+        self.assertFalse(
+            problems,
+            "a module the page bundle already evaluated would be evaluated "
+            "again by the child (singleton split):\n  " + "\n  ".join(problems),
+        )
+
+    def test_the_debug_payload_still_serves_per_file(self):
+        IrQweb = self.env["ir.qweb"]
+        name = self._compiled_runtime_bundles()[0]
+        payload = IrQweb._get_esm_bundle_payload(name, debug_assets=True)
+        self.assertNotIn("esm_url", payload)
+        self.assertTrue(payload["specifiers"])
+
     def test_every_installed_dynamic_bundle_serves_a_payload(self):
         IrQweb = self.env["ir.qweb"]
         names = self._dynamic_bundle_names()
@@ -2869,6 +2997,37 @@ class TestBundleDescriptorFormat(HttpCase):
             self.assertTrue(payload.get("is_esm"), name)
             self.assertTrue(payload.get("specifiers"), name)
 
+    def test_a_runtime_bundle_envelope_names_its_compiled_url(self):
+        IrQweb = self.env["ir.qweb"]
+        installed = set(
+            self.env["ir.module.module"]
+            .search([("state", "=", "installed")])
+            .mapped("name")
+        )
+        checked = 0
+        for name in sorted(esm_registry().runtime_bundle_names):
+            if name.split(".", 1)[0] not in installed:
+                continue
+            if not IrQweb._is_runtime_child_compiled(name):
+                continue
+            payload = self._descriptor(name)
+            if not payload.get("specifiers"):
+                continue
+            members = IrQweb._get_asset_bundle(
+                name, js=True, css=False, debug_assets=True
+            ).native_modules
+            if all(asset.url in set(external_libs().values()) for asset in members):
+                # A bundle made only of declared external libraries has
+                # nothing to compile: its one file is the library URL.
+                continue
+            checked += 1
+            self.assertTrue(payload.get("esm_url"), name)
+            self.assertFalse(
+                [f for f in payload["files"] if f.get("src") is None],
+                f"{name}: the route lists a file with no URL",
+            )
+        self.assertGreater(checked, 0)
+
     def test_no_bundle_is_served_classic_while_naming_an_esm_chunk(self):
         installed = set(
             self.env["ir.module.module"]
@@ -2889,6 +3048,53 @@ class TestBundleDescriptorFormat(HttpCase):
         self.assertFalse(
             offenders,
             f"served in the classic envelope with no loadable script: {offenders}",
+        )
+
+
+@tagged("-at_install", "post_install", "web_assets")
+class TestRuntimeBundlesInTheBrowser(HttpCase):
+    PAGE_BUNDLE = "web.assets_web"
+
+    def test_loading_every_lazy_child_rebinds_nothing(self):
+        IrQweb = self.env["ir.qweb"]
+        installed = self.env["ir.asset"]._get_addons_installed()
+        children = [
+            name
+            for name in sorted(
+                esm_registry().dynamic_children.get(self.PAGE_BUNDLE, ())
+            )
+            if name.partition(".")[0] in installed
+            and IrQweb._is_runtime_child_compiled(name)
+            and IrQweb._get_asset_bundle(
+                name, js=True, css=False, debug_assets=True
+            ).native_modules
+        ]
+        self.assertTrue(children, "no compiled lazy child of the web client here")
+        self.browser_js(
+            "/odoo",
+            """
+            (async () => {
+                const rebinds = [];
+                odoo.loader.bus.addEventListener("rebind", (ev) =>
+                    rebinds.push(...ev.detail.specifiers)
+                );
+                const { loadBundle } = odoo.loader.modules.get("@web/core/assets");
+                const before = odoo.loader.modules.size;
+                for (const name of %s) {
+                    await loadBundle(name);
+                }
+                if (rebinds.length) {
+                    console.error("singleton split: " + rebinds.join(", "));
+                } else if (odoo.loader.modules.size === before) {
+                    console.error("no lazy child registered a module");
+                } else {
+                    console.log("test successful");
+                }
+            })();
+            """
+            % json.dumps(children),
+            "odoo.isReady === true",
+            login="admin",
         )
 
 

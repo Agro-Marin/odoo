@@ -135,16 +135,28 @@ class IrAttachment(models.Model):
             return self.browse(), bridges
         live_ids = set()
         seen_names = set()
+        live_dirs = set()
         for att in self.sudo().search_fetch(
             self._generated_asset_domain()
             & Domain("name", "in", list(set(artifacts.mapped("name")))),
-            ["name"],
+            ["name", "url"],
             order="write_date desc, id desc",
         ):
             if att.name not in seen_names:
                 seen_names.add(att.name)
                 live_ids.add(att.id)
-        return artifacts.filtered(lambda a: a.id not in live_ids), bridges
+                live_dirs.add(att.url.rpartition("/")[0])
+        # A chunk shared by the entries of one compiled group carries a hash
+        # name nothing else ever reuses, so it is judged by the directory
+        # that its entries keep alive, not by its own name.
+        return (
+            artifacts.filtered(
+                lambda a: (
+                    a.id not in live_ids and a.url.rpartition("/")[0] not in live_dirs
+                )
+            ),
+            bridges,
+        )
 
     @api.model
     def regenerate_assets_bundles(self) -> None:

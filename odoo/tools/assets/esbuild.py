@@ -26,23 +26,51 @@ EXTERNAL_LIB_ALIASES = {
 }
 
 
+def module_specifiers(asset) -> tuple[str, ...]:
+    names = [asset.module_path]
+    if (asset.url or "").endswith("/index.js"):
+        names.append(asset.module_path + "/index")
+    header = getattr(asset, "parsed_header", None)
+    if header and header["alias"]:
+        names.append(header["alias"])
+    return tuple(names)
+
+
 class EsbuildResult(NamedTuple):
     code: str
     metafile: str | None
     sourcemap: str | None
 
 
+class EsbuildGroupResult(NamedTuple):
+    files: dict[str, str]
+    metafile: str | None
+
+
 def _esbuild_argv(
     esbuild: str,
     *,
     target: str,
-    out_path: str,
+    out_path: str | None,
     metafile_path: str,
     external_specifier_flags: list[str],
     external_flags: list[str],
     sourcemap_flags: list[str],
     alias_flags: list[str],
+    extra_flags: list[str] = (),
+    entry_points: list[str] = (),
+    out_dir: str | None = None,
 ) -> list[str]:
+    output_flags = (
+        [f"--outfile={out_path}"]
+        if out_path
+        else [
+            f"--outdir={out_dir}",
+            "--splitting",
+            "--entry-names=[name].esm",
+            "--chunk-names=chunk-[hash].esm",
+        ]
+    )
     return [
         esbuild,
         "--bundle",
@@ -53,10 +81,12 @@ def _esbuild_argv(
         *external_flags,
         f"--target={target}",
         "--resolve-extensions=.js,.mjs,.json",
-        f"--outfile={out_path}",
+        *output_flags,
         f"--metafile={metafile_path}",
         *sourcemap_flags,
         *alias_flags,
+        *extra_flags,
+        *entry_points,
     ]
 
 
@@ -190,6 +220,8 @@ class EsbuildCompiler:
         )
         self._last_metafile: str | None = None
         self._last_sourcemap: str | None = None
+        self._mirror_roots: dict[str, Path] = {}
+        self._absolute_entry_paths = False
 
     _esbuild_addon_scan_cache: tuple | None = None
 
@@ -363,10 +395,6 @@ class EsbuildCompiler:
                 "Run 'npm install' in the Odoo root directory."
             )
 
-        entry_lines = self._esbuild_entry_lines(odoo_root)
-        entry_text = "\n".join(entry_lines)
-        entry_bytes = len(entry_text.encode("utf-8"))
-
         alias_flags, external_flags = self._esbuild_flags(
             odoo_root, dynamic_child_specs
         )
@@ -375,9 +403,14 @@ class EsbuildCompiler:
         out_path = str(Path(tmp_dir) / "bundle.out.js")
         metafile_path = str(Path(tmp_dir) / "bundle.meta.json")
 
+        self._mirror_roots = {}
         alias_flags = self._esbuild_stub_aliases(
             list(alias_flags), secondary_parent_stubs, tmp_dir, odoo_root
         )
+
+        entry_lines = self._esbuild_entry_lines(odoo_root)
+        entry_text = "\n".join(entry_lines)
+        entry_bytes = len(entry_text.encode("utf-8"))
 
         self._log_esbuild_invoke(
             entry_lines, entry_bytes, alias_flags, external_flags, tmp_dir
@@ -410,6 +443,132 @@ class EsbuildCompiler:
             return EsbuildResult(code, self._last_metafile, self._last_sourcemap)
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def compile_group(
+        self,
+        entries: dict[str, list],
+        *,
+        timeout_s: int | None = None,
+        target: str | None = None,
+        source_maps: str | None = None,
+        secondary_parent_stubs: dict[str, str] | None = None,
+    ) -> EsbuildGroupResult:
+        timeout_s, target, source_maps = self._esbuild_resolve_opts(
+            timeout_s, target, source_maps
+        )
+        if not any(entries.values()):
+            return EsbuildGroupResult({}, None)
+        _t0 = time.monotonic()
+        odoo_root = Path(odoo.__path__[0]).parent
+        esbuild = _get_esbuild_path()
+        if not esbuild:
+            raise FileNotFoundError(
+                "esbuild is required for native ESM bundling. "
+                "Run 'npm install' in the Odoo root directory."
+            )
+        alias_flags, external_flags = self._esbuild_flags(odoo_root, None)
+        tmp_dir = tempfile.mkdtemp(prefix=f"odoo-esbuild-{self.name}-")
+        try:
+            out_dir = Path(tmp_dir) / "out"
+            entry_dir = Path(tmp_dir) / "entries"
+            entry_dir.mkdir()
+            metafile_path = str(Path(tmp_dir) / "group.meta.json")
+            self._mirror_roots = {}
+            self._absolute_entry_paths = True
+            alias_flags = self._esbuild_mirror_aliases(
+                list(alias_flags), secondary_parent_stubs or {}, tmp_dir, odoo_root
+            )
+            entry_points = []
+            entry_bytes = 0
+            for name, modules in entries.items():
+                if not modules:
+                    continue
+                text = "\n".join(self._esbuild_entry_lines(odoo_root, modules))
+                entry_file = entry_dir / f"{name}.js"
+                entry_file.write_text(text, encoding="utf-8")
+                entry_points.append(str(entry_file))
+                entry_bytes += len(text.encode("utf-8"))
+            external_specifier_flags, alias_flags = self._esbuild_external_flags(
+                odoo_root, alias_flags
+            )
+            argv = _esbuild_argv(
+                esbuild,
+                target=target,
+                out_path=None,
+                metafile_path=metafile_path,
+                external_specifier_flags=external_specifier_flags,
+                external_flags=external_flags,
+                sourcemap_flags=([f"--sourcemap={source_maps}"] if source_maps else []),
+                alias_flags=alias_flags,
+                extra_flags=["--preserve-symlinks"],
+                entry_points=entry_points,
+                out_dir=str(out_dir),
+            )
+            self._log_esbuild_invoke(
+                entry_points, entry_bytes, alias_flags, external_flags, tmp_dir
+            )
+            self._run_esbuild(argv, timeout_s, "", _t0)
+            files = {
+                path.name: path.read_text(encoding="utf-8")
+                for path in sorted(out_dir.iterdir())
+                if path.is_file()
+            }
+            try:
+                metafile = Path(metafile_path).read_text(encoding="utf-8")
+            except OSError:
+                metafile = None
+            log_event(
+                _esbuild_log,
+                logging.INFO,
+                "bundled_group",
+                bundle=self.name,
+                entries=len(entry_points),
+                modules=sum(len(m) for m in entries.values()),
+                files=len(files),
+                output_bytes=sum(len(code) for code in files.values()),
+                elapsed=f"{time.monotonic() - _t0:.3f}",
+            )
+            return EsbuildGroupResult(files, metafile)
+        finally:
+            self._absolute_entry_paths = False
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def _esbuild_mirror_aliases(
+        self,
+        alias_flags: list[str],
+        stubs: dict[str, str],
+        tmp_dir: str,
+        odoo_root: Path,
+    ) -> list[str]:
+        addons = {
+            (asset.url or "").lstrip("/").partition("/static/src/")[0]
+            for asset in self.native_modules
+            if "/static/src/" in (asset.url or "")
+        }
+        addons |= {spec.lstrip("@").partition("/")[0] for spec in stubs}
+        if not addons:
+            return alias_flags
+        stub_root = Path(tmp_dir) / "mirror"
+        addon_roots, occupied, must_be_real = self._stub_layout(
+            stubs, alias_flags, odoo_root
+        )
+        self._write_stubs(stub_root, stubs, addon_roots, occupied, must_be_real)
+        mirrored: dict[str, Path] = {}
+        for addon in sorted(addons):
+            real_dir = addon_roots.get(f"@{addon}")
+            if real_dir is None or not real_dir.is_dir():
+                continue
+            mirror = stub_root / addon
+            self._mirror_dir(mirror, real_dir, addon, occupied, must_be_real)
+            mirrored[addon] = mirror
+        self._mirror_roots = mirrored
+        kept = [
+            flag
+            for flag in alias_flags
+            if flag.removeprefix("--alias:").partition("=")[0].lstrip("@")
+            not in mirrored
+        ]
+        return kept + [f"--alias:@{addon}={path}" for addon, path in mirrored.items()]
 
     def _esbuild_stub_aliases(
         self,
@@ -493,7 +652,23 @@ class EsbuildCompiler:
             "@odoo/owl" in (asset.raw_content or "") for asset in self.native_modules
         )
 
-    def _esbuild_entry_lines(self, odoo_root: Path) -> list[str]:
+    def _entry_path(self, asset, odoo_root: Path) -> str:
+        url = asset.url or ""
+        addon, _, rest = url.lstrip("/").partition("/static/src/")
+        mirror = self._mirror_roots.get(addon) if rest else None
+        if mirror is not None:
+            return str(mirror / rest)
+        if self._absolute_entry_paths:
+            return str(
+                Path(asset._filename) if asset._filename else odoo_root / f"addons{url}"
+            )
+        if asset._filename:
+            return "./" + os.path.relpath(asset._filename, odoo_root)
+        return f"./addons{url}"
+
+    def _esbuild_entry_lines(
+        self, odoo_root: Path, modules: list | None = None
+    ) -> list[str]:
         entry_lines = []
         register_entries = []
         registered_specs: set[str] = set()
@@ -502,17 +677,15 @@ class EsbuildCompiler:
             entry_lines.append('import * as __owl from "@odoo/owl";')
             register_entries.append('  "@odoo/owl": __owl')
         _skip_legacy_test_imports = self._skip_legacy_test_imports
-        for i, asset in enumerate(self.native_modules):
-            spec = asset.module_path
+        modules = self.native_modules if modules is None else modules
+        for i, asset in enumerate(modules):
             if _skip_legacy_test_imports and "/static/tests/" in (asset.url or ""):
                 continue
-            if asset._filename:
-                path = os.path.relpath(asset._filename, odoo_root)
-            else:
-                path = f"addons{asset.url}"
-            entry_lines.append(f"import * as __m{i} from {json.dumps('./' + path)};")
-            register_entries.append(f"  {json.dumps(spec)}: __m{i}")
-            registered_specs.add(spec)
+            path = self._entry_path(asset, odoo_root)
+            entry_lines.append(f"import * as __m{i} from {json.dumps(path)};")
+            for name in module_specifiers(asset):
+                register_entries.append(f"  {json.dumps(name)}: __m{i}")
+                registered_specs.add(name)
 
         if self._standalone:
             entry_lines.append("if (globalThis.odoo?.loader?.registerNativeModules) {")
@@ -575,6 +748,20 @@ class EsbuildCompiler:
         alias_flags: list[str],
         odoo_root: Path,
     ) -> list[str]:
+        addon_roots, occupied, must_be_real = cls._stub_layout(
+            stubs, alias_flags, odoo_root
+        )
+        return [
+            f"--alias:{spec}={stub_path}"
+            for spec, stub_path in cls._write_stubs(
+                stub_root, stubs, addon_roots, occupied, must_be_real
+            )
+        ]
+
+    @staticmethod
+    def _stub_layout(
+        stubs: dict[str, str], alias_flags: list[str], odoo_root: Path
+    ) -> tuple[dict[str, Path], dict[str, set[str]], set[str]]:
         addon_roots = {}
         for flag in alias_flags:
             spec, _, target = flag.removeprefix("--alias:").partition("=")
@@ -589,8 +776,18 @@ class EsbuildCompiler:
             while parent_rel:
                 must_be_real.add(parent_rel)
                 parent_rel = parent_rel.rpartition("/")[0]
+        return addon_roots, occupied, must_be_real
 
-        flags = []
+    @classmethod
+    def _write_stubs(
+        cls,
+        stub_root: Path,
+        stubs: dict[str, str],
+        addon_roots: dict[str, Path],
+        occupied: dict[str, set[str]],
+        must_be_real: set[str],
+    ) -> list[tuple[str, Path]]:
+        written = []
         for spec in sorted(stubs):
             rel = spec.lstrip("@")
             stub_path = stub_root / rel
@@ -604,8 +801,8 @@ class EsbuildCompiler:
             shim_path = stub_root / f"{rel}.js"
             cls._check_inside_mirror(shim_path, stub_root)
             shim_path.write_text(stubs[spec], encoding="utf-8")
-            flags.append(f"--alias:{spec}={stub_path}")
-        return flags
+            written.append((spec, stub_path))
+        return written
 
     @classmethod
     def _mirror_dir(
@@ -622,12 +819,11 @@ class EsbuildCompiler:
             if entry.name in taken:
                 continue
             entry_rel = f"{rel}/{entry.name}"
+            target = mirror / entry.name
             if entry_rel in must_be_real and entry.is_dir():
-                cls._mirror_dir(
-                    mirror / entry.name, entry, entry_rel, occupied, must_be_real
-                )
-            else:
-                (mirror / entry.name).symlink_to(entry)
+                cls._mirror_dir(target, entry, entry_rel, occupied, must_be_real)
+            elif not target.is_symlink() and not target.exists():
+                target.symlink_to(entry)
 
     @staticmethod
     def _check_inside_mirror(path: Path, stub_root: Path) -> None:
