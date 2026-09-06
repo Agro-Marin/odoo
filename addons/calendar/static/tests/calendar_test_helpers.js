@@ -7,14 +7,13 @@ import { CalendarFilters } from "./mock_server/mock_models/calendar_filters.js";
 import { MailActivity } from "./mock_server/mock_models/mail_activity.js";
 import { ResUsers } from "./mock_server/mock_models/res_users.js";
 
-export const calendarModels = {
-    CalendarAttendee,
-    CalendarEvent,
-    CalendarFilters,
-    ResUsers,
-    MailActivity,
-};
-
 export function defineCalendarModels() {
-    return defineModels({ ...mailModels, ...calendarModels });
+    return defineModels({
+        ...mailModels,
+        CalendarAttendee,
+        CalendarEvent,
+        CalendarFilters,
+        ResUsers,
+        MailActivity,
+    });
 }

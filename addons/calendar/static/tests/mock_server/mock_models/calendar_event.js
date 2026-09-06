@@ -7,10 +7,6 @@ export class CalendarEvent extends models.ServerModel {
     partner_id = fields.Generic({ default: serverState.partnerId });
     partner_ids = fields.Generic({ default: [[6, 0, [serverState.partnerId]]] });
 
-    has_access() {
-        return true;
-    }
-
     get_default_duration() {
         return 1;
     }
