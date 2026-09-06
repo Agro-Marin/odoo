@@ -64,7 +64,15 @@ class RatingRating(models.Model):
         related="parent_res_model_id.model",
         index=True,
     )
-    parent_res_id = fields.Integer("Parent Document", index=True)
+    # A reference, not a bare id, for the same reason `res_id` above is one:
+    # the pair (`parent_res_model`, `parent_res_id`) is what names the parent,
+    # and only a `Many2oneReference` tells the ORM so. Spelled as an `Integer`
+    # it was a number that happened to be an id -- the o2m over it
+    # (`mixin.rating.parent.rating_child_ids`) got no inverse registered, and
+    # neither record merges nor cache invalidation could follow it.
+    parent_res_id = fields.Many2oneReference(
+        "Parent Document", model_field="parent_res_model", index=True
+    )
     parent_ref = fields.Reference(
         string="Parent Ref",
         selection="_selection_target_model",
