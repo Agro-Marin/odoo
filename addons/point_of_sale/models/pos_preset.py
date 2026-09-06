@@ -58,6 +58,16 @@ class PosPreset(models.Model):
                         _("The start time must be before the end time.")
                     )
 
+    @api.constrains("use_timing", "interval_time", "slots_per_interval")
+    def _check_slot_capacity(self):
+        for preset in self:
+            if preset.use_timing and (
+                preset.interval_time <= 0 or preset.slots_per_interval <= 0
+            ):
+                raise ValidationError(
+                    _("Timed presets require a positive interval and capacity.")
+                )
+
     @api.model
     def _load_pos_data_domain(self, data, config):
         preset_ids = config.available_preset_ids.ids + [config.default_preset_id.id]
@@ -120,14 +130,15 @@ class PosPreset(models.Model):
         }
 
     def _compute_slots_usage(self):
+        self.check_singleton()
         usage = defaultdict(list)
+        now = fields.Datetime.now()
         orders = self.env["pos.order"].search(
             [
                 ("preset_id", "=", self.id),
-                ("session_id.state", "=", "opened"),
-                ("preset_time", "!=", False),
-                ("state", "in", ["draft", "paid"]),
-                ("create_date", ">=", fields.Datetime.now() - timedelta(days=1)),
+                ("preset_time", ">=", now - timedelta(days=1)),
+                ("preset_time", "<", now + timedelta(days=8)),
+                ("state", "in", ["draft", "paid", "done"]),
             ]
         )
         for order in orders:
@@ -156,7 +167,7 @@ class PosPreset(models.Model):
             "domain": [
                 "|",
                 ("default_preset_id", "=", self.id),
-                ("available_preset_ids", "in", self.id),
+                ("available_preset_ids", "in", self.ids),
             ],
         }
 

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { getQueueSequence } from "@point_of_sale/app/utils/offline_queue";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { _t } from "@web/core/translation";
 import { AlertDialog } from "@web/ui/dialog";
@@ -245,13 +246,20 @@ export default class IndexedDB {
                                 fail(firstError);
                             }
                         };
-                    } catch {
+                    } catch (error) {
+                        firstError ??= error;
                         logPosMessage(
                             "IndexedDB",
                             method,
                             `Error processing ${method} for ${storeName}: Invalid data format`,
                             CONSOLE_COLOR,
                         );
+                        try {
+                            transaction.abort();
+                        } catch {
+                            fail(firstError);
+                        }
+                        break;
                     }
                 }
             });
@@ -419,6 +427,68 @@ export default class IndexedDB {
                 clearTimeout(timeout);
                 resolve(false);
             };
+        });
+    }
+
+    createOrdered(storeName, data) {
+        const row = JSON.parse(JSON.stringify(data));
+        const transaction = this.getNewTransaction([storeName], "readwrite");
+        if (!transaction) {
+            return Promise.reject(new Error("Offline queue storage is unavailable"));
+        }
+        return new Promise((resolve, reject) => {
+            let failure;
+            let timeout;
+            const finish = () => {
+                clearTimeout(timeout);
+                this.activeTransactions.delete(transaction);
+            };
+            const fail = (error) => {
+                finish();
+                reject(error || new Error("Offline queue write failed"));
+            };
+            const abort = (error) => {
+                failure = error;
+                try {
+                    transaction.abort();
+                } catch {
+                    // A completed transaction can no longer be aborted.
+                }
+                fail(error);
+            };
+            timeout = setTimeout(
+                () => abort(new Error("Offline queue transaction timeout")),
+                TRANSACTION_TIMEOUT,
+            );
+            transaction.oncomplete = () => {
+                finish();
+                resolve(row);
+            };
+            transaction.onabort = transaction.onerror = () => {
+                fail(failure || transaction.error);
+            };
+            try {
+                const store = transaction.objectStore(storeName);
+                const request = store.getAll();
+                request.onsuccess = () => {
+                    try {
+                        const rows = request.result;
+                        const existing = rows.find((entry) => entry.uuid === row.uuid);
+                        row.sequence = existing
+                            ? getQueueSequence(existing)
+                            : rows.reduce(
+                                  (sequence, entry) =>
+                                      Math.max(sequence, getQueueSequence(entry)),
+                                  Date.now() * 1000,
+                              ) + 1;
+                        store.put(row);
+                    } catch (error) {
+                        abort(error);
+                    }
+                };
+            } catch (error) {
+                abort(error);
+            }
         });
     }
 

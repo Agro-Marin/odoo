@@ -6,7 +6,6 @@ from odoo.tools import float_is_zero, formatLang
 
 
 class PosPayment(models.Model):
-
     _name = "pos.payment"
     _description = "Point of Sale Payments"
     _order = "id desc"
@@ -89,7 +88,7 @@ class PosPayment(models.Model):
     def _load_pos_data_domain(self, data, config):
         return [("pos_order_id", "in", [order["id"] for order in data["pos.order"]])]
 
-    @api.depends("amount", "currency_id")
+    @api.depends("name", "amount", "currency_id")
     def _compute_display_name(self):
         for payment in self:
             if payment.name:
@@ -99,18 +98,37 @@ class PosPayment(models.Model):
                     self.env, payment.amount, currency_obj=payment.currency_id
                 )
 
-    @api.constrains("amount")
-    def _check_amount(self):
+    @api.constrains(
+        "amount", "pos_order_id", "payment_method_id", "payment_date", "is_change"
+    )
+    def _check_order_is_editable(self):
         for payment in self:
             if (
                 payment.pos_order_id.state == "done"
                 or payment.pos_order_id.account_move
+                or payment.account_move_id.state == "posted"
             ):
                 raise ValidationError(
                     _("You cannot edit a payment for a posted order.")
                 )
 
-    @api.constrains("payment_method_id")
+    def write(self, vals):
+        if {
+            "amount",
+            "pos_order_id",
+            "payment_method_id",
+            "payment_date",
+            "is_change",
+            "uuid",
+        }.intersection(vals):
+            self._check_order_is_editable()
+        return super().write(vals)
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_posted_order(self):
+        self._check_order_is_editable()
+
+    @api.constrains("payment_method_id", "pos_order_id")
     def _check_payment_method_id(self):
         for payment in self:
             if (

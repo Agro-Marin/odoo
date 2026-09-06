@@ -94,7 +94,7 @@ export default class OrderPaymentValidation {
             try {
                 this.pos.env.services.ui.block();
                 const response = await this.finalizeValidation();
-                if (response instanceof RPCError) {
+                if (response instanceof RPCError || response === false) {
                     return false;
                 }
             } finally {
@@ -103,6 +103,7 @@ export default class OrderPaymentValidation {
         }
 
         this.pos.navigate(nextPage.page, nextPage.params);
+        return true;
     }
 
     async validateOrder(isForceValidate) {
@@ -146,8 +147,7 @@ export default class OrderPaymentValidation {
                 this.order.removePaymentline(line);
             }
 
-            await this.shouldHideValidationBehindFeedbackScreen();
-            return true;
+            return await this.shouldHideValidationBehindFeedbackScreen();
         }
 
         rollbackFastPayment();

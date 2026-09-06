@@ -6,6 +6,10 @@ patch(PosData.prototype, {
         this.indexedDB = {
             delete: async () => ({}),
             create: async () => ({}),
+            createOrdered: async (_store, row) => ({
+                ...row,
+                sequence: row.sequence ?? Date.now() * 1000,
+            }),
             reset: async () => ({}),
             readAll: async () => ({}),
         };

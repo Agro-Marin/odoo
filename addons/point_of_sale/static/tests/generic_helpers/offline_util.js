@@ -10,13 +10,13 @@ const originalConsoleError = console.error;
 export function setOfflineMode() {
     return run(() => {
         window.posmodel.data.network.offline = true;
-        const throwOffline = () => {
+        const rejectOffline = async () => {
             throw new ConnectionLostError();
         };
-        browser.fetch = throwOffline;
-        window.fetch = throwOffline;
-        XMLHttpRequest.prototype.send = () => {
-            throw new ConnectionLostError();
+        browser.fetch = rejectOffline;
+        window.fetch = rejectOffline;
+        XMLHttpRequest.prototype.send = function () {
+            queueMicrotask(() => this.dispatchEvent(new ProgressEvent("error")));
         };
         console.error = (...args) => {
             const message = args[0] instanceof Error ? args[0].message : args[0];

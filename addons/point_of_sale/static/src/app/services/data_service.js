@@ -14,10 +14,11 @@ import { debounce } from "@web/core/utils/timing";
 import { DataServiceOptions } from "../models/data_service_options.js";
 import IndexedDB from "../models/utils/indexed_db.js";
 import DeviceIdentifierSequence from "../utils/devices_identifier_sequence.js";
+import { compareQueueEntries, UNSYNC_QUEUE_STORE } from "../utils/offline_queue.js";
+import { OptimisticUpdates } from "../utils/optimistic_updates.js";
 import { logPosMessage } from "../utils/pretty_console_log.js";
 const { DateTime } = luxon;
 const CONSOLE_COLOR = "#28ffeb";
-const UNSYNC_QUEUE_STORE = "pos.unsync.queue";
 const MAX_SYNC_ATTEMPTS = 5;
 
 export class PosData extends SignalStore {
@@ -37,6 +38,7 @@ export class PosData extends SignalStore {
         this.custom = {};
         this.mutex = markRaw(new Mutex());
         this.indexedDBMutex = markRaw(new Mutex());
+        this.optimisticUpdates = markRaw(new Map());
         this.records = {};
         this.opts = new DataServiceOptions();
         this.channels = [];
@@ -288,7 +290,10 @@ export class PosData extends SignalStore {
 
     async getCachedServerDataFromIndexedDB() {
         const data = await this.indexedDB.readAll();
-        const modelToIgnore = new Set(Object.keys(this.opts.databaseTable));
+        const modelToIgnore = new Set([
+            ...Object.keys(this.opts.databaseTable),
+            UNSYNC_QUEUE_STORE,
+        ]);
         const results = {};
 
         for (const name in data) {
@@ -547,7 +552,12 @@ export class PosData extends SignalStore {
         fields = [],
         options = [],
         uuid = "",
+        optimistic = false,
     }) {
+        const queuedArgs =
+            queue && method !== "sync_from_ui"
+                ? JSON.parse(JSON.stringify(arguments[0]))
+                : undefined;
         this._inFlight = (this._inFlight ?? 0) + 1;
         this.network.loading = true;
 
@@ -557,17 +567,8 @@ export class PosData extends SignalStore {
             }
 
             let result = true;
-            let limitedFields = false;
             if (fields.length === 0) {
                 fields = this.fields[model] || [];
-            }
-
-            const modelFields = this.fields[model];
-            if (
-                modelFields &&
-                [...fields].sort().join(",") !== [...modelFields].sort().join(",")
-            ) {
-                limitedFields = true;
             }
 
             switch (type) {
@@ -597,92 +598,45 @@ export class PosData extends SignalStore {
 
             if (type === "create") {
                 const response = await this.orm.create(model, values);
-                values[0].id = response[0];
-                result = values;
+                result = values.map((value, index) => ({
+                    ...value,
+                    id: response[index],
+                }));
             }
 
-            const nonExistentRecords = [];
-            if (limitedFields) {
-                const X2MANY_TYPES = new Set(["many2many", "one2many"]);
-
-                for (const record of result) {
-                    const localRecord = this.models[model].get(record.id);
-
-                    if (localRecord) {
-                        const formattedForUpdate = {};
-                        for (const [field, value] of Object.entries(record)) {
-                            const fieldsParams = this.relations[model][field];
-
-                            if (!fieldsParams) {
-                                logPosMessage(
-                                    "DataService",
-                                    "execute",
-                                    "Warning, attempt to load a non-existent field.",
-                                    CONSOLE_COLOR,
-                                );
-                                continue;
-                            }
-
-                            if (X2MANY_TYPES.has(fieldsParams.type)) {
-                                formattedForUpdate[field] = value
-                                    .filter((id) =>
-                                        this.models[fieldsParams.relation].get(id),
-                                    )
-                                    .map((id) => [
-                                        "link",
-                                        this.models[fieldsParams.relation].get(id),
-                                    ]);
-                            } else if (fieldsParams.type === "many2one") {
-                                if (this.models[fieldsParams.relation].get(value)) {
-                                    formattedForUpdate[field] = [
-                                        "link",
-                                        this.models[fieldsParams.relation].get(value),
-                                    ];
-                                }
-                            } else {
-                                formattedForUpdate[field] = value;
-                            }
-                        }
-
-                        localRecord.update(formattedForUpdate, {
-                            omitUnknownField: true,
-                        });
-                        this.synchronizeServerDataInIndexedDB({
-                            [model]: [localRecord.raw],
-                        });
-                    } else {
-                        nonExistentRecords.push(record);
+            if (this.models[model] && this.opts.autoLoadedOrmMethods.includes(type)) {
+                const modelFields = this.fields[model] || [];
+                const limitedFields = modelFields.some(
+                    (field) => !fields.includes(field),
+                );
+                if (limitedFields && type !== "create") {
+                    const missingIds = result
+                        .filter((row) => !this.models[model].get(row.id))
+                        .map((row) => row.id);
+                    if (missingIds.length) {
+                        const complete = await this.orm.read(
+                            model,
+                            missingIds,
+                            modelFields,
+                            { load: false },
+                        );
+                        const byId = new Map(complete.map((row) => [row.id, row]));
+                        result = result.map((row) => byId.get(row.id) || row);
                     }
                 }
-
-                if (nonExistentRecords.length) {
-                    logPosMessage(
-                        "DataService",
-                        "execute",
-                        "Warning, attempt to load a non-existent record with limited fields.",
-                        CONSOLE_COLOR,
-                    );
-                    result = nonExistentRecords;
+                result = await this.loadServerRecords(model, result);
+            } else if (type === "write" && this.models[model]) {
+                const records = ids
+                    .map((id) => this.models[model].get(id))
+                    .filter(Boolean);
+                if (!optimistic) {
+                    for (const record of records) {
+                        record.update(values, { omitUnknownField: true });
+                    }
                 }
-            }
-
-            if (
-                this.models[model] &&
-                this.opts.autoLoadedOrmMethods.includes(type) &&
-                (!limitedFields || nonExistentRecords.length)
-            ) {
-                const data = await this.missingRecursive({ [model]: result });
-                this.synchronizeServerDataInIndexedDB(data);
-                const results = this.models.connectNewData(data);
-                result = results[model];
-            } else if (type === "write") {
-                const localRecord = this.models[model].get(ids[0]);
-                if (localRecord) {
-                    localRecord.update(values, { omitUnknownField: true });
-                    this.synchronizeServerDataInIndexedDB({
-                        [model]: [localRecord.raw],
-                    });
-                }
+                this.synchronizeServerDataInIndexedDB({
+                    [model]: records.map((record) => record.raw),
+                });
             }
 
             if (result === null || result === undefined) {
@@ -699,13 +653,16 @@ export class PosData extends SignalStore {
                 error instanceof ConnectionLostError
             ) {
                 const entry = {
-                    args: [...arguments],
-                    date: DateTime.now(),
+                    args: [queuedArgs],
+                    appliedLocally: optimistic,
+                    date: DateTime.now().toISO(),
                     try: 1,
                     uuid: uuidv4(),
                 };
-                this.network.unsyncData.push(entry);
-                this._persistQueueEntry(entry);
+                await this.mutex.exec(async () => {
+                    await this._persistQueueEntry(entry);
+                    this.network.unsyncData.push(entry);
+                });
 
                 throwErr = false;
             }
@@ -717,6 +674,25 @@ export class PosData extends SignalStore {
             this._inFlight -= 1;
             this.network.loading = this._inFlight > 0;
         }
+    }
+
+    async loadServerRecords(model, rows) {
+        const key = this.opts.databaseTable[model]?.key || "id";
+        const identified = rows.map((row) => {
+            const local = this.models[model].get(row.id);
+            return local && !row[key] ? { ...row, [key]: local[key] } : row;
+        });
+        const data = await this.missingRecursive({ [model]: identified });
+        const results = this.models.connectNewData(data);
+        this.synchronizeServerDataInIndexedDB(
+            Object.fromEntries(
+                Object.entries(results).map(([name, records]) => [
+                    name,
+                    records.map((record) => record.raw),
+                ]),
+            ),
+        );
+        return results[model];
     }
 
     async missingRecursive(recordMap, idsMap = {}, acc = {}) {
@@ -837,17 +813,15 @@ export class PosData extends SignalStore {
         }
     }
 
-    _persistQueueEntry(entry) {
-        this.indexedDB
-            ?.create(UNSYNC_QUEUE_STORE, [
-                {
-                    uuid: entry.uuid,
-                    date: entry.date?.toISO?.() ?? String(entry.date ?? ""),
-                    try: entry.try ?? 1,
-                    args: entry.args,
-                },
-            ])
-            ?.catch?.(() => {});
+    async _persistQueueEntry(entry) {
+        const saved = await this.indexedDB.createOrdered(UNSYNC_QUEUE_STORE, {
+            uuid: entry.uuid,
+            sequence: entry.sequence,
+            date: entry.date?.toISO?.() ?? String(entry.date ?? ""),
+            try: entry.try ?? 1,
+            args: entry.args,
+        });
+        entry.sequence = saved.sequence;
     }
 
     _unpersistQueueEntry(uuid) {
@@ -865,9 +839,11 @@ export class PosData extends SignalStore {
                         date: row.date,
                         try: row.try ?? 1,
                         uuid: row.uuid,
+                        sequence: row.sequence,
                     });
                 }
             }
+            this.network.unsyncData.sort(compareQueueEntries);
         } catch {
             logPosMessage(
                 "DataService",
@@ -898,7 +874,11 @@ export class PosData extends SignalStore {
             while (this.network.unsyncData.length > 0) {
                 const data = this.network.unsyncData[0];
                 try {
-                    await this.execute({ ...data.args[0], uuid: data.uuid });
+                    await this.execute({
+                        ...data.args[0],
+                        uuid: data.uuid,
+                        optimistic: data.appliedLocally === true,
+                    });
                     this.network.unsyncData.shift();
                     this._unpersistQueueEntry(data.uuid);
                     const params = data.args[0];
@@ -916,7 +896,7 @@ export class PosData extends SignalStore {
                     if (!(error instanceof RPCError)) {
                         data.try = (data.try ?? 1) + 1;
                         if (data.try <= MAX_SYNC_ATTEMPTS) {
-                            this._persistQueueEntry(data);
+                            await this._persistQueueEntry(data);
                             throw error;
                         }
                         logPosMessage(
@@ -982,63 +962,47 @@ export class PosData extends SignalStore {
     }
 
     async write(model, ids, vals) {
-        const records = [];
-
-        for (const id of ids) {
-            const record = this.models[model].get(id);
-            if (!record) {
-                continue;
-            }
-            delete vals.id;
-
-            const keysToUpdate = Object.keys(vals);
-            const previous = {};
-            for (const key of keysToUpdate) {
-                const value = record[key];
-                previous[key] = Array.isArray(value) ? [...value] : value;
-            }
-            record.update(vals, { omitUnknownField: true });
-
-            const dataToUpdate = {};
-            for (const key of keysToUpdate) {
-                dataToUpdate[key] = vals[key];
-            }
-
-            records.push(record);
-            if (typeof id === "number") {
-                try {
-                    await this.ormWrite(model, [record.id], dataToUpdate);
-                } catch (error) {
-                    record.update(previous, { omitUnknownField: true });
-                    throw error;
-                }
-            }
+        const values = { ...vals };
+        delete values.id;
+        const records = [...new Set(ids)]
+            .map((id) => this.models[model].get(id))
+            .filter(Boolean);
+        if (!this.optimisticUpdates.has(model)) {
+            this.optimisticUpdates.set(
+                model,
+                new OptimisticUpdates(this.models[model]),
+            );
         }
-
+        const update = this.optimisticUpdates.get(model).apply(records, values);
+        const serverIds = records
+            .filter((record) => typeof record.id === "number")
+            .map((record) => record.id);
+        try {
+            if (serverIds.length) {
+                await this.ormWrite(model, serverIds, values, true, true);
+            }
+        } catch (error) {
+            update.rollback();
+            throw error;
+        }
+        update.commit();
         return records;
     }
 
-    delete(model, ids) {
-        const deleted = [];
-        for (const id of ids) {
-            const record = this.models[model].get(id);
-            if (!record) {
-                continue;
-            }
-            deleted.push(id);
+    async delete(model, ids) {
+        const records = [...new Set(ids)]
+            .map((id) => this.models[model].get(id))
+            .filter(Boolean);
+        const serverIds = records
+            .filter((record) => typeof record.id === "number")
+            .map((record) => record.id);
+        if (serverIds.length) {
+            await this.ormDelete(model, serverIds);
+        }
+        for (const record of records) {
             record.delete();
         }
-
-        Promise.resolve(this.ormDelete(model, ids)).catch((error) => {
-            logPosMessage(
-                "DataService",
-                "delete",
-                `Could not delete ${model} ${ids} on the server`,
-                CONSOLE_COLOR,
-                [error],
-            );
-        });
-        return deleted;
+        return records.map((record) => record.id);
     }
 
     async searchRead(model, domain = [], fields = [], options = {}, queue = false) {
@@ -1130,13 +1094,14 @@ export class PosData extends SignalStore {
         return await this.execute({ type: "create", model, values, queue });
     }
 
-    async ormWrite(model, ids, values, queue = true) {
+    async ormWrite(model, ids, values, queue = true, optimistic = false) {
         const result = await this.execute({
             type: "write",
             model,
             ids,
             values,
             queue,
+            optimistic,
         });
         if (result !== undefined && this.deviceSync?.dispatch) {
             Promise.resolve(

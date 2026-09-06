@@ -16,21 +16,29 @@
  * @returns {string}
  */
 export function orderlineGroupKey(line) {
-    return [
+    return JSON.stringify([
         line.product_id.id,
         line.price_unit,
         line.getDiscount(),
         line.getNote(),
         line.customer_note || "",
         line.location_id?.id ?? 0,
-    ].join("|");
+        line.product_id.tracking === "lot" ? [...line.packLotLines].sort() : [],
+        line.attribute_value_ids.map((value) => value.id).sort((a, b) => a - b),
+        line.custom_attribute_value_ids
+            .map((value) => [
+                value.custom_product_template_attribute_value_id?.id ?? value.id,
+                value.custom_value,
+            ])
+            .sort((a, b) => a[0] - b[0]),
+    ]);
 }
 
 /**
  * Collapses the repeated lines of one product into one displayed line.
  *
- * Lines sharing product, unit price, discount, notes and stock location form a
- * group; combos and their children pass through untouched. The displayed member
+ * Lines sharing product, attributes, lots, unit price, discount, notes and stock
+ * location form a group; combos and their children pass through untouched. The displayed member
  * of a group is the selected line when one is selected, otherwise the first, so
  * the numpad and the lot icon keep acting on the line the cashier picked.
  *

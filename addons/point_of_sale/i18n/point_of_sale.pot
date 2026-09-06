@@ -10950,3 +10950,9 @@ msgstr ""
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_config__stock_warehouse_view_location_id
 msgid "Warehouse View Location"
 msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/pos_preset.py:0
+msgid "Timed presets require a positive interval and capacity."
+msgstr ""

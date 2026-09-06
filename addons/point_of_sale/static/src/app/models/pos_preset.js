@@ -7,6 +7,12 @@ const { DateTime } = luxon;
 
 export class PosPreset extends Base {
     static pythonModel = "pos.preset";
+    static excludedLazyGetters = [
+        ...Base.excludedLazyGetters,
+        "nextSlot",
+        "currentSlot",
+        "availabilities",
+    ];
 
     initState() {
         super.initState();
@@ -36,19 +42,23 @@ export class PosPreset extends Base {
     get nextSlot() {
         const dateNow = DateTime.now();
         const sqlDate = dateNow.toFormat("yyyy-MM-dd");
-        return Object.values(this.uiState.availabilities[sqlDate]).find(
-            (s) => !s.isFull && s.datetime > dateNow,
+        return Object.values(this.availabilities[sqlDate] || {}).find(
+            (s) => !s.isFull && s.datetime >= dateNow,
         );
     }
 
     get availabilities() {
+        const now = DateTime.now();
+        if (this.uiState.generatedFor !== `${now.toISODate()}/${now.zoneName}`) {
+            this.computeAvailabilities(this.uiState.serverUsage, now);
+        }
         return this.uiState.availabilities;
     }
 
     get slotsUsage() {
         return (
             this.orders.reduce((acc, order) => {
-                if (!order.preset_time) {
+                if (!order.preset_time || order.state === "cancel") {
                     return acc;
                 }
                 const key = order.preset_time.toFormat("yyyy-MM-dd HH:mm:ss");
@@ -61,8 +71,9 @@ export class PosPreset extends Base {
         );
     }
 
-    computeAvailabilities(usages = {}) {
-        this.generateSlots();
+    computeAvailabilities(usages = {}, now = DateTime.now()) {
+        this.uiState.serverUsage = usages;
+        this.generateSlots(now);
 
         const allSlots = Object.values(this.uiState.availabilities).reduce(
             (acc, curr) => Object.assign(acc, curr),
@@ -81,10 +92,11 @@ export class PosPreset extends Base {
     get currentSlot() {
         const now = DateTime.now();
         const interval = this.interval_time;
-        const todayAvailabilities = this.availabilities[now.toFormat("yyyy-MM-dd")];
+        const todayAvailabilities =
+            this.availabilities[now.toFormat("yyyy-MM-dd")] || {};
         for (const slot of Object.values(todayAvailabilities)) {
             if (
-                slot.datetime < now &&
+                slot.datetime <= now &&
                 slot.datetime.plus({ minutes: interval }) > now
             ) {
                 return slot;
@@ -93,8 +105,7 @@ export class PosPreset extends Base {
         return false;
     }
 
-    generateSlots() {
-        const now = DateTime.now();
+    generateSlots(now = DateTime.now()) {
         const usage = this.slotsUsage;
         const interval = this.interval_time;
         const slots = {};
@@ -102,13 +113,13 @@ export class PosPreset extends Base {
         for (const i of [...Array(7).keys()]) {
             const dateNow = now.plus({ days: i });
             const getDateTime = (hour) =>
-                DateTime.fromObject({
-                    year: dateNow.year,
-                    month: dateNow.month,
-                    day: dateNow.day,
-                    hour: Math.floor(hour),
-                    minute: Math.round((hour % 1) * 60),
-                });
+                dateNow
+                    .startOf("day")
+                    .plus({ days: Math.floor(hour / 24) })
+                    .set({
+                        hour: Math.floor(hour) % 24,
+                        minute: Math.round((hour % 1) * 60),
+                    });
             const dayOfWeek = (dateNow.weekday - 1).toString();
             const date = dateNow.toFormat("yyyy-MM-dd");
             const attToday = this.attendance_ids.filter(
@@ -122,20 +133,18 @@ export class PosPreset extends Base {
 
                 let start = dateOpening;
                 while (start >= dateOpening && start <= dateClosing && interval > 0) {
-                    if (start >= now) {
-                        const sqlDatetime = start.toFormat("yyyy-MM-dd HH:mm:ss");
+                    const sqlDatetime = start.toFormat("yyyy-MM-dd HH:mm:ss");
 
-                        if (slots[date][sqlDatetime]) {
-                            for (const id of usage[sqlDatetime] || []) {
-                                slots[date][sqlDatetime].order_ids.add(id);
-                            }
-                        } else {
-                            slots[date][sqlDatetime] = {
-                                periode: attendance.day_period,
-                                datetime: start,
-                                order_ids: new Set(usage[sqlDatetime] || []),
-                            };
+                    if (slots[date][sqlDatetime]) {
+                        for (const id of usage[sqlDatetime] || []) {
+                            slots[date][sqlDatetime].order_ids.add(id);
                         }
+                    } else {
+                        slots[date][sqlDatetime] = {
+                            periode: attendance.day_period,
+                            datetime: start,
+                            order_ids: new Set(usage[sqlDatetime] || []),
+                        };
                     }
                     start = start.plus({ minutes: interval });
                 }
@@ -143,6 +152,7 @@ export class PosPreset extends Base {
         }
 
         this.uiState.availabilities = slots;
+        this.uiState.generatedFor = `${now.toISODate()}/${now.zoneName}`;
     }
 }
 

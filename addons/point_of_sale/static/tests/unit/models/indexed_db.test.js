@@ -76,6 +76,44 @@ const fakeTransaction = () => ({
 });
 
 describe("indexed_db", () => {
+    test("ordered queue writes abort and release a transaction when its read throws", async () => {
+        const { db } = makeIndexedDB();
+        const transaction = fakeTransaction();
+        const failure = new Error("Read failed");
+        transaction.objectStore = () => ({
+            getAll: () => {
+                throw failure;
+            },
+        });
+        patchWithCleanup(db.db, { transaction: () => transaction });
+
+        const error = await db
+            .createOrdered("store", { uuid: "queued" })
+            .catch((e) => e);
+        expect(error).toBe(failure);
+        expect(transaction.aborted).toBe(true);
+        expect(db.activeTransactions.size).toBe(0);
+    });
+
+    test("ordered queue timeouts reject even when abort throws", async () => {
+        const { db } = makeIndexedDB();
+        const transaction = fakeTransaction();
+        transaction.objectStore = () => ({ getAll: () => ({}) });
+        transaction.abort = () => {
+            throw new DOMException("Already finished", "InvalidStateError");
+        };
+        patchWithCleanup(db.db, { transaction: () => transaction });
+        let error;
+        const writing = db.createOrdered("store", { uuid: "queued" }).catch((e) => {
+            error = e;
+        });
+
+        await advanceTime(5000);
+        expect(error?.message).toBe("Offline queue transaction timeout");
+        expect(db.activeTransactions.size).toBe(0);
+        await writing;
+    });
+
     test("a failed reopen does not latch _isReconnecting forever", async () => {
         const { db, factory } = makeIndexedDB();
         db.dbVersion = 7;

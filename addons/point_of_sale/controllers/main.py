@@ -48,7 +48,7 @@ class PosController(PortalAccount):
         if config_id:
             try:
                 config_id = int(config_id)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return request.not_found()
         domain = [
             ("state", "in", ["opening_control", "opened"]),
@@ -146,7 +146,7 @@ class PosController(PortalAccount):
     def _parse_ticket_date(value):
         try:
             return date.fromisoformat(value)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
 
     @http.route(
@@ -299,17 +299,23 @@ class PosController(PortalAccount):
                 additional_invoice_fields, "invoice_", kwargs
             )
             form_values["extra_field_values"].update(prefixed_invoice_values)
-            partner, feedback_dict = self._create_or_update_address(
-                partner, **(kwargs | partner_values)
-            )
-            form_values.update(feedback_dict)
             missing_fields, error_messages = self._validate_extra_form_details(
                 partner_values | invoice_values,
                 additional_partner_fields + additional_invoice_fields,
             )
+            if not missing_fields:
+                address_values = (
+                    self._get_ticket_address_values(partner)
+                    if user_is_connected
+                    else {}
+                )
+                partner, feedback_dict = self._create_or_update_address(
+                    partner, **(address_values | kwargs | partner_values)
+                )
+                form_values.update(feedback_dict)
             form_values.update(
                 {
-                    "invalid_field": form_values.get("invalid_fields", [])
+                    "invalid_fields": form_values.get("invalid_fields", [])
                     + list(missing_fields),
                     "messages": form_values.get("messages", []) + error_messages,
                 }
@@ -323,7 +329,9 @@ class PosController(PortalAccount):
                     kwargs,
                 )
 
-        elif user_is_connected:
+        elif user_is_connected and not (
+            additional_partner_fields or additional_invoice_fields
+        ):
             return self._get_invoice(
                 partner, {}, pos_order, additional_invoice_fields, kwargs
             )
@@ -333,15 +341,17 @@ class PosController(PortalAccount):
 
         if partner:
             if additional_partner_fields:
-                form_values["extra_field_values"] = {
+                defaults = {
                     "partner_" + field.name: (
                         partner[field.name].id
                         if field.ttype == "many2one"
                         else partner[field.name]
                     )
                     for field in additional_partner_fields
-                    if field.name not in form_values["extra_field_values"]
                 }
+                form_values["extra_field_values"] = (
+                    defaults | form_values["extra_field_values"]
+                )
 
             if not partner.country_id or not partner.street:
                 form_values["partner_address"] = False
@@ -366,15 +376,23 @@ class PosController(PortalAccount):
             },
         )
 
+    def _get_ticket_address_values(self, partner):
+        values = {
+            name: partner[name]
+            for name in ("name", "email", "street", "street2", "city", "zip", "phone")
+        }
+        values.update(country_id=partner.country_id.id, state_id=partner.state_id.id)
+        return values
+
     def _validate_extra_form_details(
-        self, addtional_form_values, additional_required_fields
+        self, additional_form_values, additional_required_fields
     ):
         missing_fields = set()
         error_messages = []
         for field in additional_required_fields:
             if (
-                field.name not in addtional_form_values
-                or not addtional_form_values[field.name]
+                field.name not in additional_form_values
+                or not additional_form_values[field.name]
             ):
                 missing_fields.add(field.name)
                 error_messages.append(

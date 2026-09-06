@@ -772,9 +772,7 @@ class PosOrder(models.Model):
         vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
             if not vals.get("session_id"):
-                raise UserError(
-                    _("A point of sale order must belong to a session.")
-                )
+                raise UserError(_("A point of sale order must belong to a session."))
             session = self.env["pos.session"].browse(vals["session_id"])
             self._complete_values_from_session(session, vals)
         return super().create(vals_list)
@@ -1735,9 +1733,7 @@ class PosOrder(models.Model):
 
     @api.model
     def sync_from_ui(self, orders):
-        sync_token = randrange(
-            100_000_000
-        )
+        sync_token = randrange(100_000_000)
         _logger.info(
             "PoS synchronisation #%d started for PoS orders references: %s",
             sync_token,
@@ -1747,12 +1743,13 @@ class PosOrder(models.Model):
 
         for order in orders:
             order_log_name = self._get_order_log_representation(order)
-            _logger.debug(
-                "PoS synchronisation #%d processing order %s order full data: %s",
-                sync_token,
-                order_log_name,
-                pformat(order),
-            )
+            if _logger.isEnabledFor(logging.DEBUG):
+                _logger.debug(
+                    "PoS synchronisation #%d processing order %s order full data: %s",
+                    sync_token,
+                    order_log_name,
+                    pformat(order),
+                )
 
             refunded_orders = self._get_refunded_orders(order)
             if len(refunded_orders) > 1:
@@ -1796,9 +1793,10 @@ class PosOrder(models.Model):
 
         for order in pos_order_ids:
             order._get_access_token()
-            if not self.env.context.get("preparation"):
-                order.config_id.notify_synchronisation(
-                    order.config_id.current_session_id.id,
+        if not self.env.context.get("preparation"):
+            for order_config in pos_order_ids.config_id:
+                order_config.notify_synchronisation(
+                    order_config.current_session_id.id,
                     self.env.context.get("device_identifier", 0),
                 )
 
@@ -2344,8 +2342,10 @@ class PosOrderLine(models.Model):
                     body + Markup("&rarr;") + str(new_qty)
                 )
             for order, bodies in bodies_per_order.items():
-                body = bodies[0] if len(bodies) == 1 else order._markup_list_message(
-                    bodies
+                body = (
+                    bodies[0]
+                    if len(bodies) == 1
+                    else order._markup_list_message(bodies)
                 )
                 order.message_post(body=order._prepare_pos_log(body))
             edited.is_edited = True

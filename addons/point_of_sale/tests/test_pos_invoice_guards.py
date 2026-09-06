@@ -1,5 +1,5 @@
 import odoo
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
@@ -165,3 +165,79 @@ class TestPosInvoiceGuards(TestPoSCommon):
             "pos.printer leaks another company's proxy/printer IP addresses to any"
             " POS user when the multi-company record rule is missing",
         )
+
+    def test_posted_payments_cannot_be_changed_or_removed(self):
+        self._start_pos_session(self.cash_pm1, 0)
+        order = self._make_order("draft")
+        order.add_payment(
+            {
+                "pos_order_id": order.id,
+                "amount": 100,
+                "payment_method_id": self.cash_pm1.id,
+            }
+        )
+        order.action_pos_order_paid()
+        order.action_pos_order_invoice()
+        self.assertEqual(order.account_move.state, "posted")
+        self.assertEqual(order.account_move.amount_residual, 0)
+        payment = order.payment_ids
+        cashier = self.env["res.users"].create(
+            {
+                "name": "Payment integrity cashier",
+                "login": "payment_integrity_cashier",
+                "company_id": self.env.company.id,
+                "company_ids": [(6, 0, self.env.company.ids)],
+                "group_ids": [
+                    (
+                        6,
+                        0,
+                        [
+                            self.env.ref("base.group_user").id,
+                            self.env.ref("point_of_sale.group_pos_user").id,
+                        ],
+                    )
+                ],
+            }
+        )
+        payment = payment.with_user(cashier)
+        self.assertFalse(payment.env.su)
+        other_order = self._make_order("draft")
+        for values in (
+            {"amount": 99},
+            {"pos_order_id": other_order.id},
+            {"payment_method_id": self.cash_pm1.id},
+            {"is_change": True},
+            {"payment_date": order.date_order},
+            {"uuid": "replaced"},
+        ):
+            with (
+                self.subTest(values=values),
+                self.assertRaises(ValidationError),
+                self.env.cr.savepoint(),
+            ):
+                payment.write(values)
+        with self.assertRaises(ValidationError), self.env.cr.savepoint():
+            payment.unlink()
+        with self.assertRaises(ValidationError), self.env.cr.savepoint():
+            payment.copy({"pos_order_id": order.id})
+        self.assertTrue(payment.exists())
+        self.assertEqual(sum(order.payment_ids.mapped("amount")), 100)
+        self.assertEqual(order.account_move.amount_residual, 0)
+        payment.write({"payment_ref_no": "terminal confirmation"})
+        self.assertEqual(payment.payment_ref_no, "terminal confirmation")
+
+    def test_draft_payments_remain_editable(self):
+        self._start_pos_session(self.cash_pm1, 0)
+        order = self._make_order("draft")
+        order.add_payment(
+            {
+                "pos_order_id": order.id,
+                "amount": 100,
+                "payment_method_id": self.cash_pm1.id,
+            }
+        )
+        payment = order.payment_ids
+        payment.amount = 90
+        self.assertEqual(payment.amount, 90)
+        payment.unlink()
+        self.assertFalse(order.payment_ids)

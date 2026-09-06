@@ -45,3 +45,6 @@ from . import test_zzz_audit3
 from . import test_zzz_audit4
 from . import test_pos_load_scoping
 from . import test_esm_registration
+
+from . import test_pos_data_integrity
+from . import test_pos_ticket_validation
