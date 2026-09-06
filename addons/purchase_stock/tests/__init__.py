@@ -26,3 +26,4 @@ from . import test_receipt_line_match
 from . import test_receipt_origin_vendor_ref
 from . import test_purchase_priority_propagation
 from . import test_currency_conversion_date
+from . import test_short_receipt_activity
