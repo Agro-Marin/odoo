@@ -71,7 +71,7 @@ export class SettingsFormController extends formView.Controller {
         }
         if (
             (await this.model.root.isDirty()) &&
-            !["execute"].includes(clickParams.name) &&
+            clickParams.name !== "execute" &&
             !clickParams.noSaveDialog
         ) {
             return this._confirmSave();
@@ -108,30 +108,25 @@ export class SettingsFormController extends formView.Controller {
      * @returns {Promise<any>}
      */
     async save(_params) {
-        await this.env.onClickViewButton({
-            clickParams: {
-                name: "execute",
-                type: "object",
-            },
-            getResParams: () =>
-                pick(
-                    this.model.root,
-                    "context",
-                    "evalContext",
-                    "resModel",
-                    "resId",
-                    "resIds",
-                ),
-        });
+        await this.env.onClickViewButton(
+            this.viewButtonParams({ name: "execute", type: "object" }),
+        );
     }
 
     async discard() {
-        this.env.onClickViewButton({
-            clickParams: {
+        this.env.onClickViewButton(
+            this.viewButtonParams({
                 name: "cancel",
                 type: "object",
                 special: "cancel",
-            },
+            }),
+        );
+    }
+
+    /** @param {Record<string, any>} clickParams */
+    viewButtonParams(clickParams) {
+        return {
+            clickParams,
             getResParams: () =>
                 pick(
                     this.model.root,
@@ -141,7 +136,7 @@ export class SettingsFormController extends formView.Controller {
                     "resId",
                     "resIds",
                 ),
-        });
+        };
     }
 
     async _confirmSave() {

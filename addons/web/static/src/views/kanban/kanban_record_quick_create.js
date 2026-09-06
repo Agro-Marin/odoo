@@ -124,15 +124,9 @@ export class KanbanQuickCreateController extends Component {
                     target.closest(".ui-autocomplete") ||
                     this.rootRef.el.contains(target);
                 if (!gotClickedInside) {
-                    let force = false;
-                    for (const selector of ACTION_SELECTORS) {
-                        const closestEl = target.closest(selector);
-                        if (closestEl) {
-                            force = true;
-                            break;
-                        }
-                    }
-                    this.cancel(force);
+                    this.cancel(
+                        ACTION_SELECTORS.some((selector) => target.closest(selector)),
+                    );
                 }
                 this.mousedownTarget = null;
             },
