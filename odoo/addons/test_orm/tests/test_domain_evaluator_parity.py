@@ -28,7 +28,7 @@ class TestDomainEvaluatorParity(TransactionCase):
                     "comment": "abc",
                     "ref": "r2",
                     "color": 5,
-                    "employee": True,
+                    "is_company": True,
                     "partner_latitude": 0.0,
                 },
             ]
@@ -89,7 +89,7 @@ class TestDomainEvaluatorParity(TransactionCase):
             "comment": ["note", "", False, None],
             "name": ["P-note", "", False, None, "P", 7],
             "active": [True, False, None],
-            "employee": [True, False, None],
+            "is_company": [True, False, None],
             "type": ["contact", "other", False, None],
             "partner_latitude": [0.0, 10.5, "10.5", False, None],
             "create_date": ["2020-01-15 00:00:00", False, None],
@@ -660,7 +660,7 @@ class _DomainGeneratorMixin:
                 {"name": "G-two", "color": 2, "partner_latitude": 2.5, "ref": "2"},
                 {"name": "G-three", "color": 3, "partner_latitude": 3.0, "ref": "R3"},
                 {"name": "G-ten", "color": 10, "partner_latitude": 10.5, "ref": "r10"},
-                {"name": "G-type", "color": 5, "type": "invoice", "employee": True},
+                {"name": "G-type", "color": 5, "type": "invoice", "is_company": True},
                 {"name": "G-dup", "color": 5, "ref": "R3", "comment": "note"},
                 {"name": "G-uni", "color": 7, "ref": "Ünïcøde", "comment": "nöte"},
                 {"name": "G-pct", "color": 8, "ref": "50%_off", "comment": "a_b%c"},
@@ -692,7 +692,7 @@ class _DomainGeneratorMixin:
             ("comment", text_ops, ["note", "nöte", "a_b%c", "", False]),
             ("name", text_ops, ["G-one", "g-", "%", "", False]),
             ("type", ["=", "!=", "in", "not in"], ["invoice", "contact", "", False]),
-            ("employee", ["=", "!=", "in", "not in"], [True, False]),
+            ("is_company", ["=", "!=", "in", "not in"], [True, False]),
             ("active", ["=", "!=", "in", "not in"], [True, False]),
         ]
 

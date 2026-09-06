@@ -13,7 +13,7 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
                 "city": "OrigCity",
                 "email": "test.partner@test.example.com",
                 "name": "TestingPartner",
-                "employee": True,
+                "is_company": True,
             }
         )
         cls.context = {
@@ -227,7 +227,7 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
                 "city": "CustoCity",
                 "email": "test.partner@test.example.com",
                 "name": "CustomPartner",
-                "employee": False,
+                "is_company": False,
             }
         )
         self.context = {
@@ -240,7 +240,7 @@ class TestEmbeddedActionsBase(TransactionCaseWithUserDemo):
                 "parent_res_model": "res.partner",
                 "parent_action_id": self.parent_action.id,
                 "action_id": self.action_2.id,
-                "domain": [("employee", "=", True)],
+                "domain": [("is_company", "=", True)],
             }
         )
         res = self.get_embedded_actions_ids(self.parent_action)

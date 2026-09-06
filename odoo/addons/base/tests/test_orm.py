@@ -303,7 +303,7 @@ class TestInherits(TransactionCase):
             {
                 "name": "Foo",
                 "login": "foo",
-                "employee": True,
+                "is_company": True,
             }
         )
         (foo_before,) = user_foo.read()
