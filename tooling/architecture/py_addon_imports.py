@@ -14,7 +14,9 @@ import _ast_cache
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="py_addon_imports")
 SIBLING_REPOS_ROOT = sibling_repos_root(ROOT)
 
-EXCLUDED_PARTS = frozenset({"__pycache__", "node_modules", "static", "migrations"})
+EXCLUDED_PARTS = frozenset(
+    {"__pycache__", "node_modules", "static", "migrations", ".worktrees"}
+)
 
 RUNTIME_FIXTURE_ADDONS = frozenset(
     {
@@ -113,7 +115,14 @@ def discover_addons_roots() -> list[Path]:
     siblings = (
         sorted(SIBLING_REPOS_ROOT.iterdir()) if SIBLING_REPOS_ROOT.is_dir() else []
     )
-    roots.extend(s for s in siblings if s != ROOT and (s / ".git").exists())
+    # A sibling counts as an addons root when it holds addons: the knowledge
+    # vault beside the checkouts is a git repository too, and its personal
+    # workspaces carry Python that is not ours to parse.
+    roots.extend(
+        s
+        for s in siblings
+        if s != ROOT and (s / ".git").exists() and any(s.glob("*/__manifest__.py"))
+    )
     return [r for r in roots if r.is_dir()]
 
 

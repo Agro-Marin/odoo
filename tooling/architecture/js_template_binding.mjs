@@ -83,6 +83,46 @@ function superName(classNode) {
     if (sup.type === "MemberExpression" && sup.object.type === "Identifier") {
         return sup.object.name;
     }
+    // `class X extends SomeMixin(Base)`: the base is the argument, the mixin's
+    // own members are recorded by mixinCallee() below.
+    if (
+        sup.type === "CallExpression" &&
+        sup.callee.type === "Identifier" &&
+        sup.arguments[0]?.type === "Identifier"
+    ) {
+        return sup.arguments[0].name;
+    }
+    return null;
+}
+
+function mixinCallee(classNode) {
+    const sup = classNode.superClass;
+    return sup?.type === "CallExpression" && sup.callee.type === "Identifier"
+        ? sup.callee.name
+        : null;
+}
+
+/** The class a mixin factory returns: `(component) => class extends component {...}`. */
+function returnedClass(fn) {
+    if (
+        !fn ||
+        (fn.type !== "ArrowFunctionExpression" && fn.type !== "FunctionExpression")
+    ) {
+        return null;
+    }
+    if (fn.body.type === "ClassExpression") {
+        return fn.body;
+    }
+    if (fn.body.type === "BlockStatement") {
+        for (const stmt of fn.body.body) {
+            if (
+                stmt.type === "ReturnStatement" &&
+                stmt.argument?.type === "ClassExpression"
+            ) {
+                return stmt.argument;
+            }
+        }
+    }
     return null;
 }
 
@@ -108,13 +148,26 @@ function readModule(path) {
 
     walk(ast, (node) => {
         if (node.type === "ClassDeclaration" || node.type === "ClassExpression") {
+            const name = node.id?.name || null;
             classes.push({
-                name: node.id?.name || null,
+                name,
                 line: node.loc.start.line,
                 members: [...ownMembers(node)],
                 super: superName(node),
                 template: staticTemplate(node),
             });
+            const mixin = mixinCallee(node);
+            if (name && mixin) {
+                mixinsInto.set(name, [...(mixinsInto.get(name) || []), { ref: mixin }]);
+            }
+            return;
+        }
+        if (
+            node.type === "VariableDeclarator" &&
+            node.id.type === "Identifier" &&
+            returnedClass(node.init)
+        ) {
+            objects.set(node.id.name, [...ownMembers(returnedClass(node.init))]);
             return;
         }
         if (
