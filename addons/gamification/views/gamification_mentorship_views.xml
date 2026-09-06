@@ -94,7 +94,8 @@
                     <field
                         name="state"
                         widget="statusbar"
-                        statusbar_visible="pending,active,completed" />
+                        statusbar_visible="pending,active,completed"
+                        readonly="1" />
                 </header>
                 <sheet>
                     <group>

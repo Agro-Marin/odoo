@@ -261,6 +261,34 @@ class TestMentorshipSecurity(common.TransactionCase):
         self.assertEqual(mentorship.state, "completed")
         self.assertEqual(self.attacker.karma, before + 100)
 
+    def test_mentor_cannot_confirm_own_pending_mentorship_by_direct_write(self):
+        """`state` carries no readonly/groups=, so nothing at the ORM layer
+        stopped the proposer from writing `state` directly -- bypassing
+        `_check_may_accept()`'s consent gate entirely.
+        """
+        mentorship = self.env["gamification.mentorship"].create(
+            {"mentor_id": self.attacker.id, "mentee_id": self.victim.id}
+        )
+        self.assertEqual(mentorship.state, "pending")
+        with self.assertRaises(UserError):
+            mentorship.with_user(self.attacker).write({"state": "active"})
+        mentorship.invalidate_recordset()
+        self.assertEqual(
+            mentorship.state,
+            "pending",
+            "state must not move without the mentee's consent",
+        )
+
+    def test_sudo_can_still_write_state(self):
+        """CONTROL: action_accept/decline/complete/cancel themselves rely on
+        sudo() to apply the state change after their own checks pass.
+        """
+        mentorship = self.env["gamification.mentorship"].create(
+            {"mentor_id": self.attacker.id, "mentee_id": self.victim.id}
+        )
+        mentorship.sudo().write({"state": "active"})
+        self.assertEqual(mentorship.state, "active")
+
     def test_employee_cannot_see_third_party_mentorship(self):
         """The record rule hides pairings the user is not part of."""
         other_a = (

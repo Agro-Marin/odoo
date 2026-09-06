@@ -172,6 +172,28 @@ class GamificationMentorship(models.Model):
                     _("Mentorship karma rewards cannot be negative.")
                 )
 
+    def write(self, vals: Any) -> bool:
+        """Block direct `state` writes; force transitions through the
+        `action_*` methods.
+
+        `state` carried no `readonly`/`groups=` of its own, so nothing at the
+        ORM layer stopped a caller from skipping `_check_may_accept()` /
+        `_check_may_complete()` entirely and writing `state` directly (e.g. a
+        self-proposed mentor confirming their own pending mentorship via RPC
+        or the statusbar widget) -- exactly the consent bypass those checks
+        exist to prevent. `sudo()` (the `action_*` methods themselves, plus
+        imports/migrations) still bypasses this, same pattern as
+        `gamification.kudos.write()`'s value-field freeze.
+        """
+        if "state" in vals and not self.env.su:
+            raise exceptions.UserError(
+                _(
+                    "Use Accept/Decline/Complete/Cancel instead of changing"
+                    " the status directly."
+                )
+            )
+        return super().write(vals)
+
     def _check_may_accept(self):
         """Ensure the caller is the party who did *not* propose the mentorship.
 
@@ -273,8 +295,11 @@ class GamificationMentorship(models.Model):
                     )._send_badge()
 
     def action_cancel(self):
-        """Cancel the mentorship."""
-        self.filtered(lambda r: r.state == "active").write(
+        """Cancel the mentorship. Either party may cancel their own active
+        mentorship; the `mentorship_own_only` record rule already scopes
+        that. sudo() only bypasses `write()`'s state-change guard above.
+        """
+        self.filtered(lambda r: r.state == "active").sudo().write(
             {
                 "state": "cancelled",
                 "end_date": fields.Date.today(),
