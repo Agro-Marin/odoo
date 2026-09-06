@@ -21,6 +21,7 @@ class IrUiMenu(models.Model):
                     "actionID": False,
                     "actionModel": False,
                     "actionPath": False,
+                    "actionResModel": False,
                     "webIcon": None,
                     "webIconData": None,
                     "webIconDataMimetype": None,
@@ -30,6 +31,7 @@ class IrUiMenu(models.Model):
                 action_id = menu.get("action_id")
                 action_model = menu.get("action_model")
                 action_path = menu.get("action_path")
+                action_res_model = menu.get("action_res_model")
                 web_icon = menu.get("web_icon")
                 web_icon_data = menu.get("web_icon_data")
 
@@ -39,6 +41,7 @@ class IrUiMenu(models.Model):
                         action_id = child["action_id"]
                         action_model = child["action_model"]
                         action_path = child["action_path"]
+                        action_res_model = child["action_res_model"]
                         child = (
                             menus[child["children"][0]] if child["children"] else False
                         )
@@ -70,6 +73,7 @@ class IrUiMenu(models.Model):
                     "actionID": action_id,
                     "actionModel": action_model,
                     "actionPath": action_path,
+                    "actionResModel": action_res_model,
                     "webIcon": web_icon,
                     "webIconData": web_icon_data,
                     "webIconDataMimetype": menu["web_icon_data_mimetype"],

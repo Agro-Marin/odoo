@@ -235,3 +235,50 @@ test("computeAppsAndMenuItems names the addon an app's icon comes from", () => {
     expect(apps[0].module).toBe("crm");
     expect(apps[1].module).toBe(undefined);
 });
+
+test("computeAppsAndMenuItems lists the models an app's menus open", () => {
+    const tree = {
+        id: "root",
+        name: "root",
+        appID: "root",
+        childrenTree: [
+            {
+                id: 1,
+                name: "Sales",
+                appID: 1,
+                actionID: 10,
+                actionResModel: "sale.order",
+                webIcon: "sale,static/description/icon.png",
+                childrenTree: [
+                    {
+                        id: 2,
+                        name: "Customers",
+                        appID: 1,
+                        actionID: 11,
+                        actionResModel: "res.partner",
+                        childrenTree: [],
+                    },
+                    {
+                        id: 3,
+                        name: "Reporting",
+                        appID: 1,
+                        actionID: 12,
+                        actionResModel: false,
+                        childrenTree: [
+                            {
+                                id: 4,
+                                name: "Sales Analysis",
+                                appID: 1,
+                                actionID: 13,
+                                actionResModel: "sale.order",
+                                childrenTree: [],
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    };
+    const { apps } = computeAppsAndMenuItems(tree);
+    expect(apps[0].models).toEqual(["sale.order", "res.partner"]);
+});

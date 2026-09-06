@@ -35,6 +35,7 @@ export function menuHref(menu) {
  * @property {string} href
  * @property {number} [appID]
  * @property {string} [module] the addon whose icon the app carries, for an app
+ * @property {string[]} [models] the models the app's menus open, for an app
  * @property {string} [webIconData]
  * @property {{ iconClass: string, color: string, backgroundColor: string }} [webIcon]
  */
@@ -48,7 +49,17 @@ export function computeAppsAndMenuItems(menuTree) {
     const apps = [];
     /** @type {MenuEntry[]} */
     const menuItems = [];
+    /** @type {Map<number, Set<string>>} */
+    const modelsByApp = new Map();
     traverseMenuTree(menuTree, (menuItem, parents) => {
+        if (menuItem.actionResModel && menuItem.appID) {
+            let models = modelsByApp.get(menuItem.appID);
+            if (!models) {
+                models = new Set();
+                modelsByApp.set(menuItem.appID, models);
+            }
+            models.add(menuItem.actionResModel);
+        }
         if (!menuItem.id || !menuItem.actionID) {
             return;
         }
@@ -90,6 +101,9 @@ export function computeAppsAndMenuItems(menuTree) {
         }
         apps.push(item);
     });
+    for (const app of apps) {
+        app.models = [...(modelsByApp.get(/** @type {number} */ (app.appID)) || [])];
+    }
     return { apps, menuItems };
 }
 

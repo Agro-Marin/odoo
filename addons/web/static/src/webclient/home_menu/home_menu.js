@@ -56,6 +56,7 @@ class FooterComponent extends Component {
  *  label: string;
  *  parents: string;
  *  module?: string;
+ *  models?: string[];
  *  webIcon?: boolean | string | { iconClass: string; color: string; backgroundColor: string };
  *  webIconData?: string;
  *  xmlid: string;
@@ -85,6 +86,7 @@ export class HomeMenu extends Component {
                     label: String,
                     parents: String,
                     module: { type: String, optional: true },
+                    models: { type: Array, element: String, optional: true },
                     webIcon: {
                         type: [
                             Boolean,

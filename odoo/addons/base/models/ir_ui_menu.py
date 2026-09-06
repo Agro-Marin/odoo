@@ -315,15 +315,14 @@ class IrUiMenu(models.Model):
                 "xmlid": xmlids.get(menu_id, ""),
             }
 
-        action_path_by_action = self._get_action_paths(action_ids_by_type)
+        action_info_by_action = self._get_action_info(action_ids_by_type)
 
         for menu_dict in menus_dict.values():
-            if menu_dict["action_model"]:
-                menu_dict["action_path"] = action_path_by_action.get(
-                    (menu_dict["action_model"], menu_dict["action_id"]), False
-                )
-            else:
-                menu_dict["action_path"] = False
+            info = action_info_by_action.get(
+                (menu_dict["action_model"], menu_dict["action_id"])
+            )
+            menu_dict["action_path"] = info["path"] if info else False
+            menu_dict["action_res_model"] = info["res_model"] if info else False
             menu_dict["children"] = children_dict[menu_dict["id"]]
 
         menus_dict["root"] = {
@@ -365,14 +364,19 @@ class IrUiMenu(models.Model):
         )
         return {attachment["res_id"]: attachment for attachment in icon_attachments}
 
-    def _get_action_paths(self, action_ids_by_type: dict) -> dict[tuple, Any]:
-        action_path_by_action = {}
+    def _get_action_info(self, action_ids_by_type: dict) -> dict[tuple, dict[str, Any]]:
+        action_info_by_action = {}
         for model_name, action_ids in action_ids_by_type.items():
             actions = self.env[model_name].sudo().browse(action_ids)
-            actions.fetch(["path"])
+            # Only a window action opens a model; the others have no res_model.
+            has_res_model = "res_model" in actions._fields
+            actions.fetch(["path", "res_model"] if has_res_model else ["path"])
             for action in actions:
-                action_path_by_action[model_name, action.id] = action.path
-        return action_path_by_action
+                action_info_by_action[model_name, action.id] = {
+                    "path": action.path,
+                    "res_model": action.res_model if has_res_model else False,
+                }
+        return action_info_by_action
 
     def _get_menuitems_xmlids(self) -> dict[int, str]:
         menuitems = (

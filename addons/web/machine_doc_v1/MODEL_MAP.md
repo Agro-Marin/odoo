@@ -111,7 +111,7 @@ Webclient context setup, session info, and request handling.
 Webclient menu loader.
 
 **Key Methods:**
-- `load_web_menus(debug)` — Enriches `load_menus()` output with `appID`, `actionID`, `actionModel`, `actionPath`, `webIcon`, `webIconData` for each menu item. Consumed by sidebar and app switcher.
+- `load_web_menus(debug)` — Enriches `load_menus()` output with `appID`, `actionID`, `actionModel`, `actionPath`, `actionResModel` (the window action's `res_model`, `False` for any other action type), `webIcon`, `webIconData` for each menu item. Consumed by sidebar and app switcher.
 
 ### models/ir_ui_view.py — IrUiView (`_inherit = 'ir.ui.view'`)
 
