@@ -44,3 +44,17 @@ class TestJson2(common.HttpCase):
     def test_json2_bad_signature_is_422(self):
         response = self._rpc("res.partner", "search_count", {"bogus_kwarg": 1})
         self.assertEqual(response.status_code, 422)
+
+    def test_json2_attachment_raw_is_base64(self):
+        # a PNG header: valid file content, invalid UTF-8. Serializing it as
+        # text raises UnicodeDecodeError and answers 500 instead of the file.
+        attachment = self.env["ir.attachment"].create(
+            {"name": "n", "raw": b"\x89PNG\r\n\x1a\n"}
+        )
+        response = self._rpc(
+            "ir.attachment", "read", {"ids": attachment.ids, "fields": ["raw", "datas"]}
+        )
+        self.assertEqual(response.status_code, 200)
+        [values] = response.json()
+        self.assertEqual(values["raw"], "iVBORw0KGgo=")
+        self.assertEqual(values["datas"], values["raw"])

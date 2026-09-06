@@ -305,12 +305,12 @@ class IrUiMenu(models.Model):
                 "action_id": action_id,
                 "web_icon": menu.web_icon,
                 "web_icon_data": (
-                    attachment["datas"].decode()
-                    if attachment and attachment["datas"]
+                    attachment.datas.decode()
+                    if attachment and attachment.datas
                     else False
                 ),
                 "web_icon_data_mimetype": (
-                    attachment["mimetype"] if attachment else False
+                    attachment.mimetype if attachment else False
                 ),
                 "xmlid": xmlids.get(menu_id, ""),
             }
@@ -354,16 +354,16 @@ class IrUiMenu(models.Model):
         icon_attachments = (
             self.env["ir.attachment"]
             .sudo()
-            .search_read(
+            .search_fetch(
                 domain=[
                     ("res_model", "=", "ir.ui.menu"),
                     ("res_id", "in", visible_menus._ids),
                     ("res_field", "=", "web_icon_data"),
                 ],
-                fields=["res_id", "datas", "mimetype"],
+                field_names=["res_id", "datas", "mimetype"],
             )
         )
-        return {attachment["res_id"]: attachment for attachment in icon_attachments}
+        return {attachment.res_id: attachment for attachment in icon_attachments}
 
     def _get_action_paths(self, action_ids_by_type: dict) -> dict[tuple, Any]:
         action_path_by_action = {}

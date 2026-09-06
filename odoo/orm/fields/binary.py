@@ -69,6 +69,10 @@ class Binary(Field[bytes | typing.Literal[False]]):
 
     bin_size_field: str = ""
 
+    #: the field holds the file's own bytes; every other binary field holds
+    #: their base64 representation, and the RPC layer expects base64
+    stores_raw_bytes: bool = False
+
     @functools.cached_property
     def column_type(self):
         return None if self.attachment else ("bytea", "bytea")
@@ -132,6 +136,11 @@ class Binary(Field[bytes | typing.Literal[False]]):
         value = self._get_cache(record.env)[record.id]
         return self.convert_to_column(value, record, validate=False)
 
+    def _under_bin_size(self, record: ModelLike) -> bool:
+        """Whether the cache holds a human-readable size instead of content."""
+        context = record.env.context
+        return bool(context.get("bin_size") or context.get("bin_size_" + self.name))
+
     @override
     def convert_to_cache(
         self, value: typing.Any, record: ModelLike, validate: bool = True
@@ -140,10 +149,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
             return bytes(value)
         if isinstance(value, str):
             return value.encode()
-        if isinstance(value, int) and (
-            record.env.context.get("bin_size")
-            or record.env.context.get("bin_size_" + self.name)
-        ):
+        if isinstance(value, int) and self._under_bin_size(record):
             value = human_size(value)
             return value.encode() if value else None
         return None if value is False else value
@@ -157,11 +163,30 @@ class Binary(Field[bytes | typing.Literal[False]]):
         return False if value is None else value
 
     @override
+    def convert_to_read(
+        self, value: typing.Any, record: ModelLike, use_display_name: bool = True
+    ) -> typing.Any:
+        # read() feeds the textual RPC layers, which cannot carry bytes: every
+        # binary field leaves here as a base64 str, whatever the cache holds.
+        if not value:
+            return False
+        if not isinstance(value, bytes) or self._under_bin_size(record):
+            return value
+        if (self.related_field or self).stores_raw_bytes:
+            value = base64.b64encode(value)
+        return value.decode()
+
+    @override
+    def convert_to_write(self, value: typing.Any, record: ModelLike) -> typing.Any:
+        # the generic implementation routes through convert_to_read, which now
+        # base64-encodes raw bytes; a write value has to stay in the cache
+        # representation the field reads back.
+        return self.convert_to_cache(value, record) or False
+
+    @override
     def compute_value(self, records: ModelLike, validate: bool = True) -> None:
         bin_size_name = "bin_size_" + self.name
-        under_bin_size = records.env.context.get("bin_size") or records.env.context.get(
-            bin_size_name
-        )
+        under_bin_size = self._under_bin_size(records)
         if under_bin_size and self.bin_size_field:
             field_cache = self._get_cache(records.env)
             for record in records:

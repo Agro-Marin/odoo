@@ -139,7 +139,7 @@ class IrAttachment(models.Model):
     public = fields.Boolean("Is public document")
     access_token = fields.Char("Access Token", groups="base.group_user")
 
-    db_datas = fields.Binary("Database Data", attachment=False)
+    db_datas = fields.Binary("Database Data", attachment=False, stores_raw_bytes=True)
     store_fname = fields.Char("Stored Filename", index=True, copy=False)
     file_size = fields.Integer("File Size", readonly=True, copy=False)
     checksum = fields.Char(
@@ -155,6 +155,7 @@ class IrAttachment(models.Model):
         compute="_compute_raw",
         inverse="_inverse_raw",
         bin_size_field="file_size",
+        stores_raw_bytes=True,
     )
     datas = fields.Binary(
         string="File Content (base64)",

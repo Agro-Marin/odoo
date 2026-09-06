@@ -830,19 +830,20 @@ class MailMail(models.Model):
             if estimated_email_size_bytes > max_email_size_bytes:
                 body = self._link_instead_of_attach(body, record_owned_attachments)
                 attachments -= record_owned_attachments
-        read_attachments = attachments.sorted("id").read(["name", "raw", "mimetype"])
+        sorted_attachments = attachments.sorted("id")
+        sorted_attachments.fetch(["name", "raw", "mimetype"])
         email_attachments = [
-            (a["name"], a["raw"], a["mimetype"])
-            for a in read_attachments
-            if a["raw"] is not False
+            (a.name, a.raw, a.mimetype)
+            for a in sorted_attachments
+            if a.raw is not False
         ]
-        if len(email_attachments) != len(read_attachments):
+        if len(email_attachments) != len(sorted_attachments):
             _logger.warning(
                 "Mail (mail.mail) with ID %r sent without %s attachment(s) that "
                 "hold no content: %s",
                 self.id,
-                len(read_attachments) - len(email_attachments),
-                [a["name"] for a in read_attachments if a["raw"] is False],
+                len(sorted_attachments) - len(email_attachments),
+                [a.name for a in sorted_attachments if a.raw is False],
             )
         attachments.invalidate_recordset(["raw", "datas"])
 

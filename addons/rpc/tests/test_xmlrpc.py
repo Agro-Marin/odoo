@@ -194,22 +194,40 @@ class TestXMLRPC(common.HttpCase):
             },
         )
 
-    def test_xmlrpc_attachment_raw(self):
-        ids = self.env["ir.attachment"].create({"name": "n", "raw": b"\x01\x09"}).ids
-        [att] = self.xmlrpc_object.execute(
-            common.get_db_name(),
-            self.admin_uid,
-            "admin",
-            "ir.attachment",
-            "read",
-            ids,
-            ["raw"],
+    def _read_attachment(self, raw, fields, **kwargs):
+        attachment = self.env["ir.attachment"].create({"name": "n", "raw": raw})
+        [values] = self.xmlrpc(
+            "ir.attachment", "read", attachment.ids, fields, **kwargs
         )
+        return values
+
+    def test_xmlrpc_attachment_raw_is_base64(self):
+        values = self._read_attachment(b"\x01\x09", ["raw"])
         self.assertEqual(
-            att["raw"],
-            "\t",
-            "on read, binary data should be decoded as a string and stripped from control character",
+            values["raw"],
+            "AQk=",
+            "raw must be base64-encoded on read; sending it as text loses the "
+            "control characters the marshaller strips, silently corrupting the value",
         )
+
+    def test_xmlrpc_attachment_raw_accepts_non_utf8_content(self):
+        # a PNG header: valid file content, invalid UTF-8
+        values = self._read_attachment(b"\x89PNG\r\n\x1a\n", ["raw"])
+        self.assertEqual(values["raw"], "iVBORw0KGgo=")
+
+    def test_xmlrpc_attachment_raw_and_datas_agree(self):
+        values = self._read_attachment(b"\x89PNG\r\n\x1a\n", ["raw", "datas"])
+        self.assertEqual(
+            values["raw"],
+            values["datas"],
+            "raw and datas hold the same bytes, so they must serialize the same way",
+        )
+
+    def test_xmlrpc_attachment_bin_size_is_not_base64(self):
+        values = self._read_attachment(
+            b"\x89PNG\r\n\x1a\n", ["raw"], context={"bin_size": True}
+        )
+        self.assertEqual(values["raw"], "8.00 bytes")
 
 
 @common.tagged("post_install", "-at_install")
