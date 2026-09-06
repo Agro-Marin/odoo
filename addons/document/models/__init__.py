@@ -5,6 +5,8 @@ from . import document_access
 from . import document_access_log
 from . import document_access_tracking
 from . import document_document
+from . import document_type
+from . import document_document_type
 
 from . import document_document_access
 from . import document_document_user_folder

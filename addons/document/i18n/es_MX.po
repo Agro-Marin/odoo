@@ -1,0 +1,439 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* document
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-06 16:07+0000\n"
+"PO-Revision-Date: 2026-09-06 16:07+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: es_MX\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "<span class=\"o_stat_text\">Documents</span>"
+msgstr "<span class=\"o_stat_text\">Documentos</span>"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "<span class=\"o_stat_text\">Expired</span>"
+msgstr "<span class=\"o_stat_text\">Vencidos</span>"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "<span class=\"o_stat_text\">Expiring Soon</span>"
+msgstr "<span class=\"o_stat_text\">Por vencer</span>"
+
+#. module: document
+#: model:ir.model.constraint,message:document.constraint_document_type_name_src_uniq
+msgid "A document type with this name already exists for this company."
+msgstr "Ya existe un tipo de documento con este nombre para esta compañía."
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__active
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_search
+msgid "Active"
+msgstr "Activo"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_search
+msgid "Archived"
+msgstr "Archivado"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "Basic Information"
+msgstr "Información básica"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_document__document_type_id
+msgid "Category/type of this document for compliance tracking"
+msgstr ""
+"Categoría o tipo de este documento para el seguimiento de cumplimiento"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__has_expiration
+msgid "Check if documents of this type have an expiration date"
+msgstr "Marque si los documentos de este tipo tienen fecha de vencimiento"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__code
+msgid "Code"
+msgstr "Código"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_compliance_report__company_id
+#: model:ir.model.fields,field_description:document.field_document_type__company_id
+msgid "Company"
+msgstr "Compañía"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__company_id
+msgid "Company this document type belongs to (leave empty for all companies)"
+msgstr ""
+"Compañía a la que pertenece este tipo de documento (vacío para todas las "
+"compañías)"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "Compliance"
+msgstr "Cumplimiento"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_list
+msgid "Compliance Req."
+msgstr "Oblig. cumplimiento"
+
+#. module: document
+#: model_terms:ir.actions.act_window,help:document.action_document_type
+msgid ""
+"Create different document types for categorization and compliance tracking,\n"
+"                such as contracts, certificates, licenses, policies, etc."
+msgstr ""
+"Cree distintos tipos de documento para categorizar y dar seguimiento al cumplimiento,\n"
+"                como contratos, certificados, licencias, pólizas, etc."
+
+#. module: document
+#. odoo-javascript
+#: code:addons/document_compliance/static/src/components/document_details_panel/document_details_panel_patch.xml:0
+#: model:ir.model.fields,field_description:document.field_document_document__date_expiration
+msgid "Date Expiration"
+msgstr "Fecha de vencimiento"
+
+#. module: document
+#. odoo-javascript
+#: code:addons/document_compliance/static/src/components/document_details_panel/document_details_panel_patch.xml:0
+#: model:ir.model.fields,field_description:document.field_document_document__date_issued
+msgid "Date Issued"
+msgstr "Fecha de emisión"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_document__days_left
+msgid "Days Left"
+msgstr "Días restantes"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__default_validity_days
+msgid "Default Validity Days"
+msgstr "Días de vigencia predeterminados"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__folder_id
+msgid "Default folder where documents of this type should be stored"
+msgstr "Carpeta predeterminada donde se guardan los documentos de este tipo"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__default_validity_days
+msgid ""
+"Default number of days a new document of this type is valid for (e.g., 365 "
+"for annual permits)"
+msgstr ""
+"Días de vigencia predeterminados de un documento nuevo de este tipo (p. ej.,"
+" 365 para permisos anuales)"
+
+#. module: document
+#: model_terms:ir.actions.act_window,help:document.action_document_type
+msgid "Define Document Types"
+msgstr "Defina tipos de documento"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__description
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "Description"
+msgstr "Descripción"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__description
+msgid "Detailed description of this document type and its purpose"
+msgstr "Descripción detallada de este tipo de documento y su propósito"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_list
+msgid "Docs"
+msgstr "Docs."
+
+#. module: document
+#: model:ir.model,name:document.model_document_document
+#: model:ir.model.fields,field_description:document.field_document_type__document_ids
+msgid "Document"
+msgstr "Documento"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__document_count
+msgid "Document Count"
+msgstr "Número de documentos"
+
+#. module: document
+#. odoo-javascript
+#: code:addons/document_compliance/static/src/components/document_details_panel/document_details_panel_patch.xml:0
+#: model:ir.model,name:document.model_document_type
+#: model:ir.model.fields,field_description:document.field_document_document__document_type_id
+#: model_terms:ir.ui.view,arch_db:document.document_view_search
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_search
+msgid "Document Type"
+msgstr "Tipo de Documento"
+
+#. module: document
+#: model:ir.actions.act_window,name:document.action_document_type
+#: model:ir.ui.menu,name:document.menu_document_type
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_list
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_search
+msgid "Document Types"
+msgstr "Tipos de documento"
+
+#. module: document
+#: model:ir.model.constraint,message:document.constraint_document_type_code_company_uniq
+msgid "Document type code must be unique per company!"
+msgstr "El código del tipo de documento debe ser único por compañía."
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__document_ids
+msgid "Documents of this type"
+msgstr "Documentos de este tipo"
+
+#. module: document
+#. odoo-javascript
+#: code:addons/document_compliance/static/src/components/document_details_panel/document_details_panel_patch.xml:0
+#: model:ir.model.fields,field_description:document.field_document_document__expiration_state
+#: model_terms:ir.ui.view,arch_db:document.document_view_search
+msgid "Expiration State"
+msgstr "Estado de vigencia"
+
+#. module: document
+#: model:ir.model.fields.selection,name:document.selection__document_document__expiration_state__expired
+#: model_terms:ir.ui.view,arch_db:document.document_view_search
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_list
+msgid "Expired"
+msgstr "Vencido"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__expired_document_count
+msgid "Expired Document Count"
+msgstr "Documentos vencidos"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_list
+msgid "Expires"
+msgstr "Vence"
+
+#. module: document
+#: model:ir.model.fields.selection,name:document.selection__document_document__expiration_state__expiring_soon
+#: model_terms:ir.ui.view,arch_db:document.document_view_search
+#: model_terms:ir.ui.view,arch_db:document.view_document_compliance_report_list
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_list
+msgid "Expiring Soon"
+msgstr "Por vencer"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__expiring_soon_count
+msgid "Expiring Soon Count"
+msgstr "Documentos por vencer"
+
+#. module: document
+#: model:ir.actions.server,name:document.ir_cron_document_expiration_refresh_ir_actions_server
+msgid "Documents: Refresh expiration state"
+msgstr "Documentos: actualizar el estado de vencimiento"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__folder_id
+msgid "Folder"
+msgstr "Carpeta"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__has_expiration
+#: model_terms:ir.ui.view,arch_db:document.document_view_search
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_search
+msgid "Has Expiration"
+msgstr "Tiene vencimiento"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__instructions
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "Instructions"
+msgstr "Instrucciones"
+
+#. module: document
+#. odoo-javascript
+#: code:addons/document_compliance/static/src/components/document_details_panel/document_details_panel_patch.xml:0
+#: model:ir.model.fields,field_description:document.field_document_document__issuer_id
+msgid "Issuer"
+msgstr "Emisor"
+
+#. module: document
+#. odoo-javascript
+#: code:addons/document_compliance/static/src/components/document_details_panel/document_details_panel_patch.xml:0
+#: model:ir.model.fields,field_description:document.field_document_document__legal_number
+msgid "Legal Number"
+msgstr "Número oficial"
+
+#. module: document
+#: model:ir.model.constraint,message:document.constraint_document_document_legal_number_uniq
+msgid "Legal number must be unique per document type and company!"
+msgstr "El número oficial debe ser único por tipo de documento y compañía."
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.document_view_search
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_search
+msgid "Mandatory"
+msgstr "Obligatorio"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__name
+msgid "Name"
+msgstr "Nombre"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__name
+msgid ""
+"Name of this document type (e.g., 'Passport', 'Driver License', 'Work "
+"Permit')"
+msgstr ""
+"Nombre de este tipo de documento (p. ej., 'Pasaporte', 'Licencia de "
+"conducir', 'Permiso de trabajo')"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "Notifications"
+msgstr "Notificaciones"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_document__days_left
+msgid ""
+"Number of days remaining until document expires (0 for non-expiring "
+"documents)"
+msgstr ""
+"Días que faltan para que el documento venza (0 para documentos sin "
+"vencimiento)"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__expiring_soon_count
+msgid "Number of documents of this type expiring within the next 30 days"
+msgstr "Documentos de este tipo que vencen en los próximos 30 días"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__expired_document_count
+msgid "Number of documents of this type that are currently expired"
+msgstr "Documentos de este tipo actualmente vencidos"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_document__legal_number
+msgid ""
+"Official registration, license, or identification number for this document"
+msgstr ""
+"Número oficial de registro, licencia o identificación de este documento"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "Organization"
+msgstr "Organización"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_list
+msgid "Orig. Required"
+msgstr "Original requerido"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_list
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_search
+msgid "Renewable"
+msgstr "Renovable"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__sequence
+msgid "Sequence"
+msgstr "Secuencia"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__code
+msgid "Short code for this document type (e.g., 'PASSPORT', 'DL', 'WP')"
+msgstr ""
+"Código corto de este tipo de documento (p. ej., 'PASAPORTE', 'LIC', 'PT')"
+
+#. module: document
+#: model:ir.model.fields,field_description:document.field_document_type__tag_ids
+msgid "Tag"
+msgstr "Etiqueta"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__tag_ids
+msgid "Tags that will be automatically applied to new documents of this type"
+msgstr ""
+"Etiquetas que se aplican automáticamente a los documentos nuevos de este "
+"tipo"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_document__date_expiration
+msgid ""
+"The date when this document expires. Leave blank for non-expiring documents"
+msgstr ""
+"Fecha en que vence este documento. Deje vacío para documentos sin "
+"vencimiento"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_document__date_issued
+msgid "The date when this document was officially issued"
+msgstr "Fecha en que este documento fue emitido oficialmente"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_document__issuer_id
+msgid "The organization or government authority that issued this document"
+msgstr "Organización o autoridad gubernamental que emitió este documento"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_list
+msgid "Total"
+msgstr "Total"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__document_count
+msgid "Total number of documents of this type"
+msgstr "Número total de documentos de este tipo"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__active
+msgid "Uncheck to archive this document type without deleting it"
+msgstr "Desmarque para archivar este tipo de documento sin eliminarlo"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_type__sequence
+msgid ""
+"Used to order document types in lists and menus (lower numbers appear first)"
+msgstr ""
+"Orden de los tipos de documento en listas y menús (los números menores "
+"aparecen primero)"
+
+#. module: document
+#: model:ir.model.fields.selection,name:document.selection__document_document__expiration_state__valid
+#: model_terms:ir.ui.view,arch_db:document.document_view_search
+msgid "Valid"
+msgstr "Vigente"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "Validity"
+msgstr "Vigencia"
+
+#. module: document
+#: model:ir.model.fields,help:document.field_document_document__expiration_state
+msgid ""
+"Where the document stands against its expiration date: Valid (more than 30 "
+"days left), Expiring Soon (30 days or fewer), Expired (past date). Empty "
+"when the document has no expiration date"
+msgstr ""
+"Situación del documento frente a su fecha de vencimiento: Vigente (más de 30"
+" días restantes), Por vencer (30 días o menos), Vencido (fecha pasada). "
+"Vacío cuando el documento no tiene fecha de vencimiento"
+
+#. module: document
+#: model_terms:ir.ui.view,arch_db:document.view_document_type_form
+msgid "e.g., Contract, Certificate, License"
+msgstr "p. ej., Contrato, Certificado, Licencia"
+

@@ -62,6 +62,25 @@
                     name="requested_filter"
                     domain="[('type', '=', 'binary'), ('attachment_id', '=', False)]" />
                 <separator />
+                <field name="document_type_id" />
+                <field name="legal_number" />
+                <filter
+                    string="Valid"
+                    name="expiration_valid"
+                    domain="[('expiration_state', '=', 'valid')]" />
+                <filter
+                    string="Expiring Soon"
+                    name="expiration_expiring_soon"
+                    domain="[('expiration_state', '=', 'expiring_soon')]" />
+                <filter
+                    string="Expired"
+                    name="expiration_expired"
+                    domain="[('expiration_state', '=', 'expired')]" />
+                <filter
+                    string="Missing Expiration"
+                    name="expiration_missing"
+                    domain="[('expiration_state', '=', 'missing')]" />
+                <separator />
                 <filter
                     string="In My Drive"
                     name="my_drive_filter"
@@ -120,6 +139,14 @@
                         string="File Extension"
                         name="filter_file_extension"
                         context="{'group_by': 'file_extension'}" />
+                    <filter
+                        string="Document Type"
+                        name="filter_document_type"
+                        context="{'group_by': 'document_type_id'}" />
+                    <filter
+                        string="Expiration"
+                        name="filter_expiration_state"
+                        context="{'group_by': 'expiration_state'}" />
                 </group>
                 <searchpanel class="o_documents_search_panel">
                     <field name="user_folder_id" string="Folders" />
@@ -159,6 +186,14 @@
                 <field name="thumbnail_status" />
                 <field name="user_permission" />
                 <field name="access_token" />
+                <field name="document_type_id" />
+                <field name="has_expiration" />
+                <field name="legal_number" />
+                <field name="issuer_id" />
+                <field name="date_issued" />
+                <field name="date_expiration" />
+                <field name="days_left" />
+                <field name="expiration_state" />
                 <field name="access_url" />
                 <field name="access_via_link" />
                 <field name="access_internal" />
@@ -507,6 +542,28 @@
                     widget="many2many_tags"
                     groups="base.group_user" />
                 <field name="create_date" optional="hide" />
+                <field name="document_type_id" optional="show" />
+                <field name="has_expiration" column_invisible="1" />
+                <field name="legal_number" optional="hide" />
+                <field name="issuer_id" optional="hide" />
+                <field name="date_issued" widget="date" optional="hide" />
+                <field
+                    name="date_expiration"
+                    widget="date"
+                    optional="hide"
+                    invisible="not has_expiration" />
+                <field
+                    name="days_left"
+                    optional="hide"
+                    invisible="not date_expiration" />
+                <field
+                    name="expiration_state"
+                    widget="badge"
+                    decoration-success="expiration_state == 'valid'"
+                    decoration-warning="expiration_state in ('expiring_soon', 'missing')"
+                    decoration-danger="expiration_state == 'expired'"
+                    optional="hide"
+                    invisible="not has_expiration" />
                 <field name="write_date" optional="show" />
                 <field name="file_extension" optional="hide" />
                 <field name="file_size" optional="show" widget="document_size" />

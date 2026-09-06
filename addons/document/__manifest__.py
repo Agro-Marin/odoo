@@ -1,6 +1,6 @@
 {
     "name": "Documents",
-    "version": "1.7",
+    "version": "1.8",
     "category": "Productivity/Documents",
     "sequence": 80,
     "summary": "Collect, organize and share documents.",
@@ -40,6 +40,7 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "views/mail_activity_plan_views.xml",
         "views/mail_alias_views.xml",
         "views/document_menu_views.xml",
+        "views/document_type_views.xml",
         "views/document_access_log_views.xml",
         "views/document_templates_portal.xml",
         "views/document_templates_share.xml",

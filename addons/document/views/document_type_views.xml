@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_document_type_search" model="ir.ui.view">
+        <field name="name">document.type.search</field>
+        <field name="model">document.type</field>
+        <field name="arch" type="xml">
+            <search string="Document Types">
+                <field name="name" string="Document Type" />
+                <field name="code" />
+                <separator />
+                <filter
+                    string="Has Expiration"
+                    name="has_expiration"
+                    domain="[('has_expiration', '=', True)]" />
+                <separator />
+                <filter
+                    string="Active"
+                    name="active"
+                    domain="[('active', '=', True)]" />
+                <filter
+                    string="Archived"
+                    name="archived"
+                    domain="[('active', '=', False)]" />
+                <group>
+                    <filter
+                        string="Has Expiration"
+                        name="group_has_expiration"
+                        domain="[]"
+                        context="{'group_by': 'has_expiration'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_document_type_list" model="ir.ui.view">
+        <field name="name">document.type.list</field>
+        <field name="model">document.type</field>
+        <field name="arch" type="xml">
+            <list string="Document Types" editable="bottom">
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="code" />
+                <field name="has_expiration" string="Expires" />
+                <field name="default_validity_days" optional="hide" />
+                <field name="document_count" string="Docs" sum="Total" />
+                <field
+                    name="expired_document_count"
+                    string="Expired"
+                    sum="Total"
+                    decoration-danger="expired_document_count &gt; 0"
+                    optional="hide" />
+                <field
+                    name="expiring_soon_count"
+                    string="Expiring Soon"
+                    sum="Total"
+                    decoration-warning="expiring_soon_count &gt; 0"
+                    optional="hide" />
+                <field name="active" widget="boolean_toggle" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_document_type_form" model="ir.ui.view">
+        <field name="name">document.type.form</field>
+        <field name="model">document.type</field>
+        <field name="arch" type="xml">
+            <form string="Document Type">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="action_view_documents"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-regular fa-file-lines">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="document_count" />
+                                </span>
+                                <span class="o_stat_text">Documents</span>
+                            </div>
+                        </button>
+                        <button
+                            name="action_view_documents"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-solid fa-triangle-exclamation"
+                            context="{'expiration_filter': 'expired'}"
+                            invisible="expired_document_count == 0">
+                            <div class="o_field_widget o_stat_info text-danger">
+                                <span class="o_stat_value">
+                                    <field name="expired_document_count" />
+                                </span>
+                                <span class="o_stat_text">Expired</span>
+                            </div>
+                        </button>
+                        <button
+                            name="action_view_documents"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-regular fa-clock"
+                            context="{'expiration_filter': 'expiring_soon'}"
+                            invisible="expiring_soon_count == 0">
+                            <div class="o_field_widget o_stat_info text-warning">
+                                <span class="o_stat_value">
+                                    <field name="expiring_soon_count" />
+                                </span>
+                                <span class="o_stat_text">Expiring Soon</span>
+                            </div>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <label for="name" string="Document Type" />
+                        <h1>
+                            <field
+                                name="name"
+                                placeholder="e.g., Contract, Certificate, License" />
+                        </h1>
+                    </div>
+                    <group>
+                        <group name="basic_info" string="Basic Information">
+                            <field name="code" />
+                            <field name="active" widget="boolean_toggle" />
+                            <field name="sequence" />
+                        </group>
+                        <group name="validity" string="Validity">
+                            <field name="has_expiration" />
+                            <field
+                                name="default_validity_days"
+                                invisible="not has_expiration" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Organization" name="organization">
+                            <group>
+                                <field name="folder_id" />
+                                <field name="tag_ids" widget="many2many_tags" />
+                            </group>
+                        </page>
+                        <page string="Description" name="description">
+                            <field name="description" nolabel="1" />
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_document_type" model="ir.actions.act_window">
+        <field name="name">Document Types</field>
+        <field name="res_model">document.type</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_document_type_search" />
+        <field name="context">{'search_default_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Define Document Types
+            </p>
+            <p>
+                A type says what kind of document a file is and which attributes
+                apply to it, such as whether it expires.
+            </p>
+        </field>
+    </record>
+
+    <menuitem
+        id="menu_document_type"
+        name="Document Types"
+        parent="document.structure"
+        action="action_document_type"
+        sequence="50" />
+
+</odoo>

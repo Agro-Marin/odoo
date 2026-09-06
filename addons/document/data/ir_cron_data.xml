@@ -19,4 +19,13 @@
         <field name="interval_type">days</field>
     </record>
 
+    <record id="ir_cron_document_expiration_refresh" model="ir.cron" forcecreate="True">
+        <field name="name">Documents: Refresh expiration state</field>
+        <field name="model_id" ref="model_document_document" />
+        <field name="state">code</field>
+        <field name="code">model._cron_refresh_expiration_state()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+    </record>
+
 </odoo>

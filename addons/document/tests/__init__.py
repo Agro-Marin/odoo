@@ -19,6 +19,7 @@ from . import test_document_request
 from . import test_document_search_panel
 from . import test_document_shortcut
 from . import test_document_tag
+from . import test_document_type
 from . import test_document_thumbnail
 from . import test_document_upload
 from . import test_document_user_folder
