@@ -421,7 +421,6 @@ class PurchaseOrder(models.Model):
         self.check_singleton()
         return {
             "default_partner_id": self.partner_id.id,
-            "default_origin": self.name,
             "default_picking_type_id": self.picking_type_id.id,
         }
 
