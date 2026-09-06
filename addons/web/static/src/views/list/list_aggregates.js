@@ -284,18 +284,20 @@ export class ListAggregates {
         const currencyField = this.getCurrencyField(column);
         const values = known.rows ?? this.getAggregationValues();
         const { list } = this.ctx.getProps();
+        /** @type {Set<any>} */
+        const currencies = new Set();
         if (/** @type {any} */ (list).isGrouped && !list.selection.length) {
-            return values.reduce((set, value) => {
+            for (const value of values) {
                 if (Array.isArray(value[currencyField])) {
-                    value[currencyField].forEach((c) => set.add(c));
+                    value[currencyField].forEach((c) => currencies.add(c));
                 }
-                return set;
-            }, /** @type {Set<any>} */ (new Set()));
+            }
+            return currencies;
         }
-        return values.reduce(
-            (set, value) => set.add(value[currencyField]?.id || false),
-            /** @type {Set<any>} */ (new Set()),
-        );
+        for (const value of values) {
+            currencies.add(value[currencyField]?.id || false);
+        }
+        return currencies;
     }
 
     /**
