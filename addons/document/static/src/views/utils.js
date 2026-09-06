@@ -1,4 +1,6 @@
 /** @odoo-module native */
+import { markup } from "@odoo/owl";
+import { htmlJoin } from "@web/core/utils/dom/html";
 /** @typedef {typeof import("@web/model/relational_model/record").RelationalRecord} RelationalModelRecord */
 
 const SAFE_URL_SCHEME = /^(https?|ftp):\/\//;
@@ -60,4 +62,19 @@ export function getCommonEmbeddedActions(documents) {
     }
     const embeddedActionsArray = Array.from(embeddedActionsMap.entries());
     return embeddedActionsArray.map(([id, name]) => ({ id, name }));
+}
+
+/**
+ * A server action refused some documents: `action_execute_embedded_action`
+ * answers `{warning: {title, documents}}`. One notification shape for the
+ * two client paths that run embedded actions.
+ *
+ * @param {import("@web/core/notifications/notification_service").NotificationService} notification
+ * @param {{title: string, documents: string[]}} warning
+ */
+export function notifyEmbeddedActionWarning(notification, warning) {
+    notification.add(
+        markup`<ul>${htmlJoin(warning.documents.map((d) => markup`<li>${d}</li>`))}</ul>`,
+        { title: warning.title, type: "danger" },
+    );
 }

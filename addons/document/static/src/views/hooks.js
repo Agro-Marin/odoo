@@ -1,15 +1,14 @@
 /** @odoo-module native */
+import { notifyEmbeddedActionWarning } from "@document/views/utils";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { htmlJoin } from "@web/core/utils/dom/html";
 import { useSetupAction } from "@web/core/action_hook";
 import { PdfManager } from "@document/owl/components/pdf_manager/pdf_manager";
 import { PromoteStudioAutomationDialog } from "@web/webclient/promote_studio/promote_studio_dialog";
 import {
     EventBus,
     onMounted,
-    markup,
     useComponent,
     useEnv,
     useRef,
@@ -505,17 +504,7 @@ export function useEmbeddedAction() {
 
             if (result && typeof result === "object") {
                 if (Object.prototype.hasOwnProperty.call(result, "warning")) {
-                    notification.add(
-                        markup`<ul>${htmlJoin(
-                            result["warning"]["documents"].map(
-                                (d) => markup`<li>${d}</li>`,
-                            ),
-                        )}</ul>`,
-                        {
-                            title: result["warning"]["title"],
-                            type: "danger",
-                        },
-                    );
+                    notifyEmbeddedActionWarning(notification, result.warning);
                     if (!preventReload) {
                         await env.model.load();
                     }

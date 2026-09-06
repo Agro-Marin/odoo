@@ -5,18 +5,17 @@ import {
     FileUploadProgressKanbanRecord,
 } from "@web/components/file_upload";
 import { _t } from "@web/core/translation";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus } from "@web/core/utils/hooks";
 import { KanbanRenderer } from "@web/views/kanban";
 
 import { DocumentsRightPanel } from "@document/components/document_right_panel/document_right_panel";
 import { DocumentsRendererMixin } from "@document/views/document_renderer_mixin";
 import { DocumentsActionHelper } from "@document/views/helper/document_action_helper";
-import { useDraggableDocuments } from "@document/views/helper/document_draggable";
 import { DocumentsDropZone } from "@document/views/helper/document_drop_zone";
 import { DocumentsFileViewer } from "@document/views/helper/document_file_viewer";
 import { DocumentsKanbanRecord } from "@document/views/kanban/document_kanban_record";
 
-import { onMounted, useRef, useState } from "@odoo/owl";
+import { onMounted } from "@odoo/owl";
 
 export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRenderer) {
     static props = [...KanbanRenderer.props, "previewStore"];
@@ -31,34 +30,12 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
         DocumentsRightPanel,
     });
 
+    static recordSelector = ".o_kanban_record";
+    static focusSelector = (resId) => `.o_kanban_record[data-value-id="${resId}"]`;
+    static dropTargetSelector = ".o_kanban_record.o_folder_record";
+
     setup() {
         super.setup();
-        this.root = useRef("root");
-        const { uploads } = useService("file_upload");
-        this.documentUploads = useState(uploads);
-        this.documentService = useService("document.document");
-
-        useCommand(
-            _t("Select all"),
-            () => {
-                const allSelected =
-                    this.props.list.selection.length === this.props.list.records.length;
-                this.props.list.records.forEach((record) => {
-                    record.toggleSelection(!allSelected);
-                });
-                const focusedRecord = this.setDefaultFocus();
-                this.root.el
-                    ?.querySelector(
-                        `.o_kanban_record[data-value-id="${focusedRecord?.resId}"]`,
-                    )
-                    ?.focus();
-            },
-            {
-                category: "smart_action",
-                hotkey: "control+a",
-                isAvailable: () => this.props.list.records.length > 0,
-            },
-        );
         useCommand(
             _t("Toggle favorite"),
             async () => {
@@ -76,22 +53,6 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
                 hotkey: "alt+t",
             },
         );
-
-        useDraggableDocuments({
-            ref: this.root,
-            model: this.env.model,
-            targetSelector: ".o_kanban_record.o_folder_record",
-            elements: ".o_kanban_record",
-            preventDrag: () =>
-                this.env.searchModel.getSelectedFolderId() === "TRASH" ||
-                this.getIsDomainSelected(),
-            onTargetPointerEnter: ({ addClass, target, isInvalid }) => {
-                addClass(target, isInvalid ? "o_drag_invalid" : "o_drag_hover");
-            },
-            onTargetPointerLeave: ({ removeClass, target }) => {
-                removeClass(target, "o_drag_invalid", "o_drag_hover");
-            },
-        });
 
         useBus(this.documentService.bus, "DOCUMENT_ACTIVITY_CHANGED", ({ detail }) => {
             if (

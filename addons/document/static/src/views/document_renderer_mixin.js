@@ -2,6 +2,7 @@
 import { useCommand } from "@web/ui/commands";
 import { _t } from "@web/core/translation";
 import { useService, useBus } from "@web/core/utils/hooks";
+import { useDraggableDocuments } from "@document/views/helper/document_draggable";
 import {
     preprocessMany2oneChanges,
     preprocessMany2OneReferenceChanges,
@@ -14,15 +15,66 @@ import {
     onWillUpdateProps,
     useComponent,
     useExternalListener,
+    useRef,
     useState,
 } from "@odoo/owl";
 
 export const DocumentsRendererMixin = (component) =>
     class extends component {
+        /** The element standing for one record, and the one to focus after select-all. */
+        static recordSelector = null;
+        static focusSelector = (resId) => `[data-value-id="${resId}"]`;
+        /** Where a dragged document may be dropped, and the classes marking the hover. */
+        static dropTargetSelector = null;
+        static dropHoverClasses = { hover: "o_drag_hover", invalid: "o_drag_invalid" };
+
         setup() {
             super.setup();
+            this.root = useRef("root");
             this.documentService = useService("document.document");
             this.notificationService = useService("notification");
+            const { uploads } = useService("file_upload");
+            this.documentUploads = useState(uploads);
+
+            useCommand(
+                _t("Select all"),
+                () => {
+                    const allSelected =
+                        this.props.list.selection.length ===
+                        this.props.list.records.length;
+                    this.props.list.records.forEach((record) => {
+                        record.toggleSelection(!allSelected);
+                    });
+                    const focusedRecord = this.setDefaultFocus();
+                    this.root.el
+                        ?.querySelector(
+                            this.constructor.focusSelector(focusedRecord?.resId),
+                        )
+                        ?.focus();
+                },
+                {
+                    category: "smart_action",
+                    hotkey: "control+a",
+                    isAvailable: () => this.props.list.records.length > 0,
+                },
+            );
+
+            const { hover, invalid } = this.constructor.dropHoverClasses;
+            useDraggableDocuments({
+                ref: this.root,
+                model: this.env.model,
+                targetSelector: this.constructor.dropTargetSelector,
+                elements: this.constructor.recordSelector,
+                preventDrag: () =>
+                    this.env.searchModel.getSelectedFolderId() === "TRASH" ||
+                    this.getIsDomainSelected(),
+                onTargetPointerEnter: ({ addClass, target, isInvalid }) => {
+                    addClass(target, isInvalid ? invalid : hover);
+                },
+                onTargetPointerLeave: ({ removeClass, target }) => {
+                    removeClass(target, invalid, hover);
+                },
+            });
 
             this.documentService.focusRecord(
                 this.selection?.[0] || this.getContainerRecord(),

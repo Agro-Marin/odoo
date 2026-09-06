@@ -1,22 +1,16 @@
 /** @odoo-module native */
-import { useCommand } from "@web/ui/commands";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import {
     FileUploadProgressContainer,
     FileUploadProgressDataRow,
 } from "@web/components/file_upload";
-import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
 import { ListRenderer } from "@web/views/list";
 
 import { DocumentsRightPanel } from "@document/components/document_right_panel/document_right_panel";
 import { DocumentsActionHelper } from "@document/views/helper/document_action_helper";
-import { useDraggableDocuments } from "@document/views/helper/document_draggable";
 import { DocumentsDropZone } from "@document/views/helper/document_drop_zone";
 import { DocumentsFileViewer } from "@document/views/helper/document_file_viewer";
 import { DocumentsRendererMixin } from "@document/views/document_renderer_mixin";
-
-import { useRef, useState } from "@odoo/owl";
 
 export class DocumentsSecondaryListRenderer extends ListRenderer {
     static props = [...ListRenderer.props, "previewStore"];
@@ -36,48 +30,14 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(
         DocumentsRightPanel,
     });
 
+    static recordSelector = ".o_data_row";
+    static focusSelector = (resId) =>
+        `.o_data_row[data-value-id="${resId}"] .o_data_cell`;
+    static dropTargetSelector = ".o_data_row.o_folder_record";
+    static dropHoverClasses = { hover: "table-success", invalid: "table-danger" };
+
     setup() {
         super.setup();
-        this.root = useRef("root");
-        const { uploads } = useService("file_upload");
-        this.documentUploads = useState(uploads);
-        useCommand(
-            _t("Select all"),
-            () => {
-                const allSelected =
-                    this.props.list.selection.length === this.props.list.records.length;
-                this.props.list.records.forEach((record) => {
-                    record.toggleSelection(!allSelected);
-                });
-                const focusedRecord = this.setDefaultFocus();
-                this.root.el
-                    ?.querySelector(
-                        `.o_data_row[data-value-id="${focusedRecord?.resId}"] .o_data_cell`,
-                    )
-                    ?.focus();
-            },
-            {
-                category: "smart_action",
-                hotkey: "control+a",
-                isAvailable: () => this.props.list.records.length > 0,
-            },
-        );
-
-        useDraggableDocuments({
-            ref: this.root,
-            model: this.env.model,
-            targetSelector: ".o_data_row.o_folder_record",
-            elements: ".o_data_row",
-            preventDrag: () =>
-                this.env.searchModel.getSelectedFolderId() === "TRASH" ||
-                this.getIsDomainSelected(),
-            onTargetPointerEnter: ({ addClass, target, isInvalid }) => {
-                addClass(target, isInvalid ? "table-danger" : "table-success");
-            },
-            onTargetPointerLeave: ({ removeClass, target }) => {
-                removeClass(target, "table-danger", "table-success");
-            },
-        });
     }
 
     getRowClass(record) {

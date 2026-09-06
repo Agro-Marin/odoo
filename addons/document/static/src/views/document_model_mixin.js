@@ -5,7 +5,10 @@ import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { getCommonEmbeddedActions } from "@document/views/utils";
+import {
+    notifyEmbeddedActionWarning,
+    getCommonEmbeddedActions,
+} from "@document/views/utils";
 import { getSpecEvalContext } from "@web/model/relational_model";
 
 export const DocumentsModelMixin = (component) =>
@@ -419,7 +422,10 @@ export const DocumentsModelMixin = (component) =>
                 [actionId],
                 { context },
             );
-            if (action) {
+            if (action?.warning) {
+                // The server refused some of the documents; nothing to open.
+                notifyEmbeddedActionWarning(this.notification, action.warning);
+            } else if (action) {
                 await this.action.doAction(action, {
                     onClose: () => {
                         this._notifyChange();
