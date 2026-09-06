@@ -24,125 +24,115 @@ function indexOfRecord(records, record) {
     return records.findIndex((r) => r.id === record.id);
 }
 
-/**
- * @param {RecordSelectionContext} ctx
- * @returns {{
- * lastCheckedRecord: any,
- * shiftKeyMode: boolean,
- * shiftKeyedRecord: any,
- * isAnchorPresent: () => boolean,
- * toggleSelection: (record: any, isRange?: boolean) => void,
- * toggleRangeSelection: (record: any) => void,
- * expandCheckboxes: (record: any, direction: "up" | "down") => boolean,
- * }}
- */
-export function useRecordSelection(ctx) {
-    const { getRecords, onSelectionModifier } = ctx;
+export class RecordSelection {
+    /** @type {any} */
+    lastCheckedRecord = undefined;
+    shiftKeyMode = false;
+    /** @type {any} */
+    shiftKeyedRecord = undefined;
 
-    const self = {
-        /**
-         * @type {any}
-         */
-        lastCheckedRecord: undefined,
+    /**
+     * @param {RecordSelectionContext} ctx
+     */
+    constructor(ctx) {
+        this.ctx = ctx;
+    }
 
-        shiftKeyMode: false,
+    /**
+     * @returns {boolean}
+     */
+    isAnchorPresent() {
+        return indexOfRecord(this.ctx.getRecords(), this.lastCheckedRecord) !== -1;
+    }
 
-        /**
-         * @type {any}
-         */
-        shiftKeyedRecord: undefined,
+    /**
+     * @param {any} record
+     * @param {boolean} [isRange]
+     */
+    toggleSelection(record, isRange = false) {
+        if (isRange && this.isAnchorPresent()) {
+            (this.ctx.rangeToggle || ((r) => this.toggleRangeSelection(r)))(record);
+        } else {
+            record.toggleSelection();
+        }
+        this.lastCheckedRecord = record;
+    }
 
-        /**
-         * @returns {boolean}
-         */
-        isAnchorPresent() {
-            return indexOfRecord(getRecords(), self.lastCheckedRecord) !== -1;
-        },
+    /**
+     * @param {any} record
+     */
+    toggleRangeSelection(record) {
+        const records = this.ctx.getRecords();
+        const lastCheckedRecordIndex = indexOfRecord(records, this.lastCheckedRecord);
+        if (lastCheckedRecordIndex === -1) {
+            this.lastCheckedRecord = record;
+            record.toggleSelection(!record.selected);
+            return;
+        }
+        const recordIndex = indexOfRecord(records, record);
+        const start = Math.min(recordIndex, lastCheckedRecordIndex);
+        const end = Math.max(recordIndex, lastCheckedRecordIndex);
+        const selected = !record.selected;
+        for (let i = start; i <= end; i++) {
+            records[i].toggleSelection(selected);
+        }
+    }
 
-        /**
-         * @param {any} record
-         * @param {boolean} [isRange]
-         */
-        toggleSelection(record, isRange = false) {
-            if (isRange && self.isAnchorPresent()) {
-                (ctx.rangeToggle || self.toggleRangeSelection)(record);
-            } else {
-                record.toggleSelection();
+    /**
+     * @param {any} record
+     * @param {"up" | "down"} direction
+     * @returns {boolean}
+     */
+    expandCheckboxes(record, direction) {
+        const records = this.ctx.getRecords();
+        if (!record && direction === "down") {
+            const defaultRecord = records[0];
+            if (!defaultRecord) {
+                return false;
             }
-            self.lastCheckedRecord = record;
-        },
-
-        /**
-         * @param {any} record
-         */
-        toggleRangeSelection(record) {
-            const records = getRecords();
-            const lastCheckedRecordIndex = indexOfRecord(
-                records,
-                self.lastCheckedRecord,
-            );
-            if (lastCheckedRecordIndex === -1) {
-                self.lastCheckedRecord = record;
-                record.toggleSelection(!record.selected);
-                return;
-            }
-            const recordIndex = indexOfRecord(records, record);
-            const start = Math.min(recordIndex, lastCheckedRecordIndex);
-            const end = Math.max(recordIndex, lastCheckedRecordIndex);
-            const selected = !record.selected;
-            for (let i = start; i <= end; i++) {
-                records[i].toggleSelection(selected);
-            }
-        },
-
-        /**
-         * @param {any} record
-         * @param {"up" | "down"} direction
-         * @returns {boolean}
-         */
-        expandCheckboxes(record, direction) {
-            const records = getRecords();
-            if (!record && direction === "down") {
-                const defaultRecord = records[0];
-                if (!defaultRecord) {
+            this.shiftKeyedRecord = defaultRecord;
+            defaultRecord.toggleSelection(true);
+            return true;
+        }
+        const recordIndex = indexOfRecord(records, record);
+        const shiftKeyedRecordIndex = indexOfRecord(records, this.shiftKeyedRecord);
+        let nextRecord;
+        let isExpanding;
+        switch (direction) {
+            case "up":
+                if (recordIndex <= 0) {
                     return false;
                 }
-                self.shiftKeyedRecord = defaultRecord;
-                defaultRecord.toggleSelection(true);
-                return true;
-            }
-            const recordIndex = indexOfRecord(records, record);
-            const shiftKeyedRecordIndex = indexOfRecord(records, self.shiftKeyedRecord);
-            let nextRecord;
-            let isExpanding;
-            switch (direction) {
-                case "up":
-                    if (recordIndex <= 0) {
-                        return false;
-                    }
-                    nextRecord = records[recordIndex - 1];
-                    isExpanding = shiftKeyedRecordIndex > recordIndex - 1;
-                    break;
-                case "down":
-                    if (recordIndex === records.length - 1) {
-                        return false;
-                    }
-                    nextRecord = records[recordIndex + 1];
-                    isExpanding = shiftKeyedRecordIndex < recordIndex + 1;
-                    break;
-                default:
+                nextRecord = records[recordIndex - 1];
+                isExpanding = shiftKeyedRecordIndex > recordIndex - 1;
+                break;
+            case "down":
+                if (recordIndex === records.length - 1) {
                     return false;
-            }
+                }
+                nextRecord = records[recordIndex + 1];
+                isExpanding = shiftKeyedRecordIndex < recordIndex + 1;
+                break;
+            default:
+                return false;
+        }
+        if (isExpanding) {
+            record.toggleSelection(true);
+            nextRecord.toggleSelection(true);
+        } else {
+            record.toggleSelection(false);
+        }
+        return true;
+    }
+}
 
-            if (isExpanding) {
-                record.toggleSelection(true);
-                nextRecord.toggleSelection(true);
-            } else {
-                record.toggleSelection(false);
-            }
-            return true;
-        },
-    };
+/**
+ * @param {RecordSelectionContext} ctx
+ * @returns {RecordSelection}
+ */
+export function useRecordSelection(ctx) {
+    const { onSelectionModifier } = ctx;
+    const self = new RecordSelection(ctx);
 
     useExternalListener(window, "keydown", (ev) => {
         self.shiftKeyMode = ev.shiftKey;

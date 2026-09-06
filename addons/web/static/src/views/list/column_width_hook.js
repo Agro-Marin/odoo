@@ -75,85 +75,115 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
     }
 
     const totalWidth = _columnWidths.reduce((tot, width) => tot + width, 0);
-    let diff = totalWidth - allowedWidth;
+    const diff = totalWidth - allowedWidth;
     if (diff >= 1) {
-        const shrinkableColumns = [];
-        let totalAvailableSpace = 0;
-        for (let columnIndex = 0; columnIndex < columns.length; columnIndex++) {
-            const thIndex = columnIndex + columnOffset;
-            const { minWidth, canShrink } = columnWidthSpecs[columnIndex];
-            if (_columnWidths[thIndex] > minWidth && canShrink) {
-                shrinkableColumns.push({ thIndex, minWidth });
-                totalAvailableSpace += _columnWidths[thIndex] - minWidth;
-            }
-        }
-        if (diff > totalAvailableSpace) {
-            for (const { thIndex, minWidth } of shrinkableColumns) {
-                _columnWidths[thIndex] = minWidth;
-            }
-        } else {
-            let remainingColumnsToShrink = shrinkableColumns.length;
-            while (diff >= 1 && remainingColumnsToShrink > 0) {
-                const colDiff = diff / remainingColumnsToShrink;
-                for (const { thIndex, minWidth } of shrinkableColumns) {
-                    const currentWidth = _columnWidths[thIndex];
-                    if (currentWidth === minWidth) {
-                        continue;
-                    }
-                    const newWidth = Math.max(currentWidth - colDiff, minWidth);
-                    diff -= currentWidth - newWidth;
-                    _columnWidths[thIndex] = newWidth;
-                    if (newWidth === minWidth) {
-                        remainingColumnsToShrink--;
-                    }
-                }
-            }
-        }
+        shrinkColumns(_columnWidths, columns, columnWidthSpecs, columnOffset, diff);
     } else if (diff <= -1) {
-        diff = -diff;
-        const expandableColumns = [];
-        for (let columnIndex = 0; columnIndex < columns.length; columnIndex++) {
-            const thIndex = columnIndex + columnOffset;
-            const maxWidth = columnWidthSpecs[columnIndex].maxWidth;
-            if (!maxWidth || _columnWidths[thIndex] < maxWidth) {
-                expandableColumns.push({ thIndex, maxWidth });
-            }
+        expandColumns(_columnWidths, columns, columnWidthSpecs, columnOffset, -diff);
+    }
+    return _columnWidths;
+}
+
+/**
+ * Take `diff` pixels back from the shrinkable columns, evenly among those still
+ * above their minimum, or clamp every one to its minimum when that is not
+ * enough. Mutates `widths`.
+ *
+ * @param {number[]} widths
+ * @param {any[]} columns
+ * @param {{ minWidth: number, maxWidth?: number, canShrink: boolean }[]} specs
+ * @param {number} columnOffset
+ * @param {number} diff
+ */
+function shrinkColumns(widths, columns, specs, columnOffset, diff) {
+    const shrinkableColumns = [];
+    let totalAvailableSpace = 0;
+    for (let columnIndex = 0; columnIndex < columns.length; columnIndex++) {
+        const thIndex = columnIndex + columnOffset;
+        const { minWidth, canShrink } = specs[columnIndex];
+        if (widths[thIndex] > minWidth && canShrink) {
+            shrinkableColumns.push({ thIndex, minWidth });
+            totalAvailableSpace += widths[thIndex] - minWidth;
         }
-        let remainingExpandableColumns = expandableColumns.length;
-        while (diff >= 1 && remainingExpandableColumns > 0) {
-            const colDiff = diff / remainingExpandableColumns;
-            for (const { thIndex, maxWidth } of expandableColumns) {
-                const currentWidth = _columnWidths[thIndex];
-                if (currentWidth === maxWidth) {
-                    continue;
-                }
-                const newWidth = Math.min(
-                    currentWidth + colDiff,
-                    maxWidth || Number.MAX_VALUE,
-                );
-                diff -= newWidth - currentWidth;
-                _columnWidths[thIndex] = newWidth;
-                if (newWidth === maxWidth) {
-                    remainingExpandableColumns--;
-                }
-            }
+    }
+    if (diff > totalAvailableSpace) {
+        for (const { thIndex, minWidth } of shrinkableColumns) {
+            widths[thIndex] = minWidth;
         }
-        if (diff >= 1) {
-            const flexible = [];
-            for (let columnIndex = 0; columnIndex < columns.length; columnIndex++) {
-                if (!columnWidthSpecs[columnIndex].maxWidth) {
-                    flexible.push(columnIndex + columnOffset);
-                }
+        return;
+    }
+    let remainingColumnsToShrink = shrinkableColumns.length;
+    while (diff >= 1 && remainingColumnsToShrink > 0) {
+        const colDiff = diff / remainingColumnsToShrink;
+        for (const { thIndex, minWidth } of shrinkableColumns) {
+            const currentWidth = widths[thIndex];
+            if (currentWidth === minWidth) {
+                continue;
             }
-            const targets = flexible.length
-                ? flexible
-                : columns.map((_, columnIndex) => columnIndex + columnOffset);
-            for (const thIndex of targets) {
-                _columnWidths[thIndex] += diff / targets.length;
+            const newWidth = Math.max(currentWidth - colDiff, minWidth);
+            diff -= currentWidth - newWidth;
+            widths[thIndex] = newWidth;
+            if (newWidth === minWidth) {
+                remainingColumnsToShrink--;
             }
         }
     }
-    return _columnWidths;
+}
+
+/**
+ * Hand `diff` pixels to the columns under their maximum, evenly, then whatever
+ * is left to the columns with no maximum at all (or to every column when all
+ * are capped). Mutates `widths`.
+ *
+ * @param {number[]} widths
+ * @param {any[]} columns
+ * @param {{ minWidth: number, maxWidth?: number, canShrink: boolean }[]} specs
+ * @param {number} columnOffset
+ * @param {number} diff
+ */
+function expandColumns(widths, columns, specs, columnOffset, diff) {
+    const expandableColumns = [];
+    for (let columnIndex = 0; columnIndex < columns.length; columnIndex++) {
+        const thIndex = columnIndex + columnOffset;
+        const maxWidth = specs[columnIndex].maxWidth;
+        if (!maxWidth || widths[thIndex] < maxWidth) {
+            expandableColumns.push({ thIndex, maxWidth });
+        }
+    }
+    let remainingExpandableColumns = expandableColumns.length;
+    while (diff >= 1 && remainingExpandableColumns > 0) {
+        const colDiff = diff / remainingExpandableColumns;
+        for (const { thIndex, maxWidth } of expandableColumns) {
+            const currentWidth = widths[thIndex];
+            if (currentWidth === maxWidth) {
+                continue;
+            }
+            const newWidth = Math.min(
+                currentWidth + colDiff,
+                maxWidth || Number.MAX_VALUE,
+            );
+            diff -= newWidth - currentWidth;
+            widths[thIndex] = newWidth;
+            if (newWidth === maxWidth) {
+                remainingExpandableColumns--;
+            }
+        }
+    }
+    if (diff < 1) {
+        return;
+    }
+    const flexible = [];
+    for (let columnIndex = 0; columnIndex < columns.length; columnIndex++) {
+        if (!specs[columnIndex].maxWidth) {
+            flexible.push(columnIndex + columnOffset);
+        }
+    }
+    const targets = flexible.length
+        ? flexible
+        : columns.map((_, columnIndex) => columnIndex + columnOffset);
+    for (const thIndex of targets) {
+        widths[thIndex] += diff / targets.length;
+    }
 }
 
 const WIDTH_ATTRIBUTE_REGEX = /^\s*(\d+(?:\.\d+)?)\s*(px|%)?\s*$/;

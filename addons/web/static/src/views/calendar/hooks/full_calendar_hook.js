@@ -183,6 +183,57 @@ function eventSetFingerprint(instance) {
 }
 
 /**
+ * Bring a mounted calendar to what its params now say: the weekend
+ * visibility, the view and date, and the events when either moved or the
+ * records did. A year view re-renders whole when its event set changed.
+ *
+ * @param {any} instance
+ * @param {Record<string, any>} params
+ * @param {any} component
+ */
+function syncCalendarWithParams(instance, params, component) {
+    instance.setOption("weekends", component.props.isWeekendVisible);
+    const currentViewType = instance.view?.type;
+    const targetView =
+        typeof params.initialView === "string" ? params.initialView : null;
+    const targetDate =
+        typeof params.initialDate !== "undefined" ? params.initialDate : null;
+    let viewOrDateChanged = false;
+    if (targetView && currentViewType && currentViewType !== targetView) {
+        try {
+            instance.changeView(targetView, targetDate);
+        } catch {
+            instance.changeView(targetView);
+            if (targetDate) {
+                try {
+                    instance.gotoDate(targetDate);
+                } catch {}
+            }
+        }
+        instance.__lastInitialDate = targetDate;
+        viewOrDateChanged = true;
+    } else if (targetDate && targetDate !== instance.__lastInitialDate) {
+        try {
+            instance.gotoDate(targetDate);
+            instance.__lastInitialDate = targetDate;
+            viewOrDateChanged = true;
+        } catch {}
+    }
+    const recordsChanged = instance.__lastRecords !== component.props.model.records;
+    instance.__lastRecords = component.props.model.records;
+    if (!viewOrDateChanged && !recordsChanged) {
+        return;
+    }
+    const isYear = component.props.model.scale === "year";
+    const eventsBefore = isYear ? eventSetFingerprint(instance) : "";
+    instance.refetchEvents();
+    if (isYear && eventsBefore !== eventSetFingerprint(instance)) {
+        instance.destroy();
+        instance.render();
+    }
+}
+
+/**
  * @param {string} refName
  * @param {Object} paramsOrGetter
  * @returns {{ api: any, el: HTMLElement | null }}
@@ -231,52 +282,7 @@ export function useFullCalendar(refName, paramsOrGetter) {
         }
     });
 
-    onPatched(() => {
-        const params = currentParams();
-        instance.setOption("weekends", component.props.isWeekendVisible);
-        const currentViewType = instance.view?.type;
-        const targetView =
-            typeof params.initialView === "string" ? params.initialView : null;
-        const targetDate =
-            typeof params.initialDate !== "undefined" ? params.initialDate : null;
-        let viewOrDateChanged = false;
-        if (targetView && currentViewType && currentViewType !== targetView) {
-            try {
-                instance.changeView(targetView, targetDate);
-            } catch {
-                instance.changeView(targetView);
-                if (targetDate) {
-                    try {
-                        instance.gotoDate(targetDate);
-                    } catch {}
-                }
-            }
-            instance.__lastInitialDate = targetDate;
-            viewOrDateChanged = true;
-        } else if (targetDate && targetDate !== instance.__lastInitialDate) {
-            try {
-                instance.gotoDate(targetDate);
-                instance.__lastInitialDate = targetDate;
-                viewOrDateChanged = true;
-            } catch {}
-        }
-        const recordsChanged = instance.__lastRecords !== component.props.model.records;
-        instance.__lastRecords = component.props.model.records;
-        if (viewOrDateChanged || recordsChanged) {
-            const eventsBefore =
-                component.props.model.scale === "year"
-                    ? eventSetFingerprint(instance)
-                    : "";
-            instance.refetchEvents();
-            if (
-                component.props.model.scale === "year" &&
-                eventsBefore !== eventSetFingerprint(instance)
-            ) {
-                instance.destroy();
-                instance.render();
-            }
-        }
-    });
+    onPatched(() => syncCalendarWithParams(instance, currentParams(), component));
     onWillUnmount(() => {
         instance?.destroy();
     });

@@ -38,6 +38,38 @@ const SHORT_SCALE_TO_HEADER_FORMAT = {
     day: { day: "numeric", month: "numeric", year: "numeric" },
     month: { weekday: "short" },
 };
+const FC_CLASS_OPTIONS = Object.freeze({
+    eventClass: "fc-event",
+    eventInnerClass: "fc-event-main",
+    rowEventClass: "fc-daygrid-event",
+    columnEventClass: "fc-timegrid-event",
+    backgroundEventInnerClass: "fc-event-main",
+    eventTimeClass: "fc-time fc-event-time",
+    columnMoreLinkClass: "fc-more-link",
+    rowMoreLinkClass: "fc-more-link",
+    headerToolbarClass: "fc-toolbar",
+    toolbarClass: "fc-toolbar",
+    toolbarSectionClass: "fc-toolbar-chunk",
+    toolbarTitleClass: "fc-toolbar-title",
+    popoverClass: "fc-popover",
+    popoverCloseClass: "fc-popover-close",
+    weekNumberHeaderClass: "fc-week-number",
+    inlineWeekNumberClass: "fc-daygrid-week-number",
+    tableBodyClass: "fc-daygrid-body",
+    dayRowClass: "fc-daygrid-row",
+    slotLaneClass: (/** @type {{ isMinor: boolean }} */ renderProps) =>
+        renderProps.isMinor
+            ? "fc-timegrid-slot fc-timegrid-slot-lane fc-timegrid-slot-minor"
+            : "fc-timegrid-slot fc-timegrid-slot-lane",
+    slotHeaderClass: "fc-timegrid-slot fc-timegrid-slot-label",
+    slotHeaderInnerClass: "fc-timegrid-slot-label-cushion",
+    columnEventAfterClass: "o_event_after",
+    rowEventAfterClass: "o_event_after",
+    columnEventBeforeClass: "o_event_before",
+    rowEventBeforeClass: "o_event_before",
+    highlightClass: "fc-highlight",
+});
+
 /**
  * @param {import("@web/core/l10n/luxon").DateTime} dt
  * @returns {string}
@@ -110,30 +142,7 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
     get options() {
         return {
             ...fcViewClassOptions(this.dayCellClass),
-            eventClass: "fc-event",
-            eventInnerClass: "fc-event-main",
-            rowEventClass: "fc-daygrid-event",
-            columnEventClass: "fc-timegrid-event",
-            backgroundEventInnerClass: "fc-event-main",
-            eventTimeClass: "fc-time fc-event-time",
-            columnMoreLinkClass: "fc-more-link",
-            rowMoreLinkClass: "fc-more-link",
-            headerToolbarClass: "fc-toolbar",
-            toolbarClass: "fc-toolbar",
-            toolbarSectionClass: "fc-toolbar-chunk",
-            toolbarTitleClass: "fc-toolbar-title",
-            popoverClass: "fc-popover",
-            popoverCloseClass: "fc-popover-close",
-            weekNumberHeaderClass: "fc-week-number",
-            inlineWeekNumberClass: "fc-daygrid-week-number",
-            tableBodyClass: "fc-daygrid-body",
-            dayRowClass: "fc-daygrid-row",
-            slotLaneClass: (renderProps) =>
-                renderProps.isMinor
-                    ? "fc-timegrid-slot fc-timegrid-slot-lane fc-timegrid-slot-minor"
-                    : "fc-timegrid-slot fc-timegrid-slot-lane",
-            slotHeaderClass: "fc-timegrid-slot fc-timegrid-slot-label",
-            slotHeaderInnerClass: "fc-timegrid-slot-label-cushion",
+            ...FC_CLASS_OPTIONS,
             allDaySlot: true,
             allDayText: "",
             dayHeaderFormat: this.env.isSmall
@@ -193,11 +202,6 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
             eventTimeFormat: is24HourFormat() ? HOUR_FORMATS[24] : HOUR_FORMATS[12],
             viewDidMount: this.viewDidMount,
             fixedWeekCount: false,
-            columnEventAfterClass: "o_event_after",
-            rowEventAfterClass: "o_event_after",
-            columnEventBeforeClass: "o_event_before",
-            rowEventBeforeClass: "o_event_before",
-            highlightClass: "fc-highlight",
         };
     }
 
