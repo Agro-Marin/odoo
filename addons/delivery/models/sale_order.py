@@ -68,6 +68,11 @@ class SaleOrder(models.Model):
 
     def _remove_delivery_line(self):
         """Remove delivery products from the sales orders"""
+        # A pickup location is only ever meaningful for the carrier that was
+        # selected when it was set; nothing else in this module keeps it in
+        # sync with a carrier change, so clear it here, unconditionally,
+        # every time the current delivery line is dropped.
+        self.pickup_location_data = {}
         delivery_lines = self.line_ids.filtered("is_delivery")
         if not delivery_lines:
             return
