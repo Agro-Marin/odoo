@@ -278,11 +278,25 @@ class Binary(http.Controller):
         readonly=True,
     )
     def content_esm_assets(self, unique: str, filename: str) -> Response:
+        return self._serve_generated_esm(f"/web/assets/esm/{unique}/{filename}")
+
+    @http.route(
+        ["/web/assets/lib/<string:unique>/<path:path>"],
+        type="http",
+        auth="public",
+        readonly=True,
+    )
+    def content_esm_lib(self, unique: str, path: str) -> Response:
+        # The minified copy of a vendored library file, at the URL the page's
+        # import map names; the render that built the map persisted it, so a
+        # missing row is a 404 like any other content-addressed artifact.
+        return self._serve_generated_esm(f"/web/assets/lib/{unique}/{path}")
+
+    @staticmethod
+    def _serve_generated_esm(url: str) -> Response:
         IrAttachment = request.env["ir.attachment"].sudo()
         attachment = IrAttachment.search(
-            IrAttachment._generated_asset_domain(
-                f"/web/assets/esm/{unique}/{filename}"
-            ),
+            IrAttachment._generated_asset_domain(url),
             limit=1,
             order="id desc",
         )
@@ -291,7 +305,7 @@ class Binary(http.Controller):
         stream = request.env["ir.binary"]._get_stream_from_record(
             attachment,
             "raw",
-            filename,
+            url.rsplit("/", 1)[-1],
         )
         return stream.get_response(
             as_attachment=False,

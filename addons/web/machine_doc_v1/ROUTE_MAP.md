@@ -106,6 +106,7 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 | HTTP | `/web/assets/<unique>/<filename>` | public (readonly) | `content_assets()` | Asset loader | Compiled CSS/JS bundles with cache headers |
 | HTTP | `/web/assets/scope/<scope>/<unique>/<filename>` | public (readonly) | `content_assets_scoped()` | HOOT runner page links | Same bundle resolved for one addon's dependency closure. The scope is in the PATH because `unique` hashes the *result*: without it the route re-resolves unscoped and 303s to the wrong bundle. Unknown scope → 404. See `TEST_TAGS.md` |
 | HTTP | `/web/assets/esm/<unique>/<filename>` | public (readonly) | `content_esm_assets()` | ESM `<script type="module">`, import map | Content-addressed ESM bundles, sidecars, bridge shims — immutable long-lived cache headers, no on-the-fly rebuild |
+| HTTP | `/web/assets/lib/<unique>/<path>` | public (readonly) | `content_esm_lib()` | import map (`esm.external_libs`) | The minified copy of one vendored library file, content-addressed over the library's relative-import closure; persisted by the render that built the import map, so a missing row is a 404 |
 | HTTP | `/web/binary/upload_attachment` | user | `upload_attachment()` | `file_input.js`, `attach_document.js` | Upload file(s), create attachment records |
 | HTTP | `/web/binary/company_logo`, `/logo`, `/logo.png` | none (CORS) | `company_logo()` | Login page, emails | Company logo or default Odoo logo |
 | HTTP | `/web/filestore/<path:_path>` | none | `content_filestore()` | x-sendfile | Error handler for direct filestore access |
@@ -238,7 +239,7 @@ A single `@http.route(routes=[...])` counts as one handler but several URL varia
 | RPC/Data | 8 / 10 | dataset, action, domain, view, model |
 | Session | 8 / 8 | session |
 | Bootstrap | 16 / 19 | home (11 handlers / 14 URLs; web_client has 4 URLs), webclient (5) |
-| Binary/Assets | 9 / 34 | binary (17 image + 7 content + 3 logo + 2 fonts + upload + assets + scoped assets + esm assets + filestore) |
+| Binary/Assets | 10 / 35 | binary (17 image + 7 content + 3 logo + 2 fonts + upload + assets + scoped assets + esm assets + esm libraries + filestore) |
 | Export | 6 / 6 | export (5), pivot (1) |
 | Reports | 3 / 5 | report |
 | Database | 9 / 9 | database |
@@ -249,4 +250,4 @@ A single `@http.route(routes=[...])` counts as one handler but several URL varia
 | Settings | 2 / 2 | settings |
 | Observability | 2 / 2 | observability (CWV beacon + JS error beacon) |
 | OpenAPI | 1 / 1 | openapi (`/web/openapi.json`, `base.group_system` only) |
-| **Total** | **76 handlers / 109 declared URL paths** | **22 controller classes** (across 20 route-bearing files of 24 in `controllers/`; export.py contains 3: Export, CSVExport, ExcelExport. `json_helpers.py`, `export_writers.py`, `utils.py`, `__init__.py` have no routes.) |
+| **Total** | **77 handlers / 110 declared URL paths** | **22 controller classes** (across 20 route-bearing files of 24 in `controllers/`; export.py contains 3: Export, CSVExport, ExcelExport. `json_helpers.py`, `export_writers.py`, `utils.py`, `__init__.py` have no routes.) |

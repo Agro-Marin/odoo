@@ -1,3 +1,4 @@
+import functools
 import hashlib
 import logging
 import time
@@ -10,15 +11,21 @@ from psycopg.errors import ReadOnlySqlTransaction
 from rjsmin import jsmin as _rjsmin
 
 from odoo import SUPERUSER_ID, api, models, tools
+from odoo.fields import Domain
 from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
-from odoo.tools.assets.esbuild import EsbuildResult
+from odoo.tools.assets.esbuild import EsbuildResult, minify_js
 from odoo.tools.assets.esm_graph import (
     addon_specifier_to_url,
     discover_transitive_import_specifiers,
     resolve_specifier_url,
+)
+from odoo.tools.assets.esm_libs import (
+    served_external_libs,
+    served_lib_content,
+    served_lib_files,
 )
 from odoo.tools.assets.esm_registry import (
     esm_registry,
@@ -316,6 +323,68 @@ class IrQweb(models.AbstractModel):
         return asset_bundle.get_links()
 
     _external_libs = staticmethod(external_libs)
+    _served_external_libs_table = staticmethod(served_external_libs)
+    _served_lib_files = staticmethod(served_lib_files)
+
+    def _served_external_libs(self, *, debug_assets: bool) -> dict[str, str]:
+        # A page under debug=assets imports the vendored file itself, readable
+        # and uncached; every other page imports a minified copy at a URL that
+        # changes with the file, so a browser may keep it for a year. The two
+        # tables never mix on one page: a library reached by two URLs would be
+        # two instances.
+        if debug_assets:
+            return dict(self._external_libs())
+        self._ensure_served_libs()
+        return dict(self._served_external_libs_table())
+
+    @staticmethod
+    def _minify_served_lib(path: Path, declared_url: str) -> bytes:
+        source = path.read_text(encoding="utf-8")
+        minified = minify_js(source, label=declared_url, keep_names=True)
+        return (minified if minified is not None else source).encode("utf-8")
+
+    def _ensure_served_libs(self) -> None:
+        files = self._served_lib_files()
+        if not files:
+            return
+        IrAttachment = self.env["ir.attachment"].sudo()
+        present = set(
+            IrAttachment.search_fetch(
+                IrAttachment._generated_asset_domain()
+                & Domain("url", "in", list(files)),
+                ["url"],
+            ).mapped("url")
+        )
+        vals_list = []
+        for served_url, (_lib, declared_url) in files.items():
+            if served_url in present:
+                continue
+            path = _lib.files[declared_url]
+            vals_list.append(
+                {
+                    "name": declared_url.lstrip("/"),
+                    "mimetype": "text/javascript",
+                    "res_model": "ir.ui.view",
+                    "res_id": False,
+                    "type": "binary",
+                    "public": True,
+                    "raw": served_lib_content(
+                        served_url,
+                        functools.partial(self._minify_served_lib, path, declared_url),
+                    ),
+                    "url": served_url,
+                }
+            )
+        if not vals_list:
+            return
+        self._save_esm_attachment_rows(vals_list, bundle="esm.libs")
+        log_event(
+            _attach_log,
+            logging.INFO,
+            "libs_save",
+            files=len(vals_list),
+            reused=len(present),
+        )
 
     _specifier_to_static_url = staticmethod(addon_specifier_to_url)
 
@@ -640,7 +709,7 @@ class IrQweb(models.AbstractModel):
         return {
             "esm_url": url,
             "specifiers": sorted(a.module_path for a in asset_bundle.native_modules),
-            "import_map": dict(self._external_libs()),
+            "import_map": self._served_external_libs(debug_assets=False),
             "template_url": None,
         }
 
@@ -667,7 +736,7 @@ class IrQweb(models.AbstractModel):
         )
         self._check_lazy_bundle_relative_imports(asset_bundle)
         native_data = asset_bundle.get_native_module_data()
-        import_map = dict(self._external_libs())
+        import_map = self._served_external_libs(debug_assets=not compiled)
         import_map.update(native_data["import_map"])
         import_map.update(native_data.get("bridge_import_map", {}))
         template_url = None
@@ -1359,7 +1428,7 @@ class IrQweb(models.AbstractModel):
         *,
         with_test_satellites: bool,
     ) -> tuple[dict[str, str], list[AssetsBundle], tuple[str, ...]]:
-        import_map = dict(self._external_libs())
+        import_map = self._served_external_libs(debug_assets=False)
         if child_bundles is None:
             child_bundles = self._get_dynamic_child_bundles(
                 bundle, assets_params, debug_assets=False
@@ -1509,7 +1578,7 @@ class IrQweb(models.AbstractModel):
         debug_assets: bool,
         with_test_satellites: bool,
     ) -> tuple[dict[str, str], dict[str, str]]:
-        import_map = dict(self._external_libs())
+        import_map = self._served_external_libs(debug_assets=debug_assets)
         import_map.update(native_data["import_map"])
 
         lazy_bundles = self._get_dynamic_child_bundles(
@@ -1886,7 +1955,7 @@ class IrQweb(models.AbstractModel):
         self._log_pregeneration_coverage(js_bundles)
 
         start = time.time()
-        links = []
+        links = list(self._served_external_libs(debug_assets=False).values())
         for bundle in sorted(js_bundles):
             asset_bundle = self._get_asset_bundle(bundle, css=False, js=True)
             if asset_bundle.has_js_content:

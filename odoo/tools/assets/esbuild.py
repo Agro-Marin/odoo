@@ -134,7 +134,11 @@ def has_nested_template_literal(source: str) -> bool:
 
 
 def minify_js(
-    source: str, *, label: str = "<asset>", timeout_s: int = 60
+    source: str,
+    *,
+    label: str = "<asset>",
+    timeout_s: int = 60,
+    keep_names: bool = False,
 ) -> str | None:
     esbuild_bin = _get_esbuild_path()
     if not esbuild_bin:
@@ -143,6 +147,7 @@ def minify_js(
     argv = [
         esbuild_bin,
         "--minify",
+        *(["--keep-names"] if keep_names else []),
         "--loader=js",
         f"--target={EsbuildCompiler._ESBUILD_TARGET}",
         "--charset=utf8",

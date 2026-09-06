@@ -9,6 +9,7 @@ _logger = logging.getLogger(__name__)
 
 ASSETS_URL_PREFIX = "/web/assets/"
 ESM_BRIDGES_URL_PREFIX = "/web/assets/esm/bridges/"
+ESM_LIBS_URL_PREFIX = "/web/assets/lib/"
 
 
 class IrAttachment(models.Model):
@@ -54,6 +55,7 @@ class IrAttachment(models.Model):
         return self._generated_asset_domain() & Domain.OR(
             [
                 [("url", "=like", f"{ESM_BRIDGES_URL_PREFIX}%")],
+                [("url", "=like", f"{ESM_LIBS_URL_PREFIX}%")],
                 [("name", "=like", "%.esm.js")],
                 [("name", "=like", "%.esm.js.map")],
                 [("name", "=like", "%.meta.json")],

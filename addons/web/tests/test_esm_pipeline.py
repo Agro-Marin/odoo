@@ -29,6 +29,13 @@ from odoo.tools.assets.esm_graph import (
     discover_transitive_import_specifiers,
 )
 from odoo.tools.assets.esm_lexer import lex_module
+from odoo.tools.assets.esm_libs import (
+    LIB_URL_PREFIX,
+    lib_closure,
+    lib_unique,
+    served_external_libs,
+    served_lib_files,
+)
 from odoo.tools.assets.esm_registry import (
     EsmRegistry,
     esm_registry,
@@ -3266,6 +3273,154 @@ class TestLibraryFacades(TransactionCase):
                     for spec in sorted(imports & set(facaded))
                 )
         self.assertFalse(offenders, "\n  ".join(["", *offenders]))
+
+
+@tagged("web_unit", "web_assets")
+class TestServedLibraries(TransactionCase):
+    def test_a_closure_follows_relative_imports_inside_static(self):
+        files = lib_closure("/web/static/lib/hoot/hoot.js")
+        self.assertIn("/web/static/lib/hoot/hoot.js", files)
+        self.assertIn("/web/static/lib/hoot/core/runner.js", files)
+        self.assertTrue(all(url.startswith("/web/static/") for url in files))
+        self.assertEqual(
+            lib_closure("/web/static/lib/luxon/luxon.js"),
+            {
+                "/web/static/lib/luxon/luxon.js": lib_closure(
+                    "/web/static/lib/luxon/luxon.js"
+                )["/web/static/lib/luxon/luxon.js"]
+            },
+        )
+        self.assertEqual(lib_closure("/web/static/lib/nope/nope.js"), {})
+
+    def test_the_unique_changes_with_any_file_of_the_closure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a = Path(tmp, "a.js")
+            b = Path(tmp, "b.js")
+            a.write_text("import './b.js';", encoding="utf-8")
+            b.write_text("export const x = 1;", encoding="utf-8")
+            files = {"/x/static/lib/a.js": a, "/x/static/lib/b.js": b}
+            first = lib_unique(files)
+            self.assertEqual(first, lib_unique(files))
+            b.write_text("export const x = 2;", encoding="utf-8")
+            self.assertNotEqual(first, lib_unique(files))
+
+    def test_every_declared_library_is_served_content_addressed(self):
+        served = served_external_libs()
+        self.assertEqual(set(served), set(external_libs()))
+        for spec, url in served.items():
+            self.assertRegex(
+                url,
+                rf"^{LIB_URL_PREFIX}[0-9a-f]{{16}}{re.escape(external_libs()[spec])}$",
+                f"{spec} is not content-addressed",
+            )
+        by_url = served_lib_files()
+        for url in served.values():
+            self.assertIn(url, by_url)
+        # One file, one URL: hoot-dom's helpers are declared one by one and
+        # import each other relatively, so they share a prefix, or the same
+        # helper would be fetched twice as two instances.
+        declared_files = [declared for _lib, declared in by_url.values()]
+        self.assertEqual(len(declared_files), len(set(declared_files)))
+        # ... and a relative import inside a library resolves under the
+        # importer's own prefix, so hoot-dom's helpers share one unique.
+        for served_url, (lib, declared) in by_url.items():
+            source = lib.files[declared].read_text(encoding="utf-8")
+            for spec in _scan_import_specifiers(source):
+                if not spec.startswith(("./", "../")):
+                    continue
+                target = posixpath.normpath(
+                    posixpath.join(posixpath.dirname(served_url), spec)
+                )
+                self.assertIn(target, by_url, f"{declared} imports {spec}")
+        prefix = lambda spec: served[spec].split("/web/static/", 1)[0]  # noqa: E731
+        self.assertEqual(
+            prefix("@odoo/hoot-dom-helpers-dom"),
+            prefix("@odoo/hoot-dom-helpers-events"),
+        )
+        self.assertNotEqual(prefix("@odoo/hoot-dom"), prefix("luxon"))
+
+    def test_a_page_imports_the_served_copy_and_a_debug_page_the_source(self):
+        IrQweb = self.env["ir.qweb"]
+        for debug, prefix in (("", LIB_URL_PREFIX), ("assets", "/web/static/lib/")):
+            nodes = IrQweb._get_asset_nodes(
+                "web.assets_web", css=False, js=True, debug=debug
+            )
+            maps = [
+                json.loads(n[1]["text"]) for n in nodes if IrQweb._is_import_map_node(n)
+            ]
+            self.assertTrue(maps, f"no import map with debug={debug!r}")
+            self.assertTrue(
+                maps[0]["imports"]["@odoo/owl"].startswith(prefix),
+                f"debug={debug!r}: {maps[0]['imports']['@odoo/owl']}",
+            )
+        rows = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search(
+                self.env["ir.attachment"]._generated_asset_domain(
+                    url_pattern=f"{LIB_URL_PREFIX}%"
+                )
+            )
+        )
+        self.assertTrue(set(served_lib_files()) <= set(rows.mapped("url")))
+        owl = rows.filtered(lambda r: r.name == "web/static/lib/owl/owl.es.js")
+        self.assertEqual(len(owl), 1)
+        source = Path(file_path("web/static/lib/owl/owl.es.js")).read_bytes()
+        self.assertLess(len(owl.raw), len(source) // 2, "the served copy is minified")
+        self.assertIn(b"export", owl.raw)
+
+    def test_a_superseded_copy_is_collected_and_the_current_one_kept(self):
+        IrQweb = self.env["ir.qweb"]
+        IrQweb._served_external_libs(debug_assets=False)
+        Attachment = self.env["ir.attachment"].sudo()
+        name = "web/static/lib/luxon/luxon.js"
+        current = Attachment.search(
+            Attachment._generated_asset_domain(url_pattern=f"{LIB_URL_PREFIX}%")
+            & Domain("name", "=", name)
+        )
+        self.assertEqual(len(current), 1)
+        stale = Attachment.with_user(SUPERUSER_ID).create(
+            {
+                "name": name,
+                "mimetype": "text/javascript",
+                "res_model": "ir.ui.view",
+                "res_id": False,
+                "type": "binary",
+                "public": True,
+                "raw": b"export default 1;",
+                "url": f"{LIB_URL_PREFIX}0000000000000000/{name}",
+            }
+        )
+        self.env.cr.execute(
+            "UPDATE ir_attachment SET write_date = write_date - interval '30 days'"
+            " WHERE id = %s",
+            [stale.id],
+        )
+        stale.invalidate_recordset()
+        Attachment._gc_esm_assets()
+        self.assertFalse(stale.exists())
+        self.assertTrue(current.exists())
+
+
+@tagged("-at_install", "post_install", "web_assets")
+class TestServedLibrariesOverHttp(HttpCase):
+    def test_the_served_copy_is_immutable_and_a_stale_unique_is_not_found(self):
+        self.env["ir.qweb"]._served_external_libs(debug_assets=False)
+        url = served_external_libs()["@odoo/owl"]
+        response = self.url_open(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("immutable", response.headers.get("Cache-Control", ""))
+        self.assertIn("javascript", response.headers.get("Content-Type", ""))
+        self.assertIn("export", response.text)
+        unique = url[len(LIB_URL_PREFIX) :].split("/", 1)[0]
+        stale = url.replace(unique, "0" * 16, 1)
+        self.assertEqual(self.url_open(stale).status_code, 404)
+        self.assertEqual(
+            self.url_open(
+                f"{LIB_URL_PREFIX}{unique}/web/static/lib/nope.js"
+            ).status_code,
+            404,
+        )
 
 
 @tagged("-at_install", "post_install", "web_assets")

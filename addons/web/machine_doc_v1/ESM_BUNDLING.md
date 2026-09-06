@@ -349,6 +349,20 @@ Cross-file invariants are checked once per process by
 - Every `esm.external_libs` URL exists on disk (URLs under addons absent from
   `addons_path` are skipped)
 
+In production the import map does not name the vendored file: every
+`esm.external_libs` URL is rewritten by `esm_libs.served_external_libs()` to
+`/web/assets/lib/<unique>/<declared path>`, where `<unique>` hashes the
+library's relative-import closure (`lib_closure`: the declared file plus every
+`./` and `../` import it reaches inside the addon's `static/`), and the render
+that builds the map persists a minified copy (`minify_js` with `--keep-names`)
+of each file of that closure at those URLs (`IrQweb._ensure_served_libs`).
+The route serves them immutable for a year, and a sibling imported by relative
+URL resolves under the same `<unique>` prefix to the same instance. A page
+under `debug=assets` keeps the declared URLs, readable and uncached; the two
+tables never mix on one page, since a library reached by two URLs would be two
+instances. Measured 2026-09-06, gzip: owl 50 → 27 KB, luxon 60 → 22 KB,
+fullcalendar 162 → 88 KB, three.js 406 → 186 KB.
+
 A heavy library is reached through **one facade**: a module under
 `static/src/core/lib/` or `static/src/lib/` that owns the `import("<spec>")`
 (`makeLazyLib` in `core/lib/lazy_lib.js`; `chartjs.js`, `fullcalendar.js`,

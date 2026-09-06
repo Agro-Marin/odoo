@@ -278,6 +278,8 @@ class IrQweb(models.AbstractModel):
         child_bundles: list[AssetsBundle] = []
         if not self._can_compile_with_esbuild(bundle):
             return empty, child_bundles
+        if assets_params is None:
+            assets_params = self.env["ir.asset"]._prepare_assets_params()
 
         with self._get_esbuild_lock_cursor(bundle) as lock_cr:
             if lock_cr is None:

@@ -59,8 +59,11 @@ def esm_registry() -> EsmRegistry:
 
 
 def invalidate_esm_registry() -> None:
+    from .esm_libs import invalidate_served_libs
+
     with _lock:
         _cache[0] = None
+    invalidate_served_libs()
 
 
 def external_libs() -> Mapping:
