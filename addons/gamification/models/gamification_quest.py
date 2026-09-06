@@ -212,6 +212,35 @@ class GamificationQuestEnrollment(models.Model):
         "A user can only enroll in a quest once.",
     )
 
+    def write(self, vals):
+        """Block direct `state` writes; force transitions through
+        `complete_step`/`_complete_quest`/`action_abandon`.
+
+        `state` carried no `readonly`/`groups=`, so an employee could write
+        `state="completed"` directly, bypassing every step/prerequisite
+        check -- granting no karma/badge (those only fire from the methods
+        above) but corrupting `progress_percent` and `quest.completion_count`
+        (a count of `state='completed'` enrollments) with a quest never
+        actually done. `sudo()` (the methods above, imports/migrations)
+        still bypasses this.
+
+        Scoped to the enrollment's own user, same as `gamification.kudos`'s
+        equivalent guard: a third party has no business writing `state`
+        either, but that case is already denied by `quest_enrollment_own_only`
+        raising its own `AccessError` -- this only adds a stricter rule for
+        the one path that record rule *does* allow, the owner editing their
+        own enrollment directly instead of through the methods above.
+        """
+        if (
+            "state" in vals
+            and not self.env.su
+            and any(enrollment.user_id == self.env.user for enrollment in self)
+        ):
+            raise exceptions.UserError(
+                _("Complete the quest's steps instead of changing the status directly.")
+            )
+        return super().write(vals)
+
     @api.depends("completion_ids", "quest_id.step_ids")
     def _compute_progress_percent(self):
         for enrollment in self:
@@ -306,7 +335,7 @@ class GamificationQuestEnrollment(models.Model):
     def _complete_quest(self):
         """Mark the quest as completed and grant quest-level rewards."""
         self.check_singleton()
-        self.state = "completed"
+        self.sudo().state = "completed"
         user = self.user_id
         quest = self.quest_id
 
@@ -334,8 +363,11 @@ class GamificationQuestEnrollment(models.Model):
         self.env["gamification.skill.node"].sudo()._unlock_nodes_for_quest(self)
 
     def action_abandon(self):
-        """Abandon the quest."""
-        self.filtered(lambda e: e.state == "in_progress").write(
+        """Abandon the quest. sudo() only bypasses write()'s state-change
+        guard above; the `quest_enrollment_own_only` record rule already
+        scopes this to the enrollment's own user.
+        """
+        self.filtered(lambda e: e.state == "in_progress").sudo().write(
             {
                 "state": "abandoned",
             }

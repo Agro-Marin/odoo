@@ -1330,6 +1330,64 @@ class TestQuestStepCrossQuestGuard(common.TransactionCase):
         self.assertEqual(self.enrollment_a.state, "completed")
 
 
+class TestQuestEnrollmentStateNotDirectlyWritable(common.TransactionCase):
+    """An employee must not be able to bypass complete_step/_complete_quest
+    by writing `state` on their own enrollment directly.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = mail_new_test_user(
+            cls.env,
+            login="quest_state_write_user",
+            name="Quest State Write User",
+            email="quest_state_write@example.com",
+            groups="base.group_user",
+        )
+        definition = cls.env["gamification.goal.definition"].create(
+            {
+                "name": "State-write-guard step definition",
+                "computation_mode": "manually",
+                "model_id": cls.env.ref("base.model_res_partner").id,
+            }
+        )
+        quest = cls.env["gamification.quest"].create({"name": "Guard Quest"})
+        cls.env["gamification.quest.step"].create(
+            {
+                "quest_id": quest.id,
+                "name": "Only Step",
+                "sequence": 1,
+                "definition_id": definition.id,
+                "target_goal": 1,
+            }
+        )
+        cls.enrollment = (
+            cls.env["gamification.quest.enrollment"]
+            .sudo()
+            .create(
+                {
+                    "user_id": cls.user.id,
+                    "quest_id": quest.id,
+                    "state": "in_progress",
+                }
+            )
+        )
+
+    def test_employee_cannot_write_state_directly(self):
+        with self.assertRaises(UserError):
+            self.enrollment.with_user(self.user).write({"state": "completed"})
+        self.enrollment.invalidate_recordset()
+        self.assertEqual(self.enrollment.state, "in_progress")
+
+    def test_sudo_can_still_write_state(self):
+        """CONTROL: complete_step/_complete_quest/action_abandon rely on
+        sudo() to apply the state change after their own checks pass.
+        """
+        self.enrollment.sudo().write({"state": "abandoned"})
+        self.assertEqual(self.enrollment.state, "abandoned")
+
+
 class TestKudosImmutableAfterSend(common.TransactionCase):
     """A sent kudos' recognition-defining fields must not be editable."""
 
