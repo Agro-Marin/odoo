@@ -256,6 +256,38 @@ class TestEventNotifications(TransactionCase):
             "Partner bis should not be in attendee",
         )
 
+        # priority 1: an explicit attendee_ids wins over partner_ids
+        partner_ter = self.env["res.partner"].create({"name": "Yolanda"})
+        event_with_attendee_ids = (
+            self.env["calendar.event"]
+            .with_user(self.user)
+            .with_context(default_attendee_ids=[(0, 0, {"partner_id": partner_bis.id})])
+            .create(
+                {
+                    "name": "Doom's day take 2",
+                    "attendee_ids": [(0, 0, {"partner_id": partner_ter.id})],
+                    "partner_ids": [(4, self.partner.id)],
+                    "start": datetime(2019, 10, 25, 8, 0),
+                    "stop": datetime(2019, 10, 27, 18, 0),
+                }
+            )
+        )
+        self.assertIn(
+            partner_ter,
+            event_with_attendee_ids.attendee_ids.partner_id,
+            "Partner ter (from attendee_ids) should be in attendee",
+        )
+        self.assertNotIn(
+            self.partner,
+            event_with_attendee_ids.attendee_ids.partner_id,
+            "Partner (from partner_ids) should not be in attendee when attendee_ids is set",
+        )
+        self.assertNotIn(
+            partner_bis,
+            event_with_attendee_ids.attendee_ids.partner_id,
+            "Partner bis should not be in attendee",
+        )
+
     def test_push_meeting_start(self):
         """
         Checks that you can push the start date of an all day meeting.
