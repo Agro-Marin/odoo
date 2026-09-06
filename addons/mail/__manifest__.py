@@ -206,9 +206,6 @@ For more specific needs, you may also assign custom-defined actions
         "web.assets_tests": [
             "mail/static/tests/tours/**/*",
         ],
-        "mail.assets_odoo_sfu": [
-            "mail/static/lib/odoo_sfu/odoo_sfu.js",
-        ],
         "mail.assets_lamejs": [
             "mail/static/lib/lame/lame.js",
         ],
@@ -303,16 +300,17 @@ For more specific needs, you may also assign custom-defined actions
         ],
     },
     "esm": {
+        "external_libs": {
+            "@odoo/sfu": "/mail/static/lib/odoo_sfu/odoo_sfu.js",
+        },
         "bundles": [
             "mail.assets_lamejs",
-            "mail.assets_odoo_sfu",
             "mail.assets_public",
             "mail.assets_discuss_public_test_tours",
         ],
         "dynamic_children": {
             "web.assets_web": [
                 "mail.assets_lamejs",
-                "mail.assets_odoo_sfu",
             ],
         },
         "secondary_import_map_includes": {

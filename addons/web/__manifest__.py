@@ -535,6 +535,9 @@ This module provides the core of the Odoo Web Client.
                 "web.assets_clickbot",
                 "web.assets_emoji",
             ],
+            "web.assets_frontend": [
+                "web.assets_emoji",
+            ],
         },
         "external_libs": {
             "@odoo/owl": "/web/static/lib/owl/owl.es.js",

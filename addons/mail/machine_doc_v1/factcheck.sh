@@ -373,22 +373,27 @@ assert_eq "discuss.rtc service in rtc_service.js" \
     "$(grep -c 'registry.category("services").add("discuss.rtc"' "$MAIL/static/src/discuss/call/common/rtc_service.js")" "1"
 
 # ============================ ASSET_LAYERS ============================
-assert_eq "manifest esm.bundles lists exactly the 4 documented ESM bundles" \
+assert_eq "manifest esm.bundles lists exactly the 3 documented ESM bundles" \
     "$(python3 -c "import ast,sys;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(','.join(sorted(m['esm']['bundles'])))")" \
-    "mail.assets_discuss_public_test_tours,mail.assets_lamejs,mail.assets_odoo_sfu,mail.assets_public"
-# 16, not 17: web.assets_web_dark went away with the dark-mode rework (mail ships
-# no *.dark.scss and web now answers both colour schemes from one stylesheet).
-assert_eq "manifest declares 16 asset bundles" \
-    "$(python3 -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(len(m['assets']))")" "16"
+    "mail.assets_discuss_public_test_tours,mail.assets_lamejs,mail.assets_public"
+assert_eq "manifest declares the SFU client as a library" \
+    "$(python3 -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(m['esm']['external_libs']['@odoo/sfu'])")" \
+    "/mail/static/lib/odoo_sfu/odoo_sfu.js"
+# 15: web.assets_web_dark went away with the dark-mode rework (mail ships no
+# *.dark.scss and web now answers both colour schemes from one stylesheet), and
+# mail.assets_odoo_sfu became the `@odoo/sfu` library.
+assert_eq "manifest declares 15 asset bundles" \
+    "$(python3 -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(len(m['assets']))")" "15"
 assert_eq "manifest declares no dark bundle" \
     "$(grep -c 'assets_web_dark' "$MAIL/__manifest__.py")" "0"
 assert_eq "mail ships no *.dark.scss" \
     "$(find "$MAIL/static/src" -name '*.dark.scss' | wc -l)" "0"
 assert_eq "manifest declares mail.assets_core_common sub-bundle" \
     "$(grep -c '"mail.assets_core_common"' "$MAIL/__manifest__.py")" "1"
-# odoo_sfu / lamejs each appear 3x: the assets-dict bundle key + esm.bundles + dynamic_children.
-assert_eq "manifest declares mail.assets_odoo_sfu (bundle + esm + dynamic_child)" \
-    "$(grep -c '"mail.assets_odoo_sfu"' "$MAIL/__manifest__.py")" "3"
+# lamejs appears 3x: the assets-dict bundle key + esm.bundles + dynamic_children.
+# The SFU client is a library, not a bundle, since 2026-09-06.
+assert_eq "manifest no longer declares mail.assets_odoo_sfu" \
+    "$(grep -c '"mail.assets_odoo_sfu"' "$MAIL/__manifest__.py")" "0"
 assert_eq "manifest declares mail.assets_lamejs (bundle + esm + dynamic_child)" \
     "$(grep -c '"mail.assets_lamejs"' "$MAIL/__manifest__.py")" "3"
 # discuss remove tuples (formatted one element per line): 1 in web.assets_backend + 1 in

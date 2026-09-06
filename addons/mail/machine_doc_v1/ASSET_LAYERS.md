@@ -124,22 +124,22 @@ consumer decides — even though mail itself now contributes none.
 | `mail.assets_chatter_web_portal` | `chatter/web_portal/**` | Portal chatter |
 | `mail.assets_public` | full standalone public-page bundle (see above) | The anonymous discuss page |
 | `mail.assets_message_email` | `web/static/lib/odoo_ui_icons/style.css` | Icon CSS embedded in email HTML |
-| `mail.assets_odoo_sfu` | `static/lib/odoo_sfu/odoo_sfu.js` | Lazy-loaded SFU client |
 | `mail.assets_lamejs` | `static/lib/lame/lame.js` | Lazy-loaded MP3 encoder |
 | `mail.assets_discuss_public_test_tours` | hoot-dom + web_tour + 6 public-page tour files (5 `tours/discuss_channel_*` + `discuss_sidebar_in_public_page_tour.js`) | Public-page browser tests |
 
 ## ESM wiring (`esm` manifest key)
 
-Four bundles are esbuild-compiled as native ESM:
+Three bundles are esbuild-compiled as native ESM, and one library is declared:
 
 ```python
 "esm": {
+    "external_libs": {"@odoo/sfu": "/mail/static/lib/odoo_sfu/odoo_sfu.js"},
     "bundles": [
-        "mail.assets_lamejs", "mail.assets_odoo_sfu",
+        "mail.assets_lamejs",
         "mail.assets_public", "mail.assets_discuss_public_test_tours",
     ],
     "dynamic_children": {
-        "web.assets_web": ["mail.assets_lamejs", "mail.assets_odoo_sfu"],
+        "web.assets_web": ["mail.assets_lamejs"],
     },
     "secondary_import_map_includes": {
         "mail.assets_public": ["mail.assets_discuss_public_test_tours"],
@@ -147,9 +147,14 @@ Four bundles are esbuild-compiled as native ESM:
 }
 ```
 
-- **`dynamic_children`** — `mail.assets_lamejs` and `mail.assets_odoo_sfu` are registered in
-  `web.assets_web`'s import map for **lazy** `import()` (the MP3 encoder and SFU client are
-  only fetched when a user actually records a voice message or joins a call).
+- **`external_libs`** — the SFU client is a library: `call_transport.js` does
+  `import("@odoo/sfu")`, the page's import map resolves it to the vendored file, and it is
+  fetched once, on the first call. It used to be a `dynamic_children` bundle reached through
+  `@mail/../lib/...`, a specifier the page's child stubs cannot alias, so the page inlined the
+  230 KB library and the bundle shipped it again.
+- **`dynamic_children`** — `mail.assets_lamejs` is registered in `web.assets_web`'s import
+  map for **lazy** `import()` (the MP3 encoder is only fetched when a user records a voice
+  message).
 - **`secondary_import_map_includes`** — `mail.assets_discuss_public_test_tours` loads as a
   separate `<script type="module">` **after** `mail.assets_public`, piggybacking on the
   parent's import map so its native imports (hoot-dom, `@web/core/templates`) resolve. The
@@ -163,7 +168,7 @@ Four bundles are esbuild-compiled as native ESM:
 |---------|---------|-----|-----------|
 | `idb-keyval/idb-keyval.js` | 3.2.0 | IndexedDB key/value store (client store persistence) | `web.assets_backend` (eager) |
 | `lame/lame.js` | 1.2.1 (lamejs) | MP3 encoder for voice-message recording | `mail.assets_lamejs` (lazy) |
-| `odoo_sfu/odoo_sfu.js` | 1.3.3 | Odoo SFU (Selective Forwarding Unit) WebRTC client | `mail.assets_odoo_sfu` (lazy) |
+| `odoo_sfu/odoo_sfu.js` | 1.3.3 | Odoo SFU (Selective Forwarding Unit) WebRTC client | `esm.external_libs` `@odoo/sfu`, `import()` on the first call (lazy) |
 | `selfie_segmentation/selfie_segmentation.js` | 0.1.1632777926 (MediaPipe build id) | MediaPipe selfie segmentation — call background blur | `web.assets_backend` + `mail.assets_public` (eager) |
 
 > `selfie_segmentation.js` is eager in `web.assets_backend` — do **not** `loadJS` it after

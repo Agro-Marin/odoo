@@ -247,6 +247,25 @@ bundle before/after: 244 requests and 4.8 MB (raw, uncompressed, 7-day cached
 sources) with 7 rebinds per open, against 7 requests, one immutable file
 (497 KB gzip) and none.
 
+### A page bundle is one file, and a dynamic child is declared on every page that reaches it
+
+A dynamic `import()` in page code resolves one of two ways: to a stub, when
+the page declares a child that owns the module (`_get_esbuild_child_externals`
+aliases every child member to a loader stub), or to the module inlined from
+disk. `web.assets_emoji` declared under `web.assets_web` alone gave every
+backend page the stub and every frontend page the 461 KB table; it is declared
+under `web.assets_frontend` too, and
+`TestDynamicBundleIntegrity.test_a_page_never_inlines_what_a_dynamic_child_owns`
+reads each page's metafile and fails on the next such case.
+
+Compiling page bundles with `--splitting` instead was measured and rejected
+on 2026-09-06: with the stubs in place the backend page has nothing left to
+split (its dynamic imports are a few hundred bytes each), it would fetch
+fifteen shared chunks (213 KB) at boot beside the entry, and every module in
+a shared chunk evaluates before every module left in the entry — the HOOT
+page bound `window.fetch` in `browser.js` before hoot installed its mocks and
+twelve tests failed. Member order is load-bearing; one file keeps it.
+
 ### `--keep-names` stays
 
 Dropping `--keep-names` is worth 3.7 % raw and 4 % gzipped on `web.assets_web`

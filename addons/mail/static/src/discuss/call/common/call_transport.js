@@ -1,10 +1,8 @@
 /** @odoo-module native */
 import { toRaw } from "@odoo/owl";
-import { loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
-import { memoize } from "@web/core/utils/functions";
 import { debounce } from "@web/core/utils/timing";
 
 let sequence = 1;
@@ -16,15 +14,13 @@ export const CONNECTION_TYPES = { P2P: "p2p", SERVER: "server" };
 /**
  * @return {Promise<{ SfuClient: import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, SFU_CLIENT_STATE: import("@mail/../lib/odoo_sfu/odoo_sfu").SFU_CLIENT_STATE }>}
  */
-const loadSfuAssets = memoize(async () => await loadBundle("mail.assets_odoo_sfu"));
 
 /**
  * @returns {Promise<{ sfuClient: import("@mail/../lib/odoo_sfu/odoo_sfu").SfuClient, SFU_CLIENT_STATE: Object }>}
  */
 export async function loadSfuClient() {
     const load = async () => {
-        await loadSfuAssets();
-        const sfuModule = await import("@mail/../lib/odoo_sfu/odoo_sfu");
+        const sfuModule = await import("@odoo/sfu");
         return {
             sfuClient: new sfuModule.SfuClient(),
             SFU_CLIENT_STATE: sfuModule.SFU_CLIENT_STATE,

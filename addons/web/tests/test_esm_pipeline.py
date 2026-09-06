@@ -2716,6 +2716,71 @@ class TestDynamicBundleIntegrity(TransactionCase):
         self.assertNotIn("esm_url", payload)
         self.assertTrue(payload["specifiers"])
 
+    def test_a_page_never_inlines_what_a_dynamic_child_owns(self):
+        # A dynamic import() of a module some child owns is a stub on a page
+        # that declares that child, and an inlined copy on a page that does
+        # not: web.assets_emoji declared under web.assets_web alone put the
+        # 461 KB emoji table into every frontend page bundle.
+        IrQweb = self.env["ir.qweb"]
+        registry = esm_registry()
+        installed = self.env["ir.asset"]._get_addons_installed()
+        params = self.env["ir.asset"]._prepare_assets_params()
+        root = Path(odoo.__path__[0]).parent
+        owned = {}
+        for child_name in registry.dynamic_bundle_names:
+            if child_name.partition(".")[0] not in installed:
+                continue
+            child = IrQweb._get_asset_bundle(
+                child_name, js=True, css=False, debug_assets=True
+            )
+            for asset in child.native_modules:
+                if asset._filename:
+                    owned[posixpath.relpath(asset._filename, root)] = child_name
+        inlined = []
+        checked = 0
+        for page in sorted(registry.dynamic_children):
+            if page.partition(".")[0] not in installed:
+                continue
+            if page in registry.import_map_includes:
+                # The unit-test page carries the helpers its per-file tests
+                # import, builder code included; what it inlines is the test
+                # runner's composition, not a page a user loads.
+                continue
+            bundle = IrQweb._get_asset_bundle(
+                page, js=True, css=False, assets_params=params
+            )
+            if not bundle.native_modules:
+                continue
+            # A file the page lists itself is the page's, whatever child
+            # lists it too; the split that matters is a file only a child
+            # owns reaching the page through an import.
+            own = {
+                posixpath.relpath(a._filename, root)
+                for a in bundle.native_modules
+                if a._filename
+            }
+            children = IrQweb._get_dynamic_child_bundles(
+                page, params, debug_assets=False
+            )
+            dyn, stubs = IrQweb._get_esbuild_child_externals(
+                page, bundle, params, children
+            )
+            result = bundle.esbuild_native_bundle(
+                dynamic_child_specs=dyn, secondary_parent_stubs=stubs or None
+            )
+            checked += 1
+            inlined.extend(
+                f"{page} inlines {path}, owned by {owned[path]}"
+                for path in json.loads(result.metafile)["inputs"]
+                if path in owned and path not in own
+            )
+        self.assertGreater(checked, 0)
+        self.assertFalse(
+            inlined,
+            "declare the child under every page family whose code reaches it:\n  "
+            + "\n  ".join(inlined),
+        )
+
     def test_every_installed_dynamic_bundle_serves_a_payload(self):
         IrQweb = self.env["ir.qweb"]
         names = self._dynamic_bundle_names()
