@@ -20,6 +20,7 @@ Key Features
     "license": "LGPL-3",
     "depends": [
         "barcodes",
+        "mail",
         "phone_validation",
         "portal",
         "utm",
