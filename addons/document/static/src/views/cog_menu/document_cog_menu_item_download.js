@@ -3,14 +3,12 @@ import { documentActionRules } from "@document/views/document_action_rules";
 import { STATIC_COG_GROUP_ACTION_BASIC } from "./document_cog_menu_group.js";
 import { DocumentsCogMenuItem } from "./document_cog_menu_item.js";
 import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
 
 export class DocumentsCogMenuItemDownload extends DocumentsCogMenuItem {
     setup() {
         this.icon = "fa-solid fa-download";
         this.label = _t("Download");
         super.setup();
-        this.action = useService("action");
     }
 
     async doActionOnFolder(folder) {

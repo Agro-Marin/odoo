@@ -202,9 +202,12 @@ export function useDocumentView(helpers) {
             action.doAction("document.action_folder_form", {
                 additionalContext: {
                     default_type: "folder",
-                    default_user_folder_id: currentFolder
-                        ? currentFolder.toString()
-                        : "MY",
+                    // Recent, Shared and Trash cannot hold a folder.
+                    default_user_folder_id:
+                        currentFolder &&
+                        !["RECENT", "SHARED", "TRASH"].includes(currentFolder)
+                            ? currentFolder.toString()
+                            : "MY",
                     ...(currentFolder === "COMPANY"
                         ? { default_access_internal: "edit" }
                         : {}),

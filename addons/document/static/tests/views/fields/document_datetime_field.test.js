@@ -38,9 +38,10 @@ test("Document datetime in form", async () => {
         ".o_field_widget[name=datetime] div[title='A datetime']:contains(02/08/2017)",
     ).toHaveCount(1);
     await contains(".o_field_widget[name=datetime] .fa-edit").click();
+    // The picker opens on the stored value (February 2017), not on today.
     await contains(".o_date_item_cell:contains(27)").click();
     await contains("button:contains(Apply)").click();
-    expect(".o_field_widget[name=datetime]:contains(01/27/2017)").toHaveCount(1);
+    expect(".o_field_widget[name=datetime]:contains(02/27/2017)").toHaveCount(1);
     expect(".o_field_widget[name=datetime]:contains(/)").toHaveCount(1);
     await contains(".o_field_widget[name=datetime] .fa-times").click();
     expect(".o_field_widget[name=datetime]:contains(/)").toHaveCount(0);

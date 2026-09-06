@@ -53,10 +53,7 @@ export class DocumentsDropZone extends Component {
     }
 
     onDragOver(ev) {
-        if (
-            !ev.dataTransfer.types.includes("Files") ||
-            ev.dataTransfer.types.includes("o_documents_data")
-        ) {
+        if (!ev.dataTransfer.types.includes("Files")) {
             return;
         }
         ev.stopPropagation();

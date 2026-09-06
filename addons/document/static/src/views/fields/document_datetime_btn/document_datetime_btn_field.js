@@ -1,7 +1,6 @@
 /** @odoo-module native */
 import { useDateTimePicker } from "@web/components/datetime";
-import { deserializeDateTime, today } from "@web/core/l10n/dates";
-import { user } from "@web/core/user";
+import { today } from "@web/core/l10n/dates";
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -17,14 +16,14 @@ export class DocumentsDatetimeBtnField extends Component {
     };
 
     setup() {
+        // The record already holds a luxon DateTime (or false): it used to be
+        // pushed through deserializeDateTime, which parses strings, and the
+        // picker opened on an invalid date. Read once on purpose: re-reading
+        // per render makes the picker service re-apply a cleared value.
         const pickerProps = {
             minDate: luxon.DateTime.now(),
             type: "datetime",
-            value: this.props.record.data[this.props.name]
-                ? deserializeDateTime(this.props.record.data[this.props.name], {
-                      tz: user.context.tz,
-                  })
-                : today(),
+            value: this.props.record.data[this.props.name] || today(),
         };
         this.dateTimePicker = useDateTimePicker({
             target: "datetime-btn",
