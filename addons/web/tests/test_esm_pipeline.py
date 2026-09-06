@@ -3004,7 +3004,7 @@ class TestBundleDescriptorFormat(HttpCase):
             if not IrQweb._is_runtime_child_compiled(name):
                 continue
             payload = self._descriptor(name)
-            if not payload.get("specifiers"):
+            if isinstance(payload, list) or not payload.get("specifiers"):
                 continue
             members = IrQweb._get_asset_bundle(
                 name, js=True, css=False, debug_assets=True
@@ -3020,6 +3020,29 @@ class TestBundleDescriptorFormat(HttpCase):
                 f"{name}: the route lists a file with no URL",
             )
         self.assertGreater(checked, 0)
+
+    def test_a_library_only_bundle_is_served_classic(self):
+        IrQweb = self.env["ir.qweb"]
+        installed = self.env["ir.asset"]._get_addons_installed()
+        checked = 0
+        for name in sorted(esm_registry().runtime_bundle_names):
+            if name.partition(".")[0] not in installed:
+                continue
+            bundle = IrQweb._get_asset_bundle(
+                name, js=True, css=False, debug_assets=True
+            )
+            if bundle.native_modules or bundle.templates or not bundle.javascripts:
+                continue
+            checked += 1
+            payload = self._descriptor(name)
+            self.assertIsInstance(
+                payload,
+                list,
+                f"{name} carries only classic scripts and was served an ESM "
+                "envelope with nothing in it",
+            )
+            self.assertTrue([e for e in payload if e.get("type") == "script"], name)
+        self.assertGreater(checked, 0, "fixture: a library-only runtime bundle")
 
     def test_no_bundle_is_served_classic_while_naming_an_esm_chunk(self):
         installed = set(

@@ -163,7 +163,12 @@ class WebClient(http.Controller):
             import_map = payload["import_map"]
             tpl_url = payload["template_url"]
             esm_url = payload.get("esm_url")
+            if not specifiers and not esm_url and not tpl_url:
+                # A bundle made of libraries only has nothing the ESM envelope
+                # could carry: its scripts load as classic scripts.
+                use_esm = False
 
+        if use_esm:
             data = {
                 "is_esm": True,
                 "esm_url": esm_url,

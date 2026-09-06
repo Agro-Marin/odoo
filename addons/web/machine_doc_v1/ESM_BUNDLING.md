@@ -245,6 +245,16 @@ bundle before/after: 244 requests and 4.8 MB (raw, uncompressed, 7-day cached
 sources) with 7 rebinds per open, against 7 requests, one immutable file
 (497 KB gzip) and none.
 
+### A bundle made of libraries only is served classic
+
+Four declared bundles (`html_editor.assets_history_diff`,
+`html_editor.assets_image_cropper`, `mail.assets_lamejs`,
+`spreadsheet.assets_print`) carry no native module: their members are classic
+library scripts. The route serves them in the classic list envelope — the
+scripts load through `loadJS` — instead of an ESM envelope with an empty
+specifier list and a 26-entry import map the client would inject for nothing.
+`TestBundleDescriptorFormat.test_a_library_only_bundle_is_served_classic` pins it.
+
 ### Not every ESM bundle can be served per file
 
 A runtime bundle with no declared parent, and every runtime bundle under
