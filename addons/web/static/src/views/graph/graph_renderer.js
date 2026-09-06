@@ -13,9 +13,9 @@ import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { useReactiveModel } from "@web/model/model";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
 import {
-    drillDownAction,
     drillDownContext,
     drillDownViews,
+    openDrillDownView,
 } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
@@ -471,14 +471,7 @@ export class GraphRenderer extends Component {
      * @param {Object} context
      */
     openView(domain, views, context, newWindow) {
-        this.actionService.doAction(
-            drillDownAction(this.model.metaData, this.env.config.views, {
-                domain,
-                views,
-                context,
-            }),
-            { newWindow, viewType: "list" },
-        );
+        openDrillDownView(this, domain, views, context, newWindow);
     }
     /**
      * @param {any[]} domain

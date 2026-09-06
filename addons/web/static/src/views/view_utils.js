@@ -155,6 +155,27 @@ export function drillDownAction(metaData, actionViews, { domain, views, context 
 }
 
 /**
+ * Open the list of records behind a report cell: the drill-down action built
+ * from the renderer's model and the action's views.
+ *
+ * @param {{ actionService: any, model: { metaData: any }, env: any }} renderer
+ * @param {Array} domain
+ * @param {Array} views
+ * @param {Object} context
+ * @param {boolean} [newWindow]
+ */
+export function openDrillDownView(renderer, domain, views, context, newWindow) {
+    renderer.actionService.doAction(
+        drillDownAction(renderer.model.metaData, renderer.env.config.views, {
+            domain,
+            views,
+            context,
+        }),
+        { newWindow, viewType: "list" },
+    );
+}
+
+/**
  * @param {BeforeUnloadEvent} ev
  * @param {object} opts
  * @param {import("@web/model/relational_model/record").RelationalRecord | null | undefined} opts.record

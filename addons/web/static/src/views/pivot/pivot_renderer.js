@@ -24,9 +24,9 @@ import { usePopover } from "@web/ui/popover/popover_hook";
 import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_popover";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
 import {
-    drillDownAction,
     drillDownContext,
     drillDownViews,
+    openDrillDownView,
 } from "@web/views/view_utils";
 
 class PivotDropdown extends Dropdown {
@@ -373,14 +373,7 @@ export class PivotRenderer extends Component {
      * @param {Object} context
      */
     openView(domain, views, context, newWindow) {
-        this.actionService.doAction(
-            drillDownAction(this.model.metaData, this.env.config.views, {
-                domain,
-                views,
-                context,
-            }),
-            { newWindow, viewType: "list" },
-        );
+        openDrillDownView(this, domain, views, context, newWindow);
     }
     /**
      * @param {Object} cell
