@@ -12,6 +12,6 @@ export class CalendarEvent extends models.ServerModel {
     }
 
     get_default_duration() {
-        return 3.25;
+        return 1;
     }
 }
