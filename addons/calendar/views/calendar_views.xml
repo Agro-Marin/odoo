@@ -704,7 +704,7 @@
                         placeholder="Visibility" />
                 </div>
                 <div class="d-flex" colspan="2">
-                    <i class="fa-solid fa-sticky-note mt-2 text-600" title="Notes" /> 
+                    <i class="fa-solid fa-sticky-note mt-2 text-600" title="Notes" />
                     <field
                         name="notes"
                         nolabel="1"
@@ -933,7 +933,6 @@
         id="calendar_menu_config"
         name="Configuration"
         parent="calendar.mail_menu_calendar"
-        action="calendar.action_calendar_event"
         sequence="40"
         groups="base.group_system,base.group_no_one" />
 
