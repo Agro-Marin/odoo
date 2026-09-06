@@ -54,7 +54,11 @@ class CrmTeam(models.Model):
                     "date",
                 ],
             )
-            today = fields.Date.today()
+            # "This month" is the month the salesperson is living in, not the
+            # month UTC is in: at UTC-6 the last afternoon of a month already
+            # reads as the 1st of the next one, which would move the window
+            # past every invoice it is meant to sum.
+            today = fields.Date.context_today(self)
             data_map = dict(
                 self.env.execute_query(
                     SQL(
