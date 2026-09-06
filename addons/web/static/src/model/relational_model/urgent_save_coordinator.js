@@ -95,6 +95,17 @@ export class UrgentSaveCoordinator extends StateMachine {
     }
 
     /**
+     * Synchronously pulls what fields still hold (an input never blurred, a
+     * debounced commit) into their records, so a `dirty` read right after
+     * this call sees it. Runs as an urgent save because the commits must
+     * bypass the model mutex and the onchange round-trip to land before the
+     * caller's next statement.
+     */
+    flushPendingEdits() {
+        return this.run(() => Promise.resolve());
+    }
+
+    /**
      * @template T
      * @param {Promise<T> | undefined} promise
      * @returns {Promise<T | undefined>}

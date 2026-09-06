@@ -165,3 +165,13 @@ describe("the reentrant drain is bounded", () => {
         expect(coordinator.isActive).toBe(false);
     });
 });
+
+test("flushPendingEdits() fires WILL_SAVE_URGENTLY synchronously, in urgent mode", () => {
+    /** @type {boolean[]} */
+    const seenActive = [];
+    const bus = { trigger: () => seenActive.push(coord.isActive) };
+    const coord = new UrgentSaveCoordinator(bus);
+    const done = coord.flushPendingEdits();
+    expect(seenActive).toEqual([true]);
+    expect(done).toBeInstanceOf(Promise);
+});

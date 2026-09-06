@@ -125,7 +125,7 @@ export function handleBeforeUnload(
     if (!canBeacon) {
         /** @type {import("@web/model/relational_model/urgent_save_coordinator").UrgentSaveCoordinator} */ (
             record.model.urgentSave
-        ).run(() => Promise.resolve());
+        ).flushPendingEdits();
         if (record.dirty) {
             ev.preventDefault();
             ev.returnValue = "Unsaved changes";
