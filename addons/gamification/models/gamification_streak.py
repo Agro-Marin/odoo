@@ -4,7 +4,7 @@ from typing import Self
 
 from psycopg import IntegrityError
 
-from odoo import _, api, fields, models
+from odoo import _, api, exceptions, fields, models
 from odoo.libs.datetime import timezone
 from odoo.tools.safe_eval import safe_eval
 
@@ -49,7 +49,15 @@ class GamificationStreakType(models.Model):
         required=True,
         default="[]",
         help="Domain to filter records.  May reference 'user' (current user) "
-        "and 'date_from' / 'date_to' (the day being checked).",
+        "and 'date_from' / 'date_to' (the day being checked).\n"
+        "Every candidate user whose domain evaluates to the same text shares "
+        "one query and its answer: if the domain does not reference 'user' "
+        "at all, that is every candidate, so a single day's activity (or "
+        "lack of it) is credited -- or the streak broken -- for the whole "
+        "population at once, not per person. That is a deliberate, "
+        "supported shape for a company-wide/shared streak (e.g. 'did "
+        "anyone log a sale today'); it is a misconfiguration if a per-user "
+        "streak was intended.",
     )
     date_field_id = fields.Many2one(
         "ir.model.fields",
@@ -259,6 +267,23 @@ class GamificationStreak(models.Model):
         if not due:
             return
 
+        # karma_per_user below is keyed by user_id alone: only the first
+        # streak processed for a given user supplies `source`/`reason`, so
+        # this method silently misattributes if `due` ever holds two
+        # different-type streaks for the same user. The sole caller
+        # (`_cron_update_streaks`) groups by streak_type_id before calling
+        # this, and `_user_streak_type_uniq` caps one streak per user per
+        # type, so today this can't happen -- guard it explicitly so a
+        # future caller can't silently reintroduce the collision.
+        if len(due) != len(due.user_id):
+            raise exceptions.UserError(
+                _(
+                    "_record_activity() received more than one streak for the"
+                    " same user in a single call; karma attribution would be"
+                    " ambiguous."
+                )
+            )
+
         karma_per_user: dict = {}
         feed_entries = []
         for streak in due:
@@ -336,12 +361,17 @@ class GamificationStreak(models.Model):
         today = fields.Date.today()
         yesterday = today - timedelta(days=1)
 
-        # Reset freeze allowance on 1st of month — batch by type
+        # Reset freeze allowance on 1st of month — batch by type.
+        #
+        # Includes 'broken' streaks, not just 'active' ones: a streak that
+        # revives later in *this same run* (see the activity check below)
+        # would otherwise skip this month's freeze allowance entirely --
+        # the reset ran before the revival and there is no second pass.
         if today.day == 1:
-            active_streaks = self.search([("state", "=", "active")])
+            streaks_to_reset = self.search([("state", "in", ["active", "broken"])])
             # Group by streak type for batch writes
             by_type: dict[int, list[int]] = {}
-            for streak in active_streaks:
+            for streak in streaks_to_reset:
                 by_type.setdefault(streak.streak_type_id.id, []).append(streak.id)
             for type_id, streak_ids in by_type.items():
                 stype = self.env["gamification.streak.type"].browse(type_id)

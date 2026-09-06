@@ -261,6 +261,34 @@ class TestMentorshipSecurity(common.TransactionCase):
         self.assertEqual(mentorship.state, "completed")
         self.assertEqual(self.attacker.karma, before + 100)
 
+    def test_mentor_cannot_confirm_own_pending_mentorship_by_direct_write(self):
+        """`state` carries no readonly/groups=, so nothing at the ORM layer
+        stopped the proposer from writing `state` directly -- bypassing
+        `_check_may_accept()`'s consent gate entirely.
+        """
+        mentorship = self.env["gamification.mentorship"].create(
+            {"mentor_id": self.attacker.id, "mentee_id": self.victim.id}
+        )
+        self.assertEqual(mentorship.state, "pending")
+        with self.assertRaises(UserError):
+            mentorship.with_user(self.attacker).write({"state": "active"})
+        mentorship.invalidate_recordset()
+        self.assertEqual(
+            mentorship.state,
+            "pending",
+            "state must not move without the mentee's consent",
+        )
+
+    def test_sudo_can_still_write_state(self):
+        """CONTROL: action_accept/decline/complete/cancel themselves rely on
+        sudo() to apply the state change after their own checks pass.
+        """
+        mentorship = self.env["gamification.mentorship"].create(
+            {"mentor_id": self.attacker.id, "mentee_id": self.victim.id}
+        )
+        mentorship.sudo().write({"state": "active"})
+        self.assertEqual(mentorship.state, "active")
+
     def test_employee_cannot_see_third_party_mentorship(self):
         """The record rule hides pairings the user is not part of."""
         other_a = (
@@ -1302,6 +1330,64 @@ class TestQuestStepCrossQuestGuard(common.TransactionCase):
         self.assertEqual(self.enrollment_a.state, "completed")
 
 
+class TestQuestEnrollmentStateNotDirectlyWritable(common.TransactionCase):
+    """An employee must not be able to bypass complete_step/_complete_quest
+    by writing `state` on their own enrollment directly.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = mail_new_test_user(
+            cls.env,
+            login="quest_state_write_user",
+            name="Quest State Write User",
+            email="quest_state_write@example.com",
+            groups="base.group_user",
+        )
+        definition = cls.env["gamification.goal.definition"].create(
+            {
+                "name": "State-write-guard step definition",
+                "computation_mode": "manually",
+                "model_id": cls.env.ref("base.model_res_partner").id,
+            }
+        )
+        quest = cls.env["gamification.quest"].create({"name": "Guard Quest"})
+        cls.env["gamification.quest.step"].create(
+            {
+                "quest_id": quest.id,
+                "name": "Only Step",
+                "sequence": 1,
+                "definition_id": definition.id,
+                "target_goal": 1,
+            }
+        )
+        cls.enrollment = (
+            cls.env["gamification.quest.enrollment"]
+            .sudo()
+            .create(
+                {
+                    "user_id": cls.user.id,
+                    "quest_id": quest.id,
+                    "state": "in_progress",
+                }
+            )
+        )
+
+    def test_employee_cannot_write_state_directly(self):
+        with self.assertRaises(UserError):
+            self.enrollment.with_user(self.user).write({"state": "completed"})
+        self.enrollment.invalidate_recordset()
+        self.assertEqual(self.enrollment.state, "in_progress")
+
+    def test_sudo_can_still_write_state(self):
+        """CONTROL: complete_step/_complete_quest/action_abandon rely on
+        sudo() to apply the state change after their own checks pass.
+        """
+        self.enrollment.sudo().write({"state": "abandoned"})
+        self.assertEqual(self.enrollment.state, "abandoned")
+
+
 class TestKudosImmutableAfterSend(common.TransactionCase):
     """A sent kudos' recognition-defining fields must not be editable."""
 
@@ -1354,6 +1440,37 @@ class TestKudosImmutableAfterSend(common.TransactionCase):
         ):
             with self.subTest(field=field_name), self.assertRaises(UserError):
                 self.kudos.with_user(self.sender).write({field_name: value})
+
+    def test_owner_cannot_edit_sender(self):
+        """sender_id feeds summary exactly like the other frozen fields; a
+        sudo edit must not desync summary from karma_granted/the activity
+        feed/the posted message, which all still name the original sender.
+        """
+        with self.assertRaises(UserError):
+            self.kudos.with_user(self.sender).write({"sender_id": self.recipient.id})
+
+    def test_sudo_sender_edit_desyncs_summary(self):
+        """CONTROL: a sudo() edit is still allowed (imports/migrations), but
+        confirms the desync the frozen field now guards against -- summary
+        re-renders while karma_granted and the activity feed do not.
+        """
+        activity = self.env["gamification.activity"].search(
+            [
+                ("activity_type", "=", "kudos"),
+                ("user_id", "=", self.sender.id),
+                ("target_user_id", "=", self.recipient.id),
+            ],
+            limit=1,
+        )
+        self.assertTrue(activity, "the create()-time activity row must exist")
+        self.kudos.sudo().write({"sender_id": self.recipient.id})
+        self.assertIn(self.recipient.name, self.kudos.summary)
+        self.assertEqual(self.kudos.karma_granted, 10)
+        self.assertEqual(
+            activity.user_id,
+            self.sender,
+            "the activity feed row must keep naming the original sender",
+        )
 
     def test_a_sudo_caller_still_can(self):
         """CONTROL: imports/migrations, not end-user edits, keep working."""

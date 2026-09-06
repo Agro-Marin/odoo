@@ -71,7 +71,7 @@ class GamificationKarmaRank(models.Model):
         if "karma_min" in vals:
             previous_ranks = (
                 self.env["gamification.karma.rank"]
-                .search([], order="karma_min DESC")
+                .search([], order="karma_min DESC, id")
                 .ids
             )
             # `min(x, *[])` is `min(int)`, which raises TypeError: writing
@@ -84,7 +84,7 @@ class GamificationKarmaRank(models.Model):
         if "karma_min" in vals:
             after_ranks = (
                 self.env["gamification.karma.rank"]
-                .search([], order="karma_min DESC")
+                .search([], order="karma_min DESC, id")
                 .ids
             )
             if previous_ranks != after_ranks:

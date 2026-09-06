@@ -615,7 +615,7 @@ active ←──→ broken
 
 | Method | Trigger | Purpose |
 |--------|---------|---------|
-| `_compute_karma()` | `karma_tracking_ids.new_value` | SQL DISTINCT ON latest tracking per user |
+| `_compute_karma()` | `karma_tracking_ids.new_value` | Sum of all recorded gains (`new_value - old_value`) per user |
 | `_get_user_badge_level()` | `badge_ids` | SQL GROUP BY for gold/silver/bronze counts |
 | `_compute_xp_progress()` | `karma, rank_id, next_rank_id` | Progress bar calculation |
 | `_add_karma(gain, source, reason)` | explicit call | Create tracking record (single user) |
@@ -728,13 +728,14 @@ active ←──→ broken
 | `total_mentor_karma` | Integer | readonly | Cumulative |
 | `completion_badge_id` | Many2one `badge` | | Badge for both on completion |
 
-**Unique:** `(mentor_id, mentee_id) WHERE state = 'active'`
+**Unique:** `(mentor_id, mentee_id) WHERE state != 'cancelled'`
 
 ### State Machine
 
 ```
-active ──→ completed (with rewards)
-       └──→ cancelled
+pending ──→ active ──→ completed (with rewards)
+   │            └──→ cancelled
+   └──→ cancelled
 ```
 
 ### Key Methods

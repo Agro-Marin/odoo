@@ -172,6 +172,39 @@ class GamificationMentorship(models.Model):
                     _("Mentorship karma rewards cannot be negative.")
                 )
 
+    def write(self, vals: Any) -> bool:
+        """Block direct `state` writes; force transitions through the
+        `action_*` methods.
+
+        `state` carried no `readonly`/`groups=` of its own, so nothing at the
+        ORM layer stopped a caller from skipping `_check_may_accept()` /
+        `_check_may_complete()` entirely and writing `state` directly (e.g. a
+        self-proposed mentor confirming their own pending mentorship via RPC
+        or the statusbar widget) -- exactly the consent bypass those checks
+        exist to prevent. `sudo()` (the `action_*` methods themselves, plus
+        imports/migrations) still bypasses this, same pattern as
+        `gamification.kudos.write()`'s value-field freeze.
+
+        Scoped to the mentorship's own mentor/mentee: a third party has no
+        business writing `state` either, but that case is already denied by
+        `mentorship_own_only` raising its own `AccessError` -- this only adds
+        a stricter rule for the one path that record rule *does* allow, a
+        party editing their own mentorship directly instead of through the
+        `action_*` methods.
+        """
+        if (
+            "state" in vals
+            and not self.env.su
+            and any(self.env.user in (rec.mentor_id, rec.mentee_id) for rec in self)
+        ):
+            raise exceptions.UserError(
+                _(
+                    "Use Accept/Decline/Complete/Cancel instead of changing"
+                    " the status directly."
+                )
+            )
+        return super().write(vals)
+
     def _check_may_accept(self):
         """Ensure the caller is the party who did *not* propose the mentorship.
 
@@ -273,8 +306,11 @@ class GamificationMentorship(models.Model):
                     )._send_badge()
 
     def action_cancel(self):
-        """Cancel the mentorship."""
-        self.filtered(lambda r: r.state == "active").write(
+        """Cancel the mentorship. Either party may cancel their own active
+        mentorship; the `mentorship_own_only` record rule already scopes
+        that. sudo() only bypasses `write()`'s state-change guard above.
+        """
+        self.filtered(lambda r: r.state == "active").sudo().write(
             {
                 "state": "cancelled",
                 "end_date": fields.Date.today(),
@@ -342,24 +378,28 @@ class GamificationMentorship(models.Model):
         :return: list of dicts with user_id, user_name, karma, rank_name.
         """
         user = self.env.user
-        # Exclude users already mentoring this user
-        existing_mentor_ids = (
-            self.search(
-                [
-                    ("mentee_id", "=", user.id),
-                    ("state", "in", ("pending", "active")),
-                ]
-            )
-            .mapped("mentor_id")
-            .ids
+        # Exclude users already mentoring this user, and users this user is
+        # already mentoring -- _check_not_self_mentoring's reciprocal-pair
+        # check would reject that pairing anyway if the caller acted on the
+        # suggestion, since the two are already paired in the other direction.
+        existing_pairings = self.search(
+            [
+                ("state", "in", ("pending", "active")),
+                "|",
+                ("mentee_id", "=", user.id),
+                ("mentor_id", "=", user.id),
+            ]
         )
+        existing_pairing_ids = (
+            existing_pairings.mentor_id | existing_pairings.mentee_id
+        ).ids
 
         Users = self.env["res.users"]
         mentors = Users.search(
             [
                 ("karma", ">", user.karma),
                 ("id", "!=", user.id),
-                ("id", "not in", existing_mentor_ids),
+                ("id", "not in", existing_pairing_ids),
                 ("company_id", "=", user.company_id.id),
                 *Users._get_domain_gamification_listable(),
             ],

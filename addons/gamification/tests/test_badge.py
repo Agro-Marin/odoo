@@ -1,5 +1,7 @@
 from unittest.mock import patch
 
+from lxml import etree
+
 from odoo.exceptions import UserError
 from odoo.tests import common
 
@@ -331,3 +333,46 @@ class TestBadgeGranting(common.TransactionCase):
         badge.invalidate_recordset()
         self.assertEqual(badge.granted_count, 3, "Total grants should be 3")
         self.assertEqual(badge.granted_users_count, 2, "Unique owners should be 2")
+
+
+class TestBadgeUserKanbanCardTemplate(common.TransactionCase):
+    """`badge_user_kanban_view`'s `<templates>` must declare a single
+    `t-name="card"` node -- a nested duplicate silently overwrites the
+    outer node's attributes (e.g. its `row g-0` class) in the compiled
+    kanban template.
+    """
+
+    def test_only_one_card_template_node(self):
+        view = self.env.ref("gamification.badge_user_kanban_view")
+        arch = etree.fromstring(view.arch_db)
+        card_nodes = arch.findall('.//templates/t[@t-name="card"]')
+        self.assertEqual(
+            len(card_nodes),
+            1,
+            'badge_user_kanban_view must declare exactly one t-name="card" node',
+        )
+        self.assertEqual(
+            card_nodes[0].get("class"),
+            "row g-0",
+            "the card template's class must not be silently overwritten",
+        )
+
+
+class TestGrantBadgeWizardActionContext(common.TransactionCase):
+    """`action_grant_wizard`'s context must only carry the context keys the
+    wizard actually reads -- `default_badge_id` (consumed by the wizard's
+    `badge_id` field default). The `badge_id` context key is dead: nothing
+    in the module reads a plain (non-`default_`) `badge_id` context key.
+    """
+
+    def test_context_has_no_dead_badge_id_key(self):
+        from odoo.tools.safe_eval import safe_eval
+
+        action = self.env.ref("gamification.action_grant_wizard")
+        context = safe_eval(action.context, {"active_id": 1})
+        self.assertIn("default_badge_id", context)
+        self.assertNotIn(
+            "badge_id",
+            context,
+            "the plain 'badge_id' context key is dead -- nothing reads it",
+        )

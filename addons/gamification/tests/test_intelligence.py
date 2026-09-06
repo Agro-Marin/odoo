@@ -200,6 +200,63 @@ class TestAdaptiveDifficulty(common.TransactionCase):
         self.assertIn(key, result)
         self.assertLess(result[key], 100, "Target should decrease")
 
+    def test_lower_goal_near_zero_made_harder_not_floored_at_one(self):
+        """A 'lower' goal's adjusted target must not be floored at 1.
+
+        For a 'lower' goal (smaller is better), making it harder means a
+        *smaller* target. With a base_target near 0 (e.g. 0.5) and a 15%
+        harder factor (0.85), the correct adjusted target is 0.425 -- still
+        smaller than the base. Flooring at the literal 1 instead forces the
+        adjusted target *above* the base, the opposite direction.
+        """
+        lower_goal_def = self.env["gamification.goal.definition"].create(
+            {
+                "name": "Adaptive Lower Test Def",
+                "computation_mode": "manually",
+                "condition": "lower",
+            }
+        )
+        challenge = self.env["gamification.challenge"].create(
+            {
+                "name": "Monthly Lower Challenge",
+                "period": "monthly",
+                "manual_user_ids": [(6, 0, [self.user.id])],
+            }
+        )
+        line = self.env["gamification.challenge.line"].create(
+            {
+                "challenge_id": challenge.id,
+                "definition_id": lower_goal_def.id,
+                "target_goal": 0.5,
+            }
+        )
+
+        # 3 past goals, consistently beating the 0.5 target (current well
+        # below it) -> avg_rate >= 1.0 -> "make it harder" branch.
+        for i in range(3):
+            self.env["gamification.goal"].create(
+                {
+                    "definition_id": lower_goal_def.id,
+                    "user_id": self.user.id,
+                    "line_id": line.id,
+                    "target_goal": 0.5,
+                    "current": 0.1,
+                    "state": "reached",
+                    "closed": True,
+                    "end_date": f"2025-{i + 1:02d}-28",
+                }
+            )
+
+        result = challenge._get_adaptive_targets()
+        key = (self.user.id, line.id)
+        self.assertIn(key, result)
+        self.assertLess(
+            result[key],
+            0.5,
+            "Harder 'lower' target near 0 must not be floored above base_target",
+        )
+        self.assertAlmostEqual(result[key], 0.42, places=2)
+
 
 class TestEngagementNudges(common.TransactionCase):
     """Tests for the engagement nudge system."""

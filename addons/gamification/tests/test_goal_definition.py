@@ -81,3 +81,37 @@ class TestGoalDefinition(common.TransactionCase):
         self.assertIn(currency_symbol, definition.full_suffix)
         self.assertIn("tasks", definition.full_suffix)
         self.assertEqual(definition.full_suffix, f"{currency_symbol} tasks")
+
+    def test_compute_full_suffix_recomputes_across_company_context(self):
+        """full_suffix must not keep a stale currency symbol when read again
+        under a different company context in the same transaction.
+        """
+        other_currency = self.env["res.currency"].create(
+            {"name": "XTS", "symbol": "X$"}
+        )
+        other_company = self.env["res.company"].create(
+            {"name": "Other Currency Co", "currency_id": other_currency.id}
+        )
+        self.env.user.write({"company_ids": [(4, other_company.id)]})
+        definition = self._create_definition(
+            {
+                "suffix": "tasks",
+                "monetary": True,
+                "computation_mode": "manually",
+            }
+        )
+        base_symbol = self.env.company.currency_id.symbol or "¤"
+        suffix_base = definition.with_context(
+            allowed_company_ids=[self.env.company.id]
+        ).full_suffix
+        self.assertIn(base_symbol, suffix_base)
+
+        suffix_other = definition.with_context(
+            allowed_company_ids=[other_company.id]
+        ).full_suffix
+        self.assertIn(
+            "X$",
+            suffix_other,
+            "full_suffix should reflect the other company's currency symbol,"
+            " not stay cached on the first company read",
+        )

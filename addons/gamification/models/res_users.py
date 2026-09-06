@@ -522,7 +522,7 @@ WHERE sub.user_id = ANY(%s)""",
         ranks = [
             {"rank": rank, "karma_min": rank.karma_min}
             for rank in self.env["gamification.karma.rank"].search(
-                [], order="karma_min DESC"
+                [], order="karma_min DESC, id"
             )
         ]
 

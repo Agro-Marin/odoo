@@ -4,6 +4,7 @@ from unittest.mock import patch
 from freezegun import freeze_time
 
 from odoo import fields
+from odoo.exceptions import UserError
 from odoo.tests import common
 
 from odoo.addons.mail.tests.common import mail_new_test_user
@@ -123,6 +124,41 @@ class TestStreak(TestStreakCommon):
         streak._record_activity()
 
         self.assertEqual(streak.current_count, 1, "Should not count same day twice")
+
+    def test_record_activity_rejects_mixed_streak_types_for_one_user(self):
+        """_record_activity's karma_per_user is keyed by user_id alone: two
+        different-type streaks for the same user in one call would silently
+        misattribute source/reason to whichever streak came first. The sole
+        production caller can't reach this (it groups by streak_type_id
+        first), but a direct call with a mixed recordset must raise rather
+        than silently misattribute.
+        """
+        other_streak_type = self.env["gamification.streak.type"].create(
+            {
+                "name": "Other Streak Type",
+                "model_id": self.partner_model.id,
+                "date_field_id": self.date_field.id,
+                "domain": "[('create_uid', '=', user.id)]",
+                "karma_bonus": 5,
+                "freeze_allowance": 2,
+            }
+        )
+        streak_a = self.env["gamification.streak"].create(
+            {
+                "user_id": self.test_user.id,
+                "streak_type_id": self.streak_type.id,
+                "freeze_remaining": self.streak_type.freeze_allowance,
+            }
+        )
+        streak_b = self.env["gamification.streak"].create(
+            {
+                "user_id": self.test_user.id,
+                "streak_type_id": other_streak_type.id,
+                "freeze_remaining": other_streak_type.freeze_allowance,
+            }
+        )
+        with self.assertRaises(UserError):
+            (streak_a | streak_b)._record_activity()
 
     def test_record_activity_grants_karma(self):
         """Daily streak activity grants karma bonus."""
@@ -431,6 +467,45 @@ class TestStreak(TestStreakCommon):
         )
         self.assertEqual(streak.current_count, 1)
 
+    @freeze_time("2026-04-01")
+    def test_cron_revival_gets_this_months_freeze_reset(self):
+        """A broken streak revived in the same run still gets the monthly reset.
+
+        Regression: the monthly freeze-day reset only queried
+        state='active' streaks. On the 1st of the month, a streak that was
+        'broken' at the start of this same cron run -- but qualifies for
+        activity and gets revived to 'active' later in the very same call --
+        never got that month's freeze allowance, because the reset ran and
+        finished before the revival happened.
+        """
+        streak = self.env["gamification.streak"].create(
+            {
+                "user_id": self.test_user.id,
+                "streak_type_id": self.streak_type.id,
+                "freeze_remaining": 0,
+            }
+        )
+        streak._break_streak()
+        self.assertEqual(streak.state, "broken")
+
+        with patch.object(
+            type(self.streak_type),
+            "_check_user_activity_batch",
+            side_effect=lambda users, check_date: set(users.ids),
+        ):
+            self.env["gamification.streak"]._cron_update_streaks()
+
+        streak.invalidate_recordset()
+        self.assertEqual(
+            streak.state, "active", "Broken streak should revive on activity"
+        )
+        self.assertEqual(
+            streak.freeze_remaining,
+            self.streak_type.freeze_allowance,
+            "A streak revived on the 1st of the month should still receive "
+            "that month's freeze allowance",
+        )
+
     def test_cron_does_not_rebreak_broken_streak(self):
         """Cron leaves broken streaks alone when there's no activity.
 
@@ -473,3 +548,45 @@ class TestStreak(TestStreakCommon):
         )
         self.assertIn("0 days", streak.display_name)
         self.assertIn(self.streak_type.name, streak.display_name)
+
+    def test_domain_not_referencing_user_is_accepted_as_a_shared_streak(self):
+        """A domain that never mentions 'user' is a deliberate shape, not an error.
+
+        `_check_user_activity_batch` groups candidates by their *evaluated*
+        domain: every candidate whose domain does not reference `user` at
+        all evaluates to the same text, so they share one query and its
+        answer -- a company-wide/shared streak (e.g. "did anyone log a
+        sale today") rather than a per-user one. That is intentional and
+        must keep working (existing fixtures rely on it, e.g.
+        TestCronErrorIsolation's "Good Streak"/"Good Achievement"), so this
+        only pins the field's help text calling the shape out, rather than
+        rejecting it -- a hard validation was tried and reverted because it
+        broke that legitimate usage.
+        """
+        streak_type = self.env["gamification.streak.type"].create(
+            {
+                "name": "Global Domain Streak",
+                "model_id": self.partner_model.id,
+                "date_field_id": self.date_field.id,
+                "domain": "[('active', '=', True)]",
+            }
+        )
+        self.assertTrue(streak_type)
+        self.assertIn(
+            "credited",
+            self.env["gamification.streak.type"]._fields["domain"].help,
+            "the domain field must document the shared-query caveat for a "
+            "domain that never references 'user'",
+        )
+
+    def test_domain_referencing_user_is_accepted(self):
+        """A domain that does reference 'user' saves without error."""
+        streak_type = self.env["gamification.streak.type"].create(
+            {
+                "name": "Per-User Domain Streak",
+                "model_id": self.partner_model.id,
+                "date_field_id": self.date_field.id,
+                "domain": "[('create_uid', '=', user.id)]",
+            }
+        )
+        self.assertTrue(streak_type)

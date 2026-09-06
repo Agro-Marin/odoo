@@ -275,3 +275,45 @@ class TestAchievement(common.TransactionCase):
             ]
         )
         self.assertFalse(unlocks, "Inactive achievement should not be checked by cron")
+
+    def test_trigger_domain_not_referencing_user_is_accepted_as_shared(self):
+        """A trigger domain that never mentions 'user' is deliberate, not an error.
+
+        `_check_achievement_for_users` groups candidates by their
+        *evaluated* domain: every candidate whose domain does not reference
+        `user` at all evaluates to the same text, so they share one query
+        and its answer -- a company-wide achievement (e.g. "anyone closed a
+        deal") rather than a per-user one. That is intentional and must
+        keep working (TestCronErrorIsolation's "Good Achievement" fixture
+        relies on exactly this), so this only pins the field's help text
+        calling the shape out, rather than rejecting it -- a hard
+        validation was tried and reverted because it broke that legitimate
+        usage.
+        """
+        achievement = self.env["gamification.achievement"].create(
+            {
+                "name": "Global Trigger Achievement",
+                "model_id": self.partner_model.id,
+                "trigger_domain": "[('active', '=', True)]",
+                "trigger_count": 1,
+            }
+        )
+        self.assertTrue(achievement)
+        self.assertIn(
+            "unlocks",
+            self.env["gamification.achievement"]._fields["trigger_domain"].help,
+            "the trigger_domain field must document the shared-query "
+            "caveat for a domain that never references 'user'",
+        )
+
+    def test_trigger_domain_referencing_user_is_accepted(self):
+        """A domain that does reference 'user' saves without error."""
+        achievement = self.env["gamification.achievement"].create(
+            {
+                "name": "Per-User Trigger Achievement",
+                "model_id": self.partner_model.id,
+                "trigger_domain": "[('create_uid', '=', user.id)]",
+                "trigger_count": 1,
+            }
+        )
+        self.assertTrue(achievement)

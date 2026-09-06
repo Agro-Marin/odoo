@@ -39,8 +39,7 @@
         <field name="target">new</field>
         <field
             name="context">{
-            'default_badge_id': active_id,
-            'badge_id': active_id
+            'default_badge_id': active_id
         }</field>
     </record>
 

@@ -31,7 +31,9 @@ Only admin users (`group_erp_manager`) can create goal definitions.
 
 2. **`origin_ref` selection** must include all models that pass themselves as
    `source` to `_add_karma`. Currently: `res.users`, `gamification.streak`,
-   `gamification.kudos`, `gamification.achievement.unlock`.
+   `gamification.kudos`, `gamification.achievement.unlock`,
+   `gamification.quest.enrollment`, `gamification.skill.node.unlock`,
+   `gamification.mentorship`.
    If a new module grants karma with a different source model, extend
    `_get_origin_selection_values()`.
 
@@ -69,7 +71,7 @@ Only admin users (`group_erp_manager`) can create goal definitions.
 
 | XML ID | Model | Schedule | Method |
 |--------|-------|----------|--------|
-| `ir_cron_check_challenge` | `gamification.challenge` | Daily | `_cron_update()` |
+| `ir_cron_check_challenge` | `gamification.challenge` | Daily 09:30 | `_cron_update()` |
 | `ir_cron_update_streaks` | `gamification.streak` | Daily 06:00 | `_cron_update_streaks()` |
 | `ir_cron_check_achievements` | `gamification.achievement` | Daily 07:00 | `_cron_check_achievements()` |
 | `ir_cron_check_skill_unlocks` | `gamification.skill.node` | Daily 07:30 | `_cron_check_skill_unlocks()` |
@@ -85,7 +87,7 @@ Only admin users (`group_erp_manager`) can create goal definitions.
 4. 07:30 — Skill unlocks (karma-gated nodes, after the karma grants above)
 5. 08:00 — Engagement snapshot (captures fresh data after streaks/achievements)
 6. 09:00 — Nudges (detects patterns after all data is updated)
-7. Daily — Challenge check (goal evaluation + reports)
+7. 09:30 — Challenge check (goal evaluation + reports)
 
 ---
 

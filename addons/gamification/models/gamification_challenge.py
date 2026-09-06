@@ -540,12 +540,6 @@ class GamificationChallenge(models.Model):
                 if end_date:
                     values["end_date"] = end_date
 
-                # the goal is initialised over the limit to make sure we will compute it at least once
-                if line.condition == "higher":
-                    values["current"] = min(line.target_goal - 1, 0)
-                else:
-                    values["current"] = max(line.target_goal + 1, 0)
-
                 if challenge.remind_update_delay:
                     values["remind_update_delay"] = challenge.remind_update_delay
 
@@ -1226,7 +1220,7 @@ class GamificationChallenge(models.Model):
                 else:
                     continue  # No adjustment needed
 
-                adjusted = round(max(base_target * factor, 1), 2)
+                adjusted = round(max(base_target * factor, 0), 2)
                 adjustments[(user.id, line.id)] = adjusted
 
         return adjustments
