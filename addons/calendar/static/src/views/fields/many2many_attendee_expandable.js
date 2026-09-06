@@ -10,13 +10,23 @@ export class Many2ManyAttendeeExpandable extends Many2ManyAttendee {
     static template = "calendar.Many2ManyAttendeeExpandable";
     state = useState({ expanded: false });
 
-    setup() {
-        super.setup();
-        this.attendeesCount = this.props.record.data.attendees_count;
-        this.acceptedCount = this.props.record.data.accepted_count;
-        this.declinedCount = this.props.record.data.declined_count;
-        this.uncertainCount =
-            this.attendeesCount - this.acceptedCount - this.declinedCount;
+    // Getters reading `props.record.data` directly rather than fields cached
+    // once in `setup()` -- the cached fields went stale if the record's data
+    // changed without the component remounting.
+    get attendeesCount() {
+        return this.props.record.data.attendees_count;
+    }
+
+    get acceptedCount() {
+        return this.props.record.data.accepted_count;
+    }
+
+    get declinedCount() {
+        return this.props.record.data.declined_count;
+    }
+
+    get uncertainCount() {
+        return this.attendeesCount - this.acceptedCount - this.declinedCount;
     }
 
     onExpanderClick() {
