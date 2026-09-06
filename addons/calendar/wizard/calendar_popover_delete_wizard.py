@@ -33,6 +33,7 @@ class CalendarPopoverDeleteWizard(models.TransientModel):
         otherwise `action_unlink_event` opens the wizard's other view, which
         offers to mail the attendees before deleting.
         """
+        self.check_singleton()
         event = self.calendar_event_id
         # Asked of `attendee_ids`, the authoritative invitation list, rather
         # than half of it of `partner_ids` -- which a many2many read strips of
