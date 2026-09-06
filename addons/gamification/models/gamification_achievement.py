@@ -45,7 +45,15 @@ class GamificationAchievement(models.Model):
         required=True,
         default="[]",
         help="Domain evaluated per user. May reference 'user'. "
-        "Achievement unlocks when at least one record matches.",
+        "Achievement unlocks when at least one record matches.\n"
+        "Every candidate user whose domain evaluates to the same text "
+        "shares one query and its answer: if the domain does not reference "
+        "'user' at all, that is every candidate, so one shared result "
+        "unlocks (or fails to unlock) the achievement for the whole "
+        "population at once, not per person. That is a deliberate, "
+        "supported shape for a company-wide achievement (e.g. 'anyone "
+        "closed a deal'); it is a misconfiguration if a per-user "
+        "achievement was intended.",
     )
     trigger_count = fields.Integer(
         "Required Count",
