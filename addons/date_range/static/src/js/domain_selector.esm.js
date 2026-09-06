@@ -14,8 +14,9 @@ import { setDateRanges } from "./date_range_provider.js";
  * are contributed through `@web/core/tree`, whose contract is
  * synchronous — so something has to have fetched them by the time the value
  * editor is built, and the component that owns the editor is the only place
- * that knows when that is. `date_range_service` caches, so the round trip
- * happens once per session however many selectors are opened.
+ * that knows when that is. `date_range_service` re-fetches on every call (it
+ * only de-duplicates concurrent in-flight requests), so a range created,
+ * edited or archived since the selector was last opened is picked up here.
  */
 patch(DomainSelector.prototype, {
     setup() {
