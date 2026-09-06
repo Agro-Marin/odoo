@@ -1778,12 +1778,13 @@ test("two commands that cannot render in one pass both lose their row", async ()
     expect.errors(2);
     let poison = false;
     class Poisoned extends Component {
-        static template = xml`<span class="poisoned"/>`;
+        static template = xml`<span class="poisoned" t-att-data-check="check"/>`;
         static props = ["*"];
-        setup() {
+        get check() {
             if (poison) {
                 throw new Error(`poisoned ${this.props.which}`);
             }
+            return "";
         }
     }
     const palette = await mountPalette(() => [
@@ -1866,16 +1867,43 @@ test("a failing initial search is reported and leaves the palette usable", async
     expect.verifyErrors([/Cannot read properties of undefined/]);
 });
 
+test("a row that survives a search keeps its component", async () => {
+    let setups = 0;
+    class Counted extends Component {
+        static template = xml`<span class="counted" t-esc="props.name"/>`;
+        static props = ["*"];
+        setup() {
+            setups++;
+        }
+    }
+    await mountPalette(() => [
+        { name: "cmd a", action: () => {}, Component: Counted, props: {} },
+        { name: "cmd b", action: () => {}, Component: Counted, props: {} },
+        { name: "other", action: () => {}, Component: Counted, props: {} },
+    ]);
+    expect(".counted").toHaveCount(3);
+    expect(setups).toBe(3);
+
+    await click(".o_command_palette_search input");
+    await edit("cmd");
+    await runAllTimers();
+    await animationFrame();
+
+    expect(queryAllTexts(".counted")).toEqual(["cmd a", "cmd b"]);
+    expect(setups).toBe(3);
+});
+
 test("one command that cannot render loses its row, not the palette", async () => {
     expect.errors(1);
     let poison = false;
     class Poisoned extends Component {
-        static template = xml`<span class="poisoned"/>`;
+        static template = xml`<span class="poisoned" t-att-data-check="check"/>`;
         static props = ["*"];
-        setup() {
+        get check() {
             if (poison) {
                 throw new Error("provider component blew up");
             }
+            return "";
         }
     }
     await mountWithCleanup(MainComponentsContainer);

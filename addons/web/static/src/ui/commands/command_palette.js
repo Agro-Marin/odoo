@@ -98,7 +98,7 @@ function commandKey(command) {
 /**
  * @typedef {CommandItem & {
  * index: number;
- * keyId: number;
+ * keyId: string | number;
  * text: string | ReturnType<typeof highlightText>;
  * }} DisplayedCommand
  */
@@ -435,17 +435,26 @@ export class CommandPalette extends Component {
         this.categoryKeys = categoryKeys;
         this.categoryNames = categoryNames;
         this.state.hiddenCount = Math.max(0, commands.length - MAX_DISPLAYED_COMMANDS);
+        // Keyed on what the command is, so a row that survives a search is
+        // patched rather than torn down and rebuilt with its hotkey.
+        /** @type {Map<string, number>} */
+        const occurrences = new Map();
         this.state.commands = markRaw(
-            commands.slice(0, MAX_DISPLAYED_COMMANDS).map((command, index) => ({
-                ...command,
-                index,
-                keyId: this.keyId++,
-                text: highlightText(
-                    options.searchValue ?? "",
-                    command.name,
-                    "fw-bolder text-primary",
-                ),
-            })),
+            commands.slice(0, MAX_DISPLAYED_COMMANDS).map((command, index) => {
+                const key = commandKey(command);
+                const occurrence = occurrences.get(key) ?? 0;
+                occurrences.set(key, occurrence + 1);
+                return {
+                    ...command,
+                    index,
+                    keyId: `${key}#${occurrence}`,
+                    text: highlightText(
+                        options.searchValue ?? "",
+                        command.name,
+                        "fw-bolder text-primary",
+                    ),
+                };
+            }),
         );
         this.selectCommand(this.state.commands.length ? 0 : -1);
         this.mouseSelectionActive = false;
