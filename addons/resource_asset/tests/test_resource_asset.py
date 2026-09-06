@@ -43,6 +43,14 @@ class TestResourceAsset(TransactionCase):
             press.resource_calendar_id, self.env.company.resource_calendar_id
         )
 
+    def test_a_shared_asset_of_a_scheduled_kind_takes_no_company_calendar(self):
+        press = self.Asset.create(
+            {"name": "Shared press", "kind_id": self.machinery.id, "company_id": False}
+        )
+        self.assertFalse(press.company_id)
+        self.assertFalse(press.resource_calendar_id)
+        self.assertFalse(press.resource_id.calendar_id)
+
     def test_an_explicit_calendar_wins(self):
         calendar = self.env["resource.calendar"].create({"name": "Nights", "tz": "UTC"})
         truck = self._truck(resource_calendar_id=calendar.id)

@@ -1,5 +1,5 @@
 from odoo.exceptions import ValidationError
-from odoo.tests import TransactionCase, tagged
+from odoo.tests import TransactionCase, new_test_user, tagged
 
 
 @tagged("post_install", "-at_install")
@@ -114,3 +114,21 @@ class TestResourceAssetStock(TransactionCase):
             with self.env.cr.savepoint():
                 other.asset_id = lot.asset_id
                 other.flush_recordset()
+
+    def test_a_stock_user_without_asset_rights_still_creates_the_asset(self):
+        user = new_test_user(
+            self.env, login="stock_only", groups="stock.group_stock_user"
+        )
+        lot = (
+            self.env["stock.lot"]
+            .with_user(user)
+            .create(
+                {
+                    "name": "PK-006",
+                    "product_id": self.product.id,
+                    "company_id": self.env.company.id,
+                }
+            )
+        )
+        self.assertTrue(lot.asset_id)
+        self.assertEqual(lot.asset_id.sudo().kind_id, self.vehicle)

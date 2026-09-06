@@ -41,14 +41,18 @@ class StockLot(models.Model):
         }
 
     def _create_asset(self):
+        """The asset is a consequence of the serial, not an act of the user who
+        receives it: a stock user with no asset rights still gets one."""
         if not self:
             return self.env["resource.asset"]
-        assets = self.env["resource.asset"].create(
-            [lot._prepare_asset_vals() for lot in self]
+        assets = (
+            self.env["resource.asset"]
+            .sudo()
+            .create([lot._prepare_asset_vals() for lot in self])
         )
         for lot, asset in zip(self, assets, strict=True):
-            lot.asset_id = asset
-        return assets
+            lot.sudo().asset_id = asset
+        return assets.with_env(self.env)
 
     def action_view_asset(self):
         self.check_singleton()

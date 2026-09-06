@@ -101,23 +101,28 @@ class ResourceAsset(models.Model):
                     )
                 )
 
+    def _around_the_clock(self, vals):
+        """No calendar: an unscheduled kind is available around the clock, and a
+        shared (company-less) asset of a scheduled kind cannot take one
+        company's hours -- every reader would then see a company crossover."""
+        if "resource_calendar_id" in vals:
+            return False
+        kind = self.env["resource.asset.kind"].browse(vals.get("kind_id"))
+        shared = "company_id" in vals and not vals["company_id"]
+        return not kind.scheduled or shared
+
     def _prepare_resource_values(self, vals, tz):
         resource_vals = super()._prepare_resource_values(vals, tz)
         resource_vals["resource_type"] = "material"
-        if "resource_calendar_id" not in vals:
-            kind = self.env["resource.asset.kind"].browse(vals.get("kind_id"))
-            if not kind.scheduled:
-                # Around the clock: an empty calendar is fully flexible.
-                resource_vals["calendar_id"] = False
+        if self._around_the_clock(vals):
+            resource_vals["calendar_id"] = False
         return resource_vals
 
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            if vals.get("kind_id") and "resource_calendar_id" not in vals:
-                kind = self.env["resource.asset.kind"].browse(vals["kind_id"])
-                if not kind.scheduled:
-                    vals["resource_calendar_id"] = False
+            if vals.get("kind_id") and self._around_the_clock(vals):
+                vals["resource_calendar_id"] = False
         return super().create(vals_list)
 
     def write(self, vals):
