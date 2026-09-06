@@ -87,6 +87,7 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
             "action_view_calendar_event",
             [this.props.record.id],
         );
+        this.props.close();
         this.actionService.doAction(action);
     }
 
