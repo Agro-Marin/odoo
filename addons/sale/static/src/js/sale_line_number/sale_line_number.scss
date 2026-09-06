@@ -1,0 +1,49 @@
+// Line numbers on the sales order lines, matching the ones the customer reads
+// on the printed order and on the portal page.
+//
+// A section, a subsection and a note span the whole row, so they have no cell
+// of their own to host the widget; for those the number is drawn as a ::before
+// on the first cell after the drag handle.
+.o_field_widget[name="line_ids"]:has(.o_line_number) {
+    --LineNumber-width: 29px;
+
+    table tbody {
+        counter-reset: sale_line_counter;
+    }
+
+    .o_data_row .o_line_number {
+        min-width: var(--LineNumber-width);
+    }
+
+    .o_data_row .o_line_number::before {
+        content: counter(sale_line_counter);
+        counter-increment: sale_line_counter;
+    }
+
+    tr.o_data_row {
+        &.o_is_line_section,
+        &.o_is_line_subsection,
+        &.o_is_line_note {
+            td.o_handle_cell + td {
+                position: relative;
+                padding-left: calc(var(--LineNumber-width) + #{$table-cell-padding-x-sm} * 3);
+
+                &::before {
+                    @include o-position-absolute($top: 0, $left: 0);
+
+                    content: counter(sale_line_counter);
+                    counter-increment: sale_line_counter;
+
+                    width: calc(var(--LineNumber-width) + #{$table-cell-padding-x-sm} * 2);
+                    padding: $table-cell-padding-y-sm $table-cell-padding-x-sm;
+                    white-space: nowrap;
+                    overflow: hidden;
+
+                    // the row is bold or italic, the number is not
+                    font-weight: $font-weight-normal;
+                    font-style: normal;
+                }
+            }
+        }
+    }
+}

@@ -25,6 +25,11 @@ class ResCompany(models.Model):
         default=1.0,
         help="The percentage of the amount needed to be paid to confirm quotations.",
     )
+    show_sol_numbers = fields.Boolean(
+        string="Line Numbers",
+        help="Number the lines of quotations and sales orders, so that a line"
+        " can be referred to by its position.",
+    )
     quotation_validity_days = fields.Integer(
         string="Default Quotation Validity",
         default=30,

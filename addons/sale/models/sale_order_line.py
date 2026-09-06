@@ -32,7 +32,22 @@ class SaleOrderLine(models.Model):
     _invoice_policy_field = "invoice_policy"
     _price_direction = 1
 
+    # `COALESCE`, not a bare `IN`: `display_type` is NULL on a product line, and
+    # a CHECK whose expression evaluates to NULL is satisfied, so the bare form
+    # let every product line carry a section quantity.
+    _section_quantity_only_on_sections = models.Constraint(
+        """CHECK(
+            COALESCE(display_type, '') IN ('line_section', 'line_subsection')
+            OR (
+                (section_qty IS NULL OR section_qty = 0)
+                AND section_uom_id IS NULL
+            )
+        )""",
+        "Only a section or a subsection carries a section quantity and unit.",
+    )
+
     order_id = fields.Many2one(comodel_name="sale.order")
+    show_sol_numbers = fields.Boolean(related="order_id.show_sol_numbers")
     partner_id = fields.Many2one(string="Customer")
     user_id = fields.Many2one(string="Salesperson")
 
@@ -59,6 +74,27 @@ class SaleOrderLine(models.Model):
         default=False,
         copy=True,
         help="Whether this section's lines will be hidden in reports and in the portal.",
+    )
+    section_qty = fields.Float(
+        string="Section Quantity",
+        digits="Product Unit",
+        compute="_compute_section_qty",
+        store=True,
+        readonly=False,
+        precompute=True,
+        help="How many of this section the order holds. Changing it rescales every"
+        " line the section contains.",
+    )
+    section_uom_id = fields.Many2one(
+        comodel_name="uom.uom",
+        string="Section Unit",
+        compute="_compute_section_uom_id",
+        store=True,
+        readonly=False,
+        precompute=True,
+        ondelete="restrict",
+        help="The unit the section quantity is expressed in. Switching it to a"
+        " compatible unit converts every line the section contains.",
     )
     linked_line_id = fields.Many2one(
         comodel_name="sale.order.line",
@@ -235,6 +271,10 @@ class SaleOrderLine(models.Model):
         return lines
 
     def write(self, vals):
+        # Read before the write: the ratio compares the section total after the
+        # change to the one it had before.
+        section_ratios = self._collect_section_ratios(vals)
+
         if "product_qty" in vals:
             precision = self.env["decimal.precision"].get_precision("Product Unit")
             self.filtered(
@@ -256,7 +296,11 @@ class SaleOrderLine(models.Model):
         ):
             vals.pop("price_unit_auto")
 
-        return super().write(vals)
+        result = super().write(vals)
+
+        self._rescale_sections(section_ratios)
+
+        return result
 
     def _add_precomputed_values(self, vals_list):
         original_values = [
@@ -289,6 +333,17 @@ class SaleOrderLine(models.Model):
                 computed_price = vals.get("price_unit")
                 if computed_price is not None:
                     vals["price_unit_auto"] = computed_price
+
+    @api.depends("display_type")
+    def _compute_section_qty(self):
+        for line in self:
+            line.section_qty = 1.0 if line._is_section() else 0.0
+
+    @api.depends("display_type")
+    def _compute_section_uom_id(self):
+        default_uom = self.env.ref("uom.product_uom_unit", raise_if_not_found=False)
+        for line in self:
+            line.section_uom_id = default_uom if line._is_section() else False
 
     def _compute_customer_lead(self):
         for line in self.filtered(lambda x: not x.display_type):
@@ -1212,6 +1267,86 @@ class SaleOrderLine(models.Model):
             result[line.id] += qty
 
         return result
+
+    def _is_section(self):
+        self.check_singleton()
+        return self.display_type in ("line_section", "line_subsection")
+
+    def _collect_section_ratios(self, write_vals):
+        """Factor each section's content must be multiplied by, keyed by line id.
+
+        Called before the write, while `section_qty` and `section_uom_id` still
+        hold the values the ratio is measured from.
+
+        :return: `{line_id: ratio}`, only for the sections that actually move
+        :rtype: dict
+        """
+        if self.env.context.get("sale_rescaling_section"):
+            # Reached from `_rescale_sections` itself: the lines below this
+            # subsection were already scaled by the section above it.
+            return {}
+        if "section_qty" not in write_vals and "section_uom_id" not in write_vals:
+            return {}
+
+        ratios = {}
+        for line in self:
+            if not line._is_section():
+                continue
+            new_uom = (
+                self.env["uom.uom"].browse(write_vals["section_uom_id"])
+                if "section_uom_id" in write_vals
+                else line.section_uom_id
+            )
+            ratio = line._get_section_ratio(
+                write_vals.get("section_qty", line.section_qty),
+                new_uom,
+            )
+            if float_compare(ratio, 1.0, precision_digits=12) != 0:
+                ratios[line.id] = ratio
+        return ratios
+
+    def _get_section_ratio(self, new_qty, new_uom):
+        """By how much the section total moves from its stored value to `new_qty new_uom`."""
+        self.check_singleton()
+        old_qty, old_uom = self.section_qty, self.section_uom_id
+        if not old_qty or not new_qty:
+            # An empty section quantity says nothing about the lines below it,
+            # so there is no factor to carry over.
+            return 1.0
+        if new_uom != old_uom:
+            if not (old_uom and new_uom and new_uom._has_common_reference(old_uom)):
+                # Unrelated units give no conversion factor; leave the lines alone.
+                return 1.0
+            new_qty = new_uom._compute_quantity(new_qty, old_uom, round=False)
+        return new_qty / old_qty
+
+    def _rescale_sections(self, section_ratios):
+        """Apply each section's ratio to everything the section holds."""
+        for section in self.browse(section_ratios):
+            ratio = section_ratios[section.id]
+            content = section._get_section_lines().filtered(
+                lambda line: line.product_qty and not line.combo_item_id,
+            )
+            for line in content:
+                line.product_qty *= ratio
+            # `_get_section_lines` already reached the lines nested under a
+            # subsection, so the subsection row only needs its own total kept
+            # coherent -- hence the context flag, which stops it from scaling
+            # those same lines a second time.
+            nested = section._get_nested_subsections().with_context(
+                sale_rescaling_section=True,
+            )
+            for subsection in nested:
+                subsection.section_qty *= ratio
+
+    def _get_nested_subsections(self):
+        """The subsection rows this section directly contains."""
+        self.check_singleton()
+        return self.order_id.line_ids.filtered(
+            lambda line: (
+                line.display_type == "line_subsection" and line.parent_id == self
+            ),
+        )
 
     def _get_section_lines(self):
         self.check_singleton()

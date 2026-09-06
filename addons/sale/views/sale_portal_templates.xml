@@ -831,6 +831,9 @@
                     t-set="lines_to_report"
                     t-value="sale_order._get_order_lines_to_report()" />
                 <t
+                    t-set="line_numbers"
+                    t-value="sale_order._get_report_line_numbers(lines_to_report)" />
+                <t
                     t-set="display_discount"
                     t-value="any(line.discount &gt; 0 for line in lines_to_report)" />
                 <t t-set="hide_taxes_details" t-value="False" />
@@ -846,6 +849,11 @@
                         id="sales_order_table">
                         <thead>
                             <tr>
+                                <th
+                                    t-if="line_numbers"
+                                    class="text-start"
+                                    id="line_number_header"
+                                    style="width: 1%; white-space: nowrap;" />
                                 <th class="text-start" id="product_name_header">Products</th>
                                 <th class="text-end" id="product_qty_header">Quantity</th>
                                 <th
@@ -943,6 +951,12 @@
                                         <!-- Some columns (e.g. Discount and Unit Price)
                                         are not displayed on smaller viewports -->
                                         <td
+                                            t-if="line_numbers"
+                                            name="td_section_line_no"
+                                            t-att-class="'text-start fst-normal' if False else 'text-start'">
+                                            <span t-out="line_numbers.get(line.id)" />
+                                        </td>
+                                        <td
                                             name="td_section_name_xs"
                                             t-att-colspan="section_name_colspan - 1 - (1 if display_discount else 0) - (1 if display_taxes else 0)"
                                             t-attf-class="d-sm-none {{padding_class}}">
@@ -976,6 +990,12 @@
                                         name="tr_note"
                                         class="fst-italic o_line_note">
                                         <td
+                                            t-if="line_numbers"
+                                            name="td_note_line_no"
+                                            t-att-class="'text-start fst-normal' if True else 'text-start'">
+                                            <span t-out="line_numbers.get(line.id)" />
+                                        </td>
+                                        <td
                                             name="td_note_name"
                                             colspan="99"
                                             t-att-class="padding_class">
@@ -986,6 +1006,12 @@
                                         t-elif="is_combo"
                                         name="tr_combo"
                                         class="fw-bold o_line_subsection">
+                                        <td
+                                            t-if="line_numbers"
+                                            name="td_combo_line_no"
+                                            t-att-class="'text-start fst-normal' if False else 'text-start'">
+                                            <span t-out="line_numbers.get(line.id)" />
+                                        </td>
                                         <td
                                             name="td_combo_name"
                                             t-att-class="padding_class">
@@ -1020,6 +1046,12 @@
                                         </td>
                                     </tr>
                                     <tr t-else="" name="tr_product">
+                                        <td
+                                            t-if="line_numbers"
+                                            name="td_product_line_no"
+                                            t-att-class="'text-start fst-normal' if False else 'text-start'">
+                                            <span t-out="line_numbers.get(line.id)" />
+                                        </td>
                                         <td
                                             name="td_product_name"
                                             t-att-class="padding_class">

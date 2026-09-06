@@ -137,6 +137,12 @@
                         title="Quotations &amp; Orders"
                         name="quotation_order_setting_container">
                         <setting
+                            id="sol_line_numbers"
+                            company_dependent="1"
+                            help="Number the lines of quotations and sales orders, on screen and on the printed document, so a line can be referred to by its position.">
+                            <field name="show_sol_numbers" />
+                        </setting>
+                        <setting
                             id="online_signature"
                             company_dependent="1"
                             documentation="/applications/sales/sales/send_quotations/get_signature_to_validate.html"

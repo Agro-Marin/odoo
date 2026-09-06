@@ -63,6 +63,9 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.quotation_validity_days",
         readonly=False,
     )
+    show_sol_numbers = fields.Boolean(
+        string="Line Numbers", related="company_id.show_sol_numbers", readonly=False
+    )
     portal_confirmation_sign = fields.Boolean(
         related="company_id.portal_confirmation_sign",
         readonly=False,
@@ -101,7 +104,6 @@ class ResConfigSettings(models.TransientModel):
     module_sale_product_matrix = fields.Boolean(string="Sales Grid Entry")
     module_sale_shopee = fields.Boolean(string="Shopee Sync")
 
-
     @api.onchange("group_discount_per_so_line")
     def _onchange_group_discount_per_so_line(self):
         if self.group_discount_per_so_line:
@@ -128,7 +130,6 @@ class ResConfigSettings(models.TransientModel):
             _("Quotation Validity"),
         )
 
-
     def set_values(self):
         super().set_values()
         if self.default_invoice_policy != "ordered":
@@ -136,7 +137,6 @@ class ResConfigSettings(models.TransientModel):
                 key="sale.automatic_invoice", value=False
             )
         self._sync_order_lock("lock_confirmed_so", "order_lock_so")
-
 
     def action_sale_start_payment_onboarding(self):
         menu = self.env.ref("sale.menu_sale_general_settings", raise_if_not_found=False)

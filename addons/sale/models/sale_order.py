@@ -198,6 +198,16 @@ class SaleOrder(models.Model):
         readonly=False,
         help="The percentage of the amount needed that must be paid by the customer to confirm the order.",
     )
+    prepayment_amount = fields.Monetary(
+        string="Prepayment Amount",
+        currency_field="currency_id",
+        compute="_compute_prepayment_amount",
+        inverse="_inverse_prepayment_amount",
+        readonly=False,
+        help="The amount that must be paid by the customer to confirm the order."
+        " It is the other side of the prepayment percentage: writing either one"
+        " rewrites the other.",
+    )
     preferred_payment_channel_id = fields.Many2one(
         comodel_name="account.payment.channel",
         string="Payment Method",
@@ -328,6 +338,7 @@ class SaleOrder(models.Model):
         store=False,
         help="True if the pricelist was changed",
     )
+    show_sol_numbers = fields.Boolean(related="company_id.show_sol_numbers")
 
     _date_order_id_idx = models.Index("(date_order desc, id desc)")
 
@@ -401,6 +412,21 @@ class SaleOrder(models.Model):
     def _compute_require_payment(self):
         for order in self:
             order.require_payment = order.company_id.portal_confirmation_pay
+
+    @api.depends("prepayment_percent", "amount_total", "require_payment")
+    def _compute_prepayment_amount(self):
+        for order in self:
+            # the very figure the portal will charge, rounding included, so the
+            # salesperson reads what the customer will be asked for
+            order.prepayment_amount = order._get_prepayment_required_amount()
+
+    def _inverse_prepayment_amount(self):
+        for order in self:
+            order.prepayment_percent = (
+                order.prepayment_amount / order.amount_total
+                if order.amount_total
+                else 0.0
+            )
 
     @api.depends("company_id", "require_payment")
     def _compute_prepayment_percent(self):
@@ -1339,6 +1365,24 @@ class SaleOrder(models.Model):
             "amount_paid": self.amount_paid,
             "prepayment_amount": prepayment_amount,
         }
+
+    def _get_report_line_numbers(self, lines=None):
+        """Number the lines a document reports, as a ``{line id: number}`` map.
+
+        The number is the position in :meth:`_get_order_lines_to_report`, so
+        the printed order, the portal page and the back office all count the
+        same rows: sections, subsections, notes and products alike. Returns an
+        empty map when the company does not want line numbers, which is what
+        the templates test to decide whether to draw the column at all.
+
+        :param lines: the reported lines, when the caller already has them.
+        """
+        self.check_singleton()
+        if not self.company_id.show_sol_numbers:
+            return {}
+        if lines is None:
+            lines = self._get_order_lines_to_report()
+        return {line.id: number for number, line in enumerate(lines, start=1)}
 
     def _get_order_lines_to_report(self):
         down_payment_lines = self.line_ids.filtered(

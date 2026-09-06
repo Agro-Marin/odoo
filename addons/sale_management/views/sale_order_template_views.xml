@@ -93,6 +93,17 @@
                                         <field
                                             name="product_id"
                                             required="not display_type" />
+                                        <field
+                                            name="is_configurable_product"
+                                            invisible="1" />
+                                        <field
+                                            name="allowed_no_variant_ptav_ids"
+                                            invisible="1" />
+                                        <field
+                                            name="product_no_variant_attribute_value_ids"
+                                            widget="many2many_tags"
+                                            options="{&quot;no_create&quot;: True}"
+                                            invisible="not allowed_no_variant_ptav_ids" />
                                         <label for="product_uom_qty" />
                                         <div>
                                             <field
@@ -119,6 +130,20 @@
                                         name="order_note"
                                         invisible="display_type != 'line_note'">
                                         <field name="name" />
+                                    </page>
+                                    <page
+                                        string="Custom Values"
+                                        name="order_custom_values"
+                                        invisible="not product_no_variant_attribute_value_ids">
+                                        <field name="product_custom_attribute_value_ids">
+                                            <list editable="bottom">
+                                                <field
+                                                    name="custom_product_template_attribute_value_id"
+                                                    domain="[('id', 'in', parent.product_no_variant_attribute_value_ids)]"
+                                                    options="{&quot;no_create&quot;: True}" />
+                                                <field name="custom_value" />
+                                            </list>
+                                        </field>
                                     </page>
                                 </notebook>
                             </form>

@@ -1,5 +1,6 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Command
 
 
 class SaleOrderTemplateLine(models.Model):
@@ -37,6 +38,38 @@ class SaleOrderTemplateLine(models.Model):
         comodel_name="product.product",
         check_company=True,
         domain=lambda self: self._product_id_domain(),
+    )
+
+    is_configurable_product = fields.Boolean(
+        string="Is the product configurable?",
+        related="product_id.product_tmpl_id.has_configurable_attributes",
+        depends=["product_id"],
+    )
+    allowed_no_variant_ptav_ids = fields.Many2many(
+        comodel_name="product.template.attribute.value",
+        string="Selectable Extra Values",
+        compute="_compute_allowed_no_variant_ptav_ids",
+    )
+    product_no_variant_attribute_value_ids = fields.Many2many(
+        comodel_name="product.template.attribute.value",
+        string="Extra Values",
+        domain="[('id', 'in', allowed_no_variant_ptav_ids)]",
+        compute="_compute_custom_attribute_values",
+        store=True,
+        precompute=True,
+        readonly=False,
+        ondelete="restrict",
+        copy=True,
+    )
+    product_custom_attribute_value_ids = fields.One2many(
+        comodel_name="product.attribute.custom.value",
+        inverse_name="sale_order_template_line_id",
+        string="Custom Values",
+        compute="_compute_custom_attribute_values",
+        store=True,
+        precompute=True,
+        readonly=False,
+        copy=True,
     )
 
     name = fields.Text(
@@ -80,6 +113,60 @@ class SaleOrderTemplateLine(models.Model):
     )
 
     # === COMPUTE METHODS ===#
+
+    @api.depends("product_id")
+    def _compute_allowed_no_variant_ptav_ids(self):
+        """The extra values a template author may pick, mirroring `allowed_uom_ids`.
+
+        A `no_variant` attribute has no variant to select, so the value has to
+        be stored on the line itself; anything else is already carried by
+        `product_id`.
+        """
+        for option in self:
+            ptavs = option.product_id.product_tmpl_id.valid_product_template_attribute_line_ids.product_template_value_ids
+            option.allowed_no_variant_ptav_ids = ptavs.filtered(
+                lambda ptav: ptav.attribute_id.create_variant == "no_variant",
+            )
+
+    @api.depends("product_id")
+    def _compute_custom_attribute_values(self):
+        """Drop the values the newly chosen product does not offer.
+
+        One compute for both fields, as `sale.order.line` already does: the two
+        are invalidated by the same event and share the lookup of what is valid.
+        """
+        for option in self:
+            if not option.product_id:
+                option.product_custom_attribute_value_ids = False
+                option.product_no_variant_attribute_value_ids = False
+                continue
+
+            has_custom = bool(option.product_custom_attribute_value_ids)
+            has_no_variant = bool(option.product_no_variant_attribute_value_ids)
+
+            if not has_custom and not has_no_variant:
+                continue
+
+            valid_values = option.product_id.product_tmpl_id.valid_product_template_attribute_line_ids.product_template_value_ids
+
+            if has_custom:
+                invalid_custom = option.product_custom_attribute_value_ids.browse()
+                for pacv in option.product_custom_attribute_value_ids:
+                    if (
+                        pacv.custom_product_template_attribute_value_id
+                        not in valid_values
+                    ):
+                        invalid_custom |= pacv
+                option.product_custom_attribute_value_ids -= invalid_custom
+
+            if has_no_variant:
+                invalid_no_variant = (
+                    option.product_no_variant_attribute_value_ids.browse()
+                )
+                for ptav in option.product_no_variant_attribute_value_ids:
+                    if ptav._origin not in valid_values:
+                        invalid_no_variant |= ptav
+                option.product_no_variant_attribute_value_ids -= invalid_no_variant
 
     @api.depends("product_id", "product_id.uom_id", "product_id.uom_ids")
     def _compute_allowed_uom_ids(self):
@@ -157,6 +244,20 @@ class SaleOrderTemplateLine(models.Model):
             "product_uom_id": self.product_uom_id.id,
             "is_optional": self.is_optional,
             "sequence": self.sequence,
+            "product_no_variant_attribute_value_ids": [
+                Command.set(self.product_no_variant_attribute_value_ids.ids),
+            ],
+            "product_custom_attribute_value_ids": [
+                Command.create(
+                    {
+                        "custom_product_template_attribute_value_id": (
+                            pacv.custom_product_template_attribute_value_id.id
+                        ),
+                        "custom_value": pacv.custom_value,
+                    },
+                )
+                for pacv in self.product_custom_attribute_value_ids
+            ],
         }
         if self.name:
             vals["name"] = self.name

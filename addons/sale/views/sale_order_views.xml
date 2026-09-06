@@ -793,6 +793,7 @@
                                         name="sequence"
                                         widget="handle"
                                         invisible="combo_item_id" />
+                                    <widget name="sale_line_number" />
                                     <field
                                         name="product_id"
                                         string="Product Variant"
@@ -823,6 +824,21 @@
                                         options="{                                             'product_field': 'product_id',                                             'business_domain': 'sale_order',                                             'amount_field': 'price_subtotal',                                         }"
                                         optional="hide"
                                         groups="analytic.group_analytic_accounting" />
+                                    <field
+                                        name="section_qty"
+                                        string="Section Qty"
+                                        invisible="not display_type"
+                                        optional="hide"
+                                        width="80px" />
+                                    <field
+                                        name="section_uom_id"
+                                        string="Section Unit"
+                                        widget="many2one_uom"
+                                        invisible="not display_type"
+                                        options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
+                                        optional="hide"
+                                        width="60px"
+                                        groups="uom.group_uom" />
                                     <field
                                         name="product_qty"
                                         readonly="is_downpayment" />
@@ -1158,6 +1174,14 @@
                                             widget="percentage"
                                             readonly="state in ['done', 'cancel']"
                                             style="width: 3rem"
+                                            invisible="not require_payment" />
+                                        <span
+                                            class="mx-2"
+                                            invisible="not require_payment">or</span>
+                                        <field
+                                            name="prepayment_amount"
+                                            readonly="state in ['done', 'cancel']"
+                                            style="width: 6rem"
                                             invisible="not require_payment" />
                                     </div>
                                     <field
