@@ -31,7 +31,11 @@ This module allows a customer to give rating.
         "mail.assets_public": [
             "rating/static/src/core/common/**/*",
         ],
-        "portal.assets_chatter": [
+        # The helpers bundle, not `portal.assets_chatter` above it: a chatter
+        # is assembled from the helpers, and some clients assemble their own
+        # instead of pulling the whole frontend bundle in. `assets_chatter`
+        # includes the helpers, so it keeps getting these files.
+        "portal.assets_chatter_helpers": [
             "rating/static/src/core/common/**/*",
         ],
     },
