@@ -1,7 +1,13 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { computeAppsAndMenuItems, reorderApps } from "@web/webclient/menus/menu_utils";
+import {
+    computeAppsAndMenuItems,
+    isDefaultHomeMenuConfig,
+    parseHomeMenuConfig,
+    reorderApps,
+    serializeHomeMenuConfig,
+} from "@web/webclient/menus/menu_utils";
 
 /** @param {string[]} xmlids */
 function makeApps(xmlids) {
@@ -161,4 +167,41 @@ test("computeAppsAndMenuItems handles a subtree that is not rooted at root", () 
     const { apps, menuItems } = computeAppsAndMenuItems(app);
     expect(apps.map((a) => a.label)).toEqual(["Sales"]);
     expect(menuItems.map((m) => m.label)).toEqual(["Orders"]);
+});
+
+test("parseHomeMenuConfig reads the version-1 bare order list", () => {
+    expect(parseHomeMenuConfig('["app.b","app.a"]')).toEqual({
+        order: ["app.b", "app.a"],
+        pinned: [],
+        hidden: [],
+    });
+    expect(parseHomeMenuConfig(["app.a"])).toEqual({
+        order: ["app.a"],
+        pinned: [],
+        hidden: [],
+    });
+});
+
+test("parseHomeMenuConfig reads the versioned object and drops what is not an xmlid", () => {
+    expect(
+        parseHomeMenuConfig(
+            '{"version":2,"order":["app.a",3],"pinned":["app.b"],"hidden":null}',
+        ),
+    ).toEqual({ order: ["app.a"], pinned: ["app.b"], hidden: [] });
+});
+
+test("parseHomeMenuConfig treats nothing and garbage as the default layout", () => {
+    for (const raw of [undefined, null, "", "null", "{", 42, "[1,2]"]) {
+        const config = parseHomeMenuConfig(raw);
+        expect(config).toEqual({ order: [], pinned: [], hidden: [] });
+        expect(isDefaultHomeMenuConfig(config)).toBe(true);
+    }
+});
+
+test("serializeHomeMenuConfig round-trips through parseHomeMenuConfig", () => {
+    const config = { order: ["app.b", "app.a"], pinned: ["app.a"], hidden: ["app.c"] };
+    const raw = serializeHomeMenuConfig(config);
+    expect(JSON.parse(raw).version).toBe(2);
+    expect(parseHomeMenuConfig(raw)).toEqual(config);
+    expect(isDefaultHomeMenuConfig(config)).toBe(false);
 });

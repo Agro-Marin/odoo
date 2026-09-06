@@ -6,6 +6,7 @@ import {
     onMounted,
     onPatched,
     onWillUpdateProps,
+    reactive,
     useExternalListener,
     useRef,
     useState,
@@ -18,6 +19,11 @@ import { user } from "@web/core/user";
 import { useSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
+import {
+    isDefaultHomeMenuConfig,
+    parseHomeMenuConfig,
+    serializeHomeMenuConfig,
+} from "@web/webclient/menus/menu_utils";
 
 import { ExpirationPanel } from "./expiration_panel.js";
 import { SysAdminPanel } from "./sysadmin_panel.js";
@@ -96,10 +102,18 @@ export class HomeMenu extends Component {
             },
         },
         reorderApps: { type: Function },
+        config: {
+            type: Object,
+            optional: true,
+            shape: { order: Array, pinned: Array, hidden: Array },
+        },
+        resetApps: { type: Function, optional: true },
     };
 
-    /** @type {{ focusedIndex: number | null; isIosApp: boolean }} */
+    /** @type {{ focusedIndex: number | null; isIosApp: boolean; editing: boolean }} */
     state;
+    /** @type {import("@web/webclient/menus/menu_utils").HomeMenuConfig} */
+    config;
     /** @type {boolean} */
     compositionStart = false;
 
@@ -127,7 +141,11 @@ export class HomeMenu extends Component {
         this.state = useState({
             focusedIndex: null,
             isIosApp: isIosApp(),
+            editing: false,
         });
+        this.config = useState(
+            this.props.config ?? reactive(parseHomeMenuConfig(null)),
+        );
         this.inputRef = useRef("input");
         this.rootRef = useRef("root");
 
@@ -145,9 +163,12 @@ export class HomeMenu extends Component {
             onDrop: (params) => this._sortAppDrop(params),
         });
 
-        onWillUpdateProps(() => {
+        onWillUpdateProps((nextProps) => {
             // State is reset on each remount
             this.state.focusedIndex = null;
+            if (nextProps.config && nextProps.config !== this.props.config) {
+                this.config = reactive(nextProps.config, () => this.render());
+            }
         });
 
         onMounted(() => {
@@ -182,9 +203,59 @@ export class HomeMenu extends Component {
         return this.props.apps;
     }
 
+    /**
+     * The tiles on screen: pinned first in their pinned order, then the rest
+     * in the stored order, hidden ones only while editing.
+     *
+     * @returns {HomeMenuApp[]}
+     */
+    get visibleApps() {
+        return [...this.pinnedApps, ...this.unpinnedApps];
+    }
+
+    /** @returns {HomeMenuApp[]} */
+    get pinnedApps() {
+        const byXmlid = new Map(
+            this.displayedApps
+                .filter((app) => app.xmlid !== undefined && this._isShown(app))
+                .map((app) => [app.xmlid, app]),
+        );
+        return this.config.pinned.flatMap((xmlid) => {
+            const app = byXmlid.get(xmlid);
+            return app ? [app] : [];
+        });
+    }
+
+    /** @returns {HomeMenuApp[]} */
+    get unpinnedApps() {
+        return this.displayedApps.filter(
+            (app) => !this.isPinned(app) && this._isShown(app),
+        );
+    }
+
     /** @returns {HomeMenuApp[]} */
     get recentApps() {
-        return menuUsage.rank(this.displayedApps, RECENT_APPS);
+        return menuUsage.rank(this.visibleApps, RECENT_APPS);
+    }
+
+    /** @returns {boolean} */
+    get canEditLayout() {
+        return true;
+    }
+
+    /** @returns {boolean} */
+    get hasCustomLayout() {
+        return !isDefaultHomeMenuConfig(this.config);
+    }
+
+    /** @param {HomeMenuApp} app */
+    isPinned(app) {
+        return app.xmlid !== undefined && this.config.pinned.includes(app.xmlid);
+    }
+
+    /** @param {HomeMenuApp} app */
+    isHidden(app) {
+        return app.xmlid !== undefined && this.config.hidden.includes(app.xmlid);
     }
 
     /** @returns {number} */
@@ -218,12 +289,70 @@ export class HomeMenu extends Component {
         return this.menus.selectMenu(menu);
     }
 
+    /** @param {HomeMenuApp} app */
+    _isShown(app) {
+        return this.state.editing || !this.isHidden(app);
+    }
+
+    _persistConfig() {
+        return user.setUserSettings(
+            "homemenu_config",
+            serializeHomeMenuConfig(this.config),
+        );
+    }
+
+    /** @param {HomeMenuApp} app */
+    _togglePinned(app) {
+        if (app.xmlid === undefined) {
+            return;
+        }
+        const index = this.config.pinned.indexOf(app.xmlid);
+        if (index === -1) {
+            this.config.pinned.push(app.xmlid);
+        } else {
+            this.config.pinned.splice(index, 1);
+        }
+        this._persistConfig();
+    }
+
+    /** @param {HomeMenuApp} app */
+    _toggleHidden(app) {
+        if (app.xmlid === undefined) {
+            return;
+        }
+        const index = this.config.hidden.indexOf(app.xmlid);
+        if (index === -1) {
+            this.config.hidden.push(app.xmlid);
+            // A hidden app has no place to be pinned to.
+            const pinnedIndex = this.config.pinned.indexOf(app.xmlid);
+            if (pinnedIndex !== -1) {
+                this.config.pinned.splice(pinnedIndex, 1);
+            }
+        } else {
+            this.config.hidden.splice(index, 1);
+        }
+        this._persistConfig();
+    }
+
+    _resetLayout() {
+        this.config.order.length = 0;
+        this.config.pinned.length = 0;
+        this.config.hidden.length = 0;
+        this.props.resetApps?.();
+        this._persistConfig();
+    }
+
+    _toggleEditing() {
+        this.state.editing = !this.state.editing;
+        this.state.focusedIndex = null;
+    }
+
     /**
      * Update this.state.focusedIndex if not null.
      * @param {string} cmd
      */
     _updateFocusedIndex(cmd) {
-        const nbrApps = this.displayedApps.length;
+        const nbrApps = this.visibleApps.length;
         const lastIndex = nbrApps - 1;
         const focusedIndex = this.state.focusedIndex;
         if (lastIndex < 0) {
@@ -347,7 +476,8 @@ export class HomeMenu extends Component {
         }
         // apply new order
         this.props.reorderApps(order);
-        user.setUserSettings("homemenu_config", JSON.stringify(order));
+        this.config.order = order;
+        this._persistConfig();
     }
 
     /** @param {import("@web/core/utils/dnd/sortable").SortableHandlerParams} params */
@@ -373,7 +503,13 @@ export class HomeMenu extends Component {
             ["ArrowRight", () => this._updateFocusedIndex("nextColumn")],
             ["ArrowUp", () => this._updateFocusedIndex("previousLine")],
             ["ArrowLeft", () => this._updateFocusedIndex("previousColumn")],
-            ["Escape", () => this.homeMenuService.toggle(false)],
+            [
+                "Escape",
+                () =>
+                    this.state.editing
+                        ? this._toggleEditing()
+                        : this.homeMenuService.toggle(false),
+            ],
         ];
         for (const [hotkey, callback] of hotkeys) {
             useHotkey(hotkey, callback, { allowRepeat: true, isAvailable });
@@ -384,9 +520,7 @@ export class HomeMenu extends Component {
             () => {
                 const focusedIndex = this.state.focusedIndex;
                 const menu =
-                    focusedIndex === null
-                        ? undefined
-                        : this.displayedApps[focusedIndex];
+                    focusedIndex === null ? undefined : this.visibleApps[focusedIndex];
                 if (menu) {
                     this._openMenu(menu);
                 }

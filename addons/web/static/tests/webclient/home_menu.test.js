@@ -9,10 +9,12 @@ import {
     mockTouch,
     pointerDown,
     press,
+    queryAllTexts,
     queryOne,
     runAllTimers,
     test,
 } from "@odoo/hoot";
+import { reactive } from "@odoo/owl";
 import {
     defineMenus,
     getService,
@@ -26,7 +28,7 @@ import { registry } from "@web/core/registry";
 import { session } from "@web/session";
 import { HomeMenu } from "@web/webclient/home_menu/home_menu";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
-import { reorderApps } from "@web/webclient/menus/menu_utils";
+import { parseHomeMenuConfig, reorderApps } from "@web/webclient/menus/menu_utils";
 import { WebClient } from "@web/webclient/webclient";
 
 /**
@@ -435,7 +437,7 @@ test("no recents row until an app has been opened", async () => {
         props: getDefaultHomeMenuProps(),
     });
     expect(".o_recent_apps").toHaveCount(0);
-    expect(".o_apps").toHaveClass("mt-5");
+    expect(".o_apps_listbox").toHaveClass("mt-5");
 });
 
 test("recently opened apps are shown above the grid", async () => {
@@ -475,6 +477,8 @@ test("Tab reaches the tiles and the arrows then move the real focus", async () =
     expect(".o_home_menu_search").toBeFocused();
 
     await press("Tab");
+    expect(".o_home_menu_customize").toBeFocused();
+    await press("Tab");
     await animationFrame();
     expect(".o_app:eq(0)").toBeFocused();
     expect(".o_app:eq(0)").toHaveClass("o_focused");
@@ -504,4 +508,110 @@ test("a namespace character typed in the search reaches the palette as such", as
         input.dispatchEvent(new InputEvent("input", { bubbles: true }));
     }
     expect.verifySteps(["/cal", "@bob"]);
+});
+
+/** @param {unknown} [raw] */
+function getLayoutProps(raw) {
+    const props = getDefaultHomeMenuProps();
+    const config = reactive(parseHomeMenuConfig(raw));
+    const defaultOrder = props.apps.map((app) => app.xmlid);
+    return {
+        ...props,
+        config,
+        resetApps: () => reorderApps(props.apps, defaultOrder),
+    };
+}
+
+test("pinning an app moves it first and persists the versioned layout", async () => {
+    onRpc("set_res_users_settings", ({ kwargs }) => {
+        expect.step(kwargs.new_settings.homemenu_config);
+        return {};
+    });
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    expect(".o_app_edit_actions").toHaveCount(0);
+    expect(".o_pinned_apps").toHaveCount(0);
+
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    expect(".o_app_edit_actions").toHaveCount(3);
+
+    await click(".o_app[data-menu-xmlid='app.3'] .o_app_pin");
+    await animationFrame();
+    expect(".o_pinned_apps .o_app").toHaveCount(1);
+    expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.3");
+    expect(".o_app:eq(0)").toHaveClass("o_app_pinned");
+    expect(".o_app:eq(0)").toHaveAttribute("id", "result_app_0");
+    expect(".o_app:eq(1)").toHaveAttribute("id", "result_app_1");
+    expect.verifySteps(['{"version":2,"order":[],"pinned":["app.3"],"hidden":[]}']);
+
+    await click(".o_app[data-menu-xmlid='app.3'] .o_app_pin");
+    await animationFrame();
+    expect(".o_pinned_apps").toHaveCount(0);
+    expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.1");
+    expect.verifySteps(['{"version":2,"order":[],"pinned":[],"hidden":[]}']);
+});
+
+test("hiding an app removes it from the grid and shows it dimmed while editing", async () => {
+    onRpc("set_res_users_settings", () => ({}));
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps('{"pinned":["app.2"]}') });
+    expect(".o_app").toHaveCount(3);
+    expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.2");
+
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    await click(".o_app[data-menu-xmlid='app.2'] .o_app_hide");
+    await animationFrame();
+    expect(".o_app[data-menu-xmlid='app.2']").toHaveClass("o_app_hidden");
+    expect(".o_app[data-menu-xmlid='app.2']").not.toHaveClass("o_app_pinned", {
+        message: "a hidden app is unpinned",
+    });
+    expect(".o_app").toHaveCount(3);
+
+    await click(".o_home_menu_done");
+    await animationFrame();
+    expect(".o_app").toHaveCount(2);
+    expect(".o_app[data-menu-xmlid='app.2']").toHaveCount(0);
+});
+
+test("reset layout clears the order, the pins and the hidden apps", async () => {
+    onRpc("set_res_users_settings", ({ kwargs }) => {
+        expect.step(kwargs.new_settings.homemenu_config);
+        return {};
+    });
+    const props = getLayoutProps(
+        '{"order":["app.3","app.1","app.2"],"pinned":["app.2"],"hidden":["app.1"]}',
+    );
+    reorderApps(props.apps, props.config.order);
+    await mountWithCleanup(HomeMenu, { props });
+    expect(queryAllTexts(".o_app .o_caption")).toEqual(["Calendar", "Contacts"]);
+
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    expect(".o_home_menu_reset").toHaveCount(1);
+    await click(".o_home_menu_reset");
+    await animationFrame();
+    expect(queryAllTexts(".o_app .o_caption")).toEqual([
+        "Discuss",
+        "Calendar",
+        "Contacts",
+    ]);
+    expect(".o_home_menu_reset").toHaveCount(0);
+    expect.verifySteps(['{"version":2,"order":[],"pinned":[],"hidden":[]}']);
+});
+
+test("Escape leaves the edit mode before it closes the home menu", async () => {
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    mockService("home_menu", {
+        async toggle(show) {
+            expect.step(`toggle ${show}`);
+        },
+    });
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    await press("escape");
+    await animationFrame();
+    expect(".o_home_menu_done").toHaveCount(0);
+    expect.verifySteps([]);
+    await press("escape");
+    expect.verifySteps(["toggle false"]);
 });

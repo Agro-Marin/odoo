@@ -12,7 +12,11 @@ import {
     ControllerNotFoundError,
     standardActionServiceProps,
 } from "@web/webclient/actions";
-import { computeAppsAndMenuItems, reorderApps } from "@web/webclient/menus/menu_utils";
+import {
+    computeAppsAndMenuItems,
+    parseHomeMenuConfig,
+    reorderApps,
+} from "@web/webclient/menus/menu_utils";
 
 import { HomeMenu } from "./home_menu.js";
 
@@ -75,19 +79,24 @@ export const homeMenuService = {
                 });
             }
             computeHomeMenuProps() {
-                const homemenuConfig = JSON.parse(
-                    user.settings?.homemenu_config || "null",
+                const config = reactive(
+                    parseHomeMenuConfig(user.settings?.homemenu_config),
                 );
                 const apps = reactive(
                     computeAppsAndMenuItems(this.menus.getMenuAsTree("root")).apps,
                 );
-                if (homemenuConfig) {
-                    reorderApps(apps, homemenuConfig);
+                const defaultOrder = apps.flatMap((app) =>
+                    app.xmlid === undefined ? [] : [app.xmlid],
+                );
+                if (config.order.length) {
+                    reorderApps(apps, config.order);
                 }
                 return {
                     apps,
+                    config,
                     reorderApps: (/** @type {string[]} */ order) =>
                         reorderApps(apps, order),
+                    resetApps: () => reorderApps(apps, defaultOrder),
                 };
             }
             onMounted() {

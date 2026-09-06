@@ -110,3 +110,68 @@ export function reorderApps(apps, order) {
         return aIndex - bIndex;
     });
 }
+
+export const HOME_MENU_CONFIG_VERSION = 2;
+
+/**
+ * The user's home menu layout, as stored in `res.users.settings.homemenu_config`.
+ * Version 1 was the bare `order` list; anything unreadable is the default layout.
+ *
+ * @typedef HomeMenuConfig
+ * @property {string[]} order xmlids, the drag-and-drop order
+ * @property {string[]} pinned xmlids shown first, in this order
+ * @property {string[]} hidden xmlids kept out of the grid, still searchable
+ */
+
+/** @param {unknown} list */
+function xmlids(list) {
+    return Array.isArray(list) ? list.filter((item) => typeof item === "string") : [];
+}
+
+/**
+ * @param {unknown} raw the stored value, a JSON string or already parsed
+ * @returns {HomeMenuConfig}
+ */
+export function parseHomeMenuConfig(raw) {
+    let value = raw;
+    if (typeof raw === "string") {
+        try {
+            value = JSON.parse(raw);
+        } catch {
+            value = null;
+        }
+    }
+    if (Array.isArray(value)) {
+        return { order: xmlids(value), pinned: [], hidden: [] };
+    }
+    if (value && typeof value === "object") {
+        const config = /** @type {Record<string, unknown>} */ (value);
+        return {
+            order: xmlids(config.order),
+            pinned: xmlids(config.pinned),
+            hidden: xmlids(config.hidden),
+        };
+    }
+    return { order: [], pinned: [], hidden: [] };
+}
+
+/**
+ * @param {HomeMenuConfig} config
+ * @returns {string}
+ */
+export function serializeHomeMenuConfig(config) {
+    return JSON.stringify({
+        version: HOME_MENU_CONFIG_VERSION,
+        order: [...config.order],
+        pinned: [...config.pinned],
+        hidden: [...config.hidden],
+    });
+}
+
+/**
+ * @param {HomeMenuConfig} config
+ * @returns {boolean}
+ */
+export function isDefaultHomeMenuConfig(config) {
+    return !config.order.length && !config.pinned.length && !config.hidden.length;
+}

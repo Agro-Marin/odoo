@@ -18,6 +18,15 @@
                     autocomplete="off"
                 />
             </div>
+            <div t-if="canEditLayout" class="o_home_menu_toolbar d-flex justify-content-center align-items-center gap-2 mt-2">
+                <button t-if="!state.editing" type="button" class="o_home_menu_customize btn btn-link btn-sm" t-on-click="_toggleEditing">
+                    <i class="fa fa-pencil me-1" aria-hidden="true"/>Customize
+                </button>
+                <t t-else="">
+                    <button t-if="hasCustomLayout" type="button" class="o_home_menu_reset btn btn-link btn-sm" t-on-click="_resetLayout">Reset layout</button>
+                    <button type="button" class="o_home_menu_done btn btn-primary btn-sm" t-on-click="_toggleEditing">Done</button>
+                </t>
+            </div>
             <!-- When the subscription has expired, the expiration panel is shown over the whole UI instead of here -->
             <ExpirationPanel t-if="subscription.warningType and !subscription.isWarningHidden and subscription.daysLeft &lt;= 30 and subscription.daysLeft > 0 and !subscription.sysadmin.replace"/>
             <SysAdminPanel t-if="subscription.daysLeft > 0 and subscription.sysadmin.message"/>
@@ -32,12 +41,27 @@
                     </div>
                 </div>
             </nav>
-            <div t-if="displayedApps.length" id="o_apps_listbox" role="listbox" class="o_apps row user-select-none mx-0" t-att-class="{'mt-5': !recents.length, 'mt-3': recents.length}">
-                <div t-foreach="displayedApps" t-as="app" t-key="app.id" class="col-3 col-md-2 o_draggable mb-3 px-0">
-                    <t t-call="{{ constructor.appTemplate }}">
-                        <t t-set="tileId" t-value="'result_app_' + app_index"/>
-                        <t t-set="gridIndex" t-value="app_index"/>
-                    </t>
+            <t t-set="pinned" t-value="pinnedApps"/>
+            <t t-set="unpinned" t-value="unpinnedApps"/>
+            <div t-if="pinned.length or unpinned.length" id="o_apps_listbox" role="listbox" class="o_apps_listbox user-select-none" t-att-class="{'mt-5': !recents.length, 'mt-3': recents.length, o_home_menu_editing: state.editing}">
+                <div t-if="pinned.length" class="o_pinned_apps mb-2">
+                    <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Pinned</div>
+                    <div class="row mx-0">
+                        <div t-foreach="pinned" t-as="app" t-key="app.id" class="col-3 col-md-2 mb-3 px-0">
+                            <t t-call="{{ constructor.appTemplate }}">
+                                <t t-set="tileId" t-value="'result_app_' + app_index"/>
+                                <t t-set="gridIndex" t-value="app_index"/>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+                <div class="o_apps row mx-0">
+                    <div t-foreach="unpinned" t-as="app" t-key="app.id" class="col-3 col-md-2 o_draggable mb-3 px-0">
+                        <t t-call="{{ constructor.appTemplate }}">
+                            <t t-set="tileId" t-value="'result_app_' + (pinned.length + app_index)"/>
+                            <t t-set="gridIndex" t-value="pinned.length + app_index"/>
+                        </t>
+                    </div>
                 </div>
             </div>
             <div t-else="" class="o_no_result">
@@ -53,8 +77,8 @@
     <a t-att-id="tileId"
         t-att-role="gridIndex !== undefined ? 'option' : undefined"
         t-att-aria-selected="gridIndex !== undefined ? (state.focusedIndex === gridIndex ? 'true' : 'false') : undefined"
-        class="o_app o_menuitem d-flex flex-column rounded-3 justify-content-start align-items-center w-100 p-1 p-md-2"
-        t-att-class="{o_focused: gridIndex !== undefined and state.focusedIndex === gridIndex}"
+        class="o_app o_menuitem position-relative d-flex flex-column rounded-3 justify-content-start align-items-center w-100 p-1 p-md-2"
+        t-att-class="{o_focused: gridIndex !== undefined and state.focusedIndex === gridIndex, o_app_pinned: isPinned(app), o_app_hidden: isHidden(app)}"
         t-att-data-menu-xmlid="gridIndex !== undefined ? app.xmlid : undefined"
         t-att-data-hotkey="gridIndex !== undefined and gridIndex &lt; directJumpHotkeys ? '' + (gridIndex + 1) : undefined"
         t-att-href="app.href"
@@ -70,6 +94,14 @@
             <i t-attf-class="{{app.webIcon.iconClass}} position-relative w-auto h-auto" t-attf-style="color: {{app.webIcon.color}};"/>
         </div>
         <div class="o_caption w-100 text-center text-truncate mt-2" t-esc="app.label or app.name"/>
+        <div t-if="state.editing and gridIndex !== undefined and app.xmlid" class="o_app_edit_actions position-absolute top-0 end-0 d-flex gap-1 p-1">
+            <button type="button" class="o_app_pin btn btn-sm btn-light border" t-att-title="isPinned(app) ? 'Unpin' : 'Pin'" t-att-aria-label="isPinned(app) ? 'Unpin' : 'Pin'" t-on-click.stop.prevent="() => this._togglePinned(app)">
+                <i class="fa fa-thumb-tack" aria-hidden="true"/>
+            </button>
+            <button type="button" class="o_app_hide btn btn-sm btn-light border" t-att-title="isHidden(app) ? 'Show' : 'Hide'" t-att-aria-label="isHidden(app) ? 'Show' : 'Hide'" t-on-click.stop.prevent="() => this._toggleHidden(app)">
+                <i t-att-class="isHidden(app) ? 'fa fa-eye' : 'fa fa-eye-slash'" aria-hidden="true"/>
+            </button>
+        </div>
     </a>
 </t>
 
