@@ -43336,7 +43336,7 @@ msgstr "Дію \"%s\" не можна вибрати як домашню."
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_users.py:0
-msgid "The \"App Switcher\" action cannot be selected as home action."
+msgid "The \"App Launcher\" action cannot be selected as home action."
 msgstr "Дію \"Перемикач додатків\" не можна вибрати як домашню дію."
 
 #. module: base

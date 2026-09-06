@@ -46631,7 +46631,7 @@ msgstr "Akcja \"%s\" nie może być wybrana jako akcja startowa."
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_users.py:0
-msgid "The \"App Switcher\" action cannot be selected as home action."
+msgid "The \"App Launcher\" action cannot be selected as home action."
 msgstr ""
 "Akcja \"Przełącznik aplikacji\" nie może zostać wybrana jako akcja startowa."
 

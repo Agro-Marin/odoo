@@ -59,11 +59,11 @@
     .o_home_menu_search {
         padding-left: map-get($spacers, 5);
         background-color: var(
-            --AppSwitcherIcon-background,
+            --AppLauncherIcon-background,
             #{$o-home-menu-app-icon-background-color}
         );
         border-color: transparent;
-        box-shadow: var(--AppSwitcherIcon-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.05));
+        box-shadow: var(--AppLauncherIcon-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.05));
     }
 
     .o_app .o_app_badge {
@@ -91,26 +91,26 @@
     }
 
     .o_app {
-        --AppSwitcherIcon-box-shadow:
-            var(--AppSwitcherIcon-inset-shadow, inset 0 0 0 1px rgba(0, 0, 0, 0.2)),
+        --AppLauncherIcon-box-shadow:
+            var(--AppLauncherIcon-inset-shadow, inset 0 0 0 1px rgba(0, 0, 0, 0.2)),
             0 1px 1px rgba(0, 0, 0, 0.02), 0 2px 2px rgba(0, 0, 0, 0.02),
             0 4px 4px rgba(0, 0, 0, 0.02), 0 8px 8px rgba(0, 0, 0, 0.02),
             0 16px 16px rgba(0, 0, 0, 0.02);
-        --AppSwitcherIcon-transition: box-shadow ease-in 0.1s, transform ease-in 0.1s;
+        --AppLauncherIcon-transition: box-shadow ease-in 0.1s, transform ease-in 0.1s;
 
         .o_app_icon {
             width: $o-home-menu-app-icon-max-width;
             aspect-ratio: 1;
             padding: $o-home-menu-app-icon-padding;
             background-color: var(
-                --AppSwitcherIcon-background,
+                --AppLauncherIcon-background,
                 #{$o-home-menu-app-icon-background-color}
             );
             object-fit: cover;
             transform-origin: center bottom;
-            transform: var(--AppSwitcherIcon-transform);
-            transition: var(--AppSwitcherIcon-transition);
-            box-shadow: var(--AppSwitcherIcon-box-shadow);
+            transform: var(--AppLauncherIcon-transform);
+            transition: var(--AppLauncherIcon-transition);
+            box-shadow: var(--AppLauncherIcon-box-shadow);
 
             .fa {
                 font-size: $o-home-menu-app-icon-max-width * 0.5;
@@ -118,17 +118,17 @@
         }
 
         &:hover {
-            --AppSwitcherIcon-box-shadow:
-                var(--AppSwitcherIcon-inset-shadow, inset 0 0 0 1px rgba(0, 0, 0, 0.2)),
+            --AppLauncherIcon-box-shadow:
+                var(--AppLauncherIcon-inset-shadow, inset 0 0 0 1px rgba(0, 0, 0, 0.2)),
                 0 2px 2px rgba(0, 0, 0, 0.03), 0 4px 4px rgba(0, 0, 0, 0.03),
                 0 8px 8px rgba(0, 0, 0, 0.03), 0 12px 12px rgba(0, 0, 0, 0.03),
                 0 24px 24px rgba(0, 0, 0, 0.03);
-            --AppSwitcherIcon-transform: translateY(-2px);
+            --AppLauncherIcon-transform: translateY(-2px);
         }
 
         &:active {
-            --AppSwitcherIcon-transform: translateY(-2px) scale(0.98);
-            --AppSwitcherIcon-transition: none;
+            --AppLauncherIcon-transform: translateY(-2px) scale(0.98);
+            --AppLauncherIcon-transition: none;
         }
 
         .o_caption {
@@ -211,14 +211,14 @@
 
         .o_home_menu_background {
             .o_app {
-                --AppSwitcherIcon-background: #{rgba(#fff, 0.05)};
-                --AppSwitcherIcon-inset-shadow: #{inset 0 0 0 1px
+                --AppLauncherIcon-background: #{rgba(#fff, 0.05)};
+                --AppLauncherIcon-inset-shadow: #{inset 0 0 0 1px
                     rgba(255, 255, 255, 0.1)};
-                --AppSwitcherIcon-border-color: transparent;
+                --AppLauncherIcon-border-color: transparent;
             }
 
             .o_app:hover {
-                --AppSwitcherIcon-inset-shadow: #{inset 0 0 0 1px
+                --AppLauncherIcon-inset-shadow: #{inset 0 0 0 1px
                     rgba(255, 255, 255, 0.2)};
             }
         }

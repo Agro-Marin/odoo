@@ -38242,7 +38242,7 @@ msgstr "عملکرد \"%s\" نمی‌تواند به عنوان عمل پیش‌
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_users.py:0
-msgid "The \"App Switcher\" action cannot be selected as home action."
+msgid "The \"App Launcher\" action cannot be selected as home action."
 msgstr "عملکرد \"تغییر دهنده برنامه\" نمی‌تواند به عنوان عمل پیش‌فرض انتخاب شود."
 
 #. module: base

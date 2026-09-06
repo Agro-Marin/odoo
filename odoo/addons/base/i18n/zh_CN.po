@@ -44562,7 +44562,7 @@ msgstr "不能将\"%s\"操作选为原点操作。"
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_users.py:0
-msgid "The \"App Switcher\" action cannot be selected as home action."
+msgid "The \"App Launcher\" action cannot be selected as home action."
 msgstr "\"应用切换器\" 操作无法选择为首页动作。"
 
 #. module: base

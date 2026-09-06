@@ -46454,7 +46454,7 @@ msgstr "Không thể chọn tác vụ \"%s\" làm tác vụ trang chủ."
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_users.py:0
-msgid "The \"App Switcher\" action cannot be selected as home action."
+msgid "The \"App Launcher\" action cannot be selected as home action."
 msgstr ""
 "Không thể chọn tác vụ \"Trình Chuyển đổi Ứng dụng\" làm tác vụ trang chủ."
 

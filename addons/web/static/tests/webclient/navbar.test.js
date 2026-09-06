@@ -42,7 +42,7 @@ test("can be rendered", async () => {
     expect("a.o_menu_toggle").toHaveCount(1, { message: "1 home menu toggle present" });
     expect("a.o_menu_toggle").toHaveAttribute("href", "/odoo");
     expect(".o_navbar_apps_menu").toHaveCount(0, {
-        message: "the apps dropdown is gone: the home menu is the app switcher",
+        message: "the apps dropdown is gone: the home menu is the app launcher",
     });
 });
 

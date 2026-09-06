@@ -45939,7 +45939,7 @@ msgstr "Action \"%s\" tidak dapat dipilih sebagai action home."
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_users.py:0
-msgid "The \"App Switcher\" action cannot be selected as home action."
+msgid "The \"App Launcher\" action cannot be selected as home action."
 msgstr "Action \"App Switcher\" tidak dapat dipilih sebagai action home."
 
 #. module: base

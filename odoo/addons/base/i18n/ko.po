@@ -45572,7 +45572,7 @@ msgstr "\"%s\" 작업은 기본 작업으로 선택할 수 없습니다."
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_users.py:0
-msgid "The \"App Switcher\" action cannot be selected as home action."
+msgid "The \"App Launcher\" action cannot be selected as home action."
 msgstr "\"App Switcher\" 작업은 기본 작업으로 선택할 수 없습니다."
 
 #. module: base

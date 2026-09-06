@@ -45974,7 +45974,7 @@ msgstr "A ação \"%s\" não pode ser selecionada como ação inicial."
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_users.py:0
-msgid "The \"App Switcher\" action cannot be selected as home action."
+msgid "The \"App Launcher\" action cannot be selected as home action."
 msgstr "A ação \"App Switcher\" não pode ser selecionada como ação inicial."
 
 #. module: base

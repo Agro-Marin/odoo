@@ -48969,7 +48969,7 @@ msgstr "\"%s\" harakatini asosiy harakat sifatida tanlash mumkin emas."
 #. odoo-python
 #: code:addons/base/models/res_users.py:0
 #, fuzzy
-msgid "The \"App Switcher\" action cannot be selected as home action."
+msgid "The \"App Launcher\" action cannot be selected as home action."
 msgstr ""
 "\"Ilovalarni almashtirish\" harakatini asosiy harakat sifatida tanlash "
 "mumkin emas."

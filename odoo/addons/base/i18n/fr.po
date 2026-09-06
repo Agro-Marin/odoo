@@ -47042,7 +47042,7 @@ msgstr ""
 #. module: base
 #. odoo-python
 #: code:addons/base/models/res_users.py:0
-msgid "The \"App Switcher\" action cannot be selected as home action."
+msgid "The \"App Launcher\" action cannot be selected as home action."
 msgstr ""
 "L'action \"Sélecteur d'apps\" ne peut pas être sélectionnée comme une action "
 "de page d'accueil."

@@ -525,7 +525,7 @@ class ResUsers(models.Model):
             user.action_id.id == action_view_website.id for user in self
         ):
             raise ValidationError(
-                _('The "App Switcher" action cannot be selected as home action.')
+                _('The "App Launcher" action cannot be selected as home action.')
             )
         users_sudo = self.sudo()
         client_ids = []
