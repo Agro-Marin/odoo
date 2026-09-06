@@ -158,7 +158,6 @@
                         string="Regenerate overtimes"
                         icon="fa-regular fa-clock"
                         type="object"
-                        groups="hr_attendance.group_hr_attendance_officer"
                         help="Regenerate overtimes for this ruleset" />
                 </header>
                 <sheet>
