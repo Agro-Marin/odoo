@@ -1,4 +1,5 @@
 /** @odoo-module native */
+// @ts-check
 
 /**
  * What a document allows, answered the same way for a search-panel folder
