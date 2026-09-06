@@ -2,7 +2,6 @@ from odoo import models
 
 
 class MixinDocumentsUnlink(models.AbstractModel):
-
     _name = "mixin.documents.unlink"
     _description = "Documents unlink mixin"
 

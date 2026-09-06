@@ -3,7 +3,6 @@ from odoo.tools import SQL
 
 
 class DocumentsAccessLog(models.Model):
-
     _name = "document.access.log"
     _description = "Document Access Log"
     _order = "access_date desc, id desc"
@@ -17,7 +16,11 @@ class DocumentsAccessLog(models.Model):
         readonly=True,
     )
     partner_id = fields.Many2one(
-        "res.partner", required=True, index=True, ondelete="cascade", readonly=True
+        "res.partner",
+        required=True,
+        index=True,
+        ondelete="cascade",
+        readonly=True,
     )
     action = fields.Selection(
         [("view", "Viewed"), ("download", "Downloaded")],

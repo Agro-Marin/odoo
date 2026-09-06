@@ -4,7 +4,6 @@ from odoo.addons.mail.tools.discuss import Store
 
 
 class ResUsers(models.Model):
-
     _inherit = "res.users"
 
     def _init_store_data(self, store: Store) -> None:

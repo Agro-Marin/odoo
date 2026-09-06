@@ -4,7 +4,6 @@ from odoo.tools.misc import consteq
 
 
 class DocumentsAccess(models.Model):
-
     _name = "document.access"
     _description = "Document / Partner"
     _log_access = False
@@ -17,7 +16,10 @@ class DocumentsAccess(models.Model):
         ondelete="cascade",
     )
     partner_id = fields.Many2one(
-        "res.partner", required=True, ondelete="cascade", index=True
+        "res.partner",
+        required=True,
+        ondelete="cascade",
+        index=True,
     )
     role = fields.Selection(
         [("view", "Viewer"), ("edit", "Editor")],
@@ -71,7 +73,6 @@ class DocumentsAccess(models.Model):
         visited.write({"role": False, "expiration_date": False})
         (expired - visited).unlink()
         return len(expired), len(expired) == limit
-
 
     def _is_signup_available(self) -> bool:
         return (

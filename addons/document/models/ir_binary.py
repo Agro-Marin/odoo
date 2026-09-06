@@ -5,7 +5,6 @@ from odoo import models
 
 
 class IrBinary(models.AbstractModel):
-
     _inherit = "ir.binary"
 
     def _record_to_stream(self, record: models.Model, field_name: str) -> Any:

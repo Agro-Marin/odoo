@@ -3,7 +3,6 @@ from odoo.fields import Domain
 
 
 class IrEmbeddedActions(models.Model):
-
     _inherit = "ir.embedded.actions"
 
     @api.model_create_multi

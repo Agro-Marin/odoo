@@ -3,7 +3,6 @@ from odoo.fields import Domain
 
 
 class Company(models.Model):
-
     _inherit = "res.company"
 
     def _reset_default_documents_folder_id(

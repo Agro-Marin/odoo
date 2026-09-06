@@ -2,7 +2,6 @@ from odoo import fields, models
 
 
 class MailActivityType(models.Model):
-
     _inherit = "mail.activity.type"
 
     tag_ids = fields.Many2many("document.tag")

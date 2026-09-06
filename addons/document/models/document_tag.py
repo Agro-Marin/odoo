@@ -3,7 +3,6 @@ from odoo.exceptions import UserError
 
 
 class DocumentsTag(models.Model):
-
     _name = "document.tag"
     _description = "Tag"
     _inherit = ["mixin.tag"]
@@ -11,7 +10,8 @@ class DocumentsTag(models.Model):
 
     sequence = fields.Integer("Sequence", default=10)
     tooltip = fields.Char(
-        help="Text shown when hovering on this tag", string="Tooltip"
+        string="Tooltip",
+        help="Text shown when hovering on this tag",
     )
     document_ids = fields.Many2many("document.document", "document_tag_rel")
 
