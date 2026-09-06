@@ -137,7 +137,6 @@ class ResourceCalendar(models.Model):
         "calendar_id",
         "Global Time Off",
         domain=[("resource_id", "=", False)],
-        copy=True,
     )
     hours_per_day = fields.Float(
         "Average Hour per Day",

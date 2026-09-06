@@ -478,6 +478,54 @@ class TestViewNodeNames(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
+class TestLeaveFormResourcePicker(TransactionCase):
+    def _resource_node(self, user):
+        view = self.env.ref("resource.resource_calendar_leave_form")
+        arch = (
+            self.env["resource.calendar.leaves"]
+            .with_user(user)
+            .get_view(view.id, "form")["arch"]
+        )
+        nodes = etree.fromstring(arch).xpath("//field[@name='resource_id']")
+        self.assertEqual(len(nodes), 1, "the leave form must show one resource picker")
+        return nodes[0]
+
+    def test_the_leave_form_does_not_offer_to_create_a_resource(self):
+        node = self._resource_node(self.env.ref("base.user_admin"))
+        self.assertIn(
+            "no_create",
+            node.get("options") or "",
+            "picking a resource for a time off must not be a way to create one",
+        )
+
+    def test_the_administrator_would_otherwise_be_offered_the_button(self):
+        admin = self.env.ref("base.user_admin")
+        self.assertTrue(
+            self.env["resource.resource"].with_user(admin).has_access("create")
+        )
+        self.assertEqual(
+            self._resource_node(admin).get("can_create"),
+            "True",
+            "the framework does not hide the button from an administrator, so "
+            "no_create is what does the work -- if this ever flips, the option "
+            "above became redundant",
+        )
+
+    def test_a_plain_user_is_already_stopped_by_the_access_rules(self):
+        user = self.env["res.users"].create(
+            {
+                "name": "Schedule reader",
+                "login": "resource_leave_form_probe",
+                "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+            }
+        )
+        self.assertFalse(
+            self.env["resource.resource"].with_user(user).has_access("create")
+        )
+        self.assertEqual(self._resource_node(user).get("can_create"), "False")
+
+
+@tagged("post_install", "-at_install")
 class TestSwitchBasedOnDuration(TransactionCase):
     def _counts(self, calendar):
         lines = calendar.attendance_ids.filtered(lambda a: not a.display_type)

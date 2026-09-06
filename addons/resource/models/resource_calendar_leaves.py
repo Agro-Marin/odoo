@@ -100,6 +100,7 @@ class ResourceCalendarLeaves(models.Model):
             leave.company_id = (
                 leave.calendar_id.company_id
                 or leave.resource_id.company_id
+                or leave.company_id
                 or self.env.company
             )
 
