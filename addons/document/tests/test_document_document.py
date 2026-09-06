@@ -425,7 +425,12 @@ class TestCaseDocuments(TransactionCaseDocuments):
         )
         folders.flush_recordset()
         folders.invalidate_recordset()
-        with self.assertQueryCount(158):
+        # 10 fixed + 2 per document: `name` and `thumbnail` are recursive
+        # stored computes (a shortcut takes its target's), and the ORM
+        # evaluates a recursive field one record at a time. Was 8 + 3 per
+        # document until the parent-folder check, the res_model constraint
+        # and the thumbnail write stopped running once per record.
+        with self.assertQueryCount(110):
             self.env["document.document"].create(
                 [
                     {

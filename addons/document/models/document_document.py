@@ -484,7 +484,10 @@ class DocumentsDocument(models.Model):
 
     @api.constrains("res_model")
     def _check_res_model(self) -> None:
-        if self.filtered(lambda d: d.res_model == "document.document"):
+        self.flush_recordset(["res_model"])
+        if self.sudo().search_count(
+            [("id", "in", self.ids), ("res_model", "=", "document.document")], limit=1
+        ):
             raise ValidationError(
                 _("A document can not be linked to itself or another document.")
             )
@@ -514,10 +517,11 @@ class DocumentsDocument(models.Model):
     def create(self, vals_list: list[dict]) -> DocumentsDocument:
         attachments = []
         for vals in vals_list:
+            self._clean_vals_for_user_folder_id(vals, is_create=True)
+        self._check_parent_folders([vals.get("folder_id") for vals in vals_list])
+        for vals in vals_list:
             attachment_dict = self._pop_attachment_vals(vals)
             attachment = self.env["ir.attachment"].browse(vals.get("attachment_id"))
-            self._clean_vals_for_user_folder_id(vals, is_create=True)
-            self._check_parent_folder_in_vals(vals)
             if not self.env.su and self.env.user.share:
                 if not vals.get("folder_id"):
                     raise AccessError(
@@ -587,10 +591,9 @@ class DocumentsDocument(models.Model):
         return self.filtered(lambda d: d.lock_uid and d.lock_uid != self.env.user)
 
     @api.model
-    def _check_parent_folder_in_vals(self, vals: dict) -> None:
-        if not vals.get("folder_id"):
-            return
-        if self.browse(vals["folder_id"]).sudo().type != "folder":
+    def _check_parent_folders(self, folder_ids: list) -> None:
+        folders = self.browse({folder_id for folder_id in folder_ids if folder_id})
+        if folders and folders.sudo().filtered(lambda folder: folder.type != "folder"):
             raise UserError(_("Invalid folder id"))
 
     def write(self, vals: dict) -> bool:
@@ -650,7 +653,7 @@ class DocumentsDocument(models.Model):
         )
 
         if "folder_id" in vals:
-            self._check_parent_folder_in_vals(vals)
+            self._check_parent_folders([vals["folder_id"]])
             new_parent_folder = self.browse(vals["folder_id"])
             documents_to_move = self.filtered(
                 lambda d: d.folder_id != new_parent_folder
