@@ -61,6 +61,24 @@ class PurchaseOrderLine(models.Model):
     forecasted_issue = fields.Boolean(
         compute="_compute_forecasted_issue",
     )
+    date_promised = fields.Datetime(
+        string="Promised Date",
+        copy=False,
+        index=True,
+        help="Date the vendor promised this line for, frozen when the order is "
+        "confirmed. Delivering after it lowers the vendor's On-Time Delivery "
+        "Rate; moving the Expected Arrival afterwards does not.",
+    )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        lines = super().create(vals_list)
+        # A line added to an order the vendor already accepted carries a promise
+        # too; without this it would never count towards the vendor's rate.
+        lines.filtered(
+            lambda line: line.order_id.state == "done" and not line.display_type,
+        )._set_date_promised()
+        return lines
 
     def write(self, vals):
         if vals.get("date_commitment"):
@@ -652,6 +670,11 @@ class PurchaseOrderLine(models.Model):
             )
 
         moves_to_update.date_deadline = new_date
+
+    def _set_date_promised(self):
+        """Freeze the vendor's promise on the expected arrival of the moment."""
+        for line in self:
+            line.date_promised = line.date_commitment or line.order_id.date_commitment
 
     def _check_orderpoint_picking_type(self):
         warehouse_loc = self.order_id.picking_type_id.warehouse_id.view_location_id

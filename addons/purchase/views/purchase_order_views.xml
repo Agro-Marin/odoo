@@ -154,6 +154,17 @@
                     domain="[('activity_exception_decoration', '!=', False)]" />
                 <separator />
                 <filter name="order_date" string="Order Date" date="date_order" />
+                <filter
+                    name="filter_date_confirmed"
+                    string="Confirmation Date"
+                    date="date_confirmed"
+                    default_period="month" />
+            </filter>
+            <filter name="order_month" position="after">
+                <filter
+                    name="group_date_confirmed"
+                    string="Confirmation Date"
+                    context="{'group_by': 'date_confirmed'}" />
             </filter>
         </field>
     </record>
@@ -278,7 +289,12 @@
                 sample="1"
                 decoration-muted="state=='cancel'">
 
-                <field name="priority" widget="priority" nolabel="1" optional="show" />
+                <field
+                    name="priority"
+                    widget="priority"
+                    nolabel="1"
+                    optional="show"
+                    width="20px" />
                 <field
                     name="name"
                     string="Reference"
@@ -384,7 +400,12 @@
                     column_invisible="True"
                     readonly="state in ['done', 'cancel']" />
 
-                <field name="priority" optional="show" widget="priority" nolabel="1" />
+                <field
+                    name="priority"
+                    optional="show"
+                    widget="priority"
+                    nolabel="1"
+                    width="20px" />
                 <field name="name" string="Reference" readonly="1" decoration-bf="1" />
                 <field
                     name="date_order"
@@ -459,7 +480,12 @@
                         string="Cancel"
                         confirm="Are you sure you want to cancel the selected RFQs/Orders?" />
                 </header>
-                <field name="priority" optional="show" widget="priority" nolabel="1" />
+                <field
+                    name="priority"
+                    optional="show"
+                    widget="priority"
+                    nolabel="1"
+                    width="20px" />
                 <field name="partner_ref" optional="hide" />
                 <field
                     name="name"
@@ -1223,6 +1249,18 @@
             name="code">if records:
     action = records._send_reminder_mail(send_single=True)</field>
         <field name="group_ids" eval="[(4, ref('purchase.group_send_reminder'))]" />
+    </record>
+
+    <record id="action_send_mail" model="ir.actions.server">
+        <field name="name">Send an email</field>
+        <field name="model_id" ref="purchase.model_purchase_order" />
+        <field name="binding_model_id" ref="purchase.model_purchase_order" />
+        <field name="binding_view_types">list,kanban</field>
+        <field name="state">code</field>
+        <field
+            name="code">if records:
+    action = records.with_context(hide_default_template=True).action_send_rfq()</field>
+        <field name="sequence">1</field>
     </record>
 
     <record id="action_merger" model="ir.actions.server">

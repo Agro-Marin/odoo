@@ -30,6 +30,8 @@ class PurchaseOrder(models.Model):
     _description = "Purchase Order"
     _check_company_auto = True
     _order = "priority desc, id desc"
+    _mail_post_access = "read"
+    _mailing_enabled = True
 
     _price_history_action = "purchase.action_purchase_history"
 
@@ -109,8 +111,8 @@ class PurchaseOrder(models.Model):
         store=True,
         readonly=False,
         index=True,
-        help="Delivery date promised by vendor. "
-        "This date is used to determine expected arrival of products.",
+        help="Expected arrival of the products, kept up to date as the vendor "
+        "reports. What the vendor promised is the Promised Date.",
     )
     invoice_ids = fields.Many2many(string="Bills")
     invoice_count = fields.Integer(string="Bill Count")
@@ -395,7 +397,6 @@ class PurchaseOrder(models.Model):
         return "purchase.report_purchase_quotation"
 
     def action_send_rfq(self):
-        self.check_singleton()
         return self._action_send_by_email()
 
     def _get_mail_composer_action_name(self):
@@ -405,10 +406,16 @@ class PurchaseOrder(models.Model):
         return {**self.env.context, **super()._get_mail_composer_context()}
 
     def _get_mail_composer_lang_context(self):
-        return {
-            **super()._get_mail_composer_lang_context(),
-            "model_description": self.type_name,
-        }
+        context = super()._get_mail_composer_lang_context()
+        # `type_name` is per-order; a mass mailing spans orders in mixed states
+        # and has no single description to name.
+        if len(self) == 1:
+            context["model_description"] = self.type_name
+        return context
+
+    def _mailing_get_default_domain(self, mailing):
+        """Keep cancelled orders out of a mailing campaign by default."""
+        return [("state", "!=", "cancel")]
 
     def action_view_invoice(self, invoices=False):
         if not invoices:

@@ -44,6 +44,11 @@
                 expr="//field[@name='line_ids']/list//field[@name='date_commitment']"
                 position="after">
                 <field name="move_dest_ids" column_invisible="True" />
+                <field
+                    name="date_promised"
+                    optional="hide"
+                    readonly="1"
+                    column_invisible="parent.state != 'done'" />
             </xpath>
             <xpath
                 expr="//page/field[@name='line_ids']/list/field[@name='product_qty']"
@@ -84,6 +89,7 @@
             </xpath>
             <xpath expr="//div[@name='reminder']" position="after">
                 <field name="date_effective" invisible="not date_effective" />
+                <field name="date_promised" invisible="state != 'done'" />
             </xpath>
             <xpath
                 expr="//field[@name='line_ids']/form//field[@name='invoice_line_ids']"

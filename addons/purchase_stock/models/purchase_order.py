@@ -69,6 +69,24 @@ class PurchaseOrder(models.Model):
         string="Arrival",
         help="Completion date of the first receipt order.",
     )
+    date_promised = fields.Datetime(
+        string="Promised Date",
+        compute="_compute_date_promised",
+        store=True,
+        readonly=False,
+        index=True,
+        copy=False,
+        help="Earliest date the vendor promised for this order, frozen when the "
+        "order is confirmed. The On-Time Delivery Rate is measured against it.",
+    )
+
+    @api.depends("state", "line_ids", "line_ids.date_promised")
+    def _compute_date_promised(self):
+        for order in self:
+            dates = order.line_ids.filtered(
+                lambda line: not line.display_type and line.date_promised,
+            ).mapped("date_promised")
+            order.date_promised = min(dates) if dates else False
 
     def write(self, vals):
         pre_order_line_qty = {}
@@ -206,6 +224,9 @@ class PurchaseOrder(models.Model):
         return super()._action_cancel()
 
     def _action_confirm(self):
+        # Freeze the promise before the moves exist, so they take their deadline
+        # from it rather than from the editable expected arrival.
+        self.line_ids.filtered(lambda line: not line.display_type)._set_date_promised()
         self._create_picking()
         super()._action_confirm()
 
@@ -521,9 +542,9 @@ class PurchaseOrder(models.Model):
         purchases = self.env["purchase.order"].search_fetch(
             [
                 ("state", "=", "done"),
-                ("date_commitment", ">=", three_months_ago),
+                ("date_promised", ">=", three_months_ago),
             ],
-            ["date_commitment", "date_effective", "user_id"],
+            ["date_promised", "date_effective", "user_id"],
         )
         otd_purchase_count = 0
         my_purchase_count = 0
@@ -535,7 +556,7 @@ class PurchaseOrder(models.Model):
 
             if (
                 not po.date_effective
-                or po.date_effective.date() > po.date_commitment.date()
+                or po.date_effective.date() > po.date_promised.date()
             ):
                 continue
 

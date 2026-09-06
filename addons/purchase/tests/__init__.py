@@ -26,3 +26,10 @@ from . import test_product_uom_guard
 from . import test_account_move_create_purchase
 from . import test_purchase_price_history
 from . import test_purchase_audit_fixes
+from . import test_purchase_chatter_access
+from . import test_purchase_mass_mail
+from . import test_purchase_mailing
+from . import test_purchase_report_list_action
+from . import test_purchase_search_filters
+from . import test_purchase_portal_dropship
+from . import test_purchase_list_column_widths

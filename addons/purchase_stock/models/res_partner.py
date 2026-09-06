@@ -71,7 +71,7 @@ class ResPartner(models.Model):
                 ),
                 ("qty_transferred", "!=", 0),
                 ("order_id.state", "=", "done"),
-                ("date_commitment", "!=", False),
+                ("date_promised", "!=", False),
                 (
                     "product_id",
                     "in",
@@ -85,10 +85,10 @@ class ResPartner(models.Model):
         moves = self.env["stock.move"].search(
             [("purchase_line_id", "in", order_lines.ids), ("state", "=", "done")],
         )
-        order_lines.fetch(["date_commitment", "partner_id", "product_uom_qty"])
+        order_lines.fetch(["date_promised", "partner_id", "product_uom_qty"])
         moves.fetch(["purchase_line_id", "date", "quantity"])
         moves = moves.filtered(
-            lambda m: m.date.date() <= m.purchase_line_id.date_commitment.date(),
+            lambda m: m.date.date() <= m.purchase_line_id.date_promised.date(),
         )
         for move in moves:
             lines_quantity[move.purchase_line_id.id] += move.quantity
