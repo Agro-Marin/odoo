@@ -1,7 +1,11 @@
+import logging
+
 from odoo import fields, models
 from odoo.tools import str2bool
 
 from odoo.addons.base.models.ir_module import assert_log_admin_access
+
+_logger = logging.getLogger(__name__)
 
 
 class CalendarProviderConfig(models.TransientModel):
@@ -63,6 +67,15 @@ class CalendarProviderConfig(models.TransientModel):
         the API keys into the applicable config parameters.
         """
         self.check_singleton()
+        # `assert_log_admin_access`'s own audit line names this wizard's
+        # generic display_name, not the provider it's actually configuring --
+        # log that explicitly.
+        _logger.info(
+            "Configuring the %s calendar provider for user %s #%s",
+            self.external_calendar_provider,
+            self.env.user.login,
+            self.env.user.id,
+        )
         calendar_module = self.env["ir.module.module"].search(
             [("name", "=", f"{self.external_calendar_provider}_calendar")]
         )
