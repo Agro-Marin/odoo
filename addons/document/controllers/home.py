@@ -11,7 +11,6 @@ from odoo.addons.web.controllers.utils import ensure_db
 
 
 class Home(web_home.Home):
-
     def _web_client_readonly(self, rule: Any, args: Any) -> bool:
         path = request.httprequest.path
         if request.session.uid and self._share_access_token(

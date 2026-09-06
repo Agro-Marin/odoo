@@ -69,7 +69,7 @@ export function getCommonEmbeddedActions(documents) {
  * answers `{warning: {title, documents}}`. One notification shape for the
  * two client paths that run embedded actions.
  *
- * @param {import("@web/core/notifications/notification_service").NotificationService} notification
+ * @param {import("@web/ui/notification/notification_service").NotificationService} notification
  * @param {{title: string, documents: string[]}} warning
  */
 export function notifyEmbeddedActionWarning(notification, warning) {

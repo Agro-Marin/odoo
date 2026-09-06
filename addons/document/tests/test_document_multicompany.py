@@ -470,9 +470,7 @@ class TestDocumentsMulticompany(TransactionCaseDocuments):
             "shortcut should have been updated along with its target",
         )
 
-        document_without_company = self.env["document.document"].create(
-            {"name": "doc"}
-        )
+        document_without_company = self.env["document.document"].create({"name": "doc"})
         self.assertFalse(document_without_company.company_id)
         document_without_company.write(
             {"folder_id": self.folder_a.id, "company_id": False}

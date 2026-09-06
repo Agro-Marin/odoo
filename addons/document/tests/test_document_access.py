@@ -210,9 +210,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         folder_a_as_portal = self.folder_a.with_user(self.portal_user)
         folder_a_a_as_portal = self.folder_a_a.with_user(self.portal_user)
         folder_a_as_internal = self.folder_a.with_user(self.internal_user)
-        self.assertEqual(
-            self.folder_a.access_ids.partner_id, self.doc_user.partner_id
-        )
+        self.assertEqual(self.folder_a.access_ids.partner_id, self.doc_user.partner_id)
         self._assert_raises_check_access_rule(folder_a_as_portal)
         self.env["document.access"].create(
             {
@@ -232,9 +230,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
         self.folder_a.access_via_link = "none"
         self._assert_raises_check_access_rule(folder_a_as_portal)
-        self._assert_raises_check_access_rule(
-            folder_a_a_as_portal
-        )
+        self._assert_raises_check_access_rule(folder_a_a_as_portal)
 
     def test_access_rights_inherited_on_create(self):
         (self.folder_a + self.folder_b).write(
@@ -254,9 +250,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.folder_a.action_update_access_rights(
             partners={self.portal_user.partner_id.id: ("view", False)}
         )
-        self.assertEqual(
-            len(self.folder_a.access_ids), 2
-        )
+        self.assertEqual(len(self.folder_a.access_ids), 2)
         self.folder_b.access_via_link = "edit"
         self.folder_b.action_update_access_rights(
             partners={self.portal_user.partner_id.id: (False, False)}
@@ -267,9 +261,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 {"name": "Folder B1", "folder_id": self.folder_b.id, "type": "folder"},
             ]
         )
-        self.assertEqual(
-            len(folder_a2.access_ids), 2
-        )
+        self.assertEqual(len(folder_a2.access_ids), 2)
         self.assertEqual(
             folder_a2.access_ids.partner_id,
             (self.portal_user + self.doc_user).partner_id,
@@ -277,9 +269,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(folder_a2.access_internal, "view")
         self.assertEqual(folder_a2.access_via_link, "none")
 
-        self.assertEqual(
-            folder_b1.access_ids.partner_id, self.doc_user.partner_id
-        )
+        self.assertEqual(folder_b1.access_ids.partner_id, self.doc_user.partner_id)
         self.assertEqual(folder_b1.access_internal, "none")
         self.assertEqual(folder_b1.access_via_link, "edit")
 
@@ -1218,9 +1208,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(self.document_txt.access_internal, "none")
         self.assertEqual(self.document_gif.access_via_link, "none")
         self.assertEqual(self.document_txt.access_via_link, "view")
-        with mute_logger(
-            "odoo.addons.document.models.document_document"
-        ):
+        with mute_logger("odoo.addons.document.models.document_document"):
             document_txt_private = self.document_txt.copy()
         self.assertIn(document_txt_private.access_ids.role, {False, "edit"})
         document_txt_private.is_access_via_link_hidden = True
@@ -1270,9 +1258,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                     self.document_txt,
                 )
                 txt_as_internal.check_access("read")
-                if (
-                    case_name == "internal user access"
-                ):
+                if case_name == "internal user access":
                     self._assert_raises_check_access_rule(
                         self.document_txt.with_user(self.portal_user), "read"
                     )
@@ -1290,9 +1276,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertFalse(self.document_gif.res_model)
 
         self.assertEqual(self.document_gif.attachment_id.res_id, self.document_gif.id)
-        self.assertEqual(
-            self.document_gif.attachment_id.res_model, "document.document"
-        )
+        self.assertEqual(self.document_gif.attachment_id.res_model, "document.document")
 
         self._assert_raises_check_access_rule(gif_as_internal, "read")
 
@@ -1859,9 +1843,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
         shortcuts = url_document_in_my_folder | shortcut
         shortcuts.folder_id = self.folder_a
-        with mute_logger(
-            "odoo.addons.document.models.document_document"
-        ):
+        with mute_logger("odoo.addons.document.models.document_document"):
             copied_shortcuts = shortcuts.copy()
         self.assertEqual(copied_shortcuts.folder_id, self.folder_a)
 

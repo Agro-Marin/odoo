@@ -150,10 +150,7 @@
         </record>
         <record id="documents_nda" model="document.document" forcecreate="0">
             <field name="name">Acme_NDA.pdf</field>
-            <field
-                name="datas"
-                type="base64"
-                file="document/demo/files/Acme_NDA.pdf" />
+            <field name="datas" type="base64" file="document/demo/files/Acme_NDA.pdf" />
             <field name="folder_id" ref="document.document_inbox_folder" />
             <field name="access_internal">edit</field>
         </record>

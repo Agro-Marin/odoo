@@ -15,9 +15,7 @@ class TestTools(TransactionCase):
                 {
                     "email": "dtdm@yourcompany.com",
                     "group_ids": [
-                        Command.link(
-                            cls.env.ref("document.group_documents_manager").id
-                        )
+                        Command.link(cls.env.ref("document.group_documents_manager").id)
                     ],
                     "login": "dtdm",
                     "name": "Documents Manager",
@@ -45,7 +43,6 @@ class TestTools(TransactionCase):
 
 
 class TestUserFolderParsing(TransactionCase):
-
     def test_parses_every_accepted_spelling(self):
         for value, expected in (
             ("MY", UserFolder(UserFolder.MY)),
@@ -86,7 +83,6 @@ class TestUserFolderParsing(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsToolHelpers(TransactionCase):
-
     def test_is_mimetype_textual_handles_bad_input(self):
         self.assertTrue(is_mimetype_textual("text/plain"))
         self.assertTrue(is_mimetype_textual("application/json"))

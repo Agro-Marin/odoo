@@ -237,9 +237,7 @@ class TestDocumentsUserFolder(TransactionCaseDocuments):
         self.assertFalse(company.folder_id)
         self.assertFalse(company.owner_id)
         self.assertFalse(my.folder_id)
-        self.assertEqual(
-            my.owner_id, self.internal_user
-        )
+        self.assertEqual(my.owner_id, self.internal_user)
         self.assertEqual(folder_a_b.folder_id, self.folder_a)
         self.assertEqual(folder_a_b.owner_id, self.doc_user)
         self.assertEqual(folder_a_b_2.folder_id, self.folder_a)

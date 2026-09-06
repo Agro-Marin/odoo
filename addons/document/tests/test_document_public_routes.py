@@ -17,7 +17,6 @@ from odoo.addons.mail.tests.common import mail_new_test_user
 
 @tagged("post_install", "-at_install")
 class TestDocumentsPublicRouteHardening(HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -427,7 +426,6 @@ class TestDocumentsPublicRouteHardening(HttpCase):
 
 @tagged("post_install", "-at_install")
 class TestPublicFolderBatch(HttpCase, TransactionCaseDocuments):
-
     def test_nested_public_folder_renders_subfolder_counts(self):
         root = self.env["document.document"].create(
             {

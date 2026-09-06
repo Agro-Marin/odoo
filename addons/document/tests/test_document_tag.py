@@ -55,7 +55,6 @@ class TestTags(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsTagUniqueness(TransactionCaseDocuments):
-
     def test_f6_tag_name_unique_same_language(self):
         Tag = self.env["document.tag"]
         Tag.create({"name": "Audit3DupTag"})

@@ -19,7 +19,6 @@ def _png(color):
 
 
 class TestDocumentsAccessTrackingCron(TransactionCase):
-
     def _run_cron(self):
         with patch.object(
             IrCron, "_commit_progress", lambda self, *args, **kwargs: float("inf")
@@ -66,7 +65,6 @@ class TestDocumentsAccessTrackingCron(TransactionCase):
 
 
 class TestDocumentsAccessGc(TransactionCase):
-
     def test_gc_expired_keeps_the_last_access_date(self):
         document = self.env["document.document"].create(
             {"name": "Visited document", "type": "binary"}
@@ -119,9 +117,7 @@ class TestDocumentsAccessGc(TransactionCase):
             ]
         )
 
-        cron_env = self.env["document.access"].with_user(
-            self.env.ref("base.user_root")
-        )
+        cron_env = self.env["document.access"].with_user(self.env.ref("base.user_root"))
         cron_env._gc_expired()
 
         self.assertTrue(all(accesses.mapped("last_access_date")))

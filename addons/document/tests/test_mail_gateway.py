@@ -174,10 +174,7 @@ class TestMailGateway(MailCommon):
         the PDF, silently and with no error anywhere.
         """
         before = (
-            self.env["document.document"]
-            .with_context(active_test=False)
-            .search([])
-            .ids
+            self.env["document.document"].with_context(active_test=False).search([]).ids
         )
         with self.mock_mail_gateway():
             self.format_and_process(
@@ -213,9 +210,7 @@ class TestMailGateway(MailCommon):
             self.env["res.partner"].search([("email", "=", self.email_with_no_partner)])
         )
         self.assertFalse(
-            self.env["document.document"].search(
-                [("name", "in", self.email_filenames)]
-            )
+            self.env["document.document"].search([("name", "in", self.email_filenames)])
         )
 
     def test_constrains(self):
@@ -513,9 +508,7 @@ class TestMailGateway(MailCommon):
             self.assertFalse(document.tag_ids)
 
     def test_alias_access(self):
-        Doc = self.env["document.document"].with_context(
-            default_access_internal="edit"
-        )
+        Doc = self.env["document.document"].with_context(default_access_internal="edit")
         user = new_test_user(
             self.env,
             login="documents_user",

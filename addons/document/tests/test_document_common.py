@@ -37,9 +37,7 @@ class TransactionCaseDocuments(TransactionCase):
                 {
                     "email": "dtdm@yourcompany.com",
                     "group_ids": [
-                        Command.link(
-                            cls.env.ref("document.group_documents_manager").id
-                        )
+                        Command.link(cls.env.ref("document.group_documents_manager").id)
                     ],
                     "login": "dtdm",
                     "name": "Documents Manager",

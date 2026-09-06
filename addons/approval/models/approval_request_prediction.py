@@ -6,11 +6,13 @@ from odoo import fields, models
 class ApprovalRequestPrediction(models.Model):
     _inherit = "approval.request"
 
-    _PREDICTION_LABELS = {
-        "approve": "Likely approved",
-        "refuse": "Likely refused",
-        "uncertain": "Uncertain",
-    }
+    def _prediction_label(self, outcome: str) -> str:
+        match outcome:
+            case "approve":
+                return self.env._("Likely approved")
+            case "refuse":
+                return self.env._("Likely refused")
+        return self.env._("Uncertain")
 
     def _predict_outcome(self) -> tuple[str | bool, float]:
         self.check_singleton()
@@ -88,7 +90,7 @@ class ApprovalRequestPrediction(models.Model):
         else:
             message = self.env._(
                 "%(label)s (%(confidence)d%% of comparable requests went this way).",
-                label=self.env._(self._PREDICTION_LABELS[outcome]),
+                label=self._prediction_label(outcome),
                 confidence=round(confidence * 100),
             )
         return {

@@ -4994,17 +4994,20 @@ class TestStaleCachedPlanIsRecoverable(BaseCase):
             cr.rollback()
             cr.close()
 
-    def test_retrying_names_the_family_and_the_marker(self):
-        from odoo.service.transaction import retrying
+    def test_retrying_catches_the_family_and_retries_on_the_marker(self):
+        from odoo.db.errors import PG_STALE_PLAN_EXCEPTIONS, mark_stale_cached_plan
+        from odoo.service.transaction import _RECOVERY_EXCEPTIONS, _retry_error_name
 
-        src = inspect.getsource(retrying)
-        self.assertIn(
-            "PG_STALE_PLAN_EXCEPTIONS",
-            src,
-            "FeatureNotSupported is not an OperationalError; the except clause "
-            "must name the family or the retry loop never sees it",
-        )
-        self.assertIn("is_stale_cached_plan", src)
+        for cls in PG_STALE_PLAN_EXCEPTIONS:
+            self.assertTrue(
+                issubclass(cls, _RECOVERY_EXCEPTIONS),
+                f"{cls.__name__} is not an OperationalError; the except clause "
+                "must name the family or the retry loop never sees it",
+            )
+            exc = cls("cached plan must not change result type")
+            self.assertIsNone(_retry_error_name(exc))
+            mark_stale_cached_plan(exc)
+            self.assertEqual(_retry_error_name(exc), "StaleCachedPlan")
 
     def test_a_marked_exception_is_not_blanket_retryable_by_sqlstate(self):
         from odoo.db.errors import PG_RETRY_SQLSTATES, PG_STALE_PLAN_EXCEPTIONS

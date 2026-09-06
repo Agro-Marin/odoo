@@ -1,5 +1,4 @@
 class UserFolder:
-
     MY = "MY"
     COMPANY = "COMPANY"
     SHARED = "SHARED"

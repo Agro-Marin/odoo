@@ -17,7 +17,6 @@ def _png(color):
 
 
 class TestDocumentsVersioning(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

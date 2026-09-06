@@ -7,7 +7,6 @@ from .test_document_common import TransactionCaseDocuments
 
 @tagged("post_install", "-at_install")
 class TestDocumentsEmbeddedActions(TransactionCaseDocuments):
-
     def _server_action(self, **extra):
         return self.env["ir.actions.server"].create(
             {
@@ -73,7 +72,6 @@ class TestDocumentsAutomationAvailability(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsEmbeddedActionsGc(TransactionCaseDocuments):
-
     def test_gc_keeps_pins_of_actions_the_vacuum_user_cannot_see(self):
         group = self.env["res.groups"].create({"name": "gc probe group"})
         folder = self.env["document.document"].create(

@@ -442,9 +442,7 @@ class TestCaseDocuments(TransactionCaseDocuments):
             )
 
     def test_default_res_id_model(self):
-        document = self.env["document.document"].create(
-            {"folder_id": self.folder_b.id}
-        )
+        document = self.env["document.document"].create({"folder_id": self.folder_b.id})
         attachment = (
             self.env["ir.attachment"]
             .with_context(
@@ -832,9 +830,7 @@ class TestCaseDocuments(TransactionCaseDocuments):
                 yield
 
         with patched_compute_methods():
-            with mute_logger(
-                "odoo.addons.document.models.document_document"
-            ):
+            with mute_logger("odoo.addons.document.models.document_document"):
                 copy = self.document_txt.copy()
             self.assertEqual(copy.name, "file.txt (copy)")
             self.assertNotEqual(
@@ -848,9 +844,7 @@ class TestCaseDocuments(TransactionCaseDocuments):
 
             self.assertEqual(copy.is_multipage, self.document_txt.is_multipage)
 
-        with mute_logger(
-            "odoo.addons.document.models.document_document"
-        ):
+        with mute_logger("odoo.addons.document.models.document_document"):
             copy_with_default = self.document_txt.copy({"name": "test"})
         self.assertEqual(copy_with_default.name, "test")
         self.assertNotEqual(
@@ -1259,9 +1253,7 @@ class TestCaseDocuments(TransactionCaseDocuments):
 
     def test_document_order_by_is_folder(self):
         doc_1 = self.env["document.document"].create([{"name": "D1"}])
-        doc_2 = self.env["document.document"].create(
-            [{"name": "D2", "type": "folder"}]
-        )
+        doc_2 = self.env["document.document"].create([{"name": "D2", "type": "folder"}])
         doc_3 = self.env["document.document"].create([{"name": "D3", "type": "url"}])
         doc_4 = self.env["document.document"].create([{"name": "D4"}])
         docs = doc_1 | doc_2 | doc_3 | doc_4

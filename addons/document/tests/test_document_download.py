@@ -11,7 +11,6 @@ from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 
 class TestDocumentsDownloadBlocked(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -161,7 +160,6 @@ class TestDocumentsDownloadBlockedRoutes(HttpCase):
 
 
 class TestDocumentsAccessLog(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -431,7 +429,6 @@ class TestDocumentsZipShortcuts(HttpCaseWithUserDemo):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsDownloadAudit(HttpCase, TransactionCaseDocuments):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

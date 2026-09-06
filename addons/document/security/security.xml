@@ -176,11 +176,14 @@
         <field name="perm_read" eval="False" />
     </record>
 
-    <record id="mail_plan_template_rule_group_document_manager_document" model="ir.rule">
+    <record
+        id="mail_plan_template_rule_group_document_manager_document"
+        model="ir.rule">
         <field name="name">Manager can manage document plan templates</field>
         <field name="groups" eval="[(4, ref('document.group_documents_manager'))]" />
         <field name="model_id" ref="mail.model_mail_activity_plan_template" />
-        <field name="domain_force">[('plan_id.res_model', '=', 'document.document')]</field>
+        <field
+            name="domain_force">[('plan_id.res_model', '=', 'document.document')]</field>
         <field name="perm_read" eval="False" />
     </record>
 

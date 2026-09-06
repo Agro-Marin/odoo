@@ -93,14 +93,21 @@ class DocumentsOperation(models.TransientModel):
                     locations_to_targets[wizard] = (
                         folder.shortcut_document_id.id or folder.id
                     )
-        for wizard in self:  # for simplicity, likely never called in batch
-            domain = Domain(
-                "user_folder_id",
-                "=",
-                locations_to_targets.get(wizard) or wizard.destination,
-            ) & Domain("type", "!=", "folder")
-            wizard.destination_children_ids = self.env["document.document"].search(
-                domain
+        targets = {
+            wizard: locations_to_targets.get(wizard) or wizard.destination
+            for wizard in self
+        }
+        children = self.env["document.document"].search(
+            Domain("user_folder_id", "in", list(set(targets.values())))
+            & Domain("type", "!=", "folder")
+        )
+        # user_folder_id reads as a string (a folder id is its str), while a
+        # resolved folder target is an int the search side accepts as well.
+        by_target = children.grouped("user_folder_id")
+        for wizard in self:
+            target = targets[wizard]
+            wizard.destination_children_ids = by_target.get(
+                str(target) if isinstance(target, int) else target, children.browse()
             )
 
     def action_confirm(self) -> None:

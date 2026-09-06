@@ -3,7 +3,7 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
-from odoo.fields import Command
+from odoo.fields import Command, Domain
 
 EXPIRING_SOON_DAYS = 30
 
@@ -258,31 +258,32 @@ class DocumentDocument(models.Model):
 
     @api.model
     def _cron_refresh_expiration_state(self) -> bool:
-        stale = self.browse()
-        for today, company_domain in self._iter_expiration_windows():
-            stale |= self.search(
-                [
-                    *company_domain,
-                    ("document_type_id.has_expiration", "=", True),
-                    ("date_expiration", "!=", False),
-                    "|",
-                    "&",
-                    ("date_expiration", "<", today),
-                    ("expiration_state", "!=", "expired"),
-                    "&",
-                    "&",
-                    ("date_expiration", ">=", today),
-                    (
-                        "date_expiration",
-                        "<=",
-                        today + timedelta(days=EXPIRING_SOON_DAYS),
-                    ),
-                    ("expiration_state", "=", "valid"),
-                ]
-            )
+        windows = Domain.OR(
+            Domain(company_domain) & self._get_stale_expiration_domain(today)
+            for today, company_domain in self._iter_expiration_windows()
+        )
+        stale = self.search(
+            Domain("document_type_id.has_expiration", "=", True)
+            & Domain("date_expiration", "!=", False)
+            & windows
+        )
         if stale:
             stale._recompute_expiration_state()
         return True
+
+    @api.model
+    def _get_stale_expiration_domain(self, today) -> Domain:
+        return Domain.OR(
+            [
+                Domain("date_expiration", "<", today)
+                & Domain("expiration_state", "!=", "expired"),
+                Domain("date_expiration", ">=", today)
+                & Domain(
+                    "date_expiration", "<=", today + timedelta(days=EXPIRING_SOON_DAYS)
+                )
+                & Domain("expiration_state", "=", "valid"),
+            ]
+        )
 
     def _recompute_expiration_state(self) -> None:
         for field_name in ("expiration_state", "renewal_state"):

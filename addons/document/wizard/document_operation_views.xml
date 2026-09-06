@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <record id="documents_operation_view_form" model="ir.ui.view">
         <field name="name">document.operation.view.form</field>
         <field name="model">document.operation</field>
@@ -15,33 +16,36 @@
                 <sheet>
                     <h1 class="fs-3 ps-3">Choose a destination</h1>
                     <div class="row cursor-pointer h-100">
-                        <div class="d-flex flex-column col-md-4"
+                        <div
+                            class="d-flex flex-column col-md-4"
                             style="border-right: 1px solid lightgrey;">
                             <!-- force loading access rights fields -->
-                            <field name="document_ids" widget="documents_with_access_2many"
+                            <field
+                                name="document_ids"
+                                widget="documents_with_access_2many"
                                 invisible="true" />
                             <field
-                                name="destination" required="1" class="d-flex flex-column"
+                                name="destination"
+                                required="1"
+                                class="d-flex flex-column"
                                 nolabel="1"
                                 widget="documents_user_folder_id_char"
-                                options="{
-                                    'extraUpdateFields': [
-                                        'display_name', 'user_permission', 'access_internal', 'access_via_link',
-                                        'is_access_via_link_hidden'
-                                    ],
-                                    'ulClass': 'o_documents_operation_search_panel',
-                                }"
-                            />
+                                options="{                                     'extraUpdateFields': [                                         'display_name', 'user_permission', 'access_internal', 'access_via_link',                                         'is_access_via_link_hidden'                                     ],                                     'ulClass': 'o_documents_operation_search_panel',                                 }" />
                         </div>
                         <div class="col-md-8">
                             <h2 class="d-md-none fs-4 ps-3">Documents currently in destination</h2>
                             <field
-                                name="destination_children_ids" readonly="1" nolabel="1"
+                                name="destination_children_ids"
+                                readonly="1"
+                                nolabel="1"
                                 class="cursor-default o_documents_operation_destination_children_ids"
-                                widget="documents_x2many_no_open" options="{'no_open': True}"
-                            >
+                                widget="documents_x2many_no_open"
+                                options="{'no_open': True}">
                                 <list limit="10">
-                                    <field name="mimetype" widget="documents_type_icon" nolabel="1" />
+                                    <field
+                                        name="mimetype"
+                                        widget="documents_type_icon"
+                                        nolabel="1" />
                                     <field name="type" column_invisible="1" />
                                     <field name="name" />
                                     <field name="partner_id" />
@@ -59,4 +63,5 @@
             </form>
         </field>
     </record>
+
 </odoo>

@@ -18,7 +18,6 @@ def _png(color):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsShortcutFields(TransactionCaseDocuments):
-
     def test_copy_fields_hold_nothing_the_computes_already_resolve(self):
         copy_fields = self.env["document.document"]._get_fields_shortcuts_copy()
         fields = self.env["document.document"]._fields

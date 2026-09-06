@@ -18,7 +18,6 @@ def _png(color):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsPropagationDomain(TransactionCaseDocuments):
-
     def test_access_domain_layers_on_the_propagation_domain(self):
         calls = []
         DocumentsDocument = type(self.env["document.document"])
@@ -75,7 +74,6 @@ class TestDocumentsPropagationDomain(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsArchiveWording(TransactionCaseDocuments):
-
     def test_single_source_for_the_denial_message(self):
         message = self.env["document.document"]._archive_denied_message()
         self.assertTrue(message)
@@ -94,7 +92,6 @@ class TestDocumentsArchiveWording(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsUserPermissionContract(TransactionCaseDocuments):
-
     def test_user_permission_is_readable(self):
         document = self.env["document.document"].create(
             {
@@ -157,7 +154,6 @@ class TestDocumentsUserPermissionContract(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsCreateAccessCommands(TransactionCaseDocuments):
-
     def setUp(self):
         super().setUp()
         self.member = self.env["res.partner"].create({"name": "hardening member"})
@@ -244,7 +240,6 @@ class TestDocumentsCreateAccessCommands(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsReadCost(TransactionCaseDocuments):
-
     def test_search_read_of_folder_id_is_batched(self):
         count = 25
         documents = self.env["document.document"].create(
@@ -313,7 +308,6 @@ class TestDocumentsReadCost(TransactionCaseDocuments):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsPermissionSingleSource(TransactionCaseDocuments):
-
     def test_link_inherited_from_the_parent_is_the_only_difference(self):
         parent = self.env["document.document"].create(
             {

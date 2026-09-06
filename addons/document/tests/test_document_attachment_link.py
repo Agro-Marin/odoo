@@ -19,7 +19,6 @@ def _png(color):
 
 
 class TestDocumentsContentAliases(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -85,7 +84,6 @@ class TestDocumentsContentAliases(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDocumentsAttachmentVals(TransactionCaseDocuments):
-
     def test_create_and_write_route_the_same_keys(self):
         document = self.env["document.document"].create(
             {

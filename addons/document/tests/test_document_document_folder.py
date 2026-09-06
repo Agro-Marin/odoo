@@ -131,9 +131,7 @@ class TestDocumentsDocumentFolder(TransactionCase):
 
     def test_folder_copy(self):
         self.folder.owner_id = self.user_portal
-        with mute_logger(
-            "odoo.addons.document.models.document_document"
-        ):
+        with mute_logger("odoo.addons.document.models.document_document"):
             folder_copy = self.folder.copy()
         self.assertNotEqual(folder_copy.id, self.folder.id)
         self.assertEqual(folder_copy.name, f"{self.folder.name} (copy)")
@@ -143,9 +141,7 @@ class TestDocumentsDocumentFolder(TransactionCase):
 
         folder_shortcut = self.folder.action_create_shortcut()
         self.assertNotEqual(folder_shortcut.id, self.folder.id)
-        with mute_logger(
-            "odoo.addons.document.models.document_document"
-        ):
+        with mute_logger("odoo.addons.document.models.document_document"):
             folder_shortcut_copy = folder_shortcut.copy()
         self.assertNotEqual(folder_shortcut_copy.id, folder_shortcut.id)
         self.assertEqual(folder_shortcut_copy.name, f"{folder_shortcut.name} (copy)")
@@ -205,9 +201,7 @@ class TestDocumentsDocumentFolder(TransactionCase):
 
         self.assertEqual(len(action_original_child), 1)
         self.assertEqual(action_original_child.action_id.id, server_action.id)
-        with mute_logger(
-            "odoo.addons.document.models.document_document"
-        ):
+        with mute_logger("odoo.addons.document.models.document_document"):
             copied_folder = original_folder.copy()
         copied_child = copied_folder.children_ids[0]
         copied_child._compute_available_embedded_actions_ids()

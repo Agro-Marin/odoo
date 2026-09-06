@@ -7,7 +7,6 @@ from .test_document_common import GIF, TransactionCaseDocuments
 
 @tagged("post_install", "-at_install")
 class TestDocumentsTrashChatterTranslation(TransactionCaseDocuments):
-
     def test_transition_messages_resolve_their_module_and_language(self):
         self.env["res.lang"]._activate_lang("fr_FR")
         document = self.env["document.document"].create(

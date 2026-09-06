@@ -30,7 +30,6 @@
                     <filter
                         string="Has Expiration"
                         name="group_has_expiration"
-                        domain="[]"
                         context="{'group_by': 'has_expiration'}" />
                 </group>
             </search>
