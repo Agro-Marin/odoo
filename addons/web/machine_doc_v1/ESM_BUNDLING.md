@@ -245,6 +245,14 @@ bundle before/after: 244 requests and 4.8 MB (raw, uncompressed, 7-day cached
 sources) with 7 rebinds per open, against 7 requests, one immutable file
 (497 KB gzip) and none.
 
+### `--keep-names` stays
+
+Dropping `--keep-names` is worth 3.7 % raw and 4 % gzipped on `web.assets_web`
+(measured 2026-09-06: 4,195,650 → 4,039,172 bytes, 1,124,001 → 1,079,983
+gzipped) and is not taken: `mail/static/src/model/record.js` registers a model
+under `this._name || this.name`, so a minified class name would rename every
+mail model that does not declare `_name`. The flag goes when the models do.
+
 ### A bundle made of libraries only is served classic
 
 Four declared bundles (`html_editor.assets_history_diff`,
