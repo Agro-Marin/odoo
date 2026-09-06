@@ -8,7 +8,7 @@ import {
     startServer,
 } from "@mail/../tests/mail_test_helpers";
 import { test } from "@odoo/hoot";
-import { preloadFullCalendar } from "@web/../tests/web_test_helpers";
+import { onRpc, preloadFullCalendar } from "@web/../tests/web_test_helpers";
 
 defineCalendarModels();
 preloadFullCalendar();
@@ -62,4 +62,16 @@ test("Can cancel activity linked to an event", async () => {
     await openFormView("res.partner", partnerId);
     await click(".o-mail-Activity .btn", { text: "Cancel" });
     await contains(".o-mail-Activity", { count: 0 });
+});
+
+test("Cancelling an activity linked to an event keeps it visible if the server rejects", async () => {
+    const pyEnv = await startServer();
+    const partnerId = createMeetingWithActivity(pyEnv, { partnerName: "Milan Kundera" });
+    onRpc("mail.activity", "unlink_w_meeting", () => {
+        throw new Error("boom");
+    });
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click(".o-mail-Activity .btn", { text: "Cancel" });
+    await contains(".o-mail-Activity", { count: 1 });
 });
