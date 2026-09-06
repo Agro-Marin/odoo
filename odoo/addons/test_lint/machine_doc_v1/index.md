@@ -120,14 +120,16 @@ checkouts**, which is what `naming` already asks for.
 corpus exclusions, the addon/framework split (which decides whether the facade
 rule applies), and that a rule driven to zero keeps being evaluated.
 
-## Lanes
+## Running the gates locally
 
-| workflow | scope |
+There is no CI any more; every gate below runs by hand.
+
+| run | scope |
 |---|---|
-| `.github/workflows/test_lint.yml` | the whole module, every PR, `--addons-path=odoo/addons,addons`, only `test_lint` installed |
-| `.github/workflows/asset_lint.yml` | the registry-dependent classes, against a wider INSTALL set |
+| `odoo-bin --addons-path=odoo/addons,addons -d <db> -i test_lint --test-enable --test-tags /test_lint --stop-after-init --no-http` | the whole module, `--addons-path=odoo/addons,addons`, only `test_lint` installed |
+| the same command against a fuller `-i`/`--addons-path` install | the registry-dependent classes, against a wider INSTALL set |
 
 **A gate that reads the installed registry cannot be graded at the narrow
 scope.** `TestSchemeDuplication` skips there rather than passing, naming the
 modules it cannot see; `TestDocstring` is one-sided (`exact=False`) for the same
-reason. Do not floor either at a `.github/workflows/test_lint.yml` reading.
+reason. Do not floor either at a narrow-scope reading.
