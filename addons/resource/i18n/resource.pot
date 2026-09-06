@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-08 03:06+0000\n"
-"PO-Revision-Date: 2026-08-08 03:06+0000\n"
+"POT-Creation-Date: 2026-09-06 19:29+0000\n"
+"PO-Revision-Date: 2026-09-06 19:29+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -56,13 +56,13 @@ msgstr ""
 #. odoo-python
 #: code:addons/resource/models/resource_calendar_attendance.py:0
 msgid ""
-"%(name)s: a working time on a 2 weeks calendar must belong to the first or "
-"the second week."
+"%(name)s: a line on a 2 weeks calendar must belong to the first or the "
+"second week."
 msgstr ""
 
 #. module: resource
 #. odoo-python
-#: code:addons/resource/models/resource_scheduling_mixin.py:0
+#: code:addons/resource/models/mixin_resource_allocation.py:0
 msgid "%(name)s: allocation %% must be between 0 and 100."
 msgstr ""
 
@@ -75,7 +75,16 @@ msgstr ""
 #. module: resource
 #. odoo-python
 #: code:addons/resource/models/resource_calendar.py:0
+msgid ""
+"%(names)s: a line on a 2 weeks calendar must belong to the first or the "
+"second week."
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/resource_calendar.py:0
 #: code:addons/resource/models/resource_resource.py:0
+#: code:addons/resource/models/resource_role.py:0
 msgid "%s (copy)"
 msgstr ""
 
@@ -110,9 +119,16 @@ msgid "<span>hours/week</span>"
 msgstr ""
 
 #. module: resource
+#. odoo-python
+#: code:addons/resource/models/resource_resource.py:0
+msgid "A resource needs a timezone: %s has none."
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__active
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__active
 #: model:ir.model.fields,field_description:resource.field_resource_resource__active
+#: model:ir.model.fields,field_description:resource.field_resource_role__active
 msgid "Active"
 msgstr ""
 
@@ -122,14 +138,14 @@ msgid "Afternoon"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_allocation__allocated_hours
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__allocated_hours
-#: model:ir.model.fields,field_description:resource.field_resource_scheduling_mixin__allocated_hours
 msgid "Allocated Hours"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_allocation__allocated_percentage
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__allocated_percentage
-#: model:ir.model.fields,field_description:resource.field_resource_scheduling_mixin__allocated_percentage
 msgid "Allocation %"
 msgstr ""
 
@@ -142,6 +158,8 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:resource.resource_calendar_form
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
 #: model_terms:ir.ui.view,arch_db:resource.resource_resource_form
+#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_form
+#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_search
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_search
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_resource_search
 msgid "Archived"
@@ -224,8 +242,8 @@ msgid "Closing Days"
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,field_description:resource.field_resource_reservation__color
 #: model:ir.model.fields,field_description:resource.field_resource_resource__color
+#: model:ir.model.fields,field_description:resource.field_resource_role__color
 msgid "Color"
 msgstr ""
 
@@ -235,9 +253,9 @@ msgid "Companies"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_resource__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__company_id
-#: model:ir.model.fields,field_description:resource.field_resource_mixin__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__company_id
 #: model:ir.model.fields,field_description:resource.field_resource_resource__company_id
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_calendar_leaves_search
@@ -261,6 +279,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__create_uid
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__create_uid
 #: model:ir.model.fields,field_description:resource.field_resource_resource__create_uid
+#: model:ir.model.fields,field_description:resource.field_resource_role__create_uid
 msgid "Created by"
 msgstr ""
 
@@ -270,6 +289,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__create_date
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__create_date
 #: model:ir.model.fields,field_description:resource.field_resource_resource__create_date
+#: model:ir.model.fields,field_description:resource.field_resource_role__create_date
 msgid "Created on"
 msgstr ""
 
@@ -300,8 +320,8 @@ msgid "Define Amount of Hours per day"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,help:resource.field_mixin_resource__resource_calendar_id
 #: model:ir.model.fields,help:resource.field_res_users__resource_calendar_id
-#: model:ir.model.fields,help:resource.field_resource_mixin__resource_calendar_id
 #: model:ir.model.fields,help:resource.field_resource_resource__calendar_id
 msgid ""
 "Define the working schedule of the resource. If not set, the resource will "
@@ -316,16 +336,23 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_kanban
+msgid "Delete"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_resource__display_name
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_allocation__display_name
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling__display_name
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling_tools__display_name
 #: model:ir.model.fields,field_description:resource.field_res_company__display_name
 #: model:ir.model.fields,field_description:resource.field_res_users__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__display_name
-#: model:ir.model.fields,field_description:resource.field_resource_mixin__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__display_name
 #: model:ir.model.fields,field_description:resource.field_resource_resource__display_name
-#: model:ir.model.fields,field_description:resource.field_resource_scheduling_mixin__display_name
-#: model:ir.model.fields,field_description:resource.field_resource_scheduling_tools__display_name
+#: model:ir.model.fields,field_description:resource.field_resource_role__display_name
 msgid "Display Name"
 msgstr ""
 
@@ -342,6 +369,11 @@ msgstr ""
 #. module: resource
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__duration_hours
 msgid "Duration (hours)"
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_kanban
+msgid "Edit"
 msgstr ""
 
 #. module: resource
@@ -478,16 +510,18 @@ msgid "Human"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_resource__id
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_allocation__id
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling__id
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling_tools__id
 #: model:ir.model.fields,field_description:resource.field_res_company__id
 #: model:ir.model.fields,field_description:resource.field_res_users__id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__id
-#: model:ir.model.fields,field_description:resource.field_resource_mixin__id
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__id
 #: model:ir.model.fields,field_description:resource.field_resource_resource__id
-#: model:ir.model.fields,field_description:resource.field_resource_scheduling_mixin__id
-#: model:ir.model.fields,field_description:resource.field_resource_scheduling_tools__id
+#: model:ir.model.fields,field_description:resource.field_resource_role__id
 msgid "ID"
 msgstr ""
 
@@ -532,6 +566,11 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
+msgid "In Conflict"
+msgstr ""
+
+#. module: resource
 #. odoo-python
 #: code:addons/resource/models/resource_calendar.py:0
 msgid ""
@@ -549,6 +588,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__write_uid
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__write_uid
 #: model:ir.model.fields,field_description:resource.field_resource_resource__write_uid
+#: model:ir.model.fields,field_description:resource.field_resource_role__write_uid
 msgid "Last Updated by"
 msgstr ""
 
@@ -558,6 +598,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__write_date
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__write_date
 #: model:ir.model.fields,field_description:resource.field_resource_resource__write_date
+#: model:ir.model.fields,field_description:resource.field_resource_role__write_date
 msgid "Last Updated on"
 msgstr ""
 
@@ -607,12 +648,18 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_attendance__name
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__name
 #: model:ir.model.fields,field_description:resource.field_resource_resource__name
+#: model:ir.model.fields,field_description:resource.field_resource_role__name
 msgid "Name"
 msgstr ""
 
 #. module: resource
 #: model_terms:ir.actions.act_window,help:resource.action_resource_reservation
 msgid "No reservations yet"
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.actions.act_window,help:resource.resource_role_action
+msgid "No role found. Let's create one!"
 msgstr ""
 
 #. module: resource
@@ -643,7 +690,12 @@ msgid "Partial working schedules"
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,help:resource.field_resource_scheduling_mixin__allocated_percentage
+#: model:ir.model.fields,field_description:resource.field_resource_resource__partner_id
+msgid "Party"
+msgstr ""
+
+#. module: resource
+#: model:ir.model.fields,help:resource.field_mixin_resource_allocation__allocated_percentage
 msgid "Percentage of the resource's work capacity allocated to this record."
 msgstr ""
 
@@ -697,7 +749,8 @@ msgstr ""
 
 #. module: resource
 #: model:ir.actions.act_window,name:resource.action_resource_reservation
-#: model:ir.model.fields,field_description:resource.field_resource_scheduling_mixin__reservation_ids
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_allocation__reservation_ids
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling__reservation_ids
 #: model:ir.ui.menu,name:resource.menu_resource_reservation
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_calendar
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_list
@@ -713,8 +766,8 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_resource__resource_id
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__resource_id
-#: model:ir.model.fields,field_description:resource.field_resource_mixin__resource_id
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__resource_id
 #: model:ir.ui.menu,name:resource.menu_resource_config
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
@@ -725,7 +778,12 @@ msgid "Resource"
 msgstr ""
 
 #. module: resource
-#: model:ir.model,name:resource.model_resource_mixin
+#: model:ir.model,name:resource.model_mixin_resource_allocation
+msgid "Resource Allocation Mixin"
+msgstr ""
+
+#. module: resource
+#: model:ir.model,name:resource.model_mixin_resource
 msgid "Resource Mixin"
 msgstr ""
 
@@ -735,12 +793,17 @@ msgid "Resource Reservation"
 msgstr ""
 
 #. module: resource
-#: model:ir.model,name:resource.model_resource_scheduling_tools
+#: model:ir.model,name:resource.model_resource_role
+msgid "Resource Role"
+msgstr ""
+
+#. module: resource
+#: model:ir.model,name:resource.model_mixin_resource_scheduling_tools
 msgid "Resource Scheduling Helpers"
 msgstr ""
 
 #. module: resource
-#: model:ir.model,name:resource.model_resource_scheduling_mixin
+#: model:ir.model,name:resource.model_mixin_resource_scheduling
 msgid "Resource Scheduling Mixin"
 msgstr ""
 
@@ -791,6 +854,20 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model:ir.actions.act_window,name:resource.resource_role_action
+#: model:ir.ui.menu,name:resource.menu_resource_role
+msgid "Roles"
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.actions.act_window,help:resource.resource_role_action
+msgid ""
+"Roles describe what a resource can do. Assign them to tasks in\n"
+"                your project templates, or to shifts when planning who covers\n"
+"                what."
+msgstr ""
+
+#. module: resource
 #: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
 msgid "Room Bookings"
 msgstr ""
@@ -821,8 +898,9 @@ msgid "Scheduled Start"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_allocation__schedule_overlap_count
+#: model:ir.model.fields,field_description:resource.field_mixin_resource_scheduling__schedule_overlap_count
 #: model:ir.model.fields,field_description:resource.field_resource_reservation__schedule_overlap_count
-#: model:ir.model.fields,field_description:resource.field_resource_scheduling_mixin__schedule_overlap_count
 msgid "Scheduling Conflicts"
 msgstr ""
 
@@ -981,6 +1059,11 @@ msgid ""
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,help:resource.field_resource_resource__partner_id
+msgid "The person this resource is. A material resource has none."
+msgstr ""
+
+#. module: resource
 #: model:ir.model.fields,help:resource.field_resource_reservation__resource_id
 msgid "The resource (person, equipment) assigned to this schedule."
 msgstr ""
@@ -992,8 +1075,8 @@ msgid "The start date of the time off must be earlier than the end date."
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,help:resource.field_mixin_resource__tz
 #: model:ir.model.fields,help:resource.field_resource_calendar__tz
-#: model:ir.model.fields,help:resource.field_resource_mixin__tz
 msgid ""
 "This field is used in order to define in which timezone the resources will "
 "work."
@@ -1055,8 +1138,8 @@ msgid "Time efficiency must be strictly positive"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_resource__tz
 #: model:ir.model.fields,field_description:resource.field_resource_calendar__tz
-#: model:ir.model.fields,field_description:resource.field_resource_mixin__tz
 #: model:ir.model.fields,field_description:resource.field_resource_resource__tz
 msgid "Timezone"
 msgstr ""
@@ -1098,6 +1181,12 @@ msgstr ""
 #: model:ir.model.fields,field_description:resource.field_resource_resource__resource_type
 #: model_terms:ir.ui.view,arch_db:resource.view_resource_resource_search
 msgid "Type"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/resource_calendar_attendance.py:0
+msgid "Unassigned week"
 msgstr ""
 
 #. module: resource
@@ -1181,6 +1270,7 @@ msgid "Work Orders"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_resource_calendar__resource_ids
 #: model_terms:ir.ui.view,arch_db:resource.resource_calendar_form
 msgid "Work Resources"
 msgstr ""
@@ -1219,9 +1309,9 @@ msgid "Working Calendar"
 msgstr ""
 
 #. module: resource
+#: model:ir.model.fields,field_description:resource.field_mixin_resource__resource_calendar_id
 #: model:ir.model.fields,field_description:resource.field_res_company__resource_calendar_ids
 #: model:ir.model.fields,field_description:resource.field_resource_calendar_leaves__calendar_id
-#: model:ir.model.fields,field_description:resource.field_resource_mixin__resource_calendar_id
 #: model_terms:ir.ui.view,arch_db:resource.resource_calendar_form
 msgid "Working Hours"
 msgstr ""
@@ -1261,7 +1351,7 @@ msgid "Working Time 2nd Week"
 msgstr ""
 
 #. module: resource
-#: model:ir.model.fields,help:resource.field_resource_scheduling_mixin__allocated_hours
+#: model:ir.model.fields,help:resource.field_mixin_resource_allocation__allocated_hours
 msgid ""
 "Working hours between scheduling start and end, respecting the resource "
 "calendar."
@@ -1276,6 +1366,11 @@ msgstr ""
 #. odoo-python
 #: code:addons/resource/models/resource_calendar.py:0
 msgid "You can't delete section between weeks."
+msgstr ""
+
+#. module: resource
+#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_list
+msgid "e.g. Developer"
 msgstr ""
 
 #. module: resource
@@ -1300,74 +1395,4 @@ msgstr ""
 #. odoo-python
 #: code:addons/resource/models/resource_calendar_attendance.py:0
 msgid "this week"
-msgstr ""
-
-#. module: resource
-#. odoo-python
-#: code:addons/resource/models/resource_calendar_attendance.py:0
-msgid ""
-"%(name)s: a line on a 2 weeks calendar must belong to the first or the "
-"second week."
-msgstr ""
-
-#. module: resource
-#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_kanban
-msgid "Delete"
-msgstr ""
-
-#. module: resource
-#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_kanban
-msgid "Edit"
-msgstr ""
-
-#. module: resource
-#: model_terms:ir.ui.view,arch_db:resource.resource_reservation_view_search
-msgid "In Conflict"
-msgstr ""
-
-#. module: resource
-#: model_terms:ir.actions.act_window,help:resource.resource_role_action
-msgid "No role found. Let's create one!"
-msgstr ""
-
-#. module: resource
-#: model:ir.model,name:resource.model_mixin_resource_allocation
-msgid "Resource Allocation Mixin"
-msgstr ""
-
-#. module: resource
-#: model:ir.model,name:resource.model_resource_role
-msgid "Resource Role"
-msgstr ""
-
-#. module: resource
-#: model:ir.actions.act_window,name:resource.resource_role_action
-msgid "Roles"
-msgstr ""
-
-#. module: resource
-#: model_terms:ir.actions.act_window,help:resource.resource_role_action
-msgid ""
-"Roles describe what a resource can do. Assign them to tasks in\n"
-"                your project templates, or to shifts when planning who covers\n"
-"                what."
-msgstr ""
-
-#. module: resource
-#. odoo-python
-#: code:addons/resource/models/resource_calendar_attendance.py:0
-msgid "Unassigned week"
-msgstr ""
-
-#. module: resource
-#: model_terms:ir.ui.view,arch_db:resource.resource_role_view_list
-msgid "e.g. Developer"
-msgstr ""
-
-#. module: resource
-#. odoo-python
-#: code:addons/resource/models/resource_calendar.py:0
-msgid ""
-"%(names)s: a line on a 2 weeks calendar must belong to the first or the "
-"second week."
 msgstr ""
