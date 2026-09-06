@@ -111,8 +111,8 @@ class PurchaseOrder(models.Model):
         store=True,
         readonly=False,
         index=True,
-        help="Delivery date promised by vendor. "
-        "This date is used to determine expected arrival of products.",
+        help="Expected arrival of the products, kept up to date as the vendor "
+        "reports. What the vendor promised is the Promised Date.",
     )
     invoice_ids = fields.Many2many(string="Bills")
     invoice_count = fields.Integer(string="Bill Count")
