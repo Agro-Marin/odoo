@@ -205,7 +205,7 @@ export class ListRenderer extends Component {
     sel;
     /** @type {ReturnType<typeof useGroupManagement>} */
     groupOps;
-    /** @type {import("./list_keyboard_nav").ListKeyboardNavigation} */
+    /** @type {ReturnType<typeof useListKeyboardNavigation>} */
     nav;
     /** @type {Column[]} */
     columns;
@@ -1212,7 +1212,10 @@ export class ListRenderer extends Component {
      * @param {PointerEvent} ev
      */
     onGlobalClick(ev) {
-        if (!(this.editedRecord || this.state.showGroupInput)) {
+        // The live record, not the render-time copy: a click can land between
+        // the model leaving edition and the render that would refresh the copy,
+        // and a stale copy asks the list to leave edition a second time.
+        if (!(this.props.list.editedRecord || this.state.showGroupInput)) {
             return;
         }
 

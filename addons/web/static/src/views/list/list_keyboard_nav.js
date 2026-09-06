@@ -17,26 +17,7 @@ import { makeEditHandlers } from "./list_keyboard_edit.js";
 
 const MAX_VIRT_FOCUS_RETRIES = 20;
 
-/**
- * @typedef {{
- * lastEditedCell: { column: any, record: any } | null,
- * cellToFocus: { column: any, record: any, forward?: boolean } | null,
- * lastIsDirty: boolean,
- * readonly pendingVirtFocus: { rowIndex: number, colIndex: number, recordId?: string, retries?: number, origin?: any } | null,
- * resolvePendingVirtFocus: () => void,
- * clearPendingVirtFocus: () => void,
- * setPendingVirtFocusOrigin: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => void,
- * focus: (el: HTMLElement) => void,
- * findFocusMove: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => ({ el: HTMLElement } | { pending: true } | null),
- * findFocusFutureCell: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => HTMLElement | null,
- * findNextFocusableOnRow: (row: HTMLElement, cell?: HTMLTableCellElement) => HTMLElement | null,
- * findPreviousFocusableOnRow: (row: HTMLElement, cell?: HTMLTableCellElement) => HTMLElement | null,
- * toggleFocusInsideCell: (hotkey: string, cell: HTMLTableCellElement) => boolean,
- * resolveArrowMove: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => HTMLElement | true | null,
- * onCellKeydownReadOnlyMode: (hotkey: string, cell: HTMLTableCellElement, group: any, record: any) => boolean,
- * } & import("./list_keyboard_edit").ListEditHandlers} ListKeyboardNavigation
- * @typedef {"up" | "down" | "left" | "right"} Direction
- */
+/** @typedef {"up" | "down" | "left" | "right"} Direction */
 
 /**
  * @param {Element} row
@@ -164,8 +145,7 @@ function elementToFocusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
 }
 
 /**
- * @param {any} tableRef
- * @param {Pick<
+ * @typedef {Pick<
  * import("./list_renderer").ListGridContext,
  * | "getColumns"
  * | "getProps"
@@ -181,26 +161,15 @@ function elementToFocusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
  * | "getVirtualization"
  * | "findFocusFutureCell"
  * | "setKeyboardNavigation"
- * > & import("./list_keyboard_edit").ListEditContext} ctx
- * @returns {ListKeyboardNavigation}
+ * > & import("./list_keyboard_edit").ListEditContext} ListKeyboardContext
  */
-export function useListKeyboardNavigation(tableRef, ctx) {
-    const {
-        getColumns,
-        getProps,
-        getEnv,
-        getGridState,
-        onToggleGroup,
-        toggleRecordSelection,
-        onOpenRecord,
-        onDeleteRecord,
-        isInlineEditable,
-        expandCheckboxes,
-        getSel,
-        getVirtualization,
-        findFocusFutureCell,
-    } = ctx;
 
+export class ListKeyboardNavigation {
+    /** @type {{ column: any, record: any } | null} */
+    lastEditedCell = null;
+    /** @type {{ column: any, record: any, forward?: boolean } | null} */
+    cellToFocus = null;
+    lastIsDirty = false;
     /**
      * @type {{
      * cell: HTMLTableCellElement,
@@ -209,7 +178,42 @@ export function useListKeyboardNavigation(tableRef, ctx) {
      * move: { el: HTMLElement } | { pending: true } | null,
      * } | null}
      */
-    let latchedMove = null;
+    _latchedMove = null;
+    _lastKnownIndex = 0;
+    /**
+     * @type {{ rowIndex: number, colIndex: number, recordId?: string, retries?: number, origin?: { cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: "up" | "down" | "left" | "right" } } | null}
+     */
+    _pendingVirtFocus = null;
+
+    /**
+     * @param {any} tableRef
+     * @param {ListKeyboardContext} ctx
+     */
+    constructor(tableRef, ctx) {
+        this.tableRef = tableRef;
+        this.ctx = ctx;
+        // The members are a seam: a caller may capture one, replace it on the
+        // instance and call the captured original unbound. Own bound methods
+        // keep that contract; an assignment still replaces them.
+        const proto = ListKeyboardNavigation.prototype;
+        for (const name of Object.getOwnPropertyNames(proto)) {
+            const descriptor = Object.getOwnPropertyDescriptor(proto, name);
+            if (name !== "constructor" && typeof descriptor.value === "function") {
+                this[name] = proto[name].bind(this);
+            }
+        }
+    }
+
+    get pendingVirtFocus() {
+        return this._pendingVirtFocus;
+    }
+
+    /**
+     * @param {HTMLElement} el
+     */
+    focus(el) {
+        focusAndSelect(el);
+    }
 
     /**
      * @param {HTMLTableCellElement} cell
@@ -218,432 +222,458 @@ export function useListKeyboardNavigation(tableRef, ctx) {
      * @param {{ el: HTMLElement } | { pending: true } | null} [move]
      * @returns {HTMLElement | null}
      */
-    const dispatchFutureCell = (cell, cellIsInGroupRow, direction, move) => {
-        latchedMove =
+    _dispatchFutureCell(cell, cellIsInGroupRow, direction, move) {
+        this._latchedMove =
             move === undefined ? null : { cell, cellIsInGroupRow, direction, move };
         try {
-            return findFocusFutureCell(cell, cellIsInGroupRow, direction);
+            return this.ctx.findFocusFutureCell(cell, cellIsInGroupRow, direction);
         } finally {
-            latchedMove = null;
+            this._latchedMove = null;
         }
-    };
+    }
 
-    let lastKnownIndex = 0;
     /**
-     * @type {{ rowIndex: number, colIndex: number, recordId?: string, retries?: number, origin?: { cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: "up" | "down" | "left" | "right" } } | null}
+     * Land a focus that had to wait for virtualization to render its row.
+     *
+     * Two passes by design, and it is worth saying why rather than making
+     * it one. The first finds the row (or counts a retry, if the scroll has
+     * not painted it yet) and applies the focus; the *second* confirms the
+     * focus stuck -- `element === document.activeElement` -- and only then
+     * drops the pending state. Clearing on the first pass would trust a
+     * focus() call nothing has yet confirmed.
+     *
+     * That confirmation is only sound because `toFocus` cannot diverge from
+     * `element`: `_dispatchFutureCell` latches the move it was handed, and
+     * `findFocusFutureCell` returns the latched element when the cell,
+     * row-ness and direction all match. Without that latch the renderer's
+     * hook could hand back a different cell, the equality would never hold,
+     * and this would re-focus once per patch until MAX_VIRT_FOCUS_RETRIES.
      */
-    let pendingVirtFocus = null;
-
-    const self = {
-        lastEditedCell: null,
-        cellToFocus: null,
-        lastIsDirty: false,
-        get pendingVirtFocus() {
-            return pendingVirtFocus;
-        },
-        /**
-         * Land a focus that had to wait for virtualization to render its row.
-         *
-         * Two passes by design, and it is worth saying why rather than making
-         * it one. The first finds the row (or counts a retry, if the scroll has
-         * not painted it yet) and applies the focus; the *second* confirms the
-         * focus stuck -- `element === document.activeElement` -- and only then
-         * drops the pending state. Clearing on the first pass would trust a
-         * focus() call nothing has yet confirmed.
-         *
-         * That confirmation is only sound because `toFocus` cannot diverge from
-         * `element`: `dispatchFutureCell` latches the move it was handed, and
-         * `findFocusFutureCell` returns the latched element when the cell,
-         * row-ness and direction all match. Without that latch the renderer's
-         * hook could hand back a different cell, the equality would never hold,
-         * and this would re-focus once per patch until MAX_VIRT_FOCUS_RETRIES.
-         */
-        resolvePendingVirtFocus() {
-            if (!pendingVirtFocus) {
-                return;
-            }
-            const pending = pendingVirtFocus;
-            let { rowIndex, colIndex } = pending;
-            let recordStillExists = true;
-            if (pending.recordId !== undefined) {
-                const flat = getGridState?.()?.findRowByRecordId(pending.recordId);
-                if (flat) {
-                    rowIndex = flat.globalIndex;
-                } else {
-                    recordStillExists = false;
-                }
-            }
-            if (
-                !recordStillExists ||
-                (pending.retries || 0) >= MAX_VIRT_FOCUS_RETRIES
-            ) {
-                pendingVirtFocus = null;
-                return;
-            }
-            const element = elementToFocusAtPosition(tableRef, { rowIndex, colIndex });
-            if (!element) {
-                pending.retries = (pending.retries || 0) + 1;
-                return;
-            }
-            const active = document.activeElement;
-            if (element === active || element.contains(active)) {
-                pendingVirtFocus = null;
-                return;
-            }
-            if (
-                active &&
-                active !== document.body &&
-                active.isConnected &&
-                tableRef.el &&
-                !tableRef.el.contains(active)
-            ) {
-                pendingVirtFocus = null;
-                return;
-            }
-            const origin = pending.origin;
-            const toFocus =
-                origin && findFocusFutureCell
-                    ? dispatchFutureCell(
-                          origin.cell,
-                          origin.cellIsInGroupRow,
-                          origin.direction,
-                          { el: element },
-                      )
-                    : element;
-            if (toFocus) {
-                self.focus(toFocus);
-            }
-            pending.retries = (pending.retries || 0) + 1;
-        },
-
-        clearPendingVirtFocus() {
-            pendingVirtFocus = null;
-        },
-
-        /**
-         * @param {HTMLTableCellElement} cell
-         * @param {boolean} cellIsInGroupRow
-         * @param {"up" | "down" | "left" | "right"} direction
-         */
-        setPendingVirtFocusOrigin(cell, cellIsInGroupRow, direction) {
-            if (pendingVirtFocus) {
-                pendingVirtFocus.origin = { cell, cellIsInGroupRow, direction };
-            }
-        },
-
-        /**
-         * @param {HTMLElement} el
-         */
-        focus: focusAndSelect,
-
-        /**
-         * @param {HTMLTableCellElement} cell
-         * @param {boolean} cellIsInGroupRow
-         * @param {"up" | "down" | "left" | "right"} direction
-         * @returns {{ el: HTMLElement } | { pending: true } | null}
-         */
-        findFocusMove(cell, cellIsInGroupRow, direction) {
-            const gridState = getGridState?.();
-            const row = cell.parentElement;
-            if (gridState && row.dataset.rowIndex !== undefined) {
-                const rowIndex = Number.parseInt(row.dataset.rowIndex, 10);
-                const colIndex =
-                    cell.dataset.colIndex !== undefined
-                        ? Number.parseInt(cell.dataset.colIndex, 10)
-                        : [...row.children].indexOf(cell);
-                const next = gridState.moveFocus(rowIndex, colIndex, direction);
-                if (next) {
-                    if (gridState.rowAt(next.rowIndex)?.type !== "group") {
-                        lastKnownIndex = next.colIndex;
-                    }
-                    const isHorizontal = direction === "left" || direction === "right";
-                    const indexDirection =
-                        isHorizontal && next.colIndex !== colIndex
-                            ? next.colIndex > colIndex
-                                ? "right"
-                                : "left"
-                            : undefined;
-                    const element = elementToFocusAtPosition(
-                        tableRef,
-                        next,
-                        indexDirection,
-                    );
-                    if (element) {
-                        return { el: element };
-                    }
-                    const virt = getVirtualization?.();
-                    if (virt?.isActive) {
-                        virt.ensureRowVisible(next.rowIndex);
-                        const flat = gridState.flatRows[next.rowIndex];
-                        pendingVirtFocus = {
-                            rowIndex: next.rowIndex,
-                            colIndex: next.colIndex,
-                            recordId:
-                                flat?.type === "record" && flat.record
-                                    ? String(flat.record.id)
-                                    : undefined,
-                        };
-                        return { pending: true };
-                    }
-                }
-            }
-
-            const children = /** @type {HTMLElement[]} */ ([...row.children]);
-            const index = children.indexOf(/** @type {HTMLElement} */ (cell));
-            let futureCell;
-            if (gridState?.isRTL && (direction === "left" || direction === "right")) {
-                direction = direction === "left" ? "right" : "left";
-            }
-            if (direction === "up" || direction === "down") {
-                const vertical = verticalNeighbourCell(row, index, {
-                    direction,
-                    cellIsInGroupRow,
-                    lastKnownIndex,
-                    isHeaderRow: tableRef.el.querySelector("thead tr") === row,
-                });
-                if (vertical) {
-                    futureCell = vertical.cell;
-                    lastKnownIndex = vertical.lastKnownIndex;
-                    if (vertical.rememberColumn !== undefined) {
-                        getGridState?.()?.rememberColumn(vertical.rememberColumn);
-                    }
-                }
+    resolvePendingVirtFocus() {
+        const pending = this._pendingVirtFocus;
+        if (!pending) {
+            return;
+        }
+        let { rowIndex, colIndex } = pending;
+        let recordStillExists = true;
+        if (pending.recordId !== undefined) {
+            const flat = this.ctx.getGridState?.()?.findRowByRecordId(pending.recordId);
+            if (flat) {
+                rowIndex = flat.globalIndex;
             } else {
-                const step = direction === "left" ? -1 : 1;
-                futureCell = children[index + step];
-                if (futureCell) {
-                    lastKnownIndex = index + step;
+                recordStillExists = false;
+            }
+        }
+        if (!recordStillExists || (pending.retries || 0) >= MAX_VIRT_FOCUS_RETRIES) {
+            this._pendingVirtFocus = null;
+            return;
+        }
+        const element = elementToFocusAtPosition(this.tableRef, { rowIndex, colIndex });
+        if (!element) {
+            pending.retries = (pending.retries || 0) + 1;
+            return;
+        }
+        const active = document.activeElement;
+        if (element === active || element.contains(active)) {
+            this._pendingVirtFocus = null;
+            return;
+        }
+        if (
+            active &&
+            active !== document.body &&
+            active.isConnected &&
+            this.tableRef.el &&
+            !this.tableRef.el.contains(active)
+        ) {
+            this._pendingVirtFocus = null;
+            return;
+        }
+        const origin = pending.origin;
+        const toFocus =
+            origin && this.ctx.findFocusFutureCell
+                ? this._dispatchFutureCell(
+                      origin.cell,
+                      origin.cellIsInGroupRow,
+                      origin.direction,
+                      { el: element },
+                  )
+                : element;
+        if (toFocus) {
+            this.focus(toFocus);
+        }
+        pending.retries = (pending.retries || 0) + 1;
+    }
+
+    clearPendingVirtFocus() {
+        this._pendingVirtFocus = null;
+    }
+
+    /**
+     * @param {HTMLTableCellElement} cell
+     * @param {boolean} cellIsInGroupRow
+     * @param {"up" | "down" | "left" | "right"} direction
+     */
+    setPendingVirtFocusOrigin(cell, cellIsInGroupRow, direction) {
+        if (this._pendingVirtFocus) {
+            this._pendingVirtFocus.origin = { cell, cellIsInGroupRow, direction };
+        }
+    }
+
+    /**
+     * @param {HTMLTableCellElement} cell
+     * @param {boolean} cellIsInGroupRow
+     * @param {"up" | "down" | "left" | "right"} direction
+     * @returns {{ el: HTMLElement } | { pending: true } | null}
+     */
+    findFocusMove(cell, cellIsInGroupRow, direction) {
+        const gridState = this.ctx.getGridState?.();
+        const row = cell.parentElement;
+        if (gridState && row.dataset.rowIndex !== undefined) {
+            const move = this._findGridFocusMove(gridState, cell, row, direction);
+            if (move) {
+                return move;
+            }
+        }
+        const children = /** @type {HTMLElement[]} */ ([...row.children]);
+        const index = children.indexOf(/** @type {HTMLElement} */ (cell));
+        let futureCell;
+        if (gridState?.isRTL && (direction === "left" || direction === "right")) {
+            direction = direction === "left" ? "right" : "left";
+        }
+        if (direction === "up" || direction === "down") {
+            const vertical = verticalNeighbourCell(row, index, {
+                direction,
+                cellIsInGroupRow,
+                lastKnownIndex: this._lastKnownIndex,
+                isHeaderRow: this.tableRef.el.querySelector("thead tr") === row,
+            });
+            if (vertical) {
+                futureCell = vertical.cell;
+                this._lastKnownIndex = vertical.lastKnownIndex;
+                if (vertical.rememberColumn !== undefined) {
+                    this.ctx.getGridState?.()?.rememberColumn(vertical.rememberColumn);
                 }
             }
-            const el =
-                futureCell &&
-                getElementToFocus(/** @type {HTMLTableCellElement} */ (futureCell));
-            return el ? { el } : null;
-        },
-
-        /**
-         * @param {HTMLTableCellElement} cell
-         * @param {boolean} cellIsInGroupRow
-         * @param {"up" | "down" | "left" | "right"} direction
-         * @returns {HTMLElement | null}
-         */
-        findFocusFutureCell(cell, cellIsInGroupRow, direction) {
-            const move =
-                latchedMove &&
-                latchedMove.cell === cell &&
-                latchedMove.cellIsInGroupRow === cellIsInGroupRow &&
-                latchedMove.direction === direction
-                    ? latchedMove.move
-                    : self.findFocusMove(cell, cellIsInGroupRow, direction);
-            return move && "el" in move ? move.el : null;
-        },
-
-        /**
-         * @param {HTMLElement} row
-         * @param {HTMLTableCellElement} [cell]
-         * @returns {HTMLElement | null}
-         */
-        findNextFocusableOnRow,
-
-        /**
-         * @param {HTMLElement} row
-         * @param {HTMLTableCellElement} [cell]
-         * @returns {HTMLElement | null}
-         */
-        findPreviousFocusableOnRow,
-
-        /**
-         * @param {string} hotkey
-         * @param {HTMLTableCellElement} cell
-         * @returns {boolean}
-         */
-        toggleFocusInsideCell(hotkey, cell) {
-            return togglesFocusInsideCell(hotkey, cell);
-        },
-
-        /**
-         * @param {HTMLTableCellElement} cell
-         * @param {boolean} cellIsInGroupRow
-         * @param {"up"|"down"|"left"|"right"} direction
-         * @returns {HTMLElement | true | null}
-         */
-        resolveArrowMove(cell, cellIsInGroupRow, direction) {
-            const move = self.findFocusMove(cell, cellIsInGroupRow, direction);
-            if (move && "pending" in move) {
-                self.setPendingVirtFocusOrigin(cell, cellIsInGroupRow, direction);
-                return true;
+        } else {
+            const step = direction === "left" ? -1 : 1;
+            futureCell = children[index + step];
+            if (futureCell) {
+                this._lastKnownIndex = index + step;
             }
-            if (findFocusFutureCell) {
-                return dispatchFutureCell(cell, cellIsInGroupRow, direction, move);
-            }
-            return move && "el" in move ? move.el : null;
-        },
+        }
+        const el =
+            futureCell &&
+            getElementToFocus(/** @type {HTMLTableCellElement} */ (futureCell));
+        return el ? { el } : null;
+    }
 
-        /**
-         * @param {string} hotkey
-         * @param {HTMLTableCellElement} cell
-         * @param {object | null} group
-         * @param {object | null} record
-         * @returns {boolean}
-         */
-        onCellKeydownReadOnlyMode(hotkey, cell, group, record) {
-            const cellIsInGroupRow = Boolean(group && !record);
-            const props = getProps();
-            const applyMultiEditBehavior =
-                record?.selected && props.list.model.multiEdit;
-            let toFocus;
-            switch (hotkey) {
-                case "arrowup": {
-                    const moved = self.resolveArrowMove(cell, cellIsInGroupRow, "up");
-                    if (moved === true) {
-                        return true;
-                    }
-                    toFocus = moved;
-                    if (!toFocus && getEnv().searchModel) {
-                        getEnv().searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
-                        return true;
-                    }
-                    break;
-                }
-                case "arrowdown": {
-                    const moved = self.resolveArrowMove(cell, cellIsInGroupRow, "down");
-                    if (moved === true) {
-                        return true;
-                    }
-                    toFocus = moved;
-                    break;
-                }
-                case "arrowleft":
-                    if (cellIsInGroupRow && !group.isFolded) {
-                        onToggleGroup(group);
-                        return true;
-                    }
-                    if (cell.classList.contains("o_field_x2many_list_row_add")) {
-                        const a = document.activeElement;
-                        toFocus = a.previousElementSibling;
-                    } else {
-                        const moved = self.resolveArrowMove(
-                            cell,
-                            cellIsInGroupRow,
-                            "left",
-                        );
-                        if (moved === true) {
-                            return true;
-                        }
-                        toFocus = moved;
-                    }
-                    break;
-                case "arrowright":
-                    if (cellIsInGroupRow && group.isFolded) {
-                        onToggleGroup(group);
-                        return true;
-                    }
-                    if (cell.classList.contains("o_field_x2many_list_row_add")) {
-                        const a = document.activeElement;
-                        toFocus = a.nextElementSibling;
-                    } else {
-                        const moved = self.resolveArrowMove(
-                            cell,
-                            cellIsInGroupRow,
-                            "right",
-                        );
-                        if (moved === true) {
-                            return true;
-                        }
-                        toFocus = moved;
-                    }
-                    break;
-                case "tab":
-                case "shift+tab":
-                    if (cellIsInGroupRow) {
-                        toFocus = adjacentGroupButton(cell, hotkey === "tab" ? 1 : -1);
-                    }
-                    break;
-                case "shift+arrowdown":
-                case "shift+arrowup": {
-                    const direction = hotkey === "shift+arrowdown" ? "down" : "up";
-                    if (expandCheckboxes(record, direction)) {
-                        const moved = self.resolveArrowMove(
-                            cell,
-                            cellIsInGroupRow,
-                            direction,
-                        );
-                        if (moved === true) {
-                            return true;
-                        }
-                        toFocus = moved;
-                    }
-                    break;
-                }
-                case "shift+space":
-                    if (!record) {
-                        return false;
-                    }
-                    toggleRecordSelection(record);
-                    toFocus = getElementToFocus(cell);
-                    break;
-                case "shift":
-                    getSel().shiftKeyedRecord = record;
-                    break;
-                case "enter":
-                    if (!group && !record) {
-                        return false;
-                    }
-                    if (cell.classList.contains("o_list_record_remove")) {
-                        onDeleteRecord(record);
-                        return true;
-                    }
-                    if (cellIsInGroupRow) {
-                        const button = document.activeElement.closest("button");
-                        if (button) {
-                            button.click();
-                        } else {
-                            onToggleGroup(group);
-                        }
-                        return true;
-                    }
-                    if (isInlineEditable(record) || applyMultiEditBehavior) {
-                        const columns = getColumns();
-                        const column = columns.find(
-                            (c) => c.name === cell.getAttribute("name"),
-                        );
-                        self.cellToFocus = { column, record };
-                        props.list.enterEditMode(record);
-                        return true;
-                    }
-                    if (!props.archInfo.noOpen) {
-                        onOpenRecord(record);
-                        return true;
-                    }
-                    break;
-                default:
-                    return false;
-            }
+    /**
+     * The move the grid state resolves, when the row carries a grid index:
+     * an element when it is rendered, a pending marker when virtualization
+     * still has to render it, null when the grid has no next cell.
+     *
+     * @param {import("./list_grid_state").ListGridState} gridState
+     * @param {HTMLTableCellElement} cell
+     * @param {HTMLElement} row
+     * @param {"up" | "down" | "left" | "right"} direction
+     * @returns {{ el: HTMLElement } | { pending: true } | null}
+     */
+    _findGridFocusMove(gridState, cell, row, direction) {
+        const rowIndex = Number.parseInt(row.dataset.rowIndex, 10);
+        const colIndex =
+            cell.dataset.colIndex !== undefined
+                ? Number.parseInt(cell.dataset.colIndex, 10)
+                : [...row.children].indexOf(cell);
+        const next = gridState.moveFocus(rowIndex, colIndex, direction);
+        if (!next) {
+            return null;
+        }
+        if (gridState.rowAt(next.rowIndex)?.type !== "group") {
+            this._lastKnownIndex = next.colIndex;
+        }
+        const isHorizontal = direction === "left" || direction === "right";
+        const indexDirection =
+            isHorizontal && next.colIndex !== colIndex
+                ? next.colIndex > colIndex
+                    ? "right"
+                    : "left"
+                : undefined;
+        const element = elementToFocusAtPosition(this.tableRef, next, indexDirection);
+        if (element) {
+            return { el: element };
+        }
+        const virt = this.ctx.getVirtualization?.();
+        if (!virt?.isActive) {
+            return null;
+        }
+        virt.ensureRowVisible(next.rowIndex);
+        const flat = gridState.flatRows[next.rowIndex];
+        this._pendingVirtFocus = {
+            rowIndex: next.rowIndex,
+            colIndex: next.colIndex,
+            recordId:
+                flat?.type === "record" && flat.record
+                    ? String(flat.record.id)
+                    : undefined,
+        };
+        return { pending: true };
+    }
 
-            if (toFocus) {
-                self.focus(/** @type {HTMLElement} */ (toFocus));
-                return true;
-            }
+    /**
+     * @param {HTMLTableCellElement} cell
+     * @param {boolean} cellIsInGroupRow
+     * @param {"up" | "down" | "left" | "right"} direction
+     * @returns {HTMLElement | null}
+     */
+    findFocusFutureCell(cell, cellIsInGroupRow, direction) {
+        const latched = this._latchedMove;
+        const move =
+            latched &&
+            latched.cell === cell &&
+            latched.cellIsInGroupRow === cellIsInGroupRow &&
+            latched.direction === direction
+                ? latched.move
+                : this.findFocusMove(cell, cellIsInGroupRow, direction);
+        return move && "el" in move ? move.el : null;
+    }
+
+    /**
+     * @param {HTMLElement} row
+     * @param {HTMLTableCellElement} [cell]
+     * @returns {HTMLElement | null}
+     */
+    findNextFocusableOnRow(row, cell) {
+        return findNextFocusableOnRow(row, cell);
+    }
+
+    /**
+     * @param {HTMLElement} row
+     * @param {HTMLTableCellElement} [cell]
+     * @returns {HTMLElement | null}
+     */
+    findPreviousFocusableOnRow(row, cell) {
+        return findPreviousFocusableOnRow(row, cell);
+    }
+
+    /**
+     * @param {string} hotkey
+     * @param {HTMLTableCellElement} cell
+     * @returns {boolean}
+     */
+    toggleFocusInsideCell(hotkey, cell) {
+        return togglesFocusInsideCell(hotkey, cell);
+    }
+
+    /**
+     * @param {HTMLTableCellElement} cell
+     * @param {boolean} cellIsInGroupRow
+     * @param {"up"|"down"|"left"|"right"} direction
+     * @returns {HTMLElement | true | null}
+     */
+    resolveArrowMove(cell, cellIsInGroupRow, direction) {
+        const move = this.findFocusMove(cell, cellIsInGroupRow, direction);
+        if (move && "pending" in move) {
+            this.setPendingVirtFocusOrigin(cell, cellIsInGroupRow, direction);
+            return true;
+        }
+        if (this.ctx.findFocusFutureCell) {
+            return this._dispatchFutureCell(cell, cellIsInGroupRow, direction, move);
+        }
+        return move && "el" in move ? move.el : null;
+    }
+
+    /**
+     * An arrow in read-only mode: on a group row, left and right fold and
+     * unfold; on the x2many "add a line" cell they walk its links; otherwise
+     * they move focus, which may already be handled (a pending virtual row)
+     * or find nothing.
+     *
+     * @param {"up" | "down" | "left" | "right"} direction
+     * @param {HTMLTableCellElement} cell
+     * @param {boolean} cellIsInGroupRow
+     * @param {object | null} group
+     * @returns {{ handled: true } | { toFocus: Element | null }}
+     */
+    _readOnlyArrow(direction, cell, cellIsInGroupRow, group) {
+        if (cellIsInGroupRow && direction === "left" && !group.isFolded) {
+            this.ctx.onToggleGroup(group);
+            return { handled: true };
+        }
+        if (cellIsInGroupRow && direction === "right" && group.isFolded) {
+            this.ctx.onToggleGroup(group);
+            return { handled: true };
+        }
+        if (
+            (direction === "left" || direction === "right") &&
+            cell.classList.contains("o_field_x2many_list_row_add")
+        ) {
+            const a = document.activeElement;
+            return {
+                toFocus:
+                    direction === "left"
+                        ? a.previousElementSibling
+                        : a.nextElementSibling,
+            };
+        }
+        const moved = this.resolveArrowMove(cell, cellIsInGroupRow, direction);
+        if (moved === true) {
+            return { handled: true };
+        }
+        if (!moved && direction === "up" && this.ctx.getEnv().searchModel) {
+            this.ctx.getEnv().searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
+            return { handled: true };
+        }
+        return { toFocus: moved };
+    }
+
+    /**
+     * Enter in read-only mode: delete on the remove cell, the focused button
+     * or the fold on a group row, edition on an editable or multi-edited
+     * record, else the record itself.
+     *
+     * @param {HTMLTableCellElement} cell
+     * @param {boolean} cellIsInGroupRow
+     * @param {object | null} group
+     * @param {object | null} record
+     * @param {boolean} applyMultiEditBehavior
+     * @returns {boolean}
+     */
+    _readOnlyEnter(cell, cellIsInGroupRow, group, record, applyMultiEditBehavior) {
+        if (!group && !record) {
             return false;
-        },
-    };
+        }
+        if (cell.classList.contains("o_list_record_remove")) {
+            this.ctx.onDeleteRecord(record);
+            return true;
+        }
+        if (cellIsInGroupRow) {
+            const button = document.activeElement.closest("button");
+            if (button) {
+                button.click();
+            } else {
+                this.ctx.onToggleGroup(group);
+            }
+            return true;
+        }
+        if (this.ctx.isInlineEditable(record) || applyMultiEditBehavior) {
+            const column = this.ctx
+                .getColumns()
+                .find((c) => c.name === cell.getAttribute("name"));
+            this.cellToFocus = { column, record };
+            this.ctx.getProps().list.enterEditMode(record);
+            return true;
+        }
+        if (!this.ctx.getProps().archInfo.noOpen) {
+            this.ctx.onOpenRecord(record);
+            return true;
+        }
+        return false;
+    }
 
-    Object.assign(self, makeEditHandlers(self, tableRef, ctx));
-    const nav = /** @type {ListKeyboardNavigation} */ (/** @type {unknown} */ (self));
+    /**
+     * @param {string} hotkey
+     * @param {HTMLTableCellElement} cell
+     * @param {object | null} group
+     * @param {object | null} record
+     * @returns {boolean}
+     */
+    onCellKeydownReadOnlyMode(hotkey, cell, group, record) {
+        const cellIsInGroupRow = Boolean(group && !record);
+        const applyMultiEditBehavior =
+            record?.selected && this.ctx.getProps().list.model.multiEdit;
+        let toFocus;
+        switch (hotkey) {
+            case "arrowup":
+            case "arrowdown":
+            case "arrowleft":
+            case "arrowright": {
+                const direction = /** @type {"up" | "down" | "left" | "right"} */ (
+                    hotkey.slice(5)
+                );
+                const arrow = this._readOnlyArrow(
+                    direction,
+                    cell,
+                    cellIsInGroupRow,
+                    group,
+                );
+                if ("handled" in arrow) {
+                    return true;
+                }
+                toFocus = arrow.toFocus;
+                break;
+            }
+            case "tab":
+            case "shift+tab":
+                if (cellIsInGroupRow) {
+                    toFocus = adjacentGroupButton(cell, hotkey === "tab" ? 1 : -1);
+                }
+                break;
+            case "shift+arrowdown":
+            case "shift+arrowup": {
+                const direction = hotkey === "shift+arrowdown" ? "down" : "up";
+                if (this.ctx.expandCheckboxes(record, direction)) {
+                    const moved = this.resolveArrowMove(
+                        cell,
+                        cellIsInGroupRow,
+                        direction,
+                    );
+                    if (moved === true) {
+                        return true;
+                    }
+                    toFocus = moved;
+                }
+                break;
+            }
+            case "shift+space":
+                if (!record) {
+                    return false;
+                }
+                this.ctx.toggleRecordSelection(record);
+                toFocus = getElementToFocus(cell);
+                break;
+            case "shift":
+                this.ctx.getSel().shiftKeyedRecord = record;
+                break;
+            case "enter":
+                return this._readOnlyEnter(
+                    cell,
+                    cellIsInGroupRow,
+                    group,
+                    record,
+                    applyMultiEditBehavior,
+                );
+            default:
+                return false;
+        }
+        if (toFocus) {
+            this.focus(/** @type {HTMLElement} */ (toFocus));
+            return true;
+        }
+        return false;
+    }
+}
+
+/**
+ * @param {any} tableRef
+ * @param {ListKeyboardContext} ctx
+ * @returns {ListKeyboardNavigation & import("./list_keyboard_edit").ListEditHandlers}
+ */
+export function useListKeyboardNavigation(tableRef, ctx) {
+    const nav = /** @type {any} */ (new ListKeyboardNavigation(tableRef, ctx));
+    Object.assign(nav, makeEditHandlers(nav, tableRef, ctx));
 
     const dirtyOwners = new Set();
     useBus(
-        getProps().list.model.bus,
+        ctx.getProps().list.model.bus,
         ModelEvent.FIELD_IS_DIRTY,
         (ev) =>
-            (self.lastIsDirty =
-                applyFieldDirtyPayload(dirtyOwners, ev.detail).size > 0),
+            (nav.lastIsDirty = applyFieldDirtyPayload(dirtyOwners, ev.detail).size > 0),
     );
 
-    const env = getEnv();
+    const env = ctx.getEnv();
     if (env.searchModel) {
         useBus(env.searchModel, SearchModelEvent.FOCUS_VIEW, () => {
-            if (getProps().list.model.useSampleModel) {
+            if (ctx.getProps().list.model.useSampleModel) {
                 return;
             }
             const nextTh = tableRef.el?.querySelector("thead th");
@@ -653,7 +683,7 @@ export function useListKeyboardNavigation(tableRef, ctx) {
             const toFocus = /** @type {HTMLElement} */ (
                 getTabableElements(nextTh).at(0) || nextTh
             );
-            self.focus(toFocus);
+            nav.focus(toFocus);
             ctx.setKeyboardNavigation(true);
         });
     }
