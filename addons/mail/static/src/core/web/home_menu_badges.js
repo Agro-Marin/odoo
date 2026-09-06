@@ -48,7 +48,9 @@ export function provideMailBadges(env, apps) {
             }
         });
     }
-    for (const group of store.activityGroups || []) {
+    /** @type {{ model?: string, icon?: string, today_count?: number, overdue_count?: number }[]} */
+    const groups = store.activityGroups || [];
+    for (const group of groups) {
         const due = (group.today_count || 0) + (group.overdue_count || 0);
         const module =
             typeof group.icon === "string" ? group.icon.split("/")[1] : undefined;
