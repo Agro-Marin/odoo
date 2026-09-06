@@ -81,6 +81,7 @@
                             <field name="calendar_id" placeholder="Fully Flexible" />
                             <field name="tz" />
                             <field name="time_efficiency" />
+                            <field name="capacity" invisible="resource_type != 'material'" />
                         </group>
                     </group>
                 </sheet>
@@ -111,6 +112,7 @@
                 <field name="tz" optional="hide" />
                 <field name="resource_type" optional="show" />
                 <field name="time_efficiency" />
+                <field name="capacity" optional="hide" />
             </list>
         </field>
     </record>

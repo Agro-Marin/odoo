@@ -98,9 +98,19 @@ class ResourceResource(models.Model):
         help="This field is used to calculate the expected duration of a work order at this work center. For example, if a work order takes one hour and the efficiency factor is 100%, then the expected duration will be one hour. If the efficiency factor is 200%, however the expected duration will be 30 minutes.",
     )
 
+    capacity = fields.Integer(
+        default=1,
+        required=True,
+        help="How many claims the resource can hold at once: seats at a table, concurrent users of a machine. A reservation's allocated percentage is a share of this.",
+    )
+
     _check_time_efficiency = models.Constraint(
         "CHECK(time_efficiency>0)",
         "Time efficiency must be strictly positive",
+    )
+    _check_capacity = models.Constraint(
+        "CHECK(capacity>0)",
+        "Capacity must be strictly positive",
     )
 
     @api.model

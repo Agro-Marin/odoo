@@ -14,6 +14,7 @@ class MixinResourceScheduling(models.AbstractModel):
         string="Reservations",
         domain=lambda self: [("res_model", "=", self._name)],
         bypass_search_access=True,
+        copy=False,
     )
 
     schedule_overlap_count = fields.Integer(

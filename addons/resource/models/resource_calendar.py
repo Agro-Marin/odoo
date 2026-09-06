@@ -840,11 +840,38 @@ class ResourceCalendar(models.Model):
             leave_intervals = self._leave_intervals_batch(
                 start_dt, end_dt, resources, domain, tz=effective_tz
             )
+            blocked_intervals = self._hard_reservation_intervals_batch(
+                start_dt, end_dt, resources
+            )
             return {
-                r.id: (attendance_intervals[r.id] - leave_intervals[r.id])
+                r.id: (
+                    attendance_intervals[r.id]
+                    - leave_intervals[r.id]
+                    - blocked_intervals[r.id]
+                )
                 for r in resources_list
             }
         return {r.id: attendance_intervals[r.id] for r in resources_list}
+
+    def _hard_reservation_intervals_batch(
+        self,
+        start_dt: datetime,
+        end_dt: datetime,
+        resources: ResourceResource | None = None,
+    ) -> dict[int | bool, Intervals]:
+        empty = self.env["resource.resource"]
+        result: dict[int | bool, Intervals] = {empty.id: Intervals()}
+        if not resources:
+            return result
+        booked = self.env["resource.reservation"]._reservation_intervals_batch(
+            start_dt,
+            end_dt,
+            resources,
+            domain=[("enforcement_mode", "=", "hard")],
+        )
+        for resource in resources:
+            result[resource.id] = booked.get(resource.id, Intervals())
+        return result
 
     def _unavailable_intervals(
         self,
@@ -888,9 +915,13 @@ class ResourceCalendar(models.Model):
             leaves = self._leave_intervals_batch(
                 start_dt, end_dt, flexible, domain, tz=tz
             )
+            blocked = self._hard_reservation_intervals_batch(start_dt, end_dt, flexible)
             for resource in flexible:
                 result[resource.id] = to_utc(
-                    (start, stop) for start, stop, _meta in leaves[resource.id]
+                    (start, stop)
+                    for start, stop, _meta in (
+                        leaves[resource.id] | blocked[resource.id]
+                    )
                 )
         if fixed:
             work_intervals = self._work_intervals_batch(

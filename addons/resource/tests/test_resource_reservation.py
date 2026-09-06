@@ -610,3 +610,158 @@ class TestResourceReservation(TransactionCase):
         action = res.action_view_origin()
         self.assertEqual(action["res_model"], "res.partner")
         self.assertEqual(action["res_id"], partner.id)
+
+
+@tagged("post_install", "-at_install")
+class TestHardReservationIsUnavailableTime(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.calendar = cls.env["resource.calendar"].create(
+            {"name": "Fixed 40h", "tz": "UTC"}
+        )
+        cls.flexible_calendar = cls.env["resource.calendar"].create(
+            {
+                "name": "Flexible",
+                "flexible_hours": True,
+                "hours_per_week": 40,
+                "hours_per_day": 8,
+                "tz": "UTC",
+            }
+        )
+        cls.machine = cls.env["resource.resource"].create(
+            {
+                "name": "Machine",
+                "resource_type": "material",
+                "calendar_id": cls.calendar.id,
+                "tz": "UTC",
+            }
+        )
+        cls.flexible = cls.env["resource.resource"].create(
+            {
+                "name": "Flexible machine",
+                "resource_type": "material",
+                "calendar_id": cls.flexible_calendar.id,
+                "tz": "UTC",
+            }
+        )
+        # Monday 2025-01-06, calendar attends 08:00-12:00 and 13:00-17:00.
+        cls.day_start = datetime(2025, 1, 6, 0, 0, tzinfo=UTC)
+        cls.day_end = datetime(2025, 1, 7, 0, 0, tzinfo=UTC)
+
+    def _book(self, resource, mode, start=(9, 0), end=(11, 0)):
+        return self.env["resource.reservation"].create(
+            {
+                "name": f"{mode} booking",
+                "resource_id": resource.id,
+                "date_start": datetime(2025, 1, 6, *start),
+                "date_end": datetime(2025, 1, 6, *end),
+                "enforcement_mode": mode,
+            }
+        )
+
+    def _work_hours(self, resource):
+        intervals = self.calendar._work_intervals_batch(
+            self.day_start, self.day_end, resource
+        )[resource.id]
+        return (
+            sum((stop - start).total_seconds() for start, stop, _m in intervals) / 3600
+        )
+
+    def test_soft_reservation_leaves_work_time_intact(self):
+        self._book(self.machine, "soft")
+        self.assertEqual(self._work_hours(self.machine), 8.0)
+
+    def test_hard_reservation_is_subtracted_from_work_time(self):
+        self._book(self.machine, "hard")
+        self.assertEqual(self._work_hours(self.machine), 6.0)
+
+    def test_hard_reservation_outside_attendance_costs_nothing(self):
+        self._book(self.machine, "hard", start=(18, 0), end=(22, 0))
+        self.assertEqual(self._work_hours(self.machine), 8.0)
+
+    def test_archived_hard_reservation_is_ignored(self):
+        self._book(self.machine, "hard").action_archive()
+        self.assertEqual(self._work_hours(self.machine), 8.0)
+
+    def test_compute_leaves_false_ignores_hard_reservations(self):
+        self._book(self.machine, "hard")
+        intervals = self.calendar._work_intervals_batch(
+            self.day_start, self.day_end, self.machine, compute_leaves=False
+        )[self.machine.id]
+        hours = sum((stop - start).total_seconds() for start, stop, _m in intervals)
+        self.assertEqual(hours / 3600, 8.0)
+
+    def test_hard_reservation_is_unavailable_for_a_fixed_resource(self):
+        self._book(self.machine, "hard")
+        unavailable = self.calendar._unavailable_intervals_batch(
+            self.day_start, self.day_end, self.machine
+        )[self.machine.id]
+        self.assertIn(
+            (
+                datetime(2025, 1, 6, 9, 0, tzinfo=UTC),
+                datetime(2025, 1, 6, 11, 0, tzinfo=UTC),
+            ),
+            unavailable,
+        )
+
+    def test_hard_reservation_is_unavailable_for_a_flexible_resource(self):
+        self._book(self.flexible, "hard")
+        unavailable = self.flexible_calendar._unavailable_intervals_batch(
+            self.day_start, self.day_end, self.flexible
+        )[self.flexible.id]
+        self.assertEqual(
+            unavailable,
+            [
+                (
+                    datetime(2025, 1, 6, 9, 0, tzinfo=UTC),
+                    datetime(2025, 1, 6, 11, 0, tzinfo=UTC),
+                )
+            ],
+        )
+
+    def test_resource_level_unavailability_sees_the_booking(self):
+        self._book(self.machine, "hard")
+        result = self.machine._get_unavailable_intervals(self.day_start, self.day_end)
+        self.assertTrue(
+            any(
+                start.hour == 9 and stop.hour == 11
+                for start, stop in result[self.machine.id]
+            )
+        )
+
+    def test_other_resource_is_untouched(self):
+        self._book(self.machine, "hard")
+        self.assertEqual(self._work_hours(self.flexible), 8.0)
+
+    def test_company_wide_window_has_no_reservations(self):
+        self._book(self.machine, "hard")
+        empty = self.env["resource.resource"]
+        intervals = self.calendar._work_intervals_batch(self.day_start, self.day_end)[
+            empty.id
+        ]
+        hours = sum((stop - start).total_seconds() for start, stop, _m in intervals)
+        self.assertEqual(hours / 3600, 8.0)
+
+
+@tagged("post_install", "-at_install")
+class TestResourceCapacity(TransactionCase):
+    def test_default_capacity_is_one(self):
+        resource = self.env["resource.resource"].create(
+            {"name": "Desk", "resource_type": "material", "tz": "UTC"}
+        )
+        self.assertEqual(resource.capacity, 1)
+
+    def test_capacity_must_be_positive(self):
+        from odoo.tools import mute_logger
+
+        with self.assertRaises(Exception), mute_logger("odoo.sql_db", "odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                self.env["resource.resource"].create(
+                    {
+                        "name": "Void",
+                        "resource_type": "material",
+                        "tz": "UTC",
+                        "capacity": 0,
+                    }
+                )

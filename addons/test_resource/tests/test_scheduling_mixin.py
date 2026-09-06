@@ -697,3 +697,32 @@ class TestSchedulingMixinSurplusRelease(TransactionCase):
             self.resource_b,
             "the booking moved, leaving no claim on the resource it left",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestSchedulingMixinCopy(TransactionCase):
+    def test_copy_does_not_duplicate_reservations(self):
+        calendar = self.env["resource.calendar"].create({"name": "Cal", "tz": "UTC"})
+        resource = self.env["resource.resource"].create(
+            {"name": "Machine", "calendar_id": calendar.id, "tz": "UTC"}
+        )
+        record = self.env["resource.scheduling.test"].create(
+            {
+                "name": "Original",
+                "resource_id": resource.id,
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 12, 0),
+            }
+        )
+        self.assertEqual(len(record.reservation_ids), 1)
+        copy = record.copy({"date_start": False, "date_end": False})
+        self.assertFalse(
+            copy.reservation_ids,
+            "a copy with no dates must not inherit the original's bookings",
+        )
+        self.assertEqual(
+            self.env["resource.reservation"].search_count(
+                [("resource_id", "=", resource.id)]
+            ),
+            1,
+        )

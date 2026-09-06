@@ -96,7 +96,7 @@ class TestResource(TestResourceCommon):
 
         start = datetime(2021, 7, 7, 12, 0, 0).replace(tzinfo=UTC)
         end = datetime(2021, 7, 16, 23, 59, 59).replace(tzinfo=UTC)
-        with self.assertQueryCount(13):
+        with self.assertQueryCount(17):
             work_intervals, _ = (
                 self.resources_test.resource_id._get_valid_work_intervals(start, end)
             )
