@@ -157,7 +157,15 @@ class TestDataRecycle(TransactionCase):
         self.recycle_model._recycle_records()
         self.assertTrue(self.recycle_model.recycle_record_ids)
 
-        self.recycle_model.res_model_id = self.env["ir.model"]._get("res.partner")
+        # `domain` supplied alongside: the rule's own filter (a `date` condition)
+        # is not a valid one for `res.partner`, and an explicit filter now
+        # survives a model change instead of being silently reset to '[]'.
+        self.recycle_model.write(
+            {
+                "res_model_id": self.env["ir.model"]._get("res.partner").id,
+                "domain": "[('id', '>', 0)]",
+            }
+        )
         self.assertFalse(
             self.env["data_recycle.record"]
             .with_context(active_test=False)
@@ -172,6 +180,20 @@ class TestDataRecycle(TransactionCase):
             {"name": "renamed", "res_model_id": self.server_model.id}
         )
         self.assertEqual(self.recycle_model.recycle_record_ids, before)
+
+    def test_changing_the_model_alone_keeps_the_filter(self):
+        """A `res_model_id`-only write must not silently wipe a filter that
+        might still be valid for the new model."""
+        rule = self.env["data_recycle.model"].create(
+            {
+                "name": "Keeps its filter",
+                "res_model_id": self.server_model.id,
+                "recycle_action": "unlink",
+                "domain": "[('id', '>', 0)]",
+            }
+        )
+        rule.write({"res_model_id": self.env["ir.model"]._get("res.partner").id})
+        self.assertEqual(rule.domain, "[('id', '>', 0)]")
 
     def test_a_deleted_record_leaves_the_queue_on_the_next_run(self):
         self.recycle_model._recycle_records()

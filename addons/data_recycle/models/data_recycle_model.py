@@ -115,7 +115,10 @@ class Data_RecycleModel(models.Model):
 
     @api.depends("res_model_id")
     def _compute_domain(self):
-        self.domain = "[]"
+        for recycle_model in self:
+            if recycle_model.domain:
+                continue
+            recycle_model.domain = "[]"
 
     @api.depends("res_model_id")
     def _compute_name(self):
