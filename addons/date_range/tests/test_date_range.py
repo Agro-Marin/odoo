@@ -225,6 +225,37 @@ class DateRangeTest(TransactionCase):
             )
             self.env.flush_all()
 
+    def test_parent_cycle_is_rejected(self):
+        """Two ranges cannot become each other's parent.
+
+        ``parent_id`` carries no ``_parent_store``, so Odoo's automatic cycle
+        guard never runs for this model on its own.
+        """
+        overlap_type = self.env["date.range.type"].create(
+            {"name": "Cycle test type", "company_id": False, "allow_overlap": True}
+        )
+        first = self.date_range.create(
+            {
+                "name": "C1",
+                "date_start": "2046-01-01",
+                "date_end": "2046-12-31",
+                "type_id": overlap_type.id,
+            }
+        )
+        second = self.date_range.create(
+            {
+                "name": "C2",
+                "date_start": "2046-01-01",
+                "date_end": "2046-12-31",
+                "type_id": overlap_type.id,
+                "parent_id": first.id,
+            }
+        )
+        self.env.flush_all()
+        with self.assertRaises(ValidationError), self.env.cr.savepoint():
+            first.write({"parent_id": second.id})
+            self.env.flush_all()
+
     def test_split_by(self):
         parent = self.date_range.create(
             {

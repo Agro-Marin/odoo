@@ -130,6 +130,21 @@ class DateRange(models.Model):
             )
         super()._auto_init()
 
+    @api.constrains("parent_id")
+    def _check_parent_recursion(self) -> None:
+        """Reject a range nested into its own descendant.
+
+        ``parent_id`` has no ``_parent_store``, so Odoo's automatic cycle
+        guard never runs for this model; without this check, two ranges could
+        point at each other as parent/child with no error.
+
+        :raises ValidationError: if the record is its own ancestor
+        """
+        if self._has_cycle():
+            raise ValidationError(
+                self.env._("You cannot nest a date range inside itself.")
+            )
+
     @api.constrains(
         "type_id",
         "date_start",
