@@ -24,10 +24,7 @@ export class ReCaptcha {
                 () =>
                     new Promise((resolve) => window.grecaptcha.ready(() => resolve())),
             );
-            return this._recaptchaReady.then(
-                () => !!document.querySelector(".grecaptcha-badge"),
-                () => false,
-            );
+            return this._recaptchaReady.then(undefined, () => false);
         }
         return false;
     }
