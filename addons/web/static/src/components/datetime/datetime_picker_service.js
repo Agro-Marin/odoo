@@ -254,6 +254,15 @@ export class DateTimePickerController {
     enable = () => {
         /** @type {Array<[Element, string, (ev: any) => void]>} */
         const addedListeners = [];
+        /**
+         * @param {Element} el
+         * @param {string} event
+         * @param {(ev: any) => void} handler
+         */
+        const listen = (el, event, handler) => {
+            el.addEventListener(event, handler);
+            addedListeners.push([el, event, handler]);
+        };
         this.disableListeners?.();
         for (const [el, value] of zip(
             this.getInputs(),
@@ -263,26 +272,18 @@ export class DateTimePickerController {
             const inputEl = /** @type {HTMLInputElement} */ (el);
             this.updateInput(inputEl, value);
             if (inputEl && !inputEl.disabled && !inputEl.readOnly) {
-                inputEl.addEventListener("change", this.onInputChange);
-                inputEl.addEventListener("click", this.onInputClick);
-                inputEl.addEventListener("focus", this.onInputFocus);
-                inputEl.addEventListener("keydown", this.onInputKeydown);
-                addedListeners.push(
-                    [inputEl, "change", this.onInputChange],
-                    [inputEl, "click", this.onInputClick],
-                    [inputEl, "focus", this.onInputFocus],
-                    [inputEl, "keydown", this.onInputKeydown],
-                );
+                listen(inputEl, "change", this.onInputChange);
+                listen(inputEl, "click", this.onInputClick);
+                listen(inputEl, "focus", this.onInputFocus);
+                listen(inputEl, "keydown", this.onInputKeydown);
             }
         }
         const calendarIconGroupEl = this.getInput(0)?.parentElement?.querySelector(
             ".o_input_group_date_icon",
         );
-        const onCalendarIconClick = () => this.open(0);
         if (calendarIconGroupEl) {
             calendarIconGroupEl.classList.add("cursor-pointer");
-            calendarIconGroupEl.addEventListener("click", onCalendarIconClick);
-            addedListeners.push([calendarIconGroupEl, "click", onCalendarIconClick]);
+            listen(calendarIconGroupEl, "click", () => this.open(0));
         }
         const removeListeners = () => {
             if (this.disableListeners === removeListeners) {
