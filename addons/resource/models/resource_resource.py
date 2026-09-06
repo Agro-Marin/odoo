@@ -8,6 +8,7 @@ from dateutil.relativedelta import MO, relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
 from odoo.models import ValuesType
@@ -98,6 +99,17 @@ class ResourceResource(models.Model):
         help="This field is used to calculate the expected duration of a work order at this work center. For example, if a work order takes one hour and the efficiency factor is 100%, then the expected duration will be one hour. If the efficiency factor is 200%, however the expected duration will be 30 minutes.",
     )
 
+    assignment_ids = fields.One2many(
+        "resource.assignment",
+        "resource_id",
+        string="Assignments",
+    )
+    holder_id = fields.Many2one(
+        "resource.resource",
+        compute="_compute_holder_id",
+        search="_search_holder_id",
+        string="Current Holder",
+    )
     capacity = fields.Integer(
         default=1,
         required=True,
@@ -120,6 +132,27 @@ class ResourceResource(models.Model):
             company = self.env["res.company"].browse(res["company_id"])
             res["calendar_id"] = company.resource_calendar_id.id
         return res
+
+    @api.depends(
+        "assignment_ids.assignee_id",
+        "assignment_ids.date_start",
+        "assignment_ids.date_end",
+    )
+    def _compute_holder_id(self):
+        assignment_model = self.env["resource.assignment"]
+        for resource in self:
+            resource.holder_id = assignment_model._get_holder(resource)
+
+    def _search_holder_id(self, operator, value):
+        if operator not in ("=", "in", "!=", "not in"):
+            return NotImplemented
+        now = fields.Datetime.now()
+        held = self.env["resource.assignment"]._search(
+            Domain("assignee_id", operator, value)
+            & Domain("date_start", "<=", now)
+            & (Domain("date_end", "=", False) | Domain("date_end", ">", now))
+        )
+        return [("assignment_ids", "in", held)]
 
     def _default_color(self):
         return randint(1, 11)

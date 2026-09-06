@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="resource_assignment_view_list" model="ir.ui.view">
+        <field name="name">resource.assignment.list</field>
+        <field name="model">resource.assignment</field>
+        <field name="arch" type="xml">
+            <list string="Assignments" decoration-muted="state == 'ended'">
+                <field name="resource_id" />
+                <field name="assignee_id" />
+                <field name="role" />
+                <field name="date_start" />
+                <field name="date_end" />
+                <field name="state" />
+                <field name="schedule_overlap_count" string="Conflicts" optional="hide" />
+                <field
+                    name="company_id"
+                    optional="hide"
+                    groups="base.group_multi_company" />
+            </list>
+        </field>
+    </record>
+
+    <record id="resource_assignment_view_form" model="ir.ui.view">
+        <field name="name">resource.assignment.form</field>
+        <field name="model">resource.assignment</field>
+        <field name="arch" type="xml">
+            <form string="Assignment">
+                <sheet>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
+                        invisible="active" />
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1" />
+                        </h1>
+                    </div>
+                    <group>
+                        <group name="parties">
+                            <field name="active" invisible="1" />
+                            <field name="resource_id" />
+                            <field name="assignee_id" />
+                            <field name="role" />
+                        </group>
+                        <group name="period">
+                            <field name="date_start" />
+                            <field name="date_end" />
+                            <field name="state" />
+                            <field name="schedule_overlap_count" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company" />
+                        </group>
+                    </group>
+                    <field name="note" placeholder="Why, or under what terms" />
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="resource_assignment_view_search" model="ir.ui.view">
+        <field name="name">resource.assignment.search</field>
+        <field name="model">resource.assignment</field>
+        <field name="arch" type="xml">
+            <search string="Assignments">
+                <field name="resource_id" />
+                <field name="assignee_id" />
+                <filter name="active" string="Active" domain="[('state', '=', 'active')]" />
+                <filter name="planned" string="Planned" domain="[('state', '=', 'planned')]" />
+                <filter name="ended" string="Ended" domain="[('state', '=', 'ended')]" />
+                <separator />
+                <filter name="archived" string="Archived" domain="[('active', '=', False)]" />
+                <separator />
+                <filter name="group_resource" string="Resource" context="{'group_by': 'resource_id'}" />
+                <filter name="group_assignee" string="Assignee" context="{'group_by': 'assignee_id'}" />
+                <filter name="group_role" string="Role" context="{'group_by': 'role'}" />
+            </search>
+        </field>
+    </record>
+
+    <record id="action_resource_assignment" model="ir.actions.act_window">
+        <field name="name">Assignments</field>
+        <field name="res_model">resource.assignment</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="resource_assignment_view_search" />
+        <field name="context">{'search_default_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Hand a resource to someone
+            </p>
+            <p>
+                Who drives the truck, who operates the press, who answers for the laptop: one record per custody, with its period.
+            </p>
+        </field>
+    </record>
+
+</odoo>

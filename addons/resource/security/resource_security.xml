@@ -47,4 +47,10 @@
         <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
     </record>
 
+    <record id="resource_assignment_rule_multi_company" model="ir.rule">
+        <field name="name">resource.assignment: multi-company rule</field>
+        <field name="model_id" ref="model_resource_assignment" />
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+    </record>
+
 </odoo>

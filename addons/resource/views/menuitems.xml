@@ -38,6 +38,12 @@
         sequence="5" />
 
     <menuitem
+        id="menu_resource_assignment"
+        parent="menu_resource_config"
+        action="action_resource_assignment"
+        sequence="7" />
+
+    <menuitem
         id="menu_resource_my_schedule"
         parent="menu_resource_config"
         action="action_resource_my_schedule"

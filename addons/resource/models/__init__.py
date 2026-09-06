@@ -10,4 +10,5 @@ from . import mixin_resource_scheduling_tools
 from . import mixin_resource_scheduling
 from . import mixin_resource_allocation
 from . import resource_reservation
+from . import resource_assignment
 from . import utils
