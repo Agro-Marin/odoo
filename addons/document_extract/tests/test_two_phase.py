@@ -6,6 +6,7 @@ from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.document_extract.tools import (
     FREE,
+    GENERATIVE,
     METERED,
     PENDING,
     BaseExtractor,
@@ -135,6 +136,33 @@ class TestTwoPhase(TransactionCase):
 
         self.assertTrue(result.satisfied)
         self.assertEqual(slow.submissions, [])
+
+    def test_a_resume_that_satisfies_everything_does_not_run_a_further_extractor(self):
+        slow = _Slow(answer_on=1)
+        calls = []
+
+        class _Unwanted(BaseExtractor):
+            name = "unwanted"
+            doc_types = ("two_phase_test",)
+            needs = ("text",)
+            cost = GENERATIVE
+            confidence = 0.9
+
+            def extract(self, source, doc_type, wanted, env=None):
+                calls.append(wanted)
+
+        with _only(slow, _Unwanted()):
+            result = cascade.run(_DOC, "two_phase_test", allow_pending=True)
+            result = cascade.run(
+                _DOC,
+                "two_phase_test",
+                allow_pending=True,
+                pending=result.pending,
+            )
+
+        self.assertTrue(result.satisfied)
+        self.assertEqual(calls, [])
+        self.assertNotIn("unwanted", result.ran)
 
     def test_a_service_that_declines_the_document_is_not_waited_on(self):
         class _Declines(_Slow):
