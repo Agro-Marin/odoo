@@ -98,7 +98,7 @@
                                 <td style="width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;">Location</td>
                                 <td style="padding-top: 6px;">
                                     <t t-out="object.event_id.location or ''">Bruxelles</t>
-                                    <a target="_blank" t-if="not is_online or is_online and object.event_id.location != object.event_id.appointment_type_id.location_id.name" t-attf-href="http://maps.google.com/maps?oi=map&amp;q={{object.event_id.location}}" style="margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;">View Map</a>
+                                    <a target="_blank" t-if="not is_online or is_online and object.event_id.location != object.event_id.appointment_type_id.location_id.name" t-attf-href="https://maps.google.com/maps?oi=map&amp;q={{object.event_id.location.replace('%', '%25').replace('&amp;', '%26').replace('#', '%23').replace('+', '%2B').replace(' ', '+')}}" style="margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;">View Map</a>
                                 </td>
                             </tr>
                             <tr t-if="object.event_id.videocall_location">
@@ -263,7 +263,7 @@
                                 <td style="width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;">Location</td>
                                 <td style="padding-top: 6px;">
                                     <t t-out="object.event_id.location or ''">Bruxelles</t>
-                                    <a target="_blank" t-if="not is_online or is_online and object.event_id.location != object.event_id.appointment_type_id.location_id.name" t-attf-href="http://maps.google.com/maps?oi=map&amp;q={{object.event_id.location}}" style="margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;">View Map</a>
+                                    <a target="_blank" t-if="not is_online or is_online and object.event_id.location != object.event_id.appointment_type_id.location_id.name" t-attf-href="https://maps.google.com/maps?oi=map&amp;q={{object.event_id.location.replace('%', '%25').replace('&amp;', '%26').replace('#', '%23').replace('+', '%2B').replace(' ', '+')}}" style="margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;">View Map</a>
                                 </td>
                             </tr>
                             <tr t-if="object.event_id.videocall_location">
@@ -402,7 +402,7 @@
                                 <td style="width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;">Location</td>
                                 <td style="padding-top: 6px;">
                                     <t t-out="object.event_id.location or ''">Bruxelles</t>
-                                    <a target="_blank" t-if="not is_online or is_online and object.event_id.location != object.event_id.appointment_type_id.location_id.name" t-attf-href="http://maps.google.com/maps?oi=map&amp;q={{object.event_id.location}}" style="margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;">View Map</a>
+                                    <a target="_blank" t-if="not is_online or is_online and object.event_id.location != object.event_id.appointment_type_id.location_id.name" t-attf-href="https://maps.google.com/maps?oi=map&amp;q={{object.event_id.location.replace('%', '%25').replace('&amp;', '%26').replace('#', '%23').replace('+', '%2B').replace(' ', '+')}}" style="margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;">View Map</a>
                                 </td>
                             </tr>
                             <tr t-if="object.event_id.videocall_location">
@@ -524,7 +524,7 @@
                                 <td style="width: 100px; padding-top: 6px; color: #676F7B;">Location</td>
                                 <td style="padding-top: 6px;">
                                     <t t-out="object.location or ''">Bruxelles</t>
-                                    <a target="_blank" t-if="not is_online or is_online and object.location != object.appointment_type_id.location_id.name" t-attf-href="http://maps.google.com/maps?oi=map&amp;q={{object.location}}" style="margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;">View Map</a>
+                                    <a target="_blank" t-if="not is_online or is_online and object.location != object.appointment_type_id.location_id.name" t-attf-href="https://maps.google.com/maps?oi=map&amp;q={{object.location.replace('%', '%25').replace('&amp;', '%26').replace('#', '%23').replace('+', '%2B').replace(' ', '+')}}" style="margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;">View Map</a>
                                 </td>
                             </tr>
                             <tr t-if="object.videocall_location">
