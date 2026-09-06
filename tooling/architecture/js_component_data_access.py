@@ -32,7 +32,6 @@ PINNED: frozenset[str] = frozenset(
     {
         "domain_selector/domain_selector.js  field",
         "domain_selector/utils.js  field",
-        "domain_selector_dialog/domain_selector_dialog.js  orm",
         "domain_selector_dialog/domain_selector_dialog.js  rpc",
         "model_field_selector/model_field_selector.js  field",
         "model_field_selector/model_field_selector_popover.js  field",
