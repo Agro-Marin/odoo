@@ -128,6 +128,8 @@ export class HomeMenu extends Component {
     config;
     /** @type {boolean} */
     compositionStart = false;
+    /** @type {boolean} */
+    focusSelectedTile = false;
 
     /** @type {import("services").ServiceFactories["command"]} */
     command;
@@ -200,9 +202,10 @@ export class HomeMenu extends Component {
                     this.rootRef.el?.querySelector(".o_menuitem.o_focused")
                 );
                 if (selectedItem) {
-                    // A tile that holds the real focus keeps it as the
-                    // selection moves; the search input keeps a virtual one.
-                    if (this._focusIsOnTile()) {
+                    // The arrow keys move the real focus: from the search box
+                    // onto the tiles, then between them.
+                    if (this.focusSelectedTile) {
+                        this.focusSelectedTile = false;
                         selectedItem.focus({ preventScroll: true });
                     }
                     selectedItem.scrollIntoView({ block: "center" });
@@ -304,13 +307,6 @@ export class HomeMenu extends Component {
     /** @returns {HTMLInputElement | null} */
     get inputEl() {
         return /** @type {HTMLInputElement | null} */ (this.inputRef.el);
-    }
-
-    /** @returns {string | undefined} */
-    get focusedAppId() {
-        return this.state.focusedIndex === null
-            ? undefined
-            : `result_app_${this.state.focusedIndex}`;
     }
 
     /** @returns {number} */
@@ -440,6 +436,7 @@ export class HomeMenu extends Component {
         if (lastIndex < 0) {
             return;
         }
+        this.focusSelectedTile = true;
         if (focusedIndex === null) {
             this.state.focusedIndex = 0;
             return;
@@ -512,17 +509,6 @@ export class HomeMenu extends Component {
     // click stays a click.
     _enableAppsSorting() {
         return this.state.editing;
-    }
-
-    /** @returns {boolean} */
-    _focusIsOnTile() {
-        const active = document.activeElement;
-        return (
-            active !== this.inputEl &&
-            active instanceof HTMLElement &&
-            active.matches(".o_app") &&
-            Boolean(this.rootRef.el?.contains(active))
-        );
     }
 
     //--------------------------------------------------------------------------

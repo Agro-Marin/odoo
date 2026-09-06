@@ -750,3 +750,26 @@ test("outside the edit mode a hold on a tile is not a drag", async () => {
     expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.1");
     expect.verifySteps([]);
 });
+
+test("the arrows move the real focus from the search box onto the tiles, a letter brings it back", async () => {
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    expect(".o_home_menu_search").toBeFocused();
+    expect(".o_home_menu_search").not.toHaveAttribute("aria-activedescendant");
+    expect(".o_app[role]").toHaveCount(0, {
+        message: "a tile is a link, nothing else",
+    });
+
+    await press("ArrowDown");
+    await animationFrame();
+    expect(".o_app:eq(0)").toBeFocused();
+    await press("ArrowRight");
+    await animationFrame();
+    expect(".o_app:eq(1)").toBeFocused();
+    expect(".o_app:eq(1)").toHaveClass("o_focused");
+
+    await press("a");
+    await animationFrame();
+    expect(".o_command_palette_search input").toBeFocused({
+        message: "typing on a tile searches, as it does from the box",
+    });
+});
