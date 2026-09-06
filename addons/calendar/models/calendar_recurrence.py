@@ -137,9 +137,10 @@ class CalendarRecurrence(models.Model):
     _month_day = models.Constraint(
         """CHECK (
         rrule_type != 'monthly'
-        OR month_by != 'day'
-        OR day >= 1 AND day <= 31
-        OR weekday IN %s AND byday IN %s)"""
+        OR (month_by = 'date' AND day >= 1 AND day <= 31)
+        OR (month_by = 'day'
+            AND weekday IS NOT NULL AND weekday IN %s
+            AND byday IS NOT NULL AND byday IN %s))"""
         % (
             tuple(wd[0] for wd in WEEKDAY_SELECTION),
             tuple(bd[0] for bd in BYDAY_SELECTION),
