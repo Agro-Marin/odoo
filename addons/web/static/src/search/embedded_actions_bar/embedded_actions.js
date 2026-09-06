@@ -107,7 +107,6 @@ export class EmbeddedActionsConfigHandler {
                 return false;
             }
         };
-        this._writeQueue = this._writeQueue || Promise.resolve();
         const result = this._writeQueue.then(run, run);
         this._writeQueue = result.catch(() => {});
         return result;
@@ -206,15 +205,23 @@ export class EmbeddedActions {
             embeddedActions: this.defaultEmbeddedActions || [],
             newActionIsShared: false,
             newActionName: this.defaultNewActionName,
-            visibleEmbeddedActions: [
-                ...(this.configHandler.getEmbeddedActionsConfig(
-                    "embedded_actions_visibility",
-                ) || []),
-            ],
+            visibleEmbeddedActions: [],
             showAllEmbeddedActions: false,
             currentEmbeddedAction: this.currentEmbeddedAction,
         });
+        this._applyStoredConfig();
+    }
 
+    /**
+     * Take the visibility list and the order the stored configuration
+     * holds, when it holds any.
+     */
+    _applyStoredConfig() {
+        this.embeddedInfos.visibleEmbeddedActions = [
+            ...(this.configHandler.getEmbeddedActionsConfig(
+                "embedded_actions_visibility",
+            ) || []),
+        ];
         const embeddedOrder = this.configHandler.getEmbeddedActionsConfig(
             "embedded_actions_order",
         );
@@ -227,15 +234,28 @@ export class EmbeddedActions {
      * @returns {EmbeddedAction}
      */
     get currentEmbeddedAction() {
-        if (!this.env.config) {
-            return /** @type {any} */ ({});
-        }
         const { currentEmbeddedActionId } = this.env.config;
         return (
             this.defaultEmbeddedActions?.find(
                 ({ id }) => id === currentEmbeddedActionId,
             ) || this.defaultEmbeddedActions?.[0]
         );
+    }
+
+    /**
+     * The context an embedded action is opened or replaced with: its own
+     * declared context under the record it is embedded in.
+     *
+     * @param {EmbeddedAction} action
+     * @returns {Record<string, any>}
+     */
+    _actionContext(action) {
+        const { active_id, active_model } = this.env.searchModel.globalContext;
+        return {
+            ...(action.context ? makeContext([action.context]) : {}),
+            active_id,
+            active_model,
+        };
     }
 
     /** @returns {string} */
@@ -288,17 +308,7 @@ export class EmbeddedActions {
                 await this.configHandler.fetchEmbeddedActionsConfig();
             if (this.configHandler.embeddedActionsKey in embeddedSettings) {
                 this.configHandler.updateEmbeddedActionsConfig(embeddedSettings);
-                this.embeddedInfos.visibleEmbeddedActions = [
-                    ...(this.configHandler.getEmbeddedActionsConfig(
-                        "embedded_actions_visibility",
-                    ) || []),
-                ];
-                const embeddedOrder = this.configHandler.getEmbeddedActionsConfig(
-                    "embedded_actions_order",
-                );
-                if (embeddedOrder) {
-                    this.sortActions(embeddedOrder);
-                }
+                this._applyStoredConfig();
                 await this.configHandler.setEmbeddedActionsConfig({
                     embedded_visibility: true,
                 });
@@ -429,10 +439,7 @@ export class EmbeddedActions {
             isShared: newActionIsShared,
             embeddedActionId,
         });
-        Object.assign(this.embeddedInfos, {
-            newActionName: "",
-            newActionIsShared: false,
-        });
+        this.embeddedInfos.newActionIsShared = false;
         const enrichedNewEmbeddedAction = /** @type {EmbeddedAction} */ ({
             ...values,
             parent_action_id,
@@ -459,7 +466,7 @@ export class EmbeddedActions {
             );
         }
         this.embeddedInfos.currentEmbeddedAction = enrichedNewEmbeddedAction;
-        this.embeddedInfos.newActionName = `${newActionName} Custom`;
+        this.embeddedInfos.newActionName = _t("Custom %s", newActionName);
         return true;
     }
 
@@ -500,15 +507,8 @@ export class EmbeddedActions {
             embedded_actions_order: order,
         });
         if (action.id === currentEmbeddedAction?.id) {
-            const { active_id, active_model } = this.env.searchModel.globalContext;
-            const actionContext = action.context ? makeContext([action.context]) : {};
-            const additionalContext = {
-                ...actionContext,
-                active_id,
-                active_model,
-            };
             this.actionService.doAction(relationId(action.parent_action_id), {
-                additionalContext,
+                additionalContext: this._actionContext(action),
                 stackPosition: "replaceCurrentAction",
             });
         }
@@ -518,12 +518,9 @@ export class EmbeddedActions {
      * @param {EmbeddedAction} action
      */
     async openAction(action) {
-        const { active_id, active_model } = this.env.searchModel.globalContext;
-        const actionContext = action.context ? makeContext([action.context]) : {};
+        /** @type {Record<string, any>} */
         const context = {
-            ...actionContext,
-            active_id,
-            active_model,
+            ...this._actionContext(action),
             current_embedded_action_id: action.id,
             parent_action_embedded_actions: this.embeddedInfos.embeddedActions,
             parent_action_id: relationId(action.parent_action_id),
@@ -531,7 +528,7 @@ export class EmbeddedActions {
         this.actionService.doActionButton(
             {
                 type: action.python_method ? "object" : "action",
-                resId: this.env.searchModel?.globalContext.active_id,
+                resId: context.active_id,
                 name: action.python_method || relationId(action.action_id),
                 resModel: action.parent_res_model,
                 context,

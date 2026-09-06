@@ -46,6 +46,7 @@ function makeConfigHandler({ orm, notification, initialConfig } = {}) {
     handler.embeddedActionsConfig = initialConfig || {};
     handler.orm = orm || { call: async () => true };
     handler.notification = notification || { add: () => {} };
+    handler._writeQueue = Promise.resolve();
     return handler;
 }
 
@@ -371,6 +372,8 @@ describe("EmbeddedActions.saveNewAction", () => {
         expect(createdValues.action_id).toBe(42);
         expect(createdValues.parent_action_id).toBe(1);
         expect(self.embeddedInfos.visibleEmbeddedActions).toEqual([7, 123]);
+        expect(self.embeddedInfos.newActionName).toBe("Custom My action");
+        expect(self.embeddedInfos.newActionIsShared).toBe(false);
     });
 
     test("bare numeric action_id is used as-is, not replaced by the current action", async () => {

@@ -26,49 +26,6 @@
     flex-grow: 1;
 }
 
-.o_filter_menu {
-    .o_filter_condition {
-        &.o_filter_condition_with_buttons {
-            padding-right: 0;
-            padding-left: $dropdown-item-padding-x * 1.5;
-        }
-
-        .o_or_filter {
-            @include o-position-absolute($left: $dropdown-item-padding-x * 0.2);
-        }
-
-        .o_generator_menu_value {
-            color: var(--o-text);
-
-            .datepickerbutton {
-                cursor: pointer;
-                @include o-position-absolute(3px, -20px);
-            }
-        }
-
-        .o_generator_menu_delete {
-            @include o-hover-opacity(0.8, 1);
-            @include o-position-absolute(
-                $dropdown-item-padding-x * 0.3,
-                $dropdown-item-padding-x * 0.2,
-                auto,
-                auto
-            );
-
-            &:hover {
-                background-color: o-palette-token(--o-gray-100, map-get($grays, "100"));
-            }
-        }
-    }
-    .o_add_condition {
-        line-height: 1.1;
-
-        .fa {
-            font-size: $font-size-lg;
-        }
-    }
-}
-
 .o_web_client .o_mobile_search {
     align-items: normal;
     background-color: var(--mobileSearch-bg, var(--o-white));
@@ -136,40 +93,5 @@
                 }
             }
         }
-
-        .o_mobile_search_filter {
-            padding: 8px 20px 15%;
-            flex: auto;
-
-            .dropdown {
-                margin-top: 15px;
-                flex-direction: column;
-                line-height: 2;
-
-                &:not(.show) {
-                    box-shadow: 0 0 0 1px o-token(--border-color, $border-color);
-                }
-            }
-
-            .dropdown,
-            .dropdown-toggle {
-                width: 100%;
-            }
-
-            .dropdown-backdrop {
-                z-index: -1;
-            }
-
-            .dropdown-menu {
-                position: relative !important;
-                top: 0 !important;
-                left: 0 !important;
-                width: 100%;
-            }
-        }
-    }
-
-    .o_mobile_search_footer {
-        width: 100%;
     }
 }

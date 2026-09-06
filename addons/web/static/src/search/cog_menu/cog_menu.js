@@ -50,7 +50,7 @@ export class CogMenu extends ActionMenus {
 
     /** @returns {boolean} */
     get hasItems() {
-        return this.cogItems.length || this.props.items.print?.length;
+        return Boolean(this.cogItems.length || this.props.items.print?.length);
     }
 
     /**

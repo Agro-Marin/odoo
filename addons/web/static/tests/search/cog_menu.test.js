@@ -95,23 +95,23 @@ describe("cogItems", () => {
 });
 
 describe("hasItems", () => {
-    test("nothing to show, and no print key, answers undefined", () => {
-        expect(makeCogMenu().hasItems).toBe(undefined);
+    test("nothing to show, and no print key, answers false", () => {
+        expect(makeCogMenu().hasItems).toBe(false);
     });
 
-    test("nothing to show with an empty print list answers zero", () => {
-        expect(makeCogMenu({ props: { items: { print: [] } } }).hasItems).toBe(0);
+    test("nothing to show with an empty print list answers false", () => {
+        expect(makeCogMenu({ props: { items: { print: [] } } }).hasItems).toBe(false);
     });
 
     test("a cog item alone is enough", () => {
-        expect(makeCogMenu({ registryItems: [{ key: "a" }] }).hasItems).toBe(1);
+        expect(makeCogMenu({ registryItems: [{ key: "a" }] }).hasItems).toBe(true);
     });
 
     test("a print item alone is enough", () => {
         const menu = makeCogMenu({
             props: { items: { print: [{ id: 1 }, { id: 2 }] } },
         });
-        expect(menu.hasItems).toBe(2);
+        expect(menu.hasItems).toBe(true);
     });
 
     test("an absent print key does not throw", () => {
