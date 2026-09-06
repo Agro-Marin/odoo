@@ -1296,6 +1296,56 @@ class TestDigestDefects(TestDigestCommon):
             "the five left over are still due on the next pass, not skipped",
         )
 
+    def test_a_broken_kpi_does_not_abort_the_whole_batch(self):
+        """A KPI compute can be arbitrary Studio-authored logic. Only
+        `AccessError` was ever caught around it, so any other exception used
+        to propagate out of `_action_send`'s whole loop over `self` -- taking
+        down every other digest sharing that same uncommitted cron batch,
+        alphabetically-first digest included."""
+        Digest = self.env["digest.digest"]
+        Digest.search([]).write({"state": "deactivated"})
+        today = fields.Date.today()
+        bad, good = Digest.create(
+            [
+                {
+                    "name": "Bad Digest (broken KPI)",
+                    "next_run_date": today,
+                    "periodicity": "daily",
+                    "kpi_res_users_connected": True,
+                    "user_ids": [Command.link(self.user_employee.id)],
+                },
+                {
+                    "name": "Good Digest",
+                    "next_run_date": today,
+                    "periodicity": "daily",
+                    "user_ids": [Command.link(self.user_employee.id)],
+                },
+            ]
+        )
+        # a recipient with no recent log gets slowed down (periodicity bumped
+        # to weekly) regardless of this test's fix -- give them one so the
+        # only thing under test is the batch-isolation behaviour.
+        self._setup_logs_for_users(self.user_employee, fields.Datetime.now())
+        self.env.flush_all()
+
+        def _raise(records):
+            raise ZeroDivisionError("broken KPI formula")
+
+        with (
+            patch.object(type(bad), "_compute_kpi_res_users_connected_value", _raise),
+            self.mock_mail_gateway(),
+        ):
+            (bad + good).action_send()
+
+        self.assertEqual(len(self._new_mails), 1, "the good digest still gets its mail")
+        self.assertEqual(self._new_mails.email_to, self.user_employee.email_formatted)
+        self.assertEqual(
+            bad.next_run_date,
+            today + relativedelta(days=1),
+            "the broken digest is still rescheduled, not stuck retrying forever",
+        )
+        self.assertEqual(good.next_run_date, today + relativedelta(days=1))
+
     @users("admin")
     def test_create_seeds_the_run_date_without_a_second_write(self):
         digests = self.env["digest.digest"].create(
