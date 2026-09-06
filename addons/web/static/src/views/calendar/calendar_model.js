@@ -285,6 +285,8 @@ export class CalendarModel extends Model {
         const values = await multiCreateData.record.getChanges();
         const timeRange = multiCreateData.timeRange;
 
+        // Only the first section assigns: crossing every active filter of every
+        // section would create one record per combination.
         const [section] = this.filterSections;
         const assignableFilters = section
             ? section.filters.filter((filter) =>
