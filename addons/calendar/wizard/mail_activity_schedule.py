@@ -16,11 +16,14 @@ class MailActivitySchedule(models.TransientModel):
             )
         if not self.res_model:
             return self._action_schedule_activities_personal().action_create_calendar_event()
+        res_ids = self._evaluate_res_ids()
+        if not res_ids:
+            raise UserError(_("There is no record to schedule this activity on."))
         return (
             self.with_context(
                 {
                     "default_res_model": self.res_model or False,
-                    "default_res_id": self._evaluate_res_ids()[0],
+                    "default_res_id": res_ids[0],
                 }
             )
             ._action_schedule_activities()
