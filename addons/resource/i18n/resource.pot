@@ -1364,3 +1364,10 @@ msgstr ""
 msgid "e.g. Developer"
 msgstr ""
 
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/resource_calendar.py:0
+msgid ""
+"%(names)s: a line on a 2 weeks calendar must belong to the first or the "
+"second week."
+msgstr ""

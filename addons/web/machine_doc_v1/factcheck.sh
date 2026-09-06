@@ -308,7 +308,8 @@ assert_eq "Reactive class declarations in core/addons/web" "$reactive_web" "0"
 
 if skip_missing "$ADDONS/enterprise" "SignalStore cross-repo declaration count" 1; then :; else
     signalstore=$(count_prod_decls "$SIGNALSTORE_PATTERN")
-    assert_eq "SignalStore class declarations (production code)" "$signalstore" "25"
+    assert_doc_cites "STATE_MANAGEMENT cites the SignalStore declaration count" \
+        "$signalstore" '%s production class declarations fork-wide' STATE_MANAGEMENT.md
 fi
 assert_eq "load_coordinator.js stays deleted" \
     "$([ -f "$WEB/static/src/model/relational_model/load_coordinator.js" ] && echo 1 || echo 0)" "0"

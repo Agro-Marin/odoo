@@ -5859,3 +5859,74 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "📈 Approval Velocity"
 msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_prediction.py:0
+msgid "%(label)s (%(confidence)d%% of comparable requests went this way)."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_category_approver.py:0
+msgid ""
+"%(user)s does not belong to company %(company)s, so they cannot approve "
+"requests of category '%(category)s'. Add the company to the user or choose "
+"another approver."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_prediction.py:0
+msgid "Not enough comparable decided requests to predict an outcome."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_access.py:0
+msgid ""
+"Only the request owner or an approval manager can change %(fields)s once the request is submitted: it decides who approves and how soon the reminders fire.\n"
+"\n"
+"Request: %(name)s"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_prediction.py:0
+msgid "Outcome prediction"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid "Refuse Requests"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_rule.py:0
+msgid ""
+"Rule '%(rule)s' is scoped to %(company)s but its category '%(category)s' "
+"belongs to %(other)s, so it could never apply. Leave the company empty or "
+"set it to the category's."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_rule.py:0
+msgid ""
+"Rule '%(rule)s' is scoped to %(company)s; these approvers are not members of"
+" it: %(users)s."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/wizard/approval_decision_wizard.py:0
+msgid "There is no approval to refuse."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_prediction.py:0
+msgid "This request is already decided."
+msgstr ""

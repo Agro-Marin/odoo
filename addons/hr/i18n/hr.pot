@@ -5548,3 +5548,25 @@ msgstr ""
 #: model:ir.model,name:hr.model_mixin_hr
 msgid "mixin.hr"
 msgstr ""
+
+#. module: hr
+#. odoo-python
+#: code:addons/hr/models/hr_employee.py:0
+msgid ""
+"%(employee)s is linked to user %(user)s, so their work contact must be that "
+"user's contact, not %(contact)s."
+msgstr ""
+
+#. module: hr
+#. odoo-python
+#: code:addons/hr/models/hr_employee.py:0
+msgid "Each fixed amount must be a number of zero or more."
+msgstr ""
+
+#. module: hr
+#. odoo-python
+#: code:addons/hr/models/hr_version.py:0
+msgid ""
+"The working hours %(calendar)s belong to %(calendar_company)s and cannot be "
+"used by %(employee)s of %(company)s."
+msgstr ""

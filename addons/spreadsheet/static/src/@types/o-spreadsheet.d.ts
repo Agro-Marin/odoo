@@ -135,6 +135,26 @@ declare module "@odoo/o-spreadsheet" {
     // -----------------------------------------------------------------
     // Functions / formulas
     // -----------------------------------------------------------------
+    export interface Token {
+        type: string;
+        value: string;
+    }
+    export interface AST {
+        type: string;
+        value?: any;
+        args?: AST[];
+    }
+    export interface FunctionContext {
+        parent: string;
+        argPosition: number;
+        argsTokens: Token[][];
+        args: (AST | undefined)[];
+    }
+    export interface EnrichedToken extends Token {
+        start: number;
+        end: number;
+        functionContext?: FunctionContext;
+    }
     export interface AddFunctionDescription {
         [key: string]: any;
     }
@@ -182,7 +202,7 @@ declare module "@odoo/o-spreadsheet" {
     export function getCaretUpSvg(): string;
     export function setTranslationMethod(
         translateFn: (term: string, ...args: any[]) => string,
-        getTranslatedTerms?: () => any
+        getTranslatedTerms?: () => any,
     ): void;
     export function addFunction(name: string, descr: AddFunctionDescription): void;
 
