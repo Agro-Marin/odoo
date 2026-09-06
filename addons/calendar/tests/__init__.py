@@ -4,7 +4,7 @@ from . import test_calendar
 from . import test_calendar_activity
 from . import test_calendar_controller
 from . import test_calendar_reservation
-from . import test_calendar_recurrent_event_case2
+from . import test_calendar_recurrence_legacy
 from . import test_calendar_tour
 from . import test_event_recurrence
 from . import test_event_notifications

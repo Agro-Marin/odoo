@@ -1,7 +1,7 @@
 from odoo.tests import common
 
 
-class TestRecurrentEvent(common.TransactionCase):
+class TestRecurrentEventLegacy(common.TransactionCase):
     def setUp(self):
         super().setUp()
 
