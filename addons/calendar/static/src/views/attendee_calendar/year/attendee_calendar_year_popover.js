@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { getAttendeeStatusClass } from "@calendar/views/attendee_calendar/attendee_calendar_utils";
 import { CalendarYearPopover } from "@web/views/calendar";
 
 export class AttendeeCalendarYearPopover extends CalendarYearPopover {
@@ -7,12 +8,7 @@ export class AttendeeCalendarYearPopover extends CalendarYearPopover {
         body: "calendar.AttendeeCalendarYearPopover.body",
     };
     getRecordClass(record) {
-        const classes = [super.getRecordClass(record)];
-        if (record.isAlone) {
-            classes.push("o_attendee_status_alone");
-        } else {
-            classes.push(`o_attendee_status_${record.attendeeStatus}`);
-        }
+        const classes = [super.getRecordClass(record), getAttendeeStatusClass(record)];
         return classes.join(" ");
     }
 }

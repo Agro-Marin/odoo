@@ -87,6 +87,7 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
             "action_view_calendar_event",
             [this.props.record.id],
         );
+        this.props.close();
         this.actionService.doAction(action);
     }
 
@@ -118,6 +119,9 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
     }
 
     async changeAttendeeStatus(selectedStatus) {
+        if (this.changingAttendeeStatus) {
+            return;
+        }
         const record = this.props.record;
         if (record.attendeeStatus === selectedStatus) {
             return this.props.close();
@@ -129,12 +133,17 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
                 return this.props.close();
             }
         }
-        await this.env.services.orm.call(
-            this.props.model.resModel,
-            "change_attendee_status",
-            [[record.id], selectedStatus, recurrenceUpdate],
-        );
-        await this.props.model.load();
+        this.changingAttendeeStatus = true;
+        try {
+            await this.env.services.orm.call(
+                this.props.model.resModel,
+                "change_attendee_status",
+                [[record.id], selectedStatus, recurrenceUpdate],
+            );
+            await this.props.model.load();
+        } finally {
+            this.changingAttendeeStatus = false;
+        }
         this.props.close();
     }
 

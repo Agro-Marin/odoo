@@ -1,6 +1,5 @@
 import base64
 import logging
-import uuid
 from itertools import batched, zip_longest
 
 from odoo import _, api, fields, models
@@ -8,6 +7,7 @@ from odoo.exceptions import UserError
 from odoo.tools.misc import clean_context
 
 from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.calendar.models.utils import generate_calendar_token
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class CalendarAttendee(models.Model):
     _order = "create_date ASC"
 
     def _default_access_token(self):
-        return uuid.uuid4().hex
+        return generate_calendar_token()
 
     STATE_SELECTION = [
         ("accepted", "Yes"),
@@ -113,9 +113,14 @@ class CalendarAttendee(models.Model):
         return attendees
 
     def write(self, vals):
-        attendees = super().write(vals)
-        self.event_id.check_access("write")
-        return attendees
+        # Check access on the event being left, not only the one landed on:
+        # `event_id` is a plain writable field, so a write reassigning it only
+        # checked the destination event, letting a user with no write access
+        # to the origin event detach an attendee from it regardless.
+        old_events = self.event_id
+        res = super().write(vals)
+        (old_events | self.event_id).check_access("write")
+        return res
 
     def unlink(self):
         # `create()`/`write()` both route through `event_id.check_access('write')`;
