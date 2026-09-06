@@ -29,8 +29,9 @@ class IrActionsServer(models.Model):
         self.check_singleton()
         return self.state == 'sms' or super()._is_batchable()
 
-    def _name_depends(self):
-        return [*super()._name_depends(), "sms_template_id"]
+    @api.model
+    def _get_fields_name_depends(self):
+        return [*super()._get_fields_name_depends(), "sms_template_id"]
 
     def _prepare_automated_name(self):
         self.check_singleton()

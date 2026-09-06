@@ -8,6 +8,7 @@
     "depends": [
         "project_purchase",
         "project_stock",
+        "purchase_stock",
     ],
     "auto_install": True,
 }

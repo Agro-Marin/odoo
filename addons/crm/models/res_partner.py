@@ -45,8 +45,8 @@ class ResPartner(models.Model):
                     partner.opportunity_count += count
                 partner = partner.parent_id
 
-    def _compute_application_statistics_hook(self):
-        data_list = super()._compute_application_statistics_hook()
+    def _get_application_statistics(self):
+        data_list = super()._get_application_statistics()
         if not self.env.user.has_group("sales_team.group_sale_salesman"):
             return data_list
         for partner in self.filtered("opportunity_count"):

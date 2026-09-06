@@ -37,9 +37,9 @@ class HrLeave(models.Model):
     _description = "Time Off"
     _order = "date_from desc"
     _inherit = [
+        "mixin.hr.leave.approval",
         "mixin.mail.thread.main.attachment",
         "mixin.mail.activity",
-        "mixin.hr.leave.approval",
     ]
     _mail_post_access = "read"
 

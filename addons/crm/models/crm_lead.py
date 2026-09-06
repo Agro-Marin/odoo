@@ -627,8 +627,8 @@ class CrmLead(models.Model):
             date_close = fields.Datetime.from_string(lead.date_closed)
             lead.day_close = abs((date_close - date_create).days)
 
-    def _get_fields_rotting_depends(self):
-        return super()._get_fields_rotting_depends() + ["won_status", "type"]
+    def _get_rotting_depends_fields(self):
+        return super()._get_rotting_depends_fields() + ["won_status", "type"]
 
     def _get_rotting_domain(self):
         return super()._get_rotting_domain() & Domain(

@@ -211,30 +211,6 @@ class PosOrder(models.Model):
             "domain": [("id", "in", linked_orders.ids)],
         }
 
-    def _get_fields_for_order_line(self):
-        fields = super()._get_fields_for_order_line()
-        fields.extend(
-            [
-                "sale_order_origin_id",
-                "down_payment_details",
-                "sale_order_line_id",
-            ]
-        )
-        return fields
-
-    def _prepare_order_line(self, order_line):
-        order_line = super()._prepare_order_line(order_line)
-        if order_line.get("sale_order_origin_id"):
-            order_line["sale_order_origin_id"] = {
-                "id": order_line["sale_order_origin_id"][0],
-                "name": order_line["sale_order_origin_id"][1],
-            }
-        if order_line.get("sale_order_line_id"):
-            order_line["sale_order_line_id"] = {
-                "id": order_line["sale_order_line_id"][0],
-            }
-        return order_line
-
     def _prepare_invoice_line_vals(self, line_values, pos_line, move_type):
         inv_line_vals = super()._prepare_invoice_line_vals(
             line_values, pos_line, move_type

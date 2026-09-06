@@ -593,6 +593,11 @@ class SaleOrder(models.Model):
                 update_values["product_qty"] = combo_quantity
 
             order_line.write(update_values)
+            if "product_qty" in update_values:
+                order_line.invalidate_recordset(["pricelist_item_id"])
+                order_line.with_context(
+                    force_price_recomputation=True
+                )._compute_price_and_discount()
 
             order_line._check_validity()
 

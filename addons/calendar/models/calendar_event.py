@@ -837,6 +837,12 @@ class CalendarEvent(models.Model):
                 url._replace(scheme=base.scheme, netloc=base.netloc)
             )
 
+    def _need_video_call(self):
+        # The hook the calendar sync providers and time off answer: whether
+        # this event wants a video call created for it.
+        self.check_singleton()
+        return True
+
     @api.depends("videocall_location")
     def _compute_videocall_source(self):
         for event in self:

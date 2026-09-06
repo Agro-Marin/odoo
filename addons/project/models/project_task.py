@@ -992,8 +992,8 @@ class ProjectTask(models.Model):
             return NotImplemented
         return [("state", "in", searched_states)]
 
-    def _get_fields_rotting_depends(self) -> list[str]:
-        return super()._get_fields_rotting_depends() + ["is_closed"]
+    def _get_rotting_depends_fields(self) -> list[str]:
+        return super()._get_rotting_depends_fields() + ["is_closed"]
 
     def _get_rotting_domain(self) -> list:
         return super()._get_rotting_domain() & Domain("is_closed", "=", False)

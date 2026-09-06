@@ -330,7 +330,12 @@ class HrVersion(models.Model):
 
     @api.constrains("resource_calendar_id", "company_id")
     def _check_resource_calendar_company(self):
+        calendar_field = self._fields["resource_calendar_id"]
         for version in self:
+            if self.env.is_to_compute(calendar_field, version) or self.env.is_protected(
+                calendar_field, version
+            ):
+                continue
             calendar_company = version.resource_calendar_id.company_id
             if (
                 calendar_company

@@ -119,8 +119,8 @@ class SaleOrder(models.Model):
             )
 
     @api.depends("line_ids.pos_order_line_ids")
-    def _compute_amount_taxinc_to_invoice(self):
-        super()._compute_amount_taxinc_to_invoice()
+    def _compute_amounts_invoice(self):
+        super()._compute_amounts_invoice()
         for order in self:
             # We need to account for all amount paid in POS with and without invoice
             order_amount = sum(

@@ -473,8 +473,8 @@ class HrApplicant(models.Model):
             else:
                 applicant.delay_close = 0.0
 
-    def _get_fields_rotting_depends(self):
-        return super()._get_fields_rotting_depends() + [
+    def _get_rotting_depends_fields(self):
+        return super()._get_rotting_depends_fields() + [
             "application_status",
             "date_closed",
         ]

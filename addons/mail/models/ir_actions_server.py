@@ -149,8 +149,13 @@ class IrActionsServer(models.Model):
         "User Field", compute="_compute_activity_user_info", readonly=False, store=True
     )
 
-    def _name_depends(self) -> list[str]:
-        return [*super()._name_depends(), "template_id.name", "activity_type_id.name"]
+    @api.model
+    def _get_fields_name_depends(self) -> list[str]:
+        return [
+            *super()._get_fields_name_depends(),
+            "template_id.name",
+            "activity_type_id.name",
+        ]
 
     def _prepare_automated_name(self) -> str:
         self.check_singleton()

@@ -95,11 +95,6 @@ class ProductProduct(models.Model):
 
     # === BUSINESS METHODS ===#
 
-    def _prepare_variant_values(self, combination):
-        variant_dict = super()._prepare_variant_values(combination)
-        variant_dict["base_unit_count"] = self.base_unit_count
-        return variant_dict
-
     def website_publish_button(self):
         self.check_singleton()
         return self.product_tmpl_id.website_publish_button()

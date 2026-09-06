@@ -68,10 +68,6 @@ class HrLeave(models.Model):
                     )
                 )
 
-    def action_reset_confirm(self):
-        self._check_overtime_deductible(self)
-        return super().action_reset_confirm()
-
     def action_approve(self, check_state=True):
         res = super().action_approve(check_state)
         self._check_overtime_deductible(self)

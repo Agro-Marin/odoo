@@ -20,6 +20,3 @@ class ResourceCalendarAttendance(models.Model):
         res = super()._copy_attendance_vals()
         res["work_entry_type_id"] = self.work_entry_type_id.id
         return res
-
-    def _is_work_period(self):
-        return not self.work_entry_type_id.is_leave and super()._is_work_period()

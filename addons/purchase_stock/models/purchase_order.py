@@ -22,7 +22,10 @@ class PurchaseOrder(models.Model):
         comodel_name="stock.picking.type",
         string="Deliver To",
         required=True,
-        default=lambda self: self._default_picking_type_id(),
+        compute="_compute_picking_type_id",
+        store=True,
+        readonly=False,
+        precompute=True,
         domain="['|', ('warehouse_id', '=', False), ('warehouse_id.company_id', '=', company_id)]",
         help="This will determine operation type of incoming shipment",
     )
@@ -412,10 +415,15 @@ class PurchaseOrder(models.Model):
         return True
 
     @api.model
-    def _default_picking_type_id(self):
-        return self._get_picking_type(
-            self.env.context.get("company_id") or self.env.company.id,
-        )
+    @api.depends("company_id")
+    def _compute_picking_type_id(self):
+        for order in self:
+            picking_type = order.picking_type_id
+            type_company = picking_type.warehouse_id.company_id
+            if not picking_type or (type_company and type_company != order.company_id):
+                order.picking_type_id = order._get_picking_type(
+                    (order.company_id or self.env.company).id
+                )
 
     def _get_action_view_picking_context(self, pickings):
         self.check_singleton()

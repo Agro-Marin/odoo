@@ -108,13 +108,6 @@ class ProductProduct(models.Model):
         res = super().action_archive()
         return still_used._prepare_action_still_used_warning() or res
 
-    def _compute_show_qty_status_button(self):
-        super()._compute_show_qty_status_button()
-        for product in self:
-            if product.is_kit:
-                product.show_on_hand_qty_status_button = True
-                product.show_forecasted_qty_status_button = False
-
     @api.depends_context("order_id")
     def _compute_product_is_in_bom_and_mo(self):
         self.product_catalog_product_is_in_bom = False

@@ -5,25 +5,6 @@ class ResGroups(models.Model):
     _inherit = "res.groups"
 
     @api.model
-    def get_application_groups(self, domain):
-        group_account_user = self.env.ref(
-            "account.group_account_user", raise_if_not_found=False
-        )
-        if group_account_user and not group_account_user.privilege_id:
-            domain += [("id", "!=", group_account_user.id)]
-        group_account_readonly = self.env.ref(
-            "account.group_account_readonly", raise_if_not_found=False
-        )
-        if group_account_readonly and not group_account_readonly.privilege_id:
-            domain += [("id", "!=", group_account_readonly.id)]
-        group_account_basic = self.env.ref(
-            "account.group_account_basic", raise_if_not_found=False
-        )
-        if group_account_basic and not group_account_basic.privilege_id:
-            domain += [("id", "!=", group_account_basic.id)]
-        return super().get_application_groups(domain)
-
-    @api.model
     def _activate_group_account_secured(self):
         group_account_secured = self.env.ref(
             "account.group_account_secured", raise_if_not_found=False

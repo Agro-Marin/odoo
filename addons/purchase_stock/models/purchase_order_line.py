@@ -218,7 +218,7 @@ class PurchaseOrderLine(models.Model):
         for line in self.filtered(lambda l: not l.display_type):
             values.extend(line._prepare_stock_move_vals_list(picking))
 
-        return self.env["stock.move"].create(values)
+        return self.env["stock.move"].with_user(SUPERUSER_ID).create(values)
 
     def _get_candidate(
         self,
@@ -654,7 +654,12 @@ class PurchaseOrderLine(models.Model):
         moves_to_update.date_deadline = new_date
 
     def _check_orderpoint_picking_type(self):
-        warehouse_loc = self.order_id.picking_type_id.warehouse_id.view_location_id
+        # Warehouse configuration, read on behalf of whoever confirms the
+        # order; an accountant confirming a bill-driven order has no warehouse
+        # access of their own.
+        warehouse_loc = (
+            self.order_id.picking_type_id.sudo().warehouse_id.view_location_id
+        )
         dest_loc = self.move_dest_ids.location_id or self.orderpoint_id.location_id
 
         if (
