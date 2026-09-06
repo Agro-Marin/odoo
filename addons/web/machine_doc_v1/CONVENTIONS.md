@@ -242,8 +242,8 @@ The web module registers into 35 categories. The other 31:
 Field widgets live in `static/src/fields/` (top-level, organized into 7 subcategories:
 `basic/`, `display/`, `media/`, `relational/`, `selection/`, `specialized/`, `temporal/`).
 Each field type (char, integer, many2one, etc.) has a directory with its component,
-extractors, and optional variants. There are 68 widget directories and 113 fork-wide `registerField` /
-`registerFallbackField` sites (83 plain, 30 through the typed spec form).
+extractors, and optional variants. There are 68 widget directories and 116 fork-wide `registerField` /
+`registerFallbackField` sites (83 plain, 33 through the typed spec form).
 Import path: `@web/fields/*` (e.g. `@web/fields/basic/char/char_field`).
 
 **Multi-key registrations — refactor hazard.** A single widget file often
@@ -278,7 +278,7 @@ Extra keys come from a spec's `aliases` array
 (`registerField({ name: "one2many", aliases: ["many2many"] }, x2ManyField)`), so a
 grep for the key string alone finds nothing — read the spec object.
 
-Before renaming a widget file, run `grep -rn 'registerField(' addons/` to enumerate every key a file registers. Registration goes exclusively through `registerField()` / `registerFallbackField()` from `@web/fields/_registry` (97 call sites inside `fields/`, 113 fork-wide); `registry.category("fields").add(...)` appears only inside `_registry.js` itself, so grepping for it finds nothing.
+Before renaming a widget file, run `grep -rn 'registerField(' addons/` to enumerate every key a file registers. Registration goes exclusively through `registerField()` / `registerFallbackField()` from `@web/fields/_registry` (97 call sites inside `fields/`, 116 fork-wide); `registry.category("fields").add(...)` appears only inside `_registry.js` itself, so grepping for it finds nothing.
 
 ## Test Conventions
 

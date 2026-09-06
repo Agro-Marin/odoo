@@ -1742,8 +1742,10 @@ OBS_ROWS=$(awk '/^\| Namespace \| Flag substring \|/,/^$/' "$DOC/OBSERVABILITY.m
 assert_eq "OBSERVABILITY documents every trace namespace" \
     "$OBS_ROWS" "$OBS_NAMESPACES"
 
-# Each namespace also needs a make<Name>Log factory; the doc claims both.
-OBS_FACTORIES=$(grep -cE '^export function make\w+Log' \
+# Each namespace also needs a make<Name>Log factory; the doc claims both. The
+# factories became `export const make*Log = _categoryBinder(...)` in d2430ad22ad,
+# so the grep accepts either spelling.
+OBS_FACTORIES=$(grep -cE '^export (const|function) make\w+Log' \
     "$WEB/static/src/core/utils/asset_log.js")
 assert_eq "Every trace namespace has a make*Log factory" \
     "$OBS_FACTORIES" "$OBS_NAMESPACES"

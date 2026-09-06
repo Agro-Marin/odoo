@@ -1,6 +1,6 @@
 # Directory Map
 
-> **248 entries** (247 subdirectories + `(root)`) | Maps directory → layer + responsibility
+> **249 entries** (248 subdirectories + `(root)`) | Maps directory → layer + responsibility
 >
 > Layers (Feature-Sliced Design): shared → entities → features → widgets → pages
 >
