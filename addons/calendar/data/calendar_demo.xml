@@ -37,7 +37,6 @@
             <field name="start" eval="time.strftime('%Y-%m-03 10:20:00')" />
             <field name="categ_ids" eval="[(6,0,[ref('categ_meet1')])]" />
             <field name="stop" eval="time.strftime('%Y-%m-03 16:30:00')" />
-            <field name="duration" eval="6.3" />
             <field name="allday" eval="False" />
         </record>
         <record id="calendar_event_2" model="calendar.event">
@@ -119,7 +118,6 @@
                 eval="[(6,0,[ref('categ_meet1'), ref('categ_meet2')])]" />
             <field name="start" eval="time.strftime('%Y-%m-16')" />
             <field name="stop" eval="time.strftime('%Y-%m-16')" />
-            <field name="duration" eval="8.5" />
             <field name="allday" eval="True" />
         </record>
     </data>
