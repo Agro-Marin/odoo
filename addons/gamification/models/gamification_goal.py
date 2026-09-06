@@ -485,6 +485,15 @@ class GamificationGoal(models.Model):
                         fields=", ".join(sorted(forbidden)),
                     )
                 )
+            # `goal_user_visibility`'s ranking clause grants read *and write* to
+            # any fellow participant of a ranking-visibility challenge, not just
+            # the goal's own owner -- it exists so a leaderboard can be seen, not
+            # edited. Without this check a co-participant could overwrite another
+            # user's manual `current` value through the ORM.
+            if self.filtered(lambda g: g.user_id != self.env.user):
+                raise exceptions.UserError(
+                    _("You can only update the value of your own goals.")
+                )
 
         # `last_update` dates the last change to the goal's *value*, and
         # `_check_remind_delay` measures the manual-goal reminder from it.

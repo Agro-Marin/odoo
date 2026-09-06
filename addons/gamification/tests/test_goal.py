@@ -115,6 +115,61 @@ class TestGoal(common.TransactionCase):
             "Completeness should be 100 when target is zero (trivially reached)",
         )
 
+    def test_ranking_challenge_participant_cannot_write_others_goal(self):
+        """A fellow participant in a ranking-visibility challenge can see
+        another user's goal, but must not be able to overwrite its `current`
+        through the ORM -- only the goal's own owner (or a manager) may.
+        """
+        other_user = (
+            self.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                {
+                    "name": "Goal Test Other User",
+                    "login": "goal_test_other_user",
+                    "email": "goal_test_other@example.com",
+                    "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+                }
+            )
+        )
+        challenge = self.env["gamification.challenge"].create(
+            {
+                "name": "Ranking Challenge",
+                "visibility_mode": "ranking",
+                "period": "once",
+                "user_ids": [(6, 0, [self.user_test.id, other_user.id])],
+            }
+        )
+        line = self.env["gamification.challenge.line"].create(
+            {
+                "challenge_id": challenge.id,
+                "definition_id": self.definition_manual.id,
+                "target_goal": 100,
+            }
+        )
+        goal = self.env["gamification.goal"].create(
+            {
+                "definition_id": self.definition_manual.id,
+                "line_id": line.id,
+                "user_id": self.user_test.id,
+                "target_goal": 100,
+                "current": 0,
+                "state": "inprogress",
+            }
+        )
+
+        with self.assertRaises(
+            UserError,
+            msg="A fellow ranking-challenge participant must not be able to"
+            " overwrite another user's goal value",
+        ):
+            goal.with_user(other_user).write({"current": 9999})
+
+        goal.invalidate_recordset()
+        self.assertEqual(
+            goal.current, 0, "Goal value must be unchanged after the blocked write"
+        )
+
     def test_goal_write_blocks_definition_change(self):
         """Test that changing definition_id on a non-draft goal raises UserError."""
         goal = self._create_goal(self.definition_manual, state="inprogress")
