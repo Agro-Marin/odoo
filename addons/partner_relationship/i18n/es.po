@@ -1,0 +1,1196 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* partner_relationship
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-05 14:47+0000\n"
+"PO-Revision-Date: 2026-09-05 14:47+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/models/res_partner_relation.py:0
+msgid "%(one)s — %(label)s — %(other)s"
+msgstr "%(one)s — %(label)s — %(other)s"
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/models/res_partner_relation.py:0
+msgid ""
+"%(other)s is already %(label)s %(one)s, so %(one)s cannot also be %(label)s "
+"%(other)s."
+msgstr "%(other)s ya es %(label)s %(one)s, así que %(one)s no puede ser también %(label)s %(other)s."
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/models/res_partner_relation.py:0
+msgid ""
+"%(type)s reads the same from both ends and is already recorded between "
+"%(one)s and %(other)s."
+msgstr "%(type)s se lee igual desde ambos extremos y ya está registrada entre %(one)s y %(other)s."
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/models/res_partner_relation_type.py:0
+msgid "%s cannot be both symmetric and antisymmetric."
+msgstr "%s no puede ser simétrica y antisimétrica a la vez."
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/models/res_partner_relation_type.py:0
+msgid ""
+"%s is not symmetric, so it needs a wording for the other end of the "
+"relationship."
+msgstr "%s no es simétrica, así que necesita una redacción para el otro extremo de la relación."
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_form_inherit_relationship
+msgid ""
+"<span class=\"o_stat_text\">Open</span>\n"
+"                        <span class=\"o_stat_text\">Network</span>"
+msgstr ""
+"<span class=\"o_stat_text\">Abrir</span>\n"
+"                        <span class=\"o_stat_text\">red</span>"
+
+#. module: partner_relationship
+#: model:ir.model.constraint,message:partner_relationship.constraint_res_partner_relation_partners_differ
+msgid "A contact cannot be related to itself."
+msgstr "Un contacto no puede estar relacionado consigo mismo."
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/models/res_partner_relation.py:0
+msgid "A relationship cannot end before it starts."
+msgstr "Una relación no puede terminar antes de empezar."
+
+#. module: partner_relationship
+#: model:ir.model.constraint,message:partner_relationship.constraint_res_partner_relation_type_code_uniq
+msgid "A relationship type with this code already exists."
+msgstr "Ya existe un tipo de relación con este código."
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__active
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__active
+msgid "Active"
+msgstr "Activo"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_form_inherit_relationship
+msgid "Add Relationship"
+msgstr "Agregar relación"
+
+#. module: partner_relationship
+#: model:res.groups,name:partner_relationship.group_partner_relationship_manager
+msgid "Administrator"
+msgstr "Administrador"
+
+#. module: partner_relationship
+#: model:ir.model.fields.selection,name:partner_relationship.selection__res_partner_relation_type__category__affinity
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_search
+msgid "Affinity"
+msgstr "Afinidad"
+
+#. module: partner_relationship
+#: model:ir.model.fields.selection,name:partner_relationship.selection__res_partner_relation_type__category__agricultural
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_search
+msgid "Agricultural"
+msgstr "Agrícola"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "All"
+msgstr "Todas"
+
+#. module: partner_relationship
+#: model:ir.ui.menu,name:partner_relationship.menu_res_partner_relation
+msgid "All Relationships"
+msgstr "Todas las relaciones"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+msgid "Archived"
+msgstr "Archivado"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Back to this contact"
+msgstr "Volver a este contacto"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_search
+msgid "Blood"
+msgstr "Consanguinidad"
+
+#. module: partner_relationship
+#: model:ir.model.fields.selection,name:partner_relationship.selection__res_partner_relation_type__category__business
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_search
+msgid "Business"
+msgstr "Negocios"
+
+#. module: partner_relationship
+#: model:res.groups,comment:partner_relationship.group_partner_relationship_manager
+msgid ""
+"Can configure the relationship type catalog, its kinship degrees and its "
+"risk weights."
+msgstr "Puede configurar el catálogo de tipos de relación, sus grados de parentesco y sus pesos de riesgo."
+
+#. module: partner_relationship
+#: model:res.groups,comment:partner_relationship.group_partner_relationship_user
+msgid "Can record and edit the relationships between contacts."
+msgstr "Puede registrar y editar las relaciones entre contactos."
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__category
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__category
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_search
+msgid "Category"
+msgstr "Categoría"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Centre the diagram"
+msgstr "Centrar el diagrama"
+
+#. module: partner_relationship
+#: model:ir.model.fields,help:partner_relationship.field_res_partner_relation__degree
+#: model:ir.model.fields,help:partner_relationship.field_res_partner_relation_type__degree
+msgid ""
+"Civil-law kinship distance. Zero for a tie that carries no genealogical "
+"distance, such as a compadre or a business partner."
+msgstr "Distancia de parentesco civil. Cero para un vínculo sin distancia genealógica, como un compadre o un socio de negocios."
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_partner_relation_path_form
+msgid "Close"
+msgstr "Cerrar"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__code
+msgid "Code"
+msgstr "Código"
+
+#. module: partner_relationship
+#: model:ir.model.fields.selection,name:partner_relationship.selection__res_partner_relation_type__category__blood
+msgid "Consanguinity"
+msgstr "Consanguinidad"
+
+#. module: partner_relationship
+#: model:ir.model,name:partner_relationship.model_res_partner
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__partner_id
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_list_network
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+msgid "Contact"
+msgstr "Contacto"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_form_network
+msgid "Contact Network"
+msgstr "Red del contacto"
+
+#. module: partner_relationship
+#: model:ir.actions.act_window,name:partner_relationship.action_res_partner_network
+#: model:ir.ui.menu,name:partner_relationship.menu_res_partner_network
+msgid "Contact Networks"
+msgstr "Redes de contactos"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_list_network
+msgid "Contacts"
+msgstr "Contactos"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__count_hop
+msgid "Count Hop"
+msgstr "Número de saltos"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner__count_related_partner
+#: model:ir.model.fields,field_description:partner_relationship.field_res_users__count_related_partner
+msgid "Count Related Partner"
+msgstr "Número de partes relacionadas"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner__count_relation
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__count_relation
+#: model:ir.model.fields,field_description:partner_relationship.field_res_users__count_relation
+msgid "Count Relation"
+msgstr "Número de relaciones"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__create_uid
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__create_uid
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__create_uid
+msgid "Created by"
+msgstr "Creado por"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__create_date
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__create_date
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__create_date
+msgid "Created on"
+msgstr "Creado el"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__date_end
+msgid "Date End"
+msgstr "Fecha de fin"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__date_start
+msgid "Date Start"
+msgstr "Fecha de inicio"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__degree
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__degree
+msgid "Degree"
+msgstr "Grado"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Degrees"
+msgstr "Grados"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_partner_relation_path_form
+msgid "Degrees of Separation"
+msgstr "Grados de separación"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Degrees of separation"
+msgstr "Grados de separación"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__display_name
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner__display_name
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__display_name
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__display_name
+msgid "Display Name"
+msgstr "Nombre mostrado"
+
+#. module: partner_relationship
+#: model_terms:ir.actions.act_window,help:partner_relationship.action_res_partner_relation
+msgid ""
+"Family, ritual and commercial ties between contacts. They drive the\n"
+"               relationship network and the related-party analysis."
+msgstr "Vínculos familiares, rituales y comerciales entre contactos. Alimentan la red de relaciones y el análisis de partes relacionadas."
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid "Female"
+msgstr "Femenino"
+
+#. module: partner_relationship
+#: model:ir.ui.menu,name:partner_relationship.menu_partner_relation_path
+msgid "Find a Path"
+msgstr "Buscar un camino"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__partner_id
+msgid "From"
+msgstr "Desde"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid "Gendered Wording"
+msgstr "Redacción por género"
+
+#. module: partner_relationship
+#: model:ir.model.fields.selection,name:partner_relationship.selection__res_partner_relation_type__category__household
+msgid "Household"
+msgstr "Hogar"
+
+#. module: partner_relationship
+#: model:ir.model.fields,help:partner_relationship.field_res_partner_relation__weight_risk
+#: model:ir.model.fields,help:partner_relationship.field_res_partner_relation_type__weight_risk
+msgid ""
+"How strongly this tie implies a shared economic interest, from 0 to 1. "
+"Consumed by the credit and compliance bridges."
+msgstr "Qué tanto implica este vínculo un interés económico compartido, de 0 a 1. Lo consumen los puentes de crédito y cumplimiento."
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_form
+msgid "How this tie is known, and anything qualifying it."
+msgstr "Cómo se conoce este vínculo y cualquier matiz."
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__id
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner__id
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__id
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__id
+msgid "ID"
+msgstr "ID"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__is_antisymmetric
+msgid "Is Antisymmetric"
+msgstr "Es antisimétrica"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__is_connected
+msgid "Is Connected"
+msgstr "Está conectado"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__is_symmetric
+msgid "Is Symmetric"
+msgstr "Es simétrica"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__label
+msgid "Label"
+msgstr "Etiqueta"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__label_inverse
+msgid "Label Inverse"
+msgstr "Etiqueta inversa"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__write_uid
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__write_uid
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__write_uid
+msgid "Last Updated by"
+msgstr "Última actualización por"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__write_date
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__write_date
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__write_date
+msgid "Last Updated on"
+msgstr "Última actualización el"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Loading the network…"
+msgstr "Cargando la red…"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid "Male"
+msgstr "Masculino"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__name
+msgid "Name"
+msgstr "Nombre"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__name_female
+msgid "Name Female"
+msgstr "Nombre femenino"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__name_inverse
+msgid "Name Inverse"
+msgstr "Nombre inverso"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__name_inverse_female
+msgid "Name Inverse Female"
+msgstr "Nombre inverso femenino"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__name_inverse_male
+msgid "Name Inverse Male"
+msgstr "Nombre inverso masculino"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__name_male
+msgid "Name Male"
+msgstr "Nombre masculino"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_form_inherit_relationship
+msgid "Network"
+msgstr "Red"
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/models/res_partner.py:0
+msgid "Network of %s"
+msgstr "Red de %s"
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/models/res_partner.py:0
+msgid "New Relationship"
+msgstr "Nueva relación"
+
+#. module: partner_relationship
+#: model_terms:ir.actions.act_window,help:partner_relationship.action_res_partner_network
+msgid "No contact has a recorded relationship yet."
+msgstr "Ningún contacto tiene aún una relación registrada."
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.js:0
+msgid "No relationship links these contacts."
+msgstr "Ninguna relación une a estos contactos."
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_partner_relation_path_form
+msgid "No relationship path found within this depth."
+msgstr "No se encontró un camino de relación dentro de esta profundidad."
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/wizards/partner_relation_path.py:0
+msgid ""
+"No relationship path was found between %(one)s and %(other)s within "
+"%(degree)s degrees."
+msgstr "No se encontró un camino de relación entre %(one)s y %(other)s dentro de %(degree)s grados."
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "No tie of the selected kinds reaches anyone."
+msgstr "Ningún vínculo de los tipos seleccionados llega a nadie."
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "None"
+msgstr "Ninguna"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__note
+msgid "Note"
+msgstr "Nota"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_form
+msgid "Notes"
+msgstr "Notas"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_partner_relation_path_form
+msgid "Open Relationships"
+msgstr "Abrir relaciones"
+
+#. module: partner_relationship
+#: model:ir.model,name:partner_relationship.model_res_partner_relation
+msgid "Partner Relationship"
+msgstr "Relación entre contactos"
+
+#. module: partner_relationship
+#: model:ir.model,name:partner_relationship.model_res_partner_relation_type
+msgid "Partner Relationship Type"
+msgstr "Tipo de relación entre contactos"
+
+#. module: partner_relationship
+#: model:res.groups.privilege,name:partner_relationship.res_groups_privilege_partner_relationship
+msgid "Partner Relationships"
+msgstr "Relaciones entre contactos"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__relation_ids
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_partner_relation_path_form
+msgid "Path"
+msgstr "Camino"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__path_html
+msgid "Path Html"
+msgstr "Camino en HTML"
+
+#. module: partner_relationship
+#: model_terms:ir.actions.act_window,help:partner_relationship.action_res_partner_relation
+msgid "Record a relationship"
+msgstr "Registre una relación"
+
+#. module: partner_relationship
+#: model_terms:ir.actions.act_window,help:partner_relationship.action_res_partner_network
+msgid "Record a tie between two contacts and its network is drawn here."
+msgstr "Registre un vínculo entre dos contactos y su red se dibuja aquí."
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_list
+msgid "Recorded"
+msgstr "Registradas"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__other_partner_id
+msgid "Related Contact"
+msgstr "Contacto relacionado"
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/models/res_partner.py:0
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner__related_partner_ids
+#: model:ir.model.fields,field_description:partner_relationship.field_res_users__related_partner_ids
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_form_inherit_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_list_network
+msgid "Related Parties"
+msgstr "Partes relacionadas"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__type_id
+msgid "Relationship"
+msgstr "Relación"
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/wizards/partner_relation_path.py:0
+#: model:ir.actions.act_window,name:partner_relationship.action_partner_relation_path
+msgid "Relationship Path"
+msgstr "Camino de relación"
+
+#. module: partner_relationship
+#: model:ir.model,name:partner_relationship.model_partner_relation_path
+msgid "Relationship Path Between Two Contacts"
+msgstr "Camino de relación entre dos contactos"
+
+#. module: partner_relationship
+#: model:ir.actions.act_window,name:partner_relationship.action_res_partner_relation_type
+#: model:ir.ui.menu,name:partner_relationship.menu_res_partner_relation_type
+msgid "Relationship Types"
+msgstr "Tipos de relación"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Relationship kinds"
+msgstr "Tipos de relación"
+
+#. module: partner_relationship
+#. odoo-python
+#: code:addons/partner_relationship/models/res_partner.py:0
+#: model:ir.actions.act_window,name:partner_relationship.action_res_partner_relation
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner__relation_ids
+#: model:ir.model.fields,field_description:partner_relationship.field_res_users__relation_ids
+#: model:ir.ui.menu,name:partner_relationship.menu_partner_relationship_root
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_form_inherit_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_list_network
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid "Relationships"
+msgstr "Relaciones"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner__relation_out_ids
+#: model:ir.model.fields,field_description:partner_relationship.field_res_users__relation_out_ids
+msgid "Relationships Declared"
+msgstr "Relaciones declaradas"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner__relation_in_ids
+#: model:ir.model.fields,field_description:partner_relationship.field_res_users__relation_in_ids
+msgid "Relationships Received"
+msgstr "Relaciones recibidas"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_search
+msgid "Ritual"
+msgstr "Ritual"
+
+#. module: partner_relationship
+#: model:ir.model.fields.selection,name:partner_relationship.selection__res_partner_relation_type__category__ritual
+msgid "Ritual kinship"
+msgstr "Parentesco ritual"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Save this contact to draw its network."
+msgstr "Guarde este contacto para dibujar su red."
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__max_degree
+msgid "Search Depth"
+msgstr "Profundidad de búsqueda"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Select relationship kinds"
+msgstr "Seleccionar tipos de relación"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__sequence
+msgid "Sequence"
+msgstr "Secuencia"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Show"
+msgstr "Mostrar"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+msgid "Strong Ties"
+msgstr "Vínculos fuertes"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_form
+msgid "Swap Direction"
+msgstr "Invertir dirección"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_search
+msgid "Symmetric"
+msgstr "Simétrica"
+
+#. module: partner_relationship
+#: model:ir.model.constraint,message:partner_relationship.constraint_res_partner_relation_type_degree_positive
+msgid "The kinship degree cannot be negative."
+msgstr "El grado de parentesco no puede ser negativo."
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "The network could not be drawn."
+msgstr "No se pudo dibujar la red."
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid "The related contact"
+msgstr "El contacto relacionado"
+
+#. module: partner_relationship
+#: model:ir.model.fields,help:partner_relationship.field_res_partner_relation_type__is_antisymmetric
+msgid ""
+"The relationship cannot hold in both directions: if one contact is the "
+"parent of another, the reverse is impossible. Leave off for a tie that can "
+"genuinely be mutual, such as cross-shareholding or a reciprocal guarantee."
+msgstr "La relación no puede darse en ambos sentidos: si un contacto es padre de otro, lo inverso es imposible. Déjelo apagado para un vínculo que sí puede ser mutuo, como una participación cruzada o un aval recíproco."
+
+#. module: partner_relationship
+#: model:ir.model.fields,help:partner_relationship.field_res_partner_relation_type__is_symmetric
+msgid ""
+"The relationship reads the same from both ends: sibling, cousin, compadre, "
+"business partner."
+msgstr "La relación se lee igual desde ambos extremos: hermano, primo, compadre, socio de negocios."
+
+#. module: partner_relationship
+#: model:ir.model.constraint,message:partner_relationship.constraint_res_partner_relation_type_weight_risk_range
+msgid "The risk weight must be between 0 and 1."
+msgstr "El peso de riesgo debe estar entre 0 y 1."
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_form
+msgid "The two contacts were entered the wrong way round"
+msgstr "Los dos contactos se capturaron al revés"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid "This contact"
+msgstr "Este contacto"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.js:0
+msgid "This contact has no recorded relationships."
+msgstr "Este contacto no tiene relaciones registradas."
+
+#. module: partner_relationship
+#: model:ir.model.constraint,message:partner_relationship.constraint_res_partner_relation_relation_uniq
+msgid "This relationship is already recorded between these two contacts."
+msgstr "Esta relación ya está registrada entre estos dos contactos."
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+msgid "Ties implying a shared economic interest"
+msgstr "Vínculos que implican un interés económico compartido"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_partner_relation_path__other_partner_id
+msgid "To"
+msgstr "Hasta"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_search
+msgid "Type"
+msgstr "Tipo"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid ""
+"Used when the contact carries a gender. The neutral\n"
+"                                wording above is the fallback."
+msgstr "Se usa cuando el contacto tiene género. La redacción neutra de arriba es el respaldo."
+
+#. module: partner_relationship
+#: model:res.groups,name:partner_relationship.group_partner_relationship_user
+msgid "User"
+msgstr "Usuario"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Viewing"
+msgstr "Viendo"
+
+#. module: partner_relationship
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation__weight_risk
+#: model:ir.model.fields,field_description:partner_relationship.field_res_partner_relation_type__weight_risk
+msgid "Weight Risk"
+msgstr "Peso de riesgo"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Zoom"
+msgstr "Zoom"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Zoom in"
+msgstr "Acercar"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "Zoom out"
+msgstr "Alejar"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_uncle
+msgid "aunt of"
+msgstr "tía de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_sibling
+msgid "brother of"
+msgstr "hermano de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_siblinginlaw
+msgid "brother-in-law of"
+msgstr "cuñado de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_businesspartner
+msgid "business partner of"
+msgstr "socio de negocios de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_caretaker
+msgid "cared for by"
+msgstr "cuidado por"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_caretaker
+msgid "caretaker of"
+msgstr "cuidador de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_parent
+msgid "child of"
+msgstr "hijo o hija de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_parentinlaw
+msgid "child-in-law of"
+msgstr "yerno o nuera de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_compadre
+msgid "comadre of"
+msgstr "comadre de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_compadre
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_compadre
+msgid "compadre of"
+msgstr "compadre de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_cousin
+msgid "cousin of"
+msgstr "primo o prima de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_female:partner_relationship.relation_type_parent
+msgid "daughter of"
+msgstr "hija de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_female:partner_relationship.relation_type_parentinlaw
+msgid "daughter-in-law of"
+msgstr "nuera de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_domesticpartner
+msgid "domestic partner of"
+msgstr "concubino o concubina de"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid "e.g. daughter of"
+msgstr "p. ej. hija de"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid "e.g. father of"
+msgstr "p. ej. padre de"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid "e.g. mother of"
+msgstr "p. ej. madre de"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_type_form
+msgid "e.g. son of"
+msgstr "p. ej. hijo de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_employer
+msgid "employed by"
+msgstr "empleado por"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_employer
+msgid "employer of"
+msgstr "empleador de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_parent
+msgid "father of"
+msgstr "padre de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_parentinlaw
+msgid "father-in-law of"
+msgstr "suegro de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_exspouse
+msgid "former spouse of"
+msgstr "excónyuge de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_godparent
+msgid "godchild of"
+msgstr "ahijado o ahijada de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_female:partner_relationship.relation_type_godparent
+msgid "goddaughter of"
+msgstr "ahijada de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_godparent
+msgid "godparent of"
+msgstr "padrino o madrina de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_male:partner_relationship.relation_type_godparent
+msgid "godson of"
+msgstr "ahijado de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_grandparent
+msgid "grandchild of"
+msgstr "nieto o nieta de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_female:partner_relationship.relation_type_grandparent
+msgid "granddaughter of"
+msgstr "nieta de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_grandparent
+msgid "grandfather of"
+msgstr "abuelo de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_grandparent
+msgid "grandmother of"
+msgstr "abuela de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_grandparent
+msgid "grandparent of"
+msgstr "abuelo o abuela de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_male:partner_relationship.relation_type_grandparent
+msgid "grandson of"
+msgstr "nieto de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_greatgrandparent
+msgid "great-grandchild of"
+msgstr "bisnieto o bisnieta de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_female:partner_relationship.relation_type_greatgrandparent
+msgid "great-granddaughter of"
+msgstr "bisnieta de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_greatgrandparent
+msgid "great-grandfather of"
+msgstr "bisabuelo de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_greatgrandparent
+msgid "great-grandmother of"
+msgstr "bisabuela de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_greatgrandparent
+msgid "great-grandparent of"
+msgstr "bisabuelo o bisabuela de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_male:partner_relationship.relation_type_greatgrandparent
+msgid "great-grandson of"
+msgstr "bisnieto de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_croppartner
+msgid "grows crop together with"
+msgstr "cultiva junto con"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_guarantor
+msgid "guaranteed by"
+msgstr "avalado por"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_guarantor
+msgid "guarantor of"
+msgstr "aval de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_halfsibling
+msgid "half-brother of"
+msgstr "medio hermano de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_halfsibling
+msgid "half-sibling of"
+msgstr "medio hermano o media hermana de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_halfsibling
+msgid "half-sister of"
+msgstr "media hermana de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_shareholder
+msgid "has as shareholder"
+msgstr "tiene como accionista a"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_spouse
+msgid "husband of"
+msgstr "esposo de"
+
+#. module: partner_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_form_inherit_relationship
+#: model_terms:ir.ui.view,arch_db:partner_relationship.view_res_partner_relation_list
+msgid "is"
+msgstr "es"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_legalrepresentative
+msgid "legal representative of"
+msgstr "representante legal de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_godparent
+msgid "madrina of"
+msgstr "madrina de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_sameejido
+msgid "member of the same ejido as"
+msgstr "miembro del mismo ejido que"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_parent
+msgid "mother of"
+msgstr "madre de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_parentinlaw
+msgid "mother-in-law of"
+msgstr "suegra de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_male:partner_relationship.relation_type_uncle
+msgid "nephew of"
+msgstr "sobrino de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_uncle
+msgid "nephew or niece of"
+msgstr "sobrino o sobrina de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_female:partner_relationship.relation_type_uncle
+msgid "niece of"
+msgstr "sobrina de"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "only"
+msgstr "solo"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_godparent
+msgid "padrino of"
+msgstr "padrino de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_parent
+msgid "parent of"
+msgstr "padre o madre de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_parentinlaw
+msgid "parent-in-law of"
+msgstr "suegro o suegra de"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid "related contacts"
+msgstr "contactos relacionados"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_legalrepresentative
+msgid "represented by"
+msgstr "representado por"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_secondcousin
+msgid "second cousin of"
+msgstr "primo segundo o prima segunda de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_shareholder
+msgid "shareholder of"
+msgstr "accionista de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_household
+msgid "shares a household with"
+msgstr "comparte hogar con"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_equipmentshare
+msgid "shares equipment with"
+msgstr "comparte equipo con"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_landshare
+msgid "shares land with"
+msgstr "comparte tierra con"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_sibling
+msgid "sibling of"
+msgstr "hermano o hermana de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_siblinginlaw
+msgid "sibling-in-law of"
+msgstr "cuñado o cuñada de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_sibling
+msgid "sister of"
+msgstr "hermana de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_siblinginlaw
+msgid "sister-in-law of"
+msgstr "cuñada de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_male:partner_relationship.relation_type_parent
+msgid "son of"
+msgstr "hijo de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_male:partner_relationship.relation_type_parentinlaw
+msgid "son-in-law of"
+msgstr "yerno de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_spouse
+msgid "spouse of"
+msgstr "cónyuge de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse:partner_relationship.relation_type_stepparent
+msgid "step-child of"
+msgstr "hijastro o hijastra de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_stepparent
+msgid "step-parent of"
+msgstr "padrastro o madrastra de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_female:partner_relationship.relation_type_stepparent
+msgid "stepdaughter of"
+msgstr "hijastra de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_stepparent
+msgid "stepfather of"
+msgstr "padrastro de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_stepparent
+msgid "stepmother of"
+msgstr "madrastra de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_inverse_male:partner_relationship.relation_type_stepparent
+msgid "stepson of"
+msgstr "hijastro de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_male:partner_relationship.relation_type_uncle
+msgid "uncle of"
+msgstr "tío de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name:partner_relationship.relation_type_uncle
+msgid "uncle or aunt of"
+msgstr "tío o tía de"
+
+#. module: partner_relationship
+#: model:res.partner.relation.type,name_female:partner_relationship.relation_type_spouse
+msgid "wife of"
+msgstr "esposa de"
+
+#. module: partner_relationship
+#. odoo-javascript
+#: code:addons/partner_relationship/static/src/partner_network_widget.xml:0
+msgid ""
+"— click a contact to\n"
+"                    centre the network on it, double-click to open it."
+msgstr ""
+"— haga clic en un contacto para\n"
+"                    centrar la red en él, doble clic para abrirlo."

@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="relation_type_parent" model="res.partner.relation.type">
+            <field name="code">parent</field>
+            <field name="name">parent of</field>
+            <field name="name_male">father of</field>
+            <field name="name_female">mother of</field>
+            <field name="name_inverse">child of</field>
+            <field name="name_inverse_male">son of</field>
+            <field name="name_inverse_female">daughter of</field>
+            <field name="category">blood</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="is_antisymmetric" eval="True"/>
+            <field name="degree">1</field>
+            <field name="weight_risk">0.9</field>
+            <field name="sequence">10</field>
+        </record>
+
+        <record id="relation_type_grandparent" model="res.partner.relation.type">
+            <field name="code">grandparent</field>
+            <field name="name">grandparent of</field>
+            <field name="name_male">grandfather of</field>
+            <field name="name_female">grandmother of</field>
+            <field name="name_inverse">grandchild of</field>
+            <field name="name_inverse_male">grandson of</field>
+            <field name="name_inverse_female">granddaughter of</field>
+            <field name="category">blood</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="is_antisymmetric" eval="True"/>
+            <field name="degree">2</field>
+            <field name="weight_risk">0.7</field>
+            <field name="sequence">20</field>
+        </record>
+
+        <record id="relation_type_greatgrandparent" model="res.partner.relation.type">
+            <field name="code">greatgrandparent</field>
+            <field name="name">great-grandparent of</field>
+            <field name="name_male">great-grandfather of</field>
+            <field name="name_female">great-grandmother of</field>
+            <field name="name_inverse">great-grandchild of</field>
+            <field name="name_inverse_male">great-grandson of</field>
+            <field name="name_inverse_female">great-granddaughter of</field>
+            <field name="category">blood</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="is_antisymmetric" eval="True"/>
+            <field name="degree">3</field>
+            <field name="weight_risk">0.5</field>
+            <field name="sequence">30</field>
+        </record>
+
+        <record id="relation_type_sibling" model="res.partner.relation.type">
+            <field name="code">sibling</field>
+            <field name="name">sibling of</field>
+            <field name="name_male">brother of</field>
+            <field name="name_female">sister of</field>
+            <field name="category">blood</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">2</field>
+            <field name="weight_risk">0.8</field>
+            <field name="sequence">40</field>
+        </record>
+
+        <record id="relation_type_halfsibling" model="res.partner.relation.type">
+            <field name="code">halfsibling</field>
+            <field name="name">half-sibling of</field>
+            <field name="name_male">half-brother of</field>
+            <field name="name_female">half-sister of</field>
+            <field name="category">blood</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">2</field>
+            <field name="weight_risk">0.6</field>
+            <field name="sequence">50</field>
+        </record>
+
+        <record id="relation_type_uncle" model="res.partner.relation.type">
+            <field name="code">uncle</field>
+            <field name="name">uncle or aunt of</field>
+            <field name="name_male">uncle of</field>
+            <field name="name_female">aunt of</field>
+            <field name="name_inverse">nephew or niece of</field>
+            <field name="name_inverse_male">nephew of</field>
+            <field name="name_inverse_female">niece of</field>
+            <field name="category">blood</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="is_antisymmetric" eval="True"/>
+            <field name="degree">3</field>
+            <field name="weight_risk">0.5</field>
+            <field name="sequence">60</field>
+        </record>
+
+        <record id="relation_type_cousin" model="res.partner.relation.type">
+            <field name="code">cousin</field>
+            <field name="name">cousin of</field>
+            <field name="category">blood</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">4</field>
+            <field name="weight_risk">0.35</field>
+            <field name="sequence">70</field>
+        </record>
+
+        <record id="relation_type_secondcousin" model="res.partner.relation.type">
+            <field name="code">secondcousin</field>
+            <field name="name">second cousin of</field>
+            <field name="category">blood</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">6</field>
+            <field name="weight_risk">0.15</field>
+            <field name="sequence">80</field>
+        </record>
+
+        <record id="relation_type_spouse" model="res.partner.relation.type">
+            <field name="code">spouse</field>
+            <field name="name">spouse of</field>
+            <field name="name_male">husband of</field>
+            <field name="name_female">wife of</field>
+            <field name="category">affinity</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">1.0</field>
+            <field name="sequence">90</field>
+        </record>
+
+        <record id="relation_type_domesticpartner" model="res.partner.relation.type">
+            <field name="code">domesticpartner</field>
+            <field name="name">domestic partner of</field>
+            <field name="category">affinity</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.9</field>
+            <field name="sequence">100</field>
+        </record>
+
+        <record id="relation_type_exspouse" model="res.partner.relation.type">
+            <field name="code">exspouse</field>
+            <field name="name">former spouse of</field>
+            <field name="category">affinity</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.3</field>
+            <field name="sequence">110</field>
+        </record>
+
+        <record id="relation_type_parentinlaw" model="res.partner.relation.type">
+            <field name="code">parentinlaw</field>
+            <field name="name">parent-in-law of</field>
+            <field name="name_male">father-in-law of</field>
+            <field name="name_female">mother-in-law of</field>
+            <field name="name_inverse">child-in-law of</field>
+            <field name="name_inverse_male">son-in-law of</field>
+            <field name="name_inverse_female">daughter-in-law of</field>
+            <field name="category">affinity</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="is_antisymmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.6</field>
+            <field name="sequence">120</field>
+        </record>
+
+        <record id="relation_type_siblinginlaw" model="res.partner.relation.type">
+            <field name="code">siblinginlaw</field>
+            <field name="name">sibling-in-law of</field>
+            <field name="name_male">brother-in-law of</field>
+            <field name="name_female">sister-in-law of</field>
+            <field name="category">affinity</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.5</field>
+            <field name="sequence">130</field>
+        </record>
+
+        <record id="relation_type_stepparent" model="res.partner.relation.type">
+            <field name="code">stepparent</field>
+            <field name="name">step-parent of</field>
+            <field name="name_male">stepfather of</field>
+            <field name="name_female">stepmother of</field>
+            <field name="name_inverse">step-child of</field>
+            <field name="name_inverse_male">stepson of</field>
+            <field name="name_inverse_female">stepdaughter of</field>
+            <field name="category">affinity</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="is_antisymmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.55</field>
+            <field name="sequence">140</field>
+        </record>
+
+        <record id="relation_type_compadre" model="res.partner.relation.type">
+            <field name="code">compadre</field>
+            <field name="name">compadre of</field>
+            <field name="name_male">compadre of</field>
+            <field name="name_female">comadre of</field>
+            <field name="category">ritual</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.55</field>
+            <field name="sequence">150</field>
+        </record>
+
+        <record id="relation_type_godparent" model="res.partner.relation.type">
+            <field name="code">godparent</field>
+            <field name="name">godparent of</field>
+            <field name="name_male">padrino of</field>
+            <field name="name_female">madrina of</field>
+            <field name="name_inverse">godchild of</field>
+            <field name="name_inverse_male">godson of</field>
+            <field name="name_inverse_female">goddaughter of</field>
+            <field name="category">ritual</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="is_antisymmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.45</field>
+            <field name="sequence">160</field>
+        </record>
+
+        <record id="relation_type_household" model="res.partner.relation.type">
+            <field name="code">household</field>
+            <field name="name">shares a household with</field>
+            <field name="category">household</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.7</field>
+            <field name="sequence">170</field>
+        </record>
+
+        <record id="relation_type_caretaker" model="res.partner.relation.type">
+            <field name="code">caretaker</field>
+            <field name="name">caretaker of</field>
+            <field name="name_inverse">cared for by</field>
+            <field name="category">household</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.4</field>
+            <field name="sequence">180</field>
+        </record>
+
+        <record id="relation_type_guarantor" model="res.partner.relation.type">
+            <field name="code">guarantor</field>
+            <field name="name">guarantor of</field>
+            <field name="name_inverse">guaranteed by</field>
+            <field name="category">business</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">1.0</field>
+            <field name="sequence">190</field>
+        </record>
+
+        <record id="relation_type_businesspartner" model="res.partner.relation.type">
+            <field name="code">businesspartner</field>
+            <field name="name">business partner of</field>
+            <field name="category">business</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.9</field>
+            <field name="sequence">200</field>
+        </record>
+
+        <record id="relation_type_shareholder" model="res.partner.relation.type">
+            <field name="code">shareholder</field>
+            <field name="name">shareholder of</field>
+            <field name="name_inverse">has as shareholder</field>
+            <field name="category">business</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.85</field>
+            <field name="sequence">210</field>
+        </record>
+
+        <record id="relation_type_legalrepresentative" model="res.partner.relation.type">
+            <field name="code">legalrepresentative</field>
+            <field name="name">legal representative of</field>
+            <field name="name_inverse">represented by</field>
+            <field name="category">business</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.85</field>
+            <field name="sequence">220</field>
+        </record>
+
+        <record id="relation_type_employer" model="res.partner.relation.type">
+            <field name="code">employer</field>
+            <field name="name">employer of</field>
+            <field name="name_inverse">employed by</field>
+            <field name="category">business</field>
+            <field name="is_symmetric" eval="False"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.4</field>
+            <field name="sequence">230</field>
+        </record>
+
+        <record id="relation_type_croppartner" model="res.partner.relation.type">
+            <field name="code">croppartner</field>
+            <field name="name">grows crop together with</field>
+            <field name="category">agricultural</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.75</field>
+            <field name="sequence">240</field>
+        </record>
+
+        <record id="relation_type_landshare" model="res.partner.relation.type">
+            <field name="code">landshare</field>
+            <field name="name">shares land with</field>
+            <field name="category">agricultural</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.6</field>
+            <field name="sequence">250</field>
+        </record>
+
+        <record id="relation_type_equipmentshare" model="res.partner.relation.type">
+            <field name="code">equipmentshare</field>
+            <field name="name">shares equipment with</field>
+            <field name="category">agricultural</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.35</field>
+            <field name="sequence">260</field>
+        </record>
+
+        <record id="relation_type_sameejido" model="res.partner.relation.type">
+            <field name="code">sameejido</field>
+            <field name="name">member of the same ejido as</field>
+            <field name="category">agricultural</field>
+            <field name="is_symmetric" eval="True"/>
+            <field name="degree">0</field>
+            <field name="weight_risk">0.2</field>
+            <field name="sequence">270</field>
+        </record>
+
+    </data>
+</odoo>

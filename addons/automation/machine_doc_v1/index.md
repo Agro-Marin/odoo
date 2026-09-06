@@ -48,7 +48,7 @@ channel and an open canvas reloads.
 
 `web` carries the vendored diagramming library this module's canvas will use:
 `addons/web/static/lib/joint/`, reachable as the bare specifier `joint`. It sits
-there rather than here because `agromarin/partner_relationship` needs the same
+there rather than here because `partner_relationship` needs the same
 canvas and CI checks `odoo` out alone.
 
 Earlier revisions listed a `web_flow` module in `agromarin/` as the visual DAG

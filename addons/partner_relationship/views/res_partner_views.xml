@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <record id="view_res_partner_form_inherit_relationship" model="ir.ui.view">
+        <field name="name">res.partner.form.inherit.relationship</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button name="action_view_relations" type="object"
+                        class="oe_stat_button" icon="fa-share-alt"
+                        invisible="count_relation == 0">
+                    <field name="count_relation" widget="statinfo" string="Relationships"/>
+                </button>
+                <button name="action_view_related_partners" type="object"
+                        class="oe_stat_button" icon="fa-users"
+                        invisible="count_related_partner == 0">
+                    <field name="count_related_partner" widget="statinfo" string="Related Parties"/>
+                </button>
+                <button name="action_view_network" type="object"
+                        class="oe_stat_button" icon="fa-sitemap"
+                        invisible="count_relation == 0">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Open</span>
+                        <span class="o_stat_text">Network</span>
+                    </div>
+                </button>
+            </div>
+            <notebook position="inside">
+                <page string="Relationships" name="relationships">
+                    <div class="d-flex gap-2 mb-3">
+                        <button string="Add Relationship" type="object"
+                                name="action_new_relation"
+                                class="btn btn-primary"
+                                groups="partner_relationship.group_partner_relationship_user"/>
+                    </div>
+                    <field name="relation_ids" readonly="1" nolabel="1">
+                        <list>
+                            <field name="partner_id"/>
+                            <field name="label" string="is"/>
+                            <field name="other_partner_id"/>
+                            <field name="category"/>
+                            <field name="weight_risk" widget="percentage" optional="hide"/>
+                        </list>
+                    </field>
+                </page>
+                <page string="Network" name="relationship_network"
+                      invisible="count_relation == 0">
+                    <widget name="partner_network"/>
+                </page>
+            </notebook>
+        </field>
+    </record>
+
+    <!-- The notebook page is a 520px box inside a form that already owns the
+         width; a network of any size is legible only with the page to itself.
+         Same widget, no chrome competing with it. -->
+    <record id="view_res_partner_form_network" model="ir.ui.view">
+        <field name="name">res.partner.form.network</field>
+        <field name="model">res.partner</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <form string="Contact Network" create="false" edit="false">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="display_name" readonly="1" nolabel="1"/></h1>
+                    </div>
+                    <div class="o_partner_network_full">
+                        <widget name="partner_network"/>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_res_partner_list_network" model="ir.ui.view">
+        <field name="name">res.partner.list.network</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <list string="Contacts">
+                <field name="display_name" string="Contact"/>
+                <field name="count_relation" string="Relationships"/>
+                <field name="count_related_partner" string="Related Parties"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_res_partner_network" model="ir.actions.act_window">
+        <field name="name">Contact Networks</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">list,form</field>
+        <!-- count_relation is computed and unstored, so it cannot be searched.
+             The two One2many sides that feed it are real columns and can. -->
+        <field name="domain">['|', ('relation_out_ids', '!=', False), ('relation_in_ids', '!=', False)]</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_res_partner_list_network')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_res_partner_form_network')}),
+        ]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No contact has a recorded relationship yet.</p>
+            <p>Record a tie between two contacts and its network is drawn here.</p>
+        </field>
+    </record>
+
+</odoo>

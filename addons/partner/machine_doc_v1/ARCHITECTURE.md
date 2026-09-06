@@ -81,7 +81,7 @@ rather than empty.
 
 `gender` is on the page for the same reason `birthdate` is: `base` declares both, one
 beside the other, and neither had a placement. It had two — `agromarin/marin` and
-`agromarin/partner_relationship` each xpath'd their own copy onto the form, so a database
+`partner_relationship` each xpath'd their own copy onto the form, so a database
 carrying both rendered the field twice. **Placing a `base` field is this module's job**, and
 that is what stops a third module adding a third copy; both siblings now drop theirs and
 read the value where they need it.

@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo noupdate="1">
+
+    <record id="partner_attribute_partner_type" model="res.partner.attribute">
+        <field name="name">Customer type</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="10" />
+    </record>
+
+    <record id="partner_attribute_farmer_generation" model="res.partner.attribute">
+        <field name="name">Generation</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="20" />
+    </record>
+
+    <record id="partner_attribute_succession" model="res.partner.attribute">
+        <field name="name">Succession</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="30" />
+    </record>
+
+    <record id="partner_attribute_growth_outlook" model="res.partner.attribute">
+        <field name="name">Growth outlook</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="40" />
+    </record>
+
+    <record id="partner_attribute_price_sensitivity" model="res.partner.attribute">
+        <field name="name">Price sensitivity</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="50" />
+    </record>
+
+    <record id="partner_attribute_technical_advisor" model="res.partner.attribute">
+        <field name="name">Technical advisory</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="60" />
+    </record>
+
+    <record id="partner_attribute_acquisition_source" model="res.partner.attribute">
+        <field name="name">Acquisition source</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="70" />
+    </record>
+
+    <record id="partner_attribute_local_influence" model="res.partner.attribute">
+        <field name="name">Local influence</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="80" />
+    </record>
+
+    <record id="partner_attribute_communication_openness" model="res.partner.attribute">
+        <field name="name">Communication openness</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="90" />
+    </record>
+
+    <record id="partner_attribute_social_network" model="res.partner.attribute">
+        <field name="name">Social networks</field>
+        <field name="value_type">multi</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="100" />
+    </record>
+
+    <record id="partner_attribute_language" model="res.partner.attribute">
+        <field name="name">Contact language</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="110" />
+    </record>
+
+    <record id="partner_attribute_competitor_brand" model="res.partner.attribute">
+        <field name="name">Competitor brands</field>
+        <field name="value_type">multi</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="120" />
+    </record>
+
+    <record id="partner_attribute_commercial_profile" model="res.partner.attribute">
+        <field name="name">Commercial profile</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="130" />
+    </record>
+
+    <record id="partner_attribute_loyalty" model="res.partner.attribute">
+        <field name="name">Loyalty</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="140" />
+    </record>
+
+    <record id="partner_attribute_technology_level" model="res.partner.attribute">
+        <field name="name">Technology level</field>
+        <field name="value_type">single</field>
+        <field name="aggregation_mode">sum</field>
+        <field name="sequence" eval="150" />
+    </record>
+
+</odoo>

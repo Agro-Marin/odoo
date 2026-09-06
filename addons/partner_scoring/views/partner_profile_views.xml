@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+
+    <record id="partner_profile_view_search" model="ir.ui.view">
+        <field name="name">partner.profile.search</field>
+        <field name="model">partner.profile</field>
+        <field name="arch" type="xml">
+            <search string="Search Commercial Profile">
+                <field name="name" />
+                <separator />
+                <filter
+                    string="Active"
+                    name="active"
+                    domain="[('active', '=', True)]"
+                />
+                <filter
+                    string="Inactive"
+                    name="inactive"
+                    domain="[('active', '=', False)]"
+                />
+                <group>
+                    <filter
+                        string="Company"
+                        name="company"
+                        domain="[]"
+                        context="{'group_by': 'company_id'}"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="partner_profile_view_list" model="ir.ui.view">
+        <field name="name">partner.profile.list</field>
+        <field name="model">partner.profile</field>
+        <field name="arch" type="xml">
+            <list string="Commercial Profiles" multi_edit="1">
+                <field name="sequence" widget="handle" />
+                <field name="name" />
+                <field name="min_value" />
+                <field name="max_value" />
+                <field name="factor" widget="percentage" />
+                <field name="active" />
+                <field name="company_id" groups="base.group_multi_company" />
+            </list>
+        </field>
+    </record>
+
+    <record id="partner_profile_view_form" model="ir.ui.view">
+        <field name="name">partner.profile.form</field>
+        <field name="model">partner.profile</field>
+        <field name="arch" type="xml">
+            <form string="Commercial Profile">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Profile Name" />
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Score range (%)">
+                            <field name="min_value" />
+                            <field name="max_value" />
+                            <field
+                                name="factor"
+                                widget="percentage"
+                                help="Multiplier applied to sale.target metas for partners in this profile."
+                            />
+                        </group>
+                        <group string="Settings">
+                            <field name="sequence" />
+                            <field name="active" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
+                            />
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="partner_profile_action" model="ir.actions.act_window">
+        <field name="name">Commercial Profiles</field>
+        <field name="res_model">partner.profile</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="partner_profile_view_search" />
+        <field name="context">{'search_default_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new commercial profile
+            </p>
+            <p>
+                Profiles classify customers by their normalized score percentage
+                and apply a factor to expected revenues and commercial targets.
+            </p>
+        </field>
+    </record>
+
+    <menuitem
+        id="partner_profile_menu"
+        name="Commercial Profiles"
+        parent="partner.res_partner_menu_config"
+        action="partner_profile_action"
+        sequence="30"
+        groups="partner_scoring.group_partner_scoring_manager"
+    />
+
+</odoo>

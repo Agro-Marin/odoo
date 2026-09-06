@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+
+    <record id="res_groups_privilege_partner_scoring" model="res.groups.privilege">
+        <field name="name">Partner Scoring</field>
+        <field name="category_id" ref="base.module_category_sales" />
+        <field
+            name="description"
+        >Configuration of the partner scoring catalog and the commercial profile bands</field>
+        <field name="sequence" eval="10" />
+    </record>
+
+    <record id="group_partner_scoring_manager" model="res.groups">
+        <field name="name">Administrator</field>
+        <field name="privilege_id" ref="res_groups_privilege_partner_scoring" />
+        <field name="sequence" eval="20" />
+        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]" />
+        <field
+            name="comment"
+        >Can configure the partner attributes, their scoring weights and the commercial profile bands.</field>
+    </record>
+
+    <record id="base.group_system" model="res.groups">
+        <field
+            name="implied_ids"
+            eval="[Command.link(ref('partner_scoring.group_partner_scoring_manager'))]"
+        />
+    </record>
+
+</odoo>

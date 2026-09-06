@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+
+    <!--
+        The scoring models carry commercial data about a partner but no company
+        of their own, so the standard multi-company rule has nothing to attach
+        to. They follow the partner instead: whoever may read a partner may
+        read what the engine says about it, and nobody else. Written as a
+        subquery on res.partner so the rule inherits every rule already
+        guarding the partner, the company one and the portal one alike.
+        with_user is what drops the sudo the rule domain is evaluated under:
+        without it the subquery answers as superuser and restricts nothing.
+    -->
+    <record id="rule_partner_score_line_follows_partner" model="ir.rule">
+        <field name="name">partner.score.line: follow the partner</field>
+        <field name="model_id" ref="model_partner_score_line" />
+        <field name="global" eval="True" />
+        <field
+            name="domain_force"
+        >[('partner_id', 'in', user.with_user(user).env['res.partner']._search([]))]</field>
+    </record>
+
+    <record id="rule_res_partner_attribute_line_follows_partner" model="ir.rule">
+        <field name="name">res.partner.attribute.line: follow the partner</field>
+        <field name="model_id" ref="model_res_partner_attribute_line" />
+        <field name="global" eval="True" />
+        <field
+            name="domain_force"
+        >[('partner_id', 'in', user.with_user(user).env['res.partner']._search([]))]</field>
+    </record>
+
+    <!--
+        partner.profile does declare a company, so it takes the standard rule.
+        The classification compute is separately scoped by _scale_domain and
+        runs sudo, so this is about who may *see* a scale, not about which
+        scale applies.
+    -->
+    <record id="rule_partner_profile_company" model="ir.rule">
+        <field name="name">partner.profile: multi-company</field>
+        <field name="model_id" ref="model_partner_profile" />
+        <field name="global" eval="True" />
+        <field
+            name="domain_force"
+        >['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+
+</odoo>

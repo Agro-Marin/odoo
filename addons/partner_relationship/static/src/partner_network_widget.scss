@@ -1,0 +1,247 @@
+.o_partner_network {
+    // The sized box. Its height is the only thing that decides the fit scale,
+    // so it is a CSS decision per context -- and it must NOT be the element the
+    // paper is handed, because JointJS writes width/height inline there and an
+    // inline `height: 100%` against an auto-height parent computes to zero.
+    .o_partner_network_canvas {
+        // A JointJS 4 paper fills its container and reports scrollWidth ===
+        // clientWidth, so `overflow: auto` never produced a scrollbar here --
+        // it only clipped. Panning is what moves the graph now, and the cursor
+        // has to say so because a diagram that looks static invites nobody to
+        // try dragging it.
+        overflow: hidden;
+        height: 40rem;
+        cursor: grab;
+
+        &:active {
+            cursor: grabbing;
+        }
+
+        .o_partner_network_paper {
+            height: 100%;
+        }
+
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        background-color: var(--body-bg);
+    }
+
+    // JointJS writes its colours as SVG presentation attributes, which sit at
+    // the bottom of the cascade -- so these rules win, and the diagram follows
+    // the backend theme instead of carrying a second palette in JavaScript.
+    .o_partner_network_node {
+        fill: var(--tertiary-bg);
+        transition: fill 0.1s ease-in-out;
+        stroke: var(--border-color);
+        stroke-width: 1;
+        cursor: pointer;
+
+        &:hover {
+            fill: var(--secondary-bg);
+            stroke: var(--primary);
+        }
+    }
+
+    .o_partner_network_focus {
+        fill: var(--primary);
+        stroke: var(--primary);
+        stroke-width: 3;
+    }
+
+    .o_partner_network_company {
+        stroke-dasharray: 4 2;
+    }
+
+    .o_partner_network_degree_2 {
+        opacity: 0.85;
+    }
+
+    .o_partner_network_degree_3 {
+        opacity: 0.7;
+    }
+
+    .o_partner_network_label {
+        fill: var(--body-color);
+        // The diagram is drawn at whatever scale fits the box, so this is a
+        // size BEFORE that scale is applied -- at the 20% the old circular
+        // layout forced, 12px reached the screen as under 3px.
+        font-size: 14px;
+        font-weight: 500;
+        pointer-events: none;
+    }
+
+    // Must follow .o_partner_network_label: both classes sit on the same text
+    // node with equal specificity, so source order is what decides, and placed
+    // above it this lost to the body colour and drew dark text on the filled
+    // focus box.
+    .o_partner_network_label_focus {
+        fill: var(--white);
+        font-weight: 700;
+    }
+
+    .o_partner_network_link {
+        stroke: var(--secondary-color);
+        stroke-width: 2.5;
+    }
+
+    // The six keys of res.partner.relation.type CATEGORY_SELECTION. A tie whose
+    // category is unset falls through to the base link colour above.
+    .o_partner_network_category_blood {
+        stroke: var(--danger);
+        color: var(--danger);
+    }
+
+    .o_partner_network_category_affinity {
+        stroke: var(--warning);
+        color: var(--warning);
+    }
+
+    .o_partner_network_category_ritual {
+        stroke: var(--info);
+        color: var(--info);
+    }
+
+    .o_partner_network_category_household {
+        stroke: var(--purple, var(--info));
+        color: var(--purple, var(--info));
+    }
+
+    .o_partner_network_category_business {
+        stroke: var(--success);
+        color: var(--success);
+    }
+
+    .o_partner_network_category_agricultural {
+        stroke: var(--teal, var(--success));
+        color: var(--teal, var(--success));
+    }
+
+    .o_partner_network_edge_label {
+        fill: var(--secondary-color);
+        font-size: 12px;
+    }
+
+    .o_partner_network_edge_label_bg {
+        fill: var(--body-bg);
+        stroke: none;
+    }
+
+    // The legend doubles as the filter, so each row carries its own colour
+    // rather than describing it. The swatch reuses the very classes the links
+    // are drawn with -- one palette, defined once, so a category that gains a
+    // colour gains its legend entry with no second edit.
+    //
+    // A real checkbox inside a label, rather than a button styled to look
+    // pressed: the whole chip becomes the hit target, the state is announced
+    // properly, and it is keyboard-operable with no aria bookkeeping.
+    .o_partner_network_legend_item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.4rem 0.15rem 0.35rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-pill);
+        font-size: 0.75rem;
+        color: var(--body-color);
+        background-color: var(--body-bg);
+        cursor: pointer;
+        user-select: none;
+
+        &:hover {
+            border-color: var(--primary);
+        }
+
+        .form-check-input {
+            flex: none;
+            cursor: pointer;
+        }
+
+        &:hover .o_partner_network_only,
+        &:focus-within .o_partner_network_only {
+            opacity: 1;
+        }
+    }
+
+    // Unchecked reads as absent, not as crossed out: the strikethrough this
+    // replaced fought with the checkbox, which already says the same thing.
+    .o_partner_network_legend_off {
+        opacity: 0.55;
+        background-color: transparent;
+    }
+
+    .o_partner_network_count {
+        min-width: 1.1rem;
+        padding: 0 0.25rem;
+        border-radius: var(--border-radius-pill);
+        background-color: var(--secondary-bg);
+        color: var(--secondary-color);
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+    }
+
+    // Dimmed rather than hidden. Revealing it only on hover kept the chip
+    // tidy but made the shortcut undiscoverable -- nobody hovers a legend
+    // looking for a verb -- and an opacity-0 control is unreachable to a tour
+    // and to anything else driving the page. Muted keeps the checkbox reading
+    // as the primary action while still saying that this exists.
+    .o_partner_network_only {
+        padding: 0 0.15rem;
+        border: 0;
+        border-radius: var(--border-radius);
+        background: transparent;
+        color: var(--primary);
+        font-size: 0.7rem;
+        line-height: 1;
+        opacity: 0.5;
+
+        &:focus-visible {
+            opacity: 1;
+        }
+    }
+
+    .o_partner_network_swatch {
+        width: 0.75rem;
+        height: 0.2rem;
+        flex: none;
+        border-radius: 1px;
+        // The category classes set `stroke`, which an SVG line reads and an
+        // HTML span does not -- so each also sets `color`, and the swatch picks
+        // it up here. One declaration feeds both, and the legend cannot drift
+        // out of step with the links it explains.
+        background-color: currentColor;
+    }
+
+    .o_partner_network_zoom {
+        font-variant-numeric: tabular-nums;
+    }
+}
+
+// The full-page action exists because a network does not fit a notebook page,
+// and the box is what sets the fit scale -- a taller one is what buys legible
+// labels. Written as a plain descendant selector on purpose: this lived outside
+// the wrapper above with a leading `&`, which is not a selector at root, so the
+// declaration reached the browser as invalid CSS and was dropped entirely. It
+// went unnoticed because `min-height` below happens to equal the notebook box
+// at a 768px-tall viewport, so the two agreed exactly where it was tested.
+// A form sheet is capped at $o-form-view-sheet-max-width (1400px) so that lines
+// of prose stay readable, and on a record with a chatter the rest of the width
+// is the chatter's. This form has no chatter, so past 1400px the remainder was
+// simply blank -- 520px of it on a 1920px screen -- while the diagram was
+// squeezed into the left two thirds. A network is not prose and wants the width
+// a graph view gets.
+//
+// Keyed off the wrapper with :has(), the same way mail sizes this element
+// against its chatter sibling, so nothing outside this one form is touched.
+.o_form_sheet_bg:has(.o_partner_network_full) {
+    max-width: none;
+}
+
+.o_partner_network_full .o_partner_network_canvas {
+    // A starting value only: the widget measures the box's own offset and sets
+    // the height that is really left, because the 14rem here is a guess at the
+    // chrome above and being wrong either overflows the window (clipped, not
+    // scrolled) or wastes the page. This keeps the first paint sensible if that
+    // measurement has not run yet.
+    height: calc(100vh - 14rem);
+    min-height: 26rem;
+}

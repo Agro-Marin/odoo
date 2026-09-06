@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <record id="view_res_partner_relation_type_list" model="ir.ui.view">
+        <field name="name">res.partner.relation.type.list</field>
+        <field name="model">res.partner.relation.type</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="name_inverse"/>
+                <field name="category"/>
+                <field name="is_symmetric"/>
+                <field name="degree"/>
+                <field name="weight_risk" widget="percentage"/>
+                <field name="count_relation" string="Recorded"/>
+                <field name="code" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_res_partner_relation_type_form" model="ir.ui.view">
+        <field name="name">res.partner.relation.type.form</field>
+        <field name="model">res.partner.relation.type</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div name="button_box" class="oe_button_box">
+                        <button name="action_view_relations" type="object"
+                                class="oe_stat_button" icon="fa-users">
+                            <field name="count_relation" widget="statinfo" string="Relationships"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="e.g. father of"/></h1>
+                    </div>
+                    <group name="main">
+                        <group name="wording">
+                            <field name="is_symmetric"/>
+                            <field name="is_antisymmetric" invisible="is_symmetric"/>
+                            <field name="name_inverse"
+                                   invisible="is_symmetric"
+                                   required="not is_symmetric"
+                                   placeholder="e.g. son of"/>
+                            <field name="code"/>
+                        </group>
+                        <group name="semantics">
+                            <field name="category"/>
+                            <field name="degree"/>
+                            <field name="weight_risk" widget="percentage"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Gendered Wording" name="gendered">
+                            <div class="text-muted mb-3">
+                                Used when the contact carries a gender. The neutral
+                                wording above is the fallback.
+                            </div>
+                            <group name="gendered">
+                                <group name="gendered_forward" string="This contact">
+                                    <field name="name_male" string="Male" placeholder="e.g. father of"/>
+                                    <field name="name_female" string="Female" placeholder="e.g. mother of"/>
+                                </group>
+                                <group name="gendered_inverse" string="The related contact"
+                                       invisible="is_symmetric">
+                                    <field name="name_inverse_male" string="Male" placeholder="e.g. son of"/>
+                                    <field name="name_inverse_female" string="Female" placeholder="e.g. daughter of"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_res_partner_relation_type_search" model="ir.ui.view">
+        <field name="name">res.partner.relation.type.search</field>
+        <field name="model">res.partner.relation.type</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="code"/>
+                <filter string="Symmetric" name="symmetric" domain="[('is_symmetric', '=', True)]"/>
+                <separator/>
+                <filter string="Blood" name="blood" domain="[('category', '=', 'blood')]"/>
+                <filter string="Affinity" name="affinity" domain="[('category', '=', 'affinity')]"/>
+                <filter string="Ritual" name="ritual" domain="[('category', '=', 'ritual')]"/>
+                <filter string="Business" name="business" domain="[('category', '=', 'business')]"/>
+                <filter string="Agricultural" name="agricultural" domain="[('category', '=', 'agricultural')]"/>
+                <group>
+                    <filter string="Category" name="group_category" context="{'group_by': 'category'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_res_partner_relation_type" model="ir.actions.act_window">
+        <field name="name">Relationship Types</field>
+        <field name="res_model">res.partner.relation.type</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_category': 1}</field>
+    </record>
+
+</odoo>

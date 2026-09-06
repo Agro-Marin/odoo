@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+
+    <record id="res_partner_view_form_inherit_scoring" model="ir.ui.view">
+        <field name="name">res.partner.form.inherit.partner.scoring</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='internal_notes']" position="before">
+                <page name="partner_scoring" string="Scoring">
+                    <field name="commercial_partner_id" invisible="1" />
+                    <div
+                        class="alert alert-info"
+                        role="alert"
+                        invisible="commercial_partner_id == id"
+                    >
+                        Scoring is managed on the commercial entity:
+                        <field
+                            name="commercial_partner_id"
+                            readonly="1"
+                            nolabel="1"
+                            class="oe_inline"
+                        />
+                    </div>
+                    <div invisible="commercial_partner_id != id">
+                        <group>
+                            <group
+                                name="scoring_classification"
+                                string="Commercial Classification"
+                            >
+                                <field name="partner_profile_id" readonly="1" />
+                                <field name="factor" readonly="1" />
+                                <field name="score_line_count" invisible="1" />
+                                <label for="score_pct" />
+                                <div class="o_row">
+                                    <field
+                                        name="score_pct"
+                                        readonly="1"
+                                        class="oe_inline"
+                                        style="max-width: 7rem;"
+                                    />
+                                    <button
+                                        name="%(partner_scoring.action_partner_score_line_from_partner)d"
+                                        type="action"
+                                        icon="fa-bar-chart"
+                                        class="btn btn-link p-0"
+                                        string="View breakdown"
+                                        invisible="not score_line_count"
+                                    />
+                                </div>
+                            </group>
+                        </group>
+                        <div
+                            class="mb-2"
+                            groups="partner_scoring.group_partner_scoring_manager"
+                        >
+                            <div class="d-flex align-items-center gap-2">
+                                <label
+                                    for="date_last_score_update"
+                                    string="Last calculated on"
+                                    class="text-muted"
+                                />
+                                <field
+                                    name="date_last_score_update"
+                                    nolabel="1"
+                                    readonly="1"
+                                    class="oe_inline"
+                                />
+                                <button
+                                    name="action_partner_score_recompute"
+                                    type="object"
+                                    icon="fa-refresh"
+                                    string="Recompute now"
+                                    class="btn btn-link p-0"
+                                />
+                            </div>
+                            <div
+                                class="text-muted fst-italic"
+                                style="font-size: 0.85em;"
+                            >
+                                Catalog weight changes are applied asynchronously — click
+                                "Recompute now" for an immediate refresh.
+                            </div>
+                        </div>
+                        <group name="scoring_intelligence" />
+                        <separator
+                            name="scoring_attributes_separator"
+                            string="Profile Attributes"
+                        />
+                        <field name="attribute_line_ids">
+                            <list editable="bottom">
+                                <field name="attribute_id" />
+                                <field
+                                    name="value_ids"
+                                    widget="many2many_tags"
+                                    options="{'color_field': 'color', 'no_create': True}"
+                                />
+                            </list>
+                        </field>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

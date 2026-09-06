@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <template id="relation_path_document">
+        <div class="o_relation_path">
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <span class="badge text-bg-primary"><t t-out="start.display_name"/></span>
+                <t t-foreach="path" t-as="hop">
+                    <span class="text-muted small">
+                        <i class="fa fa-long-arrow-right me-1"/>
+                        <t t-out="hop['label']"/>
+                        <i class="fa fa-long-arrow-right ms-1"/>
+                    </span>
+                    <span class="badge text-bg-light border">
+                        <t t-out="hop['other_partner'].display_name"/>
+                    </span>
+                </t>
+            </div>
+        </div>
+    </template>
+
+    <record id="view_partner_relation_path_form" model="ir.ui.view">
+        <field name="name">partner.relation.path.form</field>
+        <field name="model">partner.relation.path</field>
+        <field name="arch" type="xml">
+            <form>
+                <group name="main">
+                    <group name="endpoints">
+                        <field name="partner_id"/>
+                        <field name="other_partner_id"/>
+                    </group>
+                    <group name="settings">
+                        <field name="max_degree"/>
+                        <field name="count_hop" string="Degrees of Separation"
+                               invisible="not is_connected"/>
+                        <field name="is_connected" invisible="1"/>
+                    </group>
+                </group>
+                <div class="alert alert-warning" role="alert"
+                     invisible="is_connected or not partner_id or not other_partner_id">
+                    No relationship path found within this depth.
+                </div>
+                <group name="path" string="Path" invisible="not is_connected">
+                    <field name="path_html" nolabel="1" readonly="1"/>
+                </group>
+                <footer>
+                    <button string="Open Relationships" name="action_view_path_relations"
+                            type="object" class="btn-primary"
+                            invisible="not is_connected"/>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_partner_relation_path" model="ir.actions.act_window">
+        <field name="name">Relationship Path</field>
+        <field name="res_model">partner.relation.path</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

@@ -184,7 +184,7 @@ rather than a patch:
 
 - `age` and `age_range_id` are this module's, so `groups=` on them costs one line each -- and
   buys nothing while `birthdate` is open, since the age is a trivial reading of it.
-- `birthdate` and `gender` are `base`'s. `agromarin/partner_relationship` computes on
+- `birthdate` and `gender` are `base`'s. `partner_relationship` computes on
   `partner_id.gender` and `agromarin/remote_dav_sync` reads `partner.birthdate` when it builds
   a vCard; a compute or a controller running as a non-member raises rather than degrading, so
   gating either one needs those call sites decided first.
