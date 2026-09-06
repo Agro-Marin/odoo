@@ -121,10 +121,6 @@ export const DocumentsRecordMixin = (component) =>
             );
         }
 
-        hasStoredThumbnail() {
-            return this.data.thumbnail_status === "present";
-        }
-
         isViewable() {
             const { type, mimetype, url } = this.shortcutTarget.data;
             return (

@@ -33,6 +33,9 @@ export class DocumentsKanbanController extends DocumentsControllerMixin(
                     getTopbarActions: () => this.getTopBarActionMenuItems(),
                     getMenuProps: () => this.actionMenuProps,
                 });
+                return () => {
+                    this.documentService.getSelectionActions = null;
+                };
             },
             () => [],
         );

@@ -4,7 +4,7 @@ import { Dialog, ConfirmationDialog } from "@web/ui/dialog";
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { Component, onWillStart, useState, useRef } from "@odoo/owl";
-import { formatDate, deserializeDate } from "@web/core/l10n/dates";
+import { deserializeDateTime, formatDateTime } from "@web/core/l10n/dates";
 import { download } from "@web/core/network";
 
 export class DocumentsManageVersions extends Component {
@@ -24,7 +24,7 @@ export class DocumentsManageVersions extends Component {
         this.fileUploadService = useService("file_upload");
         this.fileInputRef = useRef("uploadFileInput");
         this.formatDate = (d) =>
-            formatDate(deserializeDate(d), { format: "HH:mm DDD" });
+            formatDateTime(deserializeDateTime(d), { format: "HH:mm DDD" });
 
         this.state = useState({
             documentName: "",
@@ -115,11 +115,10 @@ export class DocumentsManageVersions extends Component {
             body: _t("Are you sure you want to delete this attachment?"),
             confirmLabel: _t("Delete"),
             confirm: async () => {
-                await this.orm.call(
-                    "document.document",
-                    "action_delete_from_history",
-                    [this.props.documentId, attachmentId],
-                );
+                await this.orm.call("document.document", "action_delete_from_history", [
+                    this.props.documentId,
+                    attachmentId,
+                ]);
                 await this.load();
                 this.documentService.reload();
             },

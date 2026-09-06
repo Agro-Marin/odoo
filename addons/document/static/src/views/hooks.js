@@ -9,7 +9,6 @@ import { PdfManager } from "@document/owl/components/pdf_manager/pdf_manager";
 import {
     EventBus,
     onMounted,
-    onWillStart,
     markup,
     useComponent,
     useEnv,
@@ -38,14 +37,6 @@ export const DETAIL_PANEL_REQUIRED_FIELDS = [
     "partner_id",
     "tag_ids",
 ];
-
-export function preSuperSetupFolder() {
-    const component = useComponent();
-    const documentService = useService("document.document");
-    onWillStart(async () => {
-        component._deletionDelay = await documentService.getDeletionDelay();
-    });
-}
 
 export function preSuperSetup() {
     useSubEnv({
@@ -167,7 +158,11 @@ export function useDocumentView(helpers) {
         hasShareDocuments: () => {
             const folder = env.searchModel.getSelectedFolder();
             const selectedRecords = env.model.root.selection.length;
-            return typeof folder.id !== "number" && !selectedRecords;
+            return (
+                documentService.hasEnterpriseActions &&
+                typeof folder.id !== "number" &&
+                !selectedRecords
+            );
         },
         userIsInternal: documentService.userIsInternal,
         userIsDocumentManager: documentService.userIsDocumentManager,

@@ -33,6 +33,7 @@ MISC_SUITES = (
     "@document/operation",
     "@document/preview_lifecycle",
     "@document/thumbnail_service",
+    "@document/enterprise_actions",
 )
 ALL_DOCUMENTS_SUITE_PREFIXES = (*VIEW_SUITES, *PDF_SUITES, *MISC_SUITES)
 

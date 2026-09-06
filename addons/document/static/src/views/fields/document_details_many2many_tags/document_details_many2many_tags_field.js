@@ -15,7 +15,7 @@ export class DocumentsDetailsMany2ManyTagsField extends Many2ManyTagsField {
         super.setup();
         const superUpdate = this.update;
         this.update = async (recordlist) => {
-            const ret = superUpdate(recordlist);
+            const ret = await superUpdate(recordlist);
             await this._preventMultiEdit(async () => this.props.record.save());
             return ret;
         };
@@ -40,8 +40,11 @@ export class DocumentsDetailsMany2ManyTagsField extends Many2ManyTagsField {
         if (this.props.record.isDetailsPanelRecord && this.env.model.multiEdit) {
             const modelMultiEdit = this.env.model.multiEdit;
             this.env.model.multiEdit = false;
-            await callable();
-            this.env.model.multiEdit = modelMultiEdit;
+            try {
+                await callable();
+            } finally {
+                this.env.model.multiEdit = modelMultiEdit;
+            }
             if (this.props.record.data.type === "folder") {
                 await this.env.searchModel._reloadSearchModel(true);
             }

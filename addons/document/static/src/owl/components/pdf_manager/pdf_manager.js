@@ -664,8 +664,8 @@ export class PdfManager extends Component {
             JSON.stringify({
                 folder_id: sourceDocument.folder_id?.id ?? false,
                 tag_ids: sourceDocument.tag_ids.currentIds,
-                owner_id: sourceDocument.owner_id.id,
-                partner_id: sourceDocument.partner_id.id,
+                owner_id: sourceDocument.owner_id?.id ?? false,
+                partner_id: sourceDocument.partner_id?.id ?? false,
                 active: this.state.keepDocument,
             }),
         );

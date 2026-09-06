@@ -39,6 +39,9 @@ export class DocumentsListController extends DocumentsControllerMixin(ListContro
                     getTopbarActions: () => this.getTopBarActionMenuItems(),
                     getMenuProps: () => this.actionMenuProps,
                 });
+                return () => {
+                    this.documentService.getSelectionActions = null;
+                };
             },
             () => [],
         );

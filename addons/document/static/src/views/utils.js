@@ -51,7 +51,7 @@ export function getCommonEmbeddedActions(documents) {
             return [];
         }
         const newEmbeddedActionsMap = new Map();
-        document.data.available_embedded_actions_ids.records.forEach((r) => {
+        document.data.available_embedded_actions_ids?.records.forEach((r) => {
             if (embeddedActionsMap.has(r.resId)) {
                 newEmbeddedActionsMap.set(r.resId, r.data.display_name);
             }

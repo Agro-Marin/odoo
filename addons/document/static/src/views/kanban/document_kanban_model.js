@@ -11,7 +11,7 @@ export class DocumentsKanbanModel extends DocumentsModelMixin(RelationalModel) {
     }
 }
 
-export class DocumentsKanbanRecord extends DocumentsRecordMixin(
+export class DocumentsKanbanModelRecord extends DocumentsRecordMixin(
     RelationalModel.Record,
 ) {
     async onReplaceDocument(ev) {
@@ -28,4 +28,4 @@ export class DocumentsKanbanRecord extends DocumentsRecordMixin(
         ev.target.value = "";
     }
 }
-DocumentsKanbanModel.Record = DocumentsKanbanRecord;
+DocumentsKanbanModel.Record = DocumentsKanbanModelRecord;

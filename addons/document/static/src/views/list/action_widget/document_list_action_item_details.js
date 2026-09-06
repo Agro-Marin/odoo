@@ -15,7 +15,7 @@ export class DocumentsListActionItemDetails extends DocumentsListActionItem {
     }
 
     async onActionClicked() {
-        if (this.documentService.focusedRecord.id !== this.props.record.id) {
+        if (this.documentService.focusedRecord?.id !== this.props.record.id) {
             this.documentService.focusRecord(this.props.record);
             this.documentService.rightPanelReactive.visible ||
                 this.documentService.toggleRightPanelVisibility();

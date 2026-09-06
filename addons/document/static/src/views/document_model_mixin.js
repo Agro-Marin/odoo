@@ -214,11 +214,9 @@ export const DocumentsModelMixin = (component) =>
         async onCopyLinks() {
             const urls = this.isDomainSelected
                 ? (
-                      await this.orm.read(
-                          "document.document",
-                          await this.getResIds(),
-                          ["access_url"],
-                      )
+                      await this.orm.read("document.document", await this.getResIds(), [
+                          "access_url",
+                      ])
                   ).map((d) => d.access_url)
                 : this.targetRecords.map((d) => d.data.access_url);
             const linksToShare = urls.length > 1 ? urls.join(", ") : urls[0];
@@ -453,7 +451,7 @@ export const DocumentsModelMixin = (component) =>
         async _loadDocumentToRestore(config, data) {
             const documentIdToRestore =
                 this.documentService.getOnceDocumentIdToRestore();
-            if (!documentIdToRestore) {
+            if (!documentIdToRestore || !data.records) {
                 return;
             }
             const idxToRestore = data.records.findIndex(
@@ -474,7 +472,9 @@ export const DocumentsModelMixin = (component) =>
                 });
                 if (missingData?.records?.length) {
                     data.records.splice(0, 0, missingData.records[0]);
-                    data.records.pop();
+                    if (config.limit && data.records.length > config.limit) {
+                        data.records.pop();
+                    }
                     this.documentIdToRestore = documentIdToRestore;
                 } else {
                     this.notification.add(_t("Document not found or inaccessible."), {

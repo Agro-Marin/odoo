@@ -159,13 +159,6 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(
         this.props.list.selection.forEach((el) => el.toggleSelection(false));
     }
 
-    getFolderInfo() {
-        return {
-            count: this.props.list.count,
-            fileSize: this.props.list.model.fileSize,
-        };
-    }
-
     /**
      * @override to
      */

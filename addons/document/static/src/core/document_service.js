@@ -41,6 +41,9 @@ export class DocumentService {
         this.userIsInternal = false;
         this.multiCompany = false;
         this.hasFolderEditorAccess = false;
+        // Share, move, duplicate, shortcut and add-to-documents open wizards
+        // that only document_enterprise ships (see ir.http.session_info).
+        this.hasEnterpriseActions = Boolean(session.document_enterprise_actions);
         const urlSearch = parseSearchQuery(browser.location.search);
         const { documents_init } = session;
         const openPreview =
@@ -49,7 +52,8 @@ export class DocumentService {
         const documentId =
             Number(urlSearch.documents_init_document_id) || documents_init?.document_id;
         this.documentIdToRestoreOnce = documentId;
-        const userFolderId = urlSearch.documents_init_user_folder_id;
+        const userFolderId =
+            urlSearch.documents_init_user_folder_id || documents_init?.user_folder_id;
         this._initData = { documentId, userFolderId, openPreview };
         if (userFolderId) {
             browser.localStorage.setItem(
@@ -93,8 +97,8 @@ export class DocumentService {
             user.hasGroup("base.group_user"),
             user.hasGroup("base.group_multi_company"),
         ]);
-        this.hasFolderEditorAccess = this.userIsInternal;
-        if (!this.hasFolderEditorAccess) {
+        this.hasFolderEditorAccess = this.userIsInternal && this.hasEnterpriseActions;
+        if (!this.hasFolderEditorAccess && this.hasEnterpriseActions) {
             try {
                 const destinations = await this.orm.call(
                     "document.operation",
@@ -230,7 +234,7 @@ export class DocumentService {
     }
 
     isFolderSharable(folder) {
-        return folder && typeof folder.id === "number";
+        return this.hasEnterpriseActions && folder && typeof folder.id === "number";
     }
 
     async openDialogRename(documentId) {
@@ -263,6 +267,9 @@ export class DocumentService {
     }
 
     async openSharingDialog(documentIds) {
+        if (!this.hasEnterpriseActions) {
+            return;
+        }
         const action = await this.orm.call("document.sharing", "action_open", [
             documentIds,
         ]);
@@ -276,6 +283,9 @@ export class DocumentService {
         onClose = () => {},
         context = {},
     }) {
+        if (!this.hasEnterpriseActions) {
+            return;
+        }
         documents = documents || [];
         const doc0 = documents[0];
         let name;

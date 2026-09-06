@@ -40,6 +40,7 @@ export const DocumentsRendererMixin = (component) =>
                 isAvailable: () =>
                     this.documentService.userIsInternal &&
                     this.hasRecordsToArchive &&
+                    this.selection.some((r) => !r.data.lock_uid) &&
                     this.selection.every((r) => r.data.user_permission === "edit"),
             });
             useCommand(_t("Delete"), () => this.env.model.onDelete(), {

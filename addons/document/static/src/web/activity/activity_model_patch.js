@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Activity } from "@mail/core/common/activity_model";
+import "@mail/core/web/activity_model_patch";
 
 import { patch } from "@web/core/utils/patch";
 
