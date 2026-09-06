@@ -4,10 +4,10 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: Odoo Server 19.0+e\n"
+"Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-23 00:06+0000\n"
-"PO-Revision-Date: 2026-08-23 00:06+0000\n"
+"POT-Creation-Date: 2026-09-06 21:57+0000\n"
+"PO-Revision-Date: 2026-09-06 21:57+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -40,19 +40,19 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_escalation.py:0
 msgid "%(count)d day(s)"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_escalation.py:0
 msgid "%(count)d hour(s)"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "%(count)s approval request(s) %(action)s successfully"
 msgstr ""
 
@@ -83,10 +83,16 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "%(fields)s cannot be set directly — these are computed by the approval "
 "workflow itself and change only as a consequence of real approver decisions."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_prediction.py:0
+msgid "%(label)s (%(confidence)d%% of comparable requests went this way)."
 msgstr ""
 
 #. module: approval
@@ -109,7 +115,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_routing.py:0
 msgid ""
 "%(principal)s's delegation to %(delegate)s was ended: %(delegate)s is now an"
 " approver of this request in their own right, and one person cannot hold two"
@@ -118,7 +124,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "%(success)s of %(total)s request(s) %(action)s successfully.\n"
 "\n"
@@ -137,13 +143,22 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_category_approver.py:0
+msgid ""
+"%(user)s does not belong to company %(company)s, so they cannot approve "
+"requests of category '%(category)s'. Add the company to the user or choose "
+"another approver."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "%(user)s withdrew their approval. The request is pending review again."
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "%(user)s withdrew their approval. The request stays approved: the remaining "
 "approvals still satisfy it."
@@ -316,7 +331,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_escalation.py:0
 msgid ""
 "<p><strong>Escalation Notice</strong></p><p>Approval request "
 "<strong>%(name)s</strong> has been pending for "
@@ -328,7 +343,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_escalation.py:0
 msgid ""
 "<p><strong>Priority:</strong> %(priority)s</p><p>This approval has been "
 "pending for %(duration)s.</p><p><strong>Reminders sent:</strong> "
@@ -394,20 +409,8 @@ msgid ""
 msgstr ""
 
 #. module: approval
-#: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
-msgid ""
-"<strong>Prediction: </strong>\n"
-"                        <span invisible=\"predicted_outcome != 'approve'\" class=\"text-success\">\n"
-"                            Likely Approved\n"
-"                        </span>\n"
-"                        <span invisible=\"predicted_outcome != 'refuse'\" class=\"text-danger\">\n"
-"                            Likely Refused\n"
-"                        </span>"
-msgstr ""
-
-#. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "A change can only be requested while the approval is pending. Current state:"
 " %(state)s"
@@ -415,7 +418,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "A change is already pending on this request (field %(field)s). Wait for the "
 "requester to re-submit."
@@ -433,7 +436,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_compute.py:0
+#: code:addons/approval/models/approval_request.py:0
 msgid "Access Denied"
 msgstr ""
 
@@ -450,7 +453,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_needaction
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_needaction
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__message_needaction
 msgid "Action Needed"
 msgstr ""
 
@@ -563,19 +565,13 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model:ir.model.fields,field_description:approval.field_approval_request__amount
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__amount
 #: model:ir.model.fields.selection,name:approval.selection__approval_rule__condition_field__amount
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_tree
 msgid "Amount"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__amount_total
-msgid "Amount Total"
 msgstr ""
 
 #. module: approval
@@ -612,12 +608,6 @@ msgstr ""
 msgid ""
 "An approver withdrew their approval — the approval is pending again. Review "
 "this document before processing it further."
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_category.py:0
-msgid "An user may not be in the approver list multiple times."
 msgstr ""
 
 #. module: approval
@@ -712,7 +702,6 @@ msgid "Approval Document Requirement"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__date_approval_granted
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__date_approval_granted
 msgid "Approval Granted Date"
 msgstr ""
@@ -744,7 +733,6 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__approval_progress
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__approval_progress
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_progress
 msgid "Approval Progress"
 msgstr ""
@@ -762,7 +750,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_escalation.py:0
 msgid "Approval Reminder: %(name)s"
 msgstr ""
 
@@ -772,7 +760,6 @@ msgstr ""
 #: model:ir.actions.report,name:approval.action_report_approval_request
 #: model:ir.model,name:approval.model_approval_request
 #: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__request_id
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__approval_request_id
 #: model:ir.model.fields,field_description:approval.field_mail_activity__approval_request_id
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_request_id
 msgid "Approval Request"
@@ -790,13 +777,11 @@ msgid "Approval Requested"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__date_approval_requested
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__date_approval_requested
 msgid "Approval Requested Date"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__approval_required
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_required
 msgid "Approval Required"
 msgstr ""
@@ -812,7 +797,6 @@ msgid "Approval Rules"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__approval_state
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_state
 msgid "Approval Status"
 msgstr ""
@@ -937,7 +921,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request.py:0
 #: model:ir.actions.act_window,name:approval.action_approval_request_to_review
 #: model:ir.ui.menu,name:approval.approvals_approval_menu_to_review
 msgid "Approvals to Review"
@@ -961,6 +945,7 @@ msgstr ""
 #. module: approval
 #. odoo-javascript
 #: code:addons/approval/static/src/web/approval.xml:0
+#: model:ir.actions.server,name:approval.server_action_approval_request_approve_bulk
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_kanban
 msgid "Approve"
@@ -974,7 +959,6 @@ msgstr ""
 #: model:ir.model.fields.selection,name:approval.selection__approval_approver__state__approved
 #: model:ir.model.fields.selection,name:approval.selection__approval_request__state__approved
 #: model:ir.model.fields.selection,name:approval.selection__approval_request__user_approver_state__approved
-#: model:ir.model.fields.selection,name:approval.selection__approval_test_document__state__approved
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_search_search
 msgid "Approved"
@@ -1074,7 +1058,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_routing.py:0
 msgid ""
 "Approver(s) added because the request changed: %(names)s.\n"
 "\n"
@@ -1083,7 +1067,6 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__approver_ids
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__approval_user_ids
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__approval_user_ids
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_tree
@@ -1105,36 +1088,12 @@ msgstr ""
 #. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_approver.py:0
-#: code:addons/approval/models/approval_request_validation.py:0
 msgid ""
 "Approvers cannot be added manually.\n"
 "\n"
 "Approvers are defined by the approval category and managed automatically.\n"
 "\n"
 "Request: %(name)s"
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
-msgid ""
-"Approvers cannot be linked manually.\n"
-"\n"
-"Approvers are defined by the approval category and managed automatically.\n"
-"\n"
-"Request: %(name)s"
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
-msgid ""
-"Approvers cannot be removed from requests.\n"
-"\n"
-"Approvers are defined by the approval category and managed automatically.\n"
-"\n"
-"Request: %(name)s\n"
-"Approver: %(approver)s"
 msgstr ""
 
 #. module: approval
@@ -1147,17 +1106,6 @@ msgid ""
 "\n"
 "Request: %(name)s\n"
 "Approver: %(approver)s"
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
-msgid ""
-"Approvers cannot be replaced manually.\n"
-"\n"
-"Approvers are defined by the approval category and managed automatically.\n"
-"\n"
-"Request: %(name)s"
 msgstr ""
 
 #. module: approval
@@ -1206,7 +1154,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_attachment_count
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_attachment_count
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__message_attachment_count
 msgid "Attachment Count"
 msgstr ""
 
@@ -1244,7 +1191,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_cron.py:0
+#: code:addons/approval/models/approval_request_escalation.py:0
 msgid ""
 "Auto-approved by consent: no objection received within %(hours)d-hour "
 "window."
@@ -1252,13 +1199,13 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_routing.py:0
 msgid "Auto-approved by rule: %(rule)s (%(field)s %(op)s %(threshold)s)"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_routing.py:0
 msgid "Auto-refused by rule: %(rule)s (%(field)s %(op)s %(threshold)s)"
 msgstr ""
 
@@ -1282,7 +1229,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_routing.py:0
 msgid "Automatically refused by rule '%(rule)s'."
 msgstr ""
 
@@ -1405,6 +1352,11 @@ msgid "Based on"
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,help:approval.field_approval_decision_wizard__request_ids
+msgid "Batch mode: every request refused with the reason below."
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields.selection,name:approval.selection__approval_rule__operator__between
 msgid "Between"
 msgstr ""
@@ -1427,13 +1379,13 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Bulk %(action)s failed with unexpected error: %(error)s"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Bulk %(action)s failed: %(error)s"
 msgstr ""
 
@@ -1448,17 +1400,6 @@ msgid "Can Change Request Owner"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_approver__can_edit
-msgid "Can Edit"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_approver__can_edit_user_id
-msgid "Can Edit User"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__can_request_approval
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__can_request_approval
 msgid "Can Request Approval"
 msgstr ""
@@ -1497,7 +1438,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Cancelled automatically because the parent document was cancelled."
 msgstr ""
 
@@ -1514,7 +1455,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "Cannot change approval category after the request has been confirmed.\n"
 "\n"
@@ -1535,7 +1476,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "Cannot delete requests in %(state)s state.\n"
 "\n"
@@ -1546,7 +1487,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "Cannot modify %(fields)s after the request has been submitted — approvers decide on these values.\n"
 "\n"
@@ -1567,7 +1508,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "Cannot modify approver list after request is submitted.\n"
 "\n"
@@ -1650,18 +1591,13 @@ msgid "Category this template creates requests for"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_test_document__test_category_id
-msgid "Category to use for approval (for testing)"
-msgstr ""
-
-#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_dashboard__slowest_category_id
 msgid "Category with longest average approval time"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/wizard/approval_decision_wizard.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Change requested on %s"
 msgstr ""
 
@@ -1705,7 +1641,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_request__company_id
 #: model:ir.model.fields,field_description:approval.field_approval_rule__company_id
 #: model:ir.model.fields,field_description:approval.field_approval_template__company_id
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__company_id
 #: model:ir.model.fields,field_description:approval.field_approver_performance__company_id
 #: model:ir.model.fields,field_description:approval.field_mixin_approval_threshold__company_id
 msgid "Company"
@@ -1769,11 +1704,6 @@ msgid "Conditional rules that added approvers to this request"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_request__prediction_confidence
-msgid "Confidence score (0-1) for the predicted outcome"
-msgstr ""
-
-#. module: approval
 #: model:ir.ui.menu,name:approval.approvals_menu_config
 msgid "Configuration"
 msgstr ""
@@ -1786,11 +1716,6 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_tree
 msgid "Confirm Date"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields.selection,name:approval.selection__approval_test_document__state__confirmed
-msgid "Confirmed"
 msgstr ""
 
 #. module: approval
@@ -1813,7 +1738,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_search_search
@@ -1872,7 +1797,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_request__create_uid
 #: model:ir.model.fields,field_description:approval.field_approval_rule__create_uid
 #: model:ir.model.fields,field_description:approval.field_approval_template__create_uid
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__create_uid
 msgid "Created by"
 msgstr ""
 
@@ -1888,14 +1812,12 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_request__create_date
 #: model:ir.model.fields,field_description:approval.field_approval_rule__create_date
 #: model:ir.model.fields,field_description:approval.field_approval_template__create_date
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__create_date
 msgid "Created on"
 msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__currency_id
 #: model:ir.model.fields,field_description:approval.field_approval_rule__currency_id
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__currency_id
 #: model:ir.model.fields,field_description:approval.field_mixin_approval_threshold__currency_id
 msgid "Currency"
 msgstr ""
@@ -1921,7 +1843,6 @@ msgid ""
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_test_document__approval_state
 #: model:ir.model.fields,help:approval.field_mixin_approval__approval_state
 msgid ""
 "Current approval status:\n"
@@ -1935,16 +1856,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_approver__is_delegated
 msgid "Currently Delegated"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,help:approval.field_approval_category__has_payment_method
-#: model:ir.model.fields,help:approval.field_approval_request__has_payment_method
-msgid ""
-"DEPRECATED: no module defines a payment_method_id field on approval.request,"
-" so this option has no effect (setting it to 'required' used to make every "
-"confirmation fail). Hidden from the category form; kept for schema stability"
-" until a module actually implements the field."
 msgstr ""
 
 #. module: approval
@@ -1967,7 +1878,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model:ir.model.fields,field_description:approval.field_approval_request__date
 #: model:ir.model.fields.selection,name:approval.selection__approval_decision_wizard__change_field__date
 #: model:ir.model.fields.selection,name:approval.selection__approval_request__pending_change_field__date
@@ -2027,14 +1938,12 @@ msgid "Date Start"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_test_document__date_approval_requested
 #: model:ir.model.fields,help:approval.field_mixin_approval__date_approval_requested
 msgid "Date and time when approval was requested for this document"
 msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__date_approval_granted
-#: model:ir.model.fields,help:approval.field_approval_test_document__date_approval_granted
 #: model:ir.model.fields,help:approval.field_mixin_approval__date_approval_granted
 msgid "Date and time when final approval was granted"
 msgstr ""
@@ -2060,7 +1969,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_tree
 msgid "Deadline"
@@ -2145,7 +2054,7 @@ msgid "Delegate Approvals"
 msgstr ""
 
 #. module: approval
-#: model_terms:ir.ui.view,arch_db:approval.view_res_users_form
+#: model:ir.ui.menu,name:approval.approvals_request_menu_delegate
 msgid "Delegate My Approvals"
 msgstr ""
 
@@ -2195,7 +2104,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_compute.py:0
+#: code:addons/approval/models/approval_request.py:0
 msgid "Deleted Document"
 msgstr ""
 
@@ -2208,7 +2117,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_category__description
 #: model:ir.model.fields,field_description:approval.field_approval_document_requirement__description
 #: model:ir.model.fields,field_description:approval.field_approval_template__description
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__description
 #: model:ir.model.fields.selection,name:approval.selection__approval_decision_wizard__change_field__reason
 #: model:ir.model.fields.selection,name:approval.selection__approval_request__pending_change_field__reason
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
@@ -2246,7 +2154,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_request__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_rule__display_name
 #: model:ir.model.fields,field_description:approval.field_approval_template__display_name
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__display_name
 #: model:ir.model.fields,field_description:approval.field_approver_performance__display_name
 #: model:ir.model.fields,field_description:approval.field_ir_attachment__display_name
 #: model:ir.model.fields,field_description:approval.field_mail_activity__display_name
@@ -2275,7 +2182,7 @@ msgid "Document Requirements"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.constraint,message:approval.constraint_approval_document_requirement_name_category_uniq
+#: model:ir.model.constraint,message:approval.constraint_approval_document_requirement_name_src_uniq
 msgid "Document requirement name must be unique per category."
 msgstr ""
 
@@ -2308,7 +2215,6 @@ msgid "Documents & Automation"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields.selection,name:approval.selection__approval_test_document__state__draft
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
 msgid "Draft"
 msgstr ""
@@ -2318,6 +2224,11 @@ msgstr ""
 #: code:addons/approval/models/approval_category.py:0
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_kanban
 msgid "Drafts"
+msgstr ""
+
+#. module: approval
+#: model_terms:ir.ui.view,arch_db:approval.view_approval_request_tree
+msgid "Due"
 msgstr ""
 
 #. module: approval
@@ -2382,7 +2293,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 #: code:addons/approval/wizard/approval_delegate_wizard.py:0
 msgid "End date must be after start date."
 msgstr ""
@@ -2404,13 +2315,8 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_escalation.py:0
 msgid "Escalation: Overdue Approval - %(name)s"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_approver__existing_request_user_ids
-msgid "Existing Request User"
 msgstr ""
 
 #. module: approval
@@ -2470,14 +2376,12 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_follower_ids
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_follower_ids
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__message_follower_ids
 msgid "Followers"
 msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_partner_ids
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_partner_ids
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__message_partner_ids
 msgid "Followers (Partners)"
 msgstr ""
 
@@ -2522,11 +2426,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_category__approver_group_user_ids
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 msgid "Group Members"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_request__has_access_to_request
-msgid "Has Access To Request"
 msgstr ""
 
 #. module: approval
@@ -2583,14 +2482,7 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__has_message
 #: model:ir.model.fields,field_description:approval.field_approval_request__has_message
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__has_message
 msgid "Has Message"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_category__has_payment_method
-#: model:ir.model.fields,field_description:approval.field_approval_request__has_payment_method
-msgid "Has Payment"
 msgstr ""
 
 #. module: approval
@@ -2630,16 +2522,6 @@ msgid "Highest Pending Count"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__hook_call_count
-msgid "Hook Call Count"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_request__hours_until_deadline
-msgid "Hours Until Deadline"
-msgstr ""
-
-#. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__sla_elapsed_hours
 msgid "Hours elapsed since request was submitted"
 msgstr ""
@@ -2647,11 +2529,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__sla_remaining_hours
 msgid "Hours remaining until SLA target (negative if breached)"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,help:approval.field_approval_request__hours_until_deadline
-msgid "Hours remaining until approval deadline (negative if overdue)"
 msgstr ""
 
 #. module: approval
@@ -2682,7 +2559,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_request__id
 #: model:ir.model.fields,field_description:approval.field_approval_rule__id
 #: model:ir.model.fields,field_description:approval.field_approval_template__id
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__id
 #: model:ir.model.fields,field_description:approval.field_approver_performance__id
 #: model:ir.model.fields,field_description:approval.field_ir_attachment__id
 #: model:ir.model.fields,field_description:approval.field_mail_activity__id
@@ -2707,7 +2583,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_category__message_needaction
 #: model:ir.model.fields,help:approval.field_approval_request__message_needaction
-#: model:ir.model.fields,help:approval.field_approval_test_document__message_needaction
 msgid "If checked, new messages require your attention."
 msgstr ""
 
@@ -2716,8 +2591,6 @@ msgstr ""
 #: model:ir.model.fields,help:approval.field_approval_category__message_has_sms_error
 #: model:ir.model.fields,help:approval.field_approval_request__message_has_error
 #: model:ir.model.fields,help:approval.field_approval_request__message_has_sms_error
-#: model:ir.model.fields,help:approval.field_approval_test_document__message_has_error
-#: model:ir.model.fields,help:approval.field_approval_test_document__message_has_sms_error
 msgid "If checked, some messages have a delivery error."
 msgstr ""
 
@@ -2797,7 +2670,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "Internal: requested_change_field context value must be one of %(allowed)s."
 msgstr ""
@@ -2815,7 +2688,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_is_follower
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_is_follower
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__message_is_follower
 msgid "Is Follower"
 msgstr ""
 
@@ -2840,11 +2712,6 @@ msgid "Kanban Dashboard"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__last_approval_state
-msgid "Last Approval State"
-msgstr ""
-
-#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__last_refresh
 msgid "Last Refreshed"
 msgstr ""
@@ -2866,7 +2733,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_request__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_rule__write_uid
 #: model:ir.model.fields,field_description:approval.field_approval_template__write_uid
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__write_uid
 msgid "Last Updated by"
 msgstr ""
 
@@ -2882,7 +2748,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_request__write_date
 #: model:ir.model.fields,field_description:approval.field_approval_rule__write_date
 #: model:ir.model.fields,field_description:approval.field_approval_template__write_date
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__write_date
 msgid "Last Updated on"
 msgstr ""
 
@@ -2932,17 +2797,18 @@ msgid "Let's go to the"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields.selection,name:approval.selection__approval_request__predicted_outcome__approve
-msgid "Likely Approved"
+#. odoo-python
+#: code:addons/approval/models/approval_request_prediction.py:0
+msgid "Likely approved"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields.selection,name:approval.selection__approval_request__predicted_outcome__refuse
-msgid "Likely Refused"
+#. odoo-python
+#: code:addons/approval/models/approval_request_prediction.py:0
+msgid "Likely refused"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_test_document__approval_request_id
 #: model:ir.model.fields,help:approval.field_mixin_approval__approval_request_id
 msgid ""
 "Link to the approval request for this document. Automatically created when "
@@ -2951,7 +2817,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model:ir.model.fields,field_description:approval.field_approval_request__location
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
@@ -3006,14 +2872,12 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_has_error
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_has_error
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__message_has_error
 msgid "Message Delivery error"
 msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_ids
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_ids
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__message_ids
 msgid "Messages"
 msgstr ""
 
@@ -3067,7 +2931,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "Missing required documents: %(missing)s\n"
 "\n"
@@ -3159,7 +3023,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:approval.field_approval_document_requirement__name
 #: model:ir.model.fields,field_description:approval.field_approval_request__name
 #: model:ir.model.fields,field_description:approval.field_approval_rule__name
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__name
 msgid "Name"
 msgstr ""
 
@@ -3188,8 +3051,8 @@ msgstr ""
 #. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_approver.py:0
-#: code:addons/approval/models/approval_request_compute.py:0
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 #: code:addons/approval/tests/test_approvals.py:0
 #: model:ir.model.fields.selection,name:approval.selection__approval_approver__state__new
 #: model:ir.model.fields.selection,name:approval.selection__approval_request__user_approver_state__new
@@ -3287,12 +3150,6 @@ msgid "No new approvals to review"
 msgstr ""
 
 #. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
-msgid "No source document is linked to this approval request."
-msgstr ""
-
-#. module: approval
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_amount__no
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_automation__no
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_date__no
@@ -3301,7 +3158,6 @@ msgstr ""
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_date_range__no
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_location__no
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_partner__no
-#: model:ir.model.fields.selection,name:approval.selection__approval_category__has_payment_method__no
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_quantity__no
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_reference__no
 msgid "None"
@@ -3316,6 +3172,12 @@ msgstr ""
 #. module: approval
 #: model:approval.refusal.reason,name:approval.refusal_reason_not_authorized
 msgid "Not Authorized"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_prediction.py:0
+msgid "Not enough comparable decided requests to predict an outcome."
 msgstr ""
 
 #. module: approval
@@ -3339,7 +3201,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_needaction_counter
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_needaction_counter
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__message_needaction_counter
 msgid "Number of Actions"
 msgstr ""
 
@@ -3366,7 +3227,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_has_error_counter
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_has_error_counter
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__message_has_error_counter
 msgid "Number of errors"
 msgstr ""
 
@@ -3385,14 +3245,12 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_category__message_needaction_counter
 #: model:ir.model.fields,help:approval.field_approval_request__message_needaction_counter
-#: model:ir.model.fields,help:approval.field_approval_test_document__message_needaction_counter
 msgid "Number of messages requiring action"
 msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_category__message_has_error_counter
 #: model:ir.model.fields,help:approval.field_approval_request__message_has_error_counter
-#: model:ir.model.fields,help:approval.field_approval_test_document__message_has_error_counter
 msgid "Number of messages with delivery error"
 msgstr ""
 
@@ -3474,14 +3332,14 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "Only an approval manager can reset an approved request. Request: %(name)s"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "Only decided requests can be reset to draft. Request '%(name)s' is in state "
 "'%(state)s'."
@@ -3508,7 +3366,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "Only requests in draft state can be confirmed. Request '%(name)s' is "
 "currently in state '%(state)s'."
@@ -3516,7 +3374,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "Only submitted requests can be cancelled. Request '%(name)s' is in state "
 "'%(state)s' — draft requests can simply be deleted."
@@ -3525,7 +3383,6 @@ msgstr ""
 #. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_approver.py:0
-#: code:addons/approval/models/approval_request_validation.py:0
 msgid ""
 "Only the assigned approver can modify their approval record.\n"
 "\n"
@@ -3544,7 +3401,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "Only the request owner or an approval manager can %(action)s this request.\n"
 "\n"
@@ -3554,7 +3411,16 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_access.py:0
+msgid ""
+"Only the request owner or an approval manager can change %(fields)s once the request is submitted: it decides who approves and how soon the reminders fire.\n"
+"\n"
+"Request: %(name)s"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "Only the request owner or an approver can re-submit after a requested "
 "change."
@@ -3580,7 +3446,6 @@ msgstr ""
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_document__optional
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_location__optional
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_partner__optional
-#: model:ir.model.fields.selection,name:approval.selection__approval_category__has_payment_method__optional
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_quantity__optional
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_reference__optional
 msgid "Optional"
@@ -3614,6 +3479,12 @@ msgid "Other Information"
 msgstr ""
 
 #. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_prediction.py:0
+msgid "Outcome prediction"
+msgstr ""
+
+#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_dashboard__overall_approval_rate
 msgid "Overall Approval Rate %"
 msgstr ""
@@ -3642,13 +3513,12 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Parent document was cancelled."
 msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__partner_id
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__partner_id
 msgid "Partner"
 msgstr ""
 
@@ -3695,7 +3565,6 @@ msgid "Pending Approver"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__pending_approver_ids
 #: model:ir.model.fields,field_description:approval.field_mixin_approval__pending_approver_ids
 msgid "Pending Approvers"
 msgstr ""
@@ -3765,7 +3634,6 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_request__approval_progress
-#: model:ir.model.fields,help:approval.field_approval_test_document__approval_progress
 #: model:ir.model.fields,help:approval.field_mixin_approval__approval_progress
 msgid "Percentage of approvals completed (approved / total approvers)"
 msgstr ""
@@ -3789,13 +3657,13 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Period End Date"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Period Start Date"
 msgstr ""
 
@@ -3806,7 +3674,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
 msgid "Planned Date"
 msgstr ""
@@ -3837,14 +3705,12 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__website_message_ids
 #: model:ir.model.fields,field_description:approval.field_approval_request__website_message_ids
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__website_message_ids
 msgid "Portal Messages"
 msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_category__website_message_ids
 #: model:ir.model.fields,help:approval.field_approval_request__website_message_ids
-#: model:ir.model.fields,help:approval.field_approval_test_document__website_message_ids
 msgid "Portal communication history for this record."
 msgstr ""
 
@@ -3854,18 +3720,8 @@ msgid "Pre-filled reason/description for the request"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_request__predicted_outcome
-msgid "Predicted Outcome"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_request__prediction_confidence
-msgid "Prediction Confidence"
-msgstr ""
-
-#. module: approval
-#: model:ir.model.fields,help:approval.field_approval_request__predicted_outcome
-msgid "Prediction based on similar historical requests"
+#: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
+msgid "Predict Outcome"
 msgstr ""
 
 #. module: approval
@@ -3926,7 +3782,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model:ir.model.fields,field_description:approval.field_approval_request__quantity
 #: model:ir.model.fields.selection,name:approval.selection__approval_rule__condition_field__quantity
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
@@ -3941,13 +3797,13 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Re-submitted after the requested change to %(field)s."
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "Re-submitted after the requested change to %(field)s. %(count)d earlier "
 "approval(s) were reset: they were given on the previous value."
@@ -3966,13 +3822,8 @@ msgid "Reason:"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_test_document__last_approval_state
-msgid "Records the last state received by _on_approval_state_changed"
-msgstr ""
-
-#. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model:ir.model.fields,field_description:approval.field_approval_request__reference
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_form
@@ -4031,6 +3882,7 @@ msgstr ""
 #. module: approval
 #. odoo-javascript
 #: code:addons/approval/static/src/web/approval.xml:0
+#: model:ir.actions.server,name:approval.server_action_approval_request_refuse_bulk
 #: model:ir.model.fields.selection,name:approval.selection__approval_decision_wizard__decision_type__refuse
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_decision_wizard_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
@@ -4040,8 +3892,14 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Refuse Request"
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
+msgid "Refuse Requests"
 msgstr ""
 
 #. module: approval
@@ -4064,13 +3922,12 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Refused automatically because the parent document was cancelled."
 msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_metrics__rejected_count
-#: model:ir.model.fields.selection,name:approval.selection__approval_test_document__state__rejected
 msgid "Rejected"
 msgstr ""
 
@@ -4111,13 +3968,8 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Request '%(request)s' is not in pending state (current: %(state)s)."
-msgstr ""
-
-#. module: approval
-#: model_terms:ir.ui.view,arch_db:approval.view_res_users_form
-msgid "Request Approval"
 msgstr ""
 
 #. module: approval
@@ -4145,7 +3997,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_kanban
 msgid "Request a Change"
@@ -4160,7 +4012,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Request cancelled by %(user)s."
 msgstr ""
 
@@ -4190,6 +4042,7 @@ msgid "Requestor is not authorized to submit this type of request."
 msgstr ""
 
 #. module: approval
+#: model:ir.model.fields,field_description:approval.field_approval_decision_wizard__request_ids
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_template_form
 msgid "Requests"
 msgstr ""
@@ -4239,7 +4092,6 @@ msgstr ""
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_document__required
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_location__required
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_partner__required
-#: model:ir.model.fields.selection,name:approval.selection__approval_category__has_payment_method__required
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_quantity__required
 #: model:ir.model.fields.selection,name:approval.selection__approval_category__has_reference__required
 #: model_terms:ir.ui.view,arch_db:approval.report_approval_request_document
@@ -4293,7 +4145,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Reset to draft from '%(state)s' by %(user)s."
 msgstr ""
 
@@ -4345,6 +4197,23 @@ msgid ""
 "(auto-%(other_action)s) can both match the same %(field)s value — one would "
 "silently override the other depending on sequence. Narrow the thresholds so "
 "their ranges don't overlap."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_rule.py:0
+msgid ""
+"Rule '%(rule)s' is scoped to %(company)s but its category '%(category)s' "
+"belongs to %(other)s, so it could never apply. Leave the company empty or "
+"set it to the category's."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_rule.py:0
+msgid ""
+"Rule '%(rule)s' is scoped to %(company)s; these approvers are not members of"
+" it: %(users)s."
 msgstr ""
 
 #. module: approval
@@ -4431,7 +4300,6 @@ msgstr ""
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_category__message_has_sms_error
 #: model:ir.model.fields,field_description:approval.field_approval_request__message_has_sms_error
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__message_has_sms_error
 msgid "SMS Delivery error"
 msgstr ""
 
@@ -4569,13 +4437,6 @@ msgid ""
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_approver__can_edit_user_id
-msgid ""
-"Simple users should not be able to remove themselves as approvers because "
-"they will lose access to the record if they misclick."
-msgstr ""
-
-#. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__sla_elapsed_hours
 msgid "Sla Elapsed Hours"
 msgstr ""
@@ -4649,7 +4510,6 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,field_description:approval.field_approval_request__state
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__state
 msgid "State"
 msgstr ""
 
@@ -4783,18 +4643,8 @@ msgid "Temporary delegate who can approve on your behalf"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,field_description:approval.field_approval_test_document__test_category_id
-msgid "Test Category"
-msgstr ""
-
-#. module: approval
-#: model:ir.model,name:approval.model_approval_test_document
-msgid "Test Document for Approval Mixin"
-msgstr ""
-
-#. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "The '%(field)s' field is not available on category '%(category)s', so the requester would have nothing to change.\n"
 "\n"
@@ -4825,7 +4675,10 @@ msgstr ""
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_decision_wizard__approver_id
-msgid "The approver record making this decision."
+msgid ""
+"The approver record making this decision. Empty in batch mode, where "
+"request_ids carries the targets and each request resolves its own pending "
+"row for the current user."
 msgstr ""
 
 #. module: approval
@@ -4862,7 +4715,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "The following required fields are empty:\n"
 "\n"
@@ -4888,19 +4741,19 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "The request %(request_name)s for %(request_owner)s has been accepted"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "The request %(request_name)s for %(request_owner)s has been refused"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "The request created on %(create_date)s by %(request_owner)s has been "
 "accepted."
@@ -4908,7 +4761,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "The request created on %(create_date)s by %(request_owner)s has been "
 "refused."
@@ -4931,12 +4784,6 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
-msgid "The source document no longer exists. It may have been deleted."
-msgstr ""
-
-#. module: approval
-#. odoo-python
 #: code:addons/approval/models/approval_rule.py:0
 msgid ""
 "The upper bound must be greater than the lower one (or 0 for unlimited)."
@@ -4944,7 +4791,13 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/wizard/approval_decision_wizard.py:0
+msgid "There is no approval to refuse."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "There is no pending change on this request."
 msgstr ""
 
@@ -4963,26 +4816,11 @@ msgstr ""
 #. module: approval
 #. odoo-python
 #: code:addons/approval/models/approval_approver.py:0
-#: code:addons/approval/models/approval_request_validation.py:0
 msgid ""
 "This approval is currently delegated to %(delegate)s.\n"
 "\n"
 "Request: %(name)s\n"
 "Original approver: %(approver)s"
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/wizard/approval_decision_wizard.py:0
-msgid ""
-"This approval is currently delegated to %(delegate)s.\n"
-"You cannot %(verb)s this request while delegation is active."
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/wizard/approval_decision_wizard.py:0
-msgid "This approval is no longer pending. Current state: %(state)s"
 msgstr ""
 
 #. module: approval
@@ -4999,14 +4837,14 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "This request can no longer be %(decision)s: it is in state '%(state)s'."
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "This request cannot be reset: the source document %(doc)s no longer "
 "references it. Request a new approval from the document instead."
@@ -5019,7 +4857,13 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_cron.py:0
+#: code:addons/approval/models/approval_request_prediction.py:0
+msgid "This request is already decided."
+msgstr ""
+
+#. module: approval
+#. odoo-python
+#: code:addons/approval/models/approval_request_escalation.py:0
 msgid ""
 "This request was automatically cancelled after exceeding the %(hours)d-hour "
 "expiration window."
@@ -5105,11 +4949,6 @@ msgid "Total requests currently pending approval"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_test_document__hook_call_count
-msgid "Tracks how many times _on_approval_state_changed was called"
-msgstr ""
-
-#. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "Trends & Performance"
 msgstr ""
@@ -5151,25 +4990,26 @@ msgid "Type of the exception activity on record."
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields.selection,name:approval.selection__approval_request__predicted_outcome__uncertain
+#. odoo-python
+#: code:addons/approval/models/approval_request_prediction.py:0
 msgid "Uncertain"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "Unexpected error occurred"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_helper.py:0
+#: code:addons/approval/models/approval_request_escalation.py:0
 msgid "Unknown"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_compute.py:0
+#: code:addons/approval/models/approval_request.py:0
 msgid "Unknown Model"
 msgstr ""
 
@@ -5260,13 +5100,11 @@ msgid ""
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_test_document__approval_user_ids
 #: model:ir.model.fields,help:approval.field_mixin_approval__approval_user_ids
 msgid "Users who need to approve this document"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_test_document__pending_approver_ids
 #: model:ir.model.fields,help:approval.field_mixin_approval__pending_approver_ids
 msgid "Users who still need to approve this document"
 msgstr ""
@@ -5382,7 +5220,6 @@ msgid ""
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_test_document__can_request_approval
 #: model:ir.model.fields,help:approval.field_mixin_approval__can_request_approval
 msgid "Whether approval can be requested (all required fields filled)"
 msgstr ""
@@ -5398,7 +5235,6 @@ msgid "Whether the added approvers are mandatory"
 msgstr ""
 
 #. module: approval
-#: model:ir.model.fields,help:approval.field_approval_test_document__approval_required
 #: model:ir.model.fields,help:approval.field_mixin_approval__approval_required
 msgid "Whether this document requires approval based on current rules"
 msgstr ""
@@ -5485,7 +5321,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "You are not allowed to create requests for category '%(category)s'.\n"
 "\n"
@@ -5494,7 +5330,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "You are not assigned as an approver for this request, or your approval has "
 "already been processed."
@@ -5502,15 +5338,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/wizard/approval_decision_wizard.py:0
-msgid ""
-"You are not authorized to %(verb)s this request.\n"
-"Assigned approver: %(approver)s"
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "You are not the assigned approver for this decision.\n"
 "\n"
@@ -5528,7 +5356,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "You can only delete your own approval requests.\n"
 "\n"
@@ -5538,7 +5366,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "You can only modify approval requests where you are the owner or an assigned approver.\n"
 "\n"
@@ -5548,7 +5376,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "You cannot %(verb)s this request while a change is pending. Wait for the "
 "requester to update the requested field and re-submit."
@@ -5556,13 +5384,11 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "You cannot approve before the previous approver."
 msgstr ""
 
 #. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
 #: model:ir.model.constraint,message:approval.constraint_approval_approver_request_user_uniq
 msgid ""
 "You cannot assign the same approver multiple times on the same request."
@@ -5606,7 +5432,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_access.py:0
 msgid ""
 "You cannot modify this request while it is still a draft — only its owner can. You will be able to complete your own fields once it is submitted for your approval.\n"
 "\n"
@@ -5624,7 +5450,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "You cannot withdraw an approval on a %(state)s request. Use Reset to Draft "
 "to reopen it."
@@ -5632,7 +5458,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "You cannot withdraw this approval because it has %(count)d active %(label)s(s) linked.\n"
 "\n"
@@ -5641,7 +5467,7 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "You cannot withdraw this approval.\n"
 "\n"
@@ -5650,20 +5476,20 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "You don't have pending approval rights for request: %s"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid ""
 "You have to add at least %(count)d approver(s) to confirm your request."
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_validation.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "You have to attach at least one document."
 msgstr ""
 
@@ -5693,22 +5519,15 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_kanban
 msgid "approved"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "cancel"
-msgstr ""
-
-#. module: approval
-#: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
-msgid ""
-"confidence\n"
-"                            based on similar requests)"
 msgstr ""
 
 #. module: approval
@@ -5750,7 +5569,7 @@ msgstr ""
 
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
-msgid "elapsed)"
+msgid "elapsed,"
 msgstr ""
 
 #. module: approval
@@ -5772,26 +5591,19 @@ msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/wizard/approval_decision_wizard.py:0
-msgid "refuse"
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_category_kanban
 msgid "refused"
 msgstr ""
 
 #. module: approval
-#. odoo-python
-#: code:addons/approval/wizard/approval_decision_wizard.py:0
-msgid "request a change on"
+#: model_terms:ir.ui.view,arch_db:approval.view_approval_request_form
+msgid "remaining)"
 msgstr ""
 
 #. module: approval
 #. odoo-python
-#: code:addons/approval/models/approval_request_action.py:0
+#: code:addons/approval/models/approval_request_lifecycle.py:0
 msgid "reset to draft"
 msgstr ""
 
@@ -5858,75 +5670,4 @@ msgstr ""
 #. module: approval
 #: model_terms:ir.ui.view,arch_db:approval.view_approval_dashboard_form
 msgid "📈 Approval Velocity"
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_prediction.py:0
-msgid "%(label)s (%(confidence)d%% of comparable requests went this way)."
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_category_approver.py:0
-msgid ""
-"%(user)s does not belong to company %(company)s, so they cannot approve "
-"requests of category '%(category)s'. Add the company to the user or choose "
-"another approver."
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_prediction.py:0
-msgid "Not enough comparable decided requests to predict an outcome."
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_access.py:0
-msgid ""
-"Only the request owner or an approval manager can change %(fields)s once the request is submitted: it decides who approves and how soon the reminders fire.\n"
-"\n"
-"Request: %(name)s"
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_prediction.py:0
-msgid "Outcome prediction"
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_lifecycle.py:0
-msgid "Refuse Requests"
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_rule.py:0
-msgid ""
-"Rule '%(rule)s' is scoped to %(company)s but its category '%(category)s' "
-"belongs to %(other)s, so it could never apply. Leave the company empty or "
-"set it to the category's."
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_rule.py:0
-msgid ""
-"Rule '%(rule)s' is scoped to %(company)s; these approvers are not members of"
-" it: %(users)s."
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/wizard/approval_decision_wizard.py:0
-msgid "There is no approval to refuse."
-msgstr ""
-
-#. module: approval
-#. odoo-python
-#: code:addons/approval/models/approval_request_prediction.py:0
-msgid "This request is already decided."
 msgstr ""
