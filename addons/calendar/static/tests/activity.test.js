@@ -13,42 +13,12 @@ import { preloadFullCalendar } from "@web/../tests/web_test_helpers";
 defineCalendarModels();
 preloadFullCalendar();
 
-test("activity click on Reschedule", async () => {
-    registerArchs({
-        "calendar.event,false,calendar": `<calendar date_start="start"/>`,
-    });
-    const pyEnv = await startServer();
-    const resPartnerId = pyEnv["res.partner"].create({});
-    const meetingActivityTypeId = pyEnv["mail.activity.type"].create({
-        icon: "fa-calendar",
-        name: "Meeting",
-    });
-    const calendarAttendeeId = pyEnv["calendar.attendee"].create({
-        partner_id: resPartnerId,
-    });
-    const calendaMeetingId = pyEnv["calendar.event"].create({
-        res_model: "calendar.event",
-        name: "meeting1",
-        start: "2022-07-06 06:30:00",
-        attendee_ids: [calendarAttendeeId],
-    });
-    pyEnv["mail.activity"].create({
-        name: "Small Meeting",
-        activity_type_id: meetingActivityTypeId,
-        can_write: true,
-        res_id: resPartnerId,
-        res_model: "res.partner",
-        calendar_event_id: calendaMeetingId,
-    });
-    await start();
-    await openFormView("res.partner", resPartnerId);
-    await click(".btn", { text: "Reschedule" });
-    await contains(".o_calendar_view");
-});
-
-test("Can cancel activity linked to an event", async () => {
-    const pyEnv = await startServer();
-    const partnerId = pyEnv["res.partner"].create({ name: "Milan Kundera" });
+/**
+ * Create a partner with a meeting activity linked to a calendar event, the
+ * shared fixture both tests below exercise.
+ */
+function createMeetingWithActivity(pyEnv, { partnerName } = {}) {
+    const partnerId = pyEnv["res.partner"].create(partnerName ? { name: partnerName } : {});
     const activityTypeId = pyEnv["mail.activity.type"].create({
         icon: "fa-calendar",
         name: "Meeting",
@@ -56,7 +26,7 @@ test("Can cancel activity linked to an event", async () => {
     const attendeeId = pyEnv["calendar.attendee"].create({
         partner_id: partnerId,
     });
-    const calendaMeetingId = pyEnv["calendar.event"].create({
+    const calendarMeetingId = pyEnv["calendar.event"].create({
         res_model: "calendar.event",
         name: "meeting1",
         start: "2022-07-06 06:30:00",
@@ -68,8 +38,26 @@ test("Can cancel activity linked to an event", async () => {
         can_write: true,
         res_id: partnerId,
         res_model: "res.partner",
-        calendar_event_id: calendaMeetingId,
+        calendar_event_id: calendarMeetingId,
     });
+    return partnerId;
+}
+
+test("activity click on Reschedule", async () => {
+    registerArchs({
+        "calendar.event,false,calendar": `<calendar date_start="start"/>`,
+    });
+    const pyEnv = await startServer();
+    const partnerId = createMeetingWithActivity(pyEnv);
+    await start();
+    await openFormView("res.partner", partnerId);
+    await click(".btn", { text: "Reschedule" });
+    await contains(".o_calendar_view");
+});
+
+test("Can cancel activity linked to an event", async () => {
+    const pyEnv = await startServer();
+    const partnerId = createMeetingWithActivity(pyEnv, { partnerName: "Milan Kundera" });
     await start();
     await openFormView("res.partner", partnerId);
     await click(".o-mail-Activity .btn", { text: "Cancel" });
