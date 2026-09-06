@@ -728,13 +728,14 @@ active ←──→ broken
 | `total_mentor_karma` | Integer | readonly | Cumulative |
 | `completion_badge_id` | Many2one `badge` | | Badge for both on completion |
 
-**Unique:** `(mentor_id, mentee_id) WHERE state = 'active'`
+**Unique:** `(mentor_id, mentee_id) WHERE state != 'cancelled'`
 
 ### State Machine
 
 ```
-active ──→ completed (with rewards)
-       └──→ cancelled
+pending ──→ active ──→ completed (with rewards)
+   │            └──→ cancelled
+   └──→ cancelled
 ```
 
 ### Key Methods
