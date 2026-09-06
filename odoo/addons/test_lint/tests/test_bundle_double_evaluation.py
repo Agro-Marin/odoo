@@ -2,7 +2,6 @@ import logging
 
 from odoo.modules import Manifest
 from odoo.tests import tagged
-from odoo.tools.assets.esbuild import EsbuildCompiler
 from odoo.tools.assets.esm_graph import (
     discover_transitive_import_specifiers,
     url_to_module_path,
@@ -51,7 +50,6 @@ class TestBundleDoubleEvaluation(lint_case.LintCase):
             qweb = env["ir.qweb"]
             params = ir_asset._prepare_assets_params()
             ext = external_libs()
-            libs = EsbuildCompiler._LIB_CANDIDATES
 
             for bundle, removed_paths in sorted(removed_by_bundle.items()):
                 try:
@@ -66,9 +64,7 @@ class TestBundleDoubleEvaluation(lint_case.LintCase):
                         if spec := url_to_module_path(url):
                             seeds.add(spec)
                 closure = seeds | set(
-                    discover_transitive_import_specifiers(
-                        seeds, seeds, ext, libs, bundle
-                    )
+                    discover_transitive_import_specifiers(seeds, seeds, ext, bundle)
                 )
                 stubbed = set(qweb._get_secondary_shared_specs(bundle, params))
                 for path in sorted(removed_paths):

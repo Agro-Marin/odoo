@@ -924,17 +924,11 @@ class TestEsbuildHelpers(TransactionCase):
 @tagged("web_unit", "web_assets")
 class TestBridgeHelpers(TransactionCase):
     def test_resolver_resolves_external_lib(self):
-        r = _BridgeExportResolver(
-            {"luxon": "/web/static/lib/luxon/luxon.js"}, {}, "test"
-        )
+        r = _BridgeExportResolver({"luxon": "/web/static/lib/luxon/luxon.js"}, "test")
         self.assertEqual(r.resolve_url("luxon"), "/web/static/lib/luxon/luxon.js")
 
-    def test_resolver_resolves_lib_candidate(self):
-        r = _BridgeExportResolver({}, {"@odoo/x": ("a", "b", "c.js")}, "test")
-        self.assertEqual(r.resolve_url("@odoo/x"), "/a/b/c.js")
-
     def test_resolver_resolves_addon_paths(self):
-        r = _BridgeExportResolver({}, {}, "test")
+        r = _BridgeExportResolver({}, "test")
         self.assertEqual(
             r.resolve_url("@web/core/registry"),
             "/web/static/src/core/registry.js",
@@ -945,12 +939,12 @@ class TestBridgeHelpers(TransactionCase):
         self.assertEqual(r.resolve_url("@web/../tests/baz"), "/web/static/tests/baz.js")
 
     def test_resolver_unmappable_specifiers(self):
-        r = _BridgeExportResolver({}, {}, "test")
+        r = _BridgeExportResolver({}, "test")
         self.assertIsNone(r.resolve_url("luxon"))
         self.assertIsNone(r.resolve_url("@noslash"))
 
     def test_resolver_caches_and_get_protocol(self):
-        r = _BridgeExportResolver({}, {}, "test")
+        r = _BridgeExportResolver({}, "test")
         self.assertIsNone(r.read_source("nope"))
         self.assertIn("nope", r._cache)
         self.assertIsNone(r._cache["nope"])
@@ -1052,7 +1046,6 @@ class TestTransitiveImportClosure(TransactionCase):
             ],
             {"@web/libs/bootstrap"},
             external_libs(),
-            EsbuildCompiler._LIB_CANDIDATES,
             "test.report.closure",
         )
         self.assertIn("@web/core/browser/browser", res)

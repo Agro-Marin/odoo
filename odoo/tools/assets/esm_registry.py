@@ -12,6 +12,7 @@ __all__ = [
     "check_esm_config",
     "esm_registry",
     "external_bare_specifiers",
+    "external_lib_aliases",
     "external_libs",
     "invalidate_esm_registry",
 ]
@@ -67,13 +68,19 @@ def external_libs() -> Mapping:
 
 
 def external_bare_specifiers() -> frozenset:
-    from odoo.tools.assets.esbuild import EsbuildCompiler
+    return frozenset(spec for spec in external_libs() if not spec.startswith("@odoo/"))
 
-    return frozenset(
-        spec
-        for spec in external_libs()
-        if not spec.startswith("@odoo/") and spec not in EsbuildCompiler._LIB_CANDIDATES
-    )
+
+def external_lib_aliases() -> Mapping[str, str]:
+    from odoo.tools.assets.esm_graph import url_to_module_path
+
+    aliases = {}
+    for spec, url in external_libs().items():
+        try:
+            aliases[spec] = url_to_module_path(url)
+        except ValueError:
+            continue
+    return MappingProxyType(aliases)
 
 
 def _merge_mapping(target: dict, declared: Mapping, *, module: str, key: str) -> None:

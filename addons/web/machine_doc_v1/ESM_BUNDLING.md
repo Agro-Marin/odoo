@@ -286,21 +286,29 @@ import-map-include of the same parent.  Unknown keys under `esm` are rejected
 (`_ESM_MANIFEST_KEYS`); a non-Mapping `esm`, a bare-string `bundles`, or a
 non-dict mapping value raise `TypeError` earlier in the build.
 
-The esbuild alias table `_LIB_CANDIDATES` (vendored `@odoo/*` paths)
-lives on `EsbuildCompiler` (odoo/tools/assets/esbuild.py). External libs are
-**declared per manifest** under `esm.external_libs` (bare specifier → root-relative
-URL) and aggregated by `esm_registry.external_libs()`; a specifier is owned by
-exactly one module, and two modules declaring it differently is an error.
+External libs are **declared per manifest** under `esm.external_libs` (bare
+specifier → root-relative URL) and aggregated by `esm_registry.external_libs()`;
+a specifier is owned by exactly one module, and two modules declaring it
+differently is an error. That table is the only source of specifier
+resolution: esbuild leaves every `@odoo/*` specifier and every declared bare
+specifier external (`external_bare_specifiers()`) and the page's import map
+resolves them, a standalone bundle aliases each of them to its declared file
+(`_standalone_alias_flags`), and a bundle whose member is a declared library
+file (`web.assets_unit_tests_setup` carries hoot) also registers the library
+under its declared specifier — `external_lib_aliases()` reads each URL as a
+specifier, so `@odoo/hoot` is `@web/../lib/hoot/hoot` without a second table
+saying so. The former `_LIB_CANDIDATES` alias table (bundled copies of
+`@popperjs/core`, `@odoo/hoot-dom`, `@odoo/o-spreadsheet`) is gone: nothing
+bundled imported the first, the second was external anyway, and the third is
+the `@odoo-module alias=` header of `o_spreadsheet.js`, which `_esbuild_flags`
+already turns into an alias.
 Cross-file invariants are checked once per process by
-`AssetsBundle._validate_external_libs(external_libs())`, reached through
+`AssetsBundle._check_external_libs(external_libs())`, reached through
 `_check_external_libs_once()` in `AssetsBundle.__init__`:
-- Every `esm.external_libs` specifier resolves for esbuild — a `_LIB_CANDIDATES`
-  alias, `external_bare_specifiers()` membership, or `--external:@odoo/*` coverage
+- Every `esm.external_libs` specifier resolves for esbuild —
+  `external_bare_specifiers()` membership or `--external:@odoo/*` coverage
 - Every `esm.external_libs` URL exists on disk (URLs under addons absent from
   `addons_path` are skipped)
-- Every `_LIB_CANDIDATES` alias target exists on disk (same skip rule — the
-  addon scan would otherwise silently skip a typo'd alias and every bundle
-  importing it would fail to build)
 
 Bridge export surfaces and import discovery are primarily computed by a
 persistent `es-module-lexer` node worker (`odoo/tools/assets/esm_lexer.py` +

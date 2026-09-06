@@ -119,7 +119,7 @@ class TestNativeModuleDataSpecifiers(BaseCase):
     def test_bridge_resolver_memoizes_source_exports(self):
         from odoo.tools.assets.esm_graph import _BridgeExportResolver
 
-        resolver = _BridgeExportResolver({}, {}, "test_bundle")
+        resolver = _BridgeExportResolver({}, "test_bundle")
         resolver._cache["@x/y"] = "export const A = 1;\nexport default A;"
         first = resolver.source_exports("@x/y")
         second = resolver.source_exports("@x/y")
@@ -244,10 +244,10 @@ class TestHootOwnership(TransactionCase):
 
 
 class TestEsmSpecifierResolution(BaseCase):
-    def _resolver(self, ext_libs=None, lib_candidates=None):
+    def _resolver(self, ext_libs=None):
         from odoo.tools.assets.esm_graph import _BridgeExportResolver
 
-        return _BridgeExportResolver(ext_libs or {}, lib_candidates or {}, "test")
+        return _BridgeExportResolver(ext_libs or {}, "test")
 
     def test_a_bare_specifier_only_loses_its_extension(self):
         from odoo.tools.assets.esm_graph import _resolve_export_specifier
@@ -283,11 +283,14 @@ class TestEsmSpecifierResolution(BaseCase):
 
     def test_declared_libraries_win_over_the_addon_layout(self):
         resolve = self._resolver(
-            ext_libs={"@odoo/owl": "/web/static/lib/owl/owl.es.js"},
-            lib_candidates={"@odoo/hoot": ("web", "static", "lib", "hoot", "hoot.js")},
+            ext_libs={
+                "@odoo/owl": "/web/static/lib/owl/owl.es.js",
+                "@odoo/hoot": "/web/static/lib/hoot/hoot.js",
+            }
         ).resolve_url
         self.assertEqual(resolve("@odoo/owl"), "/web/static/lib/owl/owl.es.js")
         self.assertEqual(resolve("@odoo/hoot"), "/web/static/lib/hoot/hoot.js")
+        self.assertIsNone(self._resolver().resolve_url("@odoo/hoot"))
 
     def test_a_non_addon_specifier_resolves_to_nothing(self):
         resolve = self._resolver().resolve_url
@@ -337,7 +340,7 @@ class TestBridgeExportResolverReadsDisk(BaseCase):
     def _resolver(self):
         from odoo.tools.assets.esm_graph import _BridgeExportResolver
 
-        return _BridgeExportResolver({}, {}, "test")
+        return _BridgeExportResolver({}, "test")
 
     def test_a_real_module_yields_its_real_exports(self):
         names, _has_default = self._resolver().source_exports(
@@ -406,7 +409,7 @@ class TestTransitiveSpecifierDiscovery(BaseCase):
     def _discover(self, seeds, known=()):
         from odoo.tools.assets.esm_graph import discover_transitive_import_specifiers
 
-        return discover_transitive_import_specifiers(seeds, set(known), {}, {}, "test")
+        return discover_transitive_import_specifiers(seeds, set(known), {}, "test")
 
     def test_a_specifier_reached_through_another_module_is_found(self):
         found = self._discover(["@web/core/registry"])

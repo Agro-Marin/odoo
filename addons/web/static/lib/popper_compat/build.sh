@@ -8,10 +8,10 @@
 # Why a second copy exists: pages outside the asset pipeline (the IoT box
 # homepage) load bootstrap.esm.js straight into the browser and resolve
 # `@popperjs/core` through an import map. They have no bundler, so they cannot
-# follow this module's `@web/...` imports. Bundled code does NOT use this file
-# -- esbuild inlines the source instead (see _LIB_CANDIDATES) -- so the two can
-# only drift if this build goes stale, which `--check` (wired into
-# check_vendored_libs.py) exists to catch.
+# follow this module's `@web/...` imports. Bundled pages resolve `@popperjs/core`
+# through their import map to this same file (web/__manifest__.py declares it
+# under esm.external_libs), so the two can only drift if this build goes
+# stale, which `--check` (wired into check_vendored_libs.py) exists to catch.
 #
 # Run from the `odoo` repo root, or let the script find it.
 set -e

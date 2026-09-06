@@ -78,11 +78,7 @@ class AssetsBundle:
     )
 
     @classmethod
-    def _check_external_libs(
-        cls,
-        import_map: Mapping[str, str],
-        lib_candidates: Mapping[str, tuple[str, ...]] = EsbuildCompiler._LIB_CANDIDATES,
-    ) -> None:
+    def _check_external_libs(cls, import_map: Mapping[str, str]) -> None:
         missing_alias = [
             spec for spec in import_map if not EsbuildCompiler.resolves_specifier(spec)
         ]
@@ -102,18 +98,6 @@ class AssetsBundle:
                 f"esm.external_libs URLs point at files that do not exist "
                 f"on disk: {missing_files}. Browsers would 404 on the "
                 f"import-map fetch.",
-            )
-        missing_aliases = []
-        for alias, parts in lib_candidates.items():
-            rel = "/".join(parts)
-            if cls._is_addon_present(rel) and not cls._is_addon_path_present(rel):
-                missing_aliases.append(f"{alias} -> {rel}")
-        if missing_aliases:
-            raise ValueError(
-                f"_LIB_CANDIDATES aliases point at files that do not exist "
-                f"on disk: {missing_aliases}. The esbuild addon scan would "
-                f"silently skip them and every bundle importing the alias "
-                f"would fail to build.",
             )
 
     @staticmethod

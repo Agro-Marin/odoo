@@ -5,9 +5,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase
-from odoo.tools.assets.esbuild import EXTERNAL_LIB_ALIASES
 from odoo.tools.assets.esm_bridges import BridgeShimManager
 from odoo.tools.assets.esm_graph import _bridge_shim_source
+from odoo.tools.assets.esm_registry import external_lib_aliases
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_path
 
@@ -25,15 +25,20 @@ class TestFallbackBridgeExternals(TransactionCase):
 
     def test_a_bundle_carrying_hoot_bridges_its_aliases(self):
         IrQweb = self.env["ir.qweb"]
-        specs = IrQweb._bridge_external_specifiers(
+        aliases = external_lib_aliases()
+        hoot = {spec: aliases[spec] for spec in ("@odoo/hoot", "@odoo/hoot-dom")}
+        self.assertEqual(
+            hoot,
             {
-                "import_map": {
-                    alias_target: f"/web/static/lib/{alias_target}.js"
-                    for alias_target in EXTERNAL_LIB_ALIASES.values()
-                }
-            }
+                "@odoo/hoot": "@web/../lib/hoot/hoot",
+                "@odoo/hoot-dom": "@web/../lib/hoot-dom/hoot-dom",
+            },
+            "the alias of a declared library is its own URL read as a specifier",
         )
-        self.assertEqual(specs, {"@odoo/owl", *EXTERNAL_LIB_ALIASES})
+        specs = IrQweb._bridge_external_specifiers(
+            {"import_map": dict.fromkeys(hoot.values(), "/web/static/lib/x.js")}
+        )
+        self.assertEqual(specs, {"@odoo/owl", *hoot})
 
     def test_the_app_bundles_do_not_bridge_the_test_framework(self):
         IrQweb = self.env["ir.qweb"]

@@ -189,10 +189,9 @@ def discover_transitive_import_specifiers(
     seed_specifiers: Iterable[str],
     known_specifiers: Collection[str],
     ext_libs: Mapping[str, str],
-    lib_candidates: Mapping[str, tuple[str, ...]],
     bundle_name: str = "",
 ) -> set[str]:
-    resolver = _BridgeExportResolver(ext_libs, lib_candidates, bundle_name)
+    resolver = _BridgeExportResolver(ext_libs, bundle_name)
     known = set(known_specifiers) | set(ext_libs) | {"@odoo/owl"}
     discovered: set[str] = set()
     queue: deque[str] = deque(seed_specifiers)
@@ -366,15 +365,9 @@ def addon_specifier_to_url(spec: str) -> str | None:
     return url
 
 
-def resolve_specifier_url(
-    spec: str,
-    ext_libs: Mapping[str, str],
-    lib_candidates: Mapping[str, tuple[str, ...]],
-) -> str | None:
+def resolve_specifier_url(spec: str, ext_libs: Mapping[str, str]) -> str | None:
     if (url := ext_libs.get(spec)) is not None:
         return url
-    if (lib_parts := lib_candidates.get(spec)) is not None:
-        return "/" + "/".join(lib_parts)
     return addon_specifier_to_url(spec)
 
 
@@ -384,19 +377,12 @@ class _BridgeExportResolver:
         "_cache",
         "_exports_cache",
         "_ext_libs",
-        "_lib_candidates",
         "_star_cache",
         "_url_cache",
     )
 
-    def __init__(
-        self,
-        ext_libs: Mapping[str, str],
-        lib_candidates: Mapping[str, tuple[str, ...]],
-        bundle_name: str,
-    ) -> None:
+    def __init__(self, ext_libs: Mapping[str, str], bundle_name: str) -> None:
         self._ext_libs = ext_libs
-        self._lib_candidates = lib_candidates
         self._bundle_name = bundle_name
         self._cache: dict[str, str | None] = {}
         self._exports_cache: dict[str, tuple[set[str], bool]] = {}
@@ -404,7 +390,7 @@ class _BridgeExportResolver:
         self._url_cache: dict[str, str] = {}
 
     def resolve_url(self, spec: str) -> str | None:
-        return resolve_specifier_url(spec, self._ext_libs, self._lib_candidates)
+        return resolve_specifier_url(spec, self._ext_libs)
 
     def read_source(self, spec: str) -> str | None:
         if spec in self._cache:

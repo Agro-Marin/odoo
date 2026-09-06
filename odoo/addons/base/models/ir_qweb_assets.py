@@ -14,17 +14,17 @@ from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
-from odoo.tools.assets.esbuild import (
-    EXTERNAL_LIB_ALIASES,
-    EsbuildCompiler,
-    EsbuildResult,
-)
+from odoo.tools.assets.esbuild import EsbuildResult
 from odoo.tools.assets.esm_graph import (
     addon_specifier_to_url,
     discover_transitive_import_specifiers,
     resolve_specifier_url,
 )
-from odoo.tools.assets.esm_registry import esm_registry, external_libs
+from odoo.tools.assets.esm_registry import (
+    esm_registry,
+    external_lib_aliases,
+    external_libs,
+)
 from odoo.tools.assets.nodes import (
     LOADER_SHIM_MARKER,
     AssetNode,
@@ -320,9 +320,7 @@ class IrQweb(models.AbstractModel):
     _specifier_to_static_url = staticmethod(addon_specifier_to_url)
 
     def _resolve_specifier_url(self, spec: str) -> str | None:
-        return resolve_specifier_url(
-            spec, self._external_libs(), EsbuildCompiler._LIB_CANDIDATES
-        )
+        return resolve_specifier_url(spec, self._external_libs())
 
     _get_import_map_url_counts = staticmethod(count_import_map_urls)
 
@@ -1278,7 +1276,6 @@ class IrQweb(models.AbstractModel):
                 resolved_map,
                 known_specifiers=set(import_map),
                 ext_libs=self._external_libs(),
-                lib_candidates=EsbuildCompiler._LIB_CANDIDATES,
                 bundle_name=bundle,
             )
             for spec in sorted(extra):
@@ -1586,7 +1583,7 @@ class IrQweb(models.AbstractModel):
     @staticmethod
     def _bridge_external_specifiers(native_data: dict[str, Any]) -> set[str]:
         return bridge_external_specifiers(
-            native_data["import_map"], EXTERNAL_LIB_ALIASES
+            native_data["import_map"], external_lib_aliases()
         )
 
     def _get_esm_nodes_debug(

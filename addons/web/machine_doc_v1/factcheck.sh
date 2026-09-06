@@ -1115,8 +1115,10 @@ assert_eq "esm_registry.py defines the EsmRegistry NamedTuple" \
     "$(grep -c 'class EsmRegistry' "$PYTOOLS/esm_registry.py")" "1"
 assert_eq "esm_registry.py defines check_esm_config" \
     "$(grep -c 'def check_esm_config' "$PYTOOLS/esm_registry.py")" "1"
-assert_eq "esbuild.py defines _LIB_CANDIDATES" \
-    "$(grep -cE '_LIB_CANDIDATES: dict' "$PYTOOLS/esbuild.py")" "1"
+assert_eq "esm_registry.py derives the library aliases from the manifests" \
+    "$(grep -c 'def external_lib_aliases' "$PYTOOLS/esm_registry.py")" "1"
+assert_eq "no second specifier table survives beside esm.external_libs" \
+    "$(grep -rcE '_LIB_CANDIDATES|EXTERNAL_LIB_ALIASES' "$PYTOOLS/esbuild.py")" "0"
 assert_eq "esm_graph.py defines is_native_module" \
     "$(grep -c 'def is_native_module' "$PYTOOLS/esm_graph.py")" "1"
 assert_eq "assetsbundle/bundle.py gates ESM via esm_registry().bundles" \

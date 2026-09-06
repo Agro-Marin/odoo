@@ -19,12 +19,6 @@ _esbuild_log = get_asset_logger("esbuild")
 
 EXTERNAL_SPECIFIER_PREFIX = "@odoo/"
 
-EXTERNAL_LIB_ALIASES = {
-    "@odoo/hoot": "@web/../lib/hoot/hoot",
-    "@odoo/hoot-dom": "@web/../lib/hoot-dom/hoot-dom",
-    "@odoo/hoot-mock": "@web/../lib/hoot/hoot-mock",
-}
-
 
 def module_specifiers(asset) -> tuple[str, ...]:
     names = [asset.module_path]
@@ -237,29 +231,9 @@ class EsbuildCompiler:
     def resolves_specifier(cls, spec: str) -> bool:
         from odoo.tools.assets.esm_registry import external_bare_specifiers
 
-        return (
-            spec.startswith(EXTERNAL_SPECIFIER_PREFIX)
-            or spec in external_bare_specifiers()
-            or spec in cls._LIB_CANDIDATES
+        return spec.startswith(EXTERNAL_SPECIFIER_PREFIX) or spec in (
+            external_bare_specifiers()
         )
-
-    _LIB_CANDIDATES: dict[str, tuple[str, ...]] = {
-        "@odoo/hoot-dom": ("web", "static", "lib", "hoot-dom", "hoot-dom.js"),
-        "@popperjs/core": (
-            "web",
-            "static",
-            "src",
-            "libs",
-            "popper_compat.js",
-        ),
-        "@odoo/o-spreadsheet": (
-            "spreadsheet",
-            "static",
-            "src",
-            "o_spreadsheet",
-            "o_spreadsheet.js",
-        ),
-    }
 
     @classmethod
     def _get_esbuild_addon_flags(cls, odoo_root: Path) -> tuple[list[str], list[str]]:
@@ -293,14 +267,6 @@ class EsbuildCompiler:
                         odoo_root,
                     )
                     test_external_flags.append(f"--external:./{rel_tests}/*")
-
-        for alias_name, path_parts in cls._LIB_CANDIDATES.items():
-            for addon_dir in _addon_paths:
-                candidate = Path(addon_dir).joinpath(*path_parts)
-                if candidate.exists():
-                    rel = os.path.relpath(candidate, odoo_root)
-                    alias_flags.append(f"--alias:{alias_name}=./{rel}")
-                    break
 
         cls._esbuild_addon_scan_cache = (cache_key, alias_flags, test_external_flags)
         log_event(
@@ -704,7 +670,9 @@ class EsbuildCompiler:
         entry_lines.append("odoo.loader.registerNativeModules({")
         entry_lines.append(",\n".join(register_entries))
         entry_lines.append("});")
-        for ext_name, int_name in EXTERNAL_LIB_ALIASES.items():
+        from odoo.tools.assets.esm_registry import external_lib_aliases
+
+        for ext_name, int_name in external_lib_aliases().items():
             if int_name in registered_specs:
                 entry_lines.append(
                     f"odoo.loader.modules.set({json.dumps(ext_name)},"

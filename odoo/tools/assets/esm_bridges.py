@@ -10,7 +10,6 @@ from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
 from odoo.tools import config
 from odoo.tools.assets.constants import ESM_BRIDGE_REFRESH_DAYS
-from odoo.tools.assets.esbuild import EsbuildCompiler
 from odoo.tools.assets.esm_graph import (
     _IMPORT_ANY_RE,
     _bridge_shim_source,
@@ -264,9 +263,7 @@ class BridgeShimManager:
     ) -> dict[str, str]:
         if not specifiers:
             return {}
-        resolver = _BridgeExportResolver(
-            external_libs(), EsbuildCompiler._LIB_CANDIDATES, self.bundle_name
-        )
+        resolver = _BridgeExportResolver(external_libs(), self.bundle_name)
         shims: dict[str, str] = {}
         for spec in sorted(specifiers):
             src_names, has_default = resolver.source_exports(spec)
@@ -289,9 +286,7 @@ class BridgeShimManager:
         discovered, ext_seen = self._discover_bridge_specifiers(
             native_specifiers, set(external_libs()), modules=modules
         )
-        resolver = _BridgeExportResolver(
-            external_libs(), EsbuildCompiler._LIB_CANDIDATES, self.bundle_name
-        )
+        resolver = _BridgeExportResolver(external_libs(), self.bundle_name)
 
         shims_by_spec: dict[str, str] = {}
         star_fallback = 0

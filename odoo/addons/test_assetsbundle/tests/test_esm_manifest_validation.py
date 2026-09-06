@@ -113,9 +113,7 @@ class TestExternalLibsValidator(BaseCase):
 
     def test_a_specifier_esbuild_cannot_resolve_is_refused(self):
         with self.assertRaisesRegex(ValueError, "no resolution for them"):
-            AssetsBundle._check_external_libs(
-                {"left-pad": self.REAL_URL}, lib_candidates={}
-            )
+            AssetsBundle._check_external_libs({"left-pad": self.REAL_URL})
 
     def test_bare_externals_are_a_subset_of_the_declared_libs(self):
         from odoo.tools.assets.esm_registry import external_bare_specifiers
@@ -127,33 +125,17 @@ class TestExternalLibsValidator(BaseCase):
     def test_an_import_map_url_pointing_nowhere_is_refused(self):
         with self.assertRaisesRegex(ValueError, "do not exist"):
             AssetsBundle._check_external_libs(
-                {"@odoo/owl": "/web/static/lib/owl/does_not_exist.js"},
-                lib_candidates={},
-            )
-
-    def test_a_lib_alias_pointing_nowhere_is_refused(self):
-        with self.assertRaisesRegex(ValueError, "_LIB_CANDIDATES aliases"):
-            AssetsBundle._check_external_libs(
-                {},
-                lib_candidates={"@odoo/nope": ("web", "static", "lib", "nope.js")},
+                {"@odoo/owl": "/web/static/lib/owl/does_not_exist.js"}
             )
 
     def test_an_unknown_addon_in_the_url_is_refused_like_any_other_missing_file(self):
         with self.assertRaisesRegex(ValueError, "do not exist"):
             AssetsBundle._check_external_libs(
-                {"@odoo/owl": "/no_such_addon_here/static/lib/x.js"},
-                lib_candidates={},
+                {"@odoo/owl": "/no_such_addon_here/static/lib/x.js"}
             )
-
-    def test_a_lib_candidate_in_an_absent_addon_is_skipped(self):
-        AssetsBundle._check_external_libs(
-            {},
-            lib_candidates={"@odoo/nope": ("no_such_addon_here", "static", "x.js")},
-        )
 
     def test_every_declared_lib_is_served_by_its_own_addon(self):
         from odoo.modules import Manifest
-        from odoo.tools.assets.esbuild import EsbuildCompiler
 
         cross_addon = []
         for manifest in Manifest.all_addon_manifests():
@@ -168,61 +150,56 @@ class TestExternalLibsValidator(BaseCase):
             "happen, so decide which of the two changes:\n  "
             + "\n  ".join(cross_addon),
         )
-        for alias, parts in EsbuildCompiler._LIB_CANDIDATES.items():
-            self.assertTrue(
-                AssetsBundle._is_addon_path_present("/".join(parts)),
-                f"{alias} points at {'/'.join(parts)}, which this checkout cannot "
-                f"serve; a lib alias must live in a bundled addon",
-            )
 
     def test_the_live_tables_satisfy_all_four(self):
         AssetsBundle._check_external_libs(external_libs())
 
 
 class TestSpecifierResolutionHasOneOwner(BaseCase):
-    def _tables(self):
-        from odoo.tools.assets.esbuild import EsbuildCompiler
+    def test_every_declared_lib_resolves_to_its_declared_url(self):
+        from odoo.tools.assets.esm_graph import resolve_specifier_url
         from odoo.tools.assets.esm_registry import external_libs
 
-        return external_libs(), EsbuildCompiler._LIB_CANDIDATES
-
-    def test_every_lib_candidate_resolves(self):
-        from odoo.tools.assets.esm_graph import resolve_specifier_url
-
-        ext, libs = self._tables()
-        for spec in libs:
-            self.assertIsNotNone(
-                resolve_specifier_url(spec, ext, libs),
-                f"{spec} is aliased for esbuild but the page could not resolve it",
-            )
+        ext = external_libs()
+        for spec, url in ext.items():
+            self.assertEqual(resolve_specifier_url(spec, ext), url, spec)
 
     def test_the_resolver_and_the_qweb_call_site_agree(self):
         from odoo.tools.assets.esm_graph import (
             _BridgeExportResolver,
             resolve_specifier_url,
         )
+        from odoo.tools.assets.esm_registry import external_libs
 
-        ext, libs = self._tables()
-        resolver = _BridgeExportResolver(ext, libs, "test")
-        for spec in [*ext, *libs, "@web/core/registry", "@web/../lib/luxon/luxon"]:
+        ext = external_libs()
+        resolver = _BridgeExportResolver(ext, "test")
+        for spec in [*ext, "@web/core/registry", "@web/../lib/luxon/luxon"]:
             self.assertEqual(
                 resolver.resolve_url(spec),
-                resolve_specifier_url(spec, ext, libs),
+                resolve_specifier_url(spec, ext),
                 f"{spec} resolves differently through the two entry points",
             )
 
-    def test_declared_tables_beat_the_naming_convention(self):
+    def test_the_declared_table_beats_the_naming_convention(self):
         from odoo.tools.assets.esm_graph import (
             addon_specifier_to_url,
             resolve_specifier_url,
         )
 
         self.assertEqual(
-            resolve_specifier_url("@odoo/x", {}, {"@odoo/x": ("a", "b", "c.js")}),
-            "/a/b/c.js",
+            resolve_specifier_url("@odoo/x", {"@odoo/x": "/a/b/c.js"}), "/a/b/c.js"
         )
-        self.assertIsNone(resolve_specifier_url("@odoo/x", {}, {}))
+        self.assertIsNone(resolve_specifier_url("@odoo/x", {}))
         self.assertIsNone(addon_specifier_to_url("@odoo/x"))
+
+    def test_an_alias_is_the_library_url_read_as_a_specifier(self):
+        from odoo.tools.assets.esm_registry import external_lib_aliases, external_libs
+
+        aliases = external_lib_aliases()
+        self.assertEqual(aliases["@odoo/hoot"], "@web/../lib/hoot/hoot")
+        self.assertEqual(
+            set(aliases), set(external_libs()), "every declared library aliases"
+        )
 
 
 class TestBrokenManifestDoesNotTakeThePageDown(BaseCase):
@@ -255,7 +232,7 @@ class TestBrokenManifestDoesNotTakeThePageDown(BaseCase):
     def test_the_validator_itself_still_raises_when_called_directly(self):
         with self.assertRaisesRegex(ValueError, "do not exist"):
             AssetsBundle._check_external_libs(
-                {"@odoo/owl": "/web/static/lib/owl/NOPE.js"}, lib_candidates={}
+                {"@odoo/owl": "/web/static/lib/owl/NOPE.js"}
             )
 
 
