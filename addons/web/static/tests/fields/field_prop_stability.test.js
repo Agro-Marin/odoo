@@ -3,6 +3,7 @@
 import { expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
+import { onRendered } from "@odoo/owl";
 import {
     contains,
     defineModels,
@@ -10,7 +11,9 @@ import {
     models,
     mountView,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { Field } from "@web/fields/field";
 
 class Tag extends models.Model {
     _name = "tag";
@@ -385,6 +388,126 @@ test("no widget on a form renders on an unrelated edit", async () => {
     delete stats["fields.web.CharField"];
     const rendered = Object.keys(stats).filter((k) => k.startsWith("fields."));
     expect(rendered).toEqual([]);
+});
+// The Field wrapper too: it evaluates readonly, required and the decorations
+// on every render, and it used to render for every widget that takes a
+// context or a domain on any edit -- makeContext spread the whole evalContext,
+// which subscribed the wrapper to every field. The context expression is
+// evaluated against the evalContext as it is now, so the wrapper follows only
+// the fields the expression names.
+test("only the edited field's wrapper renders on an unrelated edit", async () => {
+    onRpc("has_access", () => true);
+    /** @type {Record<string, number>} */
+    const wrapperRenders = {};
+    let counting = false;
+    patchWithCleanup(Field.prototype, {
+        setup() {
+            super.setup();
+            onRendered(() => {
+                if (counting) {
+                    const key = `${this.props.name}/${this.props.type || ""}`;
+                    wrapperRenders[key] = (wrapperRenders[key] || 0) + 1;
+                }
+            });
+        },
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="name"/>
+    <field name="other"/>
+    <field name="other" widget="url"/>
+    <field name="other" widget="email"/>
+    <field name="other" widget="phone"/>
+    <field name="other" widget="color"/>
+    <field name="other" widget="CopyClipboardChar"/>
+    <field name="other" widget="CopyClipboardButton"/>
+    <field name="other" widget="badge"/>
+    <field name="other" widget="statinfo"/>
+    <field name="dom" widget="domain" options="{'model': 'tag'}"/>
+    <field name="dom" widget="field_selector"/>
+    <field name="dom" widget="ace"/>
+    <field name="txt"/>
+    <field name="txt" widget="iframe_wrapper"/>
+    <field name="html"/>
+    <field name="flag"/>
+    <field name="flag" widget="boolean_toggle"/>
+    <field name="flag" widget="boolean_favorite"/>
+    <field name="flag" widget="boolean_icon"/>
+    <field name="int_field"/>
+    <field name="int_field" widget="progressbar"/>
+    <field name="int_field" widget="percentpie"/>
+    <field name="int_field" widget="gauge"/>
+    <field name="int_field" widget="color_picker"/>
+    <field name="int_field" widget="handle"/>
+    <field name="float_field"/>
+    <field name="float_field" widget="percentage"/>
+    <field name="float_field" widget="float_time"/>
+    <field name="float_field" widget="float_toggle"/>
+    <field name="float_field" widget="float_factor"/>
+    <field name="money"/>
+    <field name="sel"/>
+    <field name="sel" widget="selection_badge"/>
+    <field name="sel" widget="priority"/>
+    <field name="sel" widget="radio"/>
+    <field name="sel" widget="label_selection"/>
+    <field name="sel" widget="statusbar"/>
+    <field name="state" widget="state_selection"/>
+    <field name="date"/>
+    <field name="date" widget="remaining_days"/>
+    <field name="datetime"/>
+    <field name="tag_id"/>
+    <field name="tag_id" widget="many2one_avatar"/>
+    <field name="tag_id" widget="many2one_barcode"/>
+    <field name="tag_id" widget="radio"/>
+    <field name="tag_id" widget="selection"/>
+    <field name="tag_id" widget="statusbar"/>
+    <field name="tag_id" widget="selection_badge"/>
+    <field name="tag_ids" widget="many2many_tags"/>
+    <field name="tag_ids" widget="many2many_tags_avatar"/>
+    <field name="tag_ids" widget="many2many_checkboxes"/>
+    <field name="tag_ids" widget="many2many_binary"/>
+    <field name="tag_ids"><list><field name="name"/></list></field>
+    <field name="ref"/>
+    <field name="img" widget="image"/>
+    <field name="img" widget="signature"/>
+    <field name="doc"/>
+    <field name="doc" widget="pdf_viewer"/>
+    <field name="json_field" widget="json"/>
+    <field name="json_field" widget="json_checkboxes"/>
+            </form>`,
+    });
+    await animationFrame();
+    counting = true;
+    await editUnrelatedFiveTimes();
+    counting = false;
+
+    expect(wrapperRenders).toEqual({ "name/": 5 });
+});
+
+test.tags("desktop");
+test("a context expression still follows the field it names", async () => {
+    onRpc("tag", "web_name_search", ({ kwargs }) => {
+        expect.step(`search:${kwargs.context?.default_name}`);
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="name"/>
+                <field name="tag_id" context="{'default_name': name}"/>
+            </form>`,
+    });
+    await contains("[name='name'] input").edit("first");
+    await contains("[name='tag_id'] input").click();
+    await animationFrame();
+    await contains("[name='name'] input").edit("second");
+    await contains("[name='tag_id'] input").click();
+    await animationFrame();
+    expect.verifySteps(["search:first", "search:second"]);
 });
 
 // The x2many field itself re-renders with its record, which is expected; what

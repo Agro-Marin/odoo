@@ -1,7 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-import { makeContext } from "@web/core/context";
 import { Domain } from "@web/core/domain";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { deepEqual, shallowEqual } from "@web/core/utils/collections/objects";
@@ -26,10 +25,20 @@ function computeFieldContext(record, fieldName, rawContext) {
         }
     }
 
+    // The arch expression is evaluated against the record's evalContext as it
+    // is, not a copy: the interpreter reads names by property access, so a
+    // Field evaluating this during its render subscribes to the fields the
+    // expression names and nothing else. makeContext spreads the evaluation
+    // context first, which reads every key and re-renders the Field -- and
+    // whatever it hands the context to -- on any edit of the record.
+    const archContext =
+        rawContext && rawContext !== "{}"
+            ? evaluateExpr(rawContext, record.evalContext)
+            : {};
     return {
         ...context,
         ...record.fields[fieldName].context,
-        ...makeContext([rawContext], record.evalContext),
+        ...archContext,
     };
 }
 
