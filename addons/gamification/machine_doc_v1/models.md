@@ -615,7 +615,7 @@ active ←──→ broken
 
 | Method | Trigger | Purpose |
 |--------|---------|---------|
-| `_compute_karma()` | `karma_tracking_ids.new_value` | SQL DISTINCT ON latest tracking per user |
+| `_compute_karma()` | `karma_tracking_ids.new_value` | Sum of all recorded gains (`new_value - old_value`) per user |
 | `_get_user_badge_level()` | `badge_ids` | SQL GROUP BY for gold/silver/bronze counts |
 | `_compute_xp_progress()` | `karma, rank_id, next_rank_id` | Progress bar calculation |
 | `_add_karma(gain, source, reason)` | explicit call | Create tracking record (single user) |

@@ -31,7 +31,9 @@ Only admin users (`group_erp_manager`) can create goal definitions.
 
 2. **`origin_ref` selection** must include all models that pass themselves as
    `source` to `_add_karma`. Currently: `res.users`, `gamification.streak`,
-   `gamification.kudos`, `gamification.achievement.unlock`.
+   `gamification.kudos`, `gamification.achievement.unlock`,
+   `gamification.quest.enrollment`, `gamification.skill.node.unlock`,
+   `gamification.mentorship`.
    If a new module grants karma with a different source model, extend
    `_get_origin_selection_values()`.
 
