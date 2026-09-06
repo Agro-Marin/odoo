@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="res_partner_attribute_view_list" model="ir.ui.view">
@@ -24,8 +24,7 @@
                         name="web_ribbon"
                         title="Archived"
                         bg_color="text-bg-danger"
-                        invisible="active"
-                    />
+                        invisible="active" />
                     <div class="oe_title">
                         <h1>
                             <field name="name" placeholder="e.g. Customer type" />
@@ -36,8 +35,7 @@
                         <field name="sequence" />
                         <field
                             name="aggregation_mode"
-                            groups="partner_scoring.group_partner_scoring_manager"
-                        />
+                            groups="partner_scoring.group_partner_scoring_manager" />
                         <field name="active" invisible="1" />
                     </group>
                     <notebook>
@@ -48,13 +46,11 @@
                                     <field name="name" />
                                     <field
                                         name="score_value"
-                                        groups="partner_scoring.group_partner_scoring_manager"
-                                    />
+                                        groups="partner_scoring.group_partner_scoring_manager" />
                                     <field
                                         name="color"
                                         widget="color_picker"
-                                        optional="hide"
-                                    />
+                                        optional="hide" />
                                     <field name="active" />
                                 </list>
                             </field>
@@ -75,8 +71,7 @@
                     <filter
                         name="group_by_value_type"
                         string="Value Type"
-                        context="{'group_by': 'value_type'}"
-                    />
+                        context="{'group_by': 'value_type'}" />
                 </group>
             </search>
         </field>
@@ -101,7 +96,6 @@
         name="Partner Attributes"
         parent="partner.res_partner_menu_config"
         action="res_partner_attribute_action"
-        sequence="1"
-    />
+        sequence="1" />
 
 </odoo>

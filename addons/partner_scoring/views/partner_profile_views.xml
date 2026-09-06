@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="partner_profile_view_search" model="ir.ui.view">
@@ -11,20 +11,16 @@
                 <filter
                     string="Active"
                     name="active"
-                    domain="[('active', '=', True)]"
-                />
+                    domain="[('active', '=', True)]" />
                 <filter
                     string="Inactive"
                     name="inactive"
-                    domain="[('active', '=', False)]"
-                />
+                    domain="[('active', '=', False)]" />
                 <group>
                     <filter
                         string="Company"
                         name="company"
-                        domain="[]"
-                        context="{'group_by': 'company_id'}"
-                    />
+                        context="{'group_by': 'company_id'}" />
                 </group>
             </search>
         </field>
@@ -64,16 +60,14 @@
                             <field
                                 name="factor"
                                 widget="percentage"
-                                help="Multiplier applied to sale.target metas for partners in this profile."
-                            />
+                                help="Multiplier applied to sale.target metas for partners in this profile." />
                         </group>
                         <group string="Settings">
                             <field name="sequence" />
                             <field name="active" />
                             <field
                                 name="company_id"
-                                groups="base.group_multi_company"
-                            />
+                                groups="base.group_multi_company" />
                         </group>
                     </group>
                 </sheet>
@@ -104,7 +98,6 @@
         parent="partner.res_partner_menu_config"
         action="partner_profile_action"
         sequence="30"
-        groups="partner_scoring.group_partner_scoring_manager"
-    />
+        groups="partner_scoring.group_partner_scoring_manager" />
 
 </odoo>

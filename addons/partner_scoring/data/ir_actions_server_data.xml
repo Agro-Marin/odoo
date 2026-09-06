@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="action_partner_score_recompute" model="ir.actions.server">
@@ -10,8 +10,7 @@
         <field name="code">action = records.action_partner_score_recompute()</field>
         <field
             name="group_ids"
-            eval="[Command.link(ref('partner_scoring.group_partner_scoring_manager'))]"
-        />
+            eval="[Command.link(ref('partner_scoring.group_partner_scoring_manager'))]" />
     </record>
 
 </odoo>

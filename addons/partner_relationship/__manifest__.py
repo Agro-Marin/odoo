@@ -43,21 +43,6 @@ Both are batched one query per degree, not one per record.
         "partner",
         "web",
     ],
-    "assets": {
-        "web.assets_backend": [
-            "partner_relationship/static/src/**/*",
-        ],
-        "web.assets_unit_tests": [
-            "partner_relationship/static/tests/**/*.js",
-            # Tours are not HOOT suites: they run against a live browser from
-            # web.assets_tests below, and HOOT would load this one as a test
-            # file that registers no test.
-            ("remove", "partner_relationship/static/tests/tours/**/*.js"),
-        ],
-        "web.assets_tests": [
-            "partner_relationship/static/tests/tours/**/*.js",
-        ],
-    },
     "data": [
         "security/res_groups.xml",
         "security/ir.model.access.csv",
@@ -68,4 +53,19 @@ Both are batched one query per degree, not one per record.
         "wizards/partner_relation_path_views.xml",
         "views/ir_ui_menu_views.xml",
     ],
+    "assets": {
+        "web.assets_backend": [
+            "partner_relationship/static/src/**/*",
+        ],
+        "web.assets_unit_tests": [
+            "partner_relationship/static/tests/**/*.js",
+            (
+                "remove",
+                "partner_relationship/static/tests/tours/**/*.js",
+            ),
+        ],
+        "web.assets_tests": [
+            "partner_relationship/static/tests/tours/**/*.js",
+        ],
+    },
 }

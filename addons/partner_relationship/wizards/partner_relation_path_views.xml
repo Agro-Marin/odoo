@@ -1,18 +1,18 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <template id="relation_path_document">
         <div class="o_relation_path">
             <div class="d-flex align-items-center flex-wrap gap-2">
-                <span class="badge text-bg-primary"><t t-out="start.display_name"/></span>
+                <span class="badge text-bg-primary"><t t-out="start.display_name" /></span>
                 <t t-foreach="path" t-as="hop">
                     <span class="text-muted small">
-                        <i class="fa fa-long-arrow-right me-1"/>
-                        <t t-out="hop['label']"/>
-                        <i class="fa fa-long-arrow-right ms-1"/>
+                        <i class="fa fa-long-arrow-right me-1" />
+                        <t t-out="hop['label']" />
+                        <i class="fa fa-long-arrow-right ms-1" />
                     </span>
                     <span class="badge text-bg-light border">
-                        <t t-out="hop['other_partner'].display_name"/>
+                        <t t-out="hop['other_partner'].display_name" />
                     </span>
                 </t>
             </div>
@@ -26,28 +26,35 @@
             <form>
                 <group name="main">
                     <group name="endpoints">
-                        <field name="partner_id"/>
-                        <field name="other_partner_id"/>
+                        <field name="partner_id" />
+                        <field name="other_partner_id" />
                     </group>
                     <group name="settings">
-                        <field name="max_degree"/>
-                        <field name="count_hop" string="Degrees of Separation"
-                               invisible="not is_connected"/>
-                        <field name="is_connected" invisible="1"/>
+                        <field name="max_degree" />
+                        <field
+                            name="count_hop"
+                            string="Degrees of Separation"
+                            invisible="not is_connected" />
+                        <field name="is_connected" invisible="1" />
                     </group>
                 </group>
-                <div class="alert alert-warning" role="alert"
-                     invisible="is_connected or not partner_id or not other_partner_id">
+                <div
+                    class="alert alert-warning"
+                    role="alert"
+                    invisible="is_connected or not partner_id or not other_partner_id">
                     No relationship path found within this depth.
                 </div>
                 <group name="path" string="Path" invisible="not is_connected">
-                    <field name="path_html" nolabel="1" readonly="1"/>
+                    <field name="path_html" nolabel="1" readonly="1" />
                 </group>
                 <footer>
-                    <button string="Open Relationships" name="action_view_path_relations"
-                            type="object" class="btn-primary"
-                            invisible="not is_connected"/>
-                    <button string="Close" class="btn-secondary" special="cancel"/>
+                    <button
+                        string="Open Relationships"
+                        name="action_view_path_relations"
+                        type="object"
+                        class="btn-primary"
+                        invisible="not is_connected" />
+                    <button string="Close" class="btn-secondary" special="cancel" />
                 </footer>
             </form>
         </field>

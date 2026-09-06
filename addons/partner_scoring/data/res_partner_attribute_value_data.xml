@@ -1,380 +1,381 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
 
     <record
         id="partner_attribute_value_type_productor"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Producer</field>
         <field name="attribute_id" ref="partner_attribute_partner_type" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_type_distribuidor"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Distributor</field>
         <field name="attribute_id" ref="partner_attribute_partner_type" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_type_revendedor"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Reseller</field>
         <field name="attribute_id" ref="partner_attribute_partner_type" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_type_asociacion"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Association/Cooperative</field>
         <field name="attribute_id" ref="partner_attribute_partner_type" />
         <field name="sequence" eval="40" />
     </record>
+
     <record
         id="partner_attribute_value_type_gobierno"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Government/Institution</field>
         <field name="attribute_id" ref="partner_attribute_partner_type" />
         <field name="sequence" eval="50" />
     </record>
+
     <record
         id="partner_attribute_value_generation_1"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">1st generation</field>
         <field name="attribute_id" ref="partner_attribute_farmer_generation" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_generation_2"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">2nd generation</field>
         <field name="attribute_id" ref="partner_attribute_farmer_generation" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_generation_3plus"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">3rd+ generation</field>
         <field name="attribute_id" ref="partner_attribute_farmer_generation" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_succession_defined"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Defined</field>
         <field name="attribute_id" ref="partner_attribute_succession" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_succession_transition"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">In transition</field>
         <field name="attribute_id" ref="partner_attribute_succession" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_succession_none"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">No succession</field>
         <field name="attribute_id" ref="partner_attribute_succession" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_growth_expansion"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Expanding</field>
         <field name="attribute_id" ref="partner_attribute_growth_outlook" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_growth_stable"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Stable</field>
         <field name="attribute_id" ref="partner_attribute_growth_outlook" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_growth_contraction"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Contracting</field>
         <field name="attribute_id" ref="partner_attribute_growth_outlook" />
         <field name="sequence" eval="30" />
     </record>
+
     <record id="partner_attribute_value_price_high" model="res.partner.attribute.value">
         <field name="name">High</field>
         <field name="attribute_id" ref="partner_attribute_price_sensitivity" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_price_medium"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Medium</field>
         <field name="attribute_id" ref="partner_attribute_price_sensitivity" />
         <field name="sequence" eval="20" />
     </record>
+
     <record id="partner_attribute_value_price_low" model="res.partner.attribute.value">
         <field name="name">Low</field>
         <field name="attribute_id" ref="partner_attribute_price_sensitivity" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_advisor_own"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">In-house advisor</field>
         <field name="attribute_id" ref="partner_attribute_technical_advisor" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_advisor_external"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">External advisor</field>
         <field name="attribute_id" ref="partner_attribute_technical_advisor" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_advisor_distributor"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Distributor's advisor</field>
         <field name="attribute_id" ref="partner_attribute_technical_advisor" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_advisor_none"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">No advisor</field>
         <field name="attribute_id" ref="partner_attribute_technical_advisor" />
         <field name="sequence" eval="40" />
     </record>
+
     <record
         id="partner_attribute_value_acquisition_referral"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Referral</field>
         <field name="attribute_id" ref="partner_attribute_acquisition_source" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_acquisition_event"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Event/fair</field>
         <field name="attribute_id" ref="partner_attribute_acquisition_source" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_acquisition_field_visit"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Field visit</field>
         <field name="attribute_id" ref="partner_attribute_acquisition_source" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_acquisition_digital"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Digital/social</field>
         <field name="attribute_id" ref="partner_attribute_acquisition_source" />
         <field name="sequence" eval="40" />
     </record>
+
     <record
         id="partner_attribute_value_acquisition_distributor"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Distributor</field>
         <field name="attribute_id" ref="partner_attribute_acquisition_source" />
         <field name="sequence" eval="50" />
     </record>
+
     <record
         id="partner_attribute_value_influence_leader"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Opinion leader</field>
         <field name="attribute_id" ref="partner_attribute_local_influence" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_influence_medium"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Medium influence</field>
         <field name="attribute_id" ref="partner_attribute_local_influence" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_influence_low"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Low influence</field>
         <field name="attribute_id" ref="partner_attribute_local_influence" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_openness_high"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Very open</field>
         <field name="attribute_id" ref="partner_attribute_communication_openness" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_openness_moderate"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Moderate</field>
         <field name="attribute_id" ref="partner_attribute_communication_openness" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_openness_closed"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Closed</field>
         <field name="attribute_id" ref="partner_attribute_communication_openness" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_social_whatsapp"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">WhatsApp</field>
         <field name="attribute_id" ref="partner_attribute_social_network" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_social_facebook"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Facebook</field>
         <field name="attribute_id" ref="partner_attribute_social_network" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_social_instagram"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Instagram</field>
         <field name="attribute_id" ref="partner_attribute_social_network" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_social_youtube"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">YouTube</field>
         <field name="attribute_id" ref="partner_attribute_social_network" />
         <field name="sequence" eval="40" />
     </record>
+
     <record
         id="partner_attribute_value_social_tiktok"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">TikTok</field>
         <field name="attribute_id" ref="partner_attribute_social_network" />
         <field name="sequence" eval="50" />
     </record>
+
     <record
         id="partner_attribute_value_social_none"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">None</field>
         <field name="attribute_id" ref="partner_attribute_social_network" />
         <field name="sequence" eval="60" />
     </record>
+
     <record
         id="partner_attribute_value_language_es"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Spanish</field>
         <field name="attribute_id" ref="partner_attribute_language" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_language_en"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">English</field>
         <field name="attribute_id" ref="partner_attribute_language" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_language_indigenous"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Indigenous language</field>
         <field name="attribute_id" ref="partner_attribute_language" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_competitor_syngenta"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Syngenta</field>
         <field name="attribute_id" ref="partner_attribute_competitor_brand" />
         <field name="sequence" eval="10" />
     </record>
+
     <record
         id="partner_attribute_value_competitor_bayer"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Bayer</field>
         <field name="attribute_id" ref="partner_attribute_competitor_brand" />
         <field name="sequence" eval="20" />
     </record>
+
     <record
         id="partner_attribute_value_competitor_corteva"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Corteva</field>
         <field name="attribute_id" ref="partner_attribute_competitor_brand" />
         <field name="sequence" eval="30" />
     </record>
+
     <record
         id="partner_attribute_value_competitor_basf"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">BASF</field>
         <field name="attribute_id" ref="partner_attribute_competitor_brand" />
         <field name="sequence" eval="40" />
     </record>
+
     <record
         id="partner_attribute_value_competitor_fmc"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">FMC</field>
         <field name="attribute_id" ref="partner_attribute_competitor_brand" />
         <field name="sequence" eval="50" />
     </record>
+
     <record
         id="partner_attribute_value_competitor_upl"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">UPL</field>
         <field name="attribute_id" ref="partner_attribute_competitor_brand" />
         <field name="sequence" eval="60" />
     </record>
+
     <record
         id="partner_attribute_value_competitor_other"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Other</field>
         <field name="attribute_id" ref="partner_attribute_competitor_brand" />
         <field name="sequence" eval="70" />
@@ -382,80 +383,79 @@
 
     <record
         id="partner_attribute_value_cprofile_innovator"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Innovator</field>
         <field name="attribute_id" ref="partner_attribute_commercial_profile" />
         <field name="sequence" eval="10" />
         <field name="score_value" eval="15.0" />
     </record>
+
     <record
         id="partner_attribute_value_cprofile_programmatic"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Programmatic/Efficient</field>
         <field name="attribute_id" ref="partner_attribute_commercial_profile" />
         <field name="sequence" eval="20" />
         <field name="score_value" eval="9.0" />
     </record>
+
     <record
         id="partner_attribute_value_cprofile_traditional"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Traditional</field>
         <field name="attribute_id" ref="partner_attribute_commercial_profile" />
         <field name="sequence" eval="30" />
         <field name="score_value" eval="6.0" />
     </record>
+
     <record
         id="partner_attribute_value_loyalty_loyal"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Loyal</field>
         <field name="attribute_id" ref="partner_attribute_loyalty" />
         <field name="sequence" eval="10" />
         <field name="score_value" eval="12.0" />
     </record>
+
     <record
         id="partner_attribute_value_loyalty_opportunist"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Opportunist/Price-sensitive</field>
         <field name="attribute_id" ref="partner_attribute_loyalty" />
         <field name="sequence" eval="20" />
         <field name="score_value" eval="3.0" />
     </record>
+
     <record
         id="partner_attribute_value_techlevel_high"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">High</field>
         <field name="attribute_id" ref="partner_attribute_technology_level" />
         <field name="sequence" eval="10" />
         <field name="score_value" eval="5.0" />
     </record>
+
     <record
         id="partner_attribute_value_techlevel_medium"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Medium</field>
         <field name="attribute_id" ref="partner_attribute_technology_level" />
         <field name="sequence" eval="20" />
         <field name="score_value" eval="4.0" />
     </record>
+
     <record
         id="partner_attribute_value_techlevel_low"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">Low</field>
         <field name="attribute_id" ref="partner_attribute_technology_level" />
         <field name="sequence" eval="30" />
         <field name="score_value" eval="2.0" />
     </record>
+
     <record
         id="partner_attribute_value_techlevel_none"
-        model="res.partner.attribute.value"
-    >
+        model="res.partner.attribute.value">
         <field name="name">No technology</field>
         <field name="attribute_id" ref="partner_attribute_technology_level" />
         <field name="sequence" eval="40" />

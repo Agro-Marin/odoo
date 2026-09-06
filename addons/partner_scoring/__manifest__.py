@@ -1,5 +1,7 @@
 {
     "name": "Partner Scoring",
+    "version": "19.0.1.5.0",
+    "category": "Sales/CRM",
     "summary": "Weighted attribute scoring for customers, with commercial profile bands",
     "description": """
 Configurable customer scoring engine on ``res.partner``.
@@ -29,11 +31,9 @@ This is deliberately not a ``crm_*`` module: it never touches ``crm.lead``. It
 scores the customer, not the opportunity, and is unrelated to Odoo's predictive
 lead scoring (``crm.lead.scoring.frequency``).
     """,
-    "category": "Sales/CRM",
-    "version": "19.0.1.5.0",
-    "license": "LGPL-3",
     "author": "AgroMarin",
     "website": "https://agromarin.mx",
+    "license": "LGPL-3",
     "depends": [
         "mixin_attribute",
         "partner",

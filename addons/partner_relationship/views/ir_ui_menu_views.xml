@@ -1,34 +1,39 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <menuitem id="menu_partner_relationship_root"
-              name="Relationships"
-              parent="partner.partner_menu_root"
-              sequence="25"/>
+    <menuitem
+        id="menu_partner_relationship_root"
+        name="Relationships"
+        parent="partner.partner_menu_root"
+        sequence="25" />
 
-    <menuitem id="menu_res_partner_relation"
-              name="All Relationships"
-              parent="menu_partner_relationship_root"
-              action="action_res_partner_relation"
-              sequence="20"/>
+    <menuitem
+        id="menu_res_partner_relation"
+        name="All Relationships"
+        parent="menu_partner_relationship_root"
+        action="action_res_partner_relation"
+        sequence="20" />
 
-    <menuitem id="menu_res_partner_network"
-              name="Contact Networks"
-              parent="menu_partner_relationship_root"
-              action="action_res_partner_network"
-              sequence="10"/>
+    <menuitem
+        id="menu_res_partner_network"
+        name="Contact Networks"
+        parent="menu_partner_relationship_root"
+        action="action_res_partner_network"
+        sequence="10" />
 
-    <menuitem id="menu_partner_relation_path"
-              name="Find a Path"
-              parent="menu_partner_relationship_root"
-              action="action_partner_relation_path"
-              sequence="30"/>
+    <menuitem
+        id="menu_partner_relation_path"
+        name="Find a Path"
+        parent="menu_partner_relationship_root"
+        action="action_partner_relation_path"
+        sequence="30" />
 
-    <menuitem id="menu_res_partner_relation_type"
-              name="Relationship Types"
-              parent="partner.res_partner_menu_config"
-              action="action_res_partner_relation_type"
-              groups="partner_relationship.group_partner_relationship_manager"
-              sequence="30"/>
+    <menuitem
+        id="menu_res_partner_relation_type"
+        name="Relationship Types"
+        parent="partner.res_partner_menu_config"
+        action="action_res_partner_relation_type"
+        sequence="30"
+        groups="partner_relationship.group_partner_relationship_manager" />
 
 </odoo>
