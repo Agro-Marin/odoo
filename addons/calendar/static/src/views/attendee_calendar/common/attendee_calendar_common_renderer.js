@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { AttendeeCalendarCommonPopover } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_popover";
+import { getAttendeeStatusClass } from "@calendar/views/attendee_calendar/attendee_calendar_utils";
 import { CalendarCommonRenderer } from "@web/views/calendar";
 
 export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
@@ -35,11 +36,7 @@ export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
             if (record.rawRecord.is_highlighted) {
                 classesToAdd.push("o_event_highlight");
             }
-            if (record.isAlone) {
-                classesToAdd.push("o_attendee_status_alone");
-            } else {
-                classesToAdd.push(`o_attendee_status_${record.attendeeStatus}`);
-            }
+            classesToAdd.push(getAttendeeStatusClass(record));
         }
         return classesToAdd;
     }
