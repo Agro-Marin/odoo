@@ -42,7 +42,7 @@ def adopt_xmlids(
     return moved
 
 
-def delete_xmlid_records(cr: BaseCursor, module: str, names: Iterable[str]) -> int:
+def remove_xmlid_records(cr: BaseCursor, module: str, names: Iterable[str]) -> int:
     cr.execute(
         SQL(
             "SELECT model, res_id FROM ir_model_data "
@@ -74,13 +74,13 @@ def delete_xmlid_records(cr: BaseCursor, module: str, names: Iterable[str]) -> i
     return deleted
 
 
-def retire_empty_module(cr: BaseCursor, module: str) -> bool:
+def retire_empty_module(cr: BaseCursor, module: str) -> None:
     # A module whose every record has been adopted elsewhere must not stay
     # `installed`: its manifest is gone or uninstallable, and every registry
     # load would warn that it could not be loaded.
     cr.execute(SQL("SELECT 1 FROM ir_model_data WHERE module = %s LIMIT 1", module))
     if cr.fetchone():
-        return False
+        return
     cr.execute(
         SQL(
             "UPDATE ir_module_module SET state = 'uninstalled', db_version = NULL "
@@ -98,4 +98,3 @@ def retire_empty_module(cr: BaseCursor, module: str) -> bool:
     )
     if retired:
         _logger.info("%s retired: every record it shipped now lives elsewhere", module)
-    return retired

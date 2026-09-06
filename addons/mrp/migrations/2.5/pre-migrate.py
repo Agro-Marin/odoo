@@ -1,7 +1,7 @@
 from odoo.libs.sql import SQL
 from odoo.tools.module_data import (
     adopt_xmlids,
-    delete_xmlid_records,
+    remove_xmlid_records,
     retire_empty_module,
 )
 
@@ -60,7 +60,7 @@ def migrate(cr, version):
     if not version:
         return
     adopt_xmlids(cr, FROM_MODULE, MODULE, ADOPTED)
-    delete_xmlid_records(cr, FROM_MODULE, DROPPED)
+    remove_xmlid_records(cr, FROM_MODULE, DROPPED)
 
     # The absorbed module's install hook had linked the readonly tier to every
     # server action on an mrp model that mrp.group_mrp_user may run -- split,
