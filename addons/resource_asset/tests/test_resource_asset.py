@@ -60,6 +60,7 @@ class TestResourceAsset(TransactionCase):
         )
 
     def test_identifier_is_normalized_and_matches_its_pattern(self):
+        self.vin.pattern = "[A-HJ-NPR-Z0-9]{17}"
         truck = self._truck()
         identifier = self.env["resource.asset.identifier"].create(
             {

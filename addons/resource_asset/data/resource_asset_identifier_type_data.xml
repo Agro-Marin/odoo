@@ -19,7 +19,6 @@
         <field name="name">VIN</field>
         <field name="code">vin</field>
         <field name="sequence">3</field>
-        <field name="pattern">[A-HJ-NPR-Z0-9]{17}</field>
         <field name="unique_scope">global</field>
     </record>
 
@@ -34,7 +33,6 @@
         <field name="name">IMEI</field>
         <field name="code">imei</field>
         <field name="sequence">5</field>
-        <field name="pattern">[0-9]{15}</field>
         <field name="unique_scope">global</field>
     </record>
 

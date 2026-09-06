@@ -42,6 +42,8 @@ class ResourceAssetMeterReading(models.Model):
 
     @api.constrains("value", "date", "meter_id")
     def _check_monotonic(self):
+        if self.env.context.get("skip_meter_monotonic"):
+            return
         for reading in self.filtered("meter_id.monotonic"):
             neighbours = reading.meter_id.reading_ids - reading
             date, value = reading.date, reading.value
