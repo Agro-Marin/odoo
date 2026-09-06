@@ -56,6 +56,30 @@ class StockPicking(models.Model):
         self.purchase_id.sudo().action_acknowledge()
         return super()._action_done()
 
+    def _log_less_quantities_than_expected(self, moves):
+        """Warn the buyer that the missing quantities are never coming.
+
+        stock's own warning walks `move_dest_ids` DOWN, so it reaches whatever
+        was waiting for the goods. A purchase order sits upstream of its
+        receipt and is never in that set -- but it is one hop away through
+        `purchase_line_id`, so no graph walk is needed here.
+        """
+        orders = self.move_ids.purchase_line_id.order_id
+        for order in orders:
+            order.sudo().activity_schedule(
+                "mail.mail_activity_data_warning",
+                summary=_("Missing products in receipt"),
+                note=self.env["ir.qweb"]._render(
+                    "purchase_stock.exception_on_receipt",
+                    {
+                        "origin_picking": self,
+                        "moves_information": list(moves.items()),
+                    },
+                ),
+                user_id=order.user_id.id or self.env.uid,
+            )
+        return super()._log_less_quantities_than_expected(moves)
+
     def action_purchase_matching(self):
         self.check_singleton()
         return {
