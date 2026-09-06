@@ -1,6 +1,5 @@
 import base64
 import logging
-import uuid
 from itertools import batched, zip_longest
 
 from odoo import _, api, fields, models
@@ -8,6 +7,7 @@ from odoo.exceptions import UserError
 from odoo.tools.misc import clean_context
 
 from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.calendar.models.utils import generate_calendar_token
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class CalendarAttendee(models.Model):
     _order = "create_date ASC"
 
     def _default_access_token(self):
-        return uuid.uuid4().hex
+        return generate_calendar_token()
 
     STATE_SELECTION = [
         ("accepted", "Yes"),

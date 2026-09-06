@@ -2,7 +2,6 @@ import itertools
 import logging
 import math
 import re
-import uuid
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 from itertools import repeat
@@ -30,7 +29,10 @@ from odoo.addons.calendar.models.calendar_recurrence import (
     WEEKDAY_SELECTION,
     weekday_to_field,
 )
-from odoo.addons.calendar.models.utils import interval_from_events
+from odoo.addons.calendar.models.utils import (
+    generate_calendar_token,
+    interval_from_events,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -856,14 +858,14 @@ class CalendarEvent(models.Model):
         This is done by design to prevent users not being able to join a discuss meeting because the base event of the recurrency was deleted.
         """
         if not self.access_token:
-            self.access_token = uuid.uuid4().hex
+            self.access_token = generate_calendar_token()
         self.videocall_location = (
             f"{self.get_base_url()}/{self.DISCUSS_ROUTE}/{self.access_token}"
         )
 
     @api.model
     def get_discuss_videocall_location(self):
-        access_token = uuid.uuid4().hex
+        access_token = generate_calendar_token()
         return f"{self.get_base_url()}/{self.DISCUSS_ROUTE}/{access_token}"
 
     # ------------------------------------------------------------
