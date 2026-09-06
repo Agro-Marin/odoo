@@ -714,9 +714,6 @@ class DocumentsDocument(models.Model):
         versioned = self.browse()
         for record in self:
             attachments_was_present.append(bool(record.attachment_id))
-            # A request whose file arrives here is logged by the activity
-            # feedback below (through the nested attachment_id write), so the
-            # plain log would say the same thing twice.
             fulfils_request = (
                 record.request_activity_id
                 and not record.attachment_id

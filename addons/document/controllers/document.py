@@ -836,41 +836,6 @@ class ShareRoute(http.Controller):
         return self._make_zip(zip_name, documents)
 
     @http.route(
-        [
-            "/document/download/all/<int:share_id>/<access_token>",
-            "/document/download/all/<access_token>",
-        ],
-        type="http",
-        auth="public",
-    )
-    def documents_download_all_legacy(
-        self, access_token: str | None = None, share_id: int | None = None
-    ) -> Any:
-        logger.warning(
-            "Deprecated since Odoo 18. Please access /documents/content/<access_token> instead."
-        )
-        return request.redirect(
-            f"/documents/content/{quote(access_token or '', safe='')}",
-            HTTPStatus.MOVED_PERMANENTLY,
-        )
-
-    @http.route(
-        ["/document/share/<int:share_id>/<token>", "/document/share/<token>"],
-        type="http",
-        auth="public",
-    )
-    def share_portal(
-        self, share_id: int | None = None, token: str | None = None
-    ) -> Any:
-        logger.warning(
-            "Deprecated since Odoo 18. Please access /odoo/documents/<access_token> instead."
-        )
-        return request.redirect(
-            f"/odoo/documents/{quote(token or '', safe='')}",
-            code=HTTPStatus.MOVED_PERMANENTLY,
-        )
-
-    @http.route(
         ["/documents/upload/", "/documents/upload/<access_token>"],
         type="http",
         auth="public",
@@ -891,9 +856,6 @@ class ShareRoute(http.Controller):
         file_size: str = "",
         **kw: Any,
     ) -> Any:
-        # The client marks its own upload payloads (document_id, and the
-        # traceback marker on the sibling route) to recognise them in the
-        # upload bus; the router would log every one as an ignored argument.
         if allowed_company_ids:
             with replace_exceptions(ValueError, by=BadRequest):
                 request.update_context(
