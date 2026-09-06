@@ -280,17 +280,17 @@ class TestAccessRights(TransactionCase):
         )
         ensure_user_can_update_event(self, johns_default_privacy_event, self.john)
         ensure_user_can_update_event(self, johns_default_privacy_event, self.raoul)
+        self.assertEqual(
+            len(self.john.res_users_settings_id),
+            1,
+            "Res Users Settings for the user is not defined.",
+        )
+        self.assertEqual(
+            self.john.res_users_settings_id.calendar_default_privacy,
+            "private",
+            "Privacy field update was lost.",
+        )
         with self.assertRaises(AccessError):
-            self.assertEqual(
-                len(self.john.res_users_settings_id),
-                1,
-                "Res Users Settings for the user is not defined.",
-            )
-            self.assertEqual(
-                self.john.res_users_settings_id.calendar_default_privacy,
-                "private",
-                "Privacy field update was lost.",
-            )
             johns_default_privacy_event.with_user(self.george).write(
                 {"name": "blocked-update-by-non-attendee"}
             )
@@ -306,17 +306,17 @@ class TestAccessRights(TransactionCase):
         )
         ensure_user_can_update_event(self, johns_private_event, self.john)
         ensure_user_can_update_event(self, johns_private_event, self.raoul)
+        self.assertEqual(
+            len(self.john.res_users_settings_id),
+            1,
+            "Res Users Settings for the user is not defined.",
+        )
+        self.assertEqual(
+            self.john.res_users_settings_id.calendar_default_privacy,
+            "public",
+            "Privacy field update was lost.",
+        )
         with self.assertRaises(AccessError):
-            self.assertEqual(
-                len(self.john.res_users_settings_id),
-                1,
-                "Res Users Settings for the user is not defined.",
-            )
-            self.assertEqual(
-                self.john.res_users_settings_id.calendar_default_privacy,
-                "public",
-                "Privacy field update was lost.",
-            )
             johns_private_event.with_user(self.george).write(
                 {"name": "blocked-update-by-non-attendee"}
             )
@@ -359,22 +359,23 @@ class TestAccessRights(TransactionCase):
         for field, value in [
             ("name", "pub"),
             ("location", "loc_2"),
-            (
-                "description",
-                (
-                    "<div>pub<br>"
-                    "<strong>Organized by</strong><br>"
-                    'john (base.group_user)<br><a href="mailto:j.j@example.com">j.j@example.com</a><br><br>'
-                    "<strong>Contact Details</strong><br>"
-                    'george (base.group_user)<br><a href="mailto:g.g@example.com">g.g@example.com</a></div>'
-                ),
-            ),
         ]:
             field_information = self.read_event(self.admin_user, john_public_evt, field)
             self.assertEqual(
                 str(field_information),
                 value,
                 "The field '%s' information must be readable by the admin." % field,
+            )
+
+        # The description is rendered HTML; assert on the organizer/contact
+        # substrings it must contain rather than the exact markup, so an
+        # unrelated template change doesn't break this privacy test.
+        description = self.read_event(self.admin_user, john_public_evt, "description")
+        for expected_substring in ("pub", "j.j@example.com", "g.g@example.com"):
+            self.assertIn(
+                expected_substring,
+                str(description),
+                "The field 'description' information must be readable by the admin.",
             )
 
     def test_admin_cant_edit_uninvited_private_events(self):
@@ -541,8 +542,8 @@ class TestAccessRights(TransactionCase):
 
     def test_recurring_event_with_alarms_for_non_admin(self):
         """
-        Test that non-admin user can modify recurring events with alarms
-        without triggering access errors when accessing ir.cron.trigger records.
+        Test that a non-admin user can create a recurring event with an alarm
+        and then add an attendee to it, without triggering access errors.
         """
 
         alarm = self.env["calendar.alarm"].create(
