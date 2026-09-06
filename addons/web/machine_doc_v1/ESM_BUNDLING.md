@@ -111,7 +111,8 @@ any declared parent whose members include all of this bundle's (the
 string literal equal to a member specifier that is not the target of a static
 import, anywhere in the bundle or a consumer (`odoo.loader.modules.get("…")`,
 the `html_editor_upgrade` registry values `html_upgrade_manager` reads).
-`@web/core/templates` is always in. Every other member is `import "./path"`:
+`@web/core/templates` and `@web/core/assets` (the lazy-loading entry point a
+tour or an embedding script reads off the loader) are always in. Every other member is `import "./path"`:
 evaluated for its side effects, its unused exports shaken. Satellites
 (`secondary_import_map_includes`, `import_map_includes` children) register
 everything, because their consumers are the runtime children of the pages

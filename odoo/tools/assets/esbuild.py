@@ -375,9 +375,15 @@ class EsbuildCompiler:
         metafile_path = str(Path(tmp_dir) / "bundle.meta.json")
 
         self._mirror_roots = {}
-        alias_flags = self._esbuild_stub_aliases(
-            list(alias_flags), secondary_parent_stubs, tmp_dir, odoo_root
-        )
+        argv_aliases, node_path = self._addon_resolution_root(alias_flags, odoo_root)
+        moved = set(alias_flags) - set(argv_aliases)
+        alias_flags = [
+            flag
+            for flag in self._esbuild_stub_aliases(
+                list(alias_flags), secondary_parent_stubs, tmp_dir, odoo_root
+            )
+            if flag not in moved
+        ]
 
         entry_lines = self._esbuild_entry_lines(odoo_root)
         entry_text = "\n".join(entry_lines)
@@ -391,7 +397,6 @@ class EsbuildCompiler:
         external_specifier_flags, alias_flags = self._esbuild_external_flags(
             odoo_root, alias_flags
         )
-        alias_flags, node_path = self._addon_resolution_root(alias_flags, odoo_root)
         argv = _esbuild_argv(
             esbuild,
             target=target,
@@ -447,9 +452,17 @@ class EsbuildCompiler:
             metafile_path = str(Path(tmp_dir) / "group.meta.json")
             self._mirror_roots = {}
             self._absolute_entry_paths = True
-            alias_flags = self._esbuild_mirror_aliases(
-                list(alias_flags), secondary_parent_stubs or {}, tmp_dir, odoo_root
+            argv_aliases, node_path = self._addon_resolution_root(
+                alias_flags, odoo_root
             )
+            moved = set(alias_flags) - set(argv_aliases)
+            alias_flags = [
+                flag
+                for flag in self._esbuild_mirror_aliases(
+                    list(alias_flags), secondary_parent_stubs or {}, tmp_dir, odoo_root
+                )
+                if flag not in moved
+            ]
             entry_points = []
             entry_bytes = 0
             for name, modules in entries.items():
@@ -463,7 +476,6 @@ class EsbuildCompiler:
             external_specifier_flags, alias_flags = self._esbuild_external_flags(
                 odoo_root, alias_flags
             )
-            alias_flags, node_path = self._addon_resolution_root(alias_flags, odoo_root)
             argv = _esbuild_argv(
                 esbuild,
                 target=target,
@@ -658,9 +670,6 @@ class EsbuildCompiler:
             path = self._entry_path(asset, odoo_root)
             names = module_specifiers(asset)
             if exported is not None and exported.isdisjoint(names):
-                # Nothing outside the bundle names this module, so it is an
-                # entry for its side effects only and esbuild may drop what it
-                # exports and nobody imports.
                 entry_lines.append(f"import {json.dumps(path)};")
                 continue
             entry_lines.append(f"import * as __m{i} from {json.dumps(path)};")
@@ -698,9 +707,6 @@ class EsbuildCompiler:
             if len(parts) >= 3 and parts[1] == "static" and parts[2] == "tests":
                 bundle_test_addons.add(parts[0])
         if not self._reaches_test_files(bundle_test_addons):
-            # Two flags per addon with a test tree exist to keep test files
-            # out of a bundle that names them; a bundle that names none is
-            # not made any safer by 600 of them.
             test_external_flags = []
         if bundle_test_addons:
             test_external_flags = [
@@ -738,8 +744,6 @@ class EsbuildCompiler:
     _PARENT_DIR_SPECIFIER_RE = re.compile(r'["\'](@[\w.-]+)/\.\./')
 
     def _addons_reached_through_parent_dirs(self) -> set[str]:
-        # `@web/../lib/x` is not a package subpath, so only an alias resolves
-        # it; the addons a source reaches that way keep theirs.
         return {
             match.group(1)
             for asset in (*self.native_modules, *self.javascripts)
@@ -757,11 +761,12 @@ class EsbuildCompiler:
             if (
                 spec.startswith("@")
                 and "/" not in spec
-                and spec not in keep_aliased
                 and target.startswith("./")
                 and target.endswith("/static/src")
             ):
                 roots[spec] = odoo_root / target.removeprefix("./")
+                if spec in keep_aliased:
+                    kept.append(flag)
             else:
                 kept.append(flag)
         if not roots:

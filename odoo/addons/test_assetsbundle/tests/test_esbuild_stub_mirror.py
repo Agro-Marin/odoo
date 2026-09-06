@@ -708,7 +708,11 @@ class TestEsbuildEntryLines(BaseCase):
         self.assertIsNotNone(root)
         self.assertEqual(
             {p.name: str(p.readlink()) for p in Path(root).iterdir()},
-            {"@a": str(self.ROOT / "addons/a/static/src")},
+            {
+                "@a": str(self.ROOT / "addons/a/static/src"),
+                "@b": str(self.ROOT / "addons/b/static/src"),
+            },
+            "the root holds every addon; the alias for @b merely wins over it",
         )
         again = compiler._addon_resolution_root(flags, self.ROOT)[1]
         self.assertEqual(again, root, "the same roots reuse the same directory")

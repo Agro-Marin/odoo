@@ -381,7 +381,10 @@ class IrQweb(models.AbstractModel):
             if member_paths <= parent_specs:
                 for name in children:
                     add_consumer(name)
-        exported = {"@web/core/templates"} & members
+        # The template registrar and the lazy-loading entry point are the
+        # page's own runtime API: a tour, a test or an embedding script reads
+        # them off the loader without a source this scan could see.
+        exported = {"@web/core/templates", "@web/core/assets"} & members
         for consumer in consumers:
             own = [a for a in consumer.native_modules if a.module_path not in members]
             own_specs = {name for a in own for name in module_specifiers(a)}
