@@ -46,6 +46,34 @@
         }
     }
 
+    .o_home_menu_search_wrapper {
+        max-width: $o-home-menu-search-max-width;
+    }
+
+    .o_home_menu_search_icon {
+        left: map-get($spacers, 3);
+        color: var(--o-text-muted, #{$text-muted});
+        pointer-events: none;
+    }
+
+    .o_home_menu_search {
+        padding-left: map-get($spacers, 5);
+        background-color: var(
+            --AppSwitcherIcon-background,
+            #{$o-home-menu-app-icon-background-color}
+        );
+        border-color: transparent;
+        box-shadow: var(--AppSwitcherIcon-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.05));
+    }
+
+    .o_home_menu_section_title {
+        color: var(
+            --homeMenuCaption-color,
+            #{o-token(--o-text, $o-home-menu-caption-color)}
+        );
+        opacity: 0.7;
+    }
+
     .o_app {
         --AppSwitcherIcon-box-shadow:
             var(--AppSwitcherIcon-inset-shadow, inset 0 0 0 1px rgba(0, 0, 0, 0.2)),

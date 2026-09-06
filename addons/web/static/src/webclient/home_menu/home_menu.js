@@ -13,12 +13,18 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { hasTouch, isIosApp, isMacOS } from "@web/core/browser/feature_detection";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { useSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
+import { menuUsage } from "@web/webclient/menus/menu_usage";
 
 import { ExpirationPanel } from "./expiration_panel.js";
 import { SysAdminPanel } from "./sysadmin_panel.js";
+
+const APPS_PER_ROW = 6;
+const RECENT_APPS = 6;
+const DIRECT_JUMP_HOTKEYS = 9;
 
 class FooterComponent extends Component {
     static template = "web.HomeMenu.CommandPalette.Footer";
@@ -54,6 +60,7 @@ class FooterComponent extends Component {
  */
 export class HomeMenu extends Component {
     static template = "web.HomeMenu";
+    static appTemplate = "web.HomeMenu.App";
     static components = { ExpirationPanel, SysAdminPanel };
     static props = {
         apps: {
@@ -124,9 +131,7 @@ export class HomeMenu extends Component {
         this.inputRef = useRef("input");
         this.rootRef = useRef("root");
 
-        if (!this.env.isSmall) {
-            this._registerHotkeys();
-        }
+        this._registerHotkeys();
 
         useSortable({
             enable: this._enableAppsSorting,
@@ -153,12 +158,15 @@ export class HomeMenu extends Component {
 
         onPatched(() => {
             if (this.state.focusedIndex !== null && !this.env.isSmall) {
-                const selectedItem = this.rootRef.el?.querySelector(
-                    ".o_menuitem.o_focused",
+                const selectedItem = /** @type {HTMLElement | null} */ (
+                    this.rootRef.el?.querySelector(".o_menuitem.o_focused")
                 );
-                // When TAB is managed externally the class o_focused disappears.
                 if (selectedItem) {
-                    // Center window on the focused item
+                    // A tile that holds the real focus keeps it as the
+                    // selection moves; the search input keeps a virtual one.
+                    if (this._focusIsOnTile()) {
+                        selectedItem.focus({ preventScroll: true });
+                    }
                     selectedItem.scrollIntoView({ block: "center" });
                 }
             }
@@ -172,6 +180,16 @@ export class HomeMenu extends Component {
     /** @returns {HomeMenuApp[]} */
     get displayedApps() {
         return this.props.apps;
+    }
+
+    /** @returns {HomeMenuApp[]} */
+    get recentApps() {
+        return menuUsage.rank(this.displayedApps, RECENT_APPS);
+    }
+
+    /** @returns {number} */
+    get directJumpHotkeys() {
+        return DIRECT_JUMP_HOTKEYS;
     }
 
     /** @returns {HTMLInputElement | null} */
@@ -188,14 +206,7 @@ export class HomeMenu extends Component {
 
     /** @returns {number} */
     get maxIconNumber() {
-        const w = window.innerWidth;
-        if (w < 576) {
-            return 3;
-        } else if (w < 768) {
-            return 4;
-        } else {
-            return 6;
-        }
+        return APPS_PER_ROW;
     }
 
     //--------------------------------------------------------------------------
@@ -226,12 +237,6 @@ export class HomeMenu extends Component {
         const currentLine = Math.ceil((focusedIndex + 1) / this.maxIconNumber);
         let newIndex;
         switch (cmd) {
-            case "previousElem":
-                newIndex = focusedIndex - 1;
-                break;
-            case "nextElem":
-                newIndex = focusedIndex + 1;
-                break;
             case "previousColumn":
                 if (focusedIndex % this.maxIconNumber) {
                     // app is not the first one on its line
@@ -296,6 +301,17 @@ export class HomeMenu extends Component {
         return true;
     }
 
+    /** @returns {boolean} */
+    _focusIsOnTile() {
+        const active = document.activeElement;
+        return (
+            active !== this.inputEl &&
+            active instanceof HTMLElement &&
+            active.matches(".o_app") &&
+            Boolean(this.rootRef.el?.contains(active))
+        );
+    }
+
     //--------------------------------------------------------------------------
     // Handlers
     //--------------------------------------------------------------------------
@@ -344,38 +360,51 @@ export class HomeMenu extends Component {
         this._openMenu(app);
     }
 
+    /** @param {number} index */
+    _onAppFocus(index) {
+        this.state.focusedIndex = index;
+    }
+
     _registerHotkeys() {
+        const isAvailable = () => !this.env.isSmall;
         /** @type {[string, () => void][]} */
         const hotkeys = [
             ["ArrowDown", () => this._updateFocusedIndex("nextLine")],
             ["ArrowRight", () => this._updateFocusedIndex("nextColumn")],
             ["ArrowUp", () => this._updateFocusedIndex("previousLine")],
             ["ArrowLeft", () => this._updateFocusedIndex("previousColumn")],
-            ["Tab", () => this._updateFocusedIndex("nextElem")],
-            ["shift+Tab", () => this._updateFocusedIndex("previousElem")],
-            [
-                "Enter",
-                () => {
-                    const focusedIndex = this.state.focusedIndex;
-                    const menu =
-                        focusedIndex === null
-                            ? undefined
-                            : this.displayedApps[focusedIndex];
-                    if (menu) {
-                        this._openMenu(menu);
-                    }
-                },
-            ],
             ["Escape", () => this.homeMenuService.toggle(false)],
         ];
         for (const [hotkey, callback] of hotkeys) {
-            useHotkey(hotkey, callback, { allowRepeat: true });
+            useHotkey(hotkey, callback, { allowRepeat: true, isAvailable });
         }
+        // A tile with the real focus is a link: Enter is its own click.
+        useHotkey(
+            "Enter",
+            () => {
+                const focusedIndex = this.state.focusedIndex;
+                const menu =
+                    focusedIndex === null
+                        ? undefined
+                        : this.displayedApps[focusedIndex];
+                if (menu) {
+                    this._openMenu(menu);
+                }
+            },
+            {
+                allowRepeat: true,
+                isAvailable: (target) => isAvailable() && target === this.inputEl,
+            },
+        );
         useExternalListener(window, "keydown", this._onKeydownFocusInput);
     }
 
-    _onKeydownFocusInput() {
+    /** @param {KeyboardEvent} ev */
+    _onKeydownFocusInput(ev) {
+        const isPrintable =
+            ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey;
         if (
+            isPrintable &&
             document.activeElement !== this.inputRef.el &&
             this.ui.activeElement === document &&
             !["TEXTAREA", "INPUT"].includes(document.activeElement?.tagName ?? "")
@@ -391,10 +420,13 @@ export class HomeMenu extends Component {
                 this.inputEl.value = "";
             }
         };
-        const searchValue = this.compositionStart
-            ? "/"
-            : `/${this.inputEl?.value.trim() ?? ""}`;
+        const typed = this.compositionStart ? "" : (this.inputEl?.value.trim() ?? "");
         this.compositionStart = false;
+        // A leading namespace character the palette knows is the user's
+        // choice of namespace; anything else searches the menus.
+        const isNamespace =
+            typed.length > 0 && registry.category("command_setup").contains(typed[0]);
+        const searchValue = isNamespace ? typed : `/${typed}`;
         this.command.openMainPalette(
             /** @type {any} */ ({ searchValue, FooterComponent }),
             onClose,

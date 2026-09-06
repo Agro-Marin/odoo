@@ -22,8 +22,10 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
 import { session } from "@web/session";
 import { HomeMenu } from "@web/webclient/home_menu/home_menu";
+import { menuUsage } from "@web/webclient/menus/menu_usage";
 import { reorderApps } from "@web/webclient/menus/menu_utils";
 import { WebClient } from "@web/webclient/webclient";
 
@@ -166,9 +168,9 @@ test("Navigation (only apps, only one line)", async () => {
     await walkOn([
         { key: "ArrowDown", index: 0 },
         { key: "ArrowRight", index: 1 },
-        { key: "Tab", index: 2 },
+        { key: "ArrowRight", index: 2 },
         { key: "ArrowRight", index: 0 },
-        { key: ["Shift", "Tab"], index: 2 },
+        { key: "ArrowLeft", index: 2 },
         { key: "ArrowLeft", index: 1 },
         { key: "ArrowDown", index: 1 },
         { key: "ArrowUp", index: 1 },
@@ -241,8 +243,8 @@ test("Navigation and open an app in the home menu", async () => {
     await walkOn([
         { key: "ArrowDown", index: 0 },
         { key: "ArrowRight", index: 1 },
-        { key: "Tab", index: 2 },
-        { key: "shift+Tab", index: 1 },
+        { key: "ArrowRight", index: 2 },
+        { key: "ArrowLeft", index: 1 },
     ]);
 
     // open first app (Calendar)
@@ -302,7 +304,7 @@ test("The HomeMenu input takes the focus when you press a key only if no other e
     await mountWithCleanup(HomeMenu, {
         props: getDefaultHomeMenuProps(),
     });
-    expect(".o_search_hidden").toBeFocused();
+    expect(".o_home_menu_search").toBeFocused();
 
     const activeElement = document.createElement("div");
     getService("ui").activateElement(activeElement);
@@ -329,12 +331,12 @@ test("the search input takes the focus back after a blur onto the body", async (
     await mountWithCleanup(HomeMenu, {
         props: getDefaultHomeMenuProps(),
     });
-    expect(".o_search_hidden").toBeFocused();
+    expect(".o_home_menu_search").toBeFocused();
 
     await pointerDown(document.body);
     expect(document.body).toBeFocused();
     await runAllTimers();
-    expect(".o_search_hidden").toBeFocused();
+    expect(".o_home_menu_search").toBeFocused();
 
     const activeElement = document.createElement("div");
     getService("ui").activateElement(activeElement);
@@ -351,7 +353,7 @@ test("The HomeMenu input does not take the focus if it is already on another inp
     await mountWithCleanup(HomeMenu, {
         props: getDefaultHomeMenuProps(),
     });
-    expect(".o_search_hidden").toBeFocused();
+    expect(".o_home_menu_search").toBeFocused();
 
     const otherInput = document.createElement("input");
     queryOne(".o_home_menu").appendChild(otherInput);
@@ -371,7 +373,7 @@ test("The HomeMenu input does not take the focus if it is already on a textarea"
     await mountWithCleanup(HomeMenu, {
         props: getDefaultHomeMenuProps(),
     });
-    expect(".o_search_hidden").toBeFocused();
+    expect(".o_home_menu_search").toBeFocused();
 
     const textarea = document.createElement("textarea");
     queryOne(".o_home_menu").appendChild(textarea);
@@ -392,7 +394,7 @@ test("home search input shouldn't be focused on touch devices", async () => {
     await mountWithCleanup(HomeMenu, {
         props: getDefaultHomeMenuProps(),
     });
-    expect(".o_search_hidden").not.toBeFocused({
+    expect(".o_home_menu_search").not.toBeFocused({
         message: "home menu search input shouldn't have the focus",
     });
 });
@@ -425,4 +427,81 @@ test("home keynav not triggering when navigating a dropdown", async () => {
     await animationFrame();
     expect(".o-dropdown-item.focus").toHaveCount(1);
     expect(".o_app.o_focused").toHaveCount(0);
+});
+
+test("no recents row until an app has been opened", async () => {
+    menuUsage.clear();
+    await mountWithCleanup(HomeMenu, {
+        props: getDefaultHomeMenuProps(),
+    });
+    expect(".o_recent_apps").toHaveCount(0);
+    expect(".o_apps").toHaveClass("mt-5");
+});
+
+test("recently opened apps are shown above the grid", async () => {
+    menuUsage.clear();
+    menuUsage.record({ xmlid: "app.2" });
+    await mountWithCleanup(HomeMenu, {
+        props: getDefaultHomeMenuProps(),
+    });
+    expect(".o_recent_apps .o_app").toHaveCount(1);
+    expect(".o_recent_apps .o_caption").toHaveText("Calendar");
+    expect(".o_recent_apps .o_app").not.toHaveAttribute("data-menu-xmlid", undefined, {
+        message: "a recent tile is not a drag or tour target: the grid tile is",
+    });
+    expect(".o_apps .o_app").toHaveCount(3);
+    menuUsage.clear();
+});
+
+test("alt+n opens the nth app", async () => {
+    await mountWithCleanup(HomeMenu, {
+        props: getDefaultHomeMenuProps(),
+    });
+    mockService("menu", {
+        async selectMenu(menu) {
+            expect.step(`selectMenu ${/** @type {any} */ (menu).id}`);
+        },
+    });
+    expect(".o_apps .o_app:eq(1)").toHaveAttribute("data-hotkey", "2");
+    await press(["alt", "2"]);
+    await runAllTimers();
+    expect.verifySteps(["selectMenu 2"]);
+});
+
+test("Tab reaches the tiles and the arrows then move the real focus", async () => {
+    await mountWithCleanup(HomeMenu, {
+        props: getDefaultHomeMenuProps(),
+    });
+    expect(".o_home_menu_search").toBeFocused();
+
+    await press("Tab");
+    await animationFrame();
+    expect(".o_app:eq(0)").toBeFocused();
+    expect(".o_app:eq(0)").toHaveClass("o_focused");
+
+    await press("ArrowRight");
+    await animationFrame();
+    expect(".o_app:eq(1)").toBeFocused();
+    expect(".o_app:eq(1)").toHaveClass("o_focused");
+    expect(".o_home_menu_search").not.toBeFocused();
+});
+
+test("a namespace character typed in the search reaches the palette as such", async () => {
+    await mountWithCleanup(HomeMenu, {
+        props: getDefaultHomeMenuProps(),
+    });
+    mockService("command", {
+        openMainPalette(config) {
+            expect.step(config.searchValue);
+        },
+    });
+    patchWithCleanup(registry.category("command_setup"), {
+        contains: (key) => key === "@" || key === "/",
+    });
+    const input = /** @type {HTMLInputElement} */ (queryOne(".o_home_menu_search"));
+    for (const typed of ["cal", "@bob"]) {
+        input.value = typed;
+        input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    }
+    expect.verifySteps(["/cal", "@bob"]);
 });

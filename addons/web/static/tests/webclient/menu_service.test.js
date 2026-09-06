@@ -20,10 +20,11 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { redirect } from "@web/core/utils/urls";
 import { user } from "@web/core/user";
+import { redirect } from "@web/core/utils/urls";
 import { session } from "@web/session";
 import { menuStorage } from "@web/webclient/menus/menu_storage";
+import { menuUsage } from "@web/webclient/menus/menu_usage";
 import { computeAppsAndMenuItems } from "@web/webclient/menus/menu_utils";
 
 defineActions([
@@ -453,6 +454,48 @@ test("the action index is rebuilt when the menu tree is reloaded", async () => {
     await menuService.reload();
 
     expect(menuService.getAppIdByAction(9001)).toBe(500);
+});
+
+test("the command palette's empty query lists what the user opens first", async () => {
+    defineMenus(
+        [
+            {
+                id: 100,
+                name: "Sale",
+                appID: 100,
+                actionID: 9001,
+                xmlid: "app.sale",
+                children: [
+                    {
+                        id: 101,
+                        name: "Quotations",
+                        appID: 100,
+                        actionID: 9003,
+                        xmlid: "menu.quotations",
+                    },
+                ],
+            },
+            { id: 200, name: "Stock", appID: 200, actionID: 9002, xmlid: "app.stock" },
+        ],
+        { mode: "replace" },
+    );
+    const env = await makeMockEnv();
+    const provider = registry.category("command_provider").get("menu");
+    menuUsage.clear();
+
+    let names = (await provider.provide(env, { searchValue: "" })).map((c) => c.name);
+    expect(names).toEqual(["Sale", "Stock"]);
+
+    menuUsage.record({ xmlid: "app.stock" });
+    menuUsage.record({ xmlid: "menu.quotations" });
+    names = (await provider.provide(env, { searchValue: "" })).map((c) => c.name);
+    expect(names).toEqual(["Sale / Quotations", "Stock", "Sale"]);
+
+    names = (await provider.provide(env, { searchValue: "sto" })).map((c) => c.name);
+    expect(names).toEqual(["Stock"], {
+        message: "a query ranks by match, not by use",
+    });
+    menuUsage.clear();
 });
 
 test("the command palette's flattened menu list follows a reload", async () => {

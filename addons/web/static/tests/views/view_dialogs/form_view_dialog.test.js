@@ -575,8 +575,8 @@ test("close dialog with escape after modifying a field with onchange (no blur)",
 
     await mountWebClient();
 
-    await contains(".o_home_menu .o_search_hidden").focus();
-    expect(".o_home_menu .o_search_hidden").toBeFocused();
+    await contains(".o_home_menu .o_home_menu_search").focus();
+    expect(".o_home_menu .o_home_menu_search").toBeFocused();
 
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
@@ -591,7 +591,7 @@ test("close dialog with escape after modifying a field with onchange (no blur)",
     await press("escape");
     await animationFrame();
     expect(".o_dialog").toHaveCount(0);
-    expect(".o_home_menu .o_search_hidden").toBeFocused();
+    expect(".o_home_menu .o_home_menu_search").toBeFocused();
 });
 
 test.tags("desktop");

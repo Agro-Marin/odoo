@@ -66,11 +66,15 @@ export const homeMenuService = {
 
             setup() {
                 this.menus = useService("menu");
+                this.homeMenuProps = this.computeHomeMenuProps();
                 onMounted(() => this.onMounted());
                 onWillUnmount(this.onWillUnmount);
-                useBus(this.env.bus, AppEvent.MENUS_APP_CHANGED, () => this.render());
+                useBus(this.env.bus, AppEvent.MENUS_APP_CHANGED, () => {
+                    this.homeMenuProps = this.computeHomeMenuProps();
+                    this.render();
+                });
             }
-            get homeMenuProps() {
+            computeHomeMenuProps() {
                 const homemenuConfig = JSON.parse(
                     user.settings?.homemenu_config || "null",
                 );

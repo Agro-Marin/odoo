@@ -7,7 +7,10 @@ import { _t } from "@web/core/translation";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { DefaultCommandItem } from "@web/ui/commands/command_palette";
 
+import { menuUsage } from "./menu_usage.js";
 import { computeAppsAndMenuItems } from "./menu_utils.js";
+
+const RECENT_MENU_ITEMS = 5;
 
 class AppIconCommand extends Component {
     static template = "web.AppIconCommand";
@@ -53,22 +56,29 @@ commandProviderRegistry.add("menu", {
         const computed = flattenMenuTree(menuService.getMenuAsTree("root"));
         const { menuItems } = computed;
         let { apps } = computed;
-        if (options.searchValue !== "") {
+        /** @type {typeof menuItems} */
+        let matchingItems;
+        if (options.searchValue === "") {
+            // No query: what the user opens, then everything else in menu order.
+            const recentApps = menuUsage.rank(apps);
+            apps = [...recentApps, ...apps.filter((app) => !recentApps.includes(app))];
+            matchingItems = menuUsage.rank(menuItems, RECENT_MENU_ITEMS);
+        } else {
             apps = fuzzyLookup(options.searchValue, apps, (menu) => menu.label);
-
-            fuzzyLookup(options.searchValue, menuItems, (menu) =>
+            matchingItems = fuzzyLookup(options.searchValue, menuItems, (menu) =>
                 `${menu.parents} / ${menu.label}`.split("/").reverse().join("/"),
-            ).forEach((menu) => {
-                result.push({
-                    action() {
-                        menuService.selectMenu(menu);
-                    },
-                    category: "menu_items",
-                    name: `${menu.parents} / ${menu.label}`,
-                    href: menu.href,
-                });
-            });
+            );
         }
+        matchingItems.forEach((menu) => {
+            result.push({
+                action() {
+                    menuService.selectMenu(menu);
+                },
+                category: "menu_items",
+                name: `${menu.parents} / ${menu.label}`,
+                href: menu.href,
+            });
+        });
 
         apps.forEach((menu) => {
             const props = {};

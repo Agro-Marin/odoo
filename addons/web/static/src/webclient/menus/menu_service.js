@@ -6,6 +6,7 @@ import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 
 import { menuStorage } from "./menu_storage.js";
+import { menuUsage } from "./menu_usage.js";
 
 const loadMenusUrl = `/web/webclient/load_menus`;
 
@@ -267,6 +268,7 @@ class MenuService {
             clearBreadcrumbs: true,
             onActionReady: () => {
                 this.setCurrentMenu(menu);
+                menuUsage.record(menu);
             },
         });
     }

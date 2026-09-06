@@ -4,40 +4,40 @@
 <t t-name="web.HomeMenu">
     <div t-ref="root" class="o_home_menu h-100 overflow-auto" t-att-class="{ o_ios_app: state.isIosApp }">
         <div class="container">
-            <input t-ref="input" type="text" class="o_search_hidden visually-hidden w-auto" data-allow-hotkeys="true" t-on-input="_onInputSearch" t-on-blur="_onInputBlur" t-on-compositionstart="_onCompositionStart"
-                role="combobox"
-                aria-label="Search apps"
-                aria-controls="o_apps_listbox"
-                t-att-aria-activedescendant="focusedAppId"
-                t-att-aria-expanded="displayedApps.length ? 'true' : 'false'"
-                aria-autocomplete="list"
-                aria-haspopup="listbox"
-                autocomplete="off"
-            />
+            <div class="o_home_menu_search_wrapper position-relative mx-auto mt-4">
+                <i class="oi oi-search o_home_menu_search_icon position-absolute top-50 translate-middle-y" aria-hidden="true"/>
+                <input t-ref="input" type="text" class="o_home_menu_search form-control form-control-lg" data-allow-hotkeys="true" t-on-input="_onInputSearch" t-on-blur="_onInputBlur" t-on-compositionstart="_onCompositionStart"
+                    role="combobox"
+                    aria-label="Search apps"
+                    placeholder="Search apps and menus..."
+                    aria-controls="o_apps_listbox"
+                    t-att-aria-activedescendant="focusedAppId"
+                    t-att-aria-expanded="displayedApps.length ? 'true' : 'false'"
+                    aria-autocomplete="list"
+                    aria-haspopup="listbox"
+                    autocomplete="off"
+                />
+            </div>
             <!-- When the subscription has expired, the expiration panel is shown over the whole UI instead of here -->
             <ExpirationPanel t-if="subscription.warningType and !subscription.isWarningHidden and subscription.daysLeft &lt;= 30 and subscription.daysLeft > 0 and !subscription.sysadmin.replace"/>
             <SysAdminPanel t-if="subscription.daysLeft > 0 and subscription.sysadmin.message"/>
-            <div t-if="displayedApps.length" id="o_apps_listbox" role="listbox" class="o_apps row user-select-none mt-5 mx-0">
+            <t t-set="recents" t-value="recentApps"/>
+            <nav t-if="recents.length" class="o_home_menu_recent mt-4 mx-0" aria-label="Recent apps">
+                <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Recent</div>
+                <div class="o_recent_apps row user-select-none mx-0">
+                    <div t-foreach="recents" t-as="app" t-key="app.id" class="col-3 col-md-2 mb-3 px-0">
+                        <t t-call="{{ constructor.appTemplate }}">
+                            <t t-set="tileId" t-value="'recent_app_' + app_index"/>
+                        </t>
+                    </div>
+                </div>
+            </nav>
+            <div t-if="displayedApps.length" id="o_apps_listbox" role="listbox" class="o_apps row user-select-none mx-0" t-att-class="{'mt-5': !recents.length, 'mt-3': recents.length}">
                 <div t-foreach="displayedApps" t-as="app" t-key="app.id" class="col-3 col-md-2 o_draggable mb-3 px-0">
-                    <a t-att-id="'result_app_' + app_index"
-                        role="option"
-                        t-att-aria-selected="state.focusedIndex === app_index ? 'true' : 'false'"
-                        class="o_app o_menuitem d-flex flex-column rounded-3 justify-content-start align-items-center w-100 p-1 p-md-2"
-                        t-att-class="{o_focused: state.focusedIndex === app_index}"
-                        t-att-data-menu-xmlid="app.xmlid"
-                        t-att-href="app.href"
-                        t-on-click.prevent="() => this._onAppClick(app)"
-                        >
-                        <img t-if="app.webIconData" class="o_app_icon rounded-3" alt=""
-                            t-attf-src="{{app.webIconData}}"
-                        />
-                        <div t-else="" class="o_app_icon position-relative d-flex justify-content-center align-items-center p-2 rounded-3 ratio ratio-1x1"
-                            t-attf-style="background-color: {{app.webIcon.backgroundColor}};"
-                        >
-                            <i t-attf-class="{{app.webIcon.iconClass}} position-relative w-auto h-auto" t-attf-style="color: {{app.webIcon.color}};"/>
-                        </div>
-                        <div class="o_caption w-100 text-center text-truncate mt-2" t-esc="app.label or app.name"/>
-                    </a>
+                    <t t-call="{{ constructor.appTemplate }}">
+                        <t t-set="tileId" t-value="'result_app_' + app_index"/>
+                        <t t-set="gridIndex" t-value="app_index"/>
+                    </t>
                 </div>
             </div>
             <div t-else="" class="o_no_result">
@@ -45,6 +45,32 @@
             </div>
         </div>
     </div>
+</t>
+
+<!-- One tile. `gridIndex` set: a listbox option of the main grid, with the
+     keyboard selection, the drag id and an alt+n hotkey for the first nine. -->
+<t t-name="web.HomeMenu.App">
+    <a t-att-id="tileId"
+        t-att-role="gridIndex !== undefined ? 'option' : undefined"
+        t-att-aria-selected="gridIndex !== undefined ? (state.focusedIndex === gridIndex ? 'true' : 'false') : undefined"
+        class="o_app o_menuitem d-flex flex-column rounded-3 justify-content-start align-items-center w-100 p-1 p-md-2"
+        t-att-class="{o_focused: gridIndex !== undefined and state.focusedIndex === gridIndex}"
+        t-att-data-menu-xmlid="gridIndex !== undefined ? app.xmlid : undefined"
+        t-att-data-hotkey="gridIndex !== undefined and gridIndex &lt; directJumpHotkeys ? '' + (gridIndex + 1) : undefined"
+        t-att-href="app.href"
+        t-on-click.prevent="() => this._onAppClick(app)"
+        t-on-focus="() => gridIndex !== undefined and this._onAppFocus(gridIndex)"
+        >
+        <img t-if="app.webIconData" class="o_app_icon rounded-3" alt=""
+            t-attf-src="{{app.webIconData}}"
+        />
+        <div t-else="" class="o_app_icon position-relative d-flex justify-content-center align-items-center p-2 rounded-3 ratio ratio-1x1"
+            t-attf-style="background-color: {{app.webIcon.backgroundColor}};"
+        >
+            <i t-attf-class="{{app.webIcon.iconClass}} position-relative w-auto h-auto" t-attf-style="color: {{app.webIcon.color}};"/>
+        </div>
+        <div class="o_caption w-100 text-center text-truncate mt-2" t-esc="app.label or app.name"/>
+    </a>
 </t>
 
 <t t-name="web.HomeMenu.CommandPalette.Footer">
