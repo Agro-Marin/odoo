@@ -392,6 +392,19 @@ class MixinInboundGate(models.AbstractModel):
     PREAUTH_MULTIPLIER_DEFAULT = 10
 
     def _consume_caller_allowance(self, remote_addr) -> bool:
+        """Cheap, best-effort pre-auth throttle by caller IP.
+
+        Backed by ``get_caller_rate_limiter``, an in-memory limiter held
+        per worker process (see ``registry_singleton``), not shared across
+        ``--workers=N``: a caller balanced across N workers can consume up
+        to N times ``rate_limit_requests * PREAUTH_MULTIPLIER_DEFAULT``
+        before this gate denies anything. That is an accepted trade-off,
+        not an oversight -- this multiplier is already a coarse pre-filter
+        ahead of the real, DB-backed per-identity limit
+        (``rate.limit.bucket``, correct across workers), so it favors
+        avoiding a DB write on every unauthenticated request over exact
+        cross-worker accounting.
+        """
         self.check_singleton()
         if not remote_addr:
             return True
