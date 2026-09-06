@@ -18,7 +18,7 @@
                     position="attributes">
                     <attribute
                         name="invisible"
-                        add="activity_category == 'meeting' or id"
+                        add="activity_category == 'meeting' and id"
                         separator="or" />
                 </xpath>
                 <xpath expr="//field[@name='note']" position="attributes">
