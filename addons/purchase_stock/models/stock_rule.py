@@ -535,11 +535,13 @@ class StockRule(models.Model):
             and line.order_id.currency_id
             and seller.currency_id != line.order_id.currency_id
         ):
+            # No date: _get_conversion_rate falls back to the user's own date
+            # (res_currency.py:389). fields.Date.today() is the server's UTC
+            # date, which is already tomorrow here after 18:00.
             price_unit = seller.currency_id._convert(
                 price_unit,
                 line.order_id.currency_id,
                 line.order_id.company_id,
-                fields.Date.today(),
             )
 
         res = {

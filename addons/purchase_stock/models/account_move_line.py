@@ -1,4 +1,4 @@
-from odoo import fields, models
+from odoo import models
 
 
 class AccountMoveLine(models.Model):
@@ -44,7 +44,6 @@ class AccountMoveLine(models.Model):
                 amount_currency,
                 self.company_currency_id,
                 self.company_id,
-                fields.Date.today(),
             ),
             "account_id": account.id,
             "analytic_distribution": self.analytic_distribution,
