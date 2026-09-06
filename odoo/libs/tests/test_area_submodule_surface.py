@@ -22,6 +22,7 @@ DECLARED_SUBMODULE_EXPORTS: dict[str, set[str]] = {
         "guess",
         "layout",
         "readers",
+        "representations",
         "writers",
     },
     "filesystem": {"appdirs", "mimetypes", "osutil"},
