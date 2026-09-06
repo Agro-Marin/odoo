@@ -48,12 +48,18 @@ class CertificateAdapter(requests.adapters.HTTPAdapter):
 
         def patched_load_cert_chain(certificate, keyfile=None, password=None):
             certificate = certificate.sudo()
+            private_key = certificate.private_key_id
             pem, key = map(
                 b64decode,
-                (certificate.pem_certificate, certificate.private_key_id.pem_key),
+                (certificate.pem_certificate, private_key.pem_key),
+            )
+            key_password = (
+                private_key.password.encode("utf-8") if private_key.password else None
             )
             context._ctx.use_certificate(load_pem_x509_certificate(pem))
-            context._ctx.use_privatekey(load_pem_private_key(key, password=None))
+            context._ctx.use_privatekey(
+                load_pem_private_key(key, password=key_password)
+            )
 
         context.load_cert_chain = patched_load_cert_chain
         return conn
