@@ -242,7 +242,7 @@ export class Many2One extends Component {
     _activeActions = null;
 
     setup() {
-        useRenderCounter("fields.Many2One");
+        useRenderCounter("fields.web.Many2One");
         this.rootRef = useRef("root");
 
         this.action = useAction();

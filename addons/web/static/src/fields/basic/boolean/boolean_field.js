@@ -4,7 +4,6 @@
 import { useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { _t } from "@web/core/translation";
-import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { fieldHandleFor } from "@web/fields/field_handle";
@@ -22,7 +21,6 @@ export class BooleanField extends FieldComponent {
     state;
 
     setup() {
-        useRenderCounter("fields.BooleanField");
         this.state = useState(/** @type {{ value?: boolean }} */ ({}));
         useRecordObserver((record) => {
             this.state.value = fieldHandleFor(record, this.props.name).value;

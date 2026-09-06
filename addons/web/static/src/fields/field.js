@@ -8,6 +8,7 @@ import { registry } from "@web/core/registry";
 import { fieldLog } from "@web/core/utils/asset_log";
 import { omit } from "@web/core/utils/collections/objects";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { getFieldContext } from "@web/model/relational_model";
 import {
     FIELD_DEPENDENCIES_VALIDATION,
@@ -116,6 +117,35 @@ fieldRegistry.addValidation({
 class DefaultField extends Component {
     static template = xml``;
     static props = ["*"];
+}
+
+/** @type {WeakMap<Function, Function>} */
+const COUNTED_COMPONENTS = new WeakMap();
+
+/**
+ * The widget class, counting its renders under its template name so a render
+ * sweep (`field_prop_stability.test.js`) sees the whole registry and not only
+ * the widgets that registered a counter themselves. A cached subclass per
+ * widget class: a hook in `FieldComponent`'s constructor does not register
+ * (OWL has no current node there), and subclasses override `setup()` without
+ * calling `super`. Inert unless a test turns tracing on.
+ *
+ * @param {any} C
+ * @returns {any}
+ */
+function countedComponent(C) {
+    let counted = COUNTED_COMPONENTS.get(C);
+    if (!counted) {
+        counted = class extends C {
+            setup() {
+                useRenderCounter(`fields.${C.template}`);
+                super.setup?.();
+            }
+        };
+        Object.defineProperty(counted, "name", { value: C.name });
+        COUNTED_COMPONENTS.set(C, counted);
+    }
+    return counted;
 }
 
 /**
@@ -407,6 +437,11 @@ export class Field extends Component {
     /** @returns {string} */
     get type() {
         return this.props.type || this.props.record.fields[this.props.name].type;
+    }
+
+    /** @returns {import("@odoo/owl").ComponentConstructor} */
+    get fieldComponent() {
+        return countedComponent(this.field.component);
     }
 
     /** @returns {Object} */

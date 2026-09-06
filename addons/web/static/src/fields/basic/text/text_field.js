@@ -5,7 +5,6 @@ import { useRef } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
 import { useSpellCheck } from "@web/core/utils/hooks";
-import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import {
     archAttribute,
@@ -50,7 +49,6 @@ export class TextField extends TextInputFieldBase {
     }
 
     setup() {
-        useRenderCounter("fields.TextField");
         this.divRef = useRef("div");
         this.textareaRef = useRef("textarea");
         this.setupDynamicPlaceholder(this.textareaRef);

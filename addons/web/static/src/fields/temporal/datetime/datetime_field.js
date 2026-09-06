@@ -18,7 +18,6 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
 import { pick } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useBus } from "@web/core/utils/hooks";
-import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
@@ -115,7 +114,6 @@ export class DateTimeField extends FieldComponent {
     }
 
     setup() {
-        useRenderCounter("fields.DateTimeField");
         this._pendingFocusField = "";
 
         const getPickerProps = () => this.getPickerProps();

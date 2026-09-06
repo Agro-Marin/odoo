@@ -7,7 +7,6 @@ import { formatMonetary } from "@web/core/formatters";
 import { parseMonetary } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { nbsp } from "@web/core/utils/format/strings";
-import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import {
     enableFormattingOption,
@@ -43,7 +42,6 @@ export class MonetaryField extends NumericInputFieldBase {
     ghostRef;
 
     setup() {
-        useRenderCounter("fields.MonetaryField");
         super.setup();
         this.nbsp = nbsp;
         this.ghostRef = useRef("ghostValue");

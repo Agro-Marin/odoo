@@ -9,7 +9,6 @@ import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
-import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import {
@@ -109,7 +108,6 @@ export class Many2ManyTagsField extends FieldComponent {
     _tagsMemo = null;
 
     setup() {
-        useRenderCounter("fields.Many2ManyTagsField");
         this.orm = useService("orm");
         this.previousColorsMap = {};
         useTagNavigation("many2ManyTagsField", {

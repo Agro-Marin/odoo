@@ -477,6 +477,32 @@ export class X2ManyField extends FieldComponent {
     }
 }
 
+/** @type {WeakMap<object, Record<string, any>>} */
+const CRUD_OPTIONS = new WeakMap();
+
+/**
+ * The five permission domains, as one object per arch option bag: extractProps
+ * runs on every render of the Field, and a fresh literal there is a prop
+ * change that re-renders the widget on any edit of its record.
+ *
+ * @param {Record<string, any>} options
+ * @returns {Record<string, any>}
+ */
+function crudOptionsFor(options) {
+    let crudOptions = CRUD_OPTIONS.get(options);
+    if (!crudOptions) {
+        crudOptions = {
+            create: options.create,
+            delete: options.delete,
+            link: options.link,
+            unlink: options.unlink,
+            write: options.write,
+        };
+        CRUD_OPTIONS.set(options, crudOptions);
+    }
+    return crudOptions;
+}
+
 export const x2ManyField = {
     component: X2ManyField,
     displayName: _t("Relational table"),
@@ -541,13 +567,7 @@ export const x2ManyField = {
             addLabel: attrs["add-label"],
             context: dynamicInfo.context,
             domain: dynamicInfo.domain,
-            crudOptions: {
-                create: options.create,
-                delete: options.delete,
-                link: options.link,
-                unlink: options.unlink,
-                write: options.write,
-            },
+            crudOptions: crudOptionsFor(options),
             string,
         };
         if (viewMode) {

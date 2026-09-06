@@ -5,7 +5,6 @@ import { useRef } from "@odoo/owl";
 import { formatChar } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
-import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import {
     archAttribute,
@@ -44,7 +43,6 @@ export class CharField extends TextInputFieldBase {
     }
 
     setup() {
-        useRenderCounter("fields.CharField");
         this.input = useRef("input");
         this.setupDynamicPlaceholder(this.input);
         useInputField({
