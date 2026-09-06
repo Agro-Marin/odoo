@@ -11,12 +11,14 @@ export const dateRangeService = {
      * @returns {Object} Service API with loadDateRanges method
      */
     async start(env, { orm }) {
-        let cache = null;
         let loading = null;
 
         /**
          * Load date ranges and types from backend.
-         * Uses caching to avoid redundant API calls.
+         *
+         * Concurrent callers share one in-flight request, but each call
+         * re-fetches: a range created, edited or archived after a previous
+         * call must be visible to the next one without a page reload.
          *
          * @returns {Promise<Object>} Object with ranges and types arrays
          * @returns {Array} ranges - Array of date.range records
@@ -27,15 +29,10 @@ export const dateRangeService = {
          * console.log(ranges); // [{ id: 1, name: "Q1 2024", ... }, ...]
          */
         async function loadDateRanges() {
-            if (cache) {
-                return cache;
-            }
-
             if (loading) {
                 return loading;
             }
 
-            // Start new loading process
             loading = Promise.all([
                 orm.searchRead(
                     "date.range",
@@ -53,9 +50,8 @@ export const dateRangeService = {
                 ),
             ])
                 .then(([ranges, types]) => {
-                    cache = { ranges, types };
                     loading = null;
-                    return cache;
+                    return { ranges, types };
                 })
                 .catch((error) => {
                     // Clear loading state on error so retry is possible
