@@ -33,6 +33,7 @@ class SaleOrderLine(models.Model):
     _price_direction = 1
 
     order_id = fields.Many2one(comodel_name="sale.order")
+    show_sol_numbers = fields.Boolean(related="order_id.show_sol_numbers")
     partner_id = fields.Many2one(string="Customer")
     user_id = fields.Many2one(string="Salesperson")
 

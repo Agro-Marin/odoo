@@ -793,6 +793,7 @@
                                         name="sequence"
                                         widget="handle"
                                         invisible="combo_item_id" />
+                                    <widget name="sale_line_number" />
                                     <field
                                         name="product_id"
                                         string="Product Variant"
