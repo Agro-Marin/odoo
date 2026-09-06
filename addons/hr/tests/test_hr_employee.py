@@ -895,15 +895,17 @@ class TestHrEmployee(TestHrCommon):
         second_employee.write(
             {"work_phone": "112233", "work_email": "second_employee@test.com"}
         )
-        self.assertNotEqual(second_employee.work_phone, partner.phone)
-        self.assertNotEqual(second_employee.work_phone, first_employee.work_phone)
-        self.assertNotEqual(second_employee.work_email, partner.email)
-        self.assertNotEqual(second_employee.work_email, first_employee.work_email)
+        # One person, one set of work channels: a second employment reads and
+        # writes the same party as the first.
+        self.assertEqual(second_employee.work_phone, partner.phone)
+        self.assertEqual(second_employee.work_phone, first_employee.work_phone)
+        self.assertEqual(second_employee.work_email, partner.email)
+        self.assertEqual(second_employee.work_email, first_employee.work_email)
         partner.write({"phone": "445566", "email": "partner_updated@test.com"})
-        self.assertNotEqual(partner.phone, second_employee.work_phone)
-        self.assertNotEqual(partner.phone, first_employee.work_phone)
-        self.assertNotEqual(partner.email, second_employee.work_email)
-        self.assertNotEqual(partner.email, first_employee.work_email)
+        self.assertEqual(partner.phone, second_employee.work_phone)
+        self.assertEqual(partner.phone, first_employee.work_phone)
+        self.assertEqual(partner.email, second_employee.work_email)
+        self.assertEqual(partner.email, first_employee.work_email)
 
 
 class TestVersionCarriesPartyValuesUntilItsDate(TransactionCase):

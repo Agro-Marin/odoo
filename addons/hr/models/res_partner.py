@@ -20,9 +20,7 @@ class ResPartner(models.Model):
     employee = fields.Boolean(
         help="Whether this contact is an Employee.",
         compute="_compute_employee",
-        store=True,
-        readonly=False,
-        copy=False,
+        search="_search_employee",
     )
 
     def _compute_employees_count(self):
@@ -90,6 +88,15 @@ class ResPartner(models.Model):
         employees = {employee for [employee] in employee_data}
         for partner in self:
             partner.employee = partner in employees
+
+    def _search_employee(self, operator, value):
+        if operator not in ("=", "!=") or not isinstance(value, bool):
+            raise NotImplementedError
+        has_employee = (operator == "=") == value
+        employed = self.env["hr.employee"].sudo()._search([])
+        return [
+            ("id", "in" if has_employee else "not in", employed.subselect("partner_id"))
+        ]
 
     @api.ondelete(at_uninstall=False)
     def _unlink_contact_rel_employee(self):

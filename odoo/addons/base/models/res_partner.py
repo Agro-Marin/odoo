@@ -386,9 +386,6 @@ class ResPartner(models.Model):
         compute="_compute_is_public",
         compute_sudo=True,
     )
-    employee = fields.Boolean(
-        help="Check this box if this contact is an Employee.",
-    )
     partner_share = fields.Boolean(
         "Share Partner",
         compute="_compute_partner_share",

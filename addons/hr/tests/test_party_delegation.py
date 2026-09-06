@@ -89,3 +89,47 @@ class TestPartyDelegation(TransactionCase):
         employee.tz = "America/Mexico_City"
         self.assertEqual(user.tz, "America/Mexico_City")
         self.assertEqual(employee.resource_id.tz, "America/Mexico_City")
+
+    def test_the_work_channels_are_the_partys(self):
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Party Channels",
+                "work_email": "channels@example.com",
+                "work_phone": "+1 555 0100",
+                "mobile_phone": "+1 555 0101",
+            }
+        )
+        party = employee.partner_id
+        self.assertEqual(
+            (party.email, party.phone, party.mobile),
+            ("channels@example.com", "+1 555 0100", "+1 555 0101"),
+        )
+        party.email = "moved@example.com"
+        self.assertEqual(employee.work_email, "moved@example.com")
+        self.assertFalse(self.env["hr.employee"]._fields["work_email"].store)
+
+    def test_a_second_employment_shares_the_partys_channels(self):
+        first = self.env["hr.employee"].create(
+            {"name": "Party Twice", "work_email": "twice@example.com"}
+        )
+        company = self.env["res.company"].create({"name": "Second Employer"})
+        second = self.env["hr.employee"].create(
+            {
+                "name": "Party Twice",
+                "partner_id": first.partner_id.id,
+                "company_id": company.id,
+            }
+        )
+        self.assertEqual(second.work_email, "twice@example.com")
+        second.work_email = "again@example.com"
+        self.assertEqual(first.partner_id.email, "again@example.com")
+        self.assertEqual(first.work_email, "again@example.com")
+
+    def test_the_partner_employee_flag_follows_its_employments(self):
+        partner = self.env["res.partner"].create({"name": "Flag Party"})
+        Partner = self.env["res.partner"]
+        self.assertNotIn(partner, Partner.search([("employee", "=", True)]))
+        self.env["hr.employee"].create({"name": "Flag Party", "partner_id": partner.id})
+        self.assertTrue(partner.employee)
+        self.assertIn(partner, Partner.search([("employee", "=", True)]))
+        self.assertNotIn(partner, Partner.search([("employee", "=", False)]))

@@ -188,18 +188,20 @@ class HrEmployee(models.Model):
 
     work_phone = fields.Char(
         "Work Phone",
-        tracking=True,
-        compute="_compute_work_contact_details",
-        store=True,
+        related="partner_id.phone",
         readonly=False,
-        inverse="_inverse_work_contact_details",
+        tracking=True,
     )
-    mobile_phone = fields.Char("Work Mobile")
+    mobile_phone = fields.Char(
+        "Work Mobile",
+        related="partner_id.mobile",
+        readonly=False,
+    )
     work_email = fields.Char(
         "Work Email",
-        compute="_compute_work_contact_details",
-        store=True,
-        inverse="_inverse_work_contact_details",
+        related="partner_id.email",
+        readonly=False,
+        tracking=True,
     )
     partner_id = fields.Many2one(
         "res.partner",
@@ -1204,14 +1206,6 @@ class HrEmployee(models.Model):
             elif not version.coach_id:
                 version.coach_id = False
 
-    @api.depends("partner_id", "partner_id.phone", "partner_id.email")
-    def _compute_work_contact_details(self):
-        for employee in self:
-            if employee.partner_id:
-                if len(employee.partner_id.employee_ids) <= 1:
-                    employee.work_phone = employee.partner_id.phone
-                    employee.work_email = employee.partner_id.email
-
     def _has_field_access(self, field, operation):
         if not super()._has_field_access(field, operation):
             return False
@@ -1670,16 +1664,6 @@ class HrEmployee(models.Model):
         if not department:
             return Domain.FALSE
         return Domain("department_id", "child_of", department.ids)
-
-    def _inverse_work_contact_details(self):
-        for employee in self:
-            if len(employee.partner_id.employee_ids) <= 1:
-                employee.partner_id.sudo().write(
-                    {
-                        "email": employee.work_email,
-                        "phone": employee.work_phone,
-                    }
-                )
 
     @api.model
     def _get_employee_ids_working_now(self):

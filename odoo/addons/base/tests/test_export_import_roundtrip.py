@@ -59,8 +59,8 @@ class TestExportImportRoundtrip(TransactionCase):
         )
 
     def test_export_then_load_roundtrips(self):
-        columns = ["name", "country_id/id", "tag_ids/id", "employee", "color"]
-        self.record.employee = True
+        columns = ["name", "country_id/id", "tag_ids/id", "is_company", "color"]
+        self.record.is_company = True
         self.record.color = 3
         self.env.flush_all()
 
@@ -74,19 +74,19 @@ class TestExportImportRoundtrip(TransactionCase):
         self.assertEqual(imported.name, self.record.name)
         self.assertEqual(imported.country_id, self.record.country_id)
         self.assertEqual(imported.tag_ids, self.record.tag_ids)
-        self.assertEqual(imported.employee, self.record.employee)
+        self.assertEqual(imported.is_company, self.record.is_company)
         self.assertEqual(imported.color, self.record.color)
 
     def test_load_accepts_native_boolean_cells(self):
         for value, expected in ((True, True), (False, False), (1, True), (0, False)):
             with self.subTest(value=value):
                 result = self.Partner.load(
-                    ["name", "employee"], [[f"native {value!r}", value]]
+                    ["name", "is_company"], [[f"native {value!r}", value]]
                 )
                 errors = [m for m in result["messages"] if m.get("type") != "warning"]
                 self.assertFalse(errors, f"{value!r} reported {errors}")
                 self.assertEqual(len(result["ids"]), 1)
-                self.assertEqual(self.Partner.browse(result["ids"]).employee, expected)
+                self.assertEqual(self.Partner.browse(result["ids"]).is_company, expected)
 
     def test_load_reports_unconvertible_cell_type_instead_of_raising(self):
         result = self.Partner.load(
