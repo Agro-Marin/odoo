@@ -195,6 +195,26 @@ class TestMentorship(common.TransactionCase):
         for s in suggestions:
             self.assertGreater(s["karma"], self.mentee.karma)
 
+    def test_get_suggested_mentors_excludes_own_mentee(self):
+        """A user's own mentee (already mentored by them) must not be
+        suggested back as a mentor -- the backend's reciprocal-pair check
+        would reject that pairing if it were acted on.
+        """
+        # mentor already mentors mentee; give mentee more karma than mentor
+        # so mentee would otherwise qualify as a "higher karma" suggestion.
+        self._create_mentorship()
+        self.mentee.karma = self.mentor.karma + 100
+
+        Mentorship = self.env["gamification.mentorship"]
+        suggestions = Mentorship.with_user(self.mentor).get_suggested_mentors(limit=5)
+        user_ids = [s["user_id"] for s in suggestions]
+        self.assertNotIn(
+            self.mentee.id,
+            user_ids,
+            "a user already mentored by the caller must not be suggested"
+            " back as a mentor",
+        )
+
     def test_display_name(self):
         """Display name shows mentor and mentee names."""
         m = self._create_mentorship()
