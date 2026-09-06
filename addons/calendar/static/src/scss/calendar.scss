@@ -97,13 +97,13 @@
 }
 
 .o_text_green {
-    color: green;
+    color: o-token(--success, $success);
 }
 
 .o_text_red {
-    color: red;
+    color: o-token(--danger, $danger);
 }
 
 .o_text_orange {
-    color: orange;
+    color: o-token(--warning, $warning);
 }
