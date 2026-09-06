@@ -124,8 +124,8 @@ class ResConfigSettings(models.TransientModel):
     module_currency_rate_live = fields.Boolean(string="Automatic Currency Rates")
     module_account_intrastat = fields.Boolean(string="Intrastat")
     module_product_margin = fields.Boolean(string="Allow Product Margin")
-    module_document_extract_account = fields.Boolean("Invoice Digitization")
-    module_document_extract_account_bank_statement = fields.Boolean(
+    module_extract_account = fields.Boolean("Invoice Digitization")
+    module_extract_account_bank_statement = fields.Boolean(
         "Bank Statement Digitization"
     )
     module_snailmail_account = fields.Boolean(string="Snailmail")

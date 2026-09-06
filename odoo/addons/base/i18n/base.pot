@@ -898,7 +898,7 @@ msgid ""
 "  for the modules that merely need the HTTP path. It is deliberately **not**\n"
 "  re-exported from ``tools/__init__.py``: importing ``claude_agent_sdk`` costs\n"
 "  343ms and 137 modules, and ``api_ai_agent``, ``telegram_bot`` and\n"
-"  ``document_extract_ai`` all import that package without ever driving a\n"
+"  ``extract_ai`` all import that package without ever driving a\n"
 "  subprocess. Import the submodule. It arrived from ``agromarin/ai_claude`` in\n"
 "  19.0.1.15.0.\n"
 "\n"
@@ -2633,13 +2633,13 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_document_extract_hr_recruitment
+#: model:ir.module.module,description:base.module_extract_hr_recruitment
 msgid ""
 "\n"
 "Applicant CV Extraction\n"
 "=======================\n"
 "\n"
-"Puts ``mixin.document.extract`` on ``hr.applicant``, replacing\n"
+"Puts ``mixin.extract`` on ``hr.applicant``, replacing\n"
 "``hr_recruitment_extract``'s reading of a CV.\n"
 "\n"
 "A CV is the document type this framework is best at and the old stack was worst\n"
@@ -2666,7 +2666,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_document_extract_hr_recruitment_skills
+#: model:ir.module.module,description:base.module_extract_hr_recruitment_skills
 msgid ""
 "\n"
 "Applicant CV Skill Extraction\n"
@@ -4455,7 +4455,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_document_extract
+#: model:ir.module.module,description:base.module_extract
 msgid ""
 "\n"
 "Document Extraction\n"
@@ -4505,7 +4505,7 @@ msgid ""
 "parser reported success. Escalation is per field, so what a free strategy read\n"
 "is kept and only the gaps cost money.\n"
 "\n"
-"``mixin.document.extract``\n"
+"``mixin.extract``\n"
 "--------------------------\n"
 "What a record gets by inheriting it: a state, the result with its provenance,\n"
 "the fields nobody could read, a synchronous and a queued way to run, and a\n"
@@ -4531,13 +4531,13 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_document_extract_ai
+#: model:ir.module.module,description:base.module_extract_ai
 msgid ""
 "\n"
 "Document Extraction - AI Readers\n"
 "================================\n"
 "\n"
-"Two generative strategies for ``document_extract``, both reaching a model\n"
+"Two generative strategies for ``extract``, both reaching a model\n"
 "through ``api_ai`` -- its provider registry, its selection by cost or accuracy,\n"
 "its fallback chain, its per-vendor clients. Neither knows a vendor's name.\n"
 "\n"
@@ -4568,13 +4568,13 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_document_extract_barcode
+#: model:ir.module.module,description:base.module_extract_barcode
 msgid ""
 "\n"
 "Document Extraction - Barcodes\n"
 "==============================\n"
 "\n"
-"Registers a barcode reader with ``document_extract``, so ``DocumentSource``'s\n"
+"Registers a barcode reader with ``extract``, so ``DocumentSource``'s\n"
 "``barcodes`` stops being empty and a strategy can declare ``needs=(\"barcodes\",)``.\n"
 "\n"
 "The case this exists for is a printed CFDI. A Mexican invoice's QR encodes the\n"
@@ -4601,7 +4601,7 @@ msgid ""
 "reads Code128, EAN-13 and Code39, and adds DataMatrix and PDF417, which libzbar\n"
 "does not do.\n"
 "\n"
-"``document_extract_ocr`` makes the opposite call about its own engine, and the\n"
+"``extract_ocr`` makes the opposite call about its own engine, and the\n"
 "difference is the point rather than an inconsistency: RapidOCR pulls\n"
 "``onnxruntime``, ``opencv-python``, which is a change to\n"
 "someone else's environment, so it stays optional and degrades. A dependency\n"
@@ -4609,13 +4609,13 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_document_extract_ocr
+#: model:ir.module.module,description:base.module_extract_ocr
 msgid ""
 "\n"
 "Document Extraction - Local OCR\n"
 "===============================\n"
 "\n"
-"Registers a local OCR engine with ``document_extract``, so a document that has\n"
+"Registers a local OCR engine with ``extract``, so a document that has\n"
 "pages but no characters gets text anyway.\n"
 "\n"
 "It is not a strategy and extracts no fields. OCR turns pixels into characters,\n"
@@ -5290,13 +5290,13 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_document_extract_hr_expense
+#: model:ir.module.module,description:base.module_extract_hr_expense
 msgid ""
 "\n"
 "Expense Receipt Extraction\n"
 "==========================\n"
 "\n"
-"Puts ``mixin.document.extract`` on ``hr.expense``, replacing\n"
+"Puts ``mixin.extract`` on ``hr.expense``, replacing\n"
 "``hr_expense_extract``'s reading of a receipt. Both declare ``extract_state``,\n"
 "so a model cannot carry the two and that module is marked uninstallable in the\n"
 "same change -- the third pair after the vendor bill and the CV.\n"
@@ -5320,11 +5320,11 @@ msgid ""
 "currency the receipt names, and converted to the company's for the accounting\n"
 "figure. Where the expense carries a product with a catalogue price -- a per-diem,\n"
 "a mileage rate -- the printed total is not what the company owes, and that case\n"
-"belongs to ``document_extract_hr_expense_predict`` along with the product.\n"
+"belongs to ``extract_hr_expense_predict`` along with the product.\n"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_document_extract_hr_expense_predict
+#: model:ir.module.module,description:base.module_extract_hr_expense_predict
 msgid ""
 "\n"
 "Expense Receipt Product Prediction\n"
@@ -11201,13 +11201,13 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_document_extract_account
+#: model:ir.module.module,description:base.module_extract_account
 msgid ""
 "\n"
 "Vendor Bill Document Extraction\n"
 "===============================\n"
 "\n"
-"Puts ``mixin.document.extract`` on ``account.move``, replacing\n"
+"Puts ``mixin.extract`` on ``account.move``, replacing\n"
 "``account_invoice_extract``'s reading of a vendor bill.\n"
 "\n"
 "What the cascade adds over a single service is order. A Mexican vendor bill\n"
@@ -11249,7 +11249,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_document_extract_account_purchase
+#: model:ir.module.module,description:base.module_extract_account_purchase
 msgid ""
 "\n"
 "Vendor Bill Purchase Order Matching from Extraction\n"
@@ -20011,12 +20011,12 @@ msgid "Append"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_document_extract_hr_recruitment
+#: model:ir.module.module,shortdesc:base.module_extract_hr_recruitment
 msgid "Applicant CV Extraction"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_document_extract_hr_recruitment_skills
+#: model:ir.module.module,shortdesc:base.module_extract_hr_recruitment_skills
 msgid "Applicant CV Skill Extraction"
 msgstr ""
 
@@ -26645,22 +26645,22 @@ msgid "Document"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_document_extract
+#: model:ir.module.module,shortdesc:base.module_extract
 msgid "Document Extraction"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_document_extract_ai
+#: model:ir.module.module,shortdesc:base.module_extract_ai
 msgid "Document Extraction - AI Readers"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_document_extract_barcode
+#: model:ir.module.module,shortdesc:base.module_extract_barcode
 msgid "Document Extraction - Barcodes"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_document_extract_ocr
+#: model:ir.module.module,shortdesc:base.module_extract_ocr
 msgid "Document Extraction - Local OCR"
 msgstr ""
 
@@ -28471,12 +28471,12 @@ msgid "Expected singleton: %(record)s"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_document_extract_hr_expense
+#: model:ir.module.module,shortdesc:base.module_extract_hr_expense
 msgid "Expense Receipt Extraction"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_document_extract_hr_expense_predict
+#: model:ir.module.module,shortdesc:base.module_extract_hr_expense_predict
 msgid "Expense Receipt Product Prediction"
 msgstr ""
 
@@ -29641,7 +29641,7 @@ msgid "Format email address \"Name <email@domain>\""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_document_extract
+#: model:ir.module.module,summary:base.module_extract
 msgid "Format-agnostic, strategy-agnostic field extraction from documents"
 msgstr ""
 
@@ -30118,8 +30118,8 @@ msgid "Generates Intrastat XML report for declaration."
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_document_extract_ai
-msgid "Generative strategies for document_extract, on the api_ai registry"
+#: model:ir.module.module,summary:base.module_extract_ai
+msgid "Generative strategies for extract, on the api_ai registry"
 msgstr ""
 
 #. module: base
@@ -30591,7 +30591,7 @@ msgid "Guernsey"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_document_extract_hr_expense_predict
+#: model:ir.module.module,summary:base.module_extract_hr_expense_predict
 msgid "Guess an expense's product from what its receipt says"
 msgstr ""
 
@@ -35499,7 +35499,7 @@ msgid "Master Production Schedule"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_document_extract_account_purchase
+#: model:ir.module.module,summary:base.module_extract_account_purchase
 msgid "Match a read purchase order reference to its order"
 msgstr ""
 
@@ -41914,27 +41914,27 @@ msgid "Read Access"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_document_extract_ocr
+#: model:ir.module.module,summary:base.module_extract_ocr
 msgid "Read a scan locally, with no key and no per-page charge"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_document_extract_account
-msgid "Read a vendor bill's own document with document_extract"
+#: model:ir.module.module,summary:base.module_extract_account
+msgid "Read a vendor bill's own document with extract"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_document_extract_hr_recruitment
-msgid "Read an applicant's CV with document_extract"
+#: model:ir.module.module,summary:base.module_extract_hr_recruitment
+msgid "Read an applicant's CV with extract"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_document_extract_hr_expense
-msgid "Read an expense's receipt with document_extract"
+#: model:ir.module.module,summary:base.module_extract_hr_expense
+msgid "Read an expense's receipt with extract"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_document_extract_barcode
+#: model:ir.module.module,summary:base.module_extract_barcode
 msgid "Read barcodes and QR codes off a document's pages"
 msgstr ""
 
@@ -42056,7 +42056,7 @@ msgid "Record rules"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_document_extract_hr_recruitment_skills
+#: model:ir.module.module,summary:base.module_extract_hr_recruitment_skills
 msgid "Record the skills a CV names against the skill catalogue"
 msgstr ""
 
@@ -49721,12 +49721,12 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_document_extract_account
+#: model:ir.module.module,shortdesc:base.module_extract_account
 msgid "Vendor Bill Document Extraction"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_document_extract_account_purchase
+#: model:ir.module.module,shortdesc:base.module_extract_account_purchase
 msgid "Vendor Bill Purchase Order Matching from Extraction"
 msgstr ""
 

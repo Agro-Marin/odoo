@@ -80,7 +80,7 @@ The third is not HTTP at all and so inherits none of that.
   for the modules that merely need the HTTP path. It is deliberately **not**
   re-exported from ``tools/__init__.py``: importing ``claude_agent_sdk`` costs
   343ms and 137 modules, and ``api_ai_agent``, ``telegram_bot`` and
-  ``document_extract_ai`` all import that package without ever driving a
+  ``extract_ai`` all import that package without ever driving a
   subprocess. Import the submodule. It arrived from ``agromarin/ai_claude`` in
   19.0.1.15.0.
 

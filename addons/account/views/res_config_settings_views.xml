@@ -425,13 +425,13 @@
                             id="account_invoice_ocr_settings"
                             help="Read a bill's fields off its PDF or scan"
                             documentation="/applications/finance/accounting/payables/supplier_bills/invoice_digitization.html">
-                            <field name="module_document_extract_account" />
+                            <field name="module_extract_account" />
                         </setting>
                         <setting
                             id="account_bank_statement_ocr_settings"
                             help="Read a scanned bank statement's balances and transactions">
                             <field
-                                name="module_document_extract_account_bank_statement"
+                                name="module_extract_account_bank_statement"
                                 widget="upgrade_boolean" />
                         </setting>
                     </block>

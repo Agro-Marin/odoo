@@ -49,7 +49,7 @@
                                 company_dependent="1"
                                 help="Digitize your résumé to extract name and email automatically."
                                 title="Use OCR to fill data from a picture of the Résumr or the file itself">
-                                <field name="module_document_extract_hr_recruitment" />
+                                <field name="module_extract_hr_recruitment" />
                             </setting>
                         </block>
                     </app>

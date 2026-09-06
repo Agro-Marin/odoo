@@ -121,7 +121,7 @@
             "@document_account/*": ["../enterprise/document_account/static/src/*"],
             "@document_compliance/*": ["../agromarin/document_compliance/static/src/*"],
             "@document_custody/*": ["../agromarin/document_custody/static/src/*"],
-            "@document_extract/*": ["addons/document_extract/static/src/*"],
+            "@extract/*": ["addons/extract/static/src/*"],
             "@document_hr_payroll/*": ["../enterprise/document_hr_payroll/static/src/*"],
             "@document_sign/*": ["../enterprise/document_sign/static/src/*"],
             "@document_spreadsheet/*": ["../enterprise/document_spreadsheet/static/src/*"],

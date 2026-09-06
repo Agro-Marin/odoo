@@ -466,7 +466,7 @@ The suites run this way, and what each covers: `base` (less the excluded
 `test_orm`, `mrp`, `certificate`, `stock`, `rpc`, `crm`, `data_recycle`,
 `mixin_report_sql` with `test_mixin_report_sql`, `test_read_group`,
 `test_access_rights`, `hr_work_entry` with `hr_work_entry_holidays`,
-`hr_holidays`, the three `document_extract` branches, `test_base_order`,
+`hr_holidays`, the three `extract` branches, `test_base_order`,
 `approval` with `test_approval`, `api_ai`, `project_hr`, `exchange`,
 `date_range`, `account_coa`, `test_performance_compare`, `mail`, `test_mail`,
 `mail_group` and `speech`. `rpc`, `mail`, `test_mail`, `mail_group` and `speech`

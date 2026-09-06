@@ -104,7 +104,7 @@ class TestRegistry(unittest.TestCase):
         packages, so `registered_readers()` here holds the library's own and no
         others. The registry-wide twin, which is the one that can see two addons
         claiming `application/pdf`, is
-        `document_extract/tests/test_registry_is_unambiguous.py` and runs
+        `extract/tests/test_registry_is_unambiguous.py` and runs
         post-install.
         """
         claims: dict[tuple, list[str]] = {}
@@ -498,7 +498,7 @@ class TestDocument(unittest.TestCase):
 
 class TestBuiltinsAreInTheTable(unittest.TestCase):
     # The reader and writer registries used to spell every mimetype for
-    # themselves, and `xml_text` in document_extract drifted from the xml
+    # themselves, and `xml_text` in extract drifted from the xml
     # format by one alias. Every built-in is derived from the table now, and
     # this is what keeps the next one from being spelled by hand.
 

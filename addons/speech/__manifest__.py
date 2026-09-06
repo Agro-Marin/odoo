@@ -33,7 +33,7 @@ claim that it is already being used.
 The transcript is therefore not a field this module invented. It is the
 attachment's ``index_content`` -- the one place this database already puts "what
 is inside this binary, in words" -- so a recording answers the ordinary
-attachment search with no search code of its own, and every ``document_extract``
+attachment search with no search code of its own, and every ``extract``
 strategy that reads text starts working on recordings without being told that
 audio exists. ``speech_cues`` holds the same words with their timing, for
 playback and for subtitles.

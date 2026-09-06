@@ -121,7 +121,7 @@ class IrAttachment(models.Model):
         )
         if document.mimetype == "application/pdf":
             # The one format this module still reads for itself, and the reason
-            # is not laziness. `document_extract` registers pymupdf for this
+            # is not laziness. `extract` registers pymupdf for this
             # mimetype and the parser below is pdfminer.six; measured over the
             # 56 PDFs this repository ships, the two agree on the words in 48
             # and pdfminer splits words in the rest -- "bill" as "b" and "ill",

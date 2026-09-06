@@ -77,7 +77,7 @@ PyMuPDF==1.28.2  # base — optional
 python-ldap==3.4.7 ; sys_platform != 'win32'  # auth_ldap
 python-stdnum==2.2  # account_vat + 15 l10n modules. Fixes operation_timeout in SOAP client
 qrcode==8.2  # auth_totp, pos_self_order
-# document_extract_ocr, both imported at module level: the module refuses to
+# extract_ocr, both imported at module level: the module refuses to
 # install without them rather than installing and reading nothing off a scan.
 # `rapidocr` is the continuation of `rapidocr-onnxruntime`, which is frozen:
 # every release after the 1.2.3 this used to pin caps at python_requires <3.13,
@@ -92,7 +92,7 @@ onnxruntime==1.29.0
 vobject==0.9.9  # calendar, event, web, website_event_track — optional
 xlrd==2.0.2  # base_import: legacy .xls (BIFF) reader — optional
 zeep==4.3.3  # account_vat, via stdnum's own SOAP client — optional
-# document_extract_barcode, imported as `zxingcpp`. The decoder is compiled into
+# extract_barcode, imported as `zxingcpp`. The decoder is compiled into
 # the wheel, so unlike the `pyzbar` it replaces there is no libzbar to install
 # system-side -- and none ever was here, which is why that reader had been
 # returning no barcodes on every page and the module could not install.

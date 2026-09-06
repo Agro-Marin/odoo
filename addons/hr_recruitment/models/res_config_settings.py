@@ -6,6 +6,6 @@ class ResConfigSettings(models.TransientModel):
 
     module_website_hr_recruitment = fields.Boolean(string="Online Posting")
     module_hr_recruitment_survey = fields.Boolean(string="Interview Forms")
-    module_document_extract_hr_recruitment = fields.Boolean(
+    module_extract_hr_recruitment = fields.Boolean(
         string="Read an applicant's CV"
     )

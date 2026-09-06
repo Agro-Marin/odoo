@@ -65,7 +65,7 @@
                                 company_dependent="1"
                                 help="Digitalize your receipts with OCR and Artificial Intelligence"
                                 title="use OCR to fill data from a picture of the bill">
-                                <field name="module_document_extract_hr_expense" />
+                                <field name="module_extract_hr_expense" />
                             </setting>
                             <setting
                                 string="Expense Card"
