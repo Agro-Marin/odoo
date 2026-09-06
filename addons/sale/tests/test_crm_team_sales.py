@@ -1,6 +1,10 @@
+from freezegun import freeze_time
+
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
+
+from odoo.addons.sale.tests.common import TestSaleCommon
 
 
 @tagged("post_install", "-at_install")
@@ -87,3 +91,54 @@ class TestCrmTeamSales(TransactionCase):
 
         action = in_sales.action_primary_channel_button()
         self.assertEqual(action["type"], "ir.actions.act_window")
+
+
+@tagged("post_install", "-at_install")
+class TestCrmTeamInvoicedWindow(TestSaleCommon):
+    """`invoiced` reports a calendar month, and the calendar is the user's."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.team = cls.env["crm.team"].create({"name": "Bajio team"})
+
+    def _paid_invoice(self, invoice_date, amount=1000.0):
+        invoice = self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "team_id": self.team.id,
+                "invoice_date": invoice_date,
+                "date": invoice_date,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "price_unit": amount,
+                        }
+                    )
+                ],
+            }
+        )
+        invoice.action_post()
+        self.env["account.payment.register"].with_context(
+            active_model="account.move",
+            active_ids=invoice.ids,
+        ).create({})._create_payments()
+        invoice.flush_model()
+        return invoice
+
+    @freeze_time("2026-01-15 12:00:00")
+    def test_invoiced_counts_this_months_paid_invoices(self):
+        self._paid_invoice("2026-01-10")
+        self.assertEqual(self.team.invoiced, 1000.0)
+
+    @freeze_time("2026-02-01 02:00:00")
+    def test_invoiced_window_follows_the_user_timezone(self):
+        # 02:00 UTC on the 1st is still 20:00 on the 31st for a UTC-6 user, so
+        # the month they are looking at is January. Bounding the window with
+        # UTC today instead starts it on February 1st and reports the month as
+        # empty on its last afternoon.
+        self._paid_invoice("2026-01-10")
+        team = self.team.with_context(tz="America/Mexico_City")
+        self.assertEqual(team.invoiced, 1000.0)
