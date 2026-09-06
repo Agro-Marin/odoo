@@ -1767,7 +1767,7 @@ msgstr "ทุก %(interval)s ปี สำหรับกิจกรรม %(
 #. odoo-python
 #: code:addons/calendar/models/calendar_recurrence.py:0
 msgid "Every %(interval)s Years until %(until)s"
-msgstr "ทุก %(interval)s ปี จนถึง %(unt)s"
+msgstr "ทุก %(interval)s ปี จนถึง %(until)s"
 
 #. module: calendar
 #. odoo-python
@@ -2861,7 +2861,7 @@ msgid ""
 "Meeting “%(name)s” starts on %(start_date)s and ends on %(end_date)s"
 msgstr ""
 "วันที่สิ้นสุดไม่สามารถเร็วกว่าวันที่เริ่มต้นได้\n"
-"การประชุม “%(name)s” เริ่มต้นในวันที่ %(start_date) และสิ้นสุดในวันที่ %(end_date)"
+"การประชุม “%(name)s” เริ่มต้นในวันที่ %(start_date)s และสิ้นสุดในวันที่ %(end_date)s"
 
 #. module: calendar
 #. odoo-python
