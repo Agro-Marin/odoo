@@ -11,7 +11,7 @@
                     class="o_input"
                     t-att-class="{
                         'o_field_translate': isTranslatable,
-                        'o_field_placeholder': props.dynamicPlaceholder,
+                        'o_field_placeholder': hasDynamicPlaceholder,
                     }"
                     t-att-id="props.id"
                     t-att-placeholder="props.placeholder"
@@ -25,7 +25,7 @@
                         fieldName="props.name"
                         record="props.record"
                     />
-                    <button t-if="props.dynamicPlaceholder"
+                    <button t-if="hasDynamicPlaceholder"
                         class="btn m-0 py-2 px-2 fa-solid fa-wand-magic-sparkles position-relative"
                         title="Insert Field"
                         t-on-click="onDynamicPlaceholderOpen"

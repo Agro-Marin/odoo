@@ -334,6 +334,17 @@ export class Field extends Component {
      */
     _visualFeedback;
 
+    /**
+     * The `domain` thunk handed to widgets through `extractProps`. Created
+     * once: it reaches widgets as a prop, and a fresh function per render made
+     * every memo that includes it miss. It evaluates against the record it is
+     * given, so a caller observing the record through its own reactive proxy
+     * (`useSpecialData`) is subscribed to the fields the domain reads.
+     *
+     * @type {(record?: any) => any[] | undefined}
+     */
+    dynamicDomain;
+
     setup() {
         if (this.props.fieldInfo) {
             this.field = this.props.fieldInfo.field;
@@ -341,6 +352,14 @@ export class Field extends Component {
             const fieldType = this.props.record.fields[this.props.name].type;
             this.field = getFieldFromRegistry(fieldType, this.props.type);
         }
+        this.dynamicDomain = (record = this.props.record) => {
+            const { fieldInfo } = this.props;
+            if (fieldInfo?.domain) {
+                return new Domain(
+                    evaluateExpr(fieldInfo.domain, record.evalContext),
+                ).toList();
+            }
+        };
         onWillRender(() => {
             this._visualFeedback = fieldVisualFeedback(
                 this.field,
@@ -427,14 +446,7 @@ export class Field extends Component {
                             fieldInfo.context,
                         );
                     },
-                    domain() {
-                        const evalContext = record.evalContext;
-                        if (fieldInfo.domain) {
-                            return new Domain(
-                                evaluateExpr(fieldInfo.domain, evalContext),
-                            ).toList();
-                        }
-                    },
+                    domain: this.dynamicDomain,
                     required: this._visualFeedback.required,
                     readonly: readonly,
                 };

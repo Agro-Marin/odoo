@@ -2,7 +2,7 @@
 
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, reactive, useState, xml } from "@odoo/owl";
+import { Component, EventBus, reactive, useState, xml } from "@odoo/owl";
 import {
     defineModels,
     fields,
@@ -25,7 +25,11 @@ defineModels([Sub]);
  * @param {Record<string, any>} data
  */
 function makeRecord(id, data) {
-    return reactive({ id, data, model: { specialDataCaches: new Map() } });
+    return reactive({
+        id,
+        data,
+        model: { specialDataCaches: new Map(), bus: new EventBus() },
+    });
 }
 
 /**

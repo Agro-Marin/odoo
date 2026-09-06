@@ -386,9 +386,9 @@ export class X2ManyField extends FieldComponent {
 
     /**
      * @param {Object} record
-     * @param {{ newWindow?: boolean }} options
+     * @param {{ newWindow?: boolean }} [options]
      */
-    async switchToForm(record, options) {
+    async switchToForm(record, { newWindow = false } = {}) {
         let resId;
         if (record.isNew) {
             const reconciliation = this.list.snapshotCreateReconciliation();
@@ -427,7 +427,7 @@ export class X2ManyField extends FieldComponent {
             },
             {
                 props: { resIds: this.list.resIds },
-                newWindow: options.newWindow,
+                newWindow,
             },
         );
     }

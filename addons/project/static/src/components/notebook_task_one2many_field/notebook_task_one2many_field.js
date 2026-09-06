@@ -13,7 +13,7 @@ export class NotebookTaskOne2ManyField extends X2ManyField {
     get rendererProps() {
         const rendererProps = super.rendererProps;
         if (this.props.viewMode === "kanban") {
-            rendererProps.openRecord = this.switchToForm.bind(this);
+            rendererProps.openRecord = this.rendererCallbacks.onOpenFormView;
         }
         return rendererProps;
     }

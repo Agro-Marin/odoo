@@ -236,6 +236,10 @@ export class Many2One extends Component {
     state;
     /** @type {any} */
     recordDialog;
+    /** @type {{ quickCreate: Function, setInputFloats: Function, update: Function }} */
+    autocompleteCallbacks;
+    /** @type {{ create: boolean, createEdit: boolean, write: boolean } | null} */
+    _activeActions = null;
 
     setup() {
         useRenderCounter("fields.Many2One");
@@ -247,6 +251,17 @@ export class Many2One extends Component {
         this.nameService = useService("name");
 
         this.state = useState({ isFloating: false });
+        this.autocompleteCallbacks = {
+            quickCreate: (name) => this.quickCreate(name),
+            setInputFloats: (isFloating) => {
+                this.state.isFloating = isFloating;
+            },
+            update: (records) => {
+                const idNamePair =
+                    records && records[0] ? extractData(records[0]) : false;
+                return this.update(idNamePair);
+            },
+        };
 
         const self = this;
         this.recordDialog = {
@@ -294,13 +309,23 @@ export class Many2One extends Component {
         };
     }
 
-    /** @returns {{ create: boolean, createEdit: boolean, write: boolean }} */
+    /**
+     * Read on every render and handed to the autocomplete as a prop, so its
+     * identity only changes when one of the three permissions does.
+     *
+     * @returns {{ create: boolean, createEdit: boolean, write: boolean }}
+     */
     get activeActions() {
-        return {
+        const next = {
             create: this.props.canCreate,
             createEdit: this.props.canCreateEdit,
             write: this.props.canWrite,
         };
+        if (this._activeActions && shallowEqual(this._activeActions, next)) {
+            return this._activeActions;
+        }
+        this._activeActions = next;
+        return next;
     }
 
     /** @returns {Object} */
@@ -317,22 +342,16 @@ export class Many2One extends Component {
             otherSources: this.props.otherSources,
             placeholder: this.props.placeholder,
             quickCreate: this.props.canQuickCreate
-                ? (name) => this.quickCreate(name)
+                ? this.autocompleteCallbacks.quickCreate
                 : null,
             resModel: this.props.relation,
             searchMoreLabel: this.props.searchMoreLabel,
             searchThreshold: this.props.searchThreshold,
             searchMemoization: this.props.searchMemoization,
-            setInputFloats: (isFloating) => {
-                this.state.isFloating = isFloating;
-            },
+            setInputFloats: this.autocompleteCallbacks.setInputFloats,
             slots: this.props.slots,
             specification: this.props.specification,
-            update: (records) => {
-                const idNamePair =
-                    records && records[0] ? extractData(records[0]) : false;
-                return this.update(idNamePair);
-            },
+            update: this.autocompleteCallbacks.update,
             value: this.displayName,
         };
     }

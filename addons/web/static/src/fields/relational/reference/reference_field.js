@@ -36,12 +36,16 @@ export class ReferenceField extends FieldComponent {
         modelField: { type: String, optional: true },
     };
 
+    /** @type {{ formattedCharValue?: ReferenceValue | false, modelName?: string | false, currentRelation?: string | false }} */
+    state;
+    /** @type {number | undefined} */
+    currentModelId;
+
     setup() {
         // Bound once: `m2oProps` is read on every render, and a fresh bound
         // function there is enough on its own to defeat OWL's shallow prop
         // comparison and re-render the whole autocomplete.
         this.updateM2O = this.updateM2O.bind(this);
-        /** @type {{formattedCharValue?: ReferenceValue, modelName?: string}} */
         this.state = useState({
             formattedCharValue: undefined,
             modelName: undefined,
@@ -75,7 +79,7 @@ export class ReferenceField extends FieldComponent {
                     if (formatted === SUPERSEDED) {
                         return;
                     }
-                    /** @type {any} */ (this.state).formattedCharValue = formatted;
+                    this.state.formattedCharValue = formatted;
                     currentValue = record.data[props.name];
                 }
             });
@@ -88,7 +92,7 @@ export class ReferenceField extends FieldComponent {
                     if (modelName === SUPERSEDED) {
                         return;
                     }
-                    /** @type {any} */ (this.state).modelName = modelName;
+                    this.state.modelName = modelName;
                     if (this.currentModelId !== undefined) {
                         record.update({ [props.name]: false });
                     }
@@ -139,7 +143,7 @@ export class ReferenceField extends FieldComponent {
         if (value?.resModel) {
             return value.resModel;
         } else {
-            return /** @type {any} */ (this.state).currentRelation;
+            return this.state.currentRelation;
         }
     }
 
@@ -163,7 +167,7 @@ export class ReferenceField extends FieldComponent {
 
     /** @param {string} value */
     updateModel(value) {
-        /** @type {any} */ (this.state).currentRelation = value;
+        this.state.currentRelation = value;
         this.field.update(false);
     }
 

@@ -24,6 +24,7 @@ import {
     useOwnedDialogs,
     useService,
 } from "@web/core/utils/hooks";
+import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 
 const EMPTY_SEARCH_MEMO_LIMIT = 64;
 
@@ -131,6 +132,7 @@ export class Many2XAutocomplete extends Component {
     emptySearchMemo = { signature: null, names: new Set() };
 
     setup() {
+        useRenderCounter("fields.Many2XAutocomplete");
         this.orm = useService("orm");
 
         this.autoCompleteContainer = useForwardRefToParent("autocomplete_container");

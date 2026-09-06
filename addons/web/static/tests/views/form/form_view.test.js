@@ -5206,6 +5206,7 @@ test(`discard form with specialdata on desktop`, async () => {
 
     await animationFrame();
     await contains(`.o_form_button_cancel`).click();
+    await animationFrame();
     expect(`.o_statusbar_status button:not(.d-none)`).toHaveCount(1);
     expect(`.o_statusbar_status button:not(.d-none)`).toHaveText("xphone");
 });
@@ -5235,6 +5236,7 @@ test(`discard form with specialdata on mobile`, async () => {
     expect(`.o_statusbar_status .dropdown-toggle:visible`).toHaveCount(1);
 
     await contains(`.o_form_button_cancel`).click();
+    await animationFrame();
     expect(`.o_statusbar_status .dropdown-toggle:visible`).toHaveCount(1);
     expect(`.o_statusbar_status .dropdown-toggle:visible`).toHaveText("xphone");
 });

@@ -74,10 +74,6 @@ export class CharField extends TextInputFieldBase {
             isPassword: this.props.isPassword,
         });
     }
-    /** @returns {boolean} */
-    get hasDynamicPlaceholder() {
-        return this.props.dynamicPlaceholder && !this.props.readonly;
-    }
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */

@@ -55,6 +55,11 @@ export class TextInputFieldBase extends TrimmingInputFieldBase {
         this.selectionStart = this.field.value?.length || 0;
     }
 
+    /** @returns {boolean} */
+    get hasDynamicPlaceholder() {
+        return Boolean(this.props.dynamicPlaceholder) && !this.props.readonly;
+    }
+
     onBlur() {
         this.selectionStart = /** @type {HTMLInputElement | HTMLTextAreaElement} */ (
             this.inputEl

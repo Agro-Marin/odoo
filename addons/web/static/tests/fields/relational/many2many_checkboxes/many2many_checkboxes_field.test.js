@@ -2,7 +2,7 @@
 
 import { expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
-import { runAllTimers } from "@odoo/hoot-mock";
+import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import {
     clickSave,
     contains,
@@ -208,6 +208,8 @@ test("Many2ManyCheckBoxesField: values are updated when domain changes", async (
     expect(".o_field_widget[name='timmy']").toHaveText("gold\nsilver");
 
     await contains(".o_field_widget[name='int_field'] input").edit(13);
+    // The reload rides the record observer, which is batched to the next frame.
+    await animationFrame();
     expect(".o_field_widget[name='timmy'] .form-check").toHaveCount(1);
     expect(".o_field_widget[name='timmy']").toHaveText("silver");
 });

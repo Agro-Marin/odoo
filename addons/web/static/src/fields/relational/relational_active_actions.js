@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillUpdateProps, useComponent } from "@odoo/owl";
+import { onWillRender, useComponent } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
 
 /**
@@ -25,23 +25,28 @@ import { Domain } from "@web/core/domain";
  */
 
 /**
- * @type {Map<string, Domain | null>}
+ * One parsed `Domain` per distinct action expression, so a re-evaluation on
+ * every prop update does not re-parse. Per hook instance rather than
+ * module-wide: the set of expressions a widget sees is its arch's, and a
+ * module-level map keyed on every expression ever met was never pruned.
+ *
+ * @returns {(action: any) => Domain | null}
  */
-const domainCache = new Map();
-
-/**
- * @param {any} action
- * @returns {Domain | null}
- */
-function domainFor(action) {
-    if (!action) {
-        return null;
-    }
-    const key = typeof action === "string" ? action : JSON.stringify(action);
-    if (!domainCache.has(key)) {
-        domainCache.set(key, new Domain(action));
-    }
-    return /** @type {Domain | null} */ (domainCache.get(key));
+function makeDomainResolver() {
+    /** @type {Map<string, Domain>} */
+    const cache = new Map();
+    return (action) => {
+        if (!action) {
+            return null;
+        }
+        const key = typeof action === "string" ? action : JSON.stringify(action);
+        let domain = cache.get(key);
+        if (!domain) {
+            domain = new Domain(action);
+            cache.set(key, domain);
+        }
+        return domain;
+    };
 }
 
 /**
@@ -59,6 +64,7 @@ export function useActiveActions({
     getEvalParams = () => ({}),
 }) {
     const isMany2Many = fieldType === "many2many";
+    const domainFor = makeDomainResolver();
 
     /**
      * @param {Object} options
@@ -110,14 +116,14 @@ export function useActiveActions({
         return result;
     };
 
-    const activeActions = compute(useComponent().props);
-    onWillUpdateProps(
-        /** @type {any} */ (
-            (nextProps) => {
-                Object.assign(activeActions, compute(nextProps));
-            }
-        ),
-    );
+    const component = useComponent();
+    const activeActions = compute(component.props);
+    // Before every render, not only on a props change: the domains read the
+    // record's evalContext, and an edit of the record re-renders the widget
+    // without changing its props.
+    onWillRender(() => {
+        Object.assign(activeActions, compute(component.props));
+    });
 
     return activeActions;
 }

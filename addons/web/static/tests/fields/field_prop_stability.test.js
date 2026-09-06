@@ -32,6 +32,7 @@ class Partner extends models.Model {
     flag = fields.Boolean();
     tag_id = fields.Many2one({ relation: "tag" });
     tag_ids = fields.Many2many({ relation: "tag" });
+    user_ids = fields.Many2many({ relation: "res.users" });
     line_ids = fields.One2many({ relation: "line", relation_field: "partner_id" });
     ref = fields.Reference({ selection: [["tag", "Tag"]] });
     _records = [
@@ -42,6 +43,7 @@ class Partner extends models.Model {
             flag: false,
             tag_id: 1,
             tag_ids: [1],
+            user_ids: [1],
             line_ids: [1, 2],
             ref: "tag,1",
         },
@@ -61,6 +63,8 @@ class Line extends models.Model {
 
 class ResUsers extends models.Model {
     _name = "res.users";
+    name = fields.Char();
+    _records = [{ id: 1, name: "u1" }];
     has_group() {
         return true;
     }
@@ -108,7 +112,10 @@ function mountCounting(params) {
     });
 }
 
-test("a widget re-renders once per unrelated committed edit", async () => {
+// The char field renders because its own value changed; the tags field, whose
+// props are all stable now, is skipped entirely -- it does not even reach the
+// memo that used to hand back the same tag list.
+test("a widget with stable props does not render on an unrelated edit", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
@@ -125,7 +132,7 @@ test("a widget re-renders once per unrelated committed edit", async () => {
     const stats = await renderCounts(editUnrelatedFiveTimes);
 
     expect(stats["fields.CharField"]).toBe(5);
-    expect(stats["fields.Many2ManyTagsField"]).toBe(5);
+    expect(stats["fields.Many2ManyTagsField"] || 0).toBe(0);
 });
 
 test("many2one does not re-render its autocomplete on an unrelated edit", async () => {
@@ -195,6 +202,55 @@ test("many2many_tags does not re-render its tag list on an unrelated edit", asyn
 
     expect(stats["fields.CharField"]).toBe(5);
     expect(stats["components.TagsList"] || 0).toBe(0);
+});
+
+// `Field` used to build its `dynamicInfo` per render, so the `domain` thunk
+// widgets receive as a prop was a new function every time and every memo that
+// included it missed. The avatar variant is where it showed: its autocomplete
+// re-rendered on every unrelated edit, and the kanban tag list -- which takes
+// the whole prop bag as `popoverProps` -- re-rendered twice per toggle.
+test("many2many_tags_avatar does not re-render its autocomplete on an unrelated edit", async () => {
+    const mounted = await mountCounting({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="name"/><field name="user_ids" widget="many2many_tags_avatar"/></form>`,
+    });
+    expect(mounted["fields.Many2XAutocomplete"]).toBeGreaterThan(0);
+    expect(".o_field_many2many_tags_avatar .o_tag").toHaveCount(1);
+
+    const stats = await renderCounts(editUnrelatedFiveTimes);
+
+    expect(stats["fields.CharField"]).toBe(5);
+    expect(stats["fields.Many2XAutocomplete"] || 0).toBe(0);
+});
+
+test("kanban many2many_tags_avatar re-renders its tag list once per save, not per render", async () => {
+    const mounted = await mountCounting({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="flag" widget="boolean_toggle"/>
+                        <field name="user_ids" widget="many2many_tags_avatar"/>
+                    </t>
+                </templates>
+            </kanban>`,
+    });
+    expect(mounted["components.TagsList"]).toBeGreaterThan(0);
+    expect(".o_kanban_record .o_tag").toHaveCount(1);
+
+    const stats = await renderCounts(async () => {
+        for (let i = 0; i < 5; i++) {
+            await contains("[name='flag'] input").click();
+            await animationFrame();
+        }
+    });
+
+    expect(stats["fields.Many2ManyTagsField"]).toBe(5);
+    expect(stats["components.TagsList"]).toBe(5);
 });
 
 // The x2many field itself re-renders with its record, which is expected; what
@@ -313,8 +369,9 @@ test("x2many kanban card modifiers reading parent still follow the parent", asyn
 // new every time and the tag props genuinely change once per toggle. What the
 // memo removes is the *second* render per toggle: the card renders twice (the
 // optimistic value, then the reloaded one) and only one of those changes a tag.
-// The Many2ManyTagsField count is the control -- it is what says the card really
-// did render twice, so `TagsList: 5` is a halving and not an absence.
+// The Many2ManyTagsField count is the control: the field renders once per
+// toggle (the reloaded record), so `TagsList: 5` says the list followed it and
+// is not an absence.
 test("kanban many2many_tags re-renders its tag list once per save, not per render", async () => {
     const mounted = await mountCounting({
         type: "kanban",
@@ -339,7 +396,7 @@ test("kanban many2many_tags re-renders its tag list once per save, not per rende
         }
     });
 
-    expect(stats["fields.Many2ManyTagsField"]).toBe(10);
+    expect(stats["fields.Many2ManyTagsField"]).toBe(5);
     expect(stats["components.TagsList"]).toBe(5);
 });
 

@@ -3,6 +3,7 @@
 
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/translation";
+import { shallowEqual } from "@web/core/utils/collections/objects";
 import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
 import {
@@ -10,6 +11,8 @@ import {
     many2ManyTagsField,
 } from "@web/fields/relational/many2many_tags/many2many_tags_field";
 import { usePopover } from "@web/ui/popover/popover_hook";
+
+const EMPTY_SPECIFICATION = Object.freeze({});
 
 export class Many2ManyTagsAvatarField extends Many2ManyTagsField {
     static template = "web.Many2ManyTagsAvatarField";
@@ -19,9 +22,15 @@ export class Many2ManyTagsAvatarField extends Many2ManyTagsField {
         withCommand: { type: Boolean, optional: true },
     };
 
-    /** @returns {Object} */
+    /**
+     * The extra fields the autocomplete's search reads, beyond display_name.
+     * A shared constant: the getter is read per render and handed on as a
+     * prop, so a fresh `{}` each time re-rendered the autocomplete for nothing.
+     *
+     * @returns {Object}
+     */
     get specification() {
-        return {};
+        return EMPTY_SPECIFICATION;
     }
 
     /**
@@ -157,13 +166,22 @@ export class KanbanMany2ManyTagsAvatarField extends Many2ManyTagsAvatarField {
     };
     visibleItemsLimit = 3;
 
-    /** @returns {Object} */
+    /** @type {Record<string, any> | null} */
+    _popoverProps = null;
+
+    /**
+     * Handed to the tag list as a prop on every render; memoised so an
+     * unrelated edit of the card does not re-render every tag.
+     *
+     * @returns {Object}
+     */
     get popoverProps() {
-        const props = {
-            ...this.props,
-            readonly: false,
-        };
+        const props = { ...this.props, readonly: false };
         delete props.isEditable;
+        if (this._popoverProps && shallowEqual(this._popoverProps, props)) {
+            return this._popoverProps;
+        }
+        this._popoverProps = props;
         return props;
     }
     /** @returns {Array<Object>} */

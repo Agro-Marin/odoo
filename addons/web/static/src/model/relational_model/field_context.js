@@ -61,7 +61,7 @@ export function getFieldContext(
  */
 export function getFieldDomain(record, fieldName, domain) {
     if (typeof domain === "function") {
-        domain = domain();
+        domain = domain(record);
     }
     if (domain) {
         return domain;

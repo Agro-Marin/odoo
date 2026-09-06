@@ -3,13 +3,16 @@
 
 import {
     onWillDestroy,
-    onWillUpdateProps,
+    onWillRender,
+    onWillStart,
+    reactive,
     status,
+    toRaw,
     useComponent,
     useState,
 } from "@odoo/owl";
+import { deepEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
-import { useRecordObserver } from "@web/fields/hooks/record_observer";
 /** @import { Component } from "@odoo/owl" */
 /** @import { Services } from "services" */
 
@@ -45,14 +48,23 @@ function subscribersFor(specialDataCaches, key) {
 export function useSpecialData(loadFn) {
     const component = useComponent();
     const record = component.props.record;
-    const { specialDataCaches } = record.model;
+    // The raw map: it is plumbing shared by every widget on the model, and
+    // read through the record's reactive proxy every write to it would
+    // re-render whoever last read it -- which is this component, at each load.
+    const specialDataCaches = toRaw(record.model.specialDataCaches);
     const orm = useService("orm");
     let loadTicket = 0;
     let appliedTicket = 0;
+    // Equal data is not applied: a loader that assembles its result from two
+    // calls returns a fresh array each time, and assigning it would re-render,
+    // which reloads, which assembles another -- without end.
     const apply = (ticket, data) => {
         if (ticket >= appliedTicket) {
             appliedTicket = ticket;
-            result.data = data;
+            if (!deepEqual(toRaw(result.data), data)) {
+                renderFromApply = true;
+                result.data = data;
+            }
         }
     };
     function reloadOnStaleCache() {
@@ -112,26 +124,39 @@ export function useSpecialData(loadFn) {
 
     /** @type {{ data: T }} */
     const result = useState(/** @type {any} */ ({ data: {} }));
-    useRecordObserver(async (record, props) => {
+    let renderFromApply = false;
+    const rerender = () => {
+        if (status(component) !== "destroyed") {
+            component.render();
+        }
+    };
+    const load = () => {
         const ticket = ++loadTicket;
-        apply(ticket, await loadFn(ormWithCache, { ...props, record }));
-    });
-    onWillUpdateProps(async (props) => {
-        // useRecordObserver already reloads whenever the record object itself
-        // is replaced. This handler exists only for the other half -- a change
-        // in the props `loadFn` reads beside the record, such as `domain` or
-        // `context`, on a record that stayed the same object.
-        //
-        // Its guard used to be `props.record.id === component.props.record.id`,
-        // which is satisfied by a *reloaded* record too: a save replaces the
-        // datapoint while keeping its id, so both this and the observer fired
-        // and `loadFn` ran twice for one event. Comparing the object instead
-        // splits the two cases cleanly.
-        if (props.record !== component.props.record) {
+        // The record is read through a proxy bound to this component's own
+        // render: a prop is bound to the parent's, so reads through it would
+        // re-render the parent and leave this widget -- whose props did not
+        // change -- exactly where it was.
+        const props = { ...component.props };
+        if (props.record) {
+            props.record = reactive(props.record, rerender);
+        }
+        return loadFn(ormWithCache, props).then((res) => apply(ticket, res));
+    };
+    // The loader runs before the first render and again before every later
+    // one, except the render that applying its own result caused. What it
+    // reads of the record -- the domain's dependencies, the current ids --
+    // subscribes this component to those fields, so an edit that changes the
+    // domain re-renders and reloads while an unrelated edit does neither. A
+    // reload whose inputs did not change hits the args-keyed cache.
+    onWillStart(load);
+    let firstRender = true;
+    onWillRender(() => {
+        if (firstRender || renderFromApply) {
+            firstRender = false;
+            renderFromApply = false;
             return;
         }
-        const ticket = ++loadTicket;
-        apply(ticket, await loadFn(ormWithCache, props));
+        load();
     });
     return result;
 }

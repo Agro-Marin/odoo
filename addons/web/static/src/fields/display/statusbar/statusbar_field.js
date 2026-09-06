@@ -71,7 +71,6 @@ function sameStatusBarItems(a, b) {
 
 /**
  * @param {any} component
- * @returns {{ markItemsStale: () => void }}
  */
 function useOverflowAdjust(component) {
     let status = "idle";
@@ -79,7 +78,8 @@ function useOverflowAdjust(component) {
     let lastItems = null;
     /** @type {number | null} */
     let lastWidth = null;
-    let forceRecomputeItems = false;
+    /** @type {StatusBarItem[] | null} */
+    let sortedFrom = null;
 
     const adjust = () => {
         status = "adjusting";
@@ -101,26 +101,25 @@ function useOverflowAdjust(component) {
         adjust();
     });
 
+    // The items are re-sorted when they changed, or on any render that is not
+    // the adjust pass's own. A render the adjust pass triggers while the items
+    // are what it sorted keeps its layout; one that arrives with new items --
+    // the relation data landing mid-adjust -- starts over.
     onWillRender(() => {
         component.allItems = component.getAllItems();
-        if (status !== "adjusting" || forceRecomputeItems) {
+        const itemsChanged = !sameStatusBarItems(sortedFrom, component.allItems);
+        if (status !== "adjusting" || itemsChanged) {
             Object.assign(component.items, component.getSortedItems());
+            sortedFrom = component.allItems;
             status = "shouldAdjust";
         } else {
             status = "idle";
         }
-        forceRecomputeItems = false;
     });
 
     const throttledAdjust = throttleForAnimation(adjust);
     useExternalListener(window, "resize", throttledAdjust);
     onWillUnmount(() => throttledAdjust.cancel());
-
-    return {
-        markItemsStale: () => {
-            forceRecomputeItems = true;
-        },
-    };
 }
 
 /** @extends {FieldComponent<StatusBarFieldProps>} */
@@ -150,19 +149,16 @@ export class StatusBarField extends FieldComponent {
         this.afterRef = useRef("after");
         this.dropdownRef = useRef("dropdown");
 
-        const { markItemsStale } = useOverflowAdjust(this);
+        useOverflowAdjust(this);
         if (this.fieldDefinition.type === "many2one") {
-            this.setupRelationData(markItemsStale);
+            this.setupRelationData();
         }
         if (this.props.withCommand) {
             this.setupCommands();
         }
     }
 
-    /**
-     * @param {() => void} markItemsStale
-     */
-    setupRelationData(markItemsStale) {
+    setupRelationData() {
         this.specialData = useSpecialData(async (orm, props) => {
             const { foldField, name: fieldName, record, context } = props;
             const field = fieldHandleFor(record, fieldName);
@@ -179,12 +175,10 @@ export class StatusBarField extends FieldComponent {
                     record.evalContext,
                 );
             }
-            const res = await orm.searchRead(relation, domain, fieldNames, {
+            return orm.searchRead(relation, domain, fieldNames, {
                 context,
                 limit: /** @type {any} */ (this.constructor).RELATION_LIMIT,
             });
-            markItemsStale();
-            return res;
         });
     }
 

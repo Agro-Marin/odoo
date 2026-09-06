@@ -23,7 +23,7 @@ import {
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
-import { Many2ManyTagsField } from "@web/fields/relational/many2many_tags/many2many_tags_field";
+import { Field } from "@web/fields/field";
 
 class Partner extends models.Model {
     _name = "partner";
@@ -2155,7 +2155,7 @@ test("TagsList is not re-rendered when nothing about the tags moved", async () =
             onWillRender(() => tagsListRenders++);
         },
     });
-    patch(Many2ManyTagsField.prototype, {
+    patch(Field.prototype, {
         setup() {
             super.setup();
             onWillRender(() => fieldRenders++);
@@ -2178,7 +2178,7 @@ test("TagsList is not re-rendered when nothing about the tags moved", async () =
     await animationFrame();
 
     expect(fieldRenders).toBeGreaterThan(baseField, {
-        message: "the field itself must have re-rendered, or the test proves nothing",
+        message: "the Field wrappers must have re-rendered, or the test proves nothing",
     });
     expect(tagsListRenders).toBe(baseTags, {
         message: "TagsList must not re-render when no tag changed",
