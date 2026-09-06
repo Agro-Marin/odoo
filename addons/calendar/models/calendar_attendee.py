@@ -113,9 +113,14 @@ class CalendarAttendee(models.Model):
         return attendees
 
     def write(self, vals):
-        attendees = super().write(vals)
-        self.event_id.check_access("write")
-        return attendees
+        # Check access on the event being left, not only the one landed on:
+        # `event_id` is a plain writable field, so a write reassigning it only
+        # checked the destination event, letting a user with no write access
+        # to the origin event detach an attendee from it regardless.
+        old_events = self.event_id
+        res = super().write(vals)
+        (old_events | self.event_id).check_access("write")
+        return res
 
     def unlink(self):
         # `create()`/`write()` both route through `event_id.check_access('write')`;
