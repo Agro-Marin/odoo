@@ -31,6 +31,28 @@ class TestPartyIdentifiers(TransactionCase):
         self.assertEqual(employee.ssnid, "123-45-6789")
         self.assertEqual(str(employee.passport_expiration_date), "2030-01-31")
 
+    def test_linking_a_user_moves_the_identifiers(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "Badged", "barcode": "041000000002", "identification_id": "NIN-2"}
+        )
+        former = employee.partner_id
+        user = mail_new_test_user(self.env, login="badged", name="Badged")
+        employee.user_id = user
+        self.assertNotEqual(employee.partner_id, former)
+        self.assertEqual(employee.barcode, "041000000002")
+        self.assertEqual(employee.identification_id, "NIN-2")
+        self.assertEqual(
+            self.env["hr.employee"].search([("barcode", "=", "041000000002")]), employee
+        )
+        self.assertFalse(former.identifier_ids)
+
+    def test_a_timezone_given_at_create_reaches_the_party(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "Zoned", "tz": "Europe/Brussels"}
+        )
+        self.assertEqual(employee.partner_id.tz, "Europe/Brussels")
+        self.assertEqual(employee.resource_id.tz, "Europe/Brussels")
+
     def test_clearing_a_value_removes_its_row(self):
         employee = self.env["hr.employee"].create({"name": "Ident Clear", "ssnid": "1"})
         self.assertIn("SSN", self._rows(employee))

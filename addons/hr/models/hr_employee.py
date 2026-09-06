@@ -722,9 +722,6 @@ class HrEmployee(models.Model):
 
     @api.model
     def _follow_company_calendar(self, company_id, vals_list):
-        # The working-hours default is the current company's calendar, taken
-        # before the record's company is known; an employee of another company
-        # gets that company's calendar instead, never a calendar it cannot use.
         default_calendar = self.env.company.resource_calendar_id
         if company_id == self.env.company.id or not default_calendar.company_id:
             return
@@ -753,6 +750,11 @@ class HrEmployee(models.Model):
                 (idx, vals)
             )
         index_per_employee = {}
+        party_tz = {}
+        for company_vals_list in vals_per_company.values():
+            for idx, vals in company_vals_list:
+                if vals.get("tz"):
+                    party_tz[idx] = vals["tz"]
         employees = self.env["hr.employee"]
         for company, company_vals_list in vals_per_company.items():
             idxs, company_vals_list = zip(*company_vals_list, strict=True)
@@ -765,8 +767,12 @@ class HrEmployee(models.Model):
         employees = employees.sorted(key=lambda employee: index_per_employee[employee])
         employees._bind_resource_to_party()
         for employee in employees:
-            if address_vals := private_address_vals.get(index_per_employee[employee]):
+            idx = index_per_employee[employee]
+            if address_vals := private_address_vals.get(idx):
                 employee.write(address_vals)
+            tz = party_tz.get(idx)
+            if tz and employee.partner_id and not employee.partner_id.tz:
+                employee.partner_id.tz = tz
         employees.version_id._check_fields(["employee_id"])
         if self.env.context.get("salary_simulation"):
             return employees
@@ -828,10 +834,6 @@ class HrEmployee(models.Model):
         )
         versions.invalidate_recordset(["employee_id", "write_date", "write_uid"])
         versions.modified(["employee_id"])
-        # Binding the employee marks every field depending on it for recompute,
-        # transitively (company -> structure type -> pay schedule); a value
-        # this create was given explicitly must survive that, as it would
-        # survive the version's own create.
         for version in versions:
             for fname in explicit_version_fields[version.id]:
                 field = version._fields[fname]
@@ -842,8 +844,6 @@ class HrEmployee(models.Model):
     def write(self, vals):
         vals = dict(vals)
         if vals.get("company_id") and "resource_calendar_id" not in vals:
-            # Moving an employee to another company moves the working hours
-            # with it: a calendar owned by the old company stays behind.
             company = self.env["res.company"].browse(vals["company_id"])
             moving = self.filtered(
                 lambda employee: (
@@ -883,11 +883,13 @@ class HrEmployee(models.Model):
                     )
                 )
         new_vals, version_vals = self._split_employee_and_version_vals(vals)
+        former_parties = {employee: employee.partner_id for employee in self}
         res = super().write(new_vals)
         if "partner_id" in vals:
             self._update_bank_account_contact(vals["partner_id"])
             self._reparent_private_address()
             self._bind_resource_to_party()
+            self._move_identifiers_to_party(former_parties)
         if version_vals:
             version_vals["last_modified_date"] = fields.Datetime.now()
             version_vals["last_modified_uid"] = self.env.uid
@@ -2920,6 +2922,25 @@ class HrEmployee(models.Model):
             contact = employee.partner_id
             if home and contact and home.parent_id != contact:
                 home.parent_id = contact
+
+    def _move_identifiers_to_party(self, former_parties):
+        # The identifiers are the person's; when the employee's party changes
+        # (a login is linked), they follow, like the facet and the bank accounts.
+        codes = set(self._IDENTIFIER_TYPES.values())
+        for employee in self:
+            former = former_parties.get(employee)
+            party = employee.partner_id
+            if not former or not party or former == party:
+                continue
+            held = {
+                identifier.type_id.code for identifier in party.sudo().identifier_ids
+            }
+            wanted = codes - held
+            to_move = former.sudo().identifier_ids.filtered(
+                lambda identifier, wanted=wanted: identifier.type_id.code in wanted
+            )
+            if to_move:
+                to_move.partner_id = party.id
 
     def _update_bank_account_contact(self, partner_id):
         accounts_sudo = (
