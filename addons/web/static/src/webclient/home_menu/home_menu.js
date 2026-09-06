@@ -166,12 +166,12 @@ export class HomeMenu extends Component {
         this._registerHotkeys();
 
         useSortable({
-            enable: this._enableAppsSorting,
+            enable: () => this._enableAppsSorting(),
             // Params
             ref: this.rootRef,
             elements: ".o_draggable",
+            ignore: ".o_app_edit_actions",
             cursor: "move",
-            delay: 500,
             // Hooks
             onWillStartDrag: (params) => this._sortStart(params),
             onDrop: (params) => this._sortAppDrop(params),
@@ -506,8 +506,10 @@ export class HomeMenu extends Component {
         }
     }
 
+    // Rearranging is an edit, like pinning: outside the edit mode a slow
+    // click stays a click.
     _enableAppsSorting() {
-        return true;
+        return this.state.editing;
     }
 
     /** @returns {boolean} */

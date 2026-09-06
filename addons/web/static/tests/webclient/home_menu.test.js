@@ -281,11 +281,9 @@ test("Reorder apps in home menu using drag and drop", async () => {
         };
     });
     await mountWebClient({ WebClient: WebClient });
+    await click(".o_home_menu_customize");
+    await animationFrame();
     const { moveTo, drop } = await drag(".o_draggable:first-child");
-    await advanceTime(250);
-    expect(".o_draggable:first-child a").not.toHaveClass("o_dragged_app");
-    await advanceTime(250);
-    expect(".o_draggable:first-child a").toHaveClass("o_dragged_app");
     await moveTo(".o_draggable:first-child", {
         position: {
             x: 70,
@@ -735,4 +733,20 @@ test("tiles show the counts the badge providers answer with, summed", async () =
     expect(".o_app_badge").toHaveCount(0, {
         message: "the edit buttons take the corner",
     });
+});
+
+test("outside the edit mode a hold on a tile is not a drag", async () => {
+    onRpc("set_res_users_settings", () => {
+        expect.step("set_res_users_settings");
+        return {};
+    });
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    const { moveTo, drop } = await drag(".o_draggable:first-child");
+    await advanceTime(600);
+    expect(".o_dragged_app").toHaveCount(0);
+    await moveTo(".o_draggable:eq(2)");
+    await drop(".o_draggable:eq(2)");
+    await animationFrame();
+    expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.1");
+    expect.verifySteps([]);
 });
