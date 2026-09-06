@@ -1,5 +1,9 @@
+from unittest.mock import patch
+
 from dateutil.relativedelta import relativedelta
 
+import odoo.modules.module as odoo_module
+from odoo import api
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Date, Datetime
 from odoo.tests.common import TransactionCase, tagged
@@ -176,6 +180,56 @@ class TestDataRecycle(TransactionCase):
         self.assertEqual(len(self.recycle_model.recycle_record_ids), 4)
         self.assertNotIn(
             "**Record Deleted**", self.recycle_model.recycle_record_ids.mapped("name")
+        )
+
+    def test_a_stale_only_pass_survives_a_later_rules_crash(self):
+        """A rule's own reconciled stale-delete must not be lost to a crash in
+        a DIFFERENT, later rule of the same cron pass -- and the transaction
+        rollback that follows it -- when this rule itself proposed no new
+        candidates and so never took the batch-loop's own commit."""
+        self.recycle_model._recycle_records()
+        stale_res_id = self.old_servers[0].id
+        self.old_servers[0].unlink()
+
+        crashing_rule = self.env["data_recycle.model"].create(
+            {
+                "name": "ZZZ Crashes",
+                "res_model_id": self.server_model.id,
+                "recycle_action": "unlink",
+                "domain": "[('id', '>', 0)]",
+            }
+        )
+
+        Model = type(self.recycle_model)
+        original_recycle_records = Model._recycle_records
+
+        def crash_for_the_crashing_rule(model_self, batch_commits=False):
+            if model_self.id == crashing_rule.id:
+                raise ZeroDivisionError("forced failure for this test")
+            return original_recycle_records(model_self, batch_commits=batch_commits)
+
+        self.env.flush_all()
+        # `_cron_recycle_records` only takes its commit/rollback branches
+        # outside of a test run, and a `TransactionCase` cursor forbids both
+        # outright -- so exercise them on a real, registry-test-mode cursor
+        # with that guard patched off, the same way core's own `ir.cron`
+        # tests do for code that commits mid-run. The cursor must be opened
+        # while `current_test` is still set -- `TestCursor` itself asserts
+        # that on open -- so the patch only wraps the call, not the `with`.
+        with self.enter_registry_test_mode(), self.registry.cursor() as cr:
+            env = api.Environment(cr, self.env.uid, self.env.context)
+            with (
+                patch.object(odoo_module, "current_test", False),
+                patch.object(Model, "_recycle_records", crash_for_the_crashing_rule),
+            ):
+                env["data_recycle.model"].search([])._cron_recycle_records()
+
+        self.recycle_model.invalidate_recordset()
+        self.assertNotIn(
+            stale_res_id,
+            self.recycle_model.recycle_record_ids.mapped("res_id"),
+            "the crashing rule's failure must not roll back this rule's own, "
+            "already-decided stale-record cleanup",
         )
 
     def test_a_discarded_record_is_not_proposed_again(self):
