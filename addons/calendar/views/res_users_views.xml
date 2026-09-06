@@ -24,9 +24,14 @@
             <field name="inherit_id" ref="base.view_users_form" />
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='tz']" position="after">
+                    <!-- write() raises for anyone but the record's own user,
+                         admin included (see res_users.py:write), so this is
+                         readonly here except when this admin form happens to
+                         show the viewer's own record; the field must never be
+                         editable only to fail silently looking on save. -->
                     <field
                         name="calendar_default_privacy"
-                        readonly="0"
+                        readonly="id != uid"
                         string="Privacy"
                         invisible="share" />
                 </xpath>
