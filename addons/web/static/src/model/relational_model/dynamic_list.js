@@ -12,6 +12,7 @@ import { EditableListDataPoint } from "./editable_list_datapoint.js";
 import { getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { RelationalRecord } from "./record.js";
+import { formatServerValue } from "./record_value_transforms.js";
 import { resequenceRecords } from "./resequence.js";
 import { computeNextOrderBy } from "./static_list_utils.js";
 
@@ -22,6 +23,30 @@ const DEFAULT_HANDLE_FIELD = "sequence";
 /**
  * @abstract
  */
+/**
+ * Whether `value` would save as what the record already holds. A many2one
+ * with a renamed display name is a change, as the single-record update path
+ * treats it (Record._pruneUnchangedMany2ones).
+ *
+ * @param {{ type: string }} field
+ * @param {any} value
+ * @param {any} current
+ * @returns {boolean}
+ */
+function isSameStoredValue(field, value, current) {
+    if (field.type === "many2one") {
+        return (
+            Boolean(value) === Boolean(current) &&
+            (!value ||
+                (value.id === current.id &&
+                    value.display_name === current.display_name))
+        );
+    }
+    return (
+        formatServerValue(field.type, value) === formatServerValue(field.type, current)
+    );
+}
+
 export class DynamicList extends EditableListDataPoint {
     /**
      * @type {DataPoint["setup"]}
@@ -537,7 +562,34 @@ export class DynamicList extends EditableListDataPoint {
         }
     }
 
+    /**
+     * A multi-edit does not write the record locally until it is confirmed,
+     * so a widget re-applying its value while the confirmation is pending
+     * (a date picker closing behind the dialog) queues a second update that
+     * runs after the first saved, with the same value the record now holds.
+     * Such a field would only ask the user again.
+     *
+     * @param {import("./record").RelationalRecord} editedRecord
+     * @param {Record<string, any>} changes
+     * @returns {Record<string, any>}
+     */
+    _dropUnchangedMultiEditValues(editedRecord, changes) {
+        const kept = {};
+        for (const [fieldName, value] of Object.entries(changes)) {
+            const field = this.fields[fieldName];
+            if (
+                !field ||
+                isX2Many(field) ||
+                !isSameStoredValue(field, value, editedRecord.data[fieldName])
+            ) {
+                kept[fieldName] = value;
+            }
+        }
+        return kept;
+    }
+
     async multiSaveLocked(editedRecord, changes) {
+        changes = this._dropUnchangedMultiEditValues(editedRecord, changes);
         if (!Object.keys(changes).length || editedRecord === this._recordToDiscard) {
             return;
         }
