@@ -247,6 +247,7 @@
                 string="Sales Orders"
                 class="o_sale_order"
                 sample="1"
+                multi_edit="1"
                 decoration-muted="state == 'cancel'">
                 <header>
                     <button
