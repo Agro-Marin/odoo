@@ -1,4 +1,11 @@
+import uuid
+
 from odoo.libs.intervals import Intervals
+
+
+def generate_calendar_token():
+    """A random token for the `calendar` auth method (invitations, videocalls)."""
+    return uuid.uuid4().hex
 
 
 def interval_from_events(event_ids):
