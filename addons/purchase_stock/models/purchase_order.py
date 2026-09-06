@@ -446,6 +446,17 @@ class PurchaseOrder(models.Model):
         return wh_stock_loc
 
     @api.model
+    def _get_stock_origin(self):
+        """Origin for the receipt and its moves.
+
+        The warehouse receives against the vendor's own delivery note, so its
+        reference belongs next to ours.
+        """
+        self.check_singleton()
+        if self.partner_ref:
+            return f"{self.name} - {self.partner_ref}"
+        return self.name
+
     def _get_orders_to_remind(self):
         return super()._get_orders_to_remind().filtered(lambda p: not p.date_effective)
 
@@ -591,7 +602,7 @@ class PurchaseOrder(models.Model):
             "picking_type_id": self.picking_type_id.id,
             "partner_id": self.partner_id.id,
             "user_id": False,
-            "origin": self.name,
+            "origin": self._get_stock_origin(),
             "location_dest_id": self._get_location_destination_record().id,
             "location_id": self.partner_id.property_stock_supplier.id,
             "company_id": self.company_id.id,
