@@ -447,6 +447,27 @@ class TestIrModelEdition(TransactionCase):
             upsert_en(IrModel, ["model", "name"], [], conflict=["model"]), []
         )
 
+    def test_upsert_en_inserts_on_integer_conflict_columns(self):
+        from odoo.addons.base.models.ir_model_common import upsert_en
+
+        IrModel = self.env["ir.model"]
+        company = IrModel._get("res.company")
+        partner = IrModel._get("res.partner")
+        partner_field = self.env["ir.model.fields"]._get("res.company", "partner_id")
+        Inherit = self.env["ir.model.inherit"]
+        self.assertFalse(
+            Inherit.search(
+                [("model_id", "=", company.id), ("parent_id", "=", partner.id)]
+            )
+        )
+        [inherit_id] = upsert_en(
+            Inherit,
+            ["model_id", "parent_id", "parent_field_id"],
+            [(company.id, partner.id, partner_field.id)],
+            conflict=["model_id", "parent_id"],
+        )
+        self.assertEqual(Inherit.browse(inherit_id).parent_field_id, partner_field)
+
     def test_make_compute_filters_blank_dependencies(self):
         from odoo.addons.base.models.ir_model_common import prepare_compute
 

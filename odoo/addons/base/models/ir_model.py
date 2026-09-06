@@ -541,6 +541,14 @@ class IrModelInherit(models.Model):
         module_mapping = defaultdict(OrderedSet)
         for model_name, classes in definitions.items():
             model_id = get_model_id(model_name)
+            if model_id is None:
+                # In the registry but not in ir_model: the model's module was
+                # not part of this load, and its own update reflects it.
+                _logger.debug(
+                    "Inheritance of %r not reflected: no ir_model row yet",
+                    model_name,
+                )
+                continue
             get_field_id = (
                 self.env["ir.model.fields"]._get_ids_by_name(model_name).get
                 if any(cls._inherits for cls in classes)

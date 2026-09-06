@@ -128,8 +128,8 @@ class SaleOrderLine(models.Model):
     price_unit_auto = fields.Float(
         string="Automatic Price",
         min_display_digits="Product Price",
-        compute=False,
-        precompute=False,
+        compute="_compute_price_and_discount",
+        precompute=True,
         store=True,
         copy=True,
         help="Price from pricelist. Compared with price_unit to detect manual overrides. "
@@ -280,8 +280,12 @@ class SaleOrderLine(models.Model):
                 continue
 
             if orig_price is not None:
+                # The shadow keeps the automatic price the precompute found, so
+                # an explicit price that differs from it is manual from the
+                # start, exactly as one set by write would be.
                 vals["price_unit"] = orig_price
-                vals["price_unit_auto"] = orig_price
+                if vals.get("price_unit_auto") is None:
+                    vals["price_unit_auto"] = orig_price
             elif orig_auto is not None:
                 vals["price_unit"] = orig_auto
                 vals["price_unit_auto"] = orig_auto

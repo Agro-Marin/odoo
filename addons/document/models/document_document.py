@@ -1735,7 +1735,9 @@ class DocumentsDocument(models.Model):
         decoded = self.attachment_id._get_pdf_raw() if self.attachment_id else None
         if decoded is None:
             return None
-        if modules.module.current_test and b"<!DOCTYPE html>" in decoded[:32]:
+        if modules.module.current_test and not decoded.lstrip().startswith(b"%PDF"):
+            # Without wkhtmltopdf a test run renders reports as HTML; a
+            # document with no PDF header cannot have pages to count.
             _logger.info(
                 "Skip _get_is_multipage of %r: html content detected in pdf document while in testing mode",
                 self.name,
