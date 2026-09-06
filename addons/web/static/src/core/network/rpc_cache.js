@@ -455,6 +455,150 @@ export class RPCCache {
     }
 
     /**
+     * Issue the request behind a cache slot: settle from RAM or disk first
+     * when there is a stale value, then from the network, and publish the
+     * result to the slot, the disk and every subscribed callback.
+     *
+     * @param {string} table
+     * @param {string} key
+     * @param {function} fallback
+     * @param {{ crypto: Crypto, indexedDB: IndexedDB } | null} useDisk
+     * @param {Promise<any> | undefined} ramValue
+     * @param {{ callbacks: { callback: Function, shape: Function }[], invalidated: boolean, model?: string, table?: string }} request
+     * @param {{ model?: string, silent: boolean }} options
+     * @returns {Promise<any>}
+     */
+    _issue(table, key, fallback, useDisk, ramValue, request, { model, silent }) {
+        const requestKey = `${table}/${key}`;
+        return new Promise((resolve, reject) => {
+            const fromCache = new Deferred();
+            /** @type {any} */
+            let fromCacheValue;
+            let hasCacheValue = false;
+            const onFulfilled = (/** @type {any} */ result) => {
+                resolve(result);
+                const hasChanged =
+                    hasCacheValue &&
+                    request.callbacks.length > 0 &&
+                    payloadChanged(fromCacheValue, result);
+                if (
+                    !request.invalidated &&
+                    this.pendingRequests[requestKey] === request
+                ) {
+                    delete this.pendingRequests[requestKey];
+                    this.ramCache.write(table, key, Promise.resolve(result), model);
+                    if (useDisk) {
+                        this._writeToDisk(useDisk, table, key, result, {
+                            model,
+                            request,
+                        });
+                    }
+                }
+                for (const subscriber of request.callbacks) {
+                    try {
+                        subscriber.callback(subscriber.shape(result), hasChanged);
+                    } catch (error) {
+                        console.error("RPC cache: update callback failed", error);
+                    }
+                }
+                return result;
+            };
+            const onRejected = async (/** @type {any} */ error) => {
+                await fromCache;
+                if (
+                    !request.invalidated &&
+                    this.pendingRequests[requestKey] === request
+                ) {
+                    delete this.pendingRequests[requestKey];
+                    if (!hasCacheValue) {
+                        this.ramCache.delete(table, key);
+                    }
+                }
+                if (hasCacheValue) {
+                    if (error instanceof ConnectionAbortedError) {
+                        return;
+                    }
+                    if (error instanceof ConnectionLostError) {
+                        rpcBus.trigger(RpcEvent.BACKGROUND_REFRESH_FAILED, { error });
+                        if (!silent) {
+                            reportUncaught(error);
+                        }
+                    } else {
+                        console.warn("RPC cache: background refresh failed", error);
+                    }
+                    return;
+                }
+                reject(error);
+            };
+            const adoptCached = (/** @type {any} */ value) => {
+                resolve(value);
+                fromCacheValue = value;
+                hasCacheValue = true;
+            };
+            if (ramValue) {
+                ramValue.then(
+                    (/** @type {any} */ value) => {
+                        adoptCached(value);
+                        fromCache.resolve();
+                    },
+                    () => {
+                        this.ramCache.delete(table, key);
+                        fromCache.resolve();
+                    },
+                );
+            } else if (useDisk) {
+                this._readFromDisk(useDisk, table, key)
+                    .then((stored) => {
+                        if (stored !== undefined) {
+                            adoptCached(stored);
+                        }
+                    })
+                    .finally(() => fromCache.resolve());
+            } else {
+                fromCache.resolve();
+            }
+
+            fallback(request).then(onFulfilled, onRejected);
+        });
+    }
+
+    /**
+     * The decrypted value stored for a slot, with its version stamped back
+     * on, or `undefined` when there is none or it cannot be read.
+     *
+     * @param {{ crypto: Crypto, indexedDB: IndexedDB }} useDisk
+     * @param {string} table
+     * @param {string} key
+     * @returns {Promise<any>}
+     */
+    async _readFromDisk({ crypto, indexedDB }, table, key) {
+        let result;
+        try {
+            result = await indexedDB.read(table, key);
+        } catch {
+            return undefined;
+        }
+        if (!result) {
+            return undefined;
+        }
+        let decrypted;
+        try {
+            decrypted = await crypto.decrypt(result);
+        } catch {
+            return undefined;
+        }
+        if (
+            result.version !== undefined &&
+            decrypted &&
+            typeof decrypted === "object" &&
+            decrypted[VERSION_FIELD] === undefined
+        ) {
+            decrypted[VERSION_FIELD] = result.version;
+        }
+        return decrypted;
+    }
+
+    /**
      * @param {string} table
      * @param {string} key
      * @param {function} fallback
@@ -505,116 +649,9 @@ export class RPCCache {
             };
             this.pendingRequests[requestKey] = request;
             onRequestIssued?.(request);
-
-            const prom = new Promise((resolve, reject) => {
-                const fromCache = new Deferred();
-                /** @type {any} */
-                let fromCacheValue;
-                let hasCacheValue = false;
-                const onFulfilled = (/** @type {any} */ result) => {
-                    resolve(result);
-                    const hasChanged =
-                        hasCacheValue &&
-                        request.callbacks.length > 0 &&
-                        payloadChanged(fromCacheValue, result);
-                    if (
-                        !request.invalidated &&
-                        this.pendingRequests[requestKey] === request
-                    ) {
-                        delete this.pendingRequests[requestKey];
-                        this.ramCache.write(table, key, Promise.resolve(result), model);
-                        if (useDisk) {
-                            this._writeToDisk(useDisk, table, key, result, {
-                                model,
-                                request,
-                            });
-                        }
-                    }
-                    for (const subscriber of request.callbacks) {
-                        try {
-                            subscriber.callback(subscriber.shape(result), hasChanged);
-                        } catch (error) {
-                            console.error("RPC cache: update callback failed", error);
-                        }
-                    }
-                    return result;
-                };
-                const onRejected = async (/** @type {any} */ error) => {
-                    await fromCache;
-                    if (
-                        !request.invalidated &&
-                        this.pendingRequests[requestKey] === request
-                    ) {
-                        delete this.pendingRequests[requestKey];
-                        if (!hasCacheValue) {
-                            this.ramCache.delete(table, key);
-                        }
-                    }
-                    if (hasCacheValue) {
-                        if (error instanceof ConnectionAbortedError) {
-                            return;
-                        }
-                        if (error instanceof ConnectionLostError) {
-                            rpcBus.trigger(RpcEvent.BACKGROUND_REFRESH_FAILED, {
-                                error,
-                            });
-                            if (!silent) {
-                                reportUncaught(error);
-                            }
-                        } else {
-                            console.warn("RPC cache: background refresh failed", error);
-                        }
-                        return;
-                    }
-                    reject(error);
-                };
-                if (ramValue) {
-                    ramValue.then(
-                        (/** @type {any} */ value) => {
-                            resolve(value);
-                            fromCacheValue = value;
-                            hasCacheValue = true;
-                            fromCache.resolve();
-                        },
-                        () => {
-                            this.ramCache.delete(table, key);
-                            fromCache.resolve();
-                        },
-                    );
-                } else if (useDisk) {
-                    const { crypto, indexedDB } = useDisk;
-                    indexedDB
-                        .read(table, key)
-                        .then(
-                            async (result) => {
-                                if (result) {
-                                    let decrypted;
-                                    try {
-                                        decrypted = await crypto.decrypt(result);
-                                    } catch {
-                                        return;
-                                    }
-                                    if (
-                                        result.version !== undefined &&
-                                        decrypted &&
-                                        typeof decrypted === "object" &&
-                                        decrypted[VERSION_FIELD] === undefined
-                                    ) {
-                                        decrypted[VERSION_FIELD] = result.version;
-                                    }
-                                    resolve(decrypted);
-                                    fromCacheValue = decrypted;
-                                    hasCacheValue = true;
-                                }
-                            },
-                            () => {},
-                        )
-                        .finally(() => fromCache.resolve());
-                } else {
-                    fromCache.resolve();
-                }
-
-                fallback(request).then(onFulfilled, onRejected);
+            const prom = this._issue(table, key, fallback, useDisk, ramValue, request, {
+                model,
+                silent,
             });
             this.ramCache.write(table, key, prom, model);
             ramValue = prom;

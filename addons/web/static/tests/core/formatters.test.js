@@ -194,6 +194,8 @@ test("formatInteger past the exponential-notation threshold", () => {
 
 test("formatMany2one", () => {
     expect(formatMany2one(false)).toBe("");
+    expect(formatMany2one(/** @type {any} */ (5))).toBe("");
+    expect(formatMany2one(/** @type {any} */ ("x"))).toBe("");
     expect(formatMany2one([false, "M2O value"])).toBe("M2O value");
     expect(formatMany2one([1, false])).toBe("Unnamed");
     expect(formatMany2one([1, "M2O value"])).toBe("M2O value");

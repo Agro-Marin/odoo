@@ -21,7 +21,12 @@ import { FlowEditorStore } from "./flow_editor_store.js";
 import { FlowNode } from "./flow_node.js";
 import { buildConnectionGeometry } from "./geometry/connections.js";
 import { clampScale, screenToWorld } from "./geometry/coordinates.js";
-import { getNodeRect, getNodeSize, getObstacleRects } from "./geometry/nodes.js";
+import {
+    expandRect,
+    getNodeRect,
+    getNodeSize,
+    getObstacleRects,
+} from "./geometry/nodes.js";
 import { DEFAULT_NODE_HEADER_HEIGHT, getPortAnchor } from "./geometry/ports.js";
 import { buildOrthogonalPath } from "./geometry/router.js";
 
@@ -29,6 +34,9 @@ const DEFAULT_NODE_SIZE = { width: 220, height: 120 };
 const DEFAULT_MIN_NODE_SIZE = { width: 120, height: 80 };
 const DEFAULT_MAX_NODE_SIZE = { width: 640, height: 480 };
 const DEFAULT_GRID_SIZE = 20;
+const OBSTACLE_PADDING = 20;
+/** Pointer travel, in screen pixels, that turns a press into a drag. */
+const DRAG_THRESHOLD = 3;
 
 /** Owl's literal-value prop type, so `viewport` accepts an explicit null. */
 /** @type {{ value: null }} */
@@ -240,6 +248,12 @@ export class FlowEditor extends Component {
     suppressNodeClick = false;
     /** @type {number | null} */
     viewportAnimationFrame = null;
+    /**
+     * Resolves to whether the grabbed connection was released by its
+     * consumer, once the gesture has moved far enough to ask.
+     * @type {Promise<boolean> | null}
+     */
+    pendingDetach = null;
 
     setup() {
         this.canvasRef = useRef("canvas");
@@ -311,6 +325,13 @@ export class FlowEditor extends Component {
     }
 
     get connectionGeometries() {
+        const paddedRects = this.store.nodes.map((node) => ({
+            id: node.id,
+            rect: expandRect(
+                getNodeRect(node, this.props.defaultNodeSize),
+                OBSTACLE_PADDING,
+            ),
+        }));
         return this.store.connections
             .map((connection) => {
                 const sourceNode = this.store.getNode(connection.sourceNodeId);
@@ -323,6 +344,7 @@ export class FlowEditor extends Component {
                     sourceNode,
                     targetNode,
                     nodes: this.store.nodes,
+                    paddedRects,
                     defaultNodeSize: this.props.defaultNodeSize,
                     defaultNodeHeaderHeight: this.props.defaultNodeHeaderHeight,
                 });
@@ -374,6 +396,9 @@ export class FlowEditor extends Component {
             return null;
         }
         const draft = interaction.connectionDraft;
+        if (draft.pendingConnectionId !== undefined) {
+            return null;
+        }
         return draft.reconnectSource
             ? this._reconnectDraftGeometry(draft)
             : this._forwardDraftGeometry(draft);
@@ -478,7 +503,7 @@ export class FlowEditor extends Component {
     _draftObstacles(anchoredNodeId) {
         return getObstacleRects(this.store.nodes, {
             defaultSize: this.props.defaultNodeSize,
-            padding: 20,
+            padding: OBSTACLE_PADDING,
             excludedNodeIds: new Set(
                 anchoredNodeId === undefined ? [] : [anchoredNodeId],
             ),
@@ -818,25 +843,50 @@ export class FlowEditor extends Component {
                               targetPortId,
                           }
                         : {}),
+                    // A connection is grabbed, not dropped: it stays until the
+                    // pointer has travelled DRAG_THRESHOLD, so a click on a
+                    // port is not a deletion (the automation canvas unlinks
+                    // the edge server-side in onDisconnect).
+                    ...(connection ? { pendingConnectionId: connection.id } : {}),
                 },
             })
         ) {
             return;
         }
         this.activePointerId = originalEvent.pointerId;
-        if (connection) {
-            const disconnectResult = this.props.onDisconnect({ connection });
-            const disconnected =
-                disconnectResult instanceof Promise
-                    ? await disconnectResult
-                    : disconnectResult;
-            if (disconnected === false) {
+        this.pointerStart = { x: originalEvent.clientX, y: originalEvent.clientY };
+    }
+
+    /**
+     * Ask the consumer to release the grabbed connection and take it out of
+     * the store when it agrees; a veto ends the gesture where it stands.
+     *
+     * @param {import("./flow_types").FlowConnectionDraft} draft
+     * @returns {Promise<boolean>}
+     */
+    async detachPendingConnection(draft) {
+        const connectionId = draft.pendingConnectionId;
+        delete draft.pendingConnectionId;
+        const connection =
+            connectionId === undefined
+                ? undefined
+                : this.store.getConnection(connectionId);
+        if (!connection) {
+            return true;
+        }
+        if ((await this.props.onDisconnect({ connection })) === false) {
+            const interaction = this.store.interaction;
+            if (
+                interaction?.type === "connection_drag" &&
+                interaction.connectionDraft === draft
+            ) {
                 this.store.cancelInteraction();
                 this.resetPointerState();
-                return;
             }
-            this.store.removeConnection(connection.id);
+            return false;
         }
+        this.store.removeConnection(connection.id);
+        return true;
     }
 
     /**
@@ -951,6 +1001,17 @@ export class FlowEditor extends Component {
                 });
             }
         } else if (interaction.type === "connection_drag") {
+            const draft = interaction.connectionDraft;
+            if (draft.pendingConnectionId !== undefined) {
+                const travelled = Math.hypot(
+                    ev.clientX - this.pointerStart.x,
+                    ev.clientY - this.pointerStart.y,
+                );
+                if (travelled <= DRAG_THRESHOLD) {
+                    return;
+                }
+                this.pendingDetach ??= this.detachPendingConnection(draft);
+            }
             const target = interaction.connectionDraft.reconnectSource
                 ? this.getOutputPortAtPoint(ev.clientX, ev.clientY)
                 : this.getInputPortAtPoint(ev.clientX, ev.clientY);
@@ -1021,10 +1082,19 @@ export class FlowEditor extends Component {
             // Connecting two different nodes never hits this: their common
             // ancestor sits above any element with a click handler.
             this.suppressNodeClick = true;
+            const draft = interaction.connectionDraft;
             try {
-                await this.connectToPortAtPointer(interaction.connectionDraft, ev);
+                const detached = this.pendingDetach
+                    ? await this.pendingDetach
+                    : draft.pendingConnectionId === undefined;
+                if (detached && this.store.interaction === interaction) {
+                    await this.connectToPortAtPointer(draft, ev);
+                }
             } finally {
-                this.store.endInteraction();
+                this.pendingDetach = null;
+                if (this.store.interaction === interaction) {
+                    this.store.endInteraction();
+                }
                 this.resetPointerState();
             }
             return;
@@ -1046,6 +1116,7 @@ export class FlowEditor extends Component {
             return;
         }
         const originalEvent = "originalEvent" in ev ? ev.originalEvent : ev;
+        this.pendingDetach = null;
         this.store.cancelInteraction();
         if (interaction.type === "node_drag") {
             this.props.onDrag({
@@ -1134,51 +1205,49 @@ export class FlowEditor extends Component {
     }
 
     /**
+     * The port of the given direction under a screen point, if it belongs to
+     * this canvas and the node it is drawn on really declares it.
+     *
      * @param {number} clientX
      * @param {number} clientY
+     * @param {import("./flow_types").FlowPortDirection} direction
      * @returns {{ node: import("./flow_types").FlowNode, portId: import("./flow_types").FlowPortId } | null}
      */
-    getInputPortAtPoint(clientX, clientY) {
+    getPortAtPoint(clientX, clientY, direction) {
         const portEl = document
             .elementFromPoint(clientX, clientY)
-            ?.closest(".o_flow_editor_port_input");
+            ?.closest(`.o_flow_editor_port_${direction}`);
         if (!portEl || !this.canvasEl?.contains(portEl)) {
             return null;
         }
-        const dataset = /** @type {HTMLElement} */ (portEl).dataset;
-        const node = this.store.nodes.find(
-            (candidate) => String(candidate.id) === dataset.nodeId,
-        );
-        if (
-            !node ||
-            node.input?.id !== dataset.portId ||
-            dataset.portId === undefined
-        ) {
+        const { nodeId, portId } = /** @type {HTMLElement} */ (portEl).dataset;
+        if (portId === undefined) {
             return null;
         }
-        return { node, portId: dataset.portId };
+        const node = this.store.nodes.find(
+            (candidate) => String(candidate.id) === nodeId,
+        );
+        const declared =
+            direction === "input"
+                ? node?.input?.id === portId
+                : node?.outputs.some((output) => output.id === portId);
+        return node && declared ? { node, portId } : null;
     }
 
     /**
      * @param {number} clientX
      * @param {number} clientY
-     * @returns {{ node: import("./flow_types").FlowNode, portId: import("./flow_types").FlowPortId } | null}
+     */
+    getInputPortAtPoint(clientX, clientY) {
+        return this.getPortAtPoint(clientX, clientY, "input");
+    }
+
+    /**
+     * @param {number} clientX
+     * @param {number} clientY
      */
     getOutputPortAtPoint(clientX, clientY) {
-        const portEl = document
-            .elementFromPoint(clientX, clientY)
-            ?.closest(".o_flow_editor_port_output");
-        if (!portEl || !this.canvasEl?.contains(portEl)) {
-            return null;
-        }
-        const dataset = /** @type {HTMLElement} */ (portEl).dataset;
-        const node = this.store.nodes.find(
-            (candidate) => String(candidate.id) === dataset.nodeId,
-        );
-        if (!node?.outputs.some((output) => output.id === dataset.portId)) {
-            return null;
-        }
-        return { node, portId: /** @type {string} */ (dataset.portId) };
+        return this.getPortAtPoint(clientX, clientY, "output");
     }
 
     /**

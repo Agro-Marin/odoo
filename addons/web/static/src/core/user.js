@@ -140,9 +140,7 @@ function makeCompanies(userCompanies, context) {
 
     if (userCompanies) {
         allowedCompanies = Object.values(userCompanies.allowed_companies);
-        allowedCompaniesWithAncestors.push(
-            ...Object.values(userCompanies.allowed_companies),
-        );
+        allowedCompaniesWithAncestors.push(...allowedCompanies);
         if (userCompanies.disallowed_ancestor_companies) {
             allowedCompaniesWithAncestors.push(
                 ...Object.values(userCompanies.disallowed_ancestor_companies),
@@ -310,6 +308,64 @@ function makeAccessRightCache() {
 }
 
 /**
+ * @param {Record<string, any>} settings
+ * @param {string} key
+ * @param {any} value
+ * @param {object} context
+ */
+async function writeUserSetting(settings, key, value, context) {
+    const model = "res.users.settings";
+    const method = "set_res_users_settings";
+    const changedSettings = await rpc(`/web/dataset/call_kw/${model}/${method}`, {
+        model,
+        method,
+        args: [[settings.id]],
+        kwargs: {
+            new_settings: {
+                [key]: value,
+            },
+            context,
+        },
+    });
+    Object.assign(settings, changedSettings);
+}
+
+/**
+ * The company half of the user object, as live getters over the company
+ * state so a reseed after activation is visible through them.
+ *
+ * @param {ReturnType<typeof makeCompanies>} companies
+ */
+function companyFacet(companies) {
+    return {
+        get defaultCompany() {
+            return companies.defaultCompany;
+        },
+        get allowedCompanies() {
+            return companies.allowedCompanies;
+        },
+        get allowedCompaniesWithAncestors() {
+            return companies.allowedCompaniesWithAncestors;
+        },
+        get activeCompanies() {
+            return companies.activeCompanies;
+        },
+        get activeCompany() {
+            return companies.activeCompanies?.[0];
+        },
+        async activateCompanies(
+            /** @type {number[]} */ companyIds,
+            /** @type {Record<string, any>} */ options = {},
+        ) {
+            companies.activate(companyIds, options);
+            if (options.reload ?? true) {
+                browser.location.reload();
+            }
+        },
+    };
+}
+
+/**
  * @param {Record<string, any>} session
  * @returns {UserObject}
  */
@@ -344,7 +400,7 @@ export function _makeUser(session) {
     const accessRights = makeAccessRightCache();
     const lang = pyToJsLocale(context?.lang);
 
-    return {
+    const userObject = {
         _onActiveCompaniesChanged() {
             groups_.reseed();
             accessRights.invalidate();
@@ -393,50 +449,20 @@ export function _makeUser(session) {
                 { cached: !context },
             );
         },
-        async setUserSettings(key, value) {
-            const model = "res.users.settings";
-            const method = "set_res_users_settings";
-            const changedSettings = await rpc(
-                `/web/dataset/call_kw/${model}/${method}`,
-                {
-                    model,
-                    method,
-                    args: [[settings.id]],
-                    kwargs: {
-                        new_settings: {
-                            [key]: value,
-                        },
-                        context: this.context,
-                    },
-                },
-            );
-            Object.assign(settings, changedSettings);
+        setUserSettings(key, value) {
+            return writeUserSetting(settings, key, value, this.context);
         },
         updateUserSettings(key, value) {
             settings[key] = value;
         },
-        get defaultCompany() {
-            return companies.defaultCompany;
-        },
-        get allowedCompanies() {
-            return companies.allowedCompanies;
-        },
-        get allowedCompaniesWithAncestors() {
-            return companies.allowedCompaniesWithAncestors;
-        },
-        get activeCompanies() {
-            return companies.activeCompanies;
-        },
-        get activeCompany() {
-            return companies.activeCompanies?.[0];
-        },
-        async activateCompanies(companyIds, options = {}) {
-            companies.activate(companyIds, options);
-            if (options.reload ?? true) {
-                browser.location.reload();
-            }
-        },
     };
+    // Getters survive only as descriptors; a spread would freeze their values.
+    return /** @type {UserObject} */ (
+        Object.defineProperties(
+            userObject,
+            Object.getOwnPropertyDescriptors(companyFacet(companies)),
+        )
+    );
 }
 
 export const user = _makeUser(session);

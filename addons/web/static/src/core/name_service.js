@@ -7,6 +7,7 @@ import { isId } from "@web/core/tree/utils";
 import { userBus } from "@web/core/user";
 import { unique, zip } from "@web/core/utils/collections/arrays";
 import { Deferred } from "@web/core/utils/concurrency";
+import { LruCache } from "@web/core/utils/lru_cache";
 export const ERROR_INACCESSIBLE_OR_MISSING = Symbol(
     "INACCESSIBLE OR MISSING RECORD ID",
 );
@@ -34,8 +35,8 @@ class NameService {
     constructor(env, { orm }) {
         this.env = env;
         this.orm = orm;
-        /** @type {Map<string, import("@web/core/utils/concurrency").Deferred>} */
-        this.cache = new Map();
+        /** @type {LruCache} */
+        this.cache = new LruCache(NAME_CACHE_LIMIT);
         /**
          * @type {Record<string, { resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]>}
          */
@@ -46,33 +47,8 @@ class NameService {
         userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, this._clearCache);
     }
 
-    /**
-     * @param {string} key
-     * @returns {import("@web/core/utils/concurrency").Deferred | undefined}
-     */
-    cacheGet(key) {
-        const deferred = this.cache.get(key);
-        if (deferred !== undefined) {
-            this.cache.delete(key);
-            this.cache.set(key, deferred);
-        }
-        return deferred;
-    }
-
-    /**
-     * @param {string} key
-     * @param {import("@web/core/utils/concurrency").Deferred} deferred
-     */
-    cacheSet(key, deferred) {
-        this.cache.delete(key);
-        this.cache.set(key, deferred);
-        if (this.cache.size > NAME_CACHE_LIMIT) {
-            this.cache.delete(this.cache.keys().next().value);
-        }
-    }
-
     clearCache() {
-        this.cache = new Map();
+        this.cache.clear();
     }
 
     /**
@@ -85,7 +61,7 @@ class NameService {
             this.cache.get(key)?.resolve(displayNames[resId]);
             const entry = new Deferred();
             entry.resolve(displayNames[resId]);
-            this.cacheSet(key, entry);
+            this.cache.set(key, entry);
         }
     }
 
@@ -96,7 +72,7 @@ class NameService {
      */
     evict(resModel, resId, deferred) {
         const key = cacheKey(resModel, resId);
-        if (this.cache.get(key) === deferred) {
+        if (this.cache.peek(key) === deferred) {
             this.cache.delete(key);
         }
     }
@@ -120,10 +96,10 @@ class NameService {
         }
         for (const resId of uniqueIds) {
             const key = cacheKey(resModel, resId);
-            let deferred = this.cacheGet(key);
+            let deferred = this.cache.get(key);
             if (deferred === undefined) {
                 deferred = new Deferred();
-                this.cacheSet(key, deferred);
+                this.cache.set(key, deferred);
                 entriesToFetch.push({ resId, deferred });
             }
             proms.push(deferred);

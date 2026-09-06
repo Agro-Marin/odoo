@@ -229,8 +229,7 @@ function _useService(serviceName, optional) {
         if (service instanceof Function) {
             return _protectMethod(component, () => services[serviceName]);
         }
-        const methods = SERVICES_METADATA[serviceName] ?? [];
-        return makeGuardedView(component, observed, methods);
+        return makeGuardedView(component, observed, SERVICES_METADATA[serviceName]);
     }
     return observed;
 }

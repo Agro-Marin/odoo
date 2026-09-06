@@ -77,7 +77,7 @@ function evaluateMathematicalExpression(/** @type {string} */ expr) {
  * @returns {import("@web/core/utils/operation").Operation | false}
  */
 function parseOperation(value, parseValueFn) {
-    const match = value.match(getOperationRegex(localization.decimalPoint));
+    const match = value.trim().match(getOperationRegex(localization.decimalPoint));
     if (match?.groups) {
         const operand = parseValueFn(match.groups.operand);
         const operator = match.groups.operator;

@@ -102,26 +102,38 @@ export function htmlJoin(list, separator = "") {
 }
 
 /**
+ * @param {"replace" | "replaceAll"} method
  * @param {any} content
  * @param {any} search
  * @param {any} replacer
  * @returns {Markup}
  */
-export function htmlReplace(content, search, replacer) {
+function escapedReplace(method, content, search, replacer) {
     const isReplacerFn = typeof replacer === "function";
     if (search instanceof RegExp && !isReplacerFn) {
         throw new TypeError(
-            "htmlReplace: replacer must be a function when search is a RegExp.",
+            `html${method[0].toUpperCase()}${method.slice(1)}: replacer must be a function when search is a RegExp.`,
         );
     }
-    content = htmlEscape(content);
+    /** @type {any} */
+    const escaped = htmlEscape(content);
     if (typeof search === "string" || search instanceof String) {
         search = htmlEscape(search);
     }
     const safeReplacement = isReplacerFn
         ? (/** @type {any[]} */ ...args) => htmlEscape(replacer(...args))
         : htmlEscape(replacer);
-    return markup(content.replace(search, safeReplacement));
+    return markup(escaped[method](search, safeReplacement));
+}
+
+/**
+ * @param {any} content
+ * @param {any} search
+ * @param {any} replacer
+ * @returns {Markup}
+ */
+export function htmlReplace(content, search, replacer) {
+    return escapedReplace("replace", content, search, replacer);
 }
 
 /**
@@ -131,20 +143,7 @@ export function htmlReplace(content, search, replacer) {
  * @returns {Markup}
  */
 export function htmlReplaceAll(content, search, replacer) {
-    const isReplacerFn = typeof replacer === "function";
-    if (search instanceof RegExp && !isReplacerFn) {
-        throw new TypeError(
-            "htmlReplaceAll: replacer must be a function when search is a RegExp.",
-        );
-    }
-    content = htmlEscape(content);
-    if (typeof search === "string" || search instanceof String) {
-        search = htmlEscape(search);
-    }
-    const safeReplacement = isReplacerFn
-        ? (/** @type {any[]} */ ...args) => htmlEscape(replacer(...args))
-        : htmlEscape(replacer);
-    return markup(content.replaceAll(search, safeReplacement));
+    return escapedReplace("replaceAll", content, search, replacer);
 }
 
 /**

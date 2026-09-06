@@ -606,6 +606,146 @@ function formatGeneral(num, precision, alt = false) {
     return mantissa + formatExponentSuffix(exponent);
 }
 
+const FORMAT_SPEC_RE = /%(?:\((\w+)\))?([-+ #0]*)(\d+)?(?:\.(\d+))?([a-zA-Z%])/g;
+
+/**
+ * @param {string} str
+ * @param {number} width
+ * @param {boolean} leftAlign
+ * @returns {string}
+ */
+function padSpec(str, width, leftAlign) {
+    if (width <= str.length) {
+        return str;
+    }
+    return leftAlign ? str.padEnd(width) : str.padStart(width);
+}
+
+/**
+ * `%c`: a code point or a one-character string.
+ *
+ * @param {any} arg
+ * @returns {string}
+ */
+function formatCharSpec(arg) {
+    if (typeof arg === "boolean" || Number.isInteger(arg)) {
+        const code = Number(arg);
+        if (code < 0 || code > 0x10ffff) {
+            throw new EvaluationError("OverflowError: %c arg not in range(0x110000)");
+        }
+        return String.fromCodePoint(code);
+    }
+    if (typeof arg === "string") {
+        if ([...arg].length === 1) {
+            return arg;
+        }
+        throw new EvaluationError(
+            `TypeError: %c requires an int or a unicode character, not a string of length ${[...arg].length}`,
+        );
+    }
+    throw new EvaluationError(
+        `TypeError: %c requires an int or a unicode character, not ${pyTypeName(arg)}`,
+    );
+}
+
+/**
+ * The integer conversions `d i u x X o`, without sign or padding.
+ *
+ * @param {string} conv
+ * @param {any} arg
+ * @param {number} num
+ * @param {number | null} precision
+ * @param {boolean} alt
+ * @returns {{ body: string, prefix: string }}
+ */
+function formatIntSpec(conv, arg, num, precision, alt) {
+    if ("xXo".includes(conv) && typeof arg !== "boolean" && !Number.isInteger(num)) {
+        throw new EvaluationError(
+            `TypeError: %${conv} format: an integer is required, not ${pyTypeName(arg)}`,
+        );
+    }
+    const base = conv === "o" ? 8 : conv === "x" || conv === "X" ? 16 : 10;
+    let body = Math.trunc(Math.abs(num)).toString(base);
+    if (conv === "X") {
+        body = body.toUpperCase();
+    }
+    if (precision != null) {
+        body = body.padStart(precision, "0");
+    }
+    const prefix = alt ? { o: "0o", x: "0x", X: "0X" }[conv] || "" : "";
+    return { body, prefix };
+}
+
+/**
+ * The float conversions `f F e E g G`, without sign or padding.
+ *
+ * @param {string} conv
+ * @param {number} num
+ * @param {number | null} precision
+ * @param {boolean} alt
+ * @returns {string}
+ */
+function formatFloatSpec(conv, num, precision, alt) {
+    if (!Number.isFinite(num)) {
+        const body = Number.isNaN(num) ? "nan" : "inf";
+        return conv === "F" || conv === "E" || conv === "G" ? body.toUpperCase() : body;
+    }
+    const magnitude = Math.abs(num);
+    const p = precision != null ? precision : 6;
+    if (conv === "f" || conv === "F") {
+        const body = formatFixed(magnitude, p);
+        return alt && !body.includes(".") ? `${body}.` : body;
+    }
+    if (conv === "e" || conv === "E") {
+        const body = formatExponential(magnitude, p, alt);
+        return conv === "E" ? body.toUpperCase() : body;
+    }
+    const body = formatGeneral(magnitude, p, alt);
+    return conv === "G" ? body.toUpperCase() : body;
+}
+
+/**
+ * One numeric replacement field, sign, prefix and padding included.
+ *
+ * @param {string} conv
+ * @param {any} arg
+ * @param {string} flags
+ * @param {number} width
+ * @param {number | null} precision
+ * @returns {string}
+ */
+function formatNumberSpec(conv, arg, flags, width, precision) {
+    if (typeof arg !== "number" && typeof arg !== "boolean") {
+        throw new EvaluationError(
+            `TypeError: %${conv} format: a number is required, not '${pyTypeName(arg)}'`,
+        );
+    }
+    const num = Number(arg);
+    if (!Number.isFinite(num) && "diu".includes(conv)) {
+        throw new EvaluationError(
+            Number.isNaN(num)
+                ? "ValueError: cannot convert float NaN to integer"
+                : "OverflowError: cannot convert float infinity to integer",
+        );
+    }
+    const sign =
+        num < 0 ? "-" : flags.includes("+") ? "+" : flags.includes(" ") ? " " : "";
+    const alt = flags.includes("#");
+    let prefix = "";
+    let body;
+    if ("diuxXo".includes(conv)) {
+        ({ body, prefix } = formatIntSpec(conv, arg, num, precision, alt));
+    } else {
+        body = formatFloatSpec(conv, num, precision, alt);
+    }
+    const str = sign + prefix + body;
+    if (width > str.length && !flags.includes("-") && flags.includes("0")) {
+        const head = sign + prefix;
+        return head + body.padStart(width - head.length, "0");
+    }
+    return padSpec(str, width, flags.includes("-"));
+}
+
 /**
  * @param {string} fmt
  * @param {any} value
@@ -616,7 +756,7 @@ function pyStringFormat(fmt, value) {
     const isMapping = isPyMapping(value);
     let i = 0;
     const formatted = fmt.replace(
-        /%(?:\((\w+)\))?([-+ #0]*)(\d+)?(?:\.(\d+))?([a-zA-Z%])/g,
+        FORMAT_SPEC_RE,
         (m, mapKey, flags, width, prec, conv) => {
             if (conv === "%") {
                 return "%";
@@ -636,12 +776,7 @@ function pyStringFormat(fmt, value) {
                 }
                 arg = values[i++];
             }
-            if (
-                conv !== "s" &&
-                conv !== "r" &&
-                conv !== "c" &&
-                !"diufFeEgGxXo".includes(conv)
-            ) {
+            if (!"srcdiufFeEgGxXo".includes(conv)) {
                 throw new EvaluationError(
                     `ValueError: unsupported format character '${conv}' (0x${conv
                         .charCodeAt(0)
@@ -651,137 +786,17 @@ function pyStringFormat(fmt, value) {
             const precision = prec != null ? Number(prec) : null;
             const w = width ? Number(width) : 0;
             const leftAlign = flags.includes("-");
-
             if (conv === "c") {
-                let str;
-                if (typeof arg === "boolean" || Number.isInteger(arg)) {
-                    const code = Number(arg);
-                    if (code < 0 || code > 0x10ffff) {
-                        throw new EvaluationError(
-                            "OverflowError: %c arg not in range(0x110000)",
-                        );
-                    }
-                    str = String.fromCodePoint(code);
-                } else if (typeof arg === "string" && [...arg].length === 1) {
-                    str = arg;
-                } else if (typeof arg === "string") {
-                    throw new EvaluationError(
-                        `TypeError: %c requires an int or a unicode character, not a string of length ${[...arg].length}`,
-                    );
-                } else {
-                    throw new EvaluationError(
-                        `TypeError: %c requires an int or a unicode character, not ${pyTypeName(arg)}`,
-                    );
-                }
-                if (w > str.length) {
-                    str = leftAlign ? str.padEnd(w) : str.padStart(w);
-                }
-                return str;
+                return padSpec(formatCharSpec(arg), w, leftAlign);
             }
-
             if (conv === "s" || conv === "r") {
                 let str = conv === "s" ? pyStr(arg) : pyRepr(arg);
                 if (precision != null) {
                     str = str.slice(0, precision);
                 }
-                if (w > str.length) {
-                    str = leftAlign ? str.padEnd(w) : str.padStart(w);
-                }
-                return str;
+                return padSpec(str, w, leftAlign);
             }
-
-            if (typeof arg !== "number" && typeof arg !== "boolean") {
-                throw new EvaluationError(
-                    `TypeError: %${conv} format: a number is required, not '${pyTypeName(arg)}'`,
-                );
-            }
-            const num = Number(arg);
-            const sign =
-                num < 0
-                    ? "-"
-                    : flags.includes("+")
-                      ? "+"
-                      : flags.includes(" ")
-                        ? " "
-                        : "";
-            let prefix = "";
-            let body;
-            const zeroPad = flags.includes("0");
-            const alt = flags.includes("#");
-            const isIntConv = "diuxXo".includes(conv);
-            if (!Number.isFinite(num) && "diu".includes(conv)) {
-                throw new EvaluationError(
-                    Number.isNaN(num)
-                        ? "ValueError: cannot convert float NaN to integer"
-                        : "OverflowError: cannot convert float infinity to integer",
-                );
-            }
-            if (isIntConv) {
-                if (
-                    "xXo".includes(conv) &&
-                    typeof arg !== "boolean" &&
-                    !Number.isInteger(num)
-                ) {
-                    throw new EvaluationError(
-                        `TypeError: %${conv} format: an integer is required, not ${pyTypeName(arg)}`,
-                    );
-                }
-                const base = conv === "o" ? 8 : conv === "x" || conv === "X" ? 16 : 10;
-                body = Math.trunc(Math.abs(num)).toString(base);
-                if (conv === "X") {
-                    body = body.toUpperCase();
-                }
-                if (precision != null) {
-                    body = body.padStart(precision, "0");
-                }
-                if (alt) {
-                    prefix =
-                        conv === "o"
-                            ? "0o"
-                            : conv === "x"
-                              ? "0x"
-                              : conv === "X"
-                                ? "0X"
-                                : "";
-                }
-            } else if (!Number.isFinite(num)) {
-                body = Number.isNaN(num) ? "nan" : "inf";
-                if (conv === "F" || conv === "E" || conv === "G") {
-                    body = body.toUpperCase();
-                }
-            } else {
-                const magnitude = Math.abs(num);
-                const p = precision != null ? precision : 6;
-                if (conv === "f" || conv === "F") {
-                    body = formatFixed(magnitude, p);
-                    if (alt && !body.includes(".")) {
-                        body += ".";
-                    }
-                } else if (conv === "e" || conv === "E") {
-                    body = formatExponential(magnitude, p, alt);
-                    if (conv === "E") {
-                        body = body.toUpperCase();
-                    }
-                } else {
-                    body = formatGeneral(magnitude, p, alt);
-                    if (conv === "G") {
-                        body = body.toUpperCase();
-                    }
-                }
-            }
-
-            let str = sign + prefix + body;
-            if (w > str.length) {
-                if (leftAlign) {
-                    str = str.padEnd(w);
-                } else if (zeroPad) {
-                    const head = sign + prefix;
-                    str = head + body.padStart(w - head.length, "0");
-                } else {
-                    str = str.padStart(w);
-                }
-            }
-            return str;
+            return formatNumberSpec(conv, arg, flags, w, precision);
         },
     );
     if (!isMapping && i < values.length) {
@@ -840,6 +855,282 @@ const COMPARISONS = {
 };
 
 /**
+ * @param {string} op
+ * @param {any} left
+ * @param {any} right
+ * @returns {never}
+ */
+function unsupportedOperands(op, left, right) {
+    throw new EvaluationError(
+        `unsupported operand type(s) for ${op}: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+    );
+}
+
+/**
+ * @param {any} value
+ * @returns {boolean}
+ */
+function isNumeric(value) {
+    return typeof value === "number" || typeof value === "boolean";
+}
+
+/**
+ * @param {any} left
+ * @param {any} right
+ * @returns {any}
+ */
+function pyAdd(left, right) {
+    const relativeDeltaOnLeft = left instanceof PyRelativeDelta;
+    const relativeDeltaOnRight = right instanceof PyRelativeDelta;
+    if (relativeDeltaOnLeft || relativeDeltaOnRight) {
+        const date = relativeDeltaOnLeft ? right : left;
+        const delta = relativeDeltaOnLeft ? left : right;
+        return PyRelativeDelta.add(date, delta);
+    }
+    const timeDeltaOnLeft = left instanceof PyTimeDelta;
+    const timeDeltaOnRight = right instanceof PyTimeDelta;
+    if (timeDeltaOnLeft && timeDeltaOnRight) {
+        return left.add(right);
+    }
+    if (timeDeltaOnLeft || timeDeltaOnRight) {
+        const date = timeDeltaOnLeft ? right : left;
+        const delta = timeDeltaOnLeft ? left : right;
+        if (!(date instanceof PyDate) && !(date instanceof PyDateTime)) {
+            unsupportedOperands("+", left, right);
+        }
+        return date.add(delta);
+    }
+    if (Array.isArray(left) && Array.isArray(right)) {
+        return [...left, ...right];
+    }
+    if (typeof left === "string" && typeof right === "string") {
+        return left + right;
+    }
+    if (isNumeric(left) && isNumeric(right)) {
+        return /** @type {number} */ (left) + /** @type {number} */ (right);
+    }
+    return unsupportedOperands("+", left, right);
+}
+
+/**
+ * @param {any} left
+ * @param {any} right
+ * @returns {any}
+ */
+function pySub(left, right) {
+    if (right instanceof PyRelativeDelta) {
+        return PyRelativeDelta.subtract(left, right);
+    }
+    if (right instanceof PyTimeDelta) {
+        if (
+            left instanceof PyTimeDelta ||
+            left instanceof PyDate ||
+            left instanceof PyDateTime
+        ) {
+            return left.subtract(right);
+        }
+        unsupportedOperands("-", left, right);
+    }
+    if (left instanceof PyDateTime) {
+        if (!(right instanceof PyDateTime)) {
+            unsupportedOperands("-", left, right);
+        }
+        return left.subtract(right);
+    }
+    if (left instanceof PyDate) {
+        if (!(right instanceof PyDate)) {
+            unsupportedOperands("-", left, right);
+        }
+        return left.subtract(right);
+    }
+    if (left instanceof Set && right instanceof Set) {
+        return pyDifference(left, right);
+    }
+    assertNumericOperands("-", left, right);
+    return left - right;
+}
+
+/**
+ * @param {any} left
+ * @param {any} right
+ * @returns {any}
+ */
+function pyMul(left, right) {
+    const timeDeltaOnLeft = left instanceof PyTimeDelta;
+    const timeDeltaOnRight = right instanceof PyTimeDelta;
+    if (timeDeltaOnLeft || timeDeltaOnRight) {
+        if (timeDeltaOnLeft && timeDeltaOnRight) {
+            throw new EvaluationError(
+                "unsupported operand type(s) for *: 'timedelta' and 'timedelta'",
+            );
+        }
+        const number = timeDeltaOnLeft ? right : left;
+        const delta = timeDeltaOnLeft ? left : right;
+        assertNumericOperand("*", number);
+        return delta.multiply(number);
+    }
+    const leftSeq = typeof left === "string" || Array.isArray(left);
+    const rightSeq = typeof right === "string" || Array.isArray(right);
+    if (leftSeq !== rightSeq) {
+        const seq = leftSeq ? left : right;
+        const count = leftSeq ? right : left;
+        if (!Number.isInteger(count) && typeof count !== "boolean") {
+            throw new EvaluationError(
+                `can't multiply sequence by non-int of type '${pyTypeName(count)}'`,
+            );
+        }
+        const n = Math.max(0, Math.trunc(Number(count)));
+        if (typeof seq === "string") {
+            return seq.repeat(n);
+        }
+        const result = [];
+        for (let k = 0; k < n; k++) {
+            result.push(...seq);
+        }
+        return result;
+    }
+    assertNumericOperands("*", left, right);
+    return left * right;
+}
+
+/**
+ * `/` and `//`: a timedelta divided by a timedelta or a number, else numbers.
+ *
+ * @param {"/" | "//"} op
+ * @param {any} left
+ * @param {any} right
+ * @returns {any}
+ */
+function pyDivide(op, left, right) {
+    const trueDiv = op === "/";
+    const zero = trueDiv
+        ? "ZeroDivisionError: division by zero"
+        : "ZeroDivisionError: integer division or modulo by zero";
+    if (left instanceof PyTimeDelta) {
+        if (right instanceof PyTimeDelta) {
+            const divisor = right.toMicroseconds();
+            if (divisor === 0) {
+                throw new EvaluationError(zero);
+            }
+            const quotient = left.toMicroseconds() / divisor;
+            return trueDiv ? quotient : Math.floor(quotient);
+        }
+        assertNumericOperand(op, right);
+        if (Number(right) === 0) {
+            throw new EvaluationError(zero);
+        }
+        return trueDiv ? left.divideTrue(Number(right)) : left.divide(Number(right));
+    }
+    assertNumericOperands(op, left, right);
+    if (Number(right) === 0) {
+        throw new EvaluationError(zero);
+    }
+    return trueDiv ? left / right : pyFloorDiv(Number(left), Number(right));
+}
+
+/**
+ * @param {any} left
+ * @param {any} right
+ * @returns {any}
+ */
+function pyModulo(left, right) {
+    if (typeof left === "string") {
+        return pyStringFormat(left, right);
+    }
+    if (left instanceof PyTimeDelta && right instanceof PyTimeDelta) {
+        const rus = right.toMicroseconds();
+        if (rus === 0) {
+            throw new EvaluationError("ZeroDivisionError: modulo by zero");
+        }
+        return PyTimeDelta.create({ microseconds: pyMod(left.toMicroseconds(), rus) });
+    }
+    assertNumericOperands("%", left, right);
+    if (Number(right) === 0) {
+        throw new EvaluationError("ZeroDivisionError: modulo by zero");
+    }
+    return pyMod(Number(left), Number(right));
+}
+
+/**
+ * @param {any} left
+ * @param {any} right
+ * @returns {number}
+ */
+function pyPow(left, right) {
+    assertNumericOperands("**", left, right);
+    if (Number(left) === 0 && Number(right) < 0) {
+        throw new EvaluationError(
+            "ZeroDivisionError: 0.0 cannot be raised to a negative power",
+        );
+    }
+    const power = left ** right;
+    if (!Number.isNaN(left) && !Number.isNaN(right) && Number.isNaN(power)) {
+        throw new EvaluationError(
+            "negative number cannot be raised to a fractional power",
+        );
+    }
+    return power;
+}
+
+/**
+ * `|`, `^`, `&`, `<<`, `>>`: set algebra on two sets, else integer bitwise.
+ *
+ * @param {string} op
+ * @param {any} left
+ * @param {any} right
+ * @returns {any}
+ */
+function pyBitwise(op, left, right) {
+    if (left instanceof Set && right instanceof Set) {
+        switch (op) {
+            case "|":
+                return pyUnion(left, right);
+            case "&":
+                return pyIntersection(left, right);
+            case "^":
+                return pySymmetricDifference(left, right);
+            default:
+                throw new EvaluationError(
+                    `unsupported operand type(s) for ${op}: 'set' and 'set'`,
+                );
+        }
+    }
+    assertIntegerOperands(op, left, right);
+    const l = BigInt(left);
+    const r = BigInt(right);
+    if ((op === "<<" || op === ">>") && r < 0n) {
+        throw new EvaluationError("negative shift count");
+    }
+    /** @type {bigint} */
+    let result;
+    switch (op) {
+        case "|":
+            result = l | r;
+            break;
+        case "^":
+            result = l ^ r;
+            break;
+        case "&":
+            result = l & r;
+            break;
+        case "<<":
+            result = l << r;
+            break;
+        default:
+            result = l >> r;
+    }
+    if (
+        result > BigInt(Number.MAX_SAFE_INTEGER) ||
+        result < BigInt(Number.MIN_SAFE_INTEGER)
+    ) {
+        throw new EvaluationError(
+            `integer result of '${op}' exceeds the safe integer range`,
+        );
+    }
+    return Number(result);
+}
+
+/**
  * @param {import("./ast_type.js").ASTBinaryOperator} ast
  * @param {(ast: AST) => any} recurse
  * @returns {any}
@@ -851,260 +1142,25 @@ function _applyBinaryOp(ast, recurse) {
         return COMPARISONS[ast.op](left, right);
     }
     switch (ast.op) {
-        case "+": {
-            const relativeDeltaOnLeft = left instanceof PyRelativeDelta;
-            const relativeDeltaOnRight = right instanceof PyRelativeDelta;
-            if (relativeDeltaOnLeft || relativeDeltaOnRight) {
-                const date = relativeDeltaOnLeft ? right : left;
-                const delta = relativeDeltaOnLeft ? left : right;
-                return PyRelativeDelta.add(date, delta);
-            }
-
-            const timeDeltaOnLeft = left instanceof PyTimeDelta;
-            const timeDeltaOnRight = right instanceof PyTimeDelta;
-            if (timeDeltaOnLeft && timeDeltaOnRight) {
-                return left.add(right);
-            }
-            if (timeDeltaOnLeft || timeDeltaOnRight) {
-                const date = timeDeltaOnLeft ? right : left;
-                const delta = timeDeltaOnLeft ? left : right;
-                if (!(date instanceof PyDate) && !(date instanceof PyDateTime)) {
-                    throw new EvaluationError(
-                        `unsupported operand type(s) for +: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
-                    );
-                }
-                return date.add(delta);
-            }
-            if (Array.isArray(left) && Array.isArray(right)) {
-                return [...left, ...right];
-            }
-            if (typeof left === "string" && typeof right === "string") {
-                return left + right;
-            }
-            const leftNumeric = typeof left === "number" || typeof left === "boolean";
-            const rightNumeric =
-                typeof right === "number" || typeof right === "boolean";
-            if (leftNumeric && rightNumeric) {
-                return /** @type {number} */ (left) + /** @type {number} */ (right);
-            }
-            throw new EvaluationError(
-                `unsupported operand type(s) for +: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
-            );
-        }
-        case "-": {
-            const isRightDelta = right instanceof PyRelativeDelta;
-            if (isRightDelta) {
-                return PyRelativeDelta.subtract(left, right);
-            }
-
-            const timeDeltaOnRight = right instanceof PyTimeDelta;
-            if (timeDeltaOnRight) {
-                if (
-                    left instanceof PyTimeDelta ||
-                    left instanceof PyDate ||
-                    left instanceof PyDateTime
-                ) {
-                    return left.subtract(right);
-                }
-                throw new EvaluationError(
-                    `unsupported operand type(s) for -: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
-                );
-            }
-
-            if (left instanceof PyDateTime) {
-                if (!(right instanceof PyDateTime)) {
-                    throw new EvaluationError(
-                        `unsupported operand type(s) for -: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
-                    );
-                }
-                return left.subtract(right);
-            }
-            if (left instanceof PyDate) {
-                if (!(right instanceof PyDate)) {
-                    throw new EvaluationError(
-                        `unsupported operand type(s) for -: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
-                    );
-                }
-                return left.subtract(right);
-            }
-            if (left instanceof Set && right instanceof Set) {
-                return pyDifference(left, right);
-            }
-            assertNumericOperands("-", left, right);
-            return left - right;
-        }
-        case "*": {
-            const timeDeltaOnLeft = left instanceof PyTimeDelta;
-            const timeDeltaOnRight = right instanceof PyTimeDelta;
-            if (timeDeltaOnLeft || timeDeltaOnRight) {
-                if (timeDeltaOnLeft && timeDeltaOnRight) {
-                    throw new EvaluationError(
-                        "unsupported operand type(s) for *: 'timedelta' and 'timedelta'",
-                    );
-                }
-                const number = timeDeltaOnLeft ? right : left;
-                const delta = timeDeltaOnLeft ? left : right;
-                assertNumericOperand("*", number);
-                return delta.multiply(number);
-            }
-
-            const leftSeq = typeof left === "string" || Array.isArray(left);
-            const rightSeq = typeof right === "string" || Array.isArray(right);
-            if (leftSeq !== rightSeq) {
-                const seq = leftSeq ? left : right;
-                const count = leftSeq ? right : left;
-                if (!Number.isInteger(count) && typeof count !== "boolean") {
-                    throw new EvaluationError(
-                        `can't multiply sequence by non-int of type '${pyTypeName(count)}'`,
-                    );
-                }
-                const n = Math.max(0, Math.trunc(Number(count)));
-                if (typeof seq === "string") {
-                    return seq.repeat(n);
-                }
-                const result = [];
-                for (let k = 0; k < n; k++) {
-                    result.push(...seq);
-                }
-                return result;
-            }
-
-            assertNumericOperands("*", left, right);
-            return left * right;
-        }
+        case "+":
+            return pyAdd(left, right);
+        case "-":
+            return pySub(left, right);
+        case "*":
+            return pyMul(left, right);
         case "/":
-            if (left instanceof PyTimeDelta) {
-                if (right instanceof PyTimeDelta) {
-                    const divisor = right.toMicroseconds();
-                    if (divisor === 0) {
-                        throw new EvaluationError(
-                            "ZeroDivisionError: division by zero",
-                        );
-                    }
-                    return left.toMicroseconds() / divisor;
-                }
-                assertNumericOperand("/", right);
-                if (Number(right) === 0) {
-                    throw new EvaluationError("ZeroDivisionError: division by zero");
-                }
-                return left.divideTrue(Number(right));
-            }
-            assertNumericOperands("/", left, right);
-            if (Number(right) === 0) {
-                throw new EvaluationError("ZeroDivisionError: division by zero");
-            }
-            return left / right;
-        case "%": {
-            if (typeof left === "string") {
-                return pyStringFormat(left, right);
-            }
-            if (left instanceof PyTimeDelta && right instanceof PyTimeDelta) {
-                const rus = right.toMicroseconds();
-                if (rus === 0) {
-                    throw new EvaluationError("ZeroDivisionError: modulo by zero");
-                }
-                const lus = left.toMicroseconds();
-                return PyTimeDelta.create({ microseconds: pyMod(lus, rus) });
-            }
-            assertNumericOperands("%", left, right);
-            if (Number(right) === 0) {
-                throw new EvaluationError("ZeroDivisionError: modulo by zero");
-            }
-            return pyMod(Number(left), Number(right));
-        }
         case "//":
-            if (left instanceof PyTimeDelta) {
-                if (right instanceof PyTimeDelta) {
-                    const divisor = right.toMicroseconds();
-                    if (divisor === 0) {
-                        throw new EvaluationError(
-                            "ZeroDivisionError: integer division or modulo by zero",
-                        );
-                    }
-                    return Math.floor(left.toMicroseconds() / divisor);
-                }
-                assertNumericOperand("//", right);
-                if (Number(right) === 0) {
-                    throw new EvaluationError(
-                        "ZeroDivisionError: integer division or modulo by zero",
-                    );
-                }
-                return left.divide(Number(right));
-            }
-            assertNumericOperands("//", left, right);
-            if (Number(right) === 0) {
-                throw new EvaluationError(
-                    "ZeroDivisionError: integer division or modulo by zero",
-                );
-            }
-            return pyFloorDiv(Number(left), Number(right));
-        case "**": {
-            assertNumericOperands("**", left, right);
-            if (Number(left) === 0 && Number(right) < 0) {
-                throw new EvaluationError(
-                    "ZeroDivisionError: 0.0 cannot be raised to a negative power",
-                );
-            }
-            const power = left ** right;
-            if (!Number.isNaN(left) && !Number.isNaN(right) && Number.isNaN(power)) {
-                throw new EvaluationError(
-                    "negative number cannot be raised to a fractional power",
-                );
-            }
-            return power;
-        }
+            return pyDivide(ast.op, left, right);
+        case "%":
+            return pyModulo(left, right);
+        case "**":
+            return pyPow(left, right);
         case "|":
         case "^":
         case "&":
         case "<<":
-        case ">>": {
-            if (left instanceof Set && right instanceof Set) {
-                switch (ast.op) {
-                    case "|":
-                        return pyUnion(left, right);
-                    case "&":
-                        return pyIntersection(left, right);
-                    case "^":
-                        return pySymmetricDifference(left, right);
-                    default:
-                        throw new EvaluationError(
-                            `unsupported operand type(s) for ${ast.op}: 'set' and 'set'`,
-                        );
-                }
-            }
-            assertIntegerOperands(ast.op, left, right);
-            const l = BigInt(left);
-            const r = BigInt(right);
-            if ((ast.op === "<<" || ast.op === ">>") && r < 0n) {
-                throw new EvaluationError("negative shift count");
-            }
-            let result;
-            switch (ast.op) {
-                case "|":
-                    result = l | r;
-                    break;
-                case "^":
-                    result = l ^ r;
-                    break;
-                case "&":
-                    result = l & r;
-                    break;
-                case "<<":
-                    result = l << r;
-                    break;
-                default:
-                    result = l >> r;
-            }
-            if (
-                result > BigInt(Number.MAX_SAFE_INTEGER) ||
-                result < BigInt(Number.MIN_SAFE_INTEGER)
-            ) {
-                throw new EvaluationError(
-                    `integer result of '${ast.op}' exceeds the safe integer range`,
-                );
-            }
-            return Number(result);
-        }
+        case ">>":
+            return pyBitwise(ast.op, left, right);
     }
     throw new EvaluationError(`Unknown binary operator: ${ast.op}`);
 }
@@ -1114,9 +1170,19 @@ function _applyBinaryOp(ast, recurse) {
  * @returns {any[]}
  */
 function methods(_class) {
-    return Object.getOwnPropertyNames(_class.prototype)
-        .filter((prop) => prop !== "constructor")
-        .map((prop) => _class.prototype[prop]);
+    const found = [];
+    for (
+        let proto = _class.prototype;
+        proto && proto !== Object.prototype;
+        proto = Object.getPrototypeOf(proto)
+    ) {
+        for (const prop of Object.getOwnPropertyNames(proto)) {
+            if (prop !== "constructor" && typeof proto[prop] === "function") {
+                found.push(proto[prop]);
+            }
+        }
+    }
+    return found;
 }
 
 /**
@@ -1188,212 +1254,268 @@ function attributeOf(table, typeName, key) {
 const unboundFn = Symbol("unbound function");
 
 /**
+ * What one `evaluate()` call carries across its recursion.
+ *
+ * @typedef {{
+ *   context: Record<string, any>,
+ *   dicts: Set<object>,
+ *   callerProvidesContext: boolean,
+ *   pyContext: Record<string, any> | undefined,
+ *   evaluate: (ast: AST) => any,
+ * }} EvalScope
+ */
+
+/**
+ * @param {import("./ast_type.js").ASTName} ast
+ * @param {EvalScope} scope
+ * @returns {any}
+ */
+function evalName(ast, scope) {
+    const name = ast.value;
+    if (name === "context" && !scope.callerProvidesContext) {
+        scope.pyContext ??= toPyDict(scope.context);
+        return scope.pyContext;
+    }
+    if (Object.hasOwn(scope.context, name)) {
+        return scope.context[name];
+    }
+    if (Object.hasOwn(BUILTINS, name)) {
+        return /** @type {Record<string, any>} */ (BUILTINS)[name];
+    }
+    throw new EvaluationError(`Name '${name}' is not defined`);
+}
+
+/**
+ * @param {import("./ast_type.js").ASTChain} ast
+ * @param {EvalScope} scope
+ * @returns {boolean}
+ */
+function evalChain(ast, scope) {
+    let left = scope.evaluate(ast.operands[0]);
+    for (const [index, op] of ast.operators.entries()) {
+        if (!Object.hasOwn(COMPARISONS, op)) {
+            throw new EvaluationError(`Unknown comparison operator: ${op}`);
+        }
+        const right = scope.evaluate(ast.operands[index + 1]);
+        if (!COMPARISONS[op](left, right)) {
+            return false;
+        }
+        left = right;
+    }
+    return true;
+}
+
+/**
+ * @param {import("./ast_type.js").ASTDictionary} ast
+ * @param {EvalScope} scope
+ * @returns {Record<string, any>}
+ */
+function evalDictionary(ast, scope) {
+    /** @type {Record<string, any>} */
+    const dict = {};
+    for (const key of Object.keys(ast.value || {})) {
+        Object.defineProperty(dict, key, {
+            value: scope.evaluate(ast.value[key]),
+            writable: true,
+            enumerable: true,
+            configurable: true,
+        });
+    }
+    scope.dicts.add(dict);
+    return dict;
+}
+
+/**
+ * @param {import("./ast_type.js").ASTFunctionCall} ast
+ * @param {EvalScope} scope
+ * @returns {any}
+ */
+function evalFunctionCall(ast, scope) {
+    const fnValue = scope.evaluate(ast.fn);
+    const args = ast.args.map(scope.evaluate);
+    /** @type {Record<string, any>} */
+    const kwargs = {};
+    for (const kwarg of Object.keys(ast.kwargs || {})) {
+        kwargs[kwarg] = scope.evaluate(ast.kwargs[kwarg]);
+    }
+    if (
+        fnValue === PyDate ||
+        fnValue === PyDateTime ||
+        fnValue === PyTime ||
+        fnValue === PyRelativeDelta ||
+        fnValue === PyTimeDelta
+    ) {
+        return fnValue.create(...args, kwargs);
+    }
+    return fnValue(...args, kwargs);
+}
+
+/**
+ * `target[key]`
+ *
+ * @param {import("./ast_type.js").ASTLookup} ast
+ * @param {EvalScope} scope
+ * @returns {any}
+ */
+function evalLookup(ast, scope) {
+    const dict = scope.evaluate(ast.target);
+    const key = scope.evaluate(ast.key);
+    if (BLOCKED_PROPERTIES.has(key)) {
+        throw new EvaluationError(`Access to '${key}' is forbidden`);
+    }
+    if (typeof dict === "string" || Array.isArray(dict)) {
+        const kind = Array.isArray(dict) ? "list" : "string";
+        if (typeof key !== "number" || !Number.isInteger(key)) {
+            throw new EvaluationError(
+                `${kind} indices must be integers, not '${pyTypeName(key)}'`,
+            );
+        }
+        const value = key < 0 ? dict.at(key) : dict[key];
+        if (value === undefined) {
+            throw new EvaluationError(`IndexError: ${kind} index out of range`);
+        }
+        return value;
+    }
+    if (dict === null || dict === undefined || typeof dict !== "object") {
+        throw new EvaluationError(
+            `TypeError: '${pyTypeName(dict)}' object is not subscriptable`,
+        );
+    }
+    if (isPyMapping(dict) && !Object.hasOwn(dict, key)) {
+        throw new EvaluationError(`KeyError: ${pyRepr(key)}`);
+    }
+    return dict[key];
+}
+
+/**
+ * `obj.key`: a method table for dicts, strings and sets, the value's own
+ * member otherwise, with functions bound to their receiver.
+ *
+ * @param {import("./ast_type.js").ASTObjLookup} ast
+ * @param {EvalScope} scope
+ * @returns {any}
+ */
+function evalObjLookup(ast, scope) {
+    let left = scope.evaluate(ast.obj);
+    let result;
+    if (left === null || left === undefined) {
+        throw new EvaluationError(
+            `AttributeError: 'NoneType' object has no attribute '${ast.key}'`,
+        );
+    }
+    if (scope.dicts.has(left) || isPyDict(left)) {
+        result = attributeOf(DICT, "dict", ast.key);
+    } else if (typeof left === "string") {
+        result = attributeOf(STRING, "str", ast.key);
+    } else if (left instanceof Set) {
+        result = attributeOf(SET, "set", ast.key);
+    } else if (
+        ast.key === "get" &&
+        typeof left === "object" &&
+        left !== null &&
+        !Array.isArray(left)
+    ) {
+        result = /** @type {Record<string, any>} */ (DICT)[ast.key];
+        left = toPyDict(left);
+    } else {
+        if (BLOCKED_PROPERTIES.has(ast.key)) {
+            throw new EvaluationError(`Access to '${ast.key}' is forbidden`);
+        }
+        if (isPyValue(left) && !(ast.key in Object(left))) {
+            throw new EvaluationError(
+                `AttributeError: '${pyTypeName(left)}' object has no attribute '${ast.key}'`,
+            );
+        }
+        result = left[ast.key];
+    }
+    if (typeof result === "function" && !isConstructor(result)) {
+        const bound = result.bind(left);
+        bound[unboundFn] = result;
+        return bound;
+    }
+    return result;
+}
+
+/**
+ * @param {AST} ast
+ * @param {EvalScope} scope
+ * @returns {any}
+ */
+function evalNode(ast, scope) {
+    switch (ast.type) {
+        case ASTType.Number:
+        case ASTType.String:
+        case ASTType.Boolean:
+            return ast.value;
+        case ASTType.None:
+            return null;
+        case ASTType.Name:
+            return evalName(ast, scope);
+        case ASTType.UnaryOperator:
+            return _applyUnaryOp(ast, scope.evaluate);
+        case ASTType.BinaryOperator:
+            return _applyBinaryOp(ast, scope.evaluate);
+        case ASTType.Chain:
+            return evalChain(ast, scope);
+        case ASTType.BooleanOperator: {
+            const left = scope.evaluate(ast.left);
+            if (ast.op === "and") {
+                return isTrue(left) ? scope.evaluate(ast.right) : left;
+            }
+            return isTrue(left) ? left : scope.evaluate(ast.right);
+        }
+        case ASTType.List:
+            return ast.value.map(scope.evaluate);
+        case ASTType.Tuple:
+            return markPyTuple(ast.value.map(scope.evaluate));
+        case ASTType.Dictionary:
+            return evalDictionary(ast, scope);
+        case ASTType.FunctionCall:
+            return evalFunctionCall(ast, scope);
+        case ASTType.Lookup:
+            return evalLookup(ast, scope);
+        case ASTType.If:
+            return isTrue(scope.evaluate(ast.condition))
+                ? scope.evaluate(ast.ifTrue)
+                : scope.evaluate(ast.ifFalse);
+        case ASTType.ObjLookup:
+            return evalObjLookup(ast, scope);
+    }
+    throw new EvaluationError(`AST of type ${ast.type} cannot be evaluated`);
+}
+
+/**
  * @param {AST} ast
  * @param {Record<string, any>} context
  * @returns {any}
  */
 export function evaluate(ast, context = {}) {
-    const dicts = new Set();
-    /** @type {any} */
-    let pyContext;
     let evalDepth = 0;
-    const callerProvidesContext = Object.hasOwn(context, "context");
-
-    /**
-     * @param {AST} ast
-     * @returns {any}
-     */
-    function _innerEvaluate(ast) {
-        if (++evalDepth > MAX_EVAL_DEPTH) {
-            throw new EvaluationError("Maximum expression depth exceeded");
-        }
-        try {
-            switch (ast.type) {
-                case ASTType.Number:
-                case ASTType.String:
-                    return ast.value;
-                case ASTType.Name: {
-                    const name = ast.value;
-                    if (name === "context" && !callerProvidesContext) {
-                        if (!pyContext) {
-                            pyContext = toPyDict(context);
-                        }
-                        return pyContext;
-                    }
-                    if (Object.hasOwn(context, name)) {
-                        return context[name];
-                    } else if (Object.hasOwn(BUILTINS, name)) {
-                        return /** @type {Record<string, any>} */ (BUILTINS)[name];
-                    } else {
-                        throw new EvaluationError(`Name '${name}' is not defined`);
-                    }
-                }
-                case ASTType.None:
-                    return null;
-                case ASTType.Boolean:
-                    return ast.value;
-                case ASTType.UnaryOperator:
-                    return _applyUnaryOp(ast, _evaluate);
-                case ASTType.BinaryOperator:
-                    return _applyBinaryOp(ast, _evaluate);
-                case ASTType.Chain: {
-                    let left = _evaluate(ast.operands[0]);
-                    for (const [index, op] of ast.operators.entries()) {
-                        if (!Object.hasOwn(COMPARISONS, op)) {
-                            throw new EvaluationError(
-                                `Unknown comparison operator: ${op}`,
-                            );
-                        }
-                        const right = _evaluate(ast.operands[index + 1]);
-                        if (!COMPARISONS[op](left, right)) {
-                            return false;
-                        }
-                        left = right;
-                    }
-                    return true;
-                }
-                case ASTType.BooleanOperator: {
-                    const left = _evaluate(ast.left);
-                    if (ast.op === "and") {
-                        return isTrue(left) ? _evaluate(ast.right) : left;
-                    } else {
-                        return isTrue(left) ? left : _evaluate(ast.right);
-                    }
-                }
-                case ASTType.List:
-                    return ast.value.map(_evaluate);
-                case ASTType.Tuple:
-                    return markPyTuple(ast.value.map(_evaluate));
-                case ASTType.Dictionary: {
-                    /** @type {Record<string, any>} */
-                    const dict = {};
-                    for (const key of Object.keys(ast.value || {})) {
-                        Object.defineProperty(dict, key, {
-                            value: _evaluate(ast.value[key]),
-                            writable: true,
-                            enumerable: true,
-                            configurable: true,
-                        });
-                    }
-                    dicts.add(dict);
-                    return dict;
-                }
-                case ASTType.FunctionCall: {
-                    const fnValue = _evaluate(ast.fn);
-                    const args = ast.args.map(_evaluate);
-                    /** @type {Record<string, any>} */
-                    const kwargs = {};
-                    for (const kwarg of Object.keys(ast.kwargs || {})) {
-                        kwargs[kwarg] = _evaluate(ast.kwargs[kwarg]);
-                    }
-                    if (
-                        fnValue === PyDate ||
-                        fnValue === PyDateTime ||
-                        fnValue === PyTime ||
-                        fnValue === PyRelativeDelta ||
-                        fnValue === PyTimeDelta
-                    ) {
-                        return fnValue.create(...args, kwargs);
-                    }
-                    return fnValue(...args, kwargs);
-                }
-                case ASTType.Lookup: {
-                    const dict = _evaluate(ast.target);
-                    const key = _evaluate(ast.key);
-                    if (BLOCKED_PROPERTIES.has(key)) {
-                        throw new EvaluationError(`Access to '${key}' is forbidden`);
-                    }
-                    if (typeof dict === "string" || Array.isArray(dict)) {
-                        if (typeof key !== "number" || !Number.isInteger(key)) {
-                            throw new EvaluationError(
-                                `${Array.isArray(dict) ? "list" : "string"} indices must be integers, not '${pyTypeName(key)}'`,
-                            );
-                        }
-                        const value = key < 0 ? dict.at(key) : dict[key];
-                        if (value === undefined) {
-                            throw new EvaluationError(
-                                `IndexError: ${Array.isArray(dict) ? "list" : "string"} index out of range`,
-                            );
-                        }
-                        return value;
-                    }
-                    if (isPyMapping(dict) && !Object.hasOwn(dict, key)) {
-                        throw new EvaluationError(`KeyError: ${pyRepr(key)}`);
-                    }
-                    return dict[key];
-                }
-                case ASTType.If: {
-                    if (isTrue(_evaluate(ast.condition))) {
-                        return _evaluate(ast.ifTrue);
-                    } else {
-                        return _evaluate(ast.ifFalse);
-                    }
-                }
-                case ASTType.ObjLookup: {
-                    let left = _evaluate(ast.obj);
-                    let result;
-                    if (left === null || left === undefined) {
-                        throw new EvaluationError(
-                            `AttributeError: 'NoneType' object has no attribute '${ast.key}'`,
-                        );
-                    }
-                    if (dicts.has(left) || isPyDict(left)) {
-                        result = attributeOf(DICT, "dict", ast.key);
-                    } else if (typeof left === "string") {
-                        result = attributeOf(STRING, "str", ast.key);
-                    } else if (left instanceof Set) {
-                        result = attributeOf(SET, "set", ast.key);
-                    } else if (
-                        ast.key === "get" &&
-                        typeof left === "object" &&
-                        left !== null &&
-                        !Array.isArray(left)
-                    ) {
-                        result = /** @type {Record<string, any>} */ (DICT)[ast.key];
-                        left = toPyDict(left);
-                    } else {
-                        if (BLOCKED_PROPERTIES.has(ast.key)) {
-                            throw new EvaluationError(
-                                `Access to '${ast.key}' is forbidden`,
-                            );
-                        }
-                        if (isPyValue(left) && !(ast.key in Object(left))) {
-                            throw new EvaluationError(
-                                `AttributeError: '${pyTypeName(left)}' object has no attribute '${ast.key}'`,
-                            );
-                        }
-                        result = left[ast.key];
-                    }
-                    if (typeof result === "function") {
-                        if (!isConstructor(result)) {
-                            const bound = result.bind(left);
-                            bound[unboundFn] = result;
-                            return bound;
-                        }
-                    }
-                    return result;
-                }
+    /** @type {EvalScope} */
+    const scope = {
+        context,
+        dicts: new Set(),
+        callerProvidesContext: Object.hasOwn(context, "context"),
+        pyContext: undefined,
+        evaluate: (node) => {
+            if (++evalDepth > MAX_EVAL_DEPTH) {
+                throw new EvaluationError("Maximum expression depth exceeded");
             }
-            throw new EvaluationError(`AST of type ${ast.type} cannot be evaluated`);
-        } finally {
-            evalDepth--;
-        }
-    }
-
-    /**
-     * @param {AST} ast
-     * @returns {any}
-     */
-    function _evaluate(ast) {
-        const val = _innerEvaluate(ast);
-        if (
-            typeof val === "function" &&
-            !allowedFns.has(val) &&
-            !allowedFns.has(val[unboundFn])
-        ) {
-            throw new EvaluationError("Invalid Function Call");
-        }
-        return val;
-    }
-    return _evaluate(ast);
+            let val;
+            try {
+                val = evalNode(node, scope);
+            } finally {
+                evalDepth--;
+            }
+            if (
+                typeof val === "function" &&
+                !allowedFns.has(val) &&
+                !allowedFns.has(val[unboundFn])
+            ) {
+                throw new EvaluationError("Invalid Function Call");
+            }
+            return val;
+        },
+    };
+    return scope.evaluate(ast);
 }

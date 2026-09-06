@@ -2,7 +2,6 @@
 /** @odoo-module native */
 
 import { foldForCaseInsensitiveCompare } from "@web/core/l10n/utils/unaccent";
-import { shallowEqual } from "@web/core/utils/collections/objects";
 import { LruCache } from "@web/core/utils/lru_cache";
 import { session } from "@web/session";
 
@@ -603,6 +602,125 @@ function asComparableText(value) {
 }
 
 /** @typedef {(record: Record<string, any>) => boolean} RecordPredicate */
+/** @typedef {(record: Record<string, any>) => any} FieldReader */
+
+/**
+ * `=` and `==`: an unset or empty right-hand side matches an unset field.
+ *
+ * @param {any} value
+ * @param {FieldReader} readField
+ * @returns {RecordPredicate}
+ */
+function compileEquality(value, readField) {
+    if (isUnsetValue(value) || value === "") {
+        return (record) => {
+            const fieldValue = readField(record);
+            return Array.isArray(fieldValue)
+                ? fieldValue.length === 0
+                : fieldValue !== undefined && !fieldValue;
+        };
+    }
+    return (record) => isEqual(readField(record), value);
+}
+
+/**
+ * `<`, `<=`, `>`, `>=`, with the server's rules for an unset side: never true
+ * against a date, else compared as zero or the empty string.
+ *
+ * @param {"<" | "<=" | ">" | ">="} op
+ * @param {any} value
+ * @param {FieldReader} readField
+ * @returns {RecordPredicate}
+ */
+function compileOrdering(op, value, readField) {
+    const rightIsDateLiteral = isDateLiteral(value);
+    /** @type {(a: any, b: any) => boolean} */
+    const compare = {
+        "<": (/** @type {any} */ a, /** @type {any} */ b) => a < b,
+        "<=": (/** @type {any} */ a, /** @type {any} */ b) => a <= b,
+        ">": (/** @type {any} */ a, /** @type {any} */ b) => a > b,
+        ">=": (/** @type {any} */ a, /** @type {any} */ b) => a >= b,
+    }[op];
+    return (record) => {
+        const fieldValue = readField(record);
+        if (isAbsentValue(fieldValue)) {
+            return false;
+        }
+        let left = fieldValue;
+        let right = value;
+        if (isUnsetValue(left) || isUnsetValue(right)) {
+            if (rightIsDateLiteral || isDateLiteral(left)) {
+                return false;
+            }
+            const zero = typeof left === "number" || typeof right === "number" ? 0 : "";
+            left = isUnsetValue(left) ? zero : left;
+            right = isUnsetValue(right) ? zero : right;
+        }
+        return compare(left, right);
+    };
+}
+
+/**
+ * `in` / `not in`; a falsy member also selects an unset field.
+ *
+ * @param {any} value
+ * @param {FieldReader} readField
+ * @param {boolean} isNot
+ * @returns {RecordPredicate}
+ */
+function compileMembership(value, readField, isNot) {
+    const values = Array.isArray(value) ? value : [value];
+    const selectsUnset = values.some((v) => v === false || v === null || v === "");
+    return (record) => {
+        const fieldValue = readField(record);
+        const fieldValues = Array.isArray(fieldValue) ? fieldValue : [fieldValue];
+        let matched = fieldValues.some((fv) => isIn(fv, values));
+        if (!matched && selectsUnset) {
+            matched = Array.isArray(fieldValue)
+                ? fieldValue.length === 0
+                : fieldValue !== undefined && !fieldValue;
+        }
+        return matched !== isNot;
+    };
+}
+
+/**
+ * The `like` family, folded the way the server folds.
+ *
+ * @param {string} op lower-cased
+ * @param {string} operator as written
+ * @param {any} value
+ * @param {FieldReader} readField
+ * @param {boolean} isNot
+ * @returns {RecordPredicate}
+ */
+function compileLike(op, operator, value, readField, isNot) {
+    const anchored = op.startsWith("=") || op.startsWith("not =");
+    if (value && typeof value !== "string") {
+        if (anchored) {
+            return () => {
+                throw new InvalidDomainError(
+                    `invalid domain (the pattern of "${operator}" must be a ` +
+                        `string, got ${typeof value})`,
+                );
+            };
+        }
+        value = pyStr(value);
+    }
+    const fold = op.endsWith("ilike")
+        ? (/** @type {string} */ s) =>
+              foldForCaseInsensitiveCompare(s, serverFoldsAccents())
+        : (/** @type {string} */ s) => s;
+    const tokens = parseLikePattern(fold(String(asComparableText(value))), anchored);
+    return (record) => {
+        const fieldValue = readField(record);
+        if (isAbsentValue(fieldValue)) {
+            return isNot;
+        }
+        const subject = fold(String(asComparableText(fieldValue)));
+        return likeMatch(tokens, subject) !== isNot;
+    };
+}
 
 /**
  * @param {Condition | boolean} condition
@@ -613,7 +731,7 @@ function compileCondition(condition) {
         return () => condition;
     }
     const [field, operator] = condition;
-    let value = condition[2];
+    const value = condition[2];
 
     if (typeof field === "string") {
         const names = field.split(".");
@@ -654,7 +772,7 @@ function compileCondition(condition) {
     }
 
     const isNot = op.startsWith("not ");
-    /** @type {(record: Record<string, any>) => any} */
+    /** @type {FieldReader} */
     const readField =
         typeof field === "number" ? () => field : (record) => record[field];
 
@@ -662,25 +780,8 @@ function compileCondition(condition) {
         case "=?":
             return value ? compileCondition([field, "=", value]) : () => true;
         case "=":
-        case "==": {
-            if (isUnsetValue(value) || value === "") {
-                return (record) => {
-                    const fieldValue = readField(record);
-                    return Array.isArray(fieldValue)
-                        ? fieldValue.length === 0
-                        : fieldValue !== undefined && !fieldValue;
-                };
-            }
-            if (Array.isArray(value)) {
-                return (record) => {
-                    const fieldValue = readField(record);
-                    return Array.isArray(fieldValue)
-                        ? shallowEqual(fieldValue, value)
-                        : isEqual(fieldValue, value);
-                };
-            }
-            return (record) => isEqual(readField(record), value);
-        }
+        case "==":
+            return compileEquality(value, readField);
         case "!=":
         case "<>": {
             const matchEqual = compileCondition([field, "=", value]);
@@ -689,55 +790,11 @@ function compileCondition(condition) {
         case "<":
         case "<=":
         case ">":
-        case ">=": {
-            const rightIsDateLiteral = isDateLiteral(value);
-            const compare =
-                op === "<"
-                    ? (/** @type {any} */ a, /** @type {any} */ b) => a < b
-                    : op === "<="
-                      ? (/** @type {any} */ a, /** @type {any} */ b) => a <= b
-                      : op === ">"
-                        ? (/** @type {any} */ a, /** @type {any} */ b) => a > b
-                        : (/** @type {any} */ a, /** @type {any} */ b) => a >= b;
-            return (record) => {
-                const fieldValue = readField(record);
-                if (isAbsentValue(fieldValue)) {
-                    return false;
-                }
-                let left = fieldValue;
-                let right = value;
-                if (isUnsetValue(left) || isUnsetValue(right)) {
-                    if (rightIsDateLiteral || isDateLiteral(left)) {
-                        return false;
-                    }
-                    const zero =
-                        typeof left === "number" || typeof right === "number" ? 0 : "";
-                    left = isUnsetValue(left) ? zero : left;
-                    right = isUnsetValue(right) ? zero : right;
-                }
-                return compare(left, right);
-            };
-        }
+        case ">=":
+            return compileOrdering(op, value, readField);
         case "in":
-        case "not in": {
-            const values = Array.isArray(value) ? value : [value];
-            const selectsUnset = values.some(
-                (v) => v === false || v === null || v === "",
-            );
-            return (record) => {
-                const fieldValue = readField(record);
-                const fieldValues = Array.isArray(fieldValue)
-                    ? fieldValue
-                    : [fieldValue];
-                let matched = fieldValues.some((fv) => isIn(fv, values));
-                if (!matched && selectsUnset) {
-                    matched = Array.isArray(fieldValue)
-                        ? fieldValue.length === 0
-                        : fieldValue !== undefined && !fieldValue;
-                }
-                return matched !== isNot;
-            };
-        }
+        case "not in":
+            return compileMembership(value, readField, isNot);
         case "like":
         case "not like":
         case "=like":
@@ -745,36 +802,8 @@ function compileCondition(condition) {
         case "ilike":
         case "not ilike":
         case "=ilike":
-        case "not =ilike": {
-            const anchored = op.startsWith("=") || op.startsWith("not =");
-            if (value && typeof value !== "string") {
-                if (anchored) {
-                    return () => {
-                        throw new InvalidDomainError(
-                            `invalid domain (the pattern of "${operator}" must be a ` +
-                                `string, got ${typeof value})`,
-                        );
-                    };
-                }
-                value = pyStr(value);
-            }
-            const fold = op.endsWith("ilike")
-                ? (/** @type {string} */ s) =>
-                      foldForCaseInsensitiveCompare(s, serverFoldsAccents())
-                : (/** @type {string} */ s) => s;
-            const tokens = parseLikePattern(
-                fold(String(asComparableText(value))),
-                anchored,
-            );
-            return (record) => {
-                const fieldValue = readField(record);
-                if (isAbsentValue(fieldValue)) {
-                    return isNot;
-                }
-                const subject = fold(String(asComparableText(fieldValue)));
-                return likeMatch(tokens, subject) !== isNot;
-            };
-        }
+        case "not =ilike":
+            return compileLike(op, operator, value, readField, isNot);
         case "any":
         case "any!":
         case "child_of":

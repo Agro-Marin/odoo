@@ -51,6 +51,138 @@ import { applyGroupParams } from "@web/core/utils/dnd/draggable_hook_builder_uti
  * @property {boolean} dragging
  */
 
+/**
+ * @param {Record<string, any>} ctx
+ * @param {HTMLElement} element
+ * @returns {boolean}
+ */
+function acceptsElement(ctx, element) {
+    const { connectGroups, current, groupSelector } = ctx;
+    return (
+        connectGroups ||
+        !groupSelector ||
+        current.group === element.closest(groupSelector)
+    );
+}
+
+/**
+ * The siblings a placeholder can move among: the placeholder itself and the
+ * sortable elements around it, the dragged one excluded.
+ *
+ * @param {Record<string, any>} ctx
+ * @param {HTMLElement} element
+ * @returns {Element[]}
+ */
+function placeholderSiblings(ctx, element) {
+    const { current, elementSelector } = ctx;
+    return [.../** @type {HTMLElement} */ (element.parentElement).children].filter(
+        (el) =>
+            el === current.placeHolder ||
+            (el.matches(elementSelector) && !el.classList.contains(DRAGGED_CLASS)),
+    );
+}
+
+/**
+ * Cloned placeholder: it takes the dragged element's size, so entering an
+ * element is enough to know which side of it the placeholder goes.
+ *
+ * @param {Record<string, any>} ctx
+ * @param {HTMLElement} element
+ * @returns {boolean} whether the consumer's onElementEnter fires
+ */
+function onElementPointerEnter(ctx, element) {
+    if (acceptsElement(ctx, element)) {
+        const pos = ctx.current.placeHolder.compareDocumentPosition(element);
+        if (pos === Node.DOCUMENT_POSITION_PRECEDING) {
+            element.before(ctx.current.placeHolder);
+        } else if (pos === Node.DOCUMENT_POSITION_FOLLOWING) {
+            element.after(ctx.current.placeHolder);
+        }
+    }
+    return true;
+}
+
+/**
+ * Thin placeholder: crossing a direct sibling swaps with it, crossing a
+ * farther one lands the placeholder on the near side, once per pointer move.
+ * Once it has moved, later enters of the same pointer move are silent to the
+ * consumer as well; that asymmetry with the cloned strategy is preserved.
+ *
+ * @param {Record<string, any>} ctx
+ * @param {HTMLElement} element
+ * @returns {boolean} whether the consumer's onElementEnter fires
+ */
+function onElementComplexPointerEnter(ctx, element) {
+    if (ctx.haveAlreadyChanged) {
+        return false;
+    }
+    if (!acceptsElement(ctx, element)) {
+        return true;
+    }
+    const { current } = ctx;
+    const siblingArray = placeholderSiblings(ctx, element);
+    const isDirectSibling =
+        Math.abs(
+            siblingArray.indexOf(element) - siblingArray.indexOf(current.placeHolder),
+        ) === 1;
+    const pos = current.placeHolder.compareDocumentPosition(element);
+    const before = isDirectSibling
+        ? pos === Node.DOCUMENT_POSITION_PRECEDING
+        : pos === Node.DOCUMENT_POSITION_FOLLOWING;
+    const after = isDirectSibling
+        ? pos === Node.DOCUMENT_POSITION_FOLLOWING
+        : pos === Node.DOCUMENT_POSITION_PRECEDING;
+    if (before) {
+        element.before(current.placeHolder);
+        ctx.haveAlreadyChanged = true;
+    } else if (after) {
+        element.after(current.placeHolder);
+        ctx.haveAlreadyChanged = true;
+    }
+    return true;
+}
+
+/**
+ * Thin placeholder, leaving the list past its first or last element: the
+ * placeholder follows to that end.
+ *
+ * @param {Record<string, any>} ctx
+ * @param {HTMLElement} element
+ * @param {EventTarget | null} relatedTarget
+ * @returns {boolean} whether the consumer's onElementLeave fires
+ */
+function onElementComplexPointerLeave(ctx, element, relatedTarget) {
+    const relatedElement = /** @type {HTMLElement} */ (relatedTarget);
+    if (ctx.haveAlreadyChanged || !relatedElement) {
+        return false;
+    }
+    const { current } = ctx;
+    const siblingArray = placeholderSiblings(ctx, element);
+    if (siblingArray.includes(relatedElement)) {
+        return true;
+    }
+    const elementRect = element.getBoundingClientRect();
+    const relatedElementRect = relatedElement.getBoundingClientRect();
+    const elementIndex = siblingArray.indexOf(element);
+    const pos = current.placeHolder.compareDocumentPosition(element);
+    if (
+        elementIndex === 0 &&
+        relatedElementRect.top <= elementRect.top &&
+        pos === Node.DOCUMENT_POSITION_PRECEDING
+    ) {
+        element.before(current.placeHolder);
+        ctx.haveAlreadyChanged = true;
+    } else if (
+        elementIndex === siblingArray.length - 1 &&
+        relatedElementRect.bottom >= elementRect.bottom &&
+        pos === Node.DOCUMENT_POSITION_FOLLOWING
+    ) {
+        element.after(current.placeHolder);
+        ctx.haveAlreadyChanged = true;
+    }
+    return true;
+}
+
 /** @type {any} */
 const hookParams = {
     name: "useSortable",
@@ -96,141 +228,8 @@ const hookParams = {
     ) {
         const { connectGroups, current, elementSelector, groupSelector, ref } = ctx;
 
-        /**
-         * @param {HTMLElement} element
-         */
-        const onElementPointerEnter = (element) => {
-            if (
-                connectGroups ||
-                !groupSelector ||
-                current.group === element.closest(groupSelector)
-            ) {
-                const pos = current.placeHolder.compareDocumentPosition(element);
-                if (pos === Node.DOCUMENT_POSITION_PRECEDING) {
-                    element.before(current.placeHolder);
-                } else if (pos === Node.DOCUMENT_POSITION_FOLLOWING) {
-                    element.after(current.placeHolder);
-                }
-            }
-            callHandler("onElementEnter", { element });
-        };
-
-        /**
-         * @param {HTMLElement} element
-         */
-        const onElementPointerLeave = (element) => {
-            callHandler("onElementLeave", { element });
-        };
-
-        /**
-         * @param {HTMLElement} element
-         */
-        const onElementComplexPointerEnter = (element) => {
-            if (ctx.haveAlreadyChanged) {
-                return;
-            }
-            const siblingArray = [
-                .../** @type {HTMLElement} */ (element.parentElement).children,
-            ].filter(
-                (el) =>
-                    el === current.placeHolder ||
-                    (el.matches(elementSelector) &&
-                        !el.classList.contains(DRAGGED_CLASS)),
-            );
-            const elementIndex = siblingArray.indexOf(element);
-            const placeholderIndex = siblingArray.indexOf(current.placeHolder);
-            const isDirectSibling = Math.abs(elementIndex - placeholderIndex) === 1;
-            if (
-                connectGroups ||
-                !groupSelector ||
-                current.group === element.closest(groupSelector)
-            ) {
-                const pos = current.placeHolder.compareDocumentPosition(element);
-                if (isDirectSibling) {
-                    if (pos === Node.DOCUMENT_POSITION_PRECEDING) {
-                        element.before(current.placeHolder);
-                        ctx.haveAlreadyChanged = true;
-                    } else if (pos === Node.DOCUMENT_POSITION_FOLLOWING) {
-                        element.after(current.placeHolder);
-                        ctx.haveAlreadyChanged = true;
-                    }
-                } else {
-                    if (pos === Node.DOCUMENT_POSITION_FOLLOWING) {
-                        element.before(current.placeHolder);
-                        ctx.haveAlreadyChanged = true;
-                    } else if (pos === Node.DOCUMENT_POSITION_PRECEDING) {
-                        element.after(current.placeHolder);
-                        ctx.haveAlreadyChanged = true;
-                    }
-                }
-            }
-            callHandler("onElementEnter", { element });
-        };
-
-        /**
-         * @param {HTMLElement} element
-         * @param {EventTarget | null} relatedTarget
-         */
-        const onElementComplexPointerLeave = (element, relatedTarget) => {
-            if (ctx.haveAlreadyChanged) {
-                return;
-            }
-            const relatedElement = /** @type {HTMLElement} */ (relatedTarget);
-            if (!relatedElement) {
-                return;
-            }
-            const elementRect = element.getBoundingClientRect();
-            const relatedElementRect = relatedElement.getBoundingClientRect();
-
-            const siblingArray = [
-                .../** @type {HTMLElement} */ (element.parentElement).children,
-            ].filter(
-                (el) =>
-                    el === current.placeHolder ||
-                    (el.matches(elementSelector) &&
-                        !el.classList.contains(DRAGGED_CLASS)),
-            );
-            const pointerOnSiblings = siblingArray.includes(relatedElement);
-            const elementIndex = siblingArray.indexOf(element);
-            const isFirst = elementIndex === 0;
-            const isAbove = relatedElementRect.top <= elementRect.top;
-            const isLast = elementIndex === siblingArray.length - 1;
-            const isBelow = relatedElementRect.bottom >= elementRect.bottom;
-            const pos = current.placeHolder.compareDocumentPosition(element);
-            if (!pointerOnSiblings) {
-                if (isFirst && isAbove && pos === Node.DOCUMENT_POSITION_PRECEDING) {
-                    element.before(current.placeHolder);
-                    ctx.haveAlreadyChanged = true;
-                } else if (
-                    isLast &&
-                    isBelow &&
-                    pos === Node.DOCUMENT_POSITION_FOLLOWING
-                ) {
-                    element.after(current.placeHolder);
-                    ctx.haveAlreadyChanged = true;
-                }
-            }
-            callHandler("onElementLeave", { element });
-        };
-
-        /**
-         * @param {HTMLElement} group
-         */
-        const onGroupPointerEnter = (group) => {
-            group.appendChild(current.placeHolder);
-            callHandler("onGroupEnter", { group });
-        };
-
-        /**
-         * @param {HTMLElement} group
-         */
-        const onGroupPointerLeave = (group) => {
-            callHandler("onGroupLeave", { group });
-        };
-
         if (ctx.placeholderClone) {
             const { width, height } = current.elementRect;
-
             addStyle(current.placeHolder, {
                 visibility: "hidden",
                 display: "block",
@@ -238,13 +237,6 @@ const hookParams = {
                 height: `${height}px`,
             });
         }
-
-        const onElementEnter = ctx.placeholderClone
-            ? onElementPointerEnter
-            : onElementComplexPointerEnter;
-        const onElementLeave = ctx.placeholderClone
-            ? onElementPointerLeave
-            : onElementComplexPointerLeave;
 
         /**
          * @param {EventTarget | null} node
@@ -288,12 +280,18 @@ const hookParams = {
             if (trackGroups) {
                 const group = closestGroupOf(ev.target);
                 if (group && group !== closestGroupOf(ev.relatedTarget)) {
-                    onGroupPointerEnter(group);
+                    group.appendChild(current.placeHolder);
+                    callHandler("onGroupEnter", { group });
                 }
             }
             const element = closestElementOf(ev.target);
             if (element && element !== closestElementOf(ev.relatedTarget)) {
-                onElementEnter(element);
+                const notify = ctx.placeholderClone
+                    ? onElementPointerEnter(ctx, element)
+                    : onElementComplexPointerEnter(ctx, element);
+                if (notify) {
+                    callHandler("onElementEnter", { element });
+                }
             }
         };
 
@@ -304,12 +302,17 @@ const hookParams = {
             if (trackGroups) {
                 const group = closestGroupOf(ev.target);
                 if (group && group !== closestGroupOf(ev.relatedTarget)) {
-                    onGroupPointerLeave(group);
+                    callHandler("onGroupLeave", { group });
                 }
             }
             const element = closestElementOf(ev.target);
             if (element && element !== closestElementOf(ev.relatedTarget)) {
-                onElementLeave(element, ev.relatedTarget);
+                const notify =
+                    ctx.placeholderClone ||
+                    onElementComplexPointerLeave(ctx, element, ev.relatedTarget);
+                if (notify) {
+                    callHandler("onElementLeave", { element });
+                }
             }
         };
 

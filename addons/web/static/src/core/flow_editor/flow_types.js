@@ -106,6 +106,8 @@
  * @property {FlowPortId} [sourceCandidatePortId]
  * @property {FlowNodeId} [targetNodeId]
  * @property {FlowPortId} [targetPortId]
+ * @property {FlowConnectionId} [pendingConnectionId] the connection grabbed
+ *  by this gesture, still in place until the pointer has actually moved
  */
 
 /**

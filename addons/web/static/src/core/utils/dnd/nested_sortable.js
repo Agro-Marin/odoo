@@ -40,6 +40,229 @@ import { viewOf } from "@web/core/utils/dom/ui";
  * @property {boolean} dragging
  */
 
+/**
+ * @param {Record<string, any>} ctx
+ * @param {Element} node
+ * @param {number} [depth=0]
+ * @returns {number}
+ */
+function getDeepestChildLevel(ctx, node, depth = 0) {
+    let result = 0;
+    const childSelector = `${ctx.listTagName} ${ctx.elementSelector}`;
+    for (const childNode of node.querySelectorAll(childSelector)) {
+        result = Math.max(getDeepestChildLevel(ctx, childNode, depth + 1), result);
+    }
+    return depth ? result + 1 : result;
+}
+
+/**
+ * @param {Record<string, any>} ctx
+ * @returns {boolean}
+ */
+function hasReachedMaxLevel(ctx) {
+    if (!ctx.nest || ctx.maxLevels < 1) {
+        return false;
+    }
+    let level = getDeepestChildLevel(ctx, ctx.current.element);
+    let list = ctx.current.placeHolder.closest(ctx.listTagName);
+    while (list) {
+        level++;
+        list = list.parentNode.closest(ctx.listTagName);
+    }
+    return level > ctx.maxLevels;
+}
+
+/**
+ * @param {Record<string, any>} ctx
+ * @returns {boolean}
+ */
+function isAllowedNodeMove(ctx) {
+    return !hasReachedMaxLevel(ctx) && ctx.isAllowed(ctx.current, ctx.elementSelector);
+}
+
+/**
+ * The element's nested list, created on first use.
+ *
+ * @param {Record<string, any>} ctx
+ * @param {Element} el
+ * @returns {HTMLElement}
+ */
+function childListOf(ctx, el) {
+    const existing = el.querySelector(ctx.listTagName);
+    if (existing) {
+        return /** @type {HTMLElement} */ (existing);
+    }
+    const list = document.createElement(ctx.listTagName);
+    el.appendChild(list);
+    return list;
+}
+
+/**
+ * @param {Record<string, any>} ctx
+ * @param {Element} el
+ */
+function positionOf(ctx, el) {
+    return {
+        previous: el.previousElementSibling,
+        next: el.nextElementSibling,
+        parent: el.parentElement?.closest(ctx.elementSelector) || null,
+        group: ctx.groupSelector ? el.closest(ctx.groupSelector) : false,
+    };
+}
+
+/**
+ * The placeholder just moved: hide it where the move is refused, bounce it
+ * back out where it would nest too deep, and otherwise tell the consumer.
+ *
+ * @param {Record<string, any>} ctx
+ * @param {Function} callHandler
+ * @param {Record<string, any>} prevPos
+ */
+function notifyMove(ctx, callHandler, prevPos) {
+    const { placeHolder } = ctx.current;
+    if (!ctx.isAllowed(ctx.current, ctx.elementSelector)) {
+        placeHolder.classList.add("d-none");
+        return;
+    } else if (hasReachedMaxLevel(ctx)) {
+        const previousSiblingEl = placeHolder
+            .closest(ctx.listTagName)
+            .closest(ctx.elementSelector);
+        previousSiblingEl.after(placeHolder);
+        return;
+    }
+    placeHolder.classList.remove("d-none");
+    callHandler("onMove", {
+        element: ctx.current.element,
+        previous: placeHolder.previousElementSibling,
+        next: placeHolder.nextElementSibling,
+        parent: ctx.nest
+            ? placeHolder.parentElement.closest(ctx.elementSelector)
+            : false,
+        group: ctx.currentGroup,
+        newGroup: ctx.connectGroups
+            ? placeHolder.closest(ctx.groupSelector)
+            : ctx.currentGroup,
+        prevPos,
+        placeholder: placeHolder,
+    });
+}
+
+/**
+ * Horizontal travel past the nest interval moves the placeholder one level
+ * out (away from the list's leading edge) or one level in (under its
+ * previous sibling).
+ *
+ * @param {Record<string, any>} ctx
+ * @param {Function} callHandler
+ * @param {Record<string, any>} position
+ * @returns {boolean} whether the travel consumed this move
+ */
+function nestHorizontally(ctx, callHandler, position) {
+    const xInterval = ctx.prevNestX - ctx.pointer.x;
+    if (ctx.nestInterval - (-1) ** ctx.isRTL * xInterval < 1) {
+        let nextElement = position.next;
+        if (nextElement === ctx.current.element) {
+            nextElement = ctx.current.element.nextElementSibling;
+        }
+        if (!nextElement) {
+            const newSibling = position.parent;
+            if (newSibling) {
+                newSibling.after(ctx.current.placeHolder);
+                notifyMove(ctx, callHandler, position);
+            }
+        }
+        ctx.prevNestX = ctx.pointer.x;
+        return true;
+    } else if (ctx.nestInterval + (-1) ** ctx.isRTL * xInterval < 1) {
+        let parent = position.previous;
+        if (parent === ctx.current.element) {
+            parent = ctx.current.element.previousElementSibling;
+        }
+        if (parent?.matches(ctx.elementSelector)) {
+            childListOf(ctx, parent).appendChild(ctx.current.placeHolder);
+            notifyMove(ctx, callHandler, position);
+        }
+        ctx.prevNestX = ctx.pointer.x;
+        return true;
+    }
+    return false;
+}
+
+/**
+ * The pointer is over a sortable element: the placeholder goes before it
+ * near its top edge, after it (or into its children) lower down.
+ *
+ * @param {Record<string, any>} ctx
+ * @param {Function} callHandler
+ * @param {Element} element
+ * @param {Record<string, any>} position
+ * @param {number} currentTop
+ */
+function placeAroundElement(ctx, callHandler, element, position, currentTop) {
+    const elementPosition = positionOf(ctx, element);
+    const eRect = element.getBoundingClientRect();
+    const pos = ctx.current.placeHolder.compareDocumentPosition(element);
+    if (currentTop - eRect.y < 10) {
+        if (
+            pos & Node.DOCUMENT_POSITION_PRECEDING &&
+            (ctx.nest || elementPosition.parent === position.parent)
+        ) {
+            element.before(ctx.current.placeHolder);
+            notifyMove(ctx, callHandler, position);
+            ctx.prevNestX = ctx.pointer.x;
+        }
+    } else if (currentTop - eRect.y > 15 && pos === Node.DOCUMENT_POSITION_FOLLOWING) {
+        if (ctx.nest) {
+            const elementChildList = childListOf(ctx, element);
+            if (elementChildList.querySelector(ctx.elementSelector)) {
+                elementChildList.prepend(ctx.current.placeHolder);
+            } else {
+                element.after(ctx.current.placeHolder);
+            }
+            notifyMove(ctx, callHandler, position);
+            ctx.prevNestX = ctx.pointer.x;
+        } else if (elementPosition.parent === position.parent) {
+            element.after(ctx.current.placeHolder);
+            notifyMove(ctx, callHandler, position);
+        }
+    }
+}
+
+/**
+ * The pointer is over another group's empty space: the placeholder joins
+ * that group at the end nearest to where it came from.
+ *
+ * @param {Record<string, any>} ctx
+ * @param {Function} callHandler
+ * @param {Element} closestEl
+ * @param {Record<string, any>} position
+ */
+function moveIntoGroup(ctx, callHandler, closestEl, position) {
+    const group = closestEl.closest(ctx.groupSelector);
+    if (!group || group === position.group || !(ctx.nest || !position.parent)) {
+        return;
+    }
+    if (!position.group) {
+        return;
+    }
+    const list = childListOf(ctx, group);
+    if (
+        group.compareDocumentPosition(position.group) ===
+        Node.DOCUMENT_POSITION_PRECEDING
+    ) {
+        list.prepend(ctx.current.placeHolder);
+    } else {
+        list.appendChild(ctx.current.placeHolder);
+    }
+    notifyMove(ctx, callHandler, position);
+    ctx.prevNestX = ctx.pointer.x;
+    callHandler("onGroupEnter", { group, placeholder: ctx.current.placeHolder });
+    callHandler("onGroupLeave", {
+        group: position.group,
+        placeholder: ctx.current.placeHolder,
+    });
+}
+
 /** @type {(params: NestedSortableParams) => SortableState} */
 export const useNestedSortable = /** @type {any} */ (
     makeDraggableHook(
@@ -149,124 +372,15 @@ export const useNestedSortable = /** @type {any} */ (
                     group: ctx.currentGroup,
                 };
             },
-            _getDeepestChildLevel(
-                /** @type {Record<string, any>} */ ctx,
-                /** @type {Element} */ node,
-                depth = 0,
-            ) {
-                let result = 0;
-                const childSelector = `${ctx.listTagName} ${ctx.elementSelector}`;
-                for (const childNode of node.querySelectorAll(childSelector)) {
-                    result = Math.max(
-                        this._getDeepestChildLevel(ctx, childNode, depth + 1),
-                        result,
-                    );
-                }
-                return depth ? result + 1 : result;
-            },
-            _hasReachMaxAllowedLevel(/** @type {Record<string, any>} */ ctx) {
-                if (!ctx.nest || ctx.maxLevels < 1) {
-                    return false;
-                }
-                let level = this._getDeepestChildLevel(ctx, ctx.current.element);
-                let list = ctx.current.placeHolder.closest(ctx.listTagName);
-                while (list) {
-                    level++;
-                    list = list.parentNode.closest(ctx.listTagName);
-                }
-                return level > ctx.maxLevels;
-            },
-            _isAllowedNodeMove(/** @type {Record<string, any>} */ ctx) {
-                return (
-                    !this._hasReachMaxAllowedLevel(ctx) &&
-                    ctx.isAllowed(ctx.current, ctx.elementSelector)
-                );
-            },
             onDrag(
                 /** @type {{ ctx: Record<string, any>, callHandler: Function }} */ {
                     ctx,
                     callHandler,
                 },
             ) {
-                const onMove = (/** @type {Record<string, any>} */ prevPos) => {
-                    if (!ctx.isAllowed(ctx.current, ctx.elementSelector)) {
-                        ctx.current.placeHolder.classList.add("d-none");
-                        return;
-                    } else if (this._hasReachMaxAllowedLevel(ctx)) {
-                        const previousSiblingEl = ctx.current.placeHolder
-                            .closest(ctx.listTagName)
-                            .closest(ctx.elementSelector);
-                        previousSiblingEl.after(ctx.current.placeHolder);
-                        return;
-                    }
-                    ctx.current.placeHolder.classList.remove("d-none");
-                    callHandler("onMove", {
-                        element: ctx.current.element,
-                        previous: ctx.current.placeHolder.previousElementSibling,
-                        next: ctx.current.placeHolder.nextElementSibling,
-                        parent: ctx.nest
-                            ? ctx.current.placeHolder.parentElement.closest(
-                                  ctx.elementSelector,
-                              )
-                            : false,
-                        group: ctx.currentGroup,
-                        newGroup: ctx.connectGroups
-                            ? ctx.current.placeHolder.closest(ctx.groupSelector)
-                            : ctx.currentGroup,
-                        prevPos,
-                        placeholder: ctx.current.placeHolder,
-                    });
-                };
-                /**
-                 * @param {HTMLElement} el
-                 * @return {HTMLElement}
-                 */
-                const getChildList = (/** @type {Element} */ el) => {
-                    const existing = el.querySelector(ctx.listTagName);
-                    if (existing) {
-                        return /** @type {HTMLElement} */ (existing);
-                    }
-                    const list = document.createElement(ctx.listTagName);
-                    el.appendChild(list);
-                    return list;
-                };
-
-                const getPosition = (/** @type {Element} */ el) => ({
-                    previous: el.previousElementSibling,
-                    next: el.nextElementSibling,
-                    parent: el.parentElement?.closest(ctx.elementSelector) || null,
-                    group: ctx.groupSelector ? el.closest(ctx.groupSelector) : false,
-                });
-                const position = getPosition(ctx.current.placeHolder);
-
-                if (ctx.nest) {
-                    const xInterval = ctx.prevNestX - ctx.pointer.x;
-                    if (ctx.nestInterval - (-1) ** ctx.isRTL * xInterval < 1) {
-                        let nextElement = position.next;
-                        if (nextElement === ctx.current.element) {
-                            nextElement = ctx.current.element.nextElementSibling;
-                        }
-                        if (!nextElement) {
-                            const newSibling = position.parent;
-                            if (newSibling) {
-                                newSibling.after(ctx.current.placeHolder);
-                                onMove(position);
-                            }
-                        }
-                        ctx.prevNestX = ctx.pointer.x;
-                        return;
-                    } else if (ctx.nestInterval + (-1) ** ctx.isRTL * xInterval < 1) {
-                        let parent = position.previous;
-                        if (parent === ctx.current.element) {
-                            parent = ctx.current.element.previousElementSibling;
-                        }
-                        if (parent?.matches(ctx.elementSelector)) {
-                            getChildList(parent).appendChild(ctx.current.placeHolder);
-                            onMove(position);
-                        }
-                        ctx.prevNestX = ctx.pointer.x;
-                        return;
-                    }
+                const position = positionOf(ctx, ctx.current.placeHolder);
+                if (ctx.nest && nestHorizontally(ctx, callHandler, position)) {
+                    return;
                 }
                 const currentTop = ctx.pointer.y - ctx.current.offset.y;
                 const closestEl = document.elementFromPoint(ctx.selectorX, currentTop);
@@ -275,72 +389,13 @@ export const useNestedSortable = /** @type {any} */ (
                 }
                 const element = closestEl.closest(ctx.elementSelector);
                 if (element && element !== ctx.current.placeHolder) {
-                    const elementPosition = getPosition(element);
-                    const eRect = element.getBoundingClientRect();
-                    const pos =
-                        ctx.current.placeHolder.compareDocumentPosition(element);
-                    if (currentTop - eRect.y < 10) {
-                        if (
-                            pos & Node.DOCUMENT_POSITION_PRECEDING &&
-                            (ctx.nest || elementPosition.parent === position.parent)
-                        ) {
-                            element.before(ctx.current.placeHolder);
-                            onMove(position);
-                            ctx.prevNestX = ctx.pointer.x;
-                        }
-                    } else if (
-                        currentTop - eRect.y > 15 &&
-                        pos === Node.DOCUMENT_POSITION_FOLLOWING
-                    ) {
-                        if (ctx.nest) {
-                            const elementChildList = getChildList(element);
-                            if (elementChildList.querySelector(ctx.elementSelector)) {
-                                elementChildList.prepend(ctx.current.placeHolder);
-                                onMove(position);
-                            } else {
-                                element.after(ctx.current.placeHolder);
-                                onMove(position);
-                            }
-                            ctx.prevNestX = ctx.pointer.x;
-                        } else if (elementPosition.parent === position.parent) {
-                            element.after(ctx.current.placeHolder);
-                            onMove(position);
-                        }
-                    }
+                    placeAroundElement(ctx, callHandler, element, position, currentTop);
                 } else {
-                    const group = closestEl.closest(ctx.groupSelector);
-                    if (
-                        group &&
-                        group !== position.group &&
-                        (ctx.nest || !position.parent)
-                    ) {
-                        if (!position.group) {
-                            return;
-                        }
-                        if (
-                            group.compareDocumentPosition(position.group) ===
-                            Node.DOCUMENT_POSITION_PRECEDING
-                        ) {
-                            getChildList(group).prepend(ctx.current.placeHolder);
-                            onMove(position);
-                        } else {
-                            getChildList(group).appendChild(ctx.current.placeHolder);
-                            onMove(position);
-                        }
-                        ctx.prevNestX = ctx.pointer.x;
-                        callHandler("onGroupEnter", {
-                            group,
-                            placeholder: ctx.current.placeHolder,
-                        });
-                        callHandler("onGroupLeave", {
-                            group: position.group,
-                            placeholder: ctx.current.placeHolder,
-                        });
-                    }
+                    moveIntoGroup(ctx, callHandler, closestEl, position);
                 }
             },
             onDrop(/** @type {{ ctx: Record<string, any> }} */ { ctx }) {
-                if (!this._isAllowedNodeMove(ctx)) {
+                if (!isAllowedNodeMove(ctx)) {
                     return;
                 }
                 const previous = ctx.current.placeHolder.previousElementSibling;

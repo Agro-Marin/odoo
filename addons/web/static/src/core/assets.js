@@ -125,6 +125,45 @@ function resolveSpecifierTarget(specifier, importMap, injected, targetDoc) {
 }
 
 /**
+ * Split an import map into what `targetDoc` still needs and what it already
+ * has, claiming the fresh entries as it goes, and inject the fresh ones as a
+ * new <script type="importmap">. The same-document and cross-document loaders
+ * used to each carry this loop.
+ *
+ * @param {Document} targetDoc
+ * @param {Record<string, string>} importMap
+ * @param {Map<string, string>} injected
+ * @returns {{ fresh: number, dup: number, conflicts: string[] }}
+ */
+function injectFreshImportMapEntries(targetDoc, importMap, injected) {
+    /** @type {Record<string, string>} */
+    const freshEntries = {};
+    let dup = 0;
+    /** @type {string[]} */
+    const conflicts = [];
+    for (const [spec, url] of Object.entries(importMap)) {
+        const claimed = injected.get(spec);
+        const wanted = absoluteTarget(url, targetDoc);
+        if (claimed === undefined) {
+            freshEntries[spec] = url;
+            injected.set(spec, wanted);
+        } else if (claimed === wanted) {
+            dup++;
+        } else {
+            conflicts.push(spec);
+        }
+    }
+    const fresh = Object.keys(freshEntries).length;
+    if (fresh) {
+        const mapEl = targetDoc.createElement("script");
+        mapEl.type = "importmap";
+        mapEl.textContent = JSON.stringify({ imports: freshEntries });
+        (targetDoc.head || targetDoc.documentElement).appendChild(mapEl);
+    }
+    return { fresh, dup, conflicts };
+}
+
+/**
  * @param {Document} targetDoc
  * @returns {Map<string, Promise<any>>}
  */
@@ -277,44 +316,27 @@ export class AssetsLoadingError extends Error {}
 async function loadESMBundleHere(specifiers, importMap) {
     if (importMap) {
         seedInjectedImportMapKeys(document);
-        /** @type {Record<string, any>} */
-        const freshEntries = {};
-        let nDup = 0;
-        /** @type {string[]} */
-        const conflicts = [];
-        for (const [spec, url] of Object.entries(importMap)) {
-            const claimed = injectedImportMapKeys.get(spec);
-            const wanted = absoluteTarget(url, document);
-            if (claimed === undefined) {
-                freshEntries[spec] = url;
-                injectedImportMapKeys.set(spec, wanted);
-            } else if (claimed === wanted) {
-                nDup++;
-            } else {
-                conflicts.push(spec);
-            }
-        }
-        const nFresh = Object.keys(freshEntries).length;
+        const { fresh, dup, conflicts } = injectFreshImportMapEntries(
+            document,
+            importMap,
+            injectedImportMapKeys,
+        );
         log(
             "loadESMBundle:importMap filter",
             "fresh=",
-            nFresh,
+            fresh,
             "dup=",
-            nDup,
+            dup,
             "conflict=",
             conflicts.length,
             "total=",
-            nFresh + nDup + conflicts.length,
+            fresh + dup + conflicts.length,
         );
         if (conflicts.length) {
             log("loadESMBundle:specifier already claimed elsewhere", conflicts);
         }
-        if (nFresh) {
-            const mapEl = document.createElement("script");
-            mapEl.type = "importmap";
-            mapEl.textContent = JSON.stringify({ imports: freshEntries });
-            (document.head || document.documentElement).appendChild(mapEl);
-            log("loadESMBundle:injected fresh import map entries=", nFresh);
+        if (fresh) {
+            log("loadESMBundle:injected fresh import map entries=", fresh);
         }
     }
     const results = await runInBundleTransaction(() =>
@@ -498,38 +520,21 @@ async function loadESMBundleInto(targetDoc, specifiers, importMap) {
     const extraMap = buildBridgeImportMap(targetDoc, importMap);
     const injected = getInjectedImportMapKeys(targetDoc);
     seedInjectedImportMapKeys(targetDoc, injected);
-    /** @type {Record<string, any>} */
-    const freshEntries = {};
-    let nDup = 0;
-    /** @type {string[]} */
-    const conflicts = [];
-    for (const [spec, url] of Object.entries(extraMap)) {
-        const claimed = injected.get(spec);
-        const wanted = absoluteTarget(url, targetDoc);
-        if (claimed === undefined) {
-            freshEntries[spec] = url;
-            injected.set(spec, wanted);
-        } else if (claimed === wanted) {
-            nDup++;
-        } else {
-            conflicts.push(spec);
-        }
-    }
+    const { fresh, dup, conflicts } = injectFreshImportMapEntries(
+        targetDoc,
+        extraMap,
+        injected,
+    );
     if (conflicts.length) {
         log("loadESMBundle:crossDoc specifier already claimed", conflicts);
     }
-    const nFresh = Object.keys(freshEntries).length;
-    if (nFresh) {
+    if (fresh) {
         log(
             "loadESMBundle:crossDoc injecting extra import map entries=",
-            nFresh,
+            fresh,
             "dup=",
-            nDup,
+            dup,
         );
-        const mapEl = targetDoc.createElement("script");
-        mapEl.type = "importmap";
-        mapEl.textContent = JSON.stringify({ imports: freshEntries });
-        (targetDoc.head || targetDoc.documentElement).appendChild(mapEl);
     }
     const settlePromise = runESMBundleScript(targetDoc, specifiers, extraMap, injected);
     bundleCache.set(cacheKey, settlePromise);

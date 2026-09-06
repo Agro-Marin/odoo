@@ -59,6 +59,16 @@ export class LruCache {
     }
 
     /**
+     * Read without refreshing recency.
+     *
+     * @param {string} key
+     * @returns {any}
+     */
+    peek(key) {
+        return this._entries.get(key);
+    }
+
+    /**
      * @param {string} key
      * @returns {void}
      */

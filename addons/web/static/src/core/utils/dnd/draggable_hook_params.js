@@ -47,7 +47,9 @@ export function validateParams(params, allAcceptedParams, defaultParams, makeErr
     for (const prop of Object.keys(allAcceptedParams)) {
         const type = typeof params[prop];
         const acceptedTypes = allAcceptedParams[prop].map((t) => t.name.toLowerCase());
-        if (params[prop]) {
+        const value = params[prop];
+        const unset = value === undefined || value === null || value === false;
+        if (!unset) {
             if (!acceptedTypes.includes(type)) {
                 throw makeError(
                     `invalid type for property "${prop}" in parameters: expected { ${acceptedTypes.join(

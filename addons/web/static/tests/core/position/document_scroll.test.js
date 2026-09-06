@@ -1,9 +1,15 @@
 // @ts-check
 
-import { describe, expect, test } from "@odoo/hoot";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { localization } from "@web/core/l10n/localization";
 import { reposition } from "@web/core/position/utils";
 
 describe.current.tags("headless");
+
+// reposition() reads the text direction; this suite never starts the
+// localization service, so it would depend on whichever suite ran before.
+beforeEach(() => patchWithCleanup(localization, { direction: "ltr" }));
 
 /**
  * @param {(win: Window, doc: Document) => any} callback

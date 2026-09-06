@@ -102,9 +102,12 @@ class SortableService {
             enable() {
                 if (!enabled) {
                     enabled = true;
-                    setupFunctions.forEach((dependenciesFn, setupFn) =>
-                        setupFn(...dependenciesFn()),
-                    );
+                    setupFunctions.forEach((dependenciesFn, setupFn) => {
+                        const teardown = setupFn(...dependenciesFn());
+                        if (typeof teardown === "function") {
+                            cleanupFunctions.push(teardown);
+                        }
+                    });
                 }
                 return {
                     cleanup,

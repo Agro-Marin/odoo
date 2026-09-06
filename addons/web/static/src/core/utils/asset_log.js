@@ -75,97 +75,33 @@ export const fieldLog = _makeNamespacedLog("field", "field");
 export const livechatLog = _makeNamespacedLog("livechat", "livechat");
 
 /**
+ * @typedef {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }} CategoryLog
+ */
+
+/**
  * @param {ReturnType<typeof _makeNamespacedLog>} namespaced
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
+ * @returns {(category: string) => CategoryLog}
  */
-function _bindCategory(namespaced, category) {
-    /** @type {any} */
-    const log = (/** @type {any[]} */ ...parts) => namespaced(category, ...parts);
-    log.enabled = namespaced.enabled;
-    log.active = namespaced.active;
-    return log;
+function _categoryBinder(namespaced) {
+    return (category) => {
+        /** @type {any} */
+        const log = (/** @type {any[]} */ ...parts) => namespaced(category, ...parts);
+        log.enabled = namespaced.enabled;
+        log.active = namespaced.active;
+        return log;
+    };
 }
 
-/**
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
- */
-export function makeAssetLog(category) {
-    return _bindCategory(assetLog, category);
-}
-
-/**
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
- */
-export function makeRpcLog(category) {
-    return _bindCategory(rpcLog, category);
-}
-
-/**
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
- */
-export function makeActionLog(category) {
-    return _bindCategory(actionLog, category);
-}
-
-/**
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
- */
-export function makeModelLog(category) {
-    return _bindCategory(modelLog, category);
-}
-
-/**
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
- */
-export function makeL10nLog(category) {
-    return _bindCategory(l10nLog, category);
-}
-
-/**
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
- */
-export function makeComponentLog(category) {
-    return _bindCategory(componentLog, category);
-}
-
-/**
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
- */
-export function makeServiceLog(category) {
-    return _bindCategory(serviceLog, category);
-}
-
-/**
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
- */
-export function makeViewLog(category) {
-    return _bindCategory(viewLog, category);
-}
-
-/**
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
- */
-export function makeFieldLog(category) {
-    return _bindCategory(fieldLog, category);
-}
-
-/**
- * @param {string} category
- * @returns {((...parts: any[]) => void) & { enabled: () => boolean, active: () => boolean }}
- */
-export function makeLivechatLog(category) {
-    return _bindCategory(livechatLog, category);
-}
+export const makeAssetLog = _categoryBinder(assetLog);
+export const makeRpcLog = _categoryBinder(rpcLog);
+export const makeActionLog = _categoryBinder(actionLog);
+export const makeModelLog = _categoryBinder(modelLog);
+export const makeL10nLog = _categoryBinder(l10nLog);
+export const makeComponentLog = _categoryBinder(componentLog);
+export const makeServiceLog = _categoryBinder(serviceLog);
+export const makeViewLog = _categoryBinder(viewLog);
+export const makeFieldLog = _categoryBinder(fieldLog);
+export const makeLivechatLog = _categoryBinder(livechatLog);
 
 /**
  * @returns {boolean}

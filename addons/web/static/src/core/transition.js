@@ -34,6 +34,15 @@ export function useTransition(options) {
         shouldMount: initialVisibility,
         stage: initialVisibility ? "enter" : "leave",
     });
+    let onNextPatch = null;
+    useEffect(() => {
+        if (onNextPatch) {
+            onNextPatch();
+            onNextPatch = null;
+        }
+    });
+    let prevState, timer;
+    onWillDestroy(() => browser.clearTimeout(timer));
 
     if (config.disabled) {
         return {
@@ -54,16 +63,6 @@ export function useTransition(options) {
             },
         };
     }
-    let onNextPatch = null;
-    useEffect(() => {
-        if (onNextPatch) {
-            onNextPatch();
-            onNextPatch = null;
-        }
-    });
-
-    let prevState, timer;
-    onWillDestroy(() => browser.clearTimeout(timer));
     const transition = {
         get shouldMount() {
             return state.shouldMount;

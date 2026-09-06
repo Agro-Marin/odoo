@@ -56,55 +56,74 @@ function isSimpleAnd(tree) {
 }
 
 /**
+ * `(a and b) or (not a and c)` reads back as `b if a else c`.
+ *
+ * @param {Connector} tree an `|` of two simple `&`
+ * @param {Options} options
+ * @param {boolean} isRoot
+ * @returns {string | null}
+ */
+function ternaryExpression(tree, options, isRoot) {
+    const [c1, c2] = tree.children;
+    if (!isSimpleAnd(c1) || !isSimpleAnd(c2)) {
+        return null;
+    }
+    for (let i = 0; i < 2; i++) {
+        const str1 = _constructExpressionFromTree(c1.children[i], options);
+        for (let j = 0; j < 2; j++) {
+            const str2 = _constructExpressionFromTree(c2.children[j], options);
+            if (str1 === `not ${str2}` || `not ${str1}` === str2) {
+                const others = [c1.children[1 - i], c2.children[1 - j]];
+                const strs = others.map((c) =>
+                    _constructExpressionFromTree(c, options),
+                );
+                const expression = `${strs[0]} if ${str1} else ${strs[1]}`;
+                return isRoot ? expression : `( ${expression} )`;
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * @param {Connector} tree
+ * @param {Options} options
+ * @param {boolean} isRoot
+ * @returns {string}
+ */
+function connectorExpression(tree, options, isRoot) {
+    if (tree.value === "|" && !tree.negate && tree.children.length === 2) {
+        const ternary = ternaryExpression(tree, options, isRoot);
+        if (ternary !== null) {
+            return ternary;
+        }
+    }
+    const connector = tree.value === "&" ? "and" : "or";
+    const subExpressions = tree.children.map((/** @type {Tree} */ c) =>
+        _constructExpressionFromTree(c, options),
+    );
+    if (!subExpressions.length) {
+        return connector === "and" ? "1" : "0";
+    }
+    let expression = subExpressions.join(` ${connector} `);
+    if (!isRoot || tree.negate) {
+        expression = `( ${expression} )`;
+    }
+    if (tree.negate) {
+        expression = `not ${expression}`;
+    }
+    return expression;
+}
+
+/**
  * @param {Tree} tree
  * @param {Options} options
  * @param {boolean} [isRoot=false]
  * @returns {string}
  */
 function _constructExpressionFromTree(tree, options, isRoot = false) {
-    if (
-        tree.type === "connector" &&
-        tree.value === "|" &&
-        !tree.negate &&
-        tree.children.length === 2
-    ) {
-        const [c1, c2] = tree.children;
-        if (isSimpleAnd(c1) && isSimpleAnd(c2)) {
-            for (let i = 0; i < 2; i++) {
-                const c1Child = c1.children[i];
-                const str1 = _constructExpressionFromTree(c1Child, options);
-                for (let j = 0; j < 2; j++) {
-                    const c2Child = c2.children[j];
-                    const str2 = _constructExpressionFromTree(c2Child, options);
-                    if (str1 === `not ${str2}` || `not ${str1}` === str2) {
-                        const others = [c1.children[1 - i], c2.children[1 - j]];
-                        const strs = others.map((c) =>
-                            _constructExpressionFromTree(c, options),
-                        );
-                        const expression = `${strs[0]} if ${str1} else ${strs[1]}`;
-                        return isRoot ? expression : `( ${expression} )`;
-                    }
-                }
-            }
-        }
-    }
-
     if (tree.type === "connector") {
-        const connector = tree.value === "&" ? "and" : "or";
-        const subExpressions = tree.children.map((/** @type {Tree} */ c) =>
-            _constructExpressionFromTree(c, options),
-        );
-        if (!subExpressions.length) {
-            return connector === "and" ? "1" : "0";
-        }
-        let expression = subExpressions.join(` ${connector} `);
-        if (!isRoot || tree.negate) {
-            expression = `( ${expression} )`;
-        }
-        if (tree.negate) {
-            expression = `not ${expression}`;
-        }
-        return expression;
+        return connectorExpression(tree, options, isRoot);
     }
 
     if (tree.type === "complex_condition") {

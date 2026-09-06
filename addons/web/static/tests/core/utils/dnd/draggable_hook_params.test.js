@@ -206,3 +206,26 @@ test("edgeScrolling starts enabled and detached from the shared default", () => 
         message: "mutating one context must not poison the module default",
     });
 });
+
+test("validateParams: absent means undefined, null or false; any other value is typed", () => {
+    for (const absent of [undefined, null, false]) {
+        expect(() =>
+            validateParams(
+                { ref: {}, groups: absent },
+                DEFAULT_ACCEPTED_PARAMS,
+                DEFAULT_DEFAULT_PARAMS,
+                makeError,
+            ),
+        ).not.toThrow();
+    }
+    for (const present of [{ enable: 0 }, { delay: "0" }, { handle: 5 }]) {
+        expect(() =>
+            validateParams(
+                { ref: {}, ...present },
+                DEFAULT_ACCEPTED_PARAMS,
+                DEFAULT_DEFAULT_PARAMS,
+                makeError,
+            ),
+        ).toThrow(/invalid type/);
+    }
+});

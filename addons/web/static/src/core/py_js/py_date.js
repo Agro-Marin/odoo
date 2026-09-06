@@ -172,7 +172,37 @@ function assertTimeComponents(hour, minute, second, microsecond = 0) {
     }
 }
 
-export class PyDate {
+/**
+ * What a date and a datetime share: a proleptic-Gregorian ordinal and the
+ * weekday derived from it. Deliberately NOT `PyDateTime extends PyDate`: the
+ * interpreter and py_compare dispatch on `instanceof PyDate`, and CPython does
+ * not treat a datetime as a date for comparison either.
+ */
+class PyCalendarDate {
+    /** @type {number} */
+    year = 0;
+    /** @type {number} */
+    month = 0;
+    /** @type {number} */
+    day = 0;
+
+    /** @returns {number} */
+    toordinal() {
+        return ymd2ord(this.year, this.month, this.day);
+    }
+
+    /** @returns {number} */
+    weekday() {
+        return (this.toordinal() + 6) % 7;
+    }
+
+    /** @returns {number} */
+    isoweekday() {
+        return this.weekday() + 1;
+    }
+}
+
+export class PyDate extends PyCalendarDate {
     /**
      * @returns {PyDate}
      */
@@ -210,6 +240,7 @@ export class PyDate {
      * @param {number} day
      */
     constructor(year, month, day) {
+        super();
         assertYearInRange(year);
         this.year = year;
         this.month = month;
@@ -307,25 +338,6 @@ export class PyDate {
         return this.toJSON();
     }
 
-    /** @returns {number} */
-    toordinal() {
-        return ymd2ord(this.year, this.month, this.day);
-    }
-
-    /**
-     * @returns {number}
-     */
-    weekday() {
-        return (this.toordinal() + 6) % 7;
-    }
-
-    /**
-     * @returns {number}
-     */
-    isoweekday() {
-        return this.weekday() + 1;
-    }
-
     /**
      * @returns {number}
      */
@@ -336,7 +348,7 @@ export class PyDate {
 
 const UNIX_EPOCH_ORDINAL = 719163;
 
-export class PyDateTime {
+export class PyDateTime extends PyCalendarDate {
     /**
      * @returns {PyDateTime}
      */
@@ -415,6 +427,7 @@ export class PyDateTime {
      * @param {number} microsecond
      */
     constructor(year, month, day, hour, minute, second, microsecond) {
+        super();
         assertYearInRange(year);
         this.year = year;
         this.month = month;
@@ -531,25 +544,6 @@ export class PyDateTime {
         throw new NotSupportedError(
             "datetime can only be subtracted from a datetime or a timedelta",
         );
-    }
-
-    /** @returns {number} */
-    toordinal() {
-        return ymd2ord(this.year, this.month, this.day);
-    }
-
-    /**
-     * @returns {number}
-     */
-    weekday() {
-        return (this.toordinal() + 6) % 7;
-    }
-
-    /**
-     * @returns {number}
-     */
-    isoweekday() {
-        return this.weekday() + 1;
     }
 
     /**

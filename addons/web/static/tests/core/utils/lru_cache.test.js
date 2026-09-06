@@ -109,3 +109,10 @@ test("a stored undefined is indistinguishable from a miss, by design", () => {
     expect(cache.has("a")).toBe(true);
     expect(cache.size).toBe(1);
 });
+
+test("peek reads without refreshing recency", () => {
+    const cache = filled(3);
+    expect(cache.peek("k0")).toBe(0);
+    expect(keys(cache)).toEqual(["k0", "k1", "k2"]);
+    expect(cache.peek("absent")).toBe(undefined);
+});

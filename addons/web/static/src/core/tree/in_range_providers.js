@@ -6,8 +6,8 @@ import { registry } from "@web/core/registry";
 export const inRangeProviderRegistry = registry.category("in_range_providers");
 
 /**
- * Ask every provider one question, and treat a provider that throws the same way
- * in all four entry points below: it contributes nothing, and it says so once.
+ * Ask one provider one question. A provider that throws contributes nothing
+ * and says so once, whichever of the entry points below asked.
  *
  * Before, only getInRangeProviderOptions() had a try/catch. A provider that
  * threw was therefore invisible when listing options and fatal when resolving
@@ -16,28 +16,39 @@ export const inRangeProviderRegistry = registry.category("in_range_providers");
  *
  * @template T
  * @param {string} what
+ * @param {string} name
+ * @param {any} provider
  * @param {(provider: any) => T | undefined} ask
- * @param {(value: T, provider: any) => boolean} keep
- * @param {(value: T, provider: any) => void} take
+ * @returns {T | undefined}
  */
-function eachProvider(what, ask, keep, take) {
+function askProvider(what, name, provider, ask) {
+    try {
+        return ask(provider);
+    } catch (error) {
+        console.warn(
+            `in_range provider "${name}" failed while computing ${what}`,
+            error,
+        );
+        return undefined;
+    }
+}
+
+/**
+ * The first non-empty answer, in registry order.
+ *
+ * @template T
+ * @param {string} what
+ * @param {(provider: any) => T | undefined | null | false} ask
+ * @returns {T | null}
+ */
+function firstProviderAnswer(what, ask) {
     for (const [name, provider] of inRangeProviderRegistry.getEntries()) {
-        let value;
-        try {
-            value = ask(provider);
-        } catch (error) {
-            console.warn(
-                `in_range provider "${name}" failed while computing ${what}`,
-                error,
-            );
-            continue;
-        }
-        if (value !== undefined && value !== null && keep(value, provider)) {
-            take(value, provider);
-            return true;
+        const value = askProvider(what, name, provider, ask);
+        if (value) {
+            return value;
         }
     }
-    return false;
+    return null;
 }
 
 /**
@@ -47,23 +58,20 @@ function eachProvider(what, ask, keep, take) {
 export function getInRangeProviderOptions(fieldType) {
     /** @type {Array<{id: string, label: string, group: string}>} */
     const options = [];
-    eachProvider(
-        "options",
-        (provider) => provider.getOptions?.(fieldType) || [],
-        (providerOptions, provider) => {
-            for (const option of providerOptions) {
-                options.push({
-                    id: option.id,
-                    label: option.label,
-                    group: option.group
-                        ? `${provider.label} / ${option.group}`
-                        : String(provider.label),
-                });
-            }
-            return false; // never short-circuit: every provider contributes
-        },
-        () => {},
-    );
+    for (const [name, provider] of inRangeProviderRegistry.getEntries()) {
+        const providerOptions =
+            askProvider("options", name, provider, (p) => p.getOptions?.(fieldType)) ||
+            [];
+        for (const option of providerOptions) {
+            options.push({
+                id: option.id,
+                label: option.label,
+                group: option.group
+                    ? `${provider.label} / ${option.group}`
+                    : String(provider.label),
+            });
+        }
+    }
     return options;
 }
 
@@ -73,17 +81,9 @@ export function getInRangeProviderOptions(fieldType) {
  * @returns {[any, any] | null}
  */
 export function resolveInRangeProviderOption(id, fieldType) {
-    /** @type {[any, any] | null} */
-    let bounds = null;
-    eachProvider(
-        "bounds",
-        (provider) => provider.resolve?.(id, fieldType),
-        (value) => Boolean(value),
-        (value) => {
-            bounds = value;
-        },
+    return firstProviderAnswer("bounds", (provider) =>
+        provider.resolve?.(id, fieldType),
     );
-    return bounds;
 }
 
 /**
@@ -93,17 +93,9 @@ export function resolveInRangeProviderOption(id, fieldType) {
  * @returns {string | null}
  */
 export function matchInRangeProviderOption(fieldType, start, end) {
-    /** @type {string | null} */
-    let matched = null;
-    eachProvider(
-        "a match",
-        (provider) => provider.match?.(fieldType, start, end),
-        (id) => Boolean(id),
-        (id) => {
-            matched = id;
-        },
+    return firstProviderAnswer("a match", (provider) =>
+        provider.match?.(fieldType, start, end),
     );
-    return matched;
 }
 
 /**
@@ -113,26 +105,16 @@ export function matchInRangeProviderOption(fieldType, start, end) {
  * @returns {string | null}
  */
 export function describeInRangeProviderOption(fieldType, start, end) {
-    /** @type {string | null} */
-    let label = null;
-    eachProvider(
-        "a label",
-        (provider) => {
-            const id = provider.match?.(fieldType, start, end);
-            if (!id) {
-                return undefined;
-            }
-            // Ask the provider that matched for its own label rather than
-            // rebuilding every provider's option list to look one up.
-            const option = (provider.getOptions?.(fieldType) || []).find(
-                (/** @type {any} */ o) => o.id === id,
-            );
-            return option ? String(option.label) : undefined;
-        },
-        (value) => Boolean(value),
-        (value) => {
-            label = value;
-        },
-    );
-    return label;
+    return firstProviderAnswer("a label", (provider) => {
+        const id = provider.match?.(fieldType, start, end);
+        if (!id) {
+            return undefined;
+        }
+        // Ask the provider that matched for its own label rather than
+        // rebuilding every provider's option list to look one up.
+        const option = (provider.getOptions?.(fieldType) || []).find(
+            (/** @type {any} */ o) => o.id === id,
+        );
+        return option ? String(option.label) : undefined;
+    });
 }

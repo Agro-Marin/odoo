@@ -1668,3 +1668,17 @@ describe("attribute access raises like safe_eval, instead of yielding undefined"
         expect(evaluateExpr("parent.absent", { parent: { a: 1 } })).toBe(undefined);
     });
 });
+
+describe("subscripting a non-container", () => {
+    test("raises a Python TypeError, never a JS one", () => {
+        expect(() => evaluateExpr('a["x"]', { a: null })).toThrow(
+            /'NoneType' object is not subscriptable/,
+        );
+        expect(() => evaluateExpr("a[0]", { a: 5 })).toThrow(
+            /'int' object is not subscriptable/,
+        );
+        expect(() => evaluateExpr("a[0]", { a: true })).toThrow(
+            /'bool' object is not subscriptable/,
+        );
+    });
+});

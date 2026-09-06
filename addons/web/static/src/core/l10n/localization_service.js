@@ -65,131 +65,153 @@ const FALLBACK_LANG_PARAMETERS = {
     week_start: 7,
 };
 
+/**
+ * @typedef {{
+ * hash: string,
+ * modules: Record<string, { messages: { id: string, string: string }[] }>,
+ * lang_parameters: {
+ * date_format: string,
+ * time_format: string,
+ * decimal_point: string,
+ * direction: string,
+ * grouping: string,
+ * thousands_sep: string,
+ * week_start: number,
+ * },
+ * multi_lang: boolean,
+ * }} TranslationPayload
+ */
+
+/**
+ * Where this session's translations live: the server route, the IndexedDB
+ * cache in front of it, and the marker other tabs read to know the cache
+ * holds this registry version's terms.
+ *
+ * @typedef {{
+ * db: IndexedDB,
+ * url: string,
+ * lang: string,
+ * cacheMarker: string,
+ * }} TranslationSource
+ */
+
+/**
+ * @param {string} cacheMarker
+ */
+function markTranslationsCached(cacheMarker) {
+    try {
+        browser.localStorage.setItem("webclient_translations_version", cacheMarker);
+    } catch {}
+}
+
+/**
+ * @param {TranslationPayload} result
+ */
+function updateTranslations(result) {
+    /** @type {Record<string, Record<string, string>>} */
+    const terms = {};
+    for (const addon of Object.keys(result.modules)) {
+        terms[addon] = {};
+        for (const message of result.modules[addon].messages) {
+            terms[addon][message.id] = message.string;
+            translatedTermsGlobal[message.id] = message.string;
+        }
+    }
+    Object.assign(translatedTerms, terms);
+
+    const userLocalization = result.lang_parameters;
+    const dateFormat = strftimeToLuxonFormat(userLocalization.date_format);
+    const timeFormat = strftimeToLuxonFormat(userLocalization.time_format);
+
+    Object.assign(localization, {
+        dateFormat,
+        timeFormat,
+        dateTimeFormat: `${dateFormat} ${timeFormat}`,
+        decimalPoint: userLocalization.decimal_point,
+        direction: userLocalization.direction,
+        grouping: (() => {
+            try {
+                return JSON.parse(userLocalization.grouping);
+            } catch {
+                return [3, 0];
+            }
+        })(),
+        multiLang: result.multi_lang,
+        thousandsSep: userLocalization.thousands_sep,
+        weekStart: userLocalization.week_start,
+    });
+}
+
+/**
+ * Fetch the translations, adopting the page's preload request when it asked
+ * the same URL, and apply + cache them when the server's hash differs from
+ * the one we hold.
+ *
+ * @param {TranslationSource} source
+ * @param {string | undefined} hash
+ */
+async function fetchTranslations(source, hash) {
+    const { db, lang } = source;
+    let queryString = objectToUrlEncodedString({ hash, lang });
+    queryString = queryString.length ? `?${queryString}` : queryString;
+    const url = `${source.url}${queryString}`;
+    const preload = /** @type {any} */ (odoo);
+    let responsePromise;
+    if (
+        !hash &&
+        preload.loadTranslationsPromise &&
+        preload.loadTranslationsURL === url
+    ) {
+        l10nLog("fetch", "fetchTranslations adopting preload", `url=${url}`);
+        responsePromise = preload.loadTranslationsPromise;
+    } else {
+        if (preload.loadTranslationsPromise) {
+            preload.loadTranslationsPromise.then(
+                (/** @type {Response} */ res) => res.body?.cancel(),
+                () => {},
+            );
+        }
+        l10nLog("fetch", "fetchTranslations begin", `url=${url}`);
+        responsePromise = browser.fetch(url, { cache: "no-store" });
+    }
+    preload.loadTranslationsPromise = null;
+    preload.loadTranslationsURL = null;
+    const response = await responsePromise;
+    l10nLog(
+        "fetch",
+        "fetchTranslations response",
+        `status=${response.status}`,
+        `ok=${response.ok}`,
+    );
+    if (!response.ok) {
+        throw new Error("Error while fetching translations");
+    }
+    const result = await response.json();
+    if (result.hash !== hash) {
+        updateTranslations(result);
+        db.write(source.url, JSON.stringify({ lang }), result).then(
+            () => markTranslationsCached(source.cacheMarker),
+            () => {},
+        );
+        l10nLog("fetch", "fetchTranslations cached + applied", `hash=${result.hash}`);
+    }
+}
+
 const localizationService = {
     /** @returns {Promise<typeof import("@web/core/l10n/localization").localization>} */
     start: async () => {
-        const localizationDB = new IndexedDB("localization", session.registry_hash);
-        const translationURL = session.translationURL || "/web/webclient/translations";
         const locale = getPageLocale();
         const lang = jsToPyLocale(locale);
-
-        const translationsCacheMarker = `${session.registry_hash}/${lang}`;
-        const markTranslationsCached = () => {
-            try {
-                browser.localStorage.setItem(
-                    "webclient_translations_version",
-                    translationsCacheMarker,
-                );
-            } catch {}
+        /** @type {TranslationSource} */
+        const source = {
+            db: new IndexedDB("localization", session.registry_hash),
+            url: session.translationURL || "/web/webclient/translations",
+            lang,
+            cacheMarker: `${session.registry_hash}/${lang}`,
         };
 
-        /**
-         * @param {string | undefined} hash
-         */
-        const fetchTranslations = async (hash) => {
-            let queryString = objectToUrlEncodedString({ hash, lang });
-            queryString = queryString.length ? `?${queryString}` : queryString;
-            const url = `${translationURL}${queryString}`;
-            const preload = /** @type {any} */ (odoo);
-            let responsePromise;
-            if (
-                !hash &&
-                preload.loadTranslationsPromise &&
-                preload.loadTranslationsURL === url
-            ) {
-                l10nLog("fetch", "fetchTranslations adopting preload", `url=${url}`);
-                responsePromise = preload.loadTranslationsPromise;
-            } else {
-                if (preload.loadTranslationsPromise) {
-                    preload.loadTranslationsPromise.then(
-                        (/** @type {Response} */ res) => res.body?.cancel(),
-                        () => {},
-                    );
-                }
-                l10nLog("fetch", "fetchTranslations begin", `url=${url}`);
-                responsePromise = browser.fetch(url, {
-                    cache: "no-store",
-                });
-            }
-            preload.loadTranslationsPromise = null;
-            preload.loadTranslationsURL = null;
-            const response = await responsePromise;
-            l10nLog(
-                "fetch",
-                "fetchTranslations response",
-                `status=${response.status}`,
-                `ok=${response.ok}`,
-            );
-            if (!response.ok) {
-                throw new Error("Error while fetching translations");
-            }
-            const result = await response.json();
-            if (result.hash !== hash) {
-                updateTranslations(result);
-                localizationDB
-                    .write(translationURL, JSON.stringify({ lang }), result)
-                    .then(markTranslationsCached, () => {});
-                l10nLog(
-                    "fetch",
-                    "fetchTranslations cached + applied",
-                    `hash=${result.hash}`,
-                );
-            }
-        };
-
-        /**
-         * @param {{
-         * hash: string,
-         * modules: Record<string, { messages: { id: string, string: string }[] }>,
-         * lang_parameters: {
-         * date_format: string,
-         * time_format: string,
-         * decimal_point: string,
-         * direction: string,
-         * grouping: string,
-         * thousands_sep: string,
-         * week_start: number,
-         * },
-         * multi_lang: boolean,
-         * }} result
-         */
-        const updateTranslations = (result) => {
-            /** @type {Record<string, Record<string, string>>} */
-            const terms = {};
-            for (const addon of Object.keys(result.modules)) {
-                terms[addon] = {};
-                for (const message of result.modules[addon].messages) {
-                    terms[addon][message.id] = message.string;
-                    translatedTermsGlobal[message.id] = message.string;
-                }
-            }
-            Object.assign(translatedTerms, terms);
-
-            const userLocalization = result.lang_parameters;
-            const dateFormat = strftimeToLuxonFormat(userLocalization.date_format);
-            const timeFormat = strftimeToLuxonFormat(userLocalization.time_format);
-
-            Object.assign(localization, {
-                dateFormat,
-                timeFormat,
-                dateTimeFormat: `${dateFormat} ${timeFormat}`,
-                decimalPoint: userLocalization.decimal_point,
-                direction: userLocalization.direction,
-                grouping: (() => {
-                    try {
-                        return JSON.parse(userLocalization.grouping);
-                    } catch {
-                        return [3, 0];
-                    }
-                })(),
-                multiLang: result.multi_lang,
-                thousandsSep: userLocalization.thousands_sep,
-                weekStart: userLocalization.week_start,
-            });
-        };
-
-        const storedTranslations = await localizationDB.read(
-            translationURL,
+        const storedTranslations = await source.db.read(
+            source.url,
             JSON.stringify({ lang }),
         );
         l10nLog(
@@ -200,12 +222,12 @@ const localizationService = {
             `lang=${lang}`,
         );
 
-        const translationProm = fetchTranslations(storedTranslations?.hash);
+        const translationProm = fetchTranslations(source, storedTranslations?.hash);
         if (storedTranslations) {
             translationProm.catch((e) =>
                 console.warn("Background translation fetch failed:", e),
             );
-            markTranslationsCached();
+            markTranslationsCached(source.cacheMarker);
             updateTranslations(storedTranslations);
         } else {
             l10nLog("cache", "no cache, awaiting fetch");

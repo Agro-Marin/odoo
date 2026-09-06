@@ -277,3 +277,11 @@ test("numeric parsers reject non-decimal literals", () => {
     expect(parseFloat("+5")).toBe(5);
     expect(parseInteger("1,000")).toBe(1000);
 });
+
+test("multi-edit operations tolerate surrounding whitespace on every parser", () => {
+    for (const parse of [parseFloat, parseInteger, parseMonetary, parsePercentage]) {
+        const op = /** @type {any} */ (parse(" += 5 ", { allowOperation: true }));
+        expect(op.operator).toBe("+");
+        expect(op.operand).toBe(5);
+    }
+});

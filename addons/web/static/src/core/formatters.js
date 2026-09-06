@@ -254,7 +254,7 @@ formatInteger.extractOptions = ({ attrs, options }) => ({
 export function formatMany2one(value, options) {
     /** @type {any} */
     let result;
-    if (!value) {
+    if (!value || typeof value !== "object") {
         result = "";
     } else {
         const displayName = "display_name" in value ? value.display_name : value[1];

@@ -168,15 +168,19 @@ function isSimpleAnd(c) {
 }
 
 /**
+ * `path >= value1 and path <upper> value2` on one path, or false.
+ *
  * @param {Tree} c
+ * @param {"<=" | "<"} upper
+ * @returns {{ path: Value, value1: Value | Tree, value2: Value | Tree } | false}
  */
-function isBetween(c) {
+function matchRange(c, upper) {
     if (isSimpleAnd(c)) {
         const [
             { path: p1, operator: op1, value: value1 },
             { path: p2, operator: op2, value: value2 },
         ] = /** @type {Condition[]} */ (c.children);
-        if (p1 === p2 && op1 === ">=" && op2 === "<=") {
+        if (p1 === p2 && op1 === ">=" && op2 === upper) {
             return { path: p1, value1, value2 };
         }
     }
@@ -187,41 +191,24 @@ function isBetween(c) {
  * @param {Value} path
  * @param {Value} value1
  * @param {Value} value2
+ * @param {"<=" | "<"} upper
  */
-function makeBetween(path, value1, value2) {
+function makeRange(path, value1, value2, upper) {
     return connector("&", [
         condition(path, ">=", value1),
-        condition(path, "<=", value2),
+        condition(path, upper, value2),
     ]);
 }
 
-/**
- * @param {Tree} c
- */
-function isStrictBetween(c) {
-    if (isSimpleAnd(c)) {
-        const [
-            { path: p1, operator: op1, value: value1 },
-            { path: p2, operator: op2, value: value2 },
-        ] = /** @type {Condition[]} */ (c.children);
-        if (p1 === p2 && op1 === ">=" && op2 === "<") {
-            return { path: p1, value1, value2 };
-        }
-    }
-    return false;
-}
-
-/**
- * @param {Value} path
- * @param {Value} value1
- * @param {Value} value2
- */
-function makeStrictBetween(path, value1, value2) {
-    return connector("&", [
-        condition(path, ">=", value1),
-        condition(path, "<", value2),
-    ]);
-}
+/** @param {Tree} c */
+const isBetween = (c) => matchRange(c, "<=");
+/** @param {Tree} c */
+const isStrictBetween = (c) => matchRange(c, "<");
+/** @type {(path: Value, value1: Value, value2: Value) => Connector} */
+const makeBetween = (path, value1, value2) => makeRange(path, value1, value2, "<=");
+/** @type {(path: Value, value1: Value, value2: Value) => Connector} */
+const makeStrictBetween = (path, value1, value2) =>
+    makeRange(path, value1, value2, "<");
 
 /**
  * @param {string} delta

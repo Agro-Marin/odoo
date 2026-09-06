@@ -109,7 +109,7 @@ const httpService = {
     async: ["get", "post"],
     /** @returns {HttpService} */
     start() {
-        return new HttpService();
+        return http;
     },
 };
 

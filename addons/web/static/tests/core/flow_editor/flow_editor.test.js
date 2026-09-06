@@ -76,11 +76,18 @@ function wheelEvent(overrides = {}) {
  */
 function withElementFromPoint(element, callback) {
     const unpatch = patch(document, { elementFromPoint: () => element });
+    let result;
     try {
-        return callback();
-    } finally {
+        result = callback();
+    } catch (error) {
         unpatch();
+        throw error;
     }
+    if (result && typeof result.then === "function") {
+        return result.finally(unpatch);
+    }
+    unpatch();
+    return result;
 }
 
 /**
@@ -548,16 +555,20 @@ describe("FlowEditor: connecting ports", () => {
             port: { id: "in", direction: "input" },
             originalEvent: pointerEvent(),
         });
-        expect(disconnected).toEqual(["c1"]);
-        expect(editor.store.connections).toEqual([]);
+        expect(disconnected).toEqual([]);
+        expect(editor.store.connections.map((c) => c.id)).toEqual(["c1"]);
+        expect(editor.draftConnectionGeometry).toBe(null);
 
         const targetPort = portElement({
             nodeId: "c",
             portId: "in",
             direction: "input",
         });
-        await withElementFromPoint(targetPort, () => {
+        await withElementFromPoint(targetPort, async () => {
             editor.onPointerMove(pointerEvent({ clientX: 155, clientY: 305 }));
+            await editor.pendingDetach;
+            expect(disconnected).toEqual(["c1"]);
+            expect(editor.store.connections).toEqual([]);
             return editor.onPointerUp(pointerEvent({ clientX: 155, clientY: 305 }));
         });
 
@@ -572,7 +583,7 @@ describe("FlowEditor: connecting ports", () => {
         ]);
     });
 
-    test("vetoing the disconnection keeps the original connection", () => {
+    test("vetoing the disconnection keeps the original connection", async () => {
         const editor = makeConnectableEditor({
             connections: [
                 connection("c1", "a", "b", { sourcePortId: "out", targetPortId: "in" }),
@@ -585,6 +596,8 @@ describe("FlowEditor: connecting ports", () => {
             port: { id: "in", direction: "input" },
             originalEvent: pointerEvent(),
         });
+        editor.onPointerMove(pointerEvent({ clientX: 40, clientY: 0 }));
+        await editor.pendingDetach;
 
         expect(
             editor.store.connections.map(
@@ -592,6 +605,35 @@ describe("FlowEditor: connecting ports", () => {
             ),
         ).toEqual(["c1"]);
         expect(editor.store.interaction).toBe(null);
+    });
+
+    test("a click on a connected port, with no drag, keeps the connection", async () => {
+        const editor = makeConnectableEditor({
+            connections: [
+                connection("c1", "a", "b", { sourcePortId: "out", targetPortId: "in" }),
+            ],
+        });
+        /** @type {any[]} */
+        const disconnected = [];
+        editor.props.onDisconnect = (/** @type {any} */ { connection: removed }) => {
+            disconnected.push(removed.id);
+            return true;
+        };
+
+        for (const port of [
+            { nodeId: "b", port: { id: "in", direction: "input" } },
+            { nodeId: "a", port: { id: "out", direction: "output" } },
+        ]) {
+            editor.onPortPointerDown({ ...port, originalEvent: pointerEvent() });
+            editor.onPointerMove(pointerEvent({ clientX: 2, clientY: 2 }));
+            await withElementFromPoint(null, () =>
+                editor.onPointerUp(pointerEvent({ clientX: 2, clientY: 2 })),
+            );
+            expect(editor.store.interaction).toBe(null);
+        }
+
+        expect(disconnected).toEqual([]);
+        expect(editor.store.connections.map((c) => c.id)).toEqual(["c1"]);
     });
 
     test("connecting an output to its own node's input does not open the node afterward", async () => {

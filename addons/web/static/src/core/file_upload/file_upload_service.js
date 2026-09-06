@@ -7,6 +7,73 @@ import { FileUploadEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
+/**
+ * A 2xx that landed on another path is the login page, the session having
+ * expired between the click and the request.
+ *
+ * @param {XMLHttpRequest} xhr
+ * @param {string} route
+ * @returns {boolean}
+ */
+function wasRedirected(xhr, route) {
+    const finalUrl = xhr.responseURL;
+    if (!finalUrl) {
+        return false;
+    }
+    try {
+        const base = browser.location.href;
+        return new URL(finalUrl, base).pathname !== new URL(route, base).pathname;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * @param {XMLHttpRequest} xhr
+ * @param {string} route
+ * @returns {Object|undefined} the parsed JSON body, when it is one
+ * @throws {Error} carrying the most specific message the response offers
+ */
+function parseUploadResponse(xhr, route) {
+    const resp = xhr.responseText ?? xhr.response;
+    let error = !(xhr.status >= 200 && xhr.status < 300);
+    let errorMessage = "";
+    let parsed;
+    if (!error && wasRedirected(xhr, route)) {
+        error = true;
+        errorMessage = _t("Your session expired. Please log in again.");
+    }
+    if (resp) {
+        let content = resp;
+        if (typeof content === "string") {
+            try {
+                content = JSON.parse(content);
+            } catch {
+                try {
+                    content = new DOMParser().parseFromString(content, "text/html");
+                } catch {}
+            }
+        }
+        if (error && content instanceof Document) {
+            errorMessage = content.body?.textContent?.trim() || errorMessage;
+        } else if (content instanceof Object) {
+            parsed = content;
+            if (content.error) {
+                error = true;
+                if (content.error.data) {
+                    errorMessage = `${content.error.data.name}: ${content.error.data.message}`;
+                } else {
+                    errorMessage = content.error.message || errorMessage;
+                }
+            }
+        }
+    }
+    if (error) {
+        throw new Error(errorMessage);
+    }
+    return parsed;
+}
+
 class FileUploadService {
     /**
      * @param {{ notification: any }} services
@@ -78,138 +145,84 @@ class FileUploadService {
             upload.total = ev.total;
             upload.state = "loading";
         });
-        xhr.addEventListener("load", async () => {
-            this.inFlight.delete(xhr);
-            let content;
-            try {
-                content = handleResponse();
-            } catch (e) {
-                onError(e);
-                return;
-            }
-            if (params.directFile) {
-                if (!content?.upload_info) {
-                    onError(
-                        new Error(_t("The server did not return a direct upload URL.")),
-                    );
-                    return;
-                }
-                upload.state = "loading";
-                try {
-                    await this.uploadToUrl(content.upload_info, params.directFile, {
-                        onProgress: (loaded, total) => {
-                            upload.progress = total > 0 ? loaded / total : 0;
-                            upload.loaded = loaded;
-                            upload.total = total;
-                        },
-                    });
-                } catch (e) {
-                    onError(e);
-                    return;
-                }
-            }
-            delete this.uploads[upload.id];
-            upload.state = "loaded";
-            this.bus.trigger(FileUploadEvent.LOADED, { upload });
-        });
-
-        /**
-         * @returns {boolean}
-         */
-        const wasRedirected = () => {
-            const finalUrl = xhr.responseURL;
-            if (!finalUrl) {
-                return false;
-            }
-            try {
-                const base = browser.location.href;
-                return (
-                    new URL(finalUrl, base).pathname !== new URL(route, base).pathname
-                );
-            } catch {
-                return false;
-            }
-        };
-
-        /**
-         * @returns {Object|undefined} the parsed JSON body, when it is one
-         * @throws {Error}
-         */
-        const handleResponse = () => {
-            const resp = xhr.responseText ?? xhr.response;
-            let error;
-            let errorMessage = "";
-            let parsed;
-            if (!(xhr.status >= 200 && xhr.status < 300)) {
-                error = true;
-            }
-            if (!error && wasRedirected()) {
-                error = true;
-                errorMessage = _t("Your session expired. Please log in again.");
-            }
-            if (resp) {
-                let content = resp;
-                if (typeof content === "string") {
-                    try {
-                        content = JSON.parse(content);
-                    } catch {
-                        try {
-                            content = new DOMParser().parseFromString(
-                                content,
-                                "text/html",
-                            );
-                        } catch {}
-                    }
-                }
-                if (error && content instanceof Document) {
-                    errorMessage = content.body?.textContent?.trim() || errorMessage;
-                } else if (content instanceof Object) {
-                    parsed = content;
-                    if (content.error) {
-                        error = true;
-                        if (content.error.data) {
-                            errorMessage = `${content.error.data.name}: ${content.error.data.message}`;
-                        } else {
-                            errorMessage = content.error.message || errorMessage;
-                        }
-                    }
-                }
-            }
-            if (error) {
-                throw new Error(errorMessage);
-            }
-            return parsed;
-        };
-
-        /**
-         * @param {Error} [error]
-         */
-        const onError = (error) => {
-            const defaultErrorMessage = _t("An error occurred while uploading.");
-            this.inFlight.delete(xhr);
-            delete this.uploads[upload.id];
-            upload.state = "error";
-            const displayError =
-                !this.destroyed && (params.displayErrorNotification ?? true);
-            if (displayError) {
-                this.notificationService.add(error?.message || defaultErrorMessage, {
-                    type: "danger",
-                    sticky: true,
-                });
-            }
-            this.bus.trigger(FileUploadEvent.ERROR, { upload });
-        };
-        xhr.addEventListener("error", () => onError());
+        xhr.addEventListener("load", () => this._onLoaded(upload, route, params));
+        xhr.addEventListener("error", () => this._fail(upload, params));
         xhr.addEventListener("abort", () => {
-            this.inFlight.delete(xhr);
-            delete this.uploads[upload.id];
-            upload.state = "abort";
+            this._settle(upload, "abort");
             this.bus.trigger(FileUploadEvent.ERROR, { upload });
         });
         this.inFlight.add(xhr);
         xhr.send(formData);
         this.bus.trigger(FileUploadEvent.ADDED, { upload });
         return upload;
+    }
+
+    /**
+     * @param {Record<string, any>} upload
+     * @param {string} route
+     * @param {{ directFile?: File, displayErrorNotification?: boolean }} params
+     */
+    async _onLoaded(upload, route, params) {
+        this.inFlight.delete(upload.xhr);
+        let content;
+        try {
+            content = parseUploadResponse(upload.xhr, route);
+        } catch (e) {
+            this._fail(upload, params, e);
+            return;
+        }
+        if (params.directFile) {
+            if (!content?.upload_info) {
+                const message = _t("The server did not return a direct upload URL.");
+                this._fail(upload, params, new Error(message));
+                return;
+            }
+            upload.state = "loading";
+            try {
+                await this.uploadToUrl(content.upload_info, params.directFile, {
+                    onProgress: (loaded, total) => {
+                        upload.progress = total > 0 ? loaded / total : 0;
+                        upload.loaded = loaded;
+                        upload.total = total;
+                    },
+                });
+            } catch (e) {
+                this._fail(upload, params, e);
+                return;
+            }
+        }
+        this._settle(upload, "loaded");
+        this.bus.trigger(FileUploadEvent.LOADED, { upload });
+    }
+
+    /**
+     * Take the upload off the books in its final state.
+     *
+     * @param {Record<string, any>} upload
+     * @param {"loaded" | "error" | "abort"} state
+     */
+    _settle(upload, state) {
+        this.inFlight.delete(upload.xhr);
+        delete this.uploads[upload.id];
+        upload.state = state;
+    }
+
+    /**
+     * @param {Record<string, any>} upload
+     * @param {{ displayErrorNotification?: boolean }} params
+     * @param {Error} [error]
+     */
+    _fail(upload, params, error) {
+        this._settle(upload, "error");
+        const displayError =
+            !this.destroyed && (params.displayErrorNotification ?? true);
+        if (displayError) {
+            this.notificationService.add(
+                error?.message || _t("An error occurred while uploading."),
+                { type: "danger", sticky: true },
+            );
+        }
+        this.bus.trigger(FileUploadEvent.ERROR, { upload });
     }
 
     /**
@@ -227,11 +240,12 @@ class FileUploadService {
         const xhr = fileUploadService.createXhr();
         this.inFlight.add(xhr);
         const promise = new Promise((resolve, reject) => {
-            const fail = (message, status) => {
+            const fail = (
+                /** @type {string} */ message,
+                /** @type {number} */ status,
+            ) => {
                 this.inFlight.delete(xhr);
-                const error = new Error(message);
-                error.status = status;
-                reject(error);
+                reject(Object.assign(new Error(message), { status }));
             };
             xhr.open(uploadInfo.method, uploadInfo.url);
             for (const [key, value] of Object.entries(uploadInfo.headers || {})) {
