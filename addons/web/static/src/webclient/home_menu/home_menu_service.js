@@ -8,12 +8,14 @@ import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { session } from "@web/session";
 import {
     ControllerNotFoundError,
     standardActionServiceProps,
 } from "@web/webclient/actions";
 import {
     computeAppsAndMenuItems,
+    isDefaultHomeMenuConfig,
     parseHomeMenuConfig,
     reorderApps,
 } from "@web/webclient/menus/menu_utils";
@@ -79,8 +81,17 @@ export const homeMenuService = {
                 });
             }
             computeHomeMenuProps() {
+                // The company's default applies until the user has a layout
+                // of their own; a layout is the user's whole answer, never a
+                // per-field merge.
+                const defaultConfig = parseHomeMenuConfig(
+                    session.homemenu_default_config,
+                );
+                const own = parseHomeMenuConfig(user.settings?.homemenu_config);
                 const config = reactive(
-                    parseHomeMenuConfig(user.settings?.homemenu_config),
+                    isDefaultHomeMenuConfig(own)
+                        ? parseHomeMenuConfig(defaultConfig)
+                        : own,
                 );
                 const apps = reactive(
                     computeAppsAndMenuItems(this.menus.getMenuAsTree("root")).apps,
@@ -94,9 +105,15 @@ export const homeMenuService = {
                 return {
                     apps,
                     config,
+                    defaultConfig,
                     reorderApps: (/** @type {string[]} */ order) =>
                         reorderApps(apps, order),
-                    resetApps: () => reorderApps(apps, defaultOrder),
+                    resetApps: () => {
+                        reorderApps(apps, defaultOrder);
+                        if (defaultConfig.order.length) {
+                            reorderApps(apps, defaultConfig.order);
+                        }
+                    },
                 };
             }
             onMounted() {

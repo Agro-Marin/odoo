@@ -18,9 +18,9 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { useSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
+import { session } from "@web/session";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 import {
-    isDefaultHomeMenuConfig,
     parseHomeMenuConfig,
     serializeHomeMenuConfig,
 } from "@web/webclient/menus/menu_utils";
@@ -108,6 +108,11 @@ export class HomeMenu extends Component {
             shape: { order: Array, pinned: Array, hidden: Array },
         },
         resetApps: { type: Function, optional: true },
+        defaultConfig: {
+            type: Object,
+            optional: true,
+            shape: { order: Array, pinned: Array, hidden: Array },
+        },
     };
 
     /** @type {{ focusedIndex: number | null; isIosApp: boolean; editing: boolean }} */
@@ -127,6 +132,8 @@ export class HomeMenu extends Component {
     subscription;
     /** @type {import("services").ServiceFactories["ui"]} */
     ui;
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     inputRef;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
@@ -138,6 +145,7 @@ export class HomeMenu extends Component {
         this.homeMenuService = useService("home_menu");
         this.subscription = useService("enterprise_subscription");
         this.ui = useService("ui");
+        this.orm = useService("orm");
         this.state = useState({
             focusedIndex: null,
             isIosApp: isIosApp(),
@@ -243,9 +251,22 @@ export class HomeMenu extends Component {
         return true;
     }
 
+    /** @returns {import("@web/webclient/menus/menu_utils").HomeMenuConfig} */
+    get defaultConfig() {
+        return this.props.defaultConfig ?? parseHomeMenuConfig(null);
+    }
+
     /** @returns {boolean} */
     get hasCustomLayout() {
-        return !isDefaultHomeMenuConfig(this.config);
+        return (
+            serializeHomeMenuConfig(this.config) !==
+            serializeHomeMenuConfig(this.defaultConfig)
+        );
+    }
+
+    /** @returns {boolean} */
+    get canSetCompanyDefault() {
+        return user.isAdmin;
     }
 
     /** @param {HomeMenuApp} app */
@@ -335,11 +356,26 @@ export class HomeMenu extends Component {
     }
 
     _resetLayout() {
-        this.config.order.length = 0;
-        this.config.pinned.length = 0;
-        this.config.hidden.length = 0;
+        const defaults = this.defaultConfig;
+        this.config.order = [...defaults.order];
+        this.config.pinned = [...defaults.pinned];
+        this.config.hidden = [...defaults.hidden];
         this.props.resetApps?.();
-        this._persistConfig();
+        // No layout of their own: the user follows the company's again.
+        return user.setUserSettings("homemenu_config", null);
+    }
+
+    async _setCompanyDefault() {
+        const config = JSON.parse(serializeHomeMenuConfig(this.config));
+        await this.orm.write("res.company", [user.activeCompany.id], {
+            homemenu_default_config: config,
+        });
+        session.homemenu_default_config = config;
+        const defaults = this.defaultConfig;
+        defaults.order = [...this.config.order];
+        defaults.pinned = [...this.config.pinned];
+        defaults.hidden = [...this.config.hidden];
+        this.render();
     }
 
     _toggleEditing() {

@@ -110,3 +110,22 @@ class TestSessionInfo(common.HttpCase):
         )
         data = response.json()
         self.assertIsInstance(data["result"], list)
+
+    def test_session_info_carries_the_company_home_menu_default(self):
+        self.authenticate(self.user.login, self.user_password)
+        response = self.url_open(
+            "/web/session/get_session_info", data=self.payload, headers=self.headers
+        )
+        self.assertIsNone(response.json()["result"]["homemenu_default_config"])
+
+        layout = {
+            "version": 2,
+            "order": [],
+            "pinned": ["mail.menu_root_discuss"],
+            "hidden": [],
+        }
+        self.company_a.homemenu_default_config = layout
+        response = self.url_open(
+            "/web/session/get_session_info", data=self.payload, headers=self.headers
+        )
+        self.assertEqual(response.json()["result"]["homemenu_default_config"], layout)

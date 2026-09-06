@@ -25,6 +25,7 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { session } from "@web/session";
 import { HomeMenu } from "@web/webclient/home_menu/home_menu";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
@@ -575,7 +576,7 @@ test("hiding an app removes it from the grid and shows it dimmed while editing",
 
 test("reset layout clears the order, the pins and the hidden apps", async () => {
     onRpc("set_res_users_settings", ({ kwargs }) => {
-        expect.step(kwargs.new_settings.homemenu_config);
+        expect.step(String(kwargs.new_settings.homemenu_config));
         return {};
     });
     const props = getLayoutProps(
@@ -596,7 +597,7 @@ test("reset layout clears the order, the pins and the hidden apps", async () => 
         "Contacts",
     ]);
     expect(".o_home_menu_reset").toHaveCount(0);
-    expect.verifySteps(['{"version":2,"order":[],"pinned":[],"hidden":[]}']);
+    expect.verifySteps(["null"]);
 });
 
 test("Escape leaves the edit mode before it closes the home menu", async () => {
@@ -614,4 +615,93 @@ test("Escape leaves the edit mode before it closes the home menu", async () => {
     expect.verifySteps([]);
     await press("escape");
     expect.verifySteps(["toggle false"]);
+});
+
+test("the company default applies until the user customises, and reset returns to it", async () => {
+    onRpc("set_res_users_settings", ({ kwargs }) => {
+        expect.step(`settings ${kwargs.new_settings.homemenu_config}`);
+        return {};
+    });
+    const props = getLayoutProps('{"pinned":["app.2"]}');
+    props.defaultConfig = parseHomeMenuConfig('{"pinned":["app.2"]}');
+    await mountWithCleanup(HomeMenu, { props });
+    expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.2");
+
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    expect(".o_home_menu_reset").toHaveCount(0, {
+        message: "the company layout, untouched, is nothing to reset",
+    });
+
+    await click(".o_app[data-menu-xmlid='app.3'] .o_app_pin");
+    await animationFrame();
+    expect(".o_home_menu_reset").toHaveCount(1);
+    expect(queryAllTexts(".o_pinned_apps .o_caption")).toEqual([
+        "Calendar",
+        "Contacts",
+    ]);
+    expect.verifySteps([
+        'settings {"version":2,"order":[],"pinned":["app.2","app.3"],"hidden":[]}',
+    ]);
+
+    await click(".o_home_menu_reset");
+    await animationFrame();
+    expect(queryAllTexts(".o_pinned_apps .o_caption")).toEqual(["Calendar"]);
+    expect(".o_home_menu_reset").toHaveCount(0);
+    expect.verifySteps(["settings null"]);
+});
+
+test("an admin can make the current layout the company default", async () => {
+    patchWithCleanup(user, { isAdmin: true });
+    onRpc("set_res_users_settings", () => ({}));
+    onRpc("res.company", "write", ({ args }) => {
+        expect.step(
+            `company ${args[0]} ${JSON.stringify(args[1].homemenu_default_config)}`,
+        );
+        return true;
+    });
+    const props = getLayoutProps();
+    props.defaultConfig = parseHomeMenuConfig(null);
+    await mountWithCleanup(HomeMenu, { props });
+
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    expect(".o_home_menu_company_default").toHaveCount(0);
+
+    await click(".o_app[data-menu-xmlid='app.3'] .o_app_hide");
+    await animationFrame();
+    await click(".o_home_menu_company_default");
+    await animationFrame();
+    expect.verifySteps([
+        `company ${user.activeCompany.id} {"version":2,"order":[],"pinned":[],"hidden":["app.3"]}`,
+    ]);
+    expect(session.homemenu_default_config).toEqual({
+        version: 2,
+        order: [],
+        pinned: [],
+        hidden: ["app.3"],
+    });
+    expect(".o_home_menu_reset").toHaveCount(0, {
+        message: "the layout is the company default now, so there is nothing to reset",
+    });
+    expect(".o_home_menu_company_default").toHaveCount(0);
+});
+
+test("a user without a layout of their own gets the company default", async () => {
+    patchWithCleanup(session, {
+        homemenu_default_config: {
+            version: 2,
+            order: [],
+            pinned: ["menu_2"],
+            hidden: ["menu_1"],
+        },
+    });
+    defineMenus([
+        { id: 1, name: "App1", appID: 1, actionID: 1001, xmlid: "menu_1" },
+        { id: 2, name: "App2", appID: 2, actionID: 1002, xmlid: "menu_2" },
+        { id: 3, name: "App3", appID: 3, actionID: 1003, xmlid: "menu_3" },
+    ]);
+    await mountWebClient({ WebClient });
+    expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual(["App2", "App3"]);
+    expect(".o_pinned_apps .o_app").toHaveCount(1);
 });

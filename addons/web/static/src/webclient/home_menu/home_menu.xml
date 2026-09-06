@@ -24,6 +24,7 @@
                 </button>
                 <t t-else="">
                     <button t-if="hasCustomLayout" type="button" class="o_home_menu_reset btn btn-link btn-sm" t-on-click="_resetLayout">Reset layout</button>
+                    <button t-if="canSetCompanyDefault and hasCustomLayout" type="button" class="o_home_menu_company_default btn btn-link btn-sm" title="Every user of the company without a layout of their own will see this one" t-on-click="_setCompanyDefault">Set as company default</button>
                     <button type="button" class="o_home_menu_done btn btn-primary btn-sm" t-on-click="_toggleEditing">Done</button>
                 </t>
             </div>
