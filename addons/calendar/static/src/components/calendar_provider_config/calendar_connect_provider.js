@@ -46,8 +46,11 @@ export class CalendarConnectProvider extends Component {
             [this.props.record.resId],
         );
         // See google/microsoft_calendar for the origin of this shortened version
-        const { restart_sync_method, sync_route } =
-            providerData[this.props.record.data.external_calendar_provider];
+        const provider = providerData[this.props.record.data.external_calendar_provider];
+        if (!provider) {
+            return;
+        }
+        const { restart_sync_method, sync_route } = provider;
         await this.orm.call("res.users", restart_sync_method, [[user.userId]]);
         const response = await rpc(sync_route, {
             model: "calendar.event",
