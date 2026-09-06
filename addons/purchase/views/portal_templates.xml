@@ -318,6 +318,15 @@
         <strong>Receipt Date:</strong><span class="ms-1" t-field="order.date_commitment" t-options="{&quot;widget&quot;: &quot;date&quot;}" />
         </div>
         </div>
+        <t t-if="order.dest_address_id">
+        <div class="col-lg-6">
+        <strong class="d-block mb-1">Shipping address</strong>
+        <address
+            t-field="order.dest_address_id"
+            t-options="{&quot;widget&quot;: &quot;contact&quot;, &quot;fields&quot;: [&quot;address&quot;, &quot;name&quot;, &quot;phone&quot;], &quot;no_marker&quot;: True, &quot;phone_icons&quot;: True}"
+            name="purchase_shipping_address" />
+        </div>
+        </t>
         </div>
 
         <t

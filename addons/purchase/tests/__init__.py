@@ -31,3 +31,4 @@ from . import test_purchase_mass_mail
 from . import test_purchase_mailing
 from . import test_purchase_report_list_action
 from . import test_purchase_search_filters
+from . import test_purchase_portal_dropship
