@@ -49,6 +49,47 @@ export function objectToString(obj) {
         .join(",")}}`;
 }
 
+/**
+ * Give a group item the class its slot scope carries, on whichever attribute
+ * the compiled node reads class names from.
+ *
+ * @param {Element} mainSlot
+ * @param {Element} slotContent
+ * @param {Element} child
+ */
+function applyGroupItemClass(mainSlot, slotContent, child) {
+    const groupClassExpr = `scope && scope.className`;
+    if (!isComponentNode(slotContent)) {
+        appendAttf(slotContent, "class", `${groupClassExpr} || ""`);
+        return;
+    }
+    if (getTag(slotContent) === "FormLabel") {
+        mainSlot.prepend(
+            createElement("t", { "t-set": "addClass", "t-value": groupClassExpr }),
+        );
+        combineAttributes(
+            slotContent,
+            "className",
+            `(addClass ? " " + addClass : "")`,
+            `+`,
+        );
+    } else if (getTag(child, true) !== "button") {
+        if (slotContent.hasAttribute("class")) {
+            mainSlot.prepend(
+                createElement("t", { "t-set": "addClass", "t-value": groupClassExpr }),
+            );
+            combineAttributes(
+                slotContent,
+                "class",
+                `(addClass ? " " + addClass : "")`,
+                `+`,
+            );
+        } else {
+            slotContent.setAttribute("class", groupClassExpr);
+        }
+    }
+}
+
 export class FormCompiler extends ViewCompiler {
     /** @type {Record<string, any>} */
     encounteredFields = {};
@@ -317,28 +358,25 @@ export class FormCompiler extends ViewCompiler {
     compileGroup(el, params) {
         const isOuterGroup = [...el.children].some((c) => getTag(c, true) === "group");
         const formGroup = createElement(isOuterGroup ? "OuterGroup" : "InnerGroup");
-
-        let slotId = 0;
-        let sequence = 0;
-
         if (el.hasAttribute("col")) {
             formGroup.setAttribute("maxCols", el.getAttribute("col") ?? "");
         }
-
         if (el.hasAttribute("string")) {
             const titleSlot = createElement("t", { "t-set-slot": "title" }, [
                 makeSeparator(el.getAttribute("string")),
             ]);
             append(formGroup, titleSlot);
         }
+        const maxCols = Number.parseInt(formGroup.getAttribute("maxCols") || "2", 10);
 
+        let slotId = 0;
+        let sequence = 0;
         let forceNewline = false;
         for (const child of el.children) {
             if (getTag(child, true) === "newline") {
                 forceNewline = true;
                 continue;
             }
-
             const invisible = getModifier(child, "invisible");
             if (
                 !params.compileInvisibleNodes &&
@@ -346,139 +384,98 @@ export class FormCompiler extends ViewCompiler {
             ) {
                 continue;
             }
-
             const mainSlot = createElement("t", {
                 "t-set-slot": `item_${slotId++}`,
                 type: "'item'",
                 sequence: sequence++,
                 "t-slot-scope": "scope",
             });
-            let itemSpan = Number.parseInt(child.getAttribute("colspan") || "1", 10);
-
             if (forceNewline) {
                 mainSlot.setAttribute("newline", "true");
                 forceNewline = false;
             }
-
-            // A separator and an empty clearfix both span the whole group row.
-            if (
-                getTag(child, true) === "separator" ||
-                child.matches("div[class='clearfix']:empty")
-            ) {
-                itemSpan = Number.parseInt(
-                    formGroup.getAttribute("maxCols") || "2",
-                    10,
-                );
+            const item = this.compileGroupItem(child, params, {
+                mainSlot,
+                isOuterGroup,
+                maxCols,
+            });
+            if (!item) {
+                continue;
             }
-
-            let slotContent;
-            if (getTag(child, true) === "field") {
-                const addLabel = child.hasAttribute("nolabel")
-                    ? child.getAttribute("nolabel") !== "1"
-                    : true;
-                slotContent = this.compileNode(
-                    child,
-                    { ...params, currentSlot: mainSlot },
-                    false,
-                );
-                if (
-                    slotContent &&
-                    addLabel &&
-                    !isOuterGroup &&
-                    !isTextNode(slotContent)
-                ) {
-                    itemSpan = itemSpan === 1 ? itemSpan + 1 : itemSpan;
-                    const fieldName = /** @type {Element} */ (child).getAttribute(
-                        "name",
-                    );
-                    const fieldId =
-                        /** @type {Element} */ (slotContent).getAttribute("id") ||
-                        toStringExpression(fieldName);
-                    const props = {
-                        id: `${fieldId}`,
-                        fieldName: toStringExpression(fieldName),
-                        record: `__comp__.props.record`,
-                        string: child.hasAttribute("string")
-                            ? toStringExpression(child.getAttribute("string"))
-                            : `__comp__.props.record.fields[${toStringExpression(fieldName)}].string`,
-                        fieldInfo: `__comp__.props.archInfo.fieldNodes[${fieldId}]`,
-                    };
-                    mainSlot.setAttribute("props", objectToString(props));
-                    mainSlot.setAttribute(
-                        "Component",
-                        "__comp__.constructor.components.FormLabel",
-                    );
-                    mainSlot.setAttribute("subType", "'item_component'");
-                }
-            } else {
-                if (
-                    child.classList.contains("o_wrap_label") ||
-                    child.classList.contains("o_td_label") ||
-                    getTag(child, true) === "label"
-                ) {
-                    mainSlot.setAttribute("subType", "'label'");
-                    child.classList.remove("o_wrap_label");
-                }
-                slotContent = this.compileNode(
-                    child,
-                    { ...params, currentSlot: mainSlot },
-                    false,
-                );
+            mainSlot.setAttribute("isVisible", makeIsVisibleExpr(invisible));
+            if (item.itemSpan > 0) {
+                mainSlot.setAttribute("itemSpan", `${item.itemSpan}`);
             }
-
-            if (slotContent && !isTextNode(slotContent)) {
-                const isVisibleExpr = makeIsVisibleExpr(invisible);
-                mainSlot.setAttribute("isVisible", isVisibleExpr);
-                if (itemSpan > 0) {
-                    mainSlot.setAttribute("itemSpan", `${itemSpan}`);
-                }
-
-                const groupClassExpr = `scope && scope.className`;
-                if (isComponentNode(/** @type {Element} */ (slotContent))) {
-                    if (getTag(/** @type {Element} */ (slotContent)) === "FormLabel") {
-                        mainSlot.prepend(
-                            createElement("t", {
-                                "t-set": "addClass",
-                                "t-value": groupClassExpr,
-                            }),
-                        );
-                        combineAttributes(
-                            /** @type {Element} */ (slotContent),
-                            "className",
-                            `(addClass ? " " + addClass : "")`,
-                            `+`,
-                        );
-                    } else if (getTag(child, true) !== "button") {
-                        if (
-                            /** @type {Element} */ (slotContent).hasAttribute("class")
-                        ) {
-                            mainSlot.prepend(
-                                createElement("t", {
-                                    "t-set": "addClass",
-                                    "t-value": groupClassExpr,
-                                }),
-                            );
-                            combineAttributes(
-                                /** @type {Element} */ (slotContent),
-                                "class",
-                                `(addClass ? " " + addClass : "")`,
-                                `+`,
-                            );
-                        } else {
-                            /** @type {Element} */ (slotContent).setAttribute(
-                                "class",
-                                groupClassExpr,
-                            );
-                        }
-                    }
-                } else {
-                    appendAttf(slotContent, "class", `${groupClassExpr} || ""`);
-                }
-                append(mainSlot, slotContent);
-                append(formGroup, mainSlot);
-            }
+            applyGroupItemClass(mainSlot, item.slotContent, child);
+            append(mainSlot, item.slotContent);
+            append(formGroup, mainSlot);
         }
         return formGroup;
+    }
+
+    /**
+     * One child of a <group>: its compiled node and the columns it spans. A
+     * field in an inner group also gets its label as the slot's component.
+     *
+     * @param {Element} child
+     * @param {Record<string, any>} params
+     * @param {{ mainSlot: Element, isOuterGroup: boolean, maxCols: number }} group
+     * @returns {{ slotContent: Element, itemSpan: number } | null}
+     */
+    compileGroupItem(child, params, { mainSlot, isOuterGroup, maxCols }) {
+        let itemSpan = Number.parseInt(child.getAttribute("colspan") || "1", 10);
+        // A separator and an empty clearfix both span the whole group row.
+        if (
+            getTag(child, true) === "separator" ||
+            child.matches("div[class='clearfix']:empty")
+        ) {
+            itemSpan = maxCols;
+        }
+        const childParams = { ...params, currentSlot: mainSlot };
+        if (getTag(child, true) !== "field") {
+            if (
+                child.classList.contains("o_wrap_label") ||
+                child.classList.contains("o_td_label") ||
+                getTag(child, true) === "label"
+            ) {
+                mainSlot.setAttribute("subType", "'label'");
+                child.classList.remove("o_wrap_label");
+            }
+            const slotContent = this.compileNode(child, childParams, false);
+            return slotContent && !isTextNode(slotContent)
+                ? { slotContent: /** @type {Element} */ (slotContent), itemSpan }
+                : null;
+        }
+        const addLabel = child.hasAttribute("nolabel")
+            ? child.getAttribute("nolabel") !== "1"
+            : true;
+        const slotContent = this.compileNode(child, childParams, false);
+        if (!slotContent || isTextNode(slotContent)) {
+            return null;
+        }
+        if (addLabel && !isOuterGroup) {
+            itemSpan = itemSpan === 1 ? itemSpan + 1 : itemSpan;
+            const fieldName = child.getAttribute("name");
+            const fieldId =
+                /** @type {Element} */ (slotContent).getAttribute("id") ||
+                toStringExpression(fieldName);
+            const props = {
+                id: `${fieldId}`,
+                fieldName: toStringExpression(fieldName),
+                record: `__comp__.props.record`,
+                string: child.hasAttribute("string")
+                    ? toStringExpression(child.getAttribute("string"))
+                    : `__comp__.props.record.fields[${toStringExpression(fieldName)}].string`,
+                fieldInfo: `__comp__.props.archInfo.fieldNodes[${fieldId}]`,
+            };
+            mainSlot.setAttribute("props", objectToString(props));
+            mainSlot.setAttribute(
+                "Component",
+                "__comp__.constructor.components.FormLabel",
+            );
+            mainSlot.setAttribute("subType", "'item_component'");
+        }
+        return { slotContent: /** @type {Element} */ (slotContent), itemSpan };
     }
 
     /**

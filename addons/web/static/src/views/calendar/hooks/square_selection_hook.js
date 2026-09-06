@@ -118,6 +118,100 @@ const useBlockSelection = /** @type {any} */ (makeDraggableHook)({
 });
 
 /**
+ * @typedef {{
+ * allSelectedCells: Set<Element>,
+ * prevSelectedCell: Element | null,
+ * action: "add" | "toggle" | "replace" | null,
+ * }} SquareSelectionState
+ */
+
+/**
+ * @param {SquareSelectionState} state
+ * @param {Iterable<Element>} cells
+ * @param {"add" | "toggle" | "replace" | null} action
+ * @returns {Set<Element>}
+ */
+function combineCells(state, cells, action) {
+    const next = new Set(cells);
+    switch (action) {
+        case "add":
+            return state.allSelectedCells.union(next);
+        case "toggle":
+            return state.allSelectedCells.symmetricDifference(next);
+        default:
+            return next;
+    }
+}
+
+/**
+ * Whether Control is held, tracked on the window so a drag that starts with
+ * it adds to the selection instead of replacing it.
+ *
+ * @returns {() => boolean}
+ */
+function useCtrlKey() {
+    let ctrlPressed = false;
+    useExternalListener(window, "keydown", (ev) => {
+        if (ev.key === "Control") {
+            ctrlPressed = true;
+        }
+    });
+    useExternalListener(window, "keyup", (ev) => {
+        if (ev.key === "Control") {
+            ctrlPressed = false;
+        }
+    });
+    useExternalListener(window, "blur", () => {
+        ctrlPressed = false;
+    });
+    return () => ctrlPressed;
+}
+
+/**
+ * A click on a cell: shift extends from the previous cell, ctrl toggles,
+ * otherwise the cell replaces the selection. Returns the new selection, or
+ * null when the click was not on a selectable cell.
+ *
+ * @param {MouseEvent} ev
+ * @param {SquareSelectionState} state
+ * @param {{ ref: { el: HTMLElement | null }, cellIsSelectable: Function }} ctx
+ * @returns {Set<Element> | null}
+ */
+function selectCellsOnClick(ev, state, ctx) {
+    const target = /** @type {HTMLElement} */ (ev.target);
+    if (
+        target.closest(IGNORE_SELECTOR) ||
+        target.closest(EVENT_CONTAINER_SELECTOR) ||
+        !target.closest(CELL_SELECTOR)
+    ) {
+        return null;
+    }
+    const cell = target.closest(CELL_SELECTOR);
+    const coord = getCoordinates(cell);
+    const current = { initCoord: coord, coord };
+    const pseudoCtx = { current, ref: ctx.ref, cellIsSelectable: ctx.cellIsSelectable };
+    const { selectedCells } = getSelectedCellsInBlock(pseudoCtx);
+    const selectedCell = selectedCells[0];
+    if (state.prevSelectedCell && ev.shiftKey) {
+        state.allSelectedCells = getSelectedCellsBetween2Cells(
+            pseudoCtx,
+            state.prevSelectedCell,
+            selectedCell,
+        );
+    } else {
+        state.allSelectedCells = combineCells(
+            state,
+            selectedCells,
+            ev.ctrlKey ? "toggle" : "replace",
+        );
+    }
+    if (!state.prevSelectedCell || !ev.shiftKey) {
+        state.prevSelectedCell = selectedCell;
+    }
+    return state.allSelectedCells;
+}
+
+/**
  * @param {Object} [params]
  * @param {Function} [params.cellIsSelectable]
  */
@@ -126,45 +220,29 @@ export function useSquareSelection(params = {}) {
     const component = useComponent();
     const ref = useRef("fullCalendar");
     const highlightClass = "o-highlight";
+    const isCtrlPressed = useCtrlKey();
 
-    const removeHighlight = () => {
+    /** @type {SquareSelectionState} */
+    const state = { allSelectedCells: new Set(), prevSelectedCell: null, action: null };
+
+    const highlight = (cells) => {
         ref.el.querySelectorAll(`.${highlightClass}`).forEach((node) => {
             node.classList.remove(highlightClass);
         });
-    };
-
-    let allSelectedCells = new Set();
-    const getAllCells = (cells, action) => {
-        cells = new Set(cells);
-        switch (action) {
-            case "add":
-                return allSelectedCells.union(cells);
-            case "toggle":
-                return allSelectedCells.symmetricDifference(cells);
-            case "replace":
-                return cells;
-        }
-    };
-
-    const highlight = ({ selectedCells }) => {
-        removeHighlight();
-        selectedCells.forEach((node) => {
+        cells.forEach((node) => {
             node.classList.add(highlightClass);
         });
     };
+    const publish = () => {
+        highlight(state.allSelectedCells);
+        component.props.onSquareSelection([...state.allSelectedCells]);
+    };
 
     useCallbackRecorder(component.props.callbackRecorder, () => {
-        allSelectedCells = new Set();
-        prevSelectedCell = null;
-        removeHighlight();
+        state.allSelectedCells = new Set();
+        state.prevSelectedCell = null;
+        highlight([]);
     });
-
-    let action = null;
-    let prevSelectedCell = null;
-    const update = ({ selectedCells }) => {
-        const allSelectedCells = getAllCells(selectedCells, action);
-        highlight({ selectedCells: allSelectedCells });
-    };
 
     const selectState = useBlockSelection(
         /** @type {any} */ ({
@@ -175,16 +253,21 @@ export function useSquareSelection(params = {}) {
             edgeScrolling: { speed: 40, threshold: 150 },
             cellIsSelectable,
             onDragStart: ({ selectedCells }) => {
-                prevSelectedCell = null;
-                action = ctrlPressed ? "add" : "replace";
-                update({ selectedCells });
+                state.prevSelectedCell = null;
+                state.action = isCtrlPressed() ? "add" : "replace";
+                highlight(combineCells(state, selectedCells, state.action));
             },
-            onDrag: update,
+            onDrag: ({ selectedCells }) => {
+                highlight(combineCells(state, selectedCells, state.action));
+            },
             onDrop: ({ selectedCells }) => {
-                allSelectedCells = getAllCells(selectedCells, action);
-                action = null;
-                highlight({ selectedCells: allSelectedCells });
-                component.props.onSquareSelection([...allSelectedCells]);
+                state.allSelectedCells = combineCells(
+                    state,
+                    selectedCells,
+                    state.action,
+                );
+                state.action = null;
+                publish();
             },
         }),
     );
@@ -193,38 +276,9 @@ export function useSquareSelection(params = {}) {
         if (selectState.dragging) {
             return;
         }
-        const ignoreElement = ev.target.closest(IGNORE_SELECTOR);
-        if (ignoreElement) {
-            return;
+        if (selectCellsOnClick(ev, state, { ref, cellIsSelectable })) {
+            publish();
         }
-        const eventContainer = ev.target.closest(EVENT_CONTAINER_SELECTOR);
-        if (eventContainer) {
-            return;
-        }
-        const cell = ev.target.closest(CELL_SELECTOR);
-        if (!cell) {
-            return;
-        }
-        const coord = getCoordinates(cell);
-        const current = { initCoord: coord, coord };
-        const pseudoCtx = { current, ref, cellIsSelectable };
-        const { selectedCells } = getSelectedCellsInBlock(pseudoCtx);
-        const selectedCell = selectedCells[0];
-        if (prevSelectedCell && ev.shiftKey) {
-            allSelectedCells = getSelectedCellsBetween2Cells(
-                pseudoCtx,
-                prevSelectedCell,
-                selectedCell,
-            );
-        } else {
-            const action = ev.ctrlKey ? "toggle" : "replace";
-            allSelectedCells = getAllCells(selectedCells, action);
-        }
-        if (!prevSelectedCell || !ev.shiftKey) {
-            prevSelectedCell = selectedCell;
-        }
-        highlight({ selectedCells: allSelectedCells });
-        component.props.onSquareSelection([...allSelectedCells]);
     };
 
     useEffect(
@@ -239,25 +293,4 @@ export function useSquareSelection(params = {}) {
         },
         () => [ref.el, component.props.model.hasMultiCreate],
     );
-
-    let ctrlPressed = false;
-    function onWindowKeyDown(ev) {
-        if (ev.key === "Control") {
-            ctrlPressed = true;
-        }
-    }
-
-    function onWindowKeyUp(ev) {
-        if (ev.key === "Control") {
-            ctrlPressed = false;
-        }
-    }
-
-    function onWindowBlur() {
-        ctrlPressed = false;
-    }
-
-    useExternalListener(window, "keydown", onWindowKeyDown);
-    useExternalListener(window, "keyup", onWindowKeyUp);
-    useExternalListener(window, "blur", onWindowBlur);
 }
