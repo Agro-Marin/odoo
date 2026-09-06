@@ -109,7 +109,8 @@ class GamificationGoalDefinition(models.Model):
         help="The field name on the user profile (res.users) containing the value for res_id for action.",
     )
 
-    @api.depends("suffix", "monetary")  # also depends of user...
+    @api.depends("suffix", "monetary")
+    @api.depends_context("allowed_company_ids")
     def _compute_full_suffix(self) -> None:
         for goal in self:
             items = []
