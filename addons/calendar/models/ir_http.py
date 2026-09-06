@@ -30,7 +30,7 @@ class IrHttp(models.AbstractModel):
         if not attendee:
             raise BadRequest(_("Invalid Invitation Token."))
 
-        if request.session.uid and request.session.login != "anonymous":
+        if request.session.uid:
             # A valid token, but presented from somebody else's session: the
             # invitation was forwarded. Say so without echoing either address
             # back into the response -- the page is reachable by anyone holding
