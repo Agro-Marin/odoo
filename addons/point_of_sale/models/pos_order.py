@@ -772,9 +772,7 @@ class PosOrder(models.Model):
         vals_list = [dict(vals) for vals in vals_list]
         for vals in vals_list:
             if not vals.get("session_id"):
-                raise UserError(
-                    _("A point of sale order must belong to a session.")
-                )
+                raise UserError(_("A point of sale order must belong to a session."))
             session = self.env["pos.session"].browse(vals["session_id"])
             self._complete_values_from_session(session, vals)
         return super().create(vals_list)
@@ -1724,6 +1722,21 @@ class PosOrder(models.Model):
 
         return {"pos.order": self._load_pos_data_read(draft_orders, self.config_id)}
 
+    def action_pos_order_cancel_from_backend(self):
+        # Entry point of the `pos_order_set_cancel` server action. It returns
+        # nothing on purpose: `action_pos_order_cancel` answers the POS client
+        # with a data payload, and a payload is not an action -- handed to the
+        # web client it arrives as an action of type undefined and throws.
+        not_draft = self.filtered(lambda order: order.state != "draft")
+        if not_draft:
+            raise UserError(
+                _(
+                    "Only orders that are still in draft can be cancelled here: %(orders)s",
+                    orders=", ".join(not_draft.mapped("name")),
+                )
+            )
+        self.action_pos_order_cancel()
+
     def _get_open_order(self, order):
         return self.env["pos.order"].search(
             [("uuid", "=", order.get("uuid"))], limit=1, order="id desc"
@@ -1735,9 +1748,7 @@ class PosOrder(models.Model):
 
     @api.model
     def sync_from_ui(self, orders):
-        sync_token = randrange(
-            100_000_000
-        )
+        sync_token = randrange(100_000_000)
         _logger.info(
             "PoS synchronisation #%d started for PoS orders references: %s",
             sync_token,
@@ -2344,8 +2355,10 @@ class PosOrderLine(models.Model):
                     body + Markup("&rarr;") + str(new_qty)
                 )
             for order, bodies in bodies_per_order.items():
-                body = bodies[0] if len(bodies) == 1 else order._markup_list_message(
-                    bodies
+                body = (
+                    bodies[0]
+                    if len(bodies) == 1
+                    else order._markup_list_message(bodies)
                 )
                 order.message_post(body=order._prepare_pos_log(body))
             edited.is_edited = True

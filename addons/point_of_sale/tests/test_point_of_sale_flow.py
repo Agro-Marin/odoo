@@ -1956,6 +1956,49 @@ class TestPointOfSaleFlow(CommonPosTest):
             "Reversal move should be set for the order invoiced after the session is closed.",
         )
 
+    def test_backend_cancel_order_action(self):
+        cancel_action = self.env.ref("point_of_sale.pos_order_set_cancel")
+        line_data = [
+            {"product_id": self.ten_dollars_with_10_incl.product_variant_id.id},
+        ]
+
+        draft_order, _ = self.create_backend_pos_order({"line_data": line_data})
+        paid_order, _ = self.create_backend_pos_order(
+            {
+                "line_data": line_data,
+                "payment_data": [
+                    {"payment_method_id": self.bank_payment_method.id, "amount": 10},
+                ],
+            }
+        )
+        self.assertEqual(draft_order.state, "draft")
+        self.assertEqual(paid_order.state, "paid")
+
+        # A paid order cannot be cancelled from the backend list, and the user
+        # is told so instead of being left guessing.
+        with self.assertRaises(UserError):
+            cancel_action.with_context(
+                active_model="pos.order",
+                active_ids=paid_order.ids,
+                active_id=paid_order.id,
+            ).run()
+        self.assertEqual(paid_order.state, "paid")
+
+        # A draft one is cancelled, and the action hands the web client
+        # nothing to execute. A payload without a "type" key reaches
+        # `action_service.js` as an action of type undefined and throws there.
+        result = cancel_action.with_context(
+            active_model="pos.order",
+            active_ids=draft_order.ids,
+            active_id=draft_order.id,
+        ).run()
+        self.assertEqual(draft_order.state, "cancel")
+        self.assertFalse(
+            result,
+            "The Cancel Order server action must not return a payload that is"
+            " not an action.",
+        )
+
     def test_payment_difference_accounting_items(self):
         self.product1 = self.env["product.product"].create(
             {
