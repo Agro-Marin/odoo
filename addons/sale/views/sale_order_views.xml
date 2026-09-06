@@ -825,6 +825,21 @@
                                         optional="hide"
                                         groups="analytic.group_analytic_accounting" />
                                     <field
+                                        name="section_qty"
+                                        string="Section Qty"
+                                        invisible="not display_type"
+                                        optional="hide"
+                                        width="80px" />
+                                    <field
+                                        name="section_uom_id"
+                                        string="Section Unit"
+                                        widget="many2one_uom"
+                                        invisible="not display_type"
+                                        options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}"
+                                        optional="hide"
+                                        width="60px"
+                                        groups="uom.group_uom" />
+                                    <field
                                         name="product_qty"
                                         readonly="is_downpayment" />
                                     <field

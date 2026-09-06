@@ -93,6 +93,43 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         ];
     }
 
+    /**
+     * Columns a section row keeps for itself, on top of its title and its
+     * aggregates. Upstream renders `section_qty` under the same header as
+     * `product_qty` by grouping the two; our list has no column groups, so
+     * these stay separate columns, hidden until the user turns them on.
+     */
+    get sectionQuantityColumns() {
+        return ["section_qty", "section_uom_id"];
+    }
+
+    /**
+     * @override
+     */
+    getSectionColumns(columns, record) {
+        const sectionColumns = super.getSectionColumns(columns, record);
+        if (!this.isSection(record)) {
+            return sectionColumns;
+        }
+        const quantityColumns = columns.filter((col) =>
+            this.sectionQuantityColumns.includes(col.name),
+        );
+        if (!quantityColumns.length) {
+            return sectionColumns;
+        }
+        // Every column handed back to the section row has to come out of the
+        // title's colspan, or the row runs past the end of the table. The sort
+        // puts them back where the arch has them, under their own header.
+        const archOrder = new Map(columns.map((col, index) => [col.name, index]));
+        return [...sectionColumns, ...quantityColumns]
+            .map((col) =>
+                col.name === this.titleField
+                    ? { ...col, colspan: col.colspan - quantityColumns.length }
+                    : col,
+            )
+            .sort((a, b) => archOrder.get(a.name) - archOrder.get(b.name));
+    }
+
     getCellTitle(column, record) {
         if (column.name === "product_id" || column.name === "product_template_id") {
             return;
