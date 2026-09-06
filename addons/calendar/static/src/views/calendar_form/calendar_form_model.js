@@ -1,10 +1,12 @@
 /** @odoo-module native */
-import { onWillStart } from "@odoo/owl";
 import { RelationalModel, RelationalRecord } from "@web/model/relational_model";
 
 class CalendarFormRecord extends RelationalRecord {
     async setLocation() {
-        const videoLocation = await this.model.discussVideocallLocation;
+        const videoLocation = await this.model.orm.call(
+            "calendar.event",
+            "get_discuss_videocall_location",
+        );
         this.update({
             access_token: videoLocation.split("/").pop(),
             videocall_location: videoLocation,
@@ -22,14 +24,4 @@ class CalendarFormRecord extends RelationalRecord {
 
 export class CalendarFormModel extends RelationalModel {
     static Record = CalendarFormRecord;
-
-    setup() {
-        super.setup(...arguments);
-        onWillStart(async () => {
-            this.discussVideocallLocation = this.orm.call(
-                "calendar.event",
-                "get_discuss_videocall_location",
-            );
-        });
-    }
 }
