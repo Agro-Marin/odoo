@@ -127,3 +127,36 @@ class TestKudos(common.TransactionCase):
 
         self.assertEqual(self.category_teamwork.kudos_count, 2)
         self.assertEqual(self.category_innovation.kudos_count, 1)
+
+    def test_karma_granted_frozen_after_send(self):
+        """A sender cannot rewrite karma_granted on an already-sent kudos.
+
+        Regression: karma_granted is a plain Integer(readonly=True) -- UI-only,
+        not ORM-enforced -- and was excluded from KUDOS_VALUE_FIELDS, so the
+        sender could rewrite it via write()/RPC/sudo after the fact with no
+        trace, even though no UI path exposes it as editable.
+        """
+        kudos = self._create_kudos()
+        original = kudos.karma_granted
+        self.assertTrue(original, "setUp category should grant non-zero karma")
+
+        with self.assertRaises(UserError):
+            kudos.with_user(self.sender).write({"karma_granted": original + 999})
+
+        kudos.invalidate_recordset(["karma_granted"])
+        self.assertEqual(
+            kudos.karma_granted,
+            original,
+            "karma_granted must not change after an edit attempt is rejected",
+        )
+
+    def test_karma_granted_recorded_correctly_at_create(self):
+        """create() must still be able to set karma_granted for itself.
+
+        karma_granted is now in the frozen-fields set, but create()'s own
+        bookkeeping write (right after the record is created, with the
+        sender still the current user) must not be blocked by the guard
+        meant for post-send edits.
+        """
+        kudos = self._create_kudos(category=self.category_teamwork)
+        self.assertEqual(kudos.karma_granted, self.category_teamwork.karma_granted)

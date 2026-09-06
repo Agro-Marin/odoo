@@ -38,13 +38,20 @@ class GamificationKudosCategory(models.Model):
     kudos_count = fields.Count("kudos_ids", "# Kudos")
 
 
-# Fields whose value the sender picked at send-time and that karma_granted /
-# the activity feed / the mail-thread post were all computed from. Editing
-# them after create() does not re-run any of that: summary re-renders (it is
-# a stored @api.depends compute, and _compute_summary depends on sender_id.name
-# same as the other three) but karma_granted / the activity feed / the posted
-# message all keep their original values, so they would silently disagree.
-KUDOS_VALUE_FIELDS = frozenset({"sender_id", "recipient_id", "category_id", "message"})
+# Fields whose value the sender picked at send-time (or that were derived
+# from that choice) and that the activity feed / the mail-thread post were
+# computed from. Editing them after create() does not re-run any of that:
+# summary re-renders (it is a stored @api.depends compute, and
+# _compute_summary depends on sender_id.name same as the other three) but
+# the activity feed / the posted message keep their original values, so they
+# would silently disagree. karma_granted is included even though it is not a
+# sender-picked input: it is derived from category_id at create() time and
+# is otherwise a plain readonly=True Integer -- UI-only, not ORM-enforced --
+# so leaving it out of this set let the sender rewrite the kudos' own record
+# of how much karma it granted, with no trace, via write()/RPC/sudo.
+KUDOS_VALUE_FIELDS = frozenset(
+    {"sender_id", "recipient_id", "category_id", "message", "karma_granted"}
+)
 
 
 # Kudos are lightweight, informal recognition acts. Unlike badges (which
@@ -182,7 +189,12 @@ class GamificationKudos(models.Model):
                 },
             )
             entry["gain"] += karma
-            kudos.karma_granted = karma
+            # sudo(): karma_granted is now in KUDOS_VALUE_FIELDS, and write()
+            # blocks the sender from touching it -- but sender_id is always
+            # the current user right after a non-su create(), so this
+            # create-time bookkeeping write must bypass that guard the same
+            # way create()'s own sender check is bypassed by sudo().
+            kudos.sudo().karma_granted = karma
         if karma_per_user:
             self.env["res.users"].sudo()._add_karma_batch(karma_per_user)
 
