@@ -542,7 +542,7 @@ class TestMultiCompany(TestHrHolidaysCommon):
 @tests.tagged("access_rights", "post_install", "-at_install")
 class TestShowLeavesCacheKey(TestHrHolidaysCommon):
     def test_show_leaves_is_not_served_from_another_users_cache(self):
-        public = self.env["hr.employee.public"].browse(self.employee_emp_id)
+        public = self.env["hr.employee"].browse(self.employee_emp_id)
         self.assertTrue(
             public.with_user(self.user_hruser).show_leaves,
             "an HR officer may see this employee's remaining time off",
@@ -554,6 +554,6 @@ class TestShowLeavesCacheKey(TestHrHolidaysCommon):
         )
 
     def test_show_leaves_is_true_for_the_employee_themselves(self):
-        public = self.env["hr.employee.public"].browse(self.employee_emp_id)
+        public = self.env["hr.employee"].browse(self.employee_emp_id)
         self.assertFalse(public.with_user(self.external_user_employee).show_leaves)
         self.assertTrue(public.with_user(self.user_employee).show_leaves)

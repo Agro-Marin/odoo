@@ -14,7 +14,7 @@ class HrOrgChartController(http.Controller):
         else:
             cids = [request.env.company.id]
 
-        Employee = request.env["hr.employee.public"].with_context(
+        Employee = request.env["hr.employee"].with_context(
             allowed_company_ids=cids
         )
         employee = Employee.browse(employee_id)
@@ -27,7 +27,7 @@ class HrOrgChartController(http.Controller):
             "name": employee.name,
             "link": "/mail/view?model=%s&res_id=%s"
             % (
-                "hr.employee.public",
+                "hr.employee",
                 employee.id,
             ),
             "job_id": job.id,
@@ -38,9 +38,7 @@ class HrOrgChartController(http.Controller):
 
     @http.route("/hr/get_redirect_model", type="jsonrpc", auth="user")
     def get_redirect_model(self):
-        if request.env["hr.employee"].has_access("read"):
-            return "hr.employee"
-        return "hr.employee.public"
+        return "hr.employee"
 
     @http.route("/hr/get_org_chart", type="jsonrpc", auth="user")
     def get_org_chart(self, employee_id, new_parent_id=None, **kw):
@@ -52,7 +50,7 @@ class HrOrgChartController(http.Controller):
                 "children": [],
             }
 
-        ancestors, current = request.env["hr.employee.public"].sudo(), employee.sudo()
+        ancestors, current = request.env["hr.employee"].sudo(), employee.sudo()
         current_parent = new_parent if new_parent_id is not None else current.parent_id
         max_level = (kw.get("context")["max_level"] or self._managers_level) + 1
         while (

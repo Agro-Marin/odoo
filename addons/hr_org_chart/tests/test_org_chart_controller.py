@@ -60,7 +60,7 @@ class TestOrgChartController(HttpCase):
         self.authenticate("orgchart_plain", "orgchart_plain")
         self.assertEqual(
             self._rpc("/hr/get_redirect_model", {}),
-            "hr.employee.public",
+            "hr.employee",
         )
 
     def test_org_chart_builds_ancestors_and_children(self):

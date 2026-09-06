@@ -260,13 +260,16 @@ class HrEmployee(models.Model):
             return []
         if res_model == "res.users":
             res_id = self.env["res.users"].browse(res_id).employee_id.id
-        if not self.env["hr.employee.public"].browse(res_id).has_access("read"):
+        if not self.env["hr.employee"].browse(res_id).has_access("read"):
             raise AccessError(
                 self.env._("You cannot access the resume of this employee.")
             )
         versions = self.env["hr.employee"].sudo().browse(res_id).version_ids
         return self._internal_resume_lines(
-            versions, clip_to_contract=self.env["hr.version"].has_access("read")
+            versions,
+            clip_to_contract=self.env["hr.version"]._has_field_access(
+                self.env["hr.version"]._fields["contract_date_end"], "read"
+            ),
         )
 
     @api.model

@@ -955,7 +955,6 @@ class TestHrEmployeeDisplayNameVisibility(TransactionCase):
         )
         self.env.flush_all()
         self.assertTrue(manager.with_user(user).has_access("read"))
-        self.assertFalse(self.env["hr.employee"].with_user(user).has_access("read"))
         with self.assertRaises(AccessError):
             manager.with_user(user).read(["private_email"])
 

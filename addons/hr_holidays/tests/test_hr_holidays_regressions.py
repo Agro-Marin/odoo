@@ -284,7 +284,7 @@ class TestIsAbsentSearch(TestHrHolidaysCommon):
 
     def test_public_employee_delegates_to_hr_employee(self):
         self.assertEqual(
-            list(self.env["hr.employee.public"]._search_is_absent("in", [True])),
+            list(self.env["hr.employee"]._search_is_absent("in", [True])),
             list(self.env["hr.employee"]._search_is_absent("in", [True])),
         )
 

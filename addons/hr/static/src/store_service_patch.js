@@ -21,7 +21,7 @@ const storeServicePatch = {
         if (!employee.user_id && !employee.hasCheckedUser) {
             employee.hasCheckedUser = true;
             const [employeeData] = await this.env.services.orm.silent.read(
-                "hr.employee.public",
+                "hr.employee",
                 [employee.id],
                 ["user_id", "partner_id"],
                 { context: { active_test: false } },

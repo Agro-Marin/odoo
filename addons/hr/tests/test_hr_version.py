@@ -721,14 +721,12 @@ class TestHrVersion(TestHrCommon):
         self.employee.department_id = rd_dep
         self.employee.user_id = internal_user
 
-        HrEmployeePublic_with_internal_user = self.env["hr.employee.public"].with_user(
-            internal_user
-        )
+        Employee_as_internal_user = self.env["hr.employee"].with_user(internal_user)
         with self.assertRaises(
             AccessError,
             msg="Internal user should not be able to access to hr.employee model",
         ):
-            HrEmployeePublic_with_internal_user.search(
+            Employee_as_internal_user.search(
                 [
                     ("employee_id.contract_date_start", "<", "2022-01-01"),
                     ("id", "in", employees.ids),
@@ -738,30 +736,30 @@ class TestHrVersion(TestHrCommon):
             AccessError,
             msg="Internal user should not be able to access to hr.employee model",
         ):
-            HrEmployeePublic_with_internal_user.search(
+            Employee_as_internal_user.search(
                 [("employee_id.wage", "=", 2000), ("id", "in", employees.ids)]
             )
         with self.assertRaises(
             AccessError,
             msg="Internal user should not be able to access to hr.employee model",
         ):
-            HrEmployeePublic_with_internal_user.search(
+            Employee_as_internal_user.search(
                 [
                     ("employee_id.version_id.wage", "=", 2000),
                     ("id", "in", employees.ids),
                 ]
             )
         self.assertEqual(
-            HrEmployeePublic_with_internal_user.search(
+            Employee_as_internal_user.search(
                 [("name", "=", "Employee2"), ("id", "in", employees.ids)]
             ),
-            self.env["hr.employee.public"].browse(employee2.id),
+            self.env["hr.employee"].browse(employee2.id),
         )
         self.assertEqual(
-            HrEmployeePublic_with_internal_user.search(
+            Employee_as_internal_user.search(
                 [("member_of_department", "=", True), ("id", "in", employees.ids)]
             ),
-            self.env["hr.employee.public"].browse(employee1.id),
+            self.env["hr.employee"].browse(employee1.id),
         )
 
         HrEmployee_with_office_user = self.env["hr.employee"].with_user(

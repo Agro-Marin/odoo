@@ -58,11 +58,10 @@ class TestCurrentVersionIsContextIndependent(TestHrCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        public = self.env["hr.employee.public"].browse(self.worker.id)
         self.assertEqual(
-            public.job_title,
+            self.worker.job_title,
             "Junior",
-            "hr.employee.public JOINs current_version_id; it must not show an"
+            "the employee delegates to current_version_id; it must not show an"
             " archived version's data",
         )
 
@@ -238,7 +237,7 @@ class TestMemberOfDepartmentSearchIsOneImplementation(TestHrCommon):
         cls.env.flush_all()
 
     def test_public_search_agrees_with_its_compute(self):
-        Public = self.env["hr.employee.public"].with_user(self.plain_reader)
+        Public = self.env["hr.employee"].with_user(self.plain_reader)
         matched = Public.search([("member_of_department", "in", [True])])
         self.assertTrue(matched, "the reader's own department has members")
         for record in matched:
@@ -270,7 +269,7 @@ class TestMemberOfDepartmentSearchIsOneImplementation(TestHrCommon):
             groups="base.group_user,hr.group_hr_user",
             name="No Dept",
         )
-        for model in ("hr.employee.public", "hr.version"):
+        for model in ("hr.employee", "hr.version"):
             with self.subTest(model=model):
                 self.assertFalse(
                     self.env[model]
@@ -785,11 +784,7 @@ class TestPrivateFieldDomainIsAnAccessError(TestHrCommon):
             with self.subTest(entry_point=label):
                 with self.assertRaises(
                     AccessError,
-                    msg="%s must refuse with AccessError. _search converted the"
-                    " underlying ValueError but search_fetch did not, so search()"
-                    " and search_read() leaked 'Invalid field"
-                    " hr.employee.public.ssnid' -- an internal model name, in an"
-                    " exception no caller catches as an access failure" % label,
+                    msg="%s must refuse a grouped field with AccessError" % label,
                 ):
                     call()
 

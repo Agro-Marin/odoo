@@ -9,7 +9,7 @@ definePosHrModels();
 test("avatarAndCssClass", async () => {
     await setupPosEnv();
     const comp = await mountWithCleanup(CashierName, {});
-    expect(comp.avatar).toBe("/web/image/hr.employee.public/2/avatar_128");
+    expect(comp.avatar).toBe("/web/image/hr.employee/2/avatar_128");
     expect(comp.cssClass).toMatchObject({ oe_status: true });
 });
 test("selectCashier", async () => {

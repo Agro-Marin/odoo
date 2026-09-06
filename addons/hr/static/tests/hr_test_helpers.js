@@ -1,7 +1,6 @@
 import { FakeUser } from "@hr/../tests/mock_server/mock_models/fake_user";
 import { HrDepartment } from "@hr/../tests/mock_server/mock_models/hr_department";
 import { HrEmployee } from "@hr/../tests/mock_server/mock_models/hr_employee";
-import { HrEmployeePublic } from "@hr/../tests/mock_server/mock_models/hr_employee_public";
 import { M2xAvatarEmployee } from "@hr/../tests/mock_server/mock_models/m2x_avatar_employee";
 import { mailModels } from "@mail/../tests/mail_test_helpers";
 import { registerMailMockRoutes } from "@mail/../tests/mock_server/mail_mock_server";
@@ -23,16 +22,33 @@ export function defineHrModels() {
     // DataResponse, so the chat window never opens.
     registerMailMockRoutes();
     defineParams({ suite: "hr" }, "replace");
+    onRpc("get_formview_action", function getFormviewAction({ args, model }) {
+        return {
+            type: "ir.actions.act_window",
+            res_model: model,
+            res_id: args[0][0],
+            views: [[false, "form"]],
+        };
+    });
     onRpc("get_avatar_card_data", function getAvatarCardData({ args }) {
-        const employeeId = args[0][0];
-        const employees = this.env["hr.employee.public"].search_read([
-            ["id", "=", employeeId],
-        ]);
-        return employees.map((employee) => ({
-            name: employee.name,
-            work_email: employee.work_email,
-            phone: employee.phone,
-            user_id: employee.user_id,
+        // The mock employee stores its channels as work_email/work_phone; on
+        // the server they are the party's email and phone.
+        const fieldNames = [
+            ...new Set([
+                ...(args[1] || []),
+                "name",
+                "work_email",
+                "work_phone",
+                "email",
+                "phone",
+                "user_id",
+            ]),
+        ];
+        return this.env["hr.employee"].read(args[0], fieldNames).map((employee) => ({
+            ...employee,
+            email: employee.work_email || employee.email,
+            phone: employee.work_phone || employee.phone,
+            share: false,
         }));
     });
     return defineModels(hrModels);
@@ -44,7 +60,6 @@ export const hrModels = {
     HrDepartment,
     HrEmployee,
     HrVersion,
-    HrEmployeePublic,
     FakeUser,
     HrJob,
     HrWorkLocation,

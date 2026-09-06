@@ -202,7 +202,14 @@ class TestInternalResumeLineShapes(TransactionCase):
         colleague = new_test_user(
             self.env, login="resume.reader", groups="base.group_user"
         )
-        self.assertFalse(self.env["hr.version"].with_user(colleague).has_access("read"))
+        self.assertFalse(
+            self.env["hr.version"]
+            .with_user(colleague)
+            .browse(self.first.id)
+            ._has_field_access(
+                self.env["hr.version"]._fields["contract_date_end"], "read"
+            )
+        )
         lines = (
             self.env["hr.employee"]
             .with_user(colleague)

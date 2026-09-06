@@ -151,9 +151,3 @@ class HrEmployee(models.Model):
             )
             car_ids._compute_mobility_card()
         return res
-
-
-class HrEmployeePublic(models.Model):
-    _inherit = "hr.employee.public"
-
-    mobility_card = fields.Char(readonly=True)

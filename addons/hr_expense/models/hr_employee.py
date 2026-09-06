@@ -74,9 +74,3 @@ class HrEmployee(models.Model):
         return super()._get_user_field_names_to_empty_on_archive() + [
             "expense_manager_id"
         ]
-
-
-class HrEmployeePublic(models.Model):
-    _inherit = "hr.employee.public"
-
-    expense_manager_id = fields.Many2one("res.users", readonly=True)

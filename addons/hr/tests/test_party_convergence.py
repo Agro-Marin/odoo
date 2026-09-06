@@ -162,9 +162,7 @@ class TestPrivateAddressFollowsTheContact(TransactionCase):
         report = self.env["hr.employee"].report_party_convergence()
         self.assertIn(employee.id, report["misparented_home"])
         self.env["hr.employee"].converge_party_rows()
-        self.assertEqual(
-            employee.private_address_id.parent_id, employee.partner_id
-        )
+        self.assertEqual(employee.private_address_id.parent_id, employee.partner_id)
 
 
 @tagged("post_install", "-at_install")

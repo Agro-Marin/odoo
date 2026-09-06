@@ -193,7 +193,7 @@
                                 invisible="state != 'validate'" />
                             <aside>
                                 <img
-                                    t-att-src="'/web/image/hr.employee.public/' + record.employee_id.raw_value + '/avatar_128'"
+                                    t-att-src="'/web/image/hr.employee/' + record.employee_id.raw_value + '/avatar_128'"
                                     class="o_image_64_cover float-start me-2"
                                     alt="Employee's image" />
                             </aside>

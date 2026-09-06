@@ -51,7 +51,7 @@ class GamificationBadgeUser(models.Model):
         for group in groups:
             if group[0] == "user":
                 if self.employee_id:
-                    employee_form_url = f"{base_url}/web#action=hr.hr_employee_public_action&id={self.employee_id.id}&open_badges_tab=true&user_badge_id={self.id}"
+                    employee_form_url = f"{base_url}/web#action=hr.open_view_employee_list_my&id={self.employee_id.id}&open_badges_tab=true&user_badge_id={self.id}"
 
                     group[2]["button_access"] = {
                         "url": employee_form_url,
@@ -86,6 +86,6 @@ class GamificationBadge(models.Model):
             "type": "ir.actions.act_window",
             "name": "Granted Employees",
             "view_mode": "kanban,list,form",
-            "res_model": "hr.employee.public",
+            "res_model": "hr.employee",
             "domain": [("id", "in", employee_ids)],
         }

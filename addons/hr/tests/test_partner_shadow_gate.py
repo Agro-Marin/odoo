@@ -35,8 +35,8 @@ KEEP_SHADOWED = frozenset(
 SEPARATE_DESTINATION = frozenset(
     {
         # A Badge ID, computed from the party's BADGE identifier row; the partner's
-    # barcode is the contact's own.
-    "barcode",
+        # barcode is the contact's own.
+        "barcode",
         # Nationality, read from the private facet's nationality_id; the party's
         # country_id is its ADDRESS country and must stay a different field.
         "country_id",

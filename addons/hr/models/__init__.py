@@ -5,7 +5,6 @@ from . import hr_contract_type
 from . import hr_employee
 from . import hr_employee_convergence
 from . import mixin_hr
-from . import hr_employee_public
 from . import hr_department
 from . import hr_departure_reason
 from . import hr_work_location

@@ -29,12 +29,12 @@ export function EmployeeFieldRelationMixin(fieldClass) {
             if (this.props.relation) {
                 return this.props.relation;
             }
-            return this.isHrUser ? "hr.employee" : "hr.employee.public";
+            return "hr.employee";
         }
 
         getAvatarCardProps(record) {
             const originalProps = super.getAvatarCardProps(record);
-            if (["hr.employee", "hr.employee.public"].includes(this.relation)) {
+            if (this.relation === "hr.employee") {
                 return {
                     ...originalProps,
                     recordModel: this.relation,

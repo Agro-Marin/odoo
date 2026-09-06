@@ -5,10 +5,10 @@ export class M2xAvatarEmployee extends models.Model {
 
     employee_id = fields.Many2one({
         string: "Employee",
-        relation: "hr.employee.public",
+        relation: "hr.employee",
     });
     employee_ids = fields.Many2many({
         string: "Employees",
-        relation: "hr.employee.public",
+        relation: "hr.employee",
     });
 }

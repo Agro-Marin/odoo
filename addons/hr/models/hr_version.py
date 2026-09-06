@@ -558,14 +558,7 @@ class HrVersion(models.Model):
         res = super().get_formview_action(access_uid=access_uid)
         context = res.get("context", {})
         if self.employee_id:
-            user = self.env.user
-            if access_uid:
-                user = self.env["res.users"].browse(access_uid).sudo()
-            res["res_model"] = (
-                "hr.employee"
-                if user.has_group("hr.group_hr_user")
-                else "hr.employee.public"
-            )
+            res["res_model"] = "hr.employee"
             res["res_id"] = self.employee_id.id
             res["context"] = dict(context, version_id=self.id)
         elif not context.get("form_view_ref", False):

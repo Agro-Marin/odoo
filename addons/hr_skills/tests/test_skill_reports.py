@@ -163,7 +163,7 @@ class TestCertificationReportAccess(SkillsCase):
         """The same certifications stay readable through hr.employee.skill.
 
         This is deliberate -- `hr_skill_rule_employee` grants base.group_user
-        read with domain [(1, '=', 1)], and hr.employee.public.certification_ids
+        read with domain [(1, '=', 1)], and hr.employee.certification_ids
         surfaces the same rows on the profile page. The report rules make the
         three report models consistent; they are not a confidentiality boundary,
         and treating them as one would be wrong.

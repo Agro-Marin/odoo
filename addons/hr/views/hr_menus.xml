@@ -14,18 +14,11 @@
             parent="menu_hr_root"
             sequence="0" />
         <menuitem
-            id="menu_hr_employee_payroll"
+            id="menu_hr_employee"
             name="Employees"
             parent="menu_hr_root"
             action="open_view_employee_list_my"
-            sequence="3"
-            groups="group_hr_user" />
-        <menuitem
-            id="menu_hr_employee"
-            name="Directory"
-            parent="menu_hr_root"
-            action="hr_employee_public_action"
-            sequence="4" />
+            sequence="3" />
         <menuitem
             id="hr_menu_hr_reports"
             name="Reporting"

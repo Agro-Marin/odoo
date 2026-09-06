@@ -34,10 +34,7 @@ export class Many2OneAvatarEmployeeField extends Component {
     }
 
     get relation() {
-        return (
-            this.props.relation ??
-            (this.isHrUser ? "hr.employee" : "hr.employee.public")
-        );
+        return this.props.relation ?? "hr.employee";
     }
 }
 

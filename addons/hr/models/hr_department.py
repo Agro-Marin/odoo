@@ -188,7 +188,7 @@ class HrDepartment(models.Model):
             res.update(
                 {
                     "name": self.name,
-                    "res_model": "hr.employee.public",
+                    "res_model": "hr.employee",
                     "view_mode": "kanban",
                     "views": [(False, "kanban"), (False, "form")],
                     "context": {"searchpanel_default_department_id": self.id},
@@ -229,19 +229,13 @@ class HrDepartment(models.Model):
         return action
 
     def action_employee_from_department(self):
-        if self.env["hr.employee"].has_access("read"):
-            res_model = "hr.employee"
-            search_view_id = self.env.ref("hr.view_employee_filter").id
-        else:
-            res_model = "hr.employee.public"
-            search_view_id = self.env.ref("hr.hr_employee_public_view_search").id
         return {
             "name": self.env._("Employees"),
             "type": "ir.actions.act_window",
-            "res_model": res_model,
+            "res_model": "hr.employee",
             "view_mode": "list,kanban,form",
             "views": [(False, "list"), (False, "kanban"), (False, "form")],
-            "search_view_id": [search_view_id, "search"],
+            "search_view_id": [self.env.ref("hr.view_employee_filter").id, "search"],
             "context": {
                 "searchpanel_default_department_id": self.id,
                 "default_department_id": self.id,

@@ -21,7 +21,7 @@ test("badge notification opens employee form", async () => {
         user_partner_id: serverState.partnerId,
     });
 
-    const employeeId = env["hr.employee.public"].create({
+    const employeeId = env["hr.employee"].create({
         name: "Demo",
         user_id: serverState.userId,
         company_id: user.activeCompany.id,
@@ -46,7 +46,7 @@ test("badge notification opens employee form", async () => {
         doAction(action) {
             asyncStep("do_action");
             expect(action.type).toBe("ir.actions.act_window");
-            expect(action.res_model).toBe("hr.employee.public");
+            expect(action.res_model).toBe("hr.employee");
             expect(action.views).toEqual([[false, "form"]]);
             expect(action.res_id).toBe(employeeId);
         },

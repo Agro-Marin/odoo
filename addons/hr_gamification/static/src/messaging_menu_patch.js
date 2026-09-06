@@ -21,7 +21,7 @@ patch(MessagingMenu.prototype, {
 
     async openEmployeeView(thread) {
         const employeeId = await this.orm.searchRead(
-            "hr.employee.public",
+            "hr.employee",
             [
                 ["user_id", "=", user.userId],
                 ["company_id", "in", user.activeCompany.id],
@@ -32,7 +32,7 @@ patch(MessagingMenu.prototype, {
         if (employeeId.length > 0) {
             await this.action.doAction({
                 type: "ir.actions.act_window",
-                res_model: "hr.employee.public",
+                res_model: "hr.employee",
                 res_id: employeeId[0].id,
                 views: [[false, "form"]],
                 target: "current",

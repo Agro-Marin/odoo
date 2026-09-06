@@ -14,7 +14,7 @@ registerThreadAction("open-hr-profile", {
         store.env.services.action.doAction({
             type: "ir.actions.act_window",
             res_id: thread.correspondent.partner_id?.employeeId,
-            res_model: "hr.employee.public",
+            res_model: "hr.employee",
             views: [[false, "form"]],
         }),
     async setup({ thread }) {
@@ -24,7 +24,7 @@ registerThreadAction("open-hr-profile", {
             !thread.correspondent.partner_id.employeeId
         ) {
             const employees = await this.store.env.services.orm.silent.searchRead(
-                "hr.employee.public",
+                "hr.employee",
                 [["partner_id", "=", thread.correspondent.partner_id.id]],
                 ["id"],
             );

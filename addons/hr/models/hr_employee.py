@@ -1,6 +1,5 @@
 import re
 from collections import defaultdict
-from contextlib import contextmanager
 from datetime import UTC, date, datetime, time, timedelta
 from random import choice
 from string import digits
@@ -114,7 +113,6 @@ class HrEmployee(models.Model):
         store=False,
         search="_search_version_id",
         ondelete="cascade",
-        groups="hr.group_hr_user",
     )
     resource_calendar_id = fields.Many2one(
         related="version_id.resource_calendar_id",
@@ -160,12 +158,15 @@ class HrEmployee(models.Model):
             ("out_of_working_hour", "Off-Hours"),
         ],
         compute="_compute_hr_presence_state",
+        compute_sudo=True,
     )
     last_activity = fields.Date(
         compute="_compute_last_activity_and_time",
+        compute_sudo=True,
     )
     last_activity_time = fields.Char(
         compute="_compute_last_activity_and_time",
+        compute_sudo=True,
     )
     hr_icon_display = fields.Selection(
         [
@@ -176,14 +177,17 @@ class HrEmployee(models.Model):
             ("presence_undetermined", "Undetermined"),
         ],
         compute="_compute_presence_icon",
+        compute_sudo=True,
     )
     show_hr_icon_display = fields.Boolean(
         compute="_compute_presence_icon",
+        compute_sudo=True,
     )
     newly_hired = fields.Boolean(
         "Newly Hired",
         compute="_compute_newly_hired",
         search="_search_newly_hired",
+        compute_sudo=True,
     )
 
     work_phone = fields.Char(
@@ -269,6 +273,7 @@ class HrEmployee(models.Model):
     birthday_public_display_string = fields.Char(
         "Public Date of Birth",
         compute="_compute_birthday_public_display_string",
+        compute_sudo=True,
     )
     identification_id = fields.Char(
         string="Identification No",
@@ -436,11 +441,13 @@ class HrEmployee(models.Model):
     work_location_name = fields.Char(
         "Work Location Name",
         compute="_compute_work_location_name",
+        compute_sudo=True,
     )
     work_location_type = fields.Selection(
         [("home", "Home"), ("office", "Office"), ("other", "Other")],
         compute="_compute_work_location_type",
         tracking=True,
+        compute_sudo=True,
     )
 
     bank_account_ids = fields.Many2many(
@@ -564,6 +571,8 @@ class HrEmployee(models.Model):
     )
     tz = fields.Selection(tracking=True)
     color = fields.Integer("Color Index", default=0)
+    is_manager = fields.Boolean(compute="_compute_is_manager")
+    is_user = fields.Boolean(compute="_compute_is_user")
     barcode = fields.Char(
         string="Badge ID",
         compute="_compute_identifiers",
@@ -1930,100 +1939,6 @@ class HrEmployee(models.Model):
                 )
         return next_action
 
-    def _compute_display_name(self):
-        if self.browse().has_access("read"):
-            return super()._compute_display_name()
-        for employee_private, employee_public in zip(
-            self, self.env["hr.employee.public"].browse(self.ids), strict=True
-        ):
-            employee_private.display_name = employee_public.display_name
-        return None
-
-    @contextmanager
-    def _mask_domain_errors_as_access_errors(self):
-        try:
-            yield
-        except (ValueError, RuntimeError) as error:
-            raise AccessError(
-                self.env._("You do not have access to this document.")
-            ) from error
-
-    @api.model
-    def search_fetch(self, domain, field_names=None, offset=0, limit=None, order=None):
-        if self.browse().has_access("read"):
-            return super().search_fetch(domain, field_names, offset, limit, order)
-
-        if field_names is None:
-            field_names = [field.name for field in self._determine_fields_to_fetch()]
-        field_names = [
-            f_name for f_name in field_names if f_name != "current_version_id"
-        ]
-        self._check_no_private_fields(field_names)
-        public_names, party_names = self._split_public_and_party_fields(field_names)
-        self.flush_model(field_names)
-        with self._mask_domain_errors_as_access_errors():
-            public = self.env["hr.employee.public"].search_fetch(
-                domain, public_names, offset, limit, order
-            )
-        employees = self.browse(public._ids)
-        employees._copy_cache_from_public(public, public_names)
-        for fname in party_names:
-            employees.mapped(fname)
-        return employees
-
-    def fetch(self, field_names=None):
-        if self.browse().has_access("read"):
-            return super().fetch(field_names)
-
-        if field_names is None:
-            field_names = [field.name for field in self._determine_fields_to_fetch()]
-        field_names = [
-            f_name for f_name in field_names if f_name != "current_version_id"
-        ]
-        self._check_no_private_fields(field_names)
-        public_names, party_names = self._split_public_and_party_fields(field_names)
-        self.flush_recordset(field_names)
-        public = self.env["hr.employee.public"].browse(self._ids)
-        public.fetch(public_names)
-        for field_name in public_names:
-            public_field = self.env["hr.employee.public"]._fields[field_name]
-            private_field = self.env["hr.employee"]._fields[field_name]
-            if (
-                public_field.related
-                and public_field.related_field.model_name == "hr.employee"
-            ) or (
-                private_field.inherited
-                and private_field.inherited_field.model_name == "hr.version"
-            ):
-                public.mapped(field_name)
-        self._copy_cache_from_public(public, public_names)
-        for fname in party_names:
-            self.mapped(fname)
-        return None
-
-    def _check_access(self, operation):
-        if (
-            operation == "read"
-            and self.env.context.get("_allow_read_hr_employee")
-            is _ALLOW_READ_HR_EMPLOYEE
-        ):
-            return None
-        denied = super()._check_access(operation)
-        if (
-            denied
-            and operation == "read"
-            and self._ids
-            and self.env.user._is_internal()
-        ):
-            # What an internal user may read of an employee is the public
-            # profile's decision; a denial here is answered by its rules.
-            return (
-                self.env["hr.employee.public"]
-                .browse(self._ids)
-                ._check_access(operation)
-            )
-        return denied
-
     def _is_party_field(self, fname):
         field = self._fields[fname]
         return bool(
@@ -2036,45 +1951,13 @@ class HrEmployee(models.Model):
         partner itself. Computed and x2many party fields reach into other
         models and stay behind the profile."""
         field = self._fields[fname]
-        return (
-            self._is_party_field(fname)
-            and field.inherited_field.store
-            and field.inherited_field.type not in ("one2many", "many2many")
-        )
-
-    def _split_public_and_party_fields(self, field_names):
-        public_fields = self.env["hr.employee.public"]._fields
-        party_names = [
-            fname
-            for fname in field_names
-            if fname not in public_fields and self._is_public_party_field(fname)
-        ]
-        public_names = [fname for fname in field_names if fname not in party_names]
-        if party_names and "partner_id" not in public_names:
-            public_names.append("partner_id")
-        return public_names, party_names
-
-    def _check_no_private_fields(self, field_names):
-        public_fields = self.env["hr.employee.public"]._fields
-        private_fields = [
-            fname
-            for fname in field_names
-            if fname not in public_fields and not self._is_public_party_field(fname)
-        ]
-        if private_fields:
-            raise AccessError(
-                self.env._(
-                    "The fields “%s”, which you are trying to read, are not available for employee public profiles.",
-                    ",".join(private_fields),
-                )
+        return self._is_party_field(fname) and (
+            fname.startswith(("image_", "avatar_"))
+            or (
+                field.inherited_field.store
+                and field.inherited_field.type not in ("one2many", "many2many")
             )
-
-    def _copy_cache_from_public(self, public, field_names):
-        for fname in field_names:
-            values = self.env.cache.get_values(public, public._fields[fname])
-            if self._fields[fname].translate:
-                values = [(value.copy() if value else None) for value in values]
-            self.env.cache.update_raw(self, self._fields[fname], values)
+        )
 
     @api.model
     def notify_expiring_contract_work_permit(self):
@@ -2158,73 +2041,12 @@ class HrEmployee(models.Model):
             user_id=self.hr_responsible_id.id or self.env.uid,
         )
 
-    @api.model
-    def get_view(self, view_id=None, view_type="form", **options):
-        if self.browse().has_access("read"):
-            return super().get_view(view_id, view_type, **options)
-        return self.env["hr.employee.public"].get_view(view_id, view_type, **options)
-
-    @api.model
-    def get_views(self, views, options=None):
-        if self.browse().has_access("read"):
-            return super().get_views(views, options)
-        raise RedirectWarning(
-            message=self.env._(
-                'You are not allowed to access "Employee" (hr.employee) records.\n'
-                "We can redirect you to the public employee list."
-            ),
-            action=self.env.ref("hr.hr_employee_public_action").id,
-            button_text=self.env._("Employees profile"),
-        )
-
-    @api.model
-    def _search(
-        self, domain, offset=0, limit=None, order=None, *, bypass_access=False, **kwargs
-    ):
-        if self.browse().has_access("read") or bypass_access:
-            return super()._search(
-                domain, offset, limit, order, bypass_access=bypass_access, **kwargs
-            )
-        domain = Domain(domain)
-        domain = domain.map_conditions(
-            lambda cond: (
-                Domain("id", cond.operator, cond.value)
-                if cond.field_expr == "current_version_id"
-                else cond
-            )
-        )
-        with self._mask_domain_errors_as_access_errors():
-            ids = self.env["hr.employee.public"]._search(
-                domain, offset, limit, order, **kwargs
-            )
-        return super(HrEmployee, self.sudo())._search([("id", "in", ids)], order=order)
-
     def _load_demo_data(self):
         self.sudo()._load_scenario()
         return {
             "type": "ir.actions.client",
             "tag": "reload",
         }
-
-    def get_formview_id(self, access_uid=None):
-        user = self.env.user
-        if access_uid:
-            user = self.env["res.users"].browse(access_uid).sudo()
-
-        if user.has_group("hr.group_hr_user"):
-            return super().get_formview_id(access_uid=access_uid)
-        return self.env.ref("hr.hr_employee_public_view_form").id
-
-    def get_formview_action(self, access_uid=None):
-        res = super().get_formview_action(access_uid=access_uid)
-        user = self.env.user
-        if access_uid:
-            user = self.env["res.users"].browse(access_uid).sudo()
-
-        if not user.has_group("hr.group_hr_user"):
-            res["res_model"] = "hr.employee.public"
-
-        return res
 
     @api.onchange("user_id")
     def _onchange_user(self):
@@ -2926,6 +2748,60 @@ class HrEmployee(models.Model):
             )
             if to_move:
                 to_move.partner_id = party.id
+
+    @api.model
+    def _search(
+        self, domain, offset=0, limit=None, order=None, *, bypass_access=False, **kwargs
+    ):
+        # Field groups gate reads, not domains: without this a plain user could
+        # probe a confidential column by searching on it. Refuse a domain that
+        # names a field the reader may not read, the way a read on it is refused.
+        if not bypass_access and not self.env.su:
+            for condition in Domain(domain).iter_conditions():
+                field = self._fields.get(condition.field_expr.split(".")[0])
+                if field and not self._has_field_access(field, "read"):
+                    raise AccessError(
+                        self.env._(
+                            "You do not have enough rights to search on the field "
+                            "%(field)s on %(model)s.",
+                            field=field.name,
+                            model=self._description,
+                        )
+                    )
+        return super()._search(
+            domain, offset, limit, order, bypass_access=bypass_access, **kwargs
+        )
+
+    def _check_access(self, operation):
+        if (
+            operation == "read"
+            and self.env.context.get("_allow_read_hr_employee")
+            is _ALLOW_READ_HR_EMPLOYEE
+        ):
+            return None
+        return super()._check_access(operation)
+
+    @api.depends_context("uid")
+    @api.depends("parent_id")
+    def _compute_is_manager(self):
+        user_employee = self.env.user.employee_id
+        if not user_employee:
+            self.is_manager = False
+            return
+        all_reports = set(
+            self.env["hr.employee"]
+            .sudo()
+            .search([("id", "child_of", user_employee.id)])
+            .ids
+        )
+        for employee in self:
+            employee.is_manager = employee.id in all_reports
+
+    @api.depends_context("uid")
+    def _compute_is_user(self):
+        user_employee_id = self.env.user.employee_id.id
+        for employee in self:
+            employee.is_user = employee.id == user_employee_id
 
     def _retire_former_party(self, former_parties):
         # The party a link leaves behind is a shell when nothing else is that

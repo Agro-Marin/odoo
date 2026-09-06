@@ -54,30 +54,9 @@ class ResourceResource(models.Model):
     @api.depends_context("uid")
     @api.depends("employee_id")
     def _compute_avatar_128(self):
-        is_hr_user = self.env.user.has_group("hr.group_hr_user")
-        if not is_hr_user:
-            public_employees = (
-                self.env["hr.employee.public"]
-                .with_context(active_test=False)
-                .search(
-                    [
-                        ("resource_id", "in", self.ids),
-                    ]
-                )
-            )
-            avatar_per_employee_id = {
-                emp.id: emp.avatar_128 for emp in public_employees
-            }
-
         for resource in self:
             employee = resource.employee_id
-            if not employee:
-                resource.avatar_128 = False
-                continue
-            if is_hr_user:
-                resource.avatar_128 = employee[0].avatar_128
-            else:
-                resource.avatar_128 = avatar_per_employee_id.get(employee[0].id, False)
+            resource.avatar_128 = employee[0].avatar_128 if employee else False
 
     def _get_resources_without_contract(self):
         employee_ids_with_active_contracts = {

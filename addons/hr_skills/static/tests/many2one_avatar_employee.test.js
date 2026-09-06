@@ -27,8 +27,7 @@ test("many2one_avatar_employee widget in kanban view with skills on avatar card"
         { employee_id: pierreEid, skill_id: java },
         { employee_id: pierreEid, skill_id: tigrinya, valid_to: "2020-01-01" },
     ]);
-    pyEnv["hr.employee.public"].create({
-        name: "Pierre",
+    pyEnv["hr.employee"].write([pierreEid], {
         employee_skill_ids: [javaForPierre, tigrinyaForPierre],
         current_employee_skill_ids: [javaForPierre],
     });
@@ -38,7 +37,7 @@ test("many2one_avatar_employee widget in kanban view with skills on avatar card"
     onRpc("hr.employee", "get_avatar_card_data", (params) => {
         const resourceIdArray = params.args[0];
         const resourceId = resourceIdArray[0];
-        const resources = pyEnv["hr.employee.public"].read([resourceId]);
+        const resources = pyEnv["hr.employee"].read([resourceId]);
         const result = resources.map((resource) => ({
             name: resource.name,
             role_ids: resource.role_ids,

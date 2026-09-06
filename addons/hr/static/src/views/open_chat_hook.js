@@ -6,10 +6,9 @@ patch(helpers, {
     SUPPORTED_M2X_AVATAR_MODELS: [
         ...helpers.SUPPORTED_M2X_AVATAR_MODELS,
         "hr.employee",
-        "hr.employee.public",
     ],
     buildOpenChatParams(resModel, id) {
-        if (["hr.employee", "hr.employee.public"].includes(resModel)) {
+        if (resModel === "hr.employee") {
             return { employeeId: id };
         }
         return super.buildOpenChatParams(...arguments);

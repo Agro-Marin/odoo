@@ -15,8 +15,8 @@ test("avatar card preview with hr", async () => {
     });
     const partnerId = env["res.partner"].create({
         name: "Mario",
-        email: "Mario@odoo.test",
-        phone: "+7878698799",
+        email: "Mario@odoo.pro",
+        phone: "+585555555",
     });
     const jobId = env["hr.job"].create({
         name: "sub manager",
@@ -78,8 +78,8 @@ test("avatar card preview with hr (partner_id field)", async () => {
     });
     const partnerId = env["res.partner"].create({
         name: "Mario",
-        email: "Mario@odoo.test",
-        phone: "+7878698799",
+        email: "Mario@odoo.pro",
+        phone: "+585555555",
     });
     const jobId = env["hr.job"].create({
         name: "sub manager",

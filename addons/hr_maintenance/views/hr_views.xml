@@ -24,27 +24,5 @@
         </field>
     </record>
 
-    <record id="hr_employee_public_view_form" model="ir.ui.view">
-        <field name="name">hr.employee.public.form.inherit.maintenance</field>
-        <field name="model">hr.employee.public</field>
-        <field name="inherit_id" ref="hr.hr_employee_public_view_form" />
-        <field name="arch" type="xml">
-            <xpath expr="//div[@name='button_box']" position="inside">
-                <field name="employee_id" invisible="1" />
-                <button
-                    name="%(maintenance.hr_equipment_action)d"
-                    context="{'search_default_employee_id': employee_id, 'default_employee_id': employee_id}"
-                    class="o_stat_button"
-                    icon="fa-cubes"
-                    type="action"
-                    invisible="not is_user">
-                    <field
-                        name="equipment_count"
-                        string="Equipment"
-                        widget="statinfo" />
-                </button>
-            </xpath>
-        </field>
-    </record>
 
 </odoo>

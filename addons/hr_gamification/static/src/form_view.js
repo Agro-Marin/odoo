@@ -11,7 +11,7 @@ class BadgeTabRenderer extends FormRenderer {
         onMounted(() => {
             const record = this.props.record;
             const context = record.context?.params || record.context;
-            if (context?.open_badges_tab && record.resModel === "hr.employee.public") {
+            if (context?.open_badges_tab && record.resModel === "hr.employee") {
                 const tab = document.querySelector('[name="received_badges"]');
                 if (tab) {
                     tab.click();

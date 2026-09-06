@@ -16,14 +16,14 @@ defineHrModels();
 test("many2one in list view", async () => {
     const { env } = await makeMockServer();
     const [partnerId_1, partnerId_2] = env["res.partner"].create([
-        { name: "Mario" },
+        { name: "Mario", email: "Mario@partner.com" },
         { name: "Luigi" },
     ]);
     const [userId_1, userId_2] = env["res.users"].create([
         { partner_id: partnerId_1 },
         { partner_id: partnerId_2 },
     ]);
-    const [employeeId_1, employeeId_2] = env["hr.employee.public"].create([
+    const [employeeId_1, employeeId_2] = env["hr.employee"].create([
         {
             name: "Mario",
             user_id: userId_1,
@@ -88,7 +88,7 @@ test("many2one in kanban view", async () => {
     const { env } = await makeMockServer();
     const partnerId = env["res.partner"].create({});
     const userId = env["res.users"].create({ partner_id: partnerId });
-    const employeeId = env["hr.employee.public"].create({
+    const employeeId = env["hr.employee"].create({
         user_id: userId,
         partner_id: partnerId,
     });
@@ -112,13 +112,13 @@ test("many2one in kanban view", async () => {
     await waitFor(".o_m2o_avatar");
     expect(".o_m2o_avatar > img:eq(0)").toHaveAttribute(
         "data-src",
-        `/web/image/hr.employee.public/${employeeId}/avatar_128`,
+        `/web/image/hr.employee/${employeeId}/avatar_128`,
     );
 });
 
 test("many2one: click on an employee not associated with a user", async () => {
     const { env } = await makeMockServer();
-    const employeeId = env["hr.employee.public"].create({ name: "Mario" });
+    const employeeId = env["hr.employee"].create({ name: "Mario" });
     const avatarId = env["m2x.avatar.employee"].create({ employee_id: employeeId });
     onRpc("has_group", () => false);
     await mountView({
@@ -135,7 +135,7 @@ test("many2one with hr group widget in kanban view", async () => {
     const { env } = await makeMockServer();
     const partnerId = env["res.partner"].create({});
     const userId = env["res.users"].create({ partner_id: partnerId });
-    const employeeId = env["hr.employee.public"].create({
+    const employeeId = env["hr.employee"].create({
         user_id: userId,
         partner_id: partnerId,
     });
@@ -166,7 +166,7 @@ test("many2one with relation set in options", async () => {
     const { env } = await makeMockServer();
     const partnerId = env["res.partner"].create({});
     const userId = env["res.users"].create({ partner_id: partnerId });
-    const employeeId = env["hr.employee.public"].create({
+    const employeeId = env["hr.employee"].create({
         user_id: userId,
         partner_id: partnerId,
     });
@@ -180,7 +180,7 @@ test("many2one with relation set in options", async () => {
         arch: `<kanban>
             <templates>
                 <t t-name="card">
-                    <field name="employee_id" widget="many2one_avatar_employee" options="{'relation': 'hr.employee.public'}"/>
+                    <field name="employee_id" widget="many2one_avatar_employee" options="{'relation': 'hr.employee'}"/>
                 </t>
             </templates>
         </kanban>`,
@@ -189,7 +189,7 @@ test("many2one with relation set in options", async () => {
     await waitFor(".o_m2o_avatar");
     expect(".o_m2o_avatar > img:eq(0)").toHaveAttribute(
         "data-src",
-        `/web/image/hr.employee.public/${employeeId}/avatar_128`,
+        `/web/image/hr.employee/${employeeId}/avatar_128`,
     );
 });
 
@@ -203,17 +203,17 @@ test("many2one without hr.group_hr_user", async () => {
     // ("no Search more... when all matching records fit in the dropdown"), so
     // a single employee here left this test waiting for an element that was
     // correctly never rendered.
-    env["hr.employee.public"].create({ name: "babar" });
+    env["hr.employee"].create({ name: "babar" });
     for (let i = 0; i < 7; i++) {
-        env["hr.employee.public"].create({ name: `employee ${i}` });
+        env["hr.employee"].create({ name: `employee ${i}` });
     }
     onRpc("web_name_search", (args) => {
         expect.step("web_name_search");
-        expect(args.model).toBe("hr.employee.public");
+        expect(args.model).toBe("hr.employee");
     });
     onRpc("web_search_read", (args) => {
         expect.step("web_search_read");
-        expect(args.model).toBe("hr.employee.public");
+        expect(args.model).toBe("hr.employee");
     });
     onRpc("has_group", () => false);
     await mountView({
@@ -234,14 +234,14 @@ test("many2one without hr.group_hr_user", async () => {
 test("many2one in form view", async () => {
     const { env } = await makeMockServer();
     const [partnerId_1, partnerId_2] = env["res.partner"].create([
-        { name: "Mario" },
+        { name: "Mario", email: "Mario@partner.com" },
         { name: "Luigi" },
     ]);
     const [userId_1, userId_2] = env["res.users"].create([
         { partner_id: partnerId_1 },
         { partner_id: partnerId_2 },
     ]);
-    const [employeeId_1, employeeId_2] = env["hr.employee.public"].create([
+    const [employeeId_1, employeeId_2] = env["hr.employee"].create([
         {
             user_id: userId_1,
             partner_id: partnerId_1,
@@ -268,7 +268,7 @@ test("many2one in form view", async () => {
     expect(".o_field_many2many_avatar_employee .o_tag").toHaveCount(2);
     expect(".o_field_many2many_avatar_employee .o_tag img:eq(0)").toHaveAttribute(
         "data-src",
-        `${getOrigin()}/web/image/hr.employee.public/${employeeId_1}/avatar_128`,
+        `${getOrigin()}/web/image/hr.employee/${employeeId_1}/avatar_128`,
     );
 
     await contains(
@@ -305,7 +305,7 @@ test("many2one with hr group widget in form view", async () => {
         { user_id: userId_2, partner_id: partnerId_2 },
     ];
     env["hr.employee"].create([{ ...employeeData_1 }, { ...employeeData_2 }]);
-    const [employeeId_1, employeeId_2] = env["hr.employee.public"].create([
+    const [employeeId_1, employeeId_2] = env["hr.employee"].create([
         { ...employeeData_1 },
         { ...employeeData_2 },
     ]);
@@ -340,14 +340,14 @@ test("many2one with hr group widget in form view", async () => {
 test("many2one widget in list view", async () => {
     const { env } = await makeMockServer();
     const [partnerId_1, partnerId_2] = env["res.partner"].create([
-        { name: "Mario" },
+        { name: "Mario", email: "Mario@partner.com" },
         { name: "Yoshi" },
     ]);
     const [userId_1, userId_2] = env["res.users"].create([
         { partner_id: partnerId_1 },
         { partner_id: partnerId_2 },
     ]);
-    const [employeeId_1, employeeId_2] = env["hr.employee.public"].create([
+    const [employeeId_1, employeeId_2] = env["hr.employee"].create([
         {
             name: "Mario",
             user_id: userId_1,
@@ -394,14 +394,14 @@ test("many2one widget in list view", async () => {
 test("many2many in kanban view", async () => {
     const { env } = await makeMockServer();
     const [partnerId_1, partnerId_2] = env["res.partner"].create([
-        { name: "Mario" },
+        { name: "Mario", email: "Mario@partner.com" },
         { name: "Luigi" },
     ]);
     const [userId_1, userId_2] = env["res.users"].create([
         { partner_id: partnerId_1 },
         { partner_id: partnerId_2 },
     ]);
-    const [employeeId_1, employeeId_2] = env["hr.employee.public"].create([
+    const [employeeId_1, employeeId_2] = env["hr.employee"].create([
         {
             user_id: userId_1,
             partner_id: partnerId_1,
@@ -439,13 +439,13 @@ test("many2many in kanban view", async () => {
         ".o_kanban_record .o_field_many2many_avatar_employee img.o_m2m_avatar:eq(0)",
     ).toHaveAttribute(
         "data-src",
-        `${getOrigin()}/web/image/hr.employee.public/${employeeId_2}/avatar_128`,
+        `${getOrigin()}/web/image/hr.employee/${employeeId_2}/avatar_128`,
     );
     expect(
         ".o_kanban_record .o_field_many2many_avatar_employee img.o_m2m_avatar:eq(1)",
     ).toHaveAttribute(
         "data-src",
-        `${getOrigin()}/web/image/hr.employee.public/${employeeId_1}/avatar_128`,
+        `${getOrigin()}/web/image/hr.employee/${employeeId_1}/avatar_128`,
     );
 
     await contains(".o_kanban_record img.o_m2m_avatar:eq(1)").click();
@@ -470,7 +470,7 @@ test("many2many: click on an employee not associated with a user", async () => {
     const { env } = await makeMockServer();
     const partnerId = env["res.partner"].create({ name: "Luigi" });
     const userId = env["res.users"].create({ partner_id: partnerId });
-    const [employeeId_1, employeeId_2] = env["hr.employee.public"].create([
+    const [employeeId_1, employeeId_2] = env["hr.employee"].create([
         {
             name: "Mario",
             work_email: "Mario@partner.com",
@@ -495,7 +495,7 @@ test("many2many: click on an employee not associated with a user", async () => {
     expect(".o_field_many2many_avatar_employee .o_tag").toHaveCount(2);
     expect(".o_field_many2many_avatar_employee .o_tag img:eq(0)").toHaveAttribute(
         "data-src",
-        `${getOrigin()}/web/image/hr.employee.public/${employeeId_1}/avatar_128`,
+        `${getOrigin()}/web/image/hr.employee/${employeeId_1}/avatar_128`,
     );
 
     await contains(

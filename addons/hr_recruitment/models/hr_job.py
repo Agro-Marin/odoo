@@ -483,15 +483,10 @@ class HrJob(models.Model):
 
     def action_view_employees(self):
         self.check_singleton()
-        if self.env["hr.employee"].has_access("read"):
-            res_model = "hr.employee"
-        else:
-            res_model = "hr.employee.public"
-
         return {
             "name": _("Related Employees"),
             "type": "ir.actions.act_window",
-            "res_model": res_model,
+            "res_model": "hr.employee",
             "view_mode": "list,kanban,form",
             "views": [(False, "list"), (False, "kanban"), (False, "form")],
             "domain": [("company_id", "in", self.env.companies.ids)],

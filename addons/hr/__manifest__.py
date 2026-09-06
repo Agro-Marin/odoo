@@ -1,6 +1,6 @@
 {
     "name": "Employees",
-    "version": "1.14",
+    "version": "1.15",
     "category": "Human Resources/Employees",
     "sequence": 95,
     "summary": "Centralize employee information",
@@ -32,7 +32,6 @@
         "views/hr_departure_reason_views.xml",
         "views/hr_contract_type_views.xml",
         "views/hr_job_views.xml",
-        "views/hr_employee_public_views.xml",
         "report/hr_employee_badge.xml",
         "views/hr_employee_category_views.xml",
         "views/hr_employee_views.xml",

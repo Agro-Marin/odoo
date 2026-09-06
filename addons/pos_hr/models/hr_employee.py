@@ -22,10 +22,6 @@ class HrEmployee(models.Model):
     @api.model
     def _load_pos_data_read(self, records, config):
         # NOTE:
-        # hr.employee have a public fallback mechanism
-        # where users without read access may still receive records from
-        # the corresponding public model (hr.employee.public) so thats why we are bypassing
-        # the access right.
         fields = self._load_pos_data_fields(config)
         read_records = records.read(fields, load=False)
         manager_ids = records.filtered(

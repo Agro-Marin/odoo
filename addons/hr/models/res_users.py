@@ -382,11 +382,7 @@ class ResUsers(models.Model):
     def action_view_employees(self):
         self.check_singleton()
         employees = self.employee_ids
-        model = (
-            "hr.employee"
-            if self.env.user.has_group("hr.group_hr_user")
-            else "hr.employee.public"
-        )
+        model = "hr.employee"
         if len(employees) > 1:
             return {
                 "name": self.env._("Related Employees"),

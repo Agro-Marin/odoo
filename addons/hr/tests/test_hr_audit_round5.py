@@ -147,8 +147,7 @@ class TestPublicProfileCreateDate(TestHrCommon):
         )
         self.env.invalidate_all()
 
-        public = self.env["hr.employee.public"].browse(employee.id)
-        self.assertEqual(public.create_date, hired_on)
+        self.assertEqual(employee.create_date, hired_on)
         self.assertNotEqual(employee.version_id.create_date, hired_on)
 
 

@@ -3,6 +3,13 @@ import { models } from "@web/../tests/web_test_helpers";
 export class HrEmployee extends models.ServerModel {
     _name = "hr.employee";
 
+    // The employee's name is its party's; a seeded record without a party
+    // gets one carrying its name, as the ORM would create it.
+    _applyDefaults(record) {
+        record.partner_id ??= this.env["res.partner"].create({ name: record.name });
+        return super._applyDefaults(...arguments);
+    }
+
     _load_pos_data_fields() {
         return ["name", "user_id", "partner_id"];
     }
@@ -18,7 +25,6 @@ export class HrEmployee extends models.ServerModel {
             id: 3,
             name: "Employee1",
             user_id: 3,
-            partner_id: 3,
         },
     ];
 

@@ -27,7 +27,7 @@ class TestHrGamificationBadges(TransactionCase):
 
     def test_get_granted_employees_action(self):
         action = self.badge.get_granted_employees()
-        self.assertEqual(action["res_model"], "hr.employee.public")
+        self.assertEqual(action["res_model"], "hr.employee")
         self.assertIn(self.employee.id, action["domain"][0][2])
 
     def test_action_view_badge(self):

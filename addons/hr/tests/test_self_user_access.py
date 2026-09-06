@@ -223,11 +223,9 @@ class TestSelfAccessRights(TestHrCommon):
             self.hubert_emp.with_user(self.richard).read(
                 self.protected_fields_emp.keys()
             )
-        public_fields = [
-            field_name
-            for field_name in self.env["hr.employee.public"]._fields
-            if field_name in self.env["hr.employee"]._fields
-        ]
+        public_fields = list(
+            self.env["hr.employee"].with_user(self.richard).fields_get()
+        )
         res = self.hubert_emp.with_user(self.richard).read(public_fields)
         self.assertEqual(len(public_fields), len(res[0]))
 

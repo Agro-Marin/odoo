@@ -204,14 +204,9 @@ class TestHrAuditRound3(TestHrCommon):
             }
         )
 
-        public = self.env["hr.employee.public"].browse(employee.id)
         self.assertTrue(employee.last_activity, "real presence, so a real date")
-        self.assertEqual(
-            (public.last_activity, public.last_activity_time),
-            (employee.last_activity, employee.last_activity_time),
-        )
         as_plain_user = (
-            self.env["hr.employee.public"].with_user(plain_user).browse(employee.id)
+            self.env["hr.employee"].with_user(plain_user).browse(employee.id)
         )
         self.assertEqual(
             (as_plain_user.last_activity, as_plain_user.last_activity_time),
@@ -565,7 +560,7 @@ class TestHrAuditRound3(TestHrCommon):
         self.env.flush_all()
         self.assertFalse(employee.department_id)
 
-        Public = self.env["hr.employee.public"].with_user(user)
+        Public = self.env["hr.employee"].with_user(user)
         self.assertFalse(Public.browse(employee.id).member_of_department)
         self.assertFalse(
             Public.search([("member_of_department", "=", True)]),

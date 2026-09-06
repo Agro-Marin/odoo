@@ -17,7 +17,6 @@ This module add completed courses to resume for employees.
     ],
     "data": [
         "views/hr_employee_views.xml",
-        "views/hr_employee_public_views.xml",
         "views/hr_resume_line_views.xml",
         "views/slide_channel_views.xml",
         "views/hr_views.xml",

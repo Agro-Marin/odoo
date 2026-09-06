@@ -65,20 +65,3 @@ class HrEmployee(models.Model):
         child_count_per_parent_id = dict(employee_read_group)
         for employee in self:
             employee.child_count = child_count_per_parent_id.get(employee._origin, 0)
-
-
-class HrEmployeePublic(models.Model):
-    _inherit = "hr.employee.public"
-
-    child_all_count = fields.Integer(compute="_compute_child_all_count")
-    department_color = fields.Integer(compute="_compute_department_color")
-    child_count = fields.Integer(compute="_compute_child_count")
-
-    def _compute_child_all_count(self):
-        self._update_fields_from_employee("child_all_count")
-
-    def _compute_department_color(self):
-        self._update_fields_from_employee("department_color")
-
-    def _compute_child_count(self):
-        self._update_fields_from_employee("child_count")

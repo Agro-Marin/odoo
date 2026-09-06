@@ -1,7 +1,7 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_hr_employee_user,hr.employee user,model_hr_employee,group_hr_user,1,1,1,1
 access_hr_employee_system_user,hr.employee system user,model_hr_employee,base.group_system,1,0,0,0
-access_hr_employee_public_user,hr.employee_public,model_hr_employee_public,base.group_user,1,0,0,0
+access_hr_employee_internal_user,hr.employee internal user,model_hr_employee,base.group_user,1,0,0,0
 access_hr_employee_resource_user,resource.resource.user,resource.model_resource_resource,group_hr_user,1,1,1,1
 access_hr_department_user,hr.department.user,model_hr_department,group_hr_user,1,1,1,1
 access_hr_department_employee,hr.department.employee,model_hr_department,base.group_user,1,0,0,0
@@ -17,6 +17,7 @@ access_hr_departure_reason,access_hr_departure_reason_user,model_hr_departure_re
 access_hr_contract_type_manager,hr.contract.type.manager,model_hr_contract_type,group_hr_user,1,1,1,1
 access_hr_version_manager,hr.version.manager,model_hr_version,group_hr_manager,1,1,1,1
 access_hr_version_user,hr.version.user,model_hr_version,group_hr_user,1,1,1,1
+access_hr_version_internal_user,hr.version internal user,model_hr_version,base.group_user,1,0,0,0
 access_mail_activity_plan_hr_manager,mail.activity.plan.hr.manager,mail.model_mail_activity_plan,group_hr_manager,1,1,1,1
 access_mail_activity_plan_template_hr_manager,mail.activity.plan.template.hr.manager,mail.model_mail_activity_plan_template,group_hr_manager,1,1,1,1
 access_hr_payroll_structure_type_hr_contract_manager,hr.payroll.structure.type.contract.manager,model_hr_payroll_structure_type,group_hr_manager,1,1,1,1

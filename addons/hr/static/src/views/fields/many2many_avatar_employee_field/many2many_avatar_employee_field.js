@@ -16,7 +16,7 @@ export class Many2ManyTagsAvatarEmployeeField extends EmployeeFieldRelationMixin
     displayAvatarCard(record) {
         return (
             (!this.env.isSmall &&
-                ["hr.employee", "hr.employee.public"].includes(this.relation)) ||
+                this.relation === "hr.employee") ||
             super.displayAvatarCard(record)
         );
     }
@@ -46,7 +46,7 @@ export class KanbanMany2ManyTagsAvatarEmployeeField extends EmployeeFieldRelatio
     displayAvatarCard(record) {
         return (
             (!this.env.isSmall &&
-                ["hr.employee", "hr.employee.public"].includes(this.relation)) ||
+                this.relation === "hr.employee") ||
             super.displayAvatarCard(record)
         );
     }
@@ -76,7 +76,7 @@ export class ListMany2ManyTagsAvatarEmployeeField extends EmployeeFieldRelationM
     displayAvatarCard(record) {
         return (
             (!this.env.isSmall &&
-                ["hr.employee", "hr.employee.public"].includes(this.relation)) ||
+                this.relation === "hr.employee") ||
             super.displayAvatarCard(record)
         );
     }
