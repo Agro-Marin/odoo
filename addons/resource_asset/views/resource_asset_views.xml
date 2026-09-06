@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="resource_asset_view_list" model="ir.ui.view">
+        <field name="name">resource.asset.list</field>
+        <field name="model">resource.asset</field>
+        <field name="arch" type="xml">
+            <list string="Assets" decoration-muted="state in ('out_of_service', 'disposed')">
+                <field name="name" />
+                <field name="kind_id" />
+                <field name="state" />
+                <field name="holder_id" />
+                <field name="address_id" optional="hide" />
+                <field name="date_acquisition" optional="hide" />
+                <field name="resource_calendar_id" optional="hide" />
+                <field
+                    name="company_id"
+                    optional="hide"
+                    groups="base.group_multi_company" />
+            </list>
+        </field>
+    </record>
+
+    <record id="resource_asset_view_kanban" model="ir.ui.view">
+        <field name="name">resource.asset.kanban</field>
+        <field name="model">resource.asset</field>
+        <field name="arch" type="xml">
+            <kanban highlight_color="color" sample="1">
+                <field name="state" />
+                <templates>
+                    <t t-name="menu">
+                        <a t-if="widget.editable" role="menuitem" type="open" class="dropdown-item">Edit</a>
+                        <field name="color" widget="kanban_color_picker" />
+                    </t>
+                    <t t-name="card">
+                        <field name="name" class="fw-bold fs-5" />
+                        <div><field name="kind_id" /></div>
+                        <div t-if="record.holder_id.raw_value"><field name="holder_id" /></div>
+                        <footer>
+                            <field name="state" widget="label_selection" />
+                        </footer>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="resource_asset_view_form" model="ir.ui.view">
+        <field name="name">resource.asset.form</field>
+        <field name="model">resource.asset</field>
+        <field name="arch" type="xml">
+            <form string="Asset">
+                <header>
+                    <button
+                        name="action_set_in_service"
+                        type="object"
+                        string="Put in Service"
+                        class="btn-primary"
+                        invisible="state not in ('draft', 'out_of_service', 'maintenance')" />
+                    <button
+                        name="action_dispose"
+                        type="object"
+                        string="Dispose"
+                        invisible="state == 'disposed'"
+                        confirm="Dispose of this asset? It is archived and its custody ends today." />
+                    <field name="state" widget="statusbar" statusbar_visible="draft,in_service" />
+                </header>
+                <sheet>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
+                        invisible="active" />
+                    <field name="avatar_128" invisible="1" />
+                    <div class="oe_title">
+                        <label for="name" />
+                        <h1>
+                            <field name="name" placeholder="e.g. Tractor 7" />
+                        </h1>
+                    </div>
+                    <group>
+                        <group name="identity">
+                            <field name="active" invisible="1" />
+                            <field name="kind_id" />
+                            <field name="parent_id" />
+                            <field name="model_year" />
+                            <field name="brand_new" />
+                        </group>
+                        <group name="where">
+                            <field name="holder_id" />
+                            <field name="address_id" />
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company" />
+                            <field name="resource_calendar_id" placeholder="Around the clock" />
+                            <field name="tz" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Identifiers" name="identifiers">
+                            <field name="identifier_ids">
+                                <list editable="bottom">
+                                    <field name="type_id" />
+                                    <field name="value" />
+                                    <field name="valid_until" optional="hide" />
+                                </list>
+                            </field>
+                            <field
+                                name="missing_identifier_type_ids"
+                                widget="many2many_tags"
+                                readonly="1"
+                                invisible="not missing_identifier_type_ids" />
+                        </page>
+                        <page string="Meters" name="meters">
+                            <field name="meter_ids">
+                                <list editable="bottom">
+                                    <field name="name" />
+                                    <field name="kind" />
+                                    <field name="value" />
+                                    <field name="uom_id" />
+                                    <field name="date" />
+                                    <field name="monotonic" optional="hide" />
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Custody" name="custody">
+                            <field name="assignment_ids" context="{'default_resource_id': resource_id}">
+                                <list editable="bottom">
+                                    <field name="assignee_id" />
+                                    <field name="role" />
+                                    <field name="date_start" />
+                                    <field name="date_end" />
+                                    <field name="state" />
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Lifecycle" name="lifecycle">
+                            <group>
+                                <group>
+                                    <field name="date_acquisition" />
+                                    <field name="date_disposal" />
+                                </group>
+                                <group>
+                                    <field name="resource_id" readonly="1" />
+                                    <field name="child_ids" widget="many2many_tags" readonly="1" />
+                                </group>
+                            </group>
+                            <field name="description" placeholder="Notes" />
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
+    <record id="resource_asset_view_search" model="ir.ui.view">
+        <field name="name">resource.asset.search</field>
+        <field name="model">resource.asset</field>
+        <field name="arch" type="xml">
+            <search string="Assets">
+                <field name="name" />
+                <field name="identifier_ids" string="Identifier" filter_domain="[('identifier_ids.normalized_value', 'ilike', self)]" />
+                <field name="kind_id" />
+                <field name="holder_id" />
+                <filter name="in_service" string="In Service" domain="[('state', '=', 'in_service')]" />
+                <filter name="maintenance" string="Under Maintenance" domain="[('state', '=', 'maintenance')]" />
+                <filter name="draft" string="Draft" domain="[('state', '=', 'draft')]" />
+                <separator />
+                <filter name="held" string="Held" domain="[('holder_id', '!=', False)]" />
+                <filter name="unheld" string="Unassigned" domain="[('holder_id', '=', False)]" />
+                <separator />
+                <filter name="archived" string="Archived" domain="[('active', '=', False)]" />
+                <separator />
+                <filter name="group_kind" string="Kind" context="{'group_by': 'kind_id'}" />
+                <filter name="group_state" string="State" context="{'group_by': 'state'}" />
+                <filter name="group_holder" string="Holder" context="{'group_by': 'holder_id'}" />
+            </search>
+        </field>
+    </record>
+
+    <record id="action_resource_asset" model="ir.actions.act_window">
+        <field name="name">Assets</field>
+        <field name="res_model">resource.asset</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="resource_asset_view_search" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Register an asset
+            </p>
+            <p>
+                A vehicle, a machine, a tool, a phone, a parcel: one record with its identifiers, meters and custody, schedulable like any other resource.
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,214 @@
+from datetime import UTC, datetime, timedelta
+
+from odoo.exceptions import ValidationError
+from odoo.tests import TransactionCase, tagged
+from odoo.tools import mute_logger
+
+
+@tagged("post_install", "-at_install")
+class TestResourceAsset(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Asset = cls.env["resource.asset"]
+        cls.vehicle = cls.env.ref("resource_asset.kind_vehicle")
+        cls.machinery = cls.env.ref("resource_asset.kind_machinery")
+        cls.plate = cls.env.ref("resource_asset.identifier_type_plate")
+        cls.vin = cls.env.ref("resource_asset.identifier_type_vin")
+        cls.serial = cls.env.ref("resource_asset.identifier_type_serial")
+        cls.company_b = cls.env["res.company"].create({"name": "Second"})
+        cls.driver = cls.env["resource.resource"].create(
+            {"name": "Driver", "resource_type": "user", "tz": "UTC"}
+        )
+
+    def _truck(self, name="Truck", **vals):
+        return self.Asset.create({"name": name, "kind_id": self.vehicle.id, **vals})
+
+    def test_an_asset_is_a_material_resource(self):
+        truck = self._truck()
+        self.assertEqual(truck.resource_id.resource_type, "material")
+        self.assertEqual(truck.resource_id.name, "Truck")
+        self.assertEqual(truck.resource_id.asset_id, truck)
+        truck.name = "Truck 7"
+        self.assertEqual(truck.resource_id.name, "Truck 7")
+
+    def test_an_unscheduled_kind_is_available_around_the_clock(self):
+        truck = self._truck(company_id=self.env.company.id)
+        self.assertFalse(truck.resource_calendar_id)
+        self.assertTrue(truck.resource_id._is_fully_flexible())
+
+    def test_a_scheduled_kind_takes_the_company_calendar(self):
+        press = self.Asset.create({"name": "Press", "kind_id": self.machinery.id})
+        self.assertEqual(
+            press.resource_calendar_id, self.env.company.resource_calendar_id
+        )
+
+    def test_an_explicit_calendar_wins(self):
+        calendar = self.env["resource.calendar"].create({"name": "Nights", "tz": "UTC"})
+        truck = self._truck(resource_calendar_id=calendar.id)
+        self.assertEqual(truck.resource_calendar_id, calendar)
+
+    def test_missing_identifiers_follow_the_kind(self):
+        truck = self._truck()
+        self.assertEqual(truck.missing_identifier_type_ids, self.plate | self.vin)
+        truck.identifier_ids = [(0, 0, {"type_id": self.plate.id, "value": "abc-123"})]
+        self.assertEqual(truck.missing_identifier_type_ids, self.vin)
+        self.assertEqual(truck.get_identifier("plate"), "abc-123")
+        self.assertIn(
+            truck,
+            self.Asset.search([("missing_identifier_type_ids", "in", self.vin.ids)]),
+        )
+
+    def test_identifier_is_normalized_and_matches_its_pattern(self):
+        truck = self._truck()
+        identifier = self.env["resource.asset.identifier"].create(
+            {
+                "asset_id": truck.id,
+                "type_id": self.vin.id,
+                "value": "1hgcm82633a-004352",
+            }
+        )
+        self.assertEqual(identifier.normalized_value, "1HGCM82633A004352")
+        with self.assertRaises(ValidationError):
+            identifier.write({"value": "TOO-SHORT"})
+
+    def test_global_uniqueness_crosses_companies(self):
+        one = self._truck("One")
+        two = self._truck("Two", company_id=self.company_b.id)
+        self.env["resource.asset.identifier"].create(
+            {"asset_id": one.id, "type_id": self.vin.id, "value": "1HGCM82633A004352"}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["resource.asset.identifier"].create(
+                {
+                    "asset_id": two.id,
+                    "type_id": self.vin.id,
+                    "value": "1hgcm82633a004352",
+                }
+            )
+
+    def test_company_uniqueness_stops_at_the_company(self):
+        one = self._truck("One")
+        two = self._truck("Two", company_id=self.company_b.id)
+        three = self._truck("Three")
+        self.env["resource.asset.identifier"].create(
+            {"asset_id": one.id, "type_id": self.plate.id, "value": "ABC 123"}
+        )
+        self.env["resource.asset.identifier"].create(
+            {"asset_id": two.id, "type_id": self.plate.id, "value": "ABC-123"}
+        )
+        with self.assertRaises(ValidationError):
+            self.env["resource.asset.identifier"].create(
+                {"asset_id": three.id, "type_id": self.plate.id, "value": "abc123"}
+            )
+
+    def test_one_value_per_type_per_asset(self):
+        truck = self._truck()
+        self.env["resource.asset.identifier"].create(
+            {"asset_id": truck.id, "type_id": self.plate.id, "value": "A"}
+        )
+        with self.assertRaises(Exception), mute_logger("odoo.sql_db", "odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                self.env["resource.asset.identifier"].create(
+                    {"asset_id": truck.id, "type_id": self.plate.id, "value": "B"}
+                )
+
+    def test_meter_keeps_the_latest_reading_and_refuses_to_run_backwards(self):
+        truck = self._truck()
+        meter = self.env["resource.asset.meter"].create(
+            {"asset_id": truck.id, "name": "Odometer", "kind": "odometer"}
+        )
+        t0 = datetime(2026, 1, 1, 8, 0)
+        meter.record(1000, date=t0)
+        meter.record(1500, date=t0 + timedelta(days=1))
+        meter.invalidate_recordset()
+        self.assertEqual(meter.value, 1500)
+        self.assertEqual(truck.get_meter("odometer"), meter)
+        self.assertEqual(meter._value_at(t0 + timedelta(hours=1)), 1000)
+        with self.assertRaises(ValidationError):
+            meter.record(1200, date=t0 + timedelta(days=2))
+        with self.assertRaises(ValidationError):
+            meter.record(1600, date=t0 + timedelta(hours=12))
+        meter.monotonic = False
+        meter.record(900, date=t0 + timedelta(days=3))
+        meter.invalidate_recordset()
+        self.assertEqual(meter.value, 900)
+
+    def test_custody_through_the_resource(self):
+        truck = self._truck()
+        self.assertFalse(truck.holder_id)
+        assignment = self.env["resource.assignment"].create(
+            {
+                "resource_id": truck.resource_id.id,
+                "assignee_id": self.driver.id,
+                "role": "driver",
+                "date_start": datetime.now() - timedelta(days=1),
+            }
+        )
+        truck.invalidate_recordset()
+        self.assertEqual(truck.holder_id, self.driver)
+        self.assertEqual(truck._get_holder(role="driver"), self.driver)
+        self.assertIn(assignment, truck.assignment_ids)
+        self.assertIn(truck, self.Asset.search([("holder_id", "=", self.driver.id)]))
+
+    def test_archiving_ends_open_custody(self):
+        truck = self._truck()
+        assignment = self.env["resource.assignment"].create(
+            {
+                "resource_id": truck.resource_id.id,
+                "assignee_id": self.driver.id,
+                "date_start": datetime.now() - timedelta(days=1),
+            }
+        )
+        truck.action_archive()
+        self.assertFalse(truck.resource_id.active)
+        self.assertTrue(assignment.date_end)
+        self.assertEqual(assignment.state, "ended")
+
+    def test_disposal(self):
+        truck = self._truck(date_acquisition="2020-01-01")
+        with self.assertRaises(ValidationError):
+            truck.state = "disposed"
+        truck.action_dispose()
+        self.assertEqual(truck.state, "disposed")
+        self.assertTrue(truck.date_disposal)
+        self.assertFalse(truck.active)
+
+    def test_a_component_cannot_contain_its_whole(self):
+        tractor = self._truck("Tractor")
+        engine = self.Asset.create(
+            {"name": "Engine", "kind_id": self.machinery.id, "parent_id": tractor.id}
+        )
+        self.assertIn(engine, tractor.child_ids)
+        with self.assertRaises(ValidationError):
+            tractor.parent_id = engine
+
+    def test_a_resource_is_one_asset_at_most(self):
+        truck = self._truck()
+        with self.assertRaises(Exception), mute_logger("odoo.sql_db", "odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                self.Asset.create(
+                    {
+                        "name": "Twin",
+                        "kind_id": self.vehicle.id,
+                        "resource_id": truck.resource_id.id,
+                    }
+                )
+
+    def test_asset_books_like_any_resource(self):
+        truck = self._truck()
+        reservation = self.env["resource.reservation"].create(
+            {
+                "name": "Delivery run",
+                "resource_id": truck.resource_id.id,
+                "date_start": datetime(2026, 3, 2, 8, 0),
+                "date_end": datetime(2026, 3, 2, 12, 0),
+                "enforcement_mode": "hard",
+            }
+        )
+        self.assertEqual(reservation.resource_id.asset_id, truck)
+        unavailable = truck.resource_id._get_unavailable_intervals(
+            datetime(2026, 3, 2, tzinfo=UTC),
+            datetime(2026, 3, 3, tzinfo=UTC),
+        )[truck.resource_id.id]
+        self.assertEqual(len(unavailable), 1)

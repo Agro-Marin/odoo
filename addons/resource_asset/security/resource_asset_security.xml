@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_groups_privilege_asset" model="res.groups.privilege">
+        <field name="name">Assets</field>
+        <field name="category_id" ref="base.module_category_supply_chain" />
+    </record>
+
+    <record id="group_asset_user" model="res.groups">
+        <field name="name">User</field>
+        <field name="sequence">10</field>
+        <field name="privilege_id" ref="res_groups_privilege_asset" />
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
+    </record>
+
+    <record id="group_asset_manager" model="res.groups">
+        <field name="name">Manager</field>
+        <field name="sequence">20</field>
+        <field name="privilege_id" ref="res_groups_privilege_asset" />
+        <field name="implied_ids" eval="[(4, ref('group_asset_user'))]" />
+        <field
+            name="user_ids"
+            eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]" />
+    </record>
+
+    <data noupdate="1">
+        <record id="resource_asset_rule_multi_company" model="ir.rule">
+            <field name="name">resource.asset: multi-company rule</field>
+            <field name="model_id" ref="model_resource_asset" />
+            <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+        </record>
+        <record id="resource_asset_identifier_rule_multi_company" model="ir.rule">
+            <field name="name">resource.asset.identifier: multi-company rule</field>
+            <field name="model_id" ref="model_resource_asset_identifier" />
+            <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+        </record>
+        <record id="resource_asset_meter_rule_multi_company" model="ir.rule">
+            <field name="name">resource.asset.meter: multi-company rule</field>
+            <field name="model_id" ref="model_resource_asset_meter" />
+            <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+        </record>
+        <record id="resource_asset_meter_reading_rule_multi_company" model="ir.rule">
+            <field name="name">resource.asset.meter.reading: multi-company rule</field>
+            <field name="model_id" ref="model_resource_asset_meter_reading" />
+            <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+        </record>
+    </data>
+
+</odoo>

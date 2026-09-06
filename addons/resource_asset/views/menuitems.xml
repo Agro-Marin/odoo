@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_asset_root"
+        name="Assets"
+        sequence="215"
+        groups="group_asset_user"
+        web_icon="resource_asset,static/description/icon.png" />
+
+    <menuitem
+        id="menu_asset_assets"
+        parent="menu_asset_root"
+        action="action_resource_asset"
+        sequence="1" />
+
+    <menuitem
+        id="menu_asset_assignments"
+        parent="menu_asset_root"
+        action="resource.action_resource_assignment"
+        sequence="2" />
+
+    <menuitem
+        id="menu_asset_meters"
+        parent="menu_asset_root"
+        action="action_resource_asset_meter"
+        sequence="3" />
+
+    <menuitem
+        id="menu_asset_config"
+        name="Configuration"
+        parent="menu_asset_root"
+        sequence="90"
+        groups="group_asset_manager" />
+
+    <menuitem
+        id="menu_asset_kinds"
+        parent="menu_asset_config"
+        action="action_resource_asset_kind"
+        sequence="1" />
+
+    <menuitem
+        id="menu_asset_identifier_types"
+        parent="menu_asset_config"
+        action="action_resource_asset_identifier_type"
+        sequence="2" />
+
+</odoo>

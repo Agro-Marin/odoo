@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="kind_vehicle" model="resource.asset.kind">
+        <field name="name">Vehicle</field>
+        <field name="code">vehicle</field>
+        <field name="sequence">1</field>
+        <field name="identifier_type_ids" eval="[(6, 0, [ref('identifier_type_plate'), ref('identifier_type_vin')])]" />
+    </record>
+    <record id="kind_machinery" model="resource.asset.kind">
+        <field name="name">Machinery</field>
+        <field name="code">machinery</field>
+        <field name="sequence">2</field>
+        <field name="scheduled" eval="True" />
+        <field name="identifier_type_ids" eval="[(6, 0, [ref('identifier_type_serial')])]" />
+    </record>
+    <record id="kind_equipment" model="resource.asset.kind">
+        <field name="name">Equipment</field>
+        <field name="code">equipment</field>
+        <field name="sequence">3</field>
+        <field name="identifier_type_ids" eval="[(6, 0, [ref('identifier_type_serial')])]" />
+    </record>
+    <record id="kind_tool" model="resource.asset.kind">
+        <field name="name">Tool</field>
+        <field name="code">tool</field>
+        <field name="sequence">4</field>
+    </record>
+    <record id="kind_it" model="resource.asset.kind">
+        <field name="name">IT Asset</field>
+        <field name="code">it</field>
+        <field name="sequence">5</field>
+        <field name="identifier_type_ids" eval="[(6, 0, [ref('identifier_type_serial')])]" />
+    </record>
+    <record id="kind_property" model="resource.asset.kind">
+        <field name="name">Property</field>
+        <field name="code">property</field>
+        <field name="sequence">6</field>
+        <field name="identifier_type_ids" eval="[(6, 0, [ref('identifier_type_cadastral')])]" />
+    </record>
+    <record id="kind_device" model="resource.asset.kind">
+        <field name="name">Device</field>
+        <field name="code">device</field>
+        <field name="sequence">7</field>
+        <field name="identifier_type_ids" eval="[(6, 0, [ref('identifier_type_imei')])]" />
+    </record>
+
+</odoo>

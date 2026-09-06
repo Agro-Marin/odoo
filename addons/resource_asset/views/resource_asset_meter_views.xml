@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="resource_asset_meter_reading_view_list" model="ir.ui.view">
+        <field name="name">resource.asset.meter.reading.list</field>
+        <field name="model">resource.asset.meter.reading</field>
+        <field name="arch" type="xml">
+            <list string="Readings" editable="top">
+                <field name="date" />
+                <field name="value" />
+                <field name="source" />
+                <field name="note" />
+            </list>
+        </field>
+    </record>
+
+    <record id="resource_asset_meter_view_form" model="ir.ui.view">
+        <field name="name">resource.asset.meter.form</field>
+        <field name="model">resource.asset.meter</field>
+        <field name="arch" type="xml">
+            <form string="Meter">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="asset_id" />
+                            <field name="name" />
+                            <field name="kind" />
+                        </group>
+                        <group>
+                            <field name="uom_id" />
+                            <field name="monotonic" />
+                            <field name="value" />
+                            <field name="date" />
+                        </group>
+                    </group>
+                    <field name="reading_ids" />
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="resource_asset_meter_view_list" model="ir.ui.view">
+        <field name="name">resource.asset.meter.list</field>
+        <field name="model">resource.asset.meter</field>
+        <field name="arch" type="xml">
+            <list string="Meters">
+                <field name="asset_id" />
+                <field name="name" />
+                <field name="kind" />
+                <field name="value" />
+                <field name="uom_id" />
+                <field name="date" />
+            </list>
+        </field>
+    </record>
+
+    <record id="action_resource_asset_meter" model="ir.actions.act_window">
+        <field name="name">Meters</field>
+        <field name="res_model">resource.asset.meter</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

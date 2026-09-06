@@ -1,0 +1,15 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_resource_asset_kind_user,resource.asset.kind.user,model_resource_asset_kind,base.group_user,1,0,0,0
+access_resource_asset_kind_manager,resource.asset.kind.manager,model_resource_asset_kind,group_asset_manager,1,1,1,1
+access_resource_asset_identifier_type_user,resource.asset.identifier.type.user,model_resource_asset_identifier_type,base.group_user,1,0,0,0
+access_resource_asset_identifier_type_manager,resource.asset.identifier.type.manager,model_resource_asset_identifier_type,group_asset_manager,1,1,1,1
+access_resource_asset_user,resource.asset.user,model_resource_asset,group_asset_user,1,1,1,0
+access_resource_asset_manager,resource.asset.manager,model_resource_asset,group_asset_manager,1,1,1,1
+access_resource_asset_employee,resource.asset.employee,model_resource_asset,base.group_user,1,0,0,0
+access_resource_asset_identifier_user,resource.asset.identifier.user,model_resource_asset_identifier,group_asset_user,1,1,1,1
+access_resource_asset_identifier_employee,resource.asset.identifier.employee,model_resource_asset_identifier,base.group_user,1,0,0,0
+access_resource_asset_meter_user,resource.asset.meter.user,model_resource_asset_meter,group_asset_user,1,1,1,1
+access_resource_asset_meter_employee,resource.asset.meter.employee,model_resource_asset_meter,base.group_user,1,0,0,0
+access_resource_asset_meter_reading_user,resource.asset.meter.reading.user,model_resource_asset_meter_reading,group_asset_user,1,1,1,1
+access_resource_asset_meter_reading_employee,resource.asset.meter.reading.employee,model_resource_asset_meter_reading,base.group_user,1,0,1,0
+access_resource_assignment_asset_user,resource.assignment.asset.user,resource.model_resource_assignment,group_asset_user,1,1,1,1
