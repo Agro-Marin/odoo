@@ -74,10 +74,7 @@ export class MultiSelectionButtons extends Component {
         this.callbackRecorder = new CallbackRecorder();
         useSetupAction({
             getLocalState: () => {
-                const multiCreateData = this.getMultiCreateDataFromPopover();
-                if (multiCreateData) {
-                    this.storeMultiCreateData(multiCreateData);
-                }
+                this.persistPopoverData();
                 return { multiCreateValues: this.multiCreateValues };
             },
         });
@@ -85,12 +82,7 @@ export class MultiSelectionButtons extends Component {
         this.multiCreatePopover = usePopover(
             /** @type {any} */ (this.constructor).components.Popover,
             {
-                onClose: () => {
-                    const multiCreateData = this.getMultiCreateDataFromPopover();
-                    if (multiCreateData) {
-                        this.storeMultiCreateData(multiCreateData);
-                    }
-                },
+                onClose: () => this.persistPopoverData(),
             },
         );
         this.addButtonRef = useRef("addButton");
@@ -117,10 +109,11 @@ export class MultiSelectionButtons extends Component {
         });
     }
 
-    /** @returns {Object | null} */
-    getMultiCreateDataFromPopover() {
-        const fn = this.callbackRecorder.callbacks[0];
-        return fn?.() || null;
+    persistPopoverData() {
+        const multiCreateData = this.callbackRecorder.callbacks[0]?.();
+        if (multiCreateData) {
+            this.storeMultiCreateData(multiCreateData);
+        }
     }
 
     storeMultiCreateData(multiCreateData) {
