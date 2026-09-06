@@ -13,7 +13,7 @@
                 <field name="name" position="before">
                     <field
                         name="product_id"
-                        context="{                         'default_type': 'service',                         'default_service_tracking': 'event',                     }" />
+                        context="{'default_type': 'service', 'default_service_tracking': 'event'}" />
                 </field>
                 <field name="description" position="after">
                     <field name="price" />
@@ -30,7 +30,7 @@
                 <field name="name" position="before">
                     <field
                         name="product_id"
-                        context="{                         'default_type': 'service',                         'default_service_tracking': 'event',                     }" />
+                        context="{'default_type': 'service', 'default_service_tracking': 'event'}" />
                 </field>
                 <field name="description" position="after">
                     <field name="price" />
@@ -55,7 +55,7 @@
                 <field name="name" position="before">
                     <field
                         name="product_id"
-                        context="{                         'default_type': 'service',                         'default_service_tracking': 'event',                     }" />
+                        context="{'default_type': 'service', 'default_service_tracking': 'event'}" />
                 </field>
                 <field name="description" position="after">
                     <field name="currency_id" column_invisible="True"/> <!-- Used to get the currency symbol on the ticket price. -->
@@ -77,7 +77,7 @@
                 <field name="name" position="before">
                     <field
                         name="product_id"
-                        context="{                         'default_type': 'service',                         'default_service_tracking': 'event',                     }" />
+                        context="{'default_type': 'service', 'default_service_tracking': 'event'}" />
                 </field>
                 <field name="description" position="after">
                     <field name="price" />
