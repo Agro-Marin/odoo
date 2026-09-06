@@ -153,6 +153,16 @@ export class X2ManyField extends FieldComponent {
     }
 
     /**
+     * Title of the dialog a record of this field opens in; undefined lets the
+     * dialog derive one from the field and the record.
+     *
+     * @returns {string | undefined}
+     */
+    getOpenRecordTitle() {
+        return undefined;
+    }
+
+    /**
      * @param {{ linkRecords: Function, saveAndLink: Function, updateRecord: Function }} crud
      */
     setupRecordOpeners({ linkRecords, saveAndLink, updateRecord }) {
@@ -167,6 +177,7 @@ export class X2ManyField extends FieldComponent {
         this._openRecord = (params) => {
             const activeElement = document.activeElement;
             openRecord({
+                title: this.getOpenRecordTitle(),
                 ...params,
                 controls: this.controls,
                 onClose: () => {

@@ -4,8 +4,6 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 
-import { useSkillsRecordOpener } from "../use_skills_record_opener.js";
-
 export class One2ManyTagsSkillsField extends X2ManyField {
     static components = {
         ...X2ManyField.components,
@@ -13,9 +11,8 @@ export class One2ManyTagsSkillsField extends X2ManyField {
     };
     static template = "hr_skills.One2ManyTagsSkillsField";
 
-    setup() {
-        super.setup();
-        useSkillsRecordOpener(this, () => _t("Select Skills"));
+    getOpenRecordTitle() {
+        return _t("Select Skills");
     }
 
     getTagProps(record) {

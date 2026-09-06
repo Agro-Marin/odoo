@@ -6,7 +6,6 @@ import { useService } from "@web/core/utils/hooks";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 
 import { CommonSkillsListRenderer } from "../../views/skills_list_renderer.js";
-import { useSkillsRecordOpener } from "../use_skills_record_opener.js";
 
 export class SkillsListRenderer extends CommonSkillsListRenderer {
     static template = "hr_skills.SkillsListRenderer";
@@ -80,9 +79,8 @@ export class SkillsX2ManyField extends X2ManyField {
         ...X2ManyField.components,
         ListRenderer: SkillsListRenderer,
     };
-    setup() {
-        super.setup();
-        useSkillsRecordOpener(this, () => this.getWizardTitleName());
+    getOpenRecordTitle() {
+        return this.getWizardTitleName();
     }
 
     getWizardTitleName() {
