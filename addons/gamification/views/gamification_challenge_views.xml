@@ -28,12 +28,14 @@
                         type="object"
                         name="action_start"
                         invisible="state != 'draft'"
+                        groups="gamification.group_gamification_manager"
                         class="oe_highlight" />
                     <button
                         string="Refresh Challenge"
                         type="object"
                         name="action_check"
-                        invisible="state != 'inprogress'" />
+                        invisible="state != 'inprogress'"
+                        groups="gamification.group_gamification_manager" />
                     <button
                         string="Send Report"
                         type="object"
