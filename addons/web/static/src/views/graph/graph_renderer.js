@@ -12,6 +12,11 @@ import { renderToMarkup } from "@web/core/utils/render";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { useReactiveModel } from "@web/model/model";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
+import {
+    drillDownAction,
+    drillDownContext,
+    drillDownViews,
+} from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
 import {
@@ -467,43 +472,24 @@ export class GraphRenderer extends Component {
      */
     openView(domain, views, context, newWindow) {
         this.actionService.doAction(
-            {
-                context,
+            drillDownAction(this.model.metaData, this.env.config.views, {
                 domain,
-                name: this.model.metaData.title,
-                res_model: this.model.metaData.resModel,
-                search_view_id: this.env.config.views?.find((v) => v[1] === "search"),
-                target: "current",
-                type: "ir.actions.act_window",
                 views,
-            },
-            {
-                newWindow,
-                viewType: "list",
-            },
+                context,
+            }),
+            { newWindow, viewType: "list" },
         );
     }
     /**
      * @param {any[]} domain
      */
     onGraphClickedFinal(domain, isMiddleClick = false) {
-        const context = { ...this.model.metaData.context };
-
-        for (const x of Object.keys(context)) {
-            if (x === "group_by" || x.startsWith("search_default_")) {
-                delete context[x];
-            }
-        }
-
-        const views = {};
-        for (const [viewId, viewType] of this.env.config.views || []) {
-            views[viewType] = viewId;
-        }
-        function getView(viewType) {
-            return [views[viewType] || false, viewType];
-        }
-        const actionViews = [getView("list"), getView("form")];
-        this.openView(domain, /** @type {any} */ (actionViews), context, isMiddleClick);
+        this.openView(
+            domain,
+            drillDownViews(this.env.config.views),
+            drillDownContext(this.model.metaData.context),
+            isMiddleClick,
+        );
     }
 
     /**

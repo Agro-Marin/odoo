@@ -23,6 +23,11 @@ import { GROUPABLE_TYPES } from "@web/search/utils/misc";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_popover";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
+import {
+    drillDownAction,
+    drillDownContext,
+    drillDownViews,
+} from "@web/views/view_utils";
 
 class PivotDropdown extends Dropdown {
     /**
@@ -369,20 +374,12 @@ export class PivotRenderer extends Component {
      */
     openView(domain, views, context, newWindow) {
         this.actionService.doAction(
-            {
-                type: "ir.actions.act_window",
-                name: this.model.metaData.title,
-                res_model: this.model.metaData.resModel,
-                search_view_id: this.env.config.views?.find((v) => v[1] === "search"),
-                views: views,
-                view_mode: "list",
-                target: "current",
-                context,
+            drillDownAction(this.model.metaData, this.env.config.views, {
                 domain,
-            },
-            {
-                newWindow,
-            },
+                views,
+                context,
+            }),
+            { newWindow, viewType: "list" },
         );
     }
     /**
@@ -394,18 +391,8 @@ export class PivotRenderer extends Component {
             return;
         }
 
-        const context = { ...this.model.searchParams.context };
-        for (const x of Object.keys(context)) {
-            if (x === "group_by" || x.startsWith("search_default_")) {
-                delete context[x];
-            }
-        }
-
-        const { views = [] } = this.env.config;
-        this.views = ["list", "form"].map((viewType) => {
-            const view = views.find((view) => view[1] === viewType);
-            return [view ? view[0] : false, viewType];
-        });
+        const context = drillDownContext(this.model.searchParams.context);
+        this.views = drillDownViews(this.env.config.views);
 
         const group = {
             rowValues: cell.groupId[0],

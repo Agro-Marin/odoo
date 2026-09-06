@@ -549,7 +549,6 @@ test("clicking on a cell triggers a doAction", async () => {
                 search_view_id: [67, "search"],
                 target: "current",
                 type: "ir.actions.act_window",
-                view_mode: "list",
                 views: [
                     [false, "list"],
                     [2, "form"],
@@ -3998,15 +3997,12 @@ test("middle clicking on a cell triggers a doAction", async () => {
                 search_view_id: [67, "search"],
                 target: "current",
                 type: "ir.actions.act_window",
-                view_mode: "list",
                 views: [
                     [false, "list"],
                     [2, "form"],
                 ],
             });
-            expect(options).toEqual({
-                newWindow: true,
-            });
+            expect(options).toEqual({ newWindow: true, viewType: "list" });
             return Promise.resolve(true);
         },
     });

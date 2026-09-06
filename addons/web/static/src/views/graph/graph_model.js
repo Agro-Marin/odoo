@@ -270,8 +270,7 @@ export class GraphModel extends Model {
 
             if (isNewLabel) {
                 labelMap[key] = labels.length;
-                const label = x.length ? x.join(SEP) : _t("Total");
-                labels.push(label);
+                labels.push(trueLabel);
             }
             dataPt.labelIndex = labelMap[key];
             dataPt.trueLabel = trueLabel;

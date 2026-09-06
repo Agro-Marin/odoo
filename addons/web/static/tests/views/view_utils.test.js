@@ -7,6 +7,9 @@ import {
     buildOpenActionParams,
     buildStaticActionMenuItems,
     computeArchiveEnabled,
+    drillDownAction,
+    drillDownContext,
+    drillDownViews,
     handleBeforeUnload,
 } from "@web/views/view_utils";
 
@@ -222,5 +225,57 @@ describe("buildOpenActionParams", () => {
         expect(params.context).toEqual({ a: 1 });
         params.onClose();
         expect(loaded).toBe(1);
+    });
+});
+
+describe("drill-down", () => {
+    test("drillDownContext drops the report's grouping and default filters, nothing else", () => {
+        const context = { group_by: ["a"], search_default_x: 1, lang: "en", uid: 7 };
+        expect(drillDownContext(context)).toEqual({ lang: "en", uid: 7 });
+        expect(context.group_by).toEqual(["a"]);
+    });
+
+    test("drillDownViews keeps the action's list and form ids and falls back to false", () => {
+        expect(
+            drillDownViews([
+                [67, "search"],
+                [2, "form"],
+                [5, "kanban"],
+            ]),
+        ).toEqual([
+            [false, "list"],
+            [2, "form"],
+        ]);
+        expect(drillDownViews()).toEqual([
+            [false, "list"],
+            [false, "form"],
+        ]);
+    });
+
+    test("drillDownAction opens the report's model on the current search view", () => {
+        const actionViews = /** @type {Array<[number | false, string]>} */ ([
+            [67, "search"],
+            [3, "list"],
+        ]);
+        const views = drillDownViews(actionViews);
+        expect(
+            drillDownAction({ title: "Foo Analysis", resModel: "foo" }, actionViews, {
+                domain: [["bar", "=", 1]],
+                views,
+                context: { uid: 7 },
+            }),
+        ).toEqual({
+            context: { uid: 7 },
+            domain: [["bar", "=", 1]],
+            name: "Foo Analysis",
+            res_model: "foo",
+            search_view_id: [67, "search"],
+            target: "current",
+            type: "ir.actions.act_window",
+            views: [
+                [3, "list"],
+                [false, "form"],
+            ],
+        });
     });
 });

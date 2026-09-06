@@ -107,6 +107,54 @@ export function getActiveActions(rootNode) {
 }
 
 /**
+ * The context a graph or pivot drill-down opens its records with: the report's
+ * own grouping and default filters must not follow into the list.
+ *
+ * @param {Record<string, any>} context
+ * @returns {Record<string, any>}
+ */
+export function drillDownContext(context) {
+    const stripped = { ...context };
+    for (const key of Object.keys(stripped)) {
+        if (key === "group_by" || key.startsWith("search_default_")) {
+            delete stripped[key];
+        }
+    }
+    return stripped;
+}
+
+/**
+ * The list and form views of the current action, by id when it declares them.
+ *
+ * @param {Array<[number | false, string]>} [actionViews]
+ * @returns {Array<[number | false, string]>}
+ */
+export function drillDownViews(actionViews = []) {
+    return ["list", "form"].map((viewType) => [
+        actionViews.find((view) => view[1] === viewType)?.[0] || false,
+        viewType,
+    ]);
+}
+
+/**
+ * @param {{ title: string, resModel: string }} metaData
+ * @param {Array<[number | false, string]> | undefined} actionViews
+ * @param {{ domain: any[], views: Array<[number | false, string]>, context: Record<string, any> }} params
+ */
+export function drillDownAction(metaData, actionViews, { domain, views, context }) {
+    return {
+        context,
+        domain,
+        name: metaData.title,
+        res_model: metaData.resModel,
+        search_view_id: actionViews?.find((v) => v[1] === "search"),
+        target: "current",
+        type: "ir.actions.act_window",
+        views,
+    };
+}
+
+/**
  * @param {BeforeUnloadEvent} ev
  * @param {object} opts
  * @param {import("@web/model/relational_model/record").RelationalRecord | null | undefined} opts.record
