@@ -349,6 +349,18 @@ Cross-file invariants are checked once per process by
 - Every `esm.external_libs` URL exists on disk (URLs under addons absent from
   `addons_path` are skipped)
 
+A heavy library is reached through **one facade**: a module under
+`static/src/core/lib/` or `static/src/lib/` that owns the `import("<spec>")`
+(`makeLazyLib` in `core/lib/lazy_lib.js`; `chartjs.js`, `fullcalendar.js`,
+`geoengine/static/src/lib/geo_libs.js`, `web_threed/static/src/lib/three.js`).
+The view code stays eager and small; the library is fetched on first use
+through the import map, once. `TestLibraryFacades` (`test_esm_pipeline.py`)
+reads every facade of every installed addon, refuses a facade importing its
+library statically, and fails when a member of `web.assets_web` or
+`web.assets_frontend` outside those directories imports a facaded library
+statically. Bundles a single page or a lazy child owns may still take a
+library eagerly (survey's live session page, the spreadsheet child).
+
 Bridge export surfaces and import discovery are primarily computed by a
 persistent `es-module-lexer` node worker (`odoo/tools/assets/esm_lexer.py` +
 `odoo/tools/assets/js/esm_lexer_worker.mjs`, installed by the same

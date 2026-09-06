@@ -28,6 +28,7 @@ from odoo.tools.assets.esm_graph import (
     _scan_import_specifiers,
     discover_transitive_import_specifiers,
 )
+from odoo.tools.assets.esm_lexer import lex_module
 from odoo.tools.assets.esm_registry import (
     EsmRegistry,
     esm_registry,
@@ -3201,6 +3202,70 @@ class TestPageBundleExportSurface(TransactionCase):
             if a.module_path not in exported
         )
         self.assertNotIn(f'"{silent}":', code)
+
+
+@tagged("-at_install", "post_install", "web_assets")
+class TestLibraryFacades(TransactionCase):
+    PAGE_FAMILIES = ("web.assets_web", "web.assets_frontend")
+
+    FACADE_DIRS = ("static/src/core/lib", "static/src/lib")
+
+    def _facade_sources(self):
+        for addon in sorted(self.env["ir.asset"]._get_addons_installed()):
+            for sub in self.FACADE_DIRS:
+                try:
+                    directory = Path(file_path(f"{addon}/{sub}"))
+                except FileNotFoundError:
+                    continue
+                for path in sorted(directory.glob("*.js")):
+                    yield f"{addon}/{sub}/{path.name}", path.read_text(encoding="utf-8")
+
+    def _facaded_libraries(self):
+        from odoo.tools.assets.esm_graph import _TRANSITIVE_IMPORT_RE
+
+        libraries = set(external_libs())
+        facaded = {}
+        for name, source in self._facade_sources():
+            for spec in re.findall(r'import\(\s*["\']([^"\']+)["\']', source):
+                if spec in libraries:
+                    facaded[spec] = name
+            self.assertFalse(
+                [
+                    m.group("spec")
+                    for m in _TRANSITIVE_IMPORT_RE.finditer(source)
+                    if m.group("spec") in libraries
+                ],
+                f"{name} is a facade and must not import its library statically",
+            )
+        self.assertIn("chart.js", facaded, "fixture: chartjs.js is a facade")
+        return facaded
+
+    def test_a_page_family_reaches_a_facaded_library_only_through_its_facade(self):
+        # A library with a facade under core/lib is lazy by decision: a member
+        # of a page family importing it statically would put it back in every
+        # page load. Bundles a single page or a lazy child owns may still take
+        # it eagerly (survey's live session page, the spreadsheet child).
+        facaded = self._facaded_libraries()
+        IrQweb = self.env["ir.qweb"]
+        offenders = []
+        for family in self.PAGE_FAMILIES:
+            bundle = IrQweb._get_asset_bundle(
+                family, js=True, css=False, debug_assets=True
+            )
+            for asset in bundle.native_modules:
+                if any(f"/{sub}/" in (asset.url or "") for sub in self.FACADE_DIRS):
+                    continue
+                lexed = lex_module(asset.raw_content)
+                imports = (
+                    {imp["n"] for imp in lexed["imports"]}
+                    if lexed is not None
+                    else _scan_import_specifiers(asset.raw_content)
+                )
+                offenders.extend(
+                    f"{family}: {asset.url} imports {spec} statically; use {facaded[spec]}"
+                    for spec in sorted(imports & set(facaded))
+                )
+        self.assertFalse(offenders, "\n  ".join(["", *offenders]))
 
 
 @tagged("-at_install", "post_install", "web_assets")
