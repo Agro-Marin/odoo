@@ -11,18 +11,21 @@ patch(MailCoreCommon.prototype, {
         const { id: notifId } = metadata;
         const { message_ids: messageIds, starred } = payload;
         const starredBox = this.store.starred;
-        const wasStarredById = new Map(
-            messageIds.map((id) => [
-                id,
-                this.store["mail.message"].get({ id })?.starred,
-            ]),
+        // The server sends the message before the toggle, so `message.starred`
+        // already holds the new value here; what the counter has and has not
+        // seen is the box's membership.
+        const wasCountedById = new Map(
+            messageIds.map((id) => {
+                const message = this.store["mail.message"].get({ id });
+                return [id, Boolean(message?.in(starredBox.messages))];
+            }),
         );
         super._handleNotificationToggleStar(payload, metadata);
         for (const id of messageIds) {
             const message = this.store["mail.message"].get({ id });
-            const wasStarred = wasStarredById.get(id);
+            const wasCounted = wasCountedById.get(id);
             if (starred) {
-                if (wasStarred !== true) {
+                if (!wasCounted) {
                     applyCounterDelta(starredBox, "counter", 1, { busId: notifId });
                 }
                 // a message known by id alone is a stub the base handler just inserted
@@ -32,7 +35,7 @@ patch(MailCoreCommon.prototype, {
                     starredBox.isLoaded = false;
                 }
             } else {
-                if (wasStarred !== false) {
+                if (wasCounted) {
                     applyCounterDelta(starredBox, "counter", -1, { busId: notifId });
                 }
                 starredBox.messages.delete(message);

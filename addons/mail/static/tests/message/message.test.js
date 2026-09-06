@@ -1643,6 +1643,8 @@ test("a star toggled elsewhere shows the message in an open Starred mailbox", as
     await contains(".o-mail-DiscussSidebar button.o-active", {
         text: "Starred messages",
     });
+    // the box must have fetched its (empty) content first, or the fetch races the star below
+    await contains(".o-mail-Thread-empty", { text: "No starred messages" });
     // another tab starred it: the server sends the message, then the toggle
     pyEnv["mail.message"].write([messageId], {
         starred_partner_ids: [Command.link(serverState.partnerId)],

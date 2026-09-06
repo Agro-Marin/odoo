@@ -27,10 +27,18 @@ export const homeMenuService = {
 
             /** @param {boolean} [show] */
             async toggle(show) {
+                // A navigation minted after this request outranks the menu:
+                // the client's start-up default-app load runs behind this
+                // mutex, and must not supersede what the user opened meanwhile.
+                const { navigation } = env.services.action;
+                const epoch = navigation.epoch;
                 return mutex.exec(async () => {
                     show = show === undefined ? !state.hasHomeMenu : Boolean(show);
                     if (show !== state.hasHomeMenu) {
                         if (show) {
+                            if (navigation.epoch !== epoch) {
+                                return;
+                            }
                             await env.services.action.doAction("menu");
                         } else {
                             try {

@@ -101,6 +101,13 @@ export class WebClient extends Component {
         if (menuId) {
             this.menuService.setCurrentMenu(menuId);
         }
+        // A loadState that finds nothing to load mints one navigation, its own;
+        // any epoch beyond that is a navigation started meanwhile, which
+        // outranks the default app. On its failure paths loadState has minted
+        // more, and the fallback below runs regardless: the home menu itself
+        // yields to a navigation minted after it was asked for.
+        const { navigation } = this.actionService;
+        const epoch = navigation.epoch;
         let stateLoaded;
         try {
             stateLoaded = await this.actionService.loadState();
@@ -112,6 +119,9 @@ export class WebClient extends Component {
             if (!this.actionService.currentController) {
                 await this._loadDefaultApp();
             }
+            return;
+        }
+        if (!stateLoaded && navigation.epoch > epoch + 1) {
             return;
         }
 
