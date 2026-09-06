@@ -654,6 +654,27 @@ class TestEsbuildEntryLines(BaseCase):
             with_hoot,
         )
 
+    def test_a_member_nothing_names_is_imported_for_its_side_effects_only(self):
+        lines = EsbuildCompiler(
+            "app",
+            [
+                _EntryMod("@a/named", url="/a/static/src/named.js"),
+                _EntryMod("@a/silent", url="/a/static/src/silent.js"),
+            ],
+            exported_specs={"@a/named"},
+        )._esbuild_entry_lines(self.ROOT)
+        text = "\n".join(lines)
+        self.assertIn('import * as __m0 from "./addons/a/static/src/named.js";', text)
+        self.assertIn('import "./addons/a/static/src/silent.js";', text)
+        self.assertIn('"@a/named": __m0', text)
+        self.assertNotIn("@a/silent", text)
+
+    def test_without_an_export_list_every_member_is_registered(self):
+        lines = EsbuildCompiler(
+            "app", [_EntryMod("@a/silent", url="/a/static/src/silent.js")]
+        )._esbuild_entry_lines(self.ROOT)
+        self.assertIn('"@a/silent": __m0', "\n".join(lines))
+
     def test_an_empty_bundle_still_registers_owl(self):
         entry = "\n".join(self._compiler([])._esbuild_entry_lines(self.ROOT))
         self.assertIn('"@odoo/owl": __owl', entry)

@@ -1,5 +1,6 @@
 import contextlib
 import logging
+import re
 import time
 from typing import Any
 
@@ -13,8 +14,13 @@ from odoo.tools.assets.esbuild import (
     module_specifiers,
 )
 from odoo.tools.assets.esbuild_policy import EsbuildCircuit
-from odoo.tools.assets.esm_graph import get_escaping_relative_imports
-from odoo.tools.assets.esm_registry import external_libs
+from odoo.tools.assets.esm_graph import (
+    _TRANSITIVE_IMPORT_RE,
+    _scan_import_specifiers,
+    get_escaping_relative_imports,
+)
+from odoo.tools.assets.esm_lexer import lex_module
+from odoo.tools.assets.esm_registry import esm_registry, external_libs
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle
 
@@ -226,6 +232,7 @@ class IrQweb(models.AbstractModel):
         asset_bundle: AssetsBundle,
         dynamic_child_specs: frozenset[str] | None,
         secondary_stubs: dict[str, str],
+        exported_specs: frozenset[str] | None = None,
     ) -> EsbuildResult:
         config = self._get_esbuild_config()
         try:
@@ -239,6 +246,7 @@ class IrQweb(models.AbstractModel):
                 or EsbuildCompiler._ESBUILD_SOURCE_MAPS,
                 dynamic_child_specs=dynamic_child_specs,
                 secondary_parent_stubs=secondary_stubs or None,
+                exported_specs=exported_specs,
             )
         except Exception as exc:
             log_event(
@@ -284,6 +292,7 @@ class IrQweb(models.AbstractModel):
             child_bundles = self._get_dynamic_child_bundles(
                 bundle, assets_params, debug_assets=False
             )
+            exported_specs = None
             if standalone:
                 # A standalone build runs as one classic script on a page
                 # that has no parent bundle to import from, so nothing may
@@ -295,25 +304,163 @@ class IrQweb(models.AbstractModel):
                         bundle, asset_bundle, assets_params, child_bundles, page_scope
                     )
                 )
+                registry = esm_registry()
+                if (
+                    bundle not in registry.secondary_bundle_names
+                    and bundle not in registry.import_map_included_bundles
+                ):
+                    # A satellite's consumers are the runtime children of the
+                    # pages it rides on, which nothing declares under the
+                    # satellite itself; it keeps registering every member.
+                    exported_specs = self._get_exported_specs(
+                        bundle, asset_bundle, assets_params, child_bundles
+                    )
             result = self._compile_with_esbuild(
-                bundle, asset_bundle, dynamic_child_specs, secondary_stubs
+                bundle,
+                asset_bundle,
+                dynamic_child_specs,
+                secondary_stubs,
+                exported_specs,
             )
         return result, child_bundles
 
-    def _get_runtime_parent_specs(
-        self, parents: tuple[str, ...], assets_params: dict[str, Any] | None
+    _SPECIFIER_LITERAL_RE = re.compile(r"""["'](@[\w./+-]+)["']""")
+
+    def _get_exported_specs(
+        self,
+        bundle: str,
+        asset_bundle: AssetsBundle,
+        assets_params: dict[str, Any] | None,
+        child_bundles: list[AssetsBundle],
     ) -> frozenset[str]:
-        spec_sets = []
-        for parent in parents:
-            specs = set(
+        registry = esm_registry()
+        installed = self.env["ir.asset"]._get_addons_installed()
+        members = {
+            name
+            for asset in asset_bundle.native_modules
+            for name in module_specifiers(asset)
+        }
+        consumers = list(child_bundles)
+        consumer_names = {child.name for child in consumers}
+
+        def add_consumer(name: str) -> None:
+            if name in consumer_names or name.partition(".")[0] not in installed:
+                return
+            consumer_names.add(name)
+            consumers.append(
                 self._get_asset_bundle(
-                    parent,
+                    name,
                     js=True,
                     css=False,
-                    debug_assets=False,
+                    debug_assets=True,
                     assets_params=assets_params,
-                ).get_native_module_data(with_bridges=False)["import_map"]
+                )
             )
+
+        for mapping in (
+            registry.secondary_import_map_includes,
+            registry.import_map_includes,
+        ):
+            for name in mapping.get(bundle, ()):
+                add_consumer(name)
+        # A page can be rendered from several bundles (web.assets_frontend_minimal
+        # then web.assets_frontend_lazy); a child compiled against the family's
+        # declared parent stubs every module of the family, so a bundle whose
+        # members that parent owns registers for the parent's children too.
+        member_paths = {asset.module_path for asset in asset_bundle.native_modules}
+        for parent, children in registry.dynamic_children.items():
+            if parent == bundle or parent.partition(".")[0] not in installed:
+                continue
+            if not any(c.partition(".")[0] in installed for c in children):
+                continue
+            parent_specs = set(
+                self._get_native_module_data_cached(
+                    parent, assets_params=assets_params
+                )["import_map"]
+            )
+            if member_paths <= parent_specs:
+                for name in children:
+                    add_consumer(name)
+        exported = {"@web/core/templates"} & members
+        for consumer in consumers:
+            own = [a for a in consumer.native_modules if a.module_path not in members]
+            own_specs = {name for a in own for name in module_specifiers(a)}
+            for asset in own:
+                lexed = lex_module(asset.raw_content)
+                if lexed is not None:
+                    exported.update(
+                        imp["n"] for imp in lexed["imports"] if imp["n"] in members
+                    )
+                else:
+                    exported.update(
+                        spec
+                        for spec in _scan_import_specifiers(asset.raw_content)
+                        if spec in members
+                    )
+            # A relative import that lands on a member the page owns is a
+            # loader read once the child is compiled against this page.
+            exported.update(
+                resolved
+                for _module, _spec, resolved in get_escaping_relative_imports(
+                    own, own_specs
+                )
+                if resolved in members
+            )
+        # A module read from the loader by name -- a migration listed in a
+        # registry, a test helper, a template registrar -- is named by a string
+        # literal that is not the target of a static import, in the bundle or
+        # in a consumer.
+        for source in (
+            *asset_bundle.native_modules,
+            *(a for c in consumers for a in c.native_modules),
+        ):
+            body = _TRANSITIVE_IMPORT_RE.sub("", source.raw_content)
+            exported.update(
+                literal
+                for literal in self._SPECIFIER_LITERAL_RE.findall(body)
+                if literal in members
+            )
+        log_event(
+            _fallback_log,
+            logging.DEBUG,
+            "exported_specs",
+            bundle=bundle,
+            members=len(members),
+            exported=len(exported),
+            consumers=len(consumers),
+        )
+        return frozenset(exported)
+
+    def _get_runtime_parent_specs(
+        self,
+        parents: tuple[str, ...],
+        assets_params: dict[str, Any] | None,
+        with_test_satellites: bool = False,
+    ) -> frozenset[str]:
+        registry = esm_registry()
+        installed = self.env["ir.asset"]._get_addons_installed()
+        spec_sets = []
+        for parent in parents:
+            # The page owns its bundle and, when the test satellites are
+            # rendered with it, everything they carry too.
+            owners = [parent]
+            if with_test_satellites:
+                owners.extend(
+                    name
+                    for name in registry.secondary_import_map_includes.get(parent, ())
+                    if name.partition(".")[0] in installed
+                )
+            specs: set[str] = set()
+            for owner in owners:
+                specs |= set(
+                    self._get_asset_bundle(
+                        owner,
+                        js=True,
+                        css=False,
+                        debug_assets=False,
+                        assets_params=assets_params,
+                    ).get_native_module_data(with_bridges=False)["import_map"]
+                )
             if specs:
                 spec_sets.append(specs)
         if not spec_sets:
@@ -369,6 +516,7 @@ class IrQweb(models.AbstractModel):
         parents: tuple[str, ...],
         children: dict[str, AssetsBundle],
         assets_params: dict[str, Any] | None,
+        with_test_satellites: bool = False,
     ) -> EsbuildGroupResult:
         empty = EsbuildGroupResult({}, None)
         if not self._can_compile_with_esbuild(group):
@@ -380,7 +528,9 @@ class IrQweb(models.AbstractModel):
             if not self._acquire_esbuild_lock(group, cr=lock_cr):
                 log_event(_fallback_log, logging.INFO, "lock_contention", bundle=group)
                 return empty
-            parent_specs = self._get_runtime_parent_specs(parents, assets_params)
+            parent_specs = self._get_runtime_parent_specs(
+                parents, assets_params, with_test_satellites
+            )
             entries: dict[str, list] = {}
             stubbed: set[str] = set()
             for name, child in children.items():

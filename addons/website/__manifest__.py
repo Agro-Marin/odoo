@@ -498,8 +498,10 @@
             "website.website_builder_assets",
         ],
         "dynamic_children": {
-            "web.assets_web": [
+            "web.assets_frontend": [
                 "website.assets_inside_builder_iframe",
+            ],
+            "web.assets_web": [
                 "website.website_builder_assets",
             ],
         },

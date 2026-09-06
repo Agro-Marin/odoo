@@ -3052,6 +3052,77 @@ class TestBundleDescriptorFormat(HttpCase):
 
 
 @tagged("-at_install", "post_install", "web_assets")
+class TestPageBundleExportSurface(TransactionCase):
+    BUNDLE = "web.assets_web"
+
+    def _exported(self):
+        IrQweb = self.env["ir.qweb"]
+        params = self.env["ir.asset"]._prepare_assets_params()
+        bundle = IrQweb._get_asset_bundle(self.BUNDLE, css=False, js=True)
+        children = IrQweb._get_dynamic_child_bundles(
+            self.BUNDLE, params, debug_assets=False
+        )
+        return bundle, IrQweb._get_exported_specs(self.BUNDLE, bundle, params, children)
+
+    def test_the_surface_is_a_strict_subset_of_the_members(self):
+        bundle, exported = self._exported()
+        members = {a.module_path for a in bundle.native_modules}
+        self.assertTrue(exported <= members | {"@odoo/owl"})
+        self.assertLess(
+            len(exported),
+            len(members) // 2,
+            "registering most members again means the consumer scan is "
+            "reading static imports as loader reads",
+        )
+
+    def test_what_a_child_imports_and_what_a_literal_names_stay_registered(self):
+        bundle, exported = self._exported()
+        self.assertIn("@web/core/templates", exported)
+        migrations = [
+            a.module_path
+            for a in bundle.native_modules
+            if "/html_migrations/migration-" in (a.url or "")
+        ]
+        self.assertTrue(migrations, "fixture: html_editor migrations are members")
+        self.assertTrue(
+            set(migrations) <= exported,
+            "html_upgrade_manager reads these from the loader by the name "
+            "the migration registry carries",
+        )
+        IrQweb = self.env["ir.qweb"]
+        for child_name in esm_registry().dynamic_children.get(self.BUNDLE, ()):
+            if (
+                child_name.partition(".")[0]
+                not in self.env["ir.asset"]._get_addons_installed()
+            ):
+                continue
+            child = IrQweb._get_asset_bundle(
+                child_name, css=False, js=True, debug_assets=True
+            )
+            own = {a.module_path for a in child.native_modules}
+            discovered, _ext = child._bridges._discover_bridge_specifiers(
+                own, set(external_libs())
+            )
+            members = {a.module_path for a in bundle.native_modules}
+            self.assertFalse(
+                (set(discovered) & members) - exported,
+                f"{child_name} imports a parent module the parent does not register",
+            )
+
+    def test_the_compiled_bundle_registers_exactly_the_surface(self):
+        bundle, exported = self._exported()
+        code = bundle.esbuild_native_bundle(exported_specs=exported).code
+        for spec in sorted(exported):
+            self.assertIn(f'"{spec}":', code, spec)
+        silent = next(
+            a.module_path
+            for a in bundle.native_modules
+            if a.module_path not in exported
+        )
+        self.assertNotIn(f'"{silent}":', code)
+
+
+@tagged("-at_install", "post_install", "web_assets")
 class TestRuntimeBundlesInTheBrowser(HttpCase):
     PAGE_BUNDLE = "web.assets_web"
 
@@ -3081,7 +3152,14 @@ class TestRuntimeBundlesInTheBrowser(HttpCase):
                 const { loadBundle } = odoo.loader.modules.get("@web/core/assets");
                 const before = odoo.loader.modules.size;
                 for (const name of %s) {
-                    await loadBundle(name);
+                    try {
+                        await loadBundle(name);
+                    } catch (error) {
+                        console.error(
+                            `loading ${name} failed: ${error} ${error?.cause || ""} ${error?.stack || ""}`
+                        );
+                        return;
+                    }
                 }
                 if (rebinds.length) {
                     console.error("singleton split: " + rebinds.join(", "));

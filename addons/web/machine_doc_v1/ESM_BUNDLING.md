@@ -96,6 +96,30 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
+### A page bundle registers only what something outside it names
+
+The entry esbuild compiles for a page bundle imports every member as a
+namespace and hands the whole map to `odoo.loader.registerNativeModules`, which
+keeps every export of every member alive. Since 2026-09-06 a member is a
+namespace import only when something outside the bundle names it
+(`_get_exported_specs`, `ir_qweb_assets_esbuild.py`; `EsbuildCompiler`'s
+`exported_specs`): a bare or relative import from a declared consumer — its
+dynamic children, its secondary and import-map satellites, and the children of
+any declared parent whose members include all of this bundle's (the
+`web.assets_frontend_minimal` / `web.assets_frontend_lazy` family) — or a
+string literal equal to a member specifier that is not the target of a static
+import, anywhere in the bundle or a consumer (`odoo.loader.modules.get("…")`,
+the `html_editor_upgrade` registry values `html_upgrade_manager` reads).
+`@web/core/templates` is always in. Every other member is `import "./path"`:
+evaluated for its side effects, its unused exports shaken. Satellites
+(`secondary_import_map_includes`, `import_map_includes` children) register
+everything, because their consumers are the runtime children of the pages
+they ride on. Measured on `web.assets_web` with website and mass_mailing
+installed: 203 of 1,667 members registered, 5.6 % fewer bytes raw and 6.1 %
+gzipped. `TestPageBundleExportSurface` pins the rule: the surface is a strict
+subset, every child import and every literal stays in, and the compiled code
+registers exactly the surface.
+
 ## Declarative ESM registry (`odoo.tools.assets.esm_registry`)
 
 ESM bundle membership is **declarative**, not hardcoded: each module declares
@@ -194,9 +218,15 @@ The server compiles every child declared under that page **together**
    newest of its name (`_esm_gc_collectable`), because a chunk's hashed name is
    reused by nothing.
 
-With no `page` (a caller outside the web client, or a page that is not a
-declared parent) the group is the children sharing the child's exact set of
-installed declared parents, compiled against the modules **all** of them own.
+A page stamps the bundle it rendered first, which may be one member of the
+family a child declares (the website frontend stamps `web.assets_frontend_lazy`,
+built by including `web.assets_frontend`); the declared parent that contributes
+to that page is the one used (`_get_runtime_group_parents`). In test mode the
+page also renders its secondary satellites (`web.assets_tests`), whose members
+the child stubs as well, so a test-mode group is a separate cache entry
+(`runtime:<parents>:tests`). With no `page` at all (a caller outside the web
+client) the group is the children sharing the child's exact set of installed
+declared parents, compiled against the modules **all** of them own.
 Anything a child imports that neither it nor the page owns is bundled from
 disk and logged as `event=runtime_child_inlines` — on a page that also owns it,
 that is a singleton split, and the log line is the only warning. The circuit

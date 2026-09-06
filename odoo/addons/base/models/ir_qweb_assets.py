@@ -401,13 +401,19 @@ class IrQweb(models.AbstractModel):
         assets_params: dict[str, Any] | None = None,
         debug_assets: bool = False,
         page: str | None = None,
+        with_test_satellites: bool | None = None,
     ) -> dict:
         if assets_params is None:
             assets_params = self.env["ir.asset"]._prepare_assets_params()
         if debug_assets:
             return self._get_esm_bundle_payload_uncached(bundle, assets_params)
+        if with_test_satellites is None:
+            with_test_satellites = self._has_esm_test_satellites("")
         return self._get_esm_bundle_payload_cached(
-            bundle, assets_params, self._get_runtime_group_parents(bundle, page)
+            bundle,
+            assets_params,
+            self._get_runtime_group_parents(bundle, page, assets_params),
+            with_test_satellites,
         )
 
     @tools.conditional(
@@ -416,6 +422,7 @@ class IrQweb(models.AbstractModel):
             "bundle",
             "tuple(sorted(assets_params.items()))",
             "parents",
+            "with_test_satellites",
             cache="assets",
         ),
     )
@@ -424,9 +431,14 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         assets_params: dict[str, Any] | None = None,
         parents: tuple[str, ...] = (),
+        with_test_satellites: bool = False,
     ) -> dict:
         return self._get_esm_bundle_payload_uncached(
-            bundle, assets_params, compiled=True, parents=parents
+            bundle,
+            assets_params,
+            compiled=True,
+            parents=parents,
+            with_test_satellites=with_test_satellites,
         )
 
     @staticmethod
@@ -439,7 +451,10 @@ class IrQweb(models.AbstractModel):
         )
 
     def _get_runtime_group_parents(
-        self, bundle: str, page: str | None = None
+        self,
+        bundle: str,
+        page: str | None = None,
+        assets_params: dict[str, Any] | None = None,
     ) -> tuple[str, ...]:
         registry = esm_registry()
         installed = self.env["ir.asset"]._get_addons_installed()
@@ -450,8 +465,18 @@ class IrQweb(models.AbstractModel):
                 if bundle in children and parent.partition(".")[0] in installed
             )
         )
+        if not page or not declared:
+            return declared
         if page in declared:
             return (page,)
+        # A page stamps the bundle it rendered first, which may be a member of
+        # the family a child declares (web.assets_frontend_lazy is built by
+        # including web.assets_frontend): the declared parent that contributes
+        # to that page is the one whose modules the page holds.
+        contributors = set(self._get_dynamic_parent_bundles(page, assets_params))
+        matches = [parent for parent in declared if parent in contributors]
+        if len(matches) == 1:
+            return (matches[0],)
         return declared
 
     @tools.conditional(
@@ -459,16 +484,25 @@ class IrQweb(models.AbstractModel):
         tools.ormcache(
             "parents",
             "tuple(sorted(assets_params.items()))",
+            "with_test_satellites",
             cache="assets",
         ),
     )
     def _get_runtime_group_urls_cached(
-        self, parents: tuple[str, ...], assets_params: dict[str, Any]
+        self,
+        parents: tuple[str, ...],
+        assets_params: dict[str, Any],
+        with_test_satellites: bool = False,
     ) -> dict[str, str]:
-        return self._get_runtime_group_urls_uncached(parents, assets_params)
+        return self._get_runtime_group_urls_uncached(
+            parents, assets_params, with_test_satellites
+        )
 
     def _get_runtime_group_urls_uncached(
-        self, parents: tuple[str, ...], assets_params: dict[str, Any] | None
+        self,
+        parents: tuple[str, ...],
+        assets_params: dict[str, Any] | None,
+        with_test_satellites: bool = False,
     ) -> dict[str, str]:
         registry = esm_registry()
         installed = self.env["ir.asset"]._get_addons_installed()
@@ -495,8 +529,12 @@ class IrQweb(models.AbstractModel):
                 children[name] = child
         if not children:
             return {}
-        group = "runtime:" + "+".join(parents)
-        result = self._compile_runtime_group(group, parents, children, assets_params)
+        group = (
+            "runtime:" + "+".join(parents) + (":tests" if with_test_satellites else "")
+        )
+        result = self._compile_runtime_group(
+            group, parents, children, assets_params, with_test_satellites
+        )
         if not result.files:
             log_event(
                 _fallback_log, logging.INFO, "runtime_group_per_file", bundle=group
@@ -581,10 +619,13 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         assets_params: dict[str, Any] | None,
         parents: tuple[str, ...],
+        with_test_satellites: bool = False,
     ) -> dict | None:
         if not parents:
             return None
-        urls = self._get_runtime_group_urls_cached(parents, assets_params or {})
+        urls = self._get_runtime_group_urls_cached(
+            parents, assets_params or {}, with_test_satellites
+        )
         url = urls.get(bundle)
         if not url:
             log_event(
@@ -611,9 +652,12 @@ class IrQweb(models.AbstractModel):
         assets_params: dict[str, Any] | None,
         compiled: bool = False,
         parents: tuple[str, ...] = (),
+        with_test_satellites: bool = False,
     ) -> dict:
         if compiled and self._is_runtime_child_compiled(bundle):
-            payload = self._get_compiled_runtime_payload(bundle, assets_params, parents)
+            payload = self._get_compiled_runtime_payload(
+                bundle, assets_params, parents, with_test_satellites
+            )
             if payload is not None:
                 return payload
         asset_bundle = self._get_asset_bundle(
@@ -1859,10 +1903,13 @@ class IrQweb(models.AbstractModel):
                 self._pregenerate_secondary_page_scopes(bundle)
         installed = self.env["ir.asset"]._get_addons_installed()
         assets_params = self.env["ir.asset"]._prepare_assets_params()
+        satellites = self._has_esm_test_satellites("")
         for parent in sorted(esm_registry().dynamic_children):
             if parent.partition(".")[0] not in installed:
                 continue
-            urls = self._get_runtime_group_urls_cached((parent,), assets_params)
+            urls = self._get_runtime_group_urls_cached(
+                (parent,), assets_params, satellites
+            )
             links.extend(url for url in sorted(urls.values()) if url not in links)
         _logger.info("JS Assets bundles generated in %s seconds", time.time() - start)
         start = time.time()

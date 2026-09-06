@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import NamedTuple
 
@@ -208,6 +208,7 @@ class EsbuildCompiler:
         standalone: bool = False,
         addon_flags_provider: Callable[[Path], tuple[list[str], list[str]]]
         | None = None,
+        exported_specs: Collection[str] | None = None,
     ) -> None:
         self.name = name
         self.native_modules = list(native_modules)
@@ -215,6 +216,9 @@ class EsbuildCompiler:
         self._import_map_included = import_map_included
         self._skip_legacy_test_imports = skip_legacy_test_imports
         self._standalone = standalone
+        self._exported_specs = (
+            None if exported_specs is None else frozenset(exported_specs)
+        )
         self._addon_flags_provider = (
             addon_flags_provider or self._get_esbuild_addon_flags
         )
@@ -678,12 +682,20 @@ class EsbuildCompiler:
             register_entries.append('  "@odoo/owl": __owl')
         _skip_legacy_test_imports = self._skip_legacy_test_imports
         modules = self.native_modules if modules is None else modules
+        exported = self._exported_specs
         for i, asset in enumerate(modules):
             if _skip_legacy_test_imports and "/static/tests/" in (asset.url or ""):
                 continue
             path = self._entry_path(asset, odoo_root)
+            names = module_specifiers(asset)
+            if exported is not None and exported.isdisjoint(names):
+                # Nothing outside the bundle names this module, so it is an
+                # entry for its side effects only and esbuild may drop what it
+                # exports and nobody imports.
+                entry_lines.append(f"import {json.dumps(path)};")
+                continue
             entry_lines.append(f"import * as __m{i} from {json.dumps(path)};")
-            for name in module_specifiers(asset):
+            for name in names:
                 register_entries.append(f"  {json.dumps(name)}: __m{i}")
                 registered_specs.add(name)
 

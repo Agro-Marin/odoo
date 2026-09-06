@@ -157,6 +157,7 @@ class WebClient(http.Controller):
                 bundle_name,
                 debug_assets=bool(debug) and "assets" in debug,
                 page=page,
+                with_test_satellites=IrQweb._has_esm_test_satellites(debug),
             )
             specifiers = payload["specifiers"]
             import_map = payload["import_map"]
