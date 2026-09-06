@@ -1,3 +1,4 @@
+from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -133,3 +134,84 @@ class TestPartyDelegation(TransactionCase):
         self.assertTrue(partner.employee)
         self.assertIn(partner, Partner.search([("employee", "=", True)]))
         self.assertNotIn(partner, Partner.search([("employee", "=", False)]))
+
+    def test_the_person_facts_live_on_the_private_facet(self):
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Facet Person",
+                "place_of_birth": "Guadalajara",
+                "marital": "married",
+                "spouse_complete_name": "A Spouse",
+                "children": 2,
+                "certificate": "master",
+                "study_field": "Agronomy",
+            }
+        )
+        facet = employee.private_address_id
+        self.assertTrue(facet)
+        self.assertEqual(facet.type, "private")
+        self.assertEqual(
+            (
+                facet.place_of_birth,
+                facet.marital,
+                facet.spouse_complete_name,
+                facet.dependent_children,
+                facet.education_certificate,
+                facet.study_field,
+            ),
+            ("Guadalajara", "married", "A Spouse", 2, "master", "Agronomy"),
+        )
+        for name in (
+            "place_of_birth",
+            "marital",
+            "spouse_complete_name",
+            "children",
+            "certificate",
+            "study_field",
+        ):
+            self.assertFalse(
+                self.env["hr.employee"]._fields[name].store,
+                "%s must read the facet, not a column of its own" % name,
+            )
+
+    def test_two_employments_of_one_person_share_the_person_facts(self):
+        first = self.env["hr.employee"].create(
+            {"name": "Facet Twice", "marital": "married", "children": 3}
+        )
+        company = self.env["res.company"].create({"name": "Facet Employer"})
+        second = self.env["hr.employee"].create(
+            {
+                "name": "Facet Twice",
+                "partner_id": first.partner_id.id,
+                "company_id": company.id,
+            }
+        )
+        self.assertEqual(second.private_address_id, first.private_address_id)
+        self.assertEqual(second.marital, "married")
+        self.assertEqual(second.children, 3)
+        second.children = 4
+        self.assertEqual(first.children, 4)
+
+    def test_a_plain_user_cannot_read_the_person_facts(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "Facet Private", "marital": "divorced"}
+        )
+        plain = self.env["res.users"].create(
+            {
+                "name": "Facet Reader",
+                "login": "facet_reader",
+                "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+            }
+        )
+        with self.assertRaises(AccessError):
+            employee.with_user(plain).read(["marital"])
+        with self.assertRaises(AccessError):
+            self.env["hr.employee"].with_user(plain).search(
+                [("marital", "=", "divorced")]
+            )
+        self.assertFalse(
+            employee.private_address_id.with_user(plain).search(
+                [("id", "=", employee.private_address_id.id)]
+            ),
+            "the facet row itself is behind the private-contact rule",
+        )

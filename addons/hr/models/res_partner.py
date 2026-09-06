@@ -23,6 +23,45 @@ class ResPartner(models.Model):
         search="_search_employee",
     )
 
+    # What a person IS, kept where an employee's confidential facts already
+    # live: on the private facet, a child partner behind its own record rule.
+    # They are declared by hr because hr owns their vocabulary and is their
+    # only reader; base owns the facet and its rule.
+    place_of_birth = fields.Char()
+    country_of_birth = fields.Many2one("res.country")
+    marital = fields.Selection(
+        selection="_selection_marital_status",
+        string="Marital Status",
+        default="single",
+    )
+    spouse_complete_name = fields.Char(string="Spouse Legal Name")
+    spouse_birthdate = fields.Date(string="Spouse Birthdate")
+    dependent_children = fields.Integer(string="Dependent Children")
+    education_certificate = fields.Selection(
+        selection="_selection_certificate",
+        string="Certificate Level",
+    )
+    study_field = fields.Char(string="Field of Study")
+    study_school = fields.Char(string="School")
+
+    def _selection_marital_status(self):
+        return [
+            ("single", self.env._("Single")),
+            ("married", self.env._("Married")),
+            ("cohabitant", self.env._("Legal Cohabitant")),
+            ("widower", self.env._("Widower")),
+            ("divorced", self.env._("Divorced")),
+        ]
+
+    def _selection_certificate(self):
+        return [
+            ("graduate", self.env._("Graduate")),
+            ("bachelor", self.env._("Bachelor")),
+            ("master", self.env._("Master")),
+            ("doctor", self.env._("Doctor")),
+            ("other", self.env._("Other")),
+        ]
+
     def _compute_employees_count(self):
         counts = dict(
             self.env["hr.employee"]

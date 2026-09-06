@@ -43,6 +43,35 @@ SEPARATE_DESTINATION = frozenset(
     }
 )
 DELEGATION_PROVIDES = frozenset({"name", "lang", "phone", "email", "im_status"})
+# What the employee reads from the PRIVATE FACET rather than from the party:
+# confidential person data, on a child row of type 'private' that a record rule
+# hides from everyone but HR. Putting these on the party would show an
+# employee's marital status or home address to every internal user, and giving
+# them a field group on res.partner would hide a customer's from sales.
+FACET_PROVIDES = frozenset(
+    {
+        "sex",
+        "birthday",
+        "country_id",
+        "private_email",
+        "private_phone",
+        "private_street",
+        "private_street2",
+        "private_city",
+        "private_state_id",
+        "private_zip",
+        "private_country_id",
+        "place_of_birth",
+        "country_of_birth",
+        "marital",
+        "spouse_complete_name",
+        "spouse_birthdate",
+        "children",
+        "certificate",
+        "study_field",
+        "study_school",
+    }
+)
 # inherited=True today, but from hr.version -- so it satisfies a naive
 # "is it inherited" check while resolving to the wrong parent.
 WRONG_PARENT = frozenset({"country_code"})
@@ -89,8 +118,11 @@ class TestPartnerShadowGate(TransactionCase):
                 partner[name]._modules or ()
             )
             if shared:
-                # Both models inherit the same mixin. An employee's chatter is
-                # not the contact's chatter; delegating these would be wrong.
+                # One module declares both sides. Either both models inherit
+                # the same mixin -- an employee's chatter is not the contact's
+                # chatter, and delegating it would be wrong -- or hr put the
+                # field on res.partner itself for the private facet to carry,
+                # which test_the_facet_fields_are_read_from_the_facet pins.
                 continue
             field = employee[name]
             if field.inherited and field.inherited_field.model_name == "res.partner":
@@ -157,6 +189,24 @@ class TestPartnerShadowGate(TransactionCase):
         self.assertTrue(field.inherited)
         self.assertEqual(field.inherited_field.model_name, "hr.version")
         self.assertIn("country_code", self._shadowed())
+
+    def test_the_facet_fields_are_read_from_the_facet(self):
+        """Confidential person data is the private facet's, not a column of the
+        employee's own and not the party's.
+
+        The shadow check above skips a name that one module declares on both
+        models, which is exactly the shape these have; without this test that
+        skip would also hide an employee field that quietly kept its own
+        column beside the partner's.
+        """
+        employee = self.env["hr.employee"]._fields
+        for name in FACET_PROVIDES:
+            field = employee[name]
+            self.assertTrue(
+                field.related and field.related.startswith("private_address_id."),
+                "%s must read the private facet, but related=%r"
+                % (name, field.related),
+            )
 
     def test_delegation_provides_what_it_promised(self):
         """These names reach the employee from res.partner and nowhere else."""

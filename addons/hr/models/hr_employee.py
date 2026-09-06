@@ -240,6 +240,8 @@ class HrEmployee(models.Model):
     )
     place_of_birth = fields.Char(
         "Place of Birth",
+        related="private_address_id.place_of_birth",
+        readonly=False,
         tracking=True,
         groups="hr.group_hr_user",
     )
@@ -254,6 +256,8 @@ class HrEmployee(models.Model):
     country_of_birth = fields.Many2one(
         "res.country",
         string="Country of Birth",
+        related="private_address_id.country_of_birth",
+        readonly=False,
         tracking=True,
         groups="hr.group_hr_user",
     )
@@ -383,27 +387,37 @@ class HrEmployee(models.Model):
         groups="hr.group_hr_user",
     )
     marital = fields.Selection(
-        selection="_selection_marital_status",
         string="Marital Status",
-        groups="hr.group_hr_user",
-        default="single",
-        required=True,
+        related="private_address_id.marital",
+        readonly=False,
+        # No default and not required here: the facet carries the value, it
+        # exists only once the employee is saved, and a default on this side
+        # would be written onto the facet after every create -- a second
+        # employment of the same person would reset the first one's answer.
+        # res.partner defaults it to single when the facet is created.
         tracking=True,
+        groups="hr.group_hr_user",
     )
     spouse_complete_name = fields.Char(
         string="Spouse Legal Name",
-        groups="hr.group_hr_user",
+        related="private_address_id.spouse_complete_name",
+        readonly=False,
         tracking=True,
+        groups="hr.group_hr_user",
     )
     spouse_birthdate = fields.Date(
         string="Spouse Birthdate",
-        groups="hr.group_hr_user",
+        related="private_address_id.spouse_birthdate",
+        readonly=False,
         tracking=True,
+        groups="hr.group_hr_user",
     )
     children = fields.Integer(
         string="Dependent Children",
-        groups="hr.group_hr_user",
+        related="private_address_id.dependent_children",
+        readonly=False,
         tracking=True,
+        groups="hr.group_hr_user",
     )
     emergency_contact = fields.Char(
         groups="hr.group_hr_user",
@@ -513,20 +527,25 @@ class HrEmployee(models.Model):
     )
 
     certificate = fields.Selection(
-        selection="_selection_certificate",
         string="Certificate Level",
-        groups="hr.group_hr_user",
+        related="private_address_id.education_certificate",
+        readonly=False,
         tracking=True,
+        groups="hr.group_hr_user",
     )
     study_field = fields.Char(
         "Field of Study",
-        groups="hr.group_hr_user",
+        related="private_address_id.study_field",
+        readonly=False,
         tracking=True,
+        groups="hr.group_hr_user",
     )
     study_school = fields.Char(
         "School",
-        groups="hr.group_hr_user",
+        related="private_address_id.study_school",
+        readonly=False,
         tracking=True,
+        groups="hr.group_hr_user",
     )
 
     driving_license = fields.Binary(
@@ -1263,16 +1282,6 @@ class HrEmployee(models.Model):
                 else employee.km_home_work
             )
 
-    @api.model
-    def _selection_marital_status(self):
-        return [
-            ("single", self.env._("Single")),
-            ("married", self.env._("Married")),
-            ("cohabitant", self.env._("Legal Cohabitant")),
-            ("widower", self.env._("Widower")),
-            ("divorced", self.env._("Divorced")),
-        ]
-
     @api.constrains("ssnid")
     def _check_ssnid(self):
         pass
@@ -1305,16 +1314,6 @@ class HrEmployee(models.Model):
     @api.model
     def _get_new_hire_field_name(self):
         return "create_date"
-
-    @api.model
-    def _selection_certificate(self):
-        return [
-            ("graduate", self.env._("Graduate")),
-            ("bachelor", self.env._("Bachelor")),
-            ("master", self.env._("Master")),
-            ("doctor", self.env._("Doctor")),
-            ("other", self.env._("Other")),
-        ]
 
     def _get_first_versions(self):
         self.check_singleton()
@@ -2748,29 +2747,6 @@ class HrEmployee(models.Model):
             )
             if to_move:
                 to_move.partner_id = party.id
-
-    @api.model
-    def _search(
-        self, domain, offset=0, limit=None, order=None, *, bypass_access=False, **kwargs
-    ):
-        # Field groups gate reads, not domains: without this a plain user could
-        # probe a confidential column by searching on it. Refuse a domain that
-        # names a field the reader may not read, the way a read on it is refused.
-        if not bypass_access and not self.env.su:
-            for condition in Domain(domain).iter_conditions():
-                field = self._fields.get(condition.field_expr.split(".")[0])
-                if field and not self._has_field_access(field, "read"):
-                    raise AccessError(
-                        self.env._(
-                            "You do not have enough rights to search on the field "
-                            "%(field)s on %(model)s.",
-                            field=field.name,
-                            model=self._description,
-                        )
-                    )
-        return super()._search(
-            domain, offset, limit, order, bypass_access=bypass_access, **kwargs
-        )
 
     def _check_access(self, operation):
         if (
