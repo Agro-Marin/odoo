@@ -1516,6 +1516,11 @@ class IrQweb(models.AbstractModel):
             )
         )
         pre.append(self._prepare_loader_shim_node(bundle))
+        pre.extend(
+            self._get_esm_library_preload_links(
+                esbuild_result.metafile, prod_import_map
+            )
+        )
         esm_tpl = asset_bundle.generate_esm_template_bundle(
             use_import=False,
         )
@@ -1552,6 +1557,35 @@ class IrQweb(models.AbstractModel):
             includes=len(include_names) if include_names else 0,
         )
         return pre, post
+
+    @staticmethod
+    def _static_external_imports(metafile: str | None) -> list[str]:
+        if not metafile:
+            return []
+        try:
+            outputs = json.loads(metafile).get("outputs", {})
+        except ValueError:
+            return []
+        specs: dict[str, None] = {}
+        for output in outputs.values():
+            for imp in output.get("imports", ()):
+                if imp.get("external") and imp.get("kind") == "import-statement":
+                    specs.setdefault(imp["path"])
+        return list(specs)
+
+    def _get_esm_library_preload_links(
+        self, metafile: str | None, import_map: dict[str, str]
+    ) -> list[AssetNode]:
+        # The browser learns that the bundle imports owl only after fetching
+        # and parsing the bundle; a preload for each library the bundle
+        # imports statically starts that fetch beside the bundle's. A
+        # library behind an `import()` is left to first use.
+        served = self._served_external_libs_table()
+        return [
+            ("link", {"rel": "modulepreload", "href": import_map[spec]})
+            for spec in self._static_external_imports(metafile)
+            if spec in served and import_map.get(spec) == served[spec]
+        ]
 
     def _get_esm_preload_links(
         self, bundle: str, native_data: dict[str, Any]

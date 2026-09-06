@@ -77,7 +77,8 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 │   pre_nodes:                                                              │
 │     <script>/* module_loader.js shim */</script>    (inline)              │
 │     <script type="importmap">{imports:{@odoo/*: ...,}}</script>           │
-│     <link rel="modulepreload" href=".../specs"> (prod only)               │
+│     <link rel="modulepreload" href="/web/assets/lib/..."> (prod only:   │
+│       each library the bundle imports statically, owl and luxon)         │
 │   [legacy bundle, if any]                                                 │
 │   post_nodes:                                                             │
 │     <script type="module" src=".../esm/<hash>/<bundle>.esm.js"            │
@@ -360,7 +361,11 @@ The route serves them immutable for a year, and a sibling imported by relative
 URL resolves under the same `<unique>` prefix to the same instance. A page
 under `debug=assets` keeps the declared URLs, readable and uncached; the two
 tables never mix on one page, since a library reached by two URLs would be two
-instances. Measured 2026-09-06, gzip: owl 50 → 27 KB, luxon 60 → 22 KB,
+instances. A `<link rel="modulepreload">` precedes the page bundle for
+each library the bundle imports statically (owl, luxon, dompurify), read off
+the esbuild metafile's external `import-statement` entries, so the browser
+fetches them beside the bundle instead of after parsing it; a library behind
+`import()` gets none. Measured 2026-09-06, gzip: owl 50 → 27 KB, luxon 60 → 22 KB,
 fullcalendar 162 → 88 KB, three.js 406 → 186 KB.
 
 A heavy library is reached through **one facade**: a module under

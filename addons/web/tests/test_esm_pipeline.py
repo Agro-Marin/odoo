@@ -3369,6 +3369,46 @@ class TestServedLibraries(TransactionCase):
         self.assertLess(len(owl.raw), len(source) // 2, "the served copy is minified")
         self.assertIn(b"export", owl.raw)
 
+    def test_a_page_preloads_the_libraries_its_bundle_imports_statically(self):
+        IrQweb = self.env["ir.qweb"]
+        nodes = IrQweb._get_asset_nodes("web.assets_web", css=False, js=True)
+        preloads = {
+            attrs["href"]
+            for tag, attrs in nodes
+            if tag == "link" and attrs.get("rel") == "modulepreload"
+        }
+        served = served_external_libs()
+        self.assertIn(served["@odoo/owl"], preloads)
+        self.assertIn(served["luxon"], preloads)
+        self.assertNotIn(served["chart.js"], preloads, "reached by import() only")
+        self.assertTrue(all(href.startswith(LIB_URL_PREFIX) for href in preloads))
+        self.assertEqual(
+            IrQweb._static_external_imports(
+                json.dumps(
+                    {
+                        "outputs": {
+                            "a.js": {
+                                "imports": [
+                                    {
+                                        "path": "luxon",
+                                        "kind": "import-statement",
+                                        "external": True,
+                                    },
+                                    {
+                                        "path": "chart.js",
+                                        "kind": "dynamic-import",
+                                        "external": True,
+                                    },
+                                    {"path": "b.js", "kind": "import-statement"},
+                                ]
+                            }
+                        }
+                    }
+                )
+            ),
+            ["luxon"],
+        )
+
     def test_a_superseded_copy_is_collected_and_the_current_one_kept(self):
         IrQweb = self.env["ir.qweb"]
         IrQweb._served_external_libs(debug_assets=False)
