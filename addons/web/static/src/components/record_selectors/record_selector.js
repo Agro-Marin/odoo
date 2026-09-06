@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { useState } from "@odoo/owl";
+import { avatarUrl } from "@web/components/record_selectors/avatar_models";
 import { isId } from "@web/core/tree/utils";
 
 import { BaseRecordSelector, displayNameFor } from "./base_record_selector.js";
@@ -31,6 +32,11 @@ export class RecordSelector extends BaseRecordSelector {
     /** @returns {boolean} */
     get hasAvatarImg() {
         return this.isAvatarModel && isId(this.props.resId);
+    }
+
+    /** @returns {string} */
+    get avatarUrl() {
+        return avatarUrl(this.props.resModel, this.props.resId);
     }
 
     /** @returns {string} */

@@ -113,7 +113,7 @@ test("Can display avatars with the right model", async () => {
     expect(".o_record_selector .o_m2o_avatar").toHaveCount(1);
     expect(".o_record_selector .o_m2o_avatar img").toHaveAttribute(
         "data-src",
-        "/web/image/res.partner/2/avatar_128",
+        "https://www.hoot.test/web/image/res.partner/2/avatar_128",
     );
 });
 

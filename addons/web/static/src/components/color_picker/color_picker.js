@@ -187,6 +187,18 @@ export class ColorPicker extends Component {
     getPreviewColor = () => {};
 
     setup() {
+        this.tabHandlers = {
+            applyColor: this.selectColor.bind(this),
+            onColorClick: this.onColorApply.bind(this),
+            onColorPointerOver: this.onColorHover.bind(this),
+            onColorPointerOut: this.onColorHoverOut.bind(this),
+            onColorPointerLeave: this.resetColorPreview.bind(this),
+            onFocusin: this.onColorFocusin.bind(this),
+            onFocusout: this.onColorFocusout.bind(this),
+            colorPickerNavigation: this.colorPickerNavigation.bind(this),
+            onColorPreview: this.onColorPreview.bind(this),
+            setOperationCallbacks: this.setOperationCallbacks.bind(this),
+        };
         this.tabs = registry
             .category("color_picker_tabs")
             .getAll()
@@ -210,6 +222,28 @@ export class ColorPicker extends Component {
             },
             () => [this.state.activeTab],
         );
+    }
+
+    /** @returns {Record<string, any>} */
+    get tabProps() {
+        const { props, state } = this;
+        return {
+            ...this.tabHandlers,
+            setOnCloseCallback: props.setOnCloseCallback,
+            editColorCombination: props.editColorCombination,
+            selectedColorCombination: props.state.selectedColorCombination,
+            defaultOpacity: props.defaultOpacity,
+            noTransparency: props.noTransparency,
+            defaultThemeColorVars: this.themeColorVars,
+            defaultColorSet: this.defaultColorSet,
+            cssVarColorPrefix: props.cssVarColorPrefix,
+            defaultColors: this.defaultColors,
+            usedCustomColors: this.usedCustomColors,
+            grayscales: this.grayscales,
+            currentCustomColor: state.currentCustomColor,
+            currentColorPreview: state.currentColorPreview,
+            selectedColor: props.state.selectedColor,
+        };
     }
 
     deriveFromApplied() {

@@ -2,10 +2,8 @@
 /** @odoo-module native */
 
 import { useState } from "@odoo/owl";
-import { isAvatarModel } from "@web/components/record_selectors/avatar_models";
+import { tagAvatar } from "@web/components/record_selectors/avatar_models";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { isId } from "@web/core/tree/utils";
-import { imageUrl } from "@web/core/utils/urls";
 
 import { BaseRecordSelector, displayNameFor } from "./base_record_selector.js";
 import { RecordAutocomplete } from "./record_autocomplete.js";
@@ -80,14 +78,13 @@ export class MultiRecordSelector extends BaseRecordSelector {
      * @returns {RecordTag[]}
      */
     getTags(props, displayNames) {
-        const withAvatar = isAvatarModel(props.resModel);
         return props.resIds.map((id) => ({
             id,
             text: displayNameFor(displayNames, id),
             onDelete: () => {
                 this.deleteTag(id);
             },
-            img: withAvatar && isId(id) && imageUrl(props.resModel, id, "avatar_128"),
+            img: tagAvatar(props.resModel, id),
         }));
     }
 

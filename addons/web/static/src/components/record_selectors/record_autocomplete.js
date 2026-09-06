@@ -13,13 +13,15 @@ import {
     splitOverflow,
     webNameSearch,
 } from "@web/components/autocomplete/name_search";
-import { isAvatarModel } from "@web/components/record_selectors/avatar_models";
+import {
+    avatarUrl,
+    isAvatarModel,
+} from "@web/components/record_selectors/avatar_models";
 import { Domain } from "@web/core/domain";
 import { ConnectionAbortedError } from "@web/core/network/rpc";
 import { getSelectCreateDialog } from "@web/core/record_dialog_port";
 import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { imageUrl } from "@web/core/utils/urls";
 
 export class RecordAutocomplete extends Component {
     static props = {
@@ -71,7 +73,7 @@ export class RecordAutocomplete extends Component {
      * @returns {string}
      */
     avatarUrl(resId) {
-        return imageUrl(this.props.resModel, resId, "avatar_128");
+        return avatarUrl(this.props.resModel, resId);
     }
 
     /**

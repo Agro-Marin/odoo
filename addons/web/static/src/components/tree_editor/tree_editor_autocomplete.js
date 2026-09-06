@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { isAvatarModel } from "@web/components/record_selectors/avatar_models";
+import { tagAvatar } from "@web/components/record_selectors/avatar_models";
+import { displayNameFor } from "@web/components/record_selectors/base_record_selector";
 import { MultiRecordSelector } from "@web/components/record_selectors/multi_record_selector";
 import { RecordSelector } from "@web/components/record_selectors/record_selector";
 import { formatAST } from "@web/core/py_js/py";
@@ -9,7 +10,6 @@ import { toPyValue } from "@web/core/py_js/py_utils";
 import { _t } from "@web/core/translation";
 import { Expression } from "@web/core/tree/condition_tree";
 import { isId } from "@web/core/tree/utils";
-import { imageUrl } from "@web/core/utils/urls";
 
 /** @typedef {{ resIds: any[], [key: string]: any }} DomainSelectorMultiProps */
 /** @typedef {{ resId: any, [key: string]: any }} DomainSelectorSingleProps */
@@ -23,10 +23,7 @@ const getFormat = (val, displayNames) => {
     let text;
     let colorIndex;
     if (isId(val)) {
-        text =
-            typeof displayNames[val] === "string"
-                ? displayNames[val]
-                : _t("Inaccessible/missing record ID: %s", val);
+        text = displayNameFor(displayNames, val);
         colorIndex = typeof displayNames[val] === "string" ? 0 : 2;
     } else {
         text =
@@ -58,7 +55,6 @@ export class DomainSelectorAutocomplete extends MultiRecordSelector {
      * @returns {import("@web/components/record_selectors/multi_record_selector").RecordTag[]}
      */
     getTags(props, displayNames) {
-        const withAvatar = isAvatarModel(props.resModel);
         return props.resIds.map((val, index) => {
             const { text, colorIndex } = getFormat(val, displayNames);
             return {
@@ -70,10 +66,7 @@ export class DomainSelectorAutocomplete extends MultiRecordSelector {
                         ...this.props.resIds.slice(index + 1),
                     ]);
                 },
-                img:
-                    withAvatar &&
-                    isId(val) &&
-                    imageUrl(props.resModel, val, "avatar_128"),
+                img: tagAvatar(props.resModel, val),
             };
         });
     }

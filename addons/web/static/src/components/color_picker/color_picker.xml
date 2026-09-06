@@ -19,32 +19,7 @@
                     t-on-focusout="onColorFocusout"/>
         </div>
         <t t-set="activeTab" t-value="this.tabs.find((tab) => state.activeTab === tab.id)" />
-        <t t-component="activeTab.component" t-props="{
-            applyColor: this.selectColor.bind(this),
-            onColorClick: this.onColorApply.bind(this),
-            onColorPointerOver: this.onColorHover.bind(this),
-            onColorPointerOut: this.onColorHoverOut.bind(this),
-            onColorPointerLeave: this.resetColorPreview.bind(this),
-            onFocusin: this.onColorFocusin.bind(this),
-            onFocusout: this.onColorFocusout.bind(this),
-            colorPickerNavigation: this.colorPickerNavigation.bind(this),
-            onColorPreview: this.onColorPreview.bind(this),
-            setOnCloseCallback: this.props.setOnCloseCallback,
-            setOperationCallbacks: this.setOperationCallbacks.bind(this),
-            editColorCombination: this.props.editColorCombination,
-            selectedColorCombination: this.props.state.selectedColorCombination,
-            defaultOpacity: this.props.defaultOpacity,
-            noTransparency: this.props.noTransparency,
-            defaultThemeColorVars: this.themeColorVars,
-            defaultColorSet: this.defaultColorSet,
-            cssVarColorPrefix: this.props.cssVarColorPrefix,
-            defaultColors: this.defaultColors,
-            usedCustomColors: this.usedCustomColors,
-            grayscales: this.grayscales,
-            currentCustomColor: this.state.currentCustomColor,
-            currentColorPreview: this.state.currentColorPreview,
-            selectedColor: this.props.state.selectedColor,
-        }" />
+        <t t-component="activeTab.component" t-props="tabProps" />
     </div>
 </t>
 
