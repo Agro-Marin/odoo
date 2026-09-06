@@ -161,7 +161,7 @@ Four properties make it safe to run against a shared tree:
    handle **multi-line imports** (a braced list spread over lines is invisible to
    a single-line pattern, so the probe sorts ahead of an import that precedes
    it), and every emitted line must fit prettier's 88 columns.
-4. **Hand-instrumented files are left alone.** 17 files place
+4. **Hand-instrumented files are left alone.** 12 files place
    `useRenderCounter` by hand with labels that machine-doc pages cite
    (`LIST_EDIT_RENDER_COST.md` names `list.ListRenderer`) and that render-budget
    suites assert on. Stamping beside one would make a component publish two
