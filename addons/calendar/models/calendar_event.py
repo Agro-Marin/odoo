@@ -2375,11 +2375,24 @@ class CalendarEvent(models.Model):
         update_dict = {}
         start_update = fields.Datetime.to_datetime(time_values.get("start"))
         stop_update = fields.Datetime.to_datetime(time_values.get("stop"))
-        # Convert the base_event_id hours according to new values: time shift
+        allday = base_time_values["allday"]
+        # Convert the base_event_id hours according to new values: time shift.
+        # For an allday base event the hour component is meaningless, so shift
+        # by whole days only (date - date) instead of a full datetime delta,
+        # which would otherwise carry a spurious hour/minute offset into
+        # start/stop.
         if start_update or stop_update:
             if start_update:
-                start = base_time_values["start"] + (start_update - self.start)
-                stop = base_time_values["stop"] + (start_update - self.start)
+                if allday:
+                    start = base_time_values["start"] + (
+                        start_update.date() - self.start.date()
+                    )
+                    stop = base_time_values["stop"] + (
+                        start_update.date() - self.start.date()
+                    )
+                else:
+                    start = base_time_values["start"] + (start_update - self.start)
+                    stop = base_time_values["stop"] + (start_update - self.start)
                 start_date = base_time_values["start"].date() + (
                     start_update.date() - self.start.date()
                 )
@@ -2397,12 +2410,22 @@ class CalendarEvent(models.Model):
             if stop_update:
                 if not start_update:
                     # Apply the same shift for start
-                    start = base_time_values["start"] + (stop_update - self.stop)
+                    if allday:
+                        start = base_time_values["start"] + (
+                            stop_update.date() - self.stop.date()
+                        )
+                    else:
+                        start = base_time_values["start"] + (stop_update - self.stop)
                     start_date = base_time_values["start"].date() + (
                         stop_update.date() - self.stop.date()
                     )
                     update_dict.update({"start": start, "start_date": start_date})
-                stop = base_time_values["stop"] + (stop_update - self.stop)
+                if allday:
+                    stop = base_time_values["stop"] + (
+                        stop_update.date() - self.stop.date()
+                    )
+                else:
+                    stop = base_time_values["stop"] + (stop_update - self.stop)
                 stop_date = base_time_values["stop"].date() + (
                     stop_update.date() - self.stop.date()
                 )
