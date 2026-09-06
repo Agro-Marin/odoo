@@ -251,13 +251,24 @@ class DigestDigest(models.Model):
 
         for digest in self:
             for user in digest.user_ids:
-                digest.with_context(
-                    digest_slowdown=digest in to_slowdown,
-                    lang=user.lang,
-                    # the header date and every `format_*` in the body are the
-                    # recipient's, not the sender's
-                    tz=user.tz,
-                )._action_send_to_user(user, tips_count=1)
+                try:
+                    digest.with_context(
+                        digest_slowdown=digest in to_slowdown,
+                        lang=user.lang,
+                        # the header date and every `format_*` in the body are
+                        # the recipient's, not the sender's
+                        tz=user.tz,
+                    )._action_send_to_user(user, tips_count=1)
+                except Exception:
+                    # A KPI's compute can be arbitrary end-user-authored logic
+                    # (Studio KPIs, see `KPI_PREFIXES`); one broken formula
+                    # must not cost every other digest in this batch its
+                    # mail, since `_cron_send_digest_email` only commits
+                    # between whole batches.
+                    _logger.exception(
+                        "Failed to send digest %r to %s", digest.name, user.login
+                    )
+                    continue
             if digest in to_slowdown:
                 digest.periodicity = digest._get_next_periodicity()[0]
             digest.next_run_date = digest._get_next_run_date()
