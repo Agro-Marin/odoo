@@ -30,6 +30,7 @@ class PurchaseOrder(models.Model):
     _description = "Purchase Order"
     _check_company_auto = True
     _order = "priority desc, id desc"
+    _mail_post_access = "read"
 
     _price_history_action = "purchase.action_purchase_history"
 
