@@ -154,6 +154,17 @@
                     domain="[('activity_exception_decoration', '!=', False)]" />
                 <separator />
                 <filter name="order_date" string="Order Date" date="date_order" />
+                <filter
+                    name="filter_date_confirmed"
+                    string="Confirmation Date"
+                    date="date_confirmed"
+                    default_period="month" />
+            </filter>
+            <filter name="order_month" position="after">
+                <filter
+                    name="group_date_confirmed"
+                    string="Confirmation Date"
+                    context="{'group_by': 'date_confirmed'}" />
             </filter>
         </field>
     </record>

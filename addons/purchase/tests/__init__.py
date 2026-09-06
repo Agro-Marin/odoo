@@ -30,3 +30,4 @@ from . import test_purchase_chatter_access
 from . import test_purchase_mass_mail
 from . import test_purchase_mailing
 from . import test_purchase_report_list_action
+from . import test_purchase_search_filters
