@@ -33,11 +33,14 @@ class MixinExtract(models.AbstractModel):
     _description = "Document Extraction"
 
     _extract_document_type: str = ""
-
     _extract_target: dict[str, str] = {}
 
     extract_state = fields.Selection(
-        STATES, default="none", readonly=True, copy=False, index=True
+        STATES,
+        default="none",
+        readonly=True,
+        copy=False,
+        index=True,
     )
     extract_result = fields.Json(
         readonly=True,
@@ -65,6 +68,27 @@ class MixinExtract(models.AbstractModel):
         help="Fields a person changed after extraction, with what was read and "
         "what it should have been.",
     )
+
+    def write(self, vals):
+        watched = set(self._extract_target.values()) & set(vals)
+        corrections = {}
+        if watched and not self.env.context.get("extracting"):
+            for record in self:
+                found = record._corrections_in(vals)
+                if found:
+                    corrections[record.id] = found
+
+        result = super().write(vals)
+
+        for record in self:
+            found = corrections.get(record.id)
+            if found:
+                stored = dict(record.extract_corrections or {})
+                stored.update(found)
+                super(MixinExtract, record.with_context(extracting=True)).write(
+                    {"extract_corrections": stored}
+                )
+        return result
 
     def _get_extract_document_type(self) -> str:
         return self._extract_document_type
@@ -191,27 +215,6 @@ class MixinExtract(models.AbstractModel):
             }
         )
         self._update_from_extraction(result)
-        return result
-
-    def write(self, vals):
-        watched = set(self._extract_target.values()) & set(vals)
-        corrections = {}
-        if watched and not self.env.context.get("extracting"):
-            for record in self:
-                found = record._corrections_in(vals)
-                if found:
-                    corrections[record.id] = found
-
-        result = super().write(vals)
-
-        for record in self:
-            found = corrections.get(record.id)
-            if found:
-                stored = dict(record.extract_corrections or {})
-                stored.update(found)
-                super(MixinExtract, record.with_context(extracting=True)).write(
-                    {"extract_corrections": stored}
-                )
         return result
 
     def _corrections_in(self, vals: dict[str, Any]) -> dict[str, Any]:
