@@ -97,6 +97,11 @@ class PurchaseOrder(models.Model):
             if to_log:
                 order._log_decrease_ordered_quantity(to_log)
 
+        if "priority" in vals:
+            self.picking_ids.filtered(
+                lambda picking: picking.state not in ("done", "cancel"),
+            ).priority = vals["priority"]
+
         return res
 
     @api.depends("picking_type_id")
@@ -602,6 +607,7 @@ class PurchaseOrder(models.Model):
             "picking_type_id": self.picking_type_id.id,
             "partner_id": self.partner_id.id,
             "user_id": False,
+            "priority": self.priority,
             "origin": self._get_stock_origin(),
             "location_dest_id": self._get_location_destination_record().id,
             "location_id": self.partner_id.property_stock_supplier.id,

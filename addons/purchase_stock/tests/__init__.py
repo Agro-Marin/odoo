@@ -24,3 +24,4 @@ from . import test_supplier
 from . import test_uninstall
 from . import test_receipt_line_match
 from . import test_receipt_origin_vendor_ref
+from . import test_purchase_priority_propagation
