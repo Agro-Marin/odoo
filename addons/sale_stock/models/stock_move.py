@@ -143,7 +143,8 @@ class StockMove(models.Model):
     def _get_sale_order_lines(self):
         self.check_singleton()
         return (
-            self + self.browse(self._rollup_move_orig_ids() | self._rollup_move_dest_ids())
+            self
+            + self.browse(self._rollup_move_orig_ids() | self._rollup_move_dest_ids())
         ).sale_line_id
 
     def _get_source_document(self):
@@ -174,11 +175,6 @@ class StockMove(models.Model):
                 ),
             ]
         return documents
-
-    def _prepare_extra_move_vals(self, qty):
-        vals = super()._prepare_extra_move_vals(qty)
-        vals["sale_line_id"] = self.sale_line_id.id
-        return vals
 
     def _prepare_merge_moves_distinct_fields(self):
         distinct_fields = super()._prepare_merge_moves_distinct_fields()

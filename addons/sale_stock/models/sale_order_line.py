@@ -442,11 +442,6 @@ class SaleOrderLine(models.Model):
                 pickings_to_confirm.action_confirm()
         return True
 
-    def _get_action_add_from_catalog_extra_context(self, order):
-        extra_context = super()._get_action_add_from_catalog_extra_context(order)
-        extra_context.update(warehouse_id=order.warehouse_id.id)
-        return extra_context
-
     def _get_product_catalog_lines_data(self, **kwargs):
         res = super()._get_product_catalog_lines_data(**kwargs)
         res["deliveredQty"] = sum(

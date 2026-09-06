@@ -1,5 +1,4 @@
-from odoo import _, models
-from odoo.exceptions import UserError
+from odoo import models
 
 
 class StockMove(models.Model):
@@ -58,44 +57,3 @@ class StockMove(models.Model):
         if self.purchase_line_id:
             vals["purchase_line_id"] = self.purchase_line_id.id
         return vals
-
-    def _get_valuation_price_and_qty(self, related_aml, to_curr):
-        valuation_price_unit_total, valuation_total_qty = (
-            super()._get_valuation_price_and_qty(related_aml, to_curr)
-        )
-        boms = self.env["mrp.bom"]._get_bom_by_product(
-            related_aml.product_id,
-            company_id=related_aml.company_id.id,
-            bom_type="phantom",
-        )
-        if related_aml.product_id in boms:
-            kit_bom = boms[related_aml.product_id]
-            order_qty = related_aml.product_id.uom_id._compute_quantity(
-                related_aml.quantity, kit_bom.product_uom_id
-            )
-            filters = {
-                "incoming_moves": lambda m: (
-                    m.location_id.usage == "supplier"
-                    and (
-                        not m.origin_returned_move_id
-                        or (m.origin_returned_move_id and m.to_refund)
-                    )
-                ),
-                "outgoing_moves": lambda m: (
-                    m.location_id.usage != "supplier" and m.to_refund
-                ),
-            }
-            valuation_total_qty = self._get_kit_quantity(
-                related_aml.product_id, order_qty, kit_bom, filters
-            )
-            valuation_total_qty = kit_bom.product_uom_id._compute_quantity(
-                valuation_total_qty, related_aml.product_id.uom_id
-            )
-            if related_aml.product_id.uom_id.is_zero(valuation_total_qty):
-                raise UserError(
-                    _(
-                        "Odoo is not able to generate the anglo saxon entries. The total valuation of %s is zero.",
-                        related_aml.product_id.display_name,
-                    )
-                )
-        return valuation_price_unit_total, valuation_total_qty

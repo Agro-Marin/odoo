@@ -372,6 +372,12 @@ class SaleOrder(models.Model):
 
         return super()._action_cancel()
 
+    def _get_action_add_from_catalog_extra_context(self):
+        return {
+            **super()._get_action_add_from_catalog_extra_context(),
+            "warehouse_id": self.warehouse_id.id,
+        }
+
     def _action_confirm(self):
         self.line_ids._action_launch_stock_rule()
         return super()._action_confirm()

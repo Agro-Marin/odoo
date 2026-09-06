@@ -370,9 +370,9 @@ class PurchaseOrderLine(models.Model):
         if not self.env.context.get("bypass_move_update"):
             self._update_or_create_picking()
 
-    def _merge_po_line(self, rfq_line):
-        super()._merge_po_line(rfq_line)
-        self.move_dest_ids += rfq_line.move_dest_ids
+    def _merge_order_line(self, source_line):
+        super()._merge_order_line(source_line)
+        self.move_dest_ids += source_line.move_dest_ids
 
     def _prepare_aml_vals(self, **optional_values):
         res = super()._prepare_aml_vals(**optional_values)

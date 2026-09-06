@@ -182,11 +182,6 @@ class StockMove(models.Model):
             visited,
         )
 
-    def _prepare_extra_move_vals(self, qty):
-        vals = super()._prepare_extra_move_vals(qty)
-        vals["purchase_line_id"] = self.purchase_line_id.id
-        return vals
-
     def _prepare_merge_moves_distinct_fields(self):
         distinct_fields = super()._prepare_merge_moves_distinct_fields()
         distinct_fields += ["purchase_line_id", "created_purchase_line_ids"]
