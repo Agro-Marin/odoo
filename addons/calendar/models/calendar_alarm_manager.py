@@ -56,24 +56,39 @@ class CalendarAlarm_Manager(models.AbstractModel):
             partner_join,
         )
 
-    def _get_alarm_horizon_sql(self, seconds):
+    def _get_alarm_horizon_sql(self, seconds, partners=None):
         """Upper bound on the `first_alarm` of the events to return.
 
         Without `seconds`: the next future alarm plus three minutes if there is
         one, otherwise now -- so a caller asking "what is due?" gets the events
         around the next reminder rather than every event that has one.
+
+        `partners`, when given, scopes the MIN() to their own events, matching
+        `_get_alarm_events_sql` -- otherwise every open browser tab's poll for
+        its own next alarm scans every alarmed event in the database to compute
+        this bound, not just the polling user's own.
         """
         if seconds is not None:
             return SQL("now() at time zone 'utc' + %s * interval '1' second", seconds)
+        partner_join = SQL("")
+        if partners:
+            partner_join = SQL(
+                """INNER JOIN calendar_event_res_partner_rel AS part_rel
+                           ON part_rel.calendar_event_id = cal.id
+                          AND part_rel.res_partner_id = ANY(%s)""",
+                list(partners.ids),
+            )
         return SQL(
             """COALESCE(
                 (SELECT MIN(cal.start - interval '1' minute * calcul_delta.max_delta)
                    FROM calendar_event cal
                    RIGHT JOIN calcul_delta ON calcul_delta.calendar_event_id = cal.id
+                   %s
                   WHERE cal.start - interval '1' minute * calcul_delta.max_delta > now() at time zone 'utc'
                 ) + interval '3' minute,
                 now() at time zone 'utc'
-            )"""
+            )""",
+            partner_join,
         )
 
     def _get_next_potential_limit_alarm(self, alarm_type, seconds=None, partners=None):
@@ -105,7 +120,7 @@ class CalendarAlarm_Manager(models.AbstractModel):
                 """,
                 self._get_alarm_delta_sql(alarm_type),
                 self._get_alarm_events_sql(partners),
-                self._get_alarm_horizon_sql(seconds),
+                self._get_alarm_horizon_sql(seconds, partners=partners),
             )
         )
 
