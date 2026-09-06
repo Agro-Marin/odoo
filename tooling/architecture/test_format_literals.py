@@ -14,7 +14,7 @@ import format_literals as gate
 # invocation of its own. It blocks through `pytest tooling/architecture/`,
 # as the four other checkers `gates.md` names outside the table do, and none of
 # them carries a baseline either.
-FLOOR = 25
+FLOOR = 66
 
 REGISTRATION = """
 from odoo.libs.documents import Format, register_format

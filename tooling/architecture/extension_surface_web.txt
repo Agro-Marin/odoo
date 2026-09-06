@@ -338,7 +338,6 @@ ModelFieldSelectorPopover.setup  enterprise  :triage
 MonetaryField.currencySymbol  enterprise  :triage
 MultiRecordController.actionMenuProps  odoo enterprise  :keep
 MultiRecordController.getStaticActionMenuItems  odoo enterprise  :keep
-MultiRecordController.hasSelectedRecords  odoo  :keep
 MultiRecordController.modelOptions  odoo enterprise  :keep
 MultiRecordController.onDeleteSelectedRecords  odoo enterprise  :keep
 MultiRecordController.onSelectionChanged  enterprise  :keep
@@ -492,6 +491,7 @@ Widget.setup  enterprise  :triage
 Widget.widgetProps  enterprise  :triage
 WithSearch.setup  enterprise  :triage
 X2ManyField.getFormActionContext  odoo  :triage
+X2ManyField.getOpenRecordTitle  odoo  :keep
 X2ManyField.isMany2Many  odoo  :keep
 X2ManyField.onAdd  odoo enterprise  :keep
 X2ManyField.openRecord  odoo enterprise  :triage

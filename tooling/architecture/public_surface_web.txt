@@ -82,7 +82,7 @@
 @web/core/utils/dom/ui  odoo enterprise
 @web/core/utils/dom/xml  odoo enterprise agromarin
 @web/core/utils/files  odoo enterprise
-@web/core/utils/format/binary  enterprise agromarin
+@web/core/utils/format/binary  odoo enterprise agromarin
 @web/core/utils/format/colors  odoo
 @web/core/utils/format/numbers  odoo enterprise
 @web/core/utils/format/strings  odoo enterprise agromarin
@@ -123,7 +123,7 @@
 @web/fields/display/statusbar/statusbar_field  odoo
 @web/fields/dynamic_placeholder_popover  odoo enterprise
 @web/fields/dynamic_placeholder_syntax  odoo
-@web/fields/field  odoo enterprise
+@web/fields/field  odoo enterprise agromarin
 @web/fields/field_component  odoo
 @web/fields/field_dirty_signal  odoo enterprise
 @web/fields/field_options  odoo
@@ -228,7 +228,7 @@
 @web/webclient/home_menu/home_menu  enterprise
 @web/webclient/menus/menu_utils  enterprise
 @web/webclient/navbar/navbar  odoo enterprise
-@web/webclient/promote_studio/promote_studio_dialog  enterprise
+@web/webclient/promote_studio/promote_studio_dialog  odoo
 @web/webclient/promote_studio/promote_studio_list_renderer  enterprise
 @web/webclient/promote_studio/promote_studio_systray_item  enterprise
 @web/webclient/user_menu/user_menu  odoo

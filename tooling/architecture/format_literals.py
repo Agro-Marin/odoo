@@ -65,6 +65,8 @@ def declared_formats(roots: list[Path]) -> dict[str, str]:
     for root in roots:
         for path in python_files(root):
             tree = _ast_cache.parse_file(path)
+            _link_parents(tree)
+            tables = _constant_tables(tree)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):
                     continue
@@ -72,10 +74,103 @@ def declared_formats(roots: list[Path]) -> dict[str, str]:
                     continue
                 if node.func.id != "Format":
                     continue
-                pair = _format_pair(node)
-                if pair:
+                for pair in _format_pairs(node, tables):
                     declared.setdefault(*pair)
     return declared
+
+
+def _link_parents(tree: ast.Module) -> None:
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            child._format_literals_parent = parent  # type: ignore[attr-defined]
+
+
+def _constant_tables(tree: ast.Module) -> dict[str, list[tuple[str, ...]]]:
+    """Module-level ``NAME = ((...), (...))`` tables of string constants.
+
+    A format table registers its rows in a loop, ``Format(mimetype=_m,
+    extension=_e, ...)`` for ``_m, _e, ... in TABLE``, so the pair the gate
+    wants sits in the table rather than in the call.
+    """
+    tables: dict[str, list[tuple[str, ...]]] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        if not isinstance(node.value, (ast.Tuple, ast.List)):
+            continue
+        rows: list[tuple[str, ...]] = []
+        for row in node.value.elts:
+            if not isinstance(row, (ast.Tuple, ast.List)):
+                break
+            rows.append(
+                tuple(
+                    cell.value if isinstance(cell, ast.Constant) else ""
+                    for cell in row.elts
+                )
+            )
+        else:
+            if rows:
+                tables[target.id] = rows
+    return tables
+
+
+def _format_pairs(
+    node: ast.Call, tables: dict[str, list[tuple[str, ...]]]
+) -> list[tuple[str, str]]:
+    pair = _format_pair(node)
+    if pair:
+        return [pair]
+    names = _format_argument_names(node)
+    if names is None:
+        return []
+    loop = _enclosing_loop(node)
+    if loop is None or not isinstance(loop.iter, ast.Name):
+        return []
+    if not isinstance(loop.target, ast.Tuple):
+        return []
+    columns = [
+        element.id if isinstance(element, ast.Name) else None
+        for element in loop.target.elts
+    ]
+    try:
+        mimetype_column = columns.index(names[0])
+        extension_column = columns.index(names[1])
+    except ValueError:
+        return []
+    rows = tables.get(loop.iter.id, [])
+    return [
+        (row[mimetype_column], row[extension_column])
+        for row in rows
+        if len(row) > max(mimetype_column, extension_column)
+        and row[mimetype_column]
+        and row[extension_column]
+    ]
+
+
+def _format_argument_names(node: ast.Call) -> tuple[str, str] | None:
+    values: dict[str, str] = {}
+    for name, argument in zip(("mimetype", "extension"), node.args, strict=False):
+        if isinstance(argument, ast.Name):
+            values[name] = argument.id
+    for keyword in node.keywords:
+        if keyword.arg in ("mimetype", "extension"):
+            if isinstance(keyword.value, ast.Name):
+                values[keyword.arg] = keyword.value.id
+    if "mimetype" in values and "extension" in values:
+        return values["mimetype"], values["extension"]
+    return None
+
+
+def _enclosing_loop(node: ast.AST) -> ast.For | None:
+    parent = getattr(node, "_format_literals_parent", None)
+    while parent is not None:
+        if isinstance(parent, ast.For):
+            return parent
+        parent = getattr(parent, "_format_literals_parent", None)
+    return None
 
 
 def _format_pair(node: ast.Call) -> tuple[str, str] | None:

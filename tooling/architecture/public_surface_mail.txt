@@ -50,6 +50,7 @@
 @mail/core/web/activity_button  odoo
 @mail/core/web/activity_list_popover_item  odoo enterprise
 @mail/core/web/activity_menu  odoo enterprise
+@mail/core/web/activity_model_patch  odoo
 @mail/core/web/follower  odoo
 @mail/core/web/message_patch  enterprise
 @mail/core/web/open_chat_hook  odoo enterprise
