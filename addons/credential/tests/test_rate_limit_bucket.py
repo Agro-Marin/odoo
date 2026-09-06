@@ -285,12 +285,14 @@ class TestRateLimitBucketContention(TransactionCase):
     def setUp(self):
         super().setUp()
         endpoint = self.env["credential.category"].search([], limit=1)
-        self.bucket = self.env["rate.limit.bucket"].create({
-            "bucket_key": "contention.probe",
-            "endpoint_model": endpoint._name,
-            "endpoint_id": endpoint.id,
-            "tokens": 100.0,
-        })
+        self.bucket = self.env["rate.limit.bucket"].create(
+            {
+                "bucket_key": "contention.probe",
+                "endpoint_model": endpoint._name,
+                "endpoint_id": endpoint.id,
+                "tokens": 100.0,
+            }
+        )
 
     def _raise_on_lock(self, error):
         def _lock(_self, strict):
