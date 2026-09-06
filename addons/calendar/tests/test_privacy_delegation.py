@@ -164,7 +164,6 @@ class TestRecurrencePrivacy(CalendarPrivacyCommon, TransactionCase):
             self.env["calendar.recurrence"].with_user(self.bystander).browse(
                 recurrence_id
             ).write({"count": 99})
-            self.env.flush_all()
 
     def test_owner_still_drives_their_own_recurrence(self):
         event = self._make_recurrence("private")
@@ -201,7 +200,6 @@ class TestCalendarFiltersPrivacy(CalendarPrivacyCommon, TransactionCase):
             self.env["calendar.filters"].with_user(self.bystander).browse(
                 own.id
             ).unlink()
-            self.env.flush_all()
         self.assertTrue(own.exists())
 
     def test_the_unlink_everything_rpc_is_gone(self):
@@ -314,4 +312,3 @@ class TestRecurrenceCountCap(CalendarPrivacyCommon, TransactionCase):
                     "event_tz": "UTC",
                 }
             )
-            self.env.flush_all()
