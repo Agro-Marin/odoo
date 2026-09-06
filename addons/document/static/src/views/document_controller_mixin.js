@@ -126,10 +126,7 @@ export const DocumentsControllerMixin = (component) =>
                     groupNumber: 1,
                 },
                 share: {
-                    isAvailable: () =>
-                        userIsInternal &&
-                        this.documentService.hasEnterpriseActions &&
-                        this.targetRecords.length > 0,
+                    isAvailable: () => userIsInternal && this.targetRecords.length > 0,
                     sequence: 51,
                     description: _t("Share"),
                     icon: "fa-solid fa-share",

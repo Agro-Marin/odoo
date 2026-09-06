@@ -5,7 +5,7 @@ import { ListController } from "@web/views/list";
 import { DocumentsControllerMixin } from "@document/views/document_controller_mixin";
 import { preSuperSetup, useDocumentView } from "@document/views/hooks";
 import { DocumentsSelectionBox } from "@document/views/selection_box/document_selection_box";
-import { onWillRender, useEffect, useRef, useState } from "@odoo/owl";
+import { onWillDestroy, onWillRender, useRef, useState } from "@odoo/owl";
 
 export class DocumentsListController extends DocumentsControllerMixin(ListController) {
     static template = "document.DocumentsListController";
@@ -33,18 +33,19 @@ export class DocumentsListController extends DocumentsControllerMixin(ListContro
             );
         }
 
-        useEffect(
-            () => {
-                this.documentService.getSelectionActions = () => ({
-                    getTopbarActions: () => this.getTopBarActionMenuItems(),
-                    getMenuProps: () => this.actionMenuProps,
-                });
-                return () => {
-                    this.documentService.getSelectionActions = null;
-                };
-            },
-            () => [],
-        );
+        // Registered synchronously: the control panel's DocumentsAction reads
+        // it from its own mounted effect, which runs before this component's.
+        const getSelectionActions = () => ({
+            getTopbarActions: () => this.getTopBarActionMenuItems(),
+            getMenuProps: () => this.actionMenuProps,
+        });
+        this.documentService.getSelectionActions = getSelectionActions;
+        onWillDestroy(() => {
+            // On a view switch the next controller has already registered its own.
+            if (this.documentService.getSelectionActions === getSelectionActions) {
+                this.documentService.getSelectionActions = null;
+            }
+        });
 
         onWillRender(() => this.openInitialPreview());
     }

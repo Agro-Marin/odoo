@@ -29,7 +29,6 @@ export const documentsCogMenuItemShortcut = {
         DocumentsCogMenuItem.isVisible(
             env,
             ({ folder, documentService }) =>
-                documentService.hasEnterpriseActions &&
                 documentService.isEditable(folder) &&
                 !folder.shortcut_document_id &&
                 typeof folder.user_folder_id === "number",

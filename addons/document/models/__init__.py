@@ -14,12 +14,14 @@ from . import document_document_user_folder
 from . import document_document_search_panel
 from . import document_document_versioning
 from . import document_document_embedded_actions
+from . import document_document_link_to_record
 from . import document_document_mail
 from . import document_tag
 
 from . import ir_attachment
 from . import ir_binary
 from . import ir_http
+from . import kpi_provider
 
 from . import ir_actions_server
 from . import ir_embedded_actions

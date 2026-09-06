@@ -19,7 +19,6 @@ patch(AttachmentList.prototype, {
     canAddToDocuments(attachment) {
         return (
             this.documentService.userIsDocumentUser &&
-            this.documentService.hasEnterpriseActions &&
             !attachment.uploading &&
             !this.env.inComposer
         );

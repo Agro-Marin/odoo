@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { htmlJoin } from "@web/core/utils/dom/html";
 import { useSetupAction } from "@web/core/action_hook";
 import { PdfManager } from "@document/owl/components/pdf_manager/pdf_manager";
+import { PromoteStudioAutomationDialog } from "@web/webclient/promote_studio/promote_studio_dialog";
 import {
     EventBus,
     onMounted,
@@ -79,18 +79,9 @@ export function useDocumentView(helpers) {
             "check_automation_available",
         );
         if (!checkAutomationRule) {
-            const UpsellDialog = registry
-                .category("documents_automation_upsell")
-                .get("dialog", null);
-            if (UpsellDialog) {
-                return dialogService.add(UpsellDialog, {
-                    title: _t("Odoo Studio - Customize workflows in minutes"),
-                });
-            }
-            return notification.add(
-                _t("Install an automation app to build rules on this folder."),
-                { title: _t("Access to Automations"), type: "info" },
-            );
+            return dialogService.add(PromoteStudioAutomationDialog, {
+                title: _t("Odoo Studio - Customize workflows in minutes"),
+            });
         }
         const userHasAccessRight = await user.checkAccessRight(
             "automation.rule",
@@ -158,11 +149,7 @@ export function useDocumentView(helpers) {
         hasShareDocuments: () => {
             const folder = env.searchModel.getSelectedFolder();
             const selectedRecords = env.model.root.selection.length;
-            return (
-                documentService.hasEnterpriseActions &&
-                typeof folder.id !== "number" &&
-                !selectedRecords
-            );
+            return typeof folder.id !== "number" && !selectedRecords;
         },
         userIsInternal: documentService.userIsInternal,
         userIsDocumentManager: documentService.userIsDocumentManager,

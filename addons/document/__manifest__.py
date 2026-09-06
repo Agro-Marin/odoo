@@ -1,15 +1,14 @@
 {
     "name": "Documents",
-    "version": "1.9",
+    "version": "1.10",
     "category": "Productivity/Documents",
     "sequence": 80,
     "summary": "Collect, organize and share documents.",
     "description": """
 Store, organize and share files: a folder tree with per-document access rights,
-share links, versioning, a trash and the Documents workspace.
-
-`document_enterprise` adds the sharing, operation and link-to-record wizards,
-the onboarding tour, the digest KPIs and the Studio automation upsell.
+share links, versioning, a trash and the Documents workspace, with the sharing,
+operation and link-to-record wizards, the onboarding tour, the digest KPIs and
+the Studio automation upsell.
     """,
     "author": "Odoo S.A.",
     "website": "https://www.odoo.com/app/documents",
@@ -19,6 +18,7 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "portal",
         "attachment_indexation",
         "html_editor",
+        "digest",
     ],
     "data": [
         "security/security.xml",
@@ -30,6 +30,8 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "data/mail_alias_data.xml",
         "data/ir_config_parameter_data.xml",
         "data/ir_cron_data.xml",
+        "data/digest_data.xml",
+        "data/document_tour.xml",
         "views/res_config_settings_views.xml",
         "views/res_partner_views.xml",
         "views/document_access_views.xml",
@@ -48,7 +50,10 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "views/ir_actions_views.xml",
         "views/mail_compose_message_views.xml",
         "views/mail_scheduled_message_views.xml",
+        "wizard/document_link_to_record_wizard_views.xml",
+        "wizard/document_operation_views.xml",
         "wizard/document_request_wizard_views.xml",
+        "wizard/document_sharing_views.xml",
     ],
     "demo": [
         "demo/document_document_demo.xml",
@@ -61,6 +66,7 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
             "document/static/src/core/**/*",
             "document/static/src/mail/**/*",
             "document/static/src/owl/**/*",
+            "document/static/src/tours/**/*",
             "document/static/src/utils.js",
             "document/static/src/views/**/*",
             "document/static/src/webclient/webclient.js",

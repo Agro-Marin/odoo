@@ -5,9 +5,7 @@ import { registry } from "@web/core/registry";
 async function documentActionPreference(env, action, options) {
     const viewType = browser.localStorage.getItem("documentsDefaultViewType");
 
-    const nextAction = await env.services.action.loadAction(
-        "document.document_action",
-    );
+    const nextAction = await env.services.action.loadAction("document.document_action");
 
     return env.services.action.doAction(
         {

@@ -3,6 +3,7 @@ from . import test_attachment_split
 from . import test_controllers
 from . import test_document_access
 from . import test_document_attachment_link
+from . import test_document_audit_round3_wizards
 from . import test_document_chatter
 from . import test_document_common
 from . import test_document_document
@@ -17,14 +18,18 @@ from . import test_document_permissions
 from . import test_document_public_routes
 from . import test_document_request
 from . import test_document_search_panel
+from . import test_document_sharing
 from . import test_document_shortcut
 from . import test_document_tag
 from . import test_document_type
+from . import test_download_blocked_sharing
 from . import test_document_thumbnail
 from . import test_document_upload
 from . import test_document_user_folder
 from . import test_document_versioning
 from . import test_js
+from . import test_kpi_provider
+from . import test_link_to_record
 from . import test_mail_activity
 from . import test_mail_gateway
 from . import test_tools

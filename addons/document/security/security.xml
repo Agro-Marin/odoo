@@ -168,4 +168,30 @@
             name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
     </record>
 
+    <record id="mail_plan_rule_group_document_manager_document" model="ir.rule">
+        <field name="name">Manager can manage document plans</field>
+        <field name="groups" eval="[(4, ref('document.group_documents_manager'))]" />
+        <field name="model_id" ref="mail.model_mail_activity_plan" />
+        <field name="domain_force">[('res_model', '=', 'document.document')]</field>
+        <field name="perm_read" eval="False" />
+    </record>
+
+    <record id="mail_plan_template_rule_group_document_manager_document" model="ir.rule">
+        <field name="name">Manager can manage document plan templates</field>
+        <field name="groups" eval="[(4, ref('document.group_documents_manager'))]" />
+        <field name="model_id" ref="mail.model_mail_activity_plan_template" />
+        <field name="domain_force">[('plan_id.res_model', '=', 'document.document')]</field>
+        <field name="perm_read" eval="False" />
+    </record>
+
+    <record id="document_operation_rwu" model="ir.rule">
+        <field name="name">Documents Operation Rule</field>
+        <field name="model_id" ref="model_document_operation" />
+        <field name="domain_force">[('create_uid', '=', user.id)]</field>
+        <field name="perm_create" eval="False" />
+        <field name="perm_read" eval="True" />
+        <field name="perm_write" eval="True" />
+        <field name="perm_unlink" eval="False" />
+    </record>
+
 </odoo>

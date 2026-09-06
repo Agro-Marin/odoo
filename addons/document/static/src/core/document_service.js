@@ -41,9 +41,6 @@ export class DocumentService {
         this.userIsInternal = false;
         this.multiCompany = false;
         this.hasFolderEditorAccess = false;
-        // Share, move, duplicate, shortcut and add-to-documents open wizards
-        // that only document_enterprise ships (see ir.http.session_info).
-        this.hasEnterpriseActions = Boolean(session.document_enterprise_actions);
         const urlSearch = parseSearchQuery(browser.location.search);
         const { documents_init } = session;
         const openPreview =
@@ -97,8 +94,8 @@ export class DocumentService {
             user.hasGroup("base.group_user"),
             user.hasGroup("base.group_multi_company"),
         ]);
-        this.hasFolderEditorAccess = this.userIsInternal && this.hasEnterpriseActions;
-        if (!this.hasFolderEditorAccess && this.hasEnterpriseActions) {
+        this.hasFolderEditorAccess = this.userIsInternal;
+        if (!this.hasFolderEditorAccess) {
             try {
                 const destinations = await this.orm.call(
                     "document.operation",
@@ -234,7 +231,7 @@ export class DocumentService {
     }
 
     isFolderSharable(folder) {
-        return this.hasEnterpriseActions && folder && typeof folder.id === "number";
+        return folder && typeof folder.id === "number";
     }
 
     async openDialogRename(documentId) {
@@ -267,9 +264,6 @@ export class DocumentService {
     }
 
     async openSharingDialog(documentIds) {
-        if (!this.hasEnterpriseActions) {
-            return;
-        }
         const action = await this.orm.call("document.sharing", "action_open", [
             documentIds,
         ]);
@@ -283,9 +277,6 @@ export class DocumentService {
         onClose = () => {},
         context = {},
     }) {
-        if (!this.hasEnterpriseActions) {
-            return;
-        }
         documents = documents || [];
         const doc0 = documents[0];
         let name;
