@@ -1,0 +1,116 @@
+from odoo.exceptions import ValidationError
+from odoo.tests import TransactionCase, tagged
+
+
+@tagged("post_install", "-at_install")
+class TestResourceAssetStock(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.vehicle = cls.env.ref("resource_asset.kind_vehicle")
+        cls.template = cls.env["product.template"].create(
+            {
+                "name": "Pickup",
+                "is_storable": True,
+                "tracking": "serial",
+                "asset_kind_id": cls.vehicle.id,
+            }
+        )
+        cls.product = cls.template.product_variant_id
+        cls.stock_location = cls.env.ref("stock.stock_location_stock")
+
+    def test_an_asset_product_must_be_serial_tracked(self):
+        with self.assertRaises(ValidationError):
+            self.env["product.template"].create(
+                {
+                    "name": "Crates",
+                    "is_storable": True,
+                    "tracking": "lot",
+                    "asset_kind_id": self.vehicle.id,
+                }
+            )
+
+    def test_a_serial_becomes_an_asset(self):
+        lot = self.env["stock.lot"].create(
+            {
+                "name": "PK-001",
+                "product_id": self.product.id,
+                "company_id": self.env.company.id,
+            }
+        )
+        asset = lot.asset_id
+        self.assertTrue(asset)
+        self.assertEqual(asset.lot_id, lot)
+        self.assertEqual(asset.kind_id, self.vehicle)
+        self.assertEqual(asset.product_id, self.product)
+        self.assertEqual(asset.name, "Pickup PK-001")
+        self.assertEqual(asset.resource_id.resource_type, "material")
+
+    def test_a_plain_serial_is_not_an_asset(self):
+        plain = self.env["product.product"].create(
+            {"name": "Bolt box", "is_storable": True, "tracking": "serial"}
+        )
+        lot = self.env["stock.lot"].create(
+            {"name": "B-1", "product_id": plain.id, "company_id": self.env.company.id}
+        )
+        self.assertFalse(lot.asset_id)
+
+    def test_the_asset_reads_the_lot_location(self):
+        lot = self.env["stock.lot"].create(
+            {
+                "name": "PK-002",
+                "product_id": self.product.id,
+                "company_id": self.env.company.id,
+            }
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            self.product, self.stock_location, 1, lot_id=lot
+        )
+        lot.invalidate_recordset()
+        self.assertEqual(lot.asset_id.location_id, self.stock_location)
+
+    def test_scrapping_the_serial_disposes_of_the_asset(self):
+        lot = self.env["stock.lot"].create(
+            {
+                "name": "PK-003",
+                "product_id": self.product.id,
+                "company_id": self.env.company.id,
+            }
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            self.product, self.stock_location, 1, lot_id=lot
+        )
+        scrap = self.env["stock.scrap"].create(
+            {
+                "product_id": self.product.id,
+                "lot_id": lot.id,
+                "scrap_qty": 1,
+                "location_id": self.stock_location.id,
+            }
+        )
+        scrap.action_validate()
+        self.assertEqual(scrap.state, "done")
+        self.assertEqual(lot.asset_id.state, "disposed")
+        self.assertFalse(lot.asset_id.active)
+
+    def test_one_asset_per_lot(self):
+        lot = self.env["stock.lot"].create(
+            {
+                "name": "PK-004",
+                "product_id": self.product.id,
+                "company_id": self.env.company.id,
+            }
+        )
+        other = self.env["stock.lot"].create(
+            {
+                "name": "PK-005",
+                "product_id": self.product.id,
+                "company_id": self.env.company.id,
+            }
+        )
+        from odoo.tools import mute_logger
+
+        with self.assertRaises(Exception), mute_logger("odoo.sql_db", "odoo.db.cursor"):
+            with self.env.cr.savepoint():
+                other.asset_id = lot.asset_id
+                other.flush_recordset()

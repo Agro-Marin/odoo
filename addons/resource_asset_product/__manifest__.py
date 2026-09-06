@@ -1,0 +1,14 @@
+{
+    "name": "Assets - Product",
+    "version": "1.0",
+    "category": "Hidden",
+    "summary": "A product whose units are assets: the kind on the template, the asset on the unit",
+    "author": "AgroMarin",
+    "license": "LGPL-3",
+    "depends": ["resource_asset", "product"],
+    "data": [
+        "views/product_template_views.xml",
+        "views/resource_asset_views.xml",
+    ],
+    "auto_install": True,
+}

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="resource_asset_view_form_product" model="ir.ui.view">
+        <field name="name">resource.asset.form.product</field>
+        <field name="model">resource.asset</field>
+        <field name="inherit_id" ref="resource_asset.resource_asset_view_form" />
+        <field name="arch" type="xml">
+            <field name="kind_id" position="before">
+                <field name="product_id" />
+            </field>
+        </field>
+    </record>
+
+    <record id="resource_asset_view_search_product" model="ir.ui.view">
+        <field name="name">resource.asset.search.product</field>
+        <field name="model">resource.asset</field>
+        <field name="inherit_id" ref="resource_asset.resource_asset_view_search" />
+        <field name="arch" type="xml">
+            <field name="kind_id" position="after">
+                <field name="product_id" />
+            </field>
+            <filter name="group_holder" position="after">
+                <filter
+                    name="group_product"
+                    string="Model"
+                    context="{'group_by': 'product_tmpl_id'}" />
+            </filter>
+        </field>
+    </record>
+
+</odoo>
