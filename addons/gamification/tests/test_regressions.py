@@ -1355,6 +1355,37 @@ class TestKudosImmutableAfterSend(common.TransactionCase):
             with self.subTest(field=field_name), self.assertRaises(UserError):
                 self.kudos.with_user(self.sender).write({field_name: value})
 
+    def test_owner_cannot_edit_sender(self):
+        """sender_id feeds summary exactly like the other frozen fields; a
+        sudo edit must not desync summary from karma_granted/the activity
+        feed/the posted message, which all still name the original sender.
+        """
+        with self.assertRaises(UserError):
+            self.kudos.with_user(self.sender).write({"sender_id": self.recipient.id})
+
+    def test_sudo_sender_edit_desyncs_summary(self):
+        """CONTROL: a sudo() edit is still allowed (imports/migrations), but
+        confirms the desync the frozen field now guards against -- summary
+        re-renders while karma_granted and the activity feed do not.
+        """
+        activity = self.env["gamification.activity"].search(
+            [
+                ("activity_type", "=", "kudos"),
+                ("user_id", "=", self.sender.id),
+                ("target_user_id", "=", self.recipient.id),
+            ],
+            limit=1,
+        )
+        self.assertTrue(activity, "the create()-time activity row must exist")
+        self.kudos.sudo().write({"sender_id": self.recipient.id})
+        self.assertIn(self.recipient.name, self.kudos.summary)
+        self.assertEqual(self.kudos.karma_granted, 10)
+        self.assertEqual(
+            activity.user_id,
+            self.sender,
+            "the activity feed row must keep naming the original sender",
+        )
+
     def test_a_sudo_caller_still_can(self):
         """CONTROL: imports/migrations, not end-user edits, keep working."""
         self.kudos.sudo().write({"category_id": self.category_b.id})

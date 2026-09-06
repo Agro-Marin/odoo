@@ -41,9 +41,10 @@ class GamificationKudosCategory(models.Model):
 # Fields whose value the sender picked at send-time and that karma_granted /
 # the activity feed / the mail-thread post were all computed from. Editing
 # them after create() does not re-run any of that: summary re-renders (it is
-# a stored @api.depends compute) but karma_granted keeps the original
-# category's value, so the two would silently disagree.
-KUDOS_VALUE_FIELDS = frozenset({"recipient_id", "category_id", "message"})
+# a stored @api.depends compute, and _compute_summary depends on sender_id.name
+# same as the other three) but karma_granted / the activity feed / the posted
+# message all keep their original values, so they would silently disagree.
+KUDOS_VALUE_FIELDS = frozenset({"sender_id", "recipient_id", "category_id", "message"})
 
 
 # Kudos are lightweight, informal recognition acts. Unlike badges (which
@@ -119,8 +120,8 @@ class GamificationKudos(models.Model):
         """Freeze the fields that already drove karma/summary/the mail post.
 
         Only ``create()`` grants karma and posts to the thread; editing
-        ``recipient_id``/``category_id``/``message`` afterwards would
-        re-render ``summary`` (a stored compute) without touching
+        ``sender_id``/``recipient_id``/``category_id``/``message`` afterwards
+        would re-render ``summary`` (a stored compute) without touching
         ``karma_granted`` or the already-sent post, leaving the three
         disagreeing about what was actually recognized. ``sudo()`` (imports,
         migrations) still bypasses this, same as ``create()``'s sender check.
