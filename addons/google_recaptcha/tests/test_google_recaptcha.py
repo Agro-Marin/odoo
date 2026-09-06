@@ -172,5 +172,7 @@ class TestGoogleRecaptcha(TransactionCase):
         settings = self.env["res.config.settings"].create({"enable_recaptcha": False})
         settings.set_values()
         self.assertFalse(
-            self.env["res.config.settings"].get_values()["enable_recaptcha"]
+            self.env["res.config.settings"].default_get(["enable_recaptcha"])[
+                "enable_recaptcha"
+            ]
         )

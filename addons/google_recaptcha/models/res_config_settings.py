@@ -1,5 +1,4 @@
-from odoo import api, fields, models
-from odoo.tools.misc import str2bool
+from odoo import fields, models
 
 
 class ResConfigSettings(models.TransientModel):
@@ -9,6 +8,7 @@ class ResConfigSettings(models.TransientModel):
         "Enable reCAPTCHA",
         config_parameter="enable_recaptcha",
         groups="base.group_system",
+        default=True,
     )
     recaptcha_public_key = fields.Char(
         "Site Key", config_parameter="recaptcha_public_key", groups="base.group_system"
@@ -25,12 +25,3 @@ class ResConfigSettings(models.TransientModel):
         default="0.7",
         help="By default, should be one of 0.1, 0.3, 0.7, 0.9.\n1.0 is very likely a good interaction, 0.0 is very likely a bot",
     )
-
-    @api.model
-    def get_values(self):
-        res = super().get_values()
-        icp = self.env["ir.config_parameter"].sudo()
-        res["enable_recaptcha"] = str2bool(
-            icp.get_param("enable_recaptcha", default=True)
-        )
-        return res

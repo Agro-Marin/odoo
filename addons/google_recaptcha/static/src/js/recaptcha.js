@@ -24,9 +24,7 @@ export class ReCaptcha {
                 () =>
                     new Promise((resolve) => window.grecaptcha.ready(() => resolve())),
             );
-            return this._recaptchaReady.then(
-                () => !!document.querySelector(".grecaptcha-badge"),
-            );
+            return this._recaptchaReady.then(undefined, () => false);
         }
         return false;
     }
@@ -46,8 +44,8 @@ export class ReCaptcha {
                 ),
             };
         }
-        await this._recaptchaReady;
         try {
+            await this._recaptchaReady;
             return {
                 token: await window.grecaptcha.execute(this._publicKey, {
                     action: action,
