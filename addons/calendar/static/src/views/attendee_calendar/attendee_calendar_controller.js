@@ -53,14 +53,11 @@ export class AttendeeCalendarController extends CalendarController {
 
     getQuickCreateFormViewProps(record) {
         const props = super.getQuickCreateFormViewProps(record);
-        const onDialogClosed = () => {
-            this.model.load();
-        };
         return {
             ...props,
             size: "md",
             context: { ...props.context, ...this.props.context },
-            onRecordSaved: () => onDialogClosed(),
+            onRecordSaved: () => this.model.load(),
         };
     }
 
