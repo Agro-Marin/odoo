@@ -5178,3 +5178,45 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:document.public_folder_page
 msgid "• <b>URL</b>"
 msgstr ""
+
+#. module: document
+#. odoo-python
+#: code:addons/document/models/document_document_type.py:0
+msgid "%(name)s (Renewal)"
+msgstr ""
+
+#. module: document
+#. odoo-python
+#: code:addons/document/models/document_type.py:0
+msgid "%(type)s Documents"
+msgstr ""
+
+#. module: document
+#. odoo-python
+#: code:addons/document/models/document_document_type.py:0
+msgid "This document type is not renewable."
+msgstr ""
+
+#. module: document
+#. odoo-python
+#: code:addons/document/models/document_document_type.py:0
+msgid ""
+"Circular reference detected in renewal chain. Document '%(doc)s' would "
+"create a cycle."
+msgstr ""
+
+#. module: document
+#. odoo-python
+#: code:addons/document/models/document_document_type.py:0
+msgid ""
+"Document '%(doc)s' belongs to %(doc_company)s but its type '%(type)s' "
+"belongs to %(type_company)s."
+msgstr ""
+
+#. module: document
+#. odoo-python
+#: code:addons/document/models/document_document_type.py:0
+msgid ""
+"Document '%(doc)s' has already been renewed by '%(renewal)s'. Renew that one"
+" instead, so the chain stays a single line."
+msgstr ""

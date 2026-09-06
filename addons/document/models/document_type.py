@@ -63,15 +63,15 @@ class DocumentType(models.Model):
         help="Documents of this type",
     )
     document_count = fields.Integer(
-        compute="_compute_document_count",
+        compute="_compute_document_counts",
         help="Total number of documents of this type",
     )
     expired_document_count = fields.Integer(
-        compute="_compute_document_count",
+        compute="_compute_document_counts",
         help="Number of documents of this type that are currently expired",
     )
     expiring_soon_count = fields.Integer(
-        compute="_compute_document_count",
+        compute="_compute_document_counts",
         help="Number of documents of this type expiring within the next 30 days",
     )
 
@@ -92,7 +92,7 @@ class DocumentType(models.Model):
     )
 
     @api.depends("document_ids.expiration_state")
-    def _compute_document_count(self) -> None:
+    def _compute_document_counts(self) -> None:
         data = self.env["document.document"]._read_group(
             [("document_type_id", "in", self.ids)],
             groupby=["document_type_id", "expiration_state"],
