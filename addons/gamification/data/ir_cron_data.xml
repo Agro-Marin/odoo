@@ -9,6 +9,9 @@
             <field name="code">model._cron_update()</field>
             <field name="interval_number">1</field>
             <field name="interval_type">days</field>
+            <field
+                name="nextcall"
+                eval="(DateTime.now() + relativedelta(days=1)).strftime('%Y-%m-%d 09:30:00')" />
         </record>
         <record id="ir_cron_consolidate" model="ir.cron">
             <field name="name">Gamification: Karma tracking consolidation</field>
