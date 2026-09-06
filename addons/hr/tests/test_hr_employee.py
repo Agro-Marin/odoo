@@ -906,6 +906,44 @@ class TestHrEmployee(TestHrCommon):
         self.assertNotEqual(partner.email, first_employee.work_email)
 
 
+class TestVersionCarriesPartyValuesUntilItsDate(TransactionCase):
+    @freeze_time("2024-03-10")
+    def test_a_future_version_holds_the_party_values_until_it_is_due(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "Mover", "private_city": "Bern", "children": 1}
+        )
+        version = employee.create_version(
+            {
+                "date_version": datetime(2024, 9, 28).date(),
+                "private_city": "Vevey",
+                "children": 2,
+            }
+        )
+        self.assertEqual(employee.private_city, "Bern")
+        self.assertEqual(employee.children, 1)
+        self.assertEqual(
+            version.pending_employee_vals, {"private_city": "Vevey", "children": 2}
+        )
+        employee._apply_pending_version_vals()
+        self.assertEqual(employee.private_city, "Bern")
+        with freeze_time("2024-09-28"):
+            employee._apply_pending_version_vals()
+        self.assertEqual(employee.private_city, "Vevey")
+        self.assertEqual(employee.children, 2)
+        self.assertFalse(version.pending_employee_vals)
+
+    @freeze_time("2024-03-10")
+    def test_a_version_in_effect_writes_the_party_at_once(self):
+        employee = self.env["hr.employee"].create(
+            {"name": "Moved", "private_city": "Bern"}
+        )
+        version = employee.create_version(
+            {"date_version": datetime(2024, 3, 1).date(), "private_city": "Vevey"}
+        )
+        self.assertEqual(employee.private_city, "Vevey")
+        self.assertFalse(version.pending_employee_vals)
+
+
 class TestHrEmployeeDisplayNameVisibility(TransactionCase):
     def test_a_plain_employee_reads_a_manager_through_the_public_profile(self):
         user = new_test_user(self.env, "plain_employee", groups="base.group_user")

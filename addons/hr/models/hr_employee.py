@@ -1349,7 +1349,27 @@ class HrEmployee(models.Model):
         return min(versions.mapped("date_start")) if versions else False
 
     def _cron_update_current_version_id(self):
-        self.with_context(active_test=False).search([])._compute_current_version_id()
+        employees = self.with_context(active_test=False).search([])
+        employees._apply_pending_version_vals()
+        employees._compute_current_version_id()
+
+    def _apply_pending_version_vals(self):
+        due = (
+            self.env["hr.version"]
+            .sudo()
+            .search(
+                [
+                    ("employee_id", "in", self.ids),
+                    ("pending_employee_vals", "!=", False),
+                    ("date_version", "<=", fields.Date.today()),
+                ],
+                order="date_version asc, id asc",
+            )
+        )
+        for version in due:
+            vals = version.pending_employee_vals
+            version.pending_employee_vals = False
+            version.employee_id.sudo().write(vals)
 
     def _search_version_id(self, operator, value):
         if operator in ("any", "any!"):
@@ -1466,7 +1486,13 @@ class HrEmployee(models.Model):
             if name not in version_fields
         }
         if employee_vals:
-            self.write(employee_vals)
+            # Employee-level values describe the person as of the version's
+            # date: a version in effect writes them on the party now, a future
+            # one carries them until its date arrives.
+            if date <= fields.Date.today():
+                self.write(employee_vals)
+            else:
+                copy_vals["pending_employee_vals"] = employee_vals
             new_version_vals = {
                 name: value
                 for name, value in new_version_vals.items()

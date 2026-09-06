@@ -68,6 +68,7 @@ class HrVersion(models.Model):
         tracking=True,
         groups="hr.group_hr_user",
     )
+    pending_employee_vals = fields.Json(copy=False, groups="hr.group_hr_user")
     last_modified_uid = fields.Many2one(
         "res.users",
         string="Last Modified by",
