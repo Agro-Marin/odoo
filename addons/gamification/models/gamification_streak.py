@@ -49,7 +49,15 @@ class GamificationStreakType(models.Model):
         required=True,
         default="[]",
         help="Domain to filter records.  May reference 'user' (current user) "
-        "and 'date_from' / 'date_to' (the day being checked).",
+        "and 'date_from' / 'date_to' (the day being checked).\n"
+        "Every candidate user whose domain evaluates to the same text shares "
+        "one query and its answer: if the domain does not reference 'user' "
+        "at all, that is every candidate, so a single day's activity (or "
+        "lack of it) is credited -- or the streak broken -- for the whole "
+        "population at once, not per person. That is a deliberate, "
+        "supported shape for a company-wide/shared streak (e.g. 'did "
+        "anyone log a sale today'); it is a misconfiguration if a per-user "
+        "streak was intended.",
     )
     date_field_id = fields.Many2one(
         "ir.model.fields",
@@ -353,12 +361,17 @@ class GamificationStreak(models.Model):
         today = fields.Date.today()
         yesterday = today - timedelta(days=1)
 
-        # Reset freeze allowance on 1st of month — batch by type
+        # Reset freeze allowance on 1st of month — batch by type.
+        #
+        # Includes 'broken' streaks, not just 'active' ones: a streak that
+        # revives later in *this same run* (see the activity check below)
+        # would otherwise skip this month's freeze allowance entirely --
+        # the reset ran before the revival and there is no second pass.
         if today.day == 1:
-            active_streaks = self.search([("state", "=", "active")])
+            streaks_to_reset = self.search([("state", "in", ["active", "broken"])])
             # Group by streak type for batch writes
             by_type: dict[int, list[int]] = {}
-            for streak in active_streaks:
+            for streak in streaks_to_reset:
                 by_type.setdefault(streak.streak_type_id.id, []).append(streak.id)
             for type_id, streak_ids in by_type.items():
                 stype = self.env["gamification.streak.type"].browse(type_id)
