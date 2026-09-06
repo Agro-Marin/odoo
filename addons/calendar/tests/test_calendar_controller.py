@@ -57,3 +57,24 @@ class TestCalendarController(HttpCase):
         self.assertEqual(res.status_code, 200, "Response should = OK")
         self.env.invalidate_all()
         self.assertEqual(attendee.state, "accepted", "Attendee should have accepted")
+
+    def test_accept_meeting_forwarded_to_another_session(self):
+        # A valid token, but presented from a different user's authenticated
+        # session, is a forwarded invitation: reject it instead of letting the
+        # logged-in user answer on the token owner's behalf.
+        self.event.write({"partner_ids": [(4, self.other_user.partner_id.id)]})
+        attendee = self.event.attendee_ids.filtered(
+            lambda att: att.partner_id.id == self.other_user.partner_id.id
+        )
+        token = attendee.access_token
+        url = "/calendar/meeting/accept?token=%s&id=%d" % (token, self.event.id)
+        self.authenticate("test_user_1", "test_user_1")
+        res = self.url_open(url)
+
+        self.assertEqual(
+            res.status_code, 400, "Forwarded invitation should be rejected"
+        )
+        self.env.invalidate_all()
+        self.assertEqual(
+            attendee.state, "needsAction", "Attendee should not have accepted"
+        )
