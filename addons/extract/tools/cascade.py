@@ -25,6 +25,9 @@ def run(
     if pending and not _resume(result, pending, allow_pending, env):
         return result
 
+    if result.satisfied:
+        return result
+
     for extractor in get_extractors(source, doc_type, up_to):
         if extractor.name in result.ran:
             continue
