@@ -25,10 +25,11 @@ export class DocumentsAction extends Component {
             actionMenuProps: null,
         });
         this.ui = useState(useService("ui"));
+        this.selectionActions = useState(this.documentService.selectionActions);
         useEffect(
             () => {
-                if (this.documentService.getSelectionActions) {
-                    const selectionActions = this.documentService.getSelectionActions();
+                if (this.selectionActions.provider) {
+                    const selectionActions = this.selectionActions.provider();
                     this.state.topbarActions = Object.values(
                         selectionActions.getTopbarActions(),
                     ).sort((a, b) => b.groupNumber - a.groupNumber);
@@ -40,7 +41,11 @@ export class DocumentsAction extends Component {
                     }
                 }
             },
-            () => [this.props.targetRecords, this.ui.isSmall],
+            () => [
+                this.props.targetRecords,
+                this.ui.isSmall,
+                this.selectionActions.provider,
+            ],
         );
     }
 

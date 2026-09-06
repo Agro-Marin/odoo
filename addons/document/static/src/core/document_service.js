@@ -58,7 +58,10 @@ export class DocumentService {
                 userFolderId,
             );
         }
-        this.getSelectionActions = null;
+        // The mounted view controller publishes how to build the selection's
+        // actions; reactive so the control panel re-renders when the view
+        // switches rather than reading a stale or empty slot.
+        this.selectionActions = reactive({ provider: null });
     }
 
     /**

@@ -38,6 +38,16 @@ export const DETAIL_PANEL_REQUIRED_FIELDS = [
     "tag_ids",
 ];
 
+/**
+ * Reload the search panel and the records of a documents view, in that order.
+ * The one spelling behind the DOCUMENT_RELOAD bus event and the cog items.
+ */
+export async function reloadDocumentsView(env) {
+    await env.searchModel._reloadSearchModel(true);
+    await env.model.load();
+    await env.model.notify();
+}
+
 export function preSuperSetup() {
     useSubEnv({
         documentsView: {
@@ -397,11 +407,7 @@ function useDocumentsViewFileUpload() {
         });
     });
 
-    useBus(documentService.bus, "DOCUMENT_RELOAD", async () => {
-        await env.searchModel._reloadSearchModel(true);
-        await env.model.load();
-        await env.model.notify();
-    });
+    useBus(documentService.bus, "DOCUMENT_RELOAD", () => reloadDocumentsView(env));
 
     useBus(fileUpload.bus, "FILE_UPLOAD_LOADED", async (ev) => {
         const { upload } = ev.detail;

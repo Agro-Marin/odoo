@@ -37,15 +37,15 @@ export const DocumentsControllerMixin = (component) =>
 
             // Registered synchronously: the control panel's DocumentsAction reads
             // it from its own mounted effect, which runs before this component's.
-            const getSelectionActions = () => ({
+            const provider = () => ({
                 getTopbarActions: () => this.getTopBarActionMenuItems(),
                 getMenuProps: () => this.actionMenuProps,
             });
-            this.documentService.getSelectionActions = getSelectionActions;
+            this.documentService.selectionActions.provider = provider;
             onWillDestroy(() => {
                 // On a view switch the next controller has already registered its own.
-                if (this.documentService.getSelectionActions === getSelectionActions) {
-                    this.documentService.getSelectionActions = null;
+                if (this.documentService.selectionActions.provider === provider) {
+                    this.documentService.selectionActions.provider = null;
                 }
             });
 

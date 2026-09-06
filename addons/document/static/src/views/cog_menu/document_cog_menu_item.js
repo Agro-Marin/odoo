@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { reloadDocumentsView } from "@document/views/hooks";
 import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
@@ -52,9 +53,7 @@ export class DocumentsCogMenuItem extends Component {
     }
 
     async reload() {
-        await this.env.searchModel._reloadSearchModel(true);
-        await this.env.model.load();
-        await this.env.model.notify();
+        await reloadDocumentsView(this.env);
     }
 
     async doActionOnFolder() {}
