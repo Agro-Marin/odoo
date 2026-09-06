@@ -31,6 +31,7 @@ class PurchaseOrder(models.Model):
     _check_company_auto = True
     _order = "priority desc, id desc"
     _mail_post_access = "read"
+    _mailing_enabled = True
 
     _price_history_action = "purchase.action_purchase_history"
 
@@ -411,6 +412,10 @@ class PurchaseOrder(models.Model):
         if len(self) == 1:
             context["model_description"] = self.type_name
         return context
+
+    def _mailing_get_default_domain(self, mailing):
+        """Keep cancelled orders out of a mailing campaign by default."""
+        return [("state", "!=", "cancel")]
 
     def action_view_invoice(self, invoices=False):
         if not invoices:

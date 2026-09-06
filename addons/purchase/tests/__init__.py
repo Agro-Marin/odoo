@@ -28,3 +28,4 @@ from . import test_purchase_price_history
 from . import test_purchase_audit_fixes
 from . import test_purchase_chatter_access
 from . import test_purchase_mass_mail
+from . import test_purchase_mailing
