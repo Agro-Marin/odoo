@@ -1703,6 +1703,10 @@ class CalendarEvent(models.Model):
                 [cond[0] for cond in having if isinstance(cond, (list, tuple))],
             )
         }
+        for spec in (order or "").split(","):
+            fname = spec.strip().split(" ")[0].split(".")[0].split(":")[0]
+            if fname:
+                fnames.add(fname)
         if not self.env.su and self._privacy_restricted_fnames(fnames):
             domain = Domain.AND([domain, self._get_default_privacy_domain()])
         return super()._read_group(
@@ -1726,6 +1730,10 @@ class CalendarEvent(models.Model):
                 aggregates,
             )
         }
+        for spec in (order or "").split(","):
+            fname = spec.strip().split(" ")[0].split(".")[0].split(":")[0]
+            if fname:
+                fnames.add(fname)
         if not self.env.su and self._privacy_restricted_fnames(fnames):
             domain = Domain.AND([domain, self._get_default_privacy_domain()])
         return super()._read_grouping_sets(
