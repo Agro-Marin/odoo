@@ -1,5 +1,6 @@
 import json
 from io import BytesIO
+from unittest.mock import patch
 
 from odoo import Command, http
 from odoo.tests.common import HttpCase, RecordCapturer, tagged
@@ -129,6 +130,50 @@ class TestDocumentsUploadRoute(HttpCase, TransactionCaseDocuments):
             response = self._upload(user_folder_id="MY", cloud_storage="1")
         self.assertEqual(response.status_code, 400)
         self.assertEqual(self.env["document.document"].search_count([]), before)
+
+    def test_direct_cloud_upload_answers_with_upload_info(self):
+        if not self.env["ir.module.module"].search_count(
+            [("name", "=", "cloud_storage"), ("state", "=", "installed")]
+        ):
+            self.skipTest("cloud_storage is not installed")
+        self.authenticate("plain_internal", "plain_internal")
+        self.env["ir.config_parameter"].sudo().set_param(
+            "cloud_storage_provider", "fake"
+        )
+        Attachment = type(self.env["ir.attachment"])
+        upload_info = {"url": "https://cloud.test/upload", "method": "PUT"}
+        with (
+            patch.object(
+                Attachment,
+                "_generate_cloud_storage_url",
+                lambda att: f"https://cloud.test/{att.id}",
+            ),
+            patch.object(
+                Attachment,
+                "_generate_cloud_storage_upload_info",
+                lambda att: upload_info,
+            ),
+            RecordCapturer(self.env["document.document"], []) as capture,
+        ):
+            response = self._upload(
+                user_folder_id="MY", cloud_storage="1", file_size="12345"
+            )
+            response.raise_for_status()
+        document = capture.records.check_singleton()
+        self.assertEqual(
+            response.json(), {"document_ids": [document.id], "upload_info": upload_info}
+        )
+        attachment = document.attachment_id
+        self.assertEqual(attachment.type, "cloud_storage")
+        self.assertEqual(attachment.url, f"https://cloud.test/{attachment.id}")
+        self.assertEqual(
+            attachment.file_size,
+            12345,
+            "the announced size replaces the empty upload's",
+        )
+        self.assertFalse(
+            attachment.raw, "the bytes live in the cloud, not in the filestore"
+        )
 
     def test_root_upload_still_works_without_a_linked_record(self):
         self.authenticate("plain_internal", "plain_internal")
