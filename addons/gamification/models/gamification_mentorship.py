@@ -378,24 +378,28 @@ class GamificationMentorship(models.Model):
         :return: list of dicts with user_id, user_name, karma, rank_name.
         """
         user = self.env.user
-        # Exclude users already mentoring this user
-        existing_mentor_ids = (
-            self.search(
-                [
-                    ("mentee_id", "=", user.id),
-                    ("state", "in", ("pending", "active")),
-                ]
-            )
-            .mapped("mentor_id")
-            .ids
+        # Exclude users already mentoring this user, and users this user is
+        # already mentoring -- _check_not_self_mentoring's reciprocal-pair
+        # check would reject that pairing anyway if the caller acted on the
+        # suggestion, since the two are already paired in the other direction.
+        existing_pairings = self.search(
+            [
+                ("state", "in", ("pending", "active")),
+                "|",
+                ("mentee_id", "=", user.id),
+                ("mentor_id", "=", user.id),
+            ]
         )
+        existing_pairing_ids = (
+            existing_pairings.mentor_id | existing_pairings.mentee_id
+        ).ids
 
         Users = self.env["res.users"]
         mentors = Users.search(
             [
                 ("karma", ">", user.karma),
                 ("id", "!=", user.id),
-                ("id", "not in", existing_mentor_ids),
+                ("id", "not in", existing_pairing_ids),
                 ("company_id", "=", user.company_id.id),
                 *Users._get_domain_gamification_listable(),
             ],
