@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import psycopg
 
 from odoo import fields
+from odoo.exceptions import UserError
 from odoo.libs.logging import mute_logger
 from odoo.tests.common import TransactionCase, tagged
 
@@ -67,6 +68,20 @@ class TestRateLimitBucket(TransactionCase):
         bucket.reset_bucket()
 
         self.assertGreater(bucket.tokens, 0)
+
+    def test_bucket_reset_namespace_subject_is_blocked(self):
+        bucket = self.env["rate.limit.bucket"].create(
+            {
+                "bucket_key": "test_bucket_reset_namespace",
+                "endpoint_model": "credential.credential.decrypt",
+                "endpoint_id": 999,
+                "tokens": 0.0,
+            },
+        )
+
+        self.assertFalse(bucket.can_reset)
+        with self.assertRaises(UserError):
+            bucket.reset_bucket()
 
     def test_bucket_cleanup(self):
         endpoint = self.MockEndpoint.search([], limit=1)
