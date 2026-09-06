@@ -1,4 +1,5 @@
 from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
 
@@ -43,6 +44,12 @@ class CalendarAlarm(models.Model):
         compute="_compute_notify_responsible_available",
         help="Technical: whether this alarm's channel can single out the organizer.",
     )
+
+    @api.constrains("duration")
+    def _check_duration(self):
+        for alarm in self:
+            if alarm.duration < 0:
+                raise ValidationError(_("The reminder delay cannot be negative."))
 
     @api.depends("alarm_type")
     def _compute_notify_responsible_available(self):
