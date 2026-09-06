@@ -641,3 +641,71 @@ class TestComputeRankCommon(common.TransactionCase):
         ):
             user.next_rank_id = False  # Force the computation of the next rank
             self.assertEqual(user._get_next_rank(), expected_next_rank)
+
+
+class TestKarmaRankTieBreak(common.TransactionCase):
+    """A tied ``karma_min`` must not leave rank assignment order-dependent.
+
+    Both ``ORDER BY karma_min DESC`` sites (``write()``'s reorder detection
+    and ``_recompute_rank``) had no id tiebreak, so nothing prevented two
+    ranks from sharing the same ``karma_min`` threshold, and which one users
+    at that threshold landed on was left to the database's tie-breaking --
+    not guaranteed stable, and could repeatedly re-fire the "Level Up!"
+    notification for an unchanged karma value. ``ORDER BY karma_min DESC,
+    id`` makes the choice explicit: on a tie, the lowest id wins.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        def _patched_send_mail(*args, **kwargs):
+            pass
+
+        cls.startClassPatcher(
+            patch(
+                "odoo.addons.mail.models.mail_template.MailTemplate.send_mail",
+                _patched_send_mail,
+            )
+        )
+        cls.env["gamification.karma.rank"].search([]).unlink()
+        cls.rank_low_id = cls.env["gamification.karma.rank"].create(
+            {"name": "Tied A (low id)", "karma_min": 100}
+        )
+        cls.rank_high_id = cls.env["gamification.karma.rank"].create(
+            {"name": "Tied B (high id)", "karma_min": 100}
+        )
+
+    def test_tied_karma_min_orders_by_id(self):
+        """The lowest id sorts first among ranks tied on karma_min."""
+        ranks = self.env["gamification.karma.rank"].search(
+            [("id", "in", (self.rank_low_id | self.rank_high_id).ids)],
+            order="karma_min DESC, id",
+        )
+        self.assertEqual(
+            ranks.ids,
+            [self.rank_low_id.id, self.rank_high_id.id],
+            "on a karma_min tie, the lowest id must sort first",
+        )
+
+    def test_recompute_rank_assigns_deterministically_on_tie(self):
+        """A user landing exactly on a tied threshold always gets the same rank."""
+        user = mail_new_test_user(
+            self.env,
+            login="tie_user",
+            name="Tie User",
+            karma=0,
+            groups="base.group_user",
+        )
+        user.karma = 100
+        assigned = []
+        for _i in range(3):
+            user.rank_id = False
+            user.next_rank_id = False
+            user._recompute_rank()
+            assigned.append(user.rank_id.id)
+        self.assertEqual(
+            assigned,
+            [self.rank_low_id.id] * 3,
+            "rank assignment on a karma_min tie must be deterministic across calls",
+        )
