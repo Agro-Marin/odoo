@@ -239,6 +239,11 @@ class Data_RecycleModel(models.Model):
                 if res_id not in candidate_res_ids
             ]
             Record.browse(stale_ids).unlink()
+            if commit and stale_ids:
+                # A stale-only pass never enters the batch loop below, so its
+                # drop needs its own commit here or a later rule's crash rolls
+                # it back along with that rule's own, unrelated failure.
+                self.env.cr.commit()
 
             new_res_ids = [
                 res_id for res_id in candidate_ids if res_id not in queued_res_ids
