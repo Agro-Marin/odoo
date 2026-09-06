@@ -1,8 +1,10 @@
 import logging
 
-from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo import api, fields, models
 
+from odoo.addons.event_product.models.product_product import (
+    raise_event_ticket_service_tracking_error,
+)
 from odoo.addons.product.models.product_template import PRICE_CONTEXT_KEYS
 
 _logger = logging.getLogger(__name__)
@@ -54,16 +56,7 @@ class EventTypeTicket(models.Model):
         # (a different model), so it cannot cover this model-level gap.
         for ticket in self:
             if ticket.product_id and ticket.product_id.service_tracking != "event":
-                service_tracking = ticket.product_id.fields_get(
-                    ["service_tracking"], ["string", "selection"]
-                )["service_tracking"]
-                raise ValidationError(
-                    _(
-                        'Products linked to an event ticket must have "%(tracking)s" set to "%(event)s".',
-                        tracking=service_tracking["string"],
-                        event=dict(service_tracking["selection"])["event"],
-                    )
-                )
+                raise_event_ticket_service_tracking_error(ticket.product_id)
 
     @api.depends("product_id")
     def _compute_price(self):
