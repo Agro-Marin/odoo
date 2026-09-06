@@ -195,11 +195,18 @@ class TestAccessRights(TransactionCase):
         # successfully edit meetings created by other users. If this write fails,
         # it indicates that there might be an issue with access rights for meeting attendees.
         meeting = meeting.with_user(self.george)
-        meeting.write(
-            {
-                "start": datetime.now() + timedelta(days=2),
-                "stop": datetime.now() + timedelta(days=2, hours=2),
-            }
+        new_start = datetime.now() + timedelta(days=2)
+        new_stop = datetime.now() + timedelta(days=2, hours=2)
+        meeting.write({"start": new_start, "stop": new_stop})
+        self.assertEqual(
+            meeting.start,
+            new_start,
+            "Meeting start should be updated by an attendee with 'handle in Odoo' notifications",
+        )
+        self.assertEqual(
+            meeting.stop,
+            new_stop,
+            "Meeting stop should be updated by an attendee with 'handle in Odoo' notifications",
         )
 
     def test_event_default_privacy_as_private(self):
