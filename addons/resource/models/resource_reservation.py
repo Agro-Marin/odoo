@@ -39,6 +39,9 @@ class ResourceReservation(models.Model):
 
     name = fields.Char(required=True)
     active = fields.Boolean(default=True)
+    booking_key = fields.Char(
+        help="Which path of the origin record booked this row, when a record books through more than one (a maintenance request blocking both a work centre and an asset). Each path releases only its own rows.",
+    )
     company_id = fields.Many2one(
         "res.company",
         compute="_compute_company_id",
