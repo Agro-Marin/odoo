@@ -396,7 +396,6 @@ class PurchaseOrder(models.Model):
         return "purchase.report_purchase_quotation"
 
     def action_send_rfq(self):
-        self.check_singleton()
         return self._action_send_by_email()
 
     def _get_mail_composer_action_name(self):
@@ -406,10 +405,12 @@ class PurchaseOrder(models.Model):
         return {**self.env.context, **super()._get_mail_composer_context()}
 
     def _get_mail_composer_lang_context(self):
-        return {
-            **super()._get_mail_composer_lang_context(),
-            "model_description": self.type_name,
-        }
+        context = super()._get_mail_composer_lang_context()
+        # `type_name` is per-order; a mass mailing spans orders in mixed states
+        # and has no single description to name.
+        if len(self) == 1:
+            context["model_description"] = self.type_name
+        return context
 
     def action_view_invoice(self, invoices=False):
         if not invoices:

@@ -1225,6 +1225,18 @@
         <field name="group_ids" eval="[(4, ref('purchase.group_send_reminder'))]" />
     </record>
 
+    <record id="action_send_mail" model="ir.actions.server">
+        <field name="name">Send an email</field>
+        <field name="model_id" ref="purchase.model_purchase_order" />
+        <field name="binding_model_id" ref="purchase.model_purchase_order" />
+        <field name="binding_view_types">list,kanban</field>
+        <field name="state">code</field>
+        <field
+            name="code">if records:
+    action = records.with_context(hide_default_template=True).action_send_rfq()</field>
+        <field name="sequence">1</field>
+    </record>
+
     <record id="action_merger" model="ir.actions.server">
         <field name="name">Merge RFQs</field>
         <field name="model_id" ref="purchase.model_purchase_order" />
