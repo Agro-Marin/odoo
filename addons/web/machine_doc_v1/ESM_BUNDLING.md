@@ -58,7 +58,8 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
              │                  │      --external:@odoo/*                │
              │                  │      --external:/web/static/lib/*      │
              │                  │      --external:<EXTERNAL_BARE_SPEC>...│
-             │                  │      --alias:<@odoo/* per-lib>...      │
+             │                  │      --alias:<lib/header/stub>         │
+             │                  │      NODE_PATH=<@addon symlink root>   │
              │                  │      --resolve-extensions=.js,.mjs,... │
              │                  │      --outfile --metafile [--sourcemap]│
              │                  │      timeout=<timeout_s>)              │

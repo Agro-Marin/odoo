@@ -1,5 +1,6 @@
 import contextlib
 import glob
+import hashlib
 import logging
 import os
 import re
@@ -390,6 +391,7 @@ class EsbuildCompiler:
         external_specifier_flags, alias_flags = self._esbuild_external_flags(
             odoo_root, alias_flags
         )
+        alias_flags, node_path = self._addon_resolution_root(alias_flags, odoo_root)
         argv = _esbuild_argv(
             esbuild,
             target=target,
@@ -401,7 +403,7 @@ class EsbuildCompiler:
             alias_flags=alias_flags,
         )
         try:
-            self._run_esbuild(argv, timeout_s, entry_text, _t0)
+            self._run_esbuild(argv, timeout_s, entry_text, _t0, node_path=node_path)
             code = self._postprocess_esbuild_output(
                 out_path,
                 metafile_path,
@@ -461,6 +463,7 @@ class EsbuildCompiler:
             external_specifier_flags, alias_flags = self._esbuild_external_flags(
                 odoo_root, alias_flags
             )
+            alias_flags, node_path = self._addon_resolution_root(alias_flags, odoo_root)
             argv = _esbuild_argv(
                 esbuild,
                 target=target,
@@ -477,7 +480,7 @@ class EsbuildCompiler:
             self._log_esbuild_invoke(
                 entry_points, entry_bytes, alias_flags, external_flags, tmp_dir
             )
-            self._run_esbuild(argv, timeout_s, "", _t0)
+            self._run_esbuild(argv, timeout_s, "", _t0, node_path=node_path)
             files = {
                 path.name: path.read_text(encoding="utf-8")
                 for path in sorted(out_dir.iterdir())
@@ -694,6 +697,11 @@ class EsbuildCompiler:
             parts = url.split("/")
             if len(parts) >= 3 and parts[1] == "static" and parts[2] == "tests":
                 bundle_test_addons.add(parts[0])
+        if not self._reaches_test_files(bundle_test_addons):
+            # Two flags per addon with a test tree exist to keep test files
+            # out of a bundle that names them; a bundle that names none is
+            # not made any safer by 600 of them.
+            test_external_flags = []
         if bundle_test_addons:
             test_external_flags = [
                 flag
@@ -719,6 +727,62 @@ class EsbuildCompiler:
                     alias_path = f"addons{js_asset.url}"
                 alias_flags.append(f"--alias:{header['alias']}=./{alias_path}")
         return alias_flags, test_external_flags + dynamic_external_flags
+
+    def _reaches_test_files(self, bundle_test_addons: set[str]) -> bool:
+        if self._skip_legacy_test_imports or bundle_test_addons:
+            return True
+        return any(
+            "/../tests/" in (asset.raw_content or "") for asset in self.native_modules
+        )
+
+    _PARENT_DIR_SPECIFIER_RE = re.compile(r'["\'](@[\w.-]+)/\.\./')
+
+    def _addons_reached_through_parent_dirs(self) -> set[str]:
+        # `@web/../lib/x` is not a package subpath, so only an alias resolves
+        # it; the addons a source reaches that way keep theirs.
+        return {
+            match.group(1)
+            for asset in (*self.native_modules, *self.javascripts)
+            for match in self._PARENT_DIR_SPECIFIER_RE.finditer(asset.raw_content or "")
+        }
+
+    def _addon_resolution_root(
+        self, alias_flags: list[str], odoo_root: Path
+    ) -> tuple[list[str], str | None]:
+        roots: dict[str, Path] = {}
+        kept: list[str] = []
+        keep_aliased = self._addons_reached_through_parent_dirs()
+        for flag in alias_flags:
+            spec, _, target = flag.removeprefix("--alias:").partition("=")
+            if (
+                spec.startswith("@")
+                and "/" not in spec
+                and spec not in keep_aliased
+                and target.startswith("./")
+                and target.endswith("/static/src")
+            ):
+                roots[spec] = odoo_root / target.removeprefix("./")
+            else:
+                kept.append(flag)
+        if not roots:
+            return kept, None
+        digest = hashlib.sha1(
+            "\n".join(f"{spec}={path}" for spec, path in sorted(roots.items())).encode()
+        ).hexdigest()[:12]
+        root_dir = Path(tempfile.gettempdir()) / f"odoo-esbuild-roots-{digest}"
+        if not root_dir.is_dir():
+            staging = Path(
+                tempfile.mkdtemp(prefix=f"{root_dir.name}-", dir=root_dir.parent)
+            )
+            for spec, path in roots.items():
+                (staging / spec).symlink_to(path, target_is_directory=True)
+            try:
+                staging.rename(root_dir)
+            except OSError:
+                shutil.rmtree(staging, ignore_errors=True)
+                if not root_dir.is_dir():
+                    raise
+        return kept, str(root_dir)
 
     @classmethod
     def _write_stub_mirror(
@@ -837,7 +901,11 @@ class EsbuildCompiler:
         timeout_s: int,
         entry_text: str,
         _t0: float,
+        node_path: str | None = None,
     ) -> None:
+        env = os.environ.copy()
+        if node_path:
+            env["NODE_PATH"] = node_path
         try:
             result = subprocess.run(
                 argv,
@@ -847,6 +915,7 @@ class EsbuildCompiler:
                 encoding="utf-8",
                 timeout=timeout_s,
                 cwd=str(Path(odoo.__path__[0]).parent),
+                env=env,
                 check=False,
             )
             if result.returncode != 0:

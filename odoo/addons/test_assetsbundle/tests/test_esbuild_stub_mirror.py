@@ -535,6 +535,8 @@ class TestRunEsbuildFailureReporting(BaseCase):
 
 
 class _EntryMod:
+    parsed_header = None
+
     def __init__(self, module_path, url="", filename=None, raw_content=""):
         self.module_path = module_path
         self.url = url
@@ -674,6 +676,74 @@ class TestEsbuildEntryLines(BaseCase):
             "app", [_EntryMod("@a/silent", url="/a/static/src/silent.js")]
         )._esbuild_entry_lines(self.ROOT)
         self.assertIn('"@a/silent": __m0', "\n".join(lines))
+
+    def test_addon_roots_leave_the_command_line_for_a_resolution_root(self):
+        flags = [
+            "--alias:@a=./addons/a/static/src",
+            "--alias:@b=./addons/b/static/src",
+            "--alias:@odoo/lib=./addons/web/static/lib/lib.js",
+            "--alias:@a/core/x=/tmp/stub/a/core/x",
+        ]
+        compiler = EsbuildCompiler(
+            "app",
+            [
+                _EntryMod(
+                    "@a/one",
+                    url="/a/static/src/one.js",
+                    raw_content='import "@b/../lib/thing";',
+                )
+            ],
+        )
+        kept, root = compiler._addon_resolution_root(flags, self.ROOT)
+        self.assertEqual(
+            kept,
+            [
+                "--alias:@b=./addons/b/static/src",
+                "--alias:@odoo/lib=./addons/web/static/lib/lib.js",
+                "--alias:@a/core/x=/tmp/stub/a/core/x",
+            ],
+            "a library, a stub, or an addon reached through `/../` stays an "
+            "alias; only the other whole addon roots move",
+        )
+        self.assertIsNotNone(root)
+        self.assertEqual(
+            {p.name: str(p.readlink()) for p in Path(root).iterdir()},
+            {"@a": str(self.ROOT / "addons/a/static/src")},
+        )
+        again = compiler._addon_resolution_root(flags, self.ROOT)[1]
+        self.assertEqual(again, root, "the same roots reuse the same directory")
+
+    def test_a_bundle_naming_no_test_file_gets_no_test_externals(self):
+        provider = lambda root: (  # noqa: E731
+            ["--alias:@a=./addons/a/static/src"],
+            ["--external:@a/../tests/*", "--external:./addons/a/static/tests/*"],
+        )
+        app = EsbuildCompiler(
+            "app",
+            [
+                _EntryMod(
+                    "@a/one", url="/a/static/src/one.js", raw_content='import "@a/two";'
+                )
+            ],
+            addon_flags_provider=provider,
+        )
+        _aliases, externals = app._esbuild_flags(self.ROOT, None)
+        self.assertEqual(externals, [])
+        reaching = EsbuildCompiler(
+            "app",
+            [
+                _EntryMod(
+                    "@a/one",
+                    url="/a/static/src/one.js",
+                    raw_content='import { h } from "@b/../tests/helpers";',
+                )
+            ],
+            addon_flags_provider=provider,
+        )
+        _aliases, externals = reaching._esbuild_flags(self.ROOT, None)
+        self.assertEqual(
+            len(externals), 2, "a bundle that names a test file keeps them"
+        )
 
     def test_an_empty_bundle_still_registers_owl(self):
         entry = "\n".join(self._compiler([])._esbuild_entry_lines(self.ROOT))
