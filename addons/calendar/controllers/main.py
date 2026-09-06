@@ -100,7 +100,11 @@ class CalendarController(http.Controller):
 
     @http.route("/calendar/meeting/view", type="http", auth="calendar")
     def view_meeting(self, token, id, **kwargs):
-        attendee = self._attendee_from_token(token, [("event_id", "=", int(id))])
+        try:
+            event_id = int(id)
+        except ValueError:
+            return request.not_found()
+        attendee = self._attendee_from_token(token, [("event_id", "=", event_id)])
         if not attendee:
             return request.not_found()
         timezone = attendee.partner_id.tz
@@ -109,7 +113,7 @@ class CalendarController(http.Controller):
             request.env["calendar.event"]
             .with_context(tz=timezone, lang=lang)
             .sudo()
-            .browse(int(id))
+            .browse(event_id)
         )
         company = (
             event.user_id and event.user_id.company_id
