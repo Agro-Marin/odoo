@@ -150,8 +150,7 @@ def _patch_request_ciusro_synchronize_invoices(company, session, nb_days=1):
     }
 
 
-@tagged("post_install_l10n", "post_install", "-at_install")
-class TestUBLRO(TestUBLCommon):
+class TestUBLROCommon(TestUBLCommon):
     @classmethod
     @TestUBLCommon.setup_country("ro")
     def setUpClass(cls):
@@ -251,6 +250,9 @@ class TestUBLRO(TestUBLCommon):
         self.assertEqual(move.ubl_cii_xml_id.name[-11:], "cius_ro.xml")
         return move.ubl_cii_xml_id
 
+
+@tagged("post_install_l10n", "post_install", "-at_install")
+class TestUBLRO(TestUBLROCommon):
     ####################################################
     # Testing of the XML generation
     ####################################################
