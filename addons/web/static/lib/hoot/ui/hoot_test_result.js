@@ -82,7 +82,7 @@ function stackTemplate(label, owner) {
     `;
 }
 
-const DOC_URL = `https://www.odoo.com/documentation/18.0/developer/reference/frontend/unit_testing/hoot.html#`;
+const DOC_URL = `https://www.odoo.com/documentation/latest/developer/reference/frontend/unit_testing/hoot.html#`;
 
 const ERROR_TEMPLATE = `
     <div class="text-rose flex items-center gap-1 px-2 truncate">

@@ -7,7 +7,7 @@ Saudi Arabia Withholding Tax Module
 Force the installation of the Withholding Tax on Payment module
 """,
     "author": "Odoo S.A.",
-    "website": "https://www.odoo.com/documentation/master/applications/finance/fiscal_localizations/saudi_arabia.html",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations/saudi_arabia.html",
     "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",
     "depends": [

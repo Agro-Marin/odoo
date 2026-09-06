@@ -6,7 +6,7 @@
 Mauritania basic package that contains the chart of accounts, the taxes, tax reports, etc.
     """,
     "author": "Odoo S.A.",
-    "website": "https://www.odoo.com/documentation/master/applications/finance/fiscal_localizations.html",
+    "website": "https://www.odoo.com/documentation/latest/applications/finance/fiscal_localizations.html",
     "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",
     "depends": [
