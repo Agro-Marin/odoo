@@ -78,7 +78,7 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 |------|----------|-----|
 | `controllers/` | 24 `.py` — HTTP endpoints (22 Controller classes, 76 route handlers) | `ROUTE_MAP.md` |
 | `models/` | 25 `.py` — ORM extensions (24 model classes: web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
-| `static/src/` | 850 JavaScript/OWL source files across 248 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `static/src/` | 852 JavaScript/OWL source files across 249 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 18 directories (17 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
 | `static/tests/` | 774 `.js` (incl. 711 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
 | `tests/` | 61 Python test files (`test_*.py`) | `TEST_TAGS.md` |
@@ -442,7 +442,7 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 | Python (controllers) | 24 (22 Controller classes across 20 route-bearing files + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 25 (24 model files + `__init__.py`) |
 | Python (tests) | 61 (`test_*.py`; 62 files incl. `__init__.py`) |
-| JavaScript (src) | 850 (848 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
+| JavaScript (src) | 852 (850 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
 | JavaScript (tests) | 774 (incl. 711 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 94 |
 | SCSS/CSS | 213 (34 in `static/src/scss/` shared base; remaining 179 co-located with JS components) |
