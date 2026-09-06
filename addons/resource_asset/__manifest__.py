@@ -17,5 +17,4 @@
         "views/resource_asset_views.xml",
         "views/menuitems.xml",
     ],
-    "demo": [],
 }

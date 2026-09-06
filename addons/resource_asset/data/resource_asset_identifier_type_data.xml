@@ -7,12 +7,14 @@
         <field name="sequence">1</field>
         <field name="unique_scope">global</field>
     </record>
+
     <record id="identifier_type_plate" model="resource.asset.identifier.type">
         <field name="name">License Plate</field>
         <field name="code">plate</field>
         <field name="sequence">2</field>
         <field name="unique_scope">company</field>
     </record>
+
     <record id="identifier_type_vin" model="resource.asset.identifier.type">
         <field name="name">VIN</field>
         <field name="code">vin</field>
@@ -20,12 +22,14 @@
         <field name="pattern">[A-HJ-NPR-Z0-9]{17}</field>
         <field name="unique_scope">global</field>
     </record>
+
     <record id="identifier_type_engine" model="resource.asset.identifier.type">
         <field name="name">Engine Serial Number</field>
         <field name="code">engine</field>
         <field name="sequence">4</field>
         <field name="unique_scope">global</field>
     </record>
+
     <record id="identifier_type_imei" model="resource.asset.identifier.type">
         <field name="name">IMEI</field>
         <field name="code">imei</field>
@@ -33,6 +37,7 @@
         <field name="pattern">[0-9]{15}</field>
         <field name="unique_scope">global</field>
     </record>
+
     <record id="identifier_type_cadastral" model="resource.asset.identifier.type">
         <field name="name">Cadastral Reference</field>
         <field name="code">cadastral</field>

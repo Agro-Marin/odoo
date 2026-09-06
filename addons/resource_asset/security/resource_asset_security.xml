@@ -27,22 +27,26 @@
         <record id="resource_asset_rule_multi_company" model="ir.rule">
             <field name="name">resource.asset: multi-company rule</field>
             <field name="model_id" ref="model_resource_asset" />
-            <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+            <field
+                name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
         </record>
         <record id="resource_asset_identifier_rule_multi_company" model="ir.rule">
             <field name="name">resource.asset.identifier: multi-company rule</field>
             <field name="model_id" ref="model_resource_asset_identifier" />
-            <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+            <field
+                name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
         </record>
         <record id="resource_asset_meter_rule_multi_company" model="ir.rule">
             <field name="name">resource.asset.meter: multi-company rule</field>
             <field name="model_id" ref="model_resource_asset_meter" />
-            <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+            <field
+                name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
         </record>
         <record id="resource_asset_meter_reading_rule_multi_company" model="ir.rule">
             <field name="name">resource.asset.meter.reading: multi-company rule</field>
             <field name="model_id" ref="model_resource_asset_meter_reading" />
-            <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+            <field
+                name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
         </record>
     </data>
 

@@ -5,7 +5,9 @@
         <field name="name">resource.asset.list</field>
         <field name="model">resource.asset</field>
         <field name="arch" type="xml">
-            <list string="Assets" decoration-muted="state in ('out_of_service', 'disposed')">
+            <list
+                string="Assets"
+                decoration-muted="state in ('out_of_service', 'disposed')">
                 <field name="name" />
                 <field name="kind_id" />
                 <field name="state" />
@@ -63,7 +65,10 @@
                         string="Dispose"
                         invisible="state == 'disposed'"
                         confirm="Dispose of this asset? It is archived and its custody ends today." />
-                    <field name="state" widget="statusbar" statusbar_visible="draft,in_service" />
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="draft,in_service" />
                 </header>
                 <sheet>
                     <widget
@@ -92,7 +97,9 @@
                             <field
                                 name="company_id"
                                 groups="base.group_multi_company" />
-                            <field name="resource_calendar_id" placeholder="Around the clock" />
+                            <field
+                                name="resource_calendar_id"
+                                placeholder="Around the clock" />
                             <field name="tz" />
                         </group>
                     </group>
@@ -124,7 +131,9 @@
                             </field>
                         </page>
                         <page string="Custody" name="custody">
-                            <field name="assignment_ids" context="{'default_resource_id': resource_id}">
+                            <field
+                                name="assignment_ids"
+                                context="{'default_resource_id': resource_id}">
                                 <list editable="bottom">
                                     <field name="assignee_id" />
                                     <field name="role" />
@@ -142,7 +151,10 @@
                                 </group>
                                 <group>
                                     <field name="resource_id" readonly="1" />
-                                    <field name="child_ids" widget="many2many_tags" readonly="1" />
+                                    <field
+                                        name="child_ids"
+                                        widget="many2many_tags"
+                                        readonly="1" />
                                 </group>
                             </group>
                             <field name="description" placeholder="Notes" />
@@ -160,21 +172,51 @@
         <field name="arch" type="xml">
             <search string="Assets">
                 <field name="name" />
-                <field name="identifier_ids" string="Identifier" filter_domain="[('identifier_ids.normalized_value', 'ilike', self)]" />
+                <field
+                    name="identifier_ids"
+                    string="Identifier"
+                    filter_domain="[('identifier_ids.normalized_value', 'ilike', self)]" />
                 <field name="kind_id" />
                 <field name="holder_id" />
-                <filter name="in_service" string="In Service" domain="[('state', '=', 'in_service')]" />
-                <filter name="maintenance" string="Under Maintenance" domain="[('state', '=', 'maintenance')]" />
-                <filter name="draft" string="Draft" domain="[('state', '=', 'draft')]" />
+                <filter
+                    name="in_service"
+                    string="In Service"
+                    domain="[('state', '=', 'in_service')]" />
+                <filter
+                    name="maintenance"
+                    string="Under Maintenance"
+                    domain="[('state', '=', 'maintenance')]" />
+                <filter
+                    name="draft"
+                    string="Draft"
+                    domain="[('state', '=', 'draft')]" />
                 <separator />
-                <filter name="held" string="Held" domain="[('holder_id', '!=', False)]" />
-                <filter name="unheld" string="Unassigned" domain="[('holder_id', '=', False)]" />
+                <filter
+                    name="held"
+                    string="Held"
+                    domain="[('holder_id', '!=', False)]" />
+                <filter
+                    name="unheld"
+                    string="Unassigned"
+                    domain="[('holder_id', '=', False)]" />
                 <separator />
-                <filter name="archived" string="Archived" domain="[('active', '=', False)]" />
+                <filter
+                    name="archived"
+                    string="Archived"
+                    domain="[('active', '=', False)]" />
                 <separator />
-                <filter name="group_kind" string="Kind" context="{'group_by': 'kind_id'}" />
-                <filter name="group_state" string="State" context="{'group_by': 'state'}" />
-                <filter name="group_holder" string="Holder" context="{'group_by': 'holder_id'}" />
+                <filter
+                    name="group_kind"
+                    string="Kind"
+                    context="{'group_by': 'kind_id'}" />
+                <filter
+                    name="group_state"
+                    string="State"
+                    context="{'group_by': 'state'}" />
+                <filter
+                    name="group_holder"
+                    string="Holder"
+                    context="{'group_by': 'holder_id'}" />
             </search>
         </field>
     </record>
