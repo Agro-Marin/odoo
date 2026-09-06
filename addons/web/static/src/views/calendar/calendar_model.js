@@ -815,74 +815,13 @@ export class CalendarModel extends Model {
      * @protected
      */
     async loadDynamicFilterSection(data, fieldName, filterInfo, previousSection) {
-        const { fields, fieldMapping } = this.meta;
-        const field = fields[fieldName];
         const previousFilters = previousSection ? previousSection.filters : [];
-
-        const rawFiltersById = new Map();
-        for (const record of Object.values(data.records)) {
-            let rawValues = isX2Many(field)
-                ? record.rawRecord[fieldName]
-                : [record.rawRecord[fieldName]];
-            if (!rawValues.length) {
-                rawValues = [false];
-            }
-
-            for (const rawValue of rawValues) {
-                const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
-                if (!rawFiltersById.has(value)) {
-                    rawFiltersById.set(value, {
-                        id: value,
-                        [fieldName]: rawValue,
-                        ...this.addFilterFields(record, filterInfo),
-                    });
-                }
-            }
-        }
-        const rawFilters = [...rawFiltersById.values()];
-
-        const fieldIsX2Many = isX2Many(field);
-
-        const relatedIds = rawFilters.map((f) => f.id).filter((id) => id);
-        let rawColors = [];
-        if (relatedIds.length && field.relation) {
-            const fieldsToFetch = [];
-            const { colorFieldName } = filterInfo;
-            const shouldFetchColor =
-                colorFieldName &&
-                (!fieldMapping.color ||
-                    `${fieldName}.${colorFieldName}` !==
-                        fields[fieldMapping.color].related);
-            if (shouldFetchColor) {
-                fieldsToFetch.push(colorFieldName);
-            }
-            if (fieldIsX2Many) {
-                fieldsToFetch.push("display_name");
-            }
-            if (fieldsToFetch.length) {
-                const records = await this.orm.searchRead(
-                    field.relation,
-                    [["id", "in", relatedIds]],
-                    fieldsToFetch,
-                    { context: { active_test: false } },
-                );
-                if (fieldIsX2Many) {
-                    const nameById = Object.fromEntries(
-                        records.map((r) => [r.id, r.display_name]),
-                    );
-                    for (const rawFilter of rawFilters) {
-                        const id = rawFilter.id;
-                        if (!id || !nameById[id]) {
-                            continue;
-                        }
-                        rawFilter[fieldName] = [id, nameById[id]];
-                    }
-                }
-                if (shouldFetchColor) {
-                    rawColors = records;
-                }
-            }
-        }
+        const rawFilters = this.collectDynamicRawFilters(data, fieldName, filterInfo);
+        const rawColors = await this.fetchDynamicFilterColors(
+            rawFilters,
+            fieldName,
+            filterInfo,
+        );
 
         const previousDynamicFilters = new Map();
         for (const filter of previousFilters) {
@@ -915,6 +854,89 @@ export class CalendarModel extends Model {
             },
             canAddFilter: !!filterInfo.writeResModel,
         };
+    }
+
+    /**
+     * One raw filter per distinct value the loaded records hold for the field,
+     * `false` standing for the records that hold none.
+     *
+     * @protected
+     */
+    collectDynamicRawFilters(data, fieldName, filterInfo) {
+        const field = this.meta.fields[fieldName];
+        const rawFiltersById = new Map();
+        for (const record of Object.values(data.records)) {
+            let rawValues = isX2Many(field)
+                ? record.rawRecord[fieldName]
+                : [record.rawRecord[fieldName]];
+            if (!rawValues.length) {
+                rawValues = [false];
+            }
+            for (const rawValue of rawValues) {
+                const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+                if (!rawFiltersById.has(value)) {
+                    rawFiltersById.set(value, {
+                        id: value,
+                        [fieldName]: rawValue,
+                        ...this.addFilterFields(record, filterInfo),
+                    });
+                }
+            }
+        }
+        return [...rawFiltersById.values()];
+    }
+
+    /**
+     * The colour records behind the filters, when the filter's colour is not
+     * already what the event's own colour field relates to; an x2many's
+     * display names ride the same read. Mutates the x2many raw filters.
+     *
+     * @protected
+     * @returns {Promise<Record<string, any>[]>}
+     */
+    async fetchDynamicFilterColors(rawFilters, fieldName, filterInfo) {
+        const { fields, fieldMapping } = this.meta;
+        const field = fields[fieldName];
+        const relatedIds = rawFilters.map((f) => f.id).filter((id) => id);
+        if (!relatedIds.length || !field.relation) {
+            return [];
+        }
+        const fieldIsX2Many = isX2Many(field);
+        const fieldsToFetch = [];
+        const { colorFieldName } = filterInfo;
+        const shouldFetchColor =
+            colorFieldName &&
+            (!fieldMapping.color ||
+                `${fieldName}.${colorFieldName}` !==
+                    fields[fieldMapping.color].related);
+        if (shouldFetchColor) {
+            fieldsToFetch.push(colorFieldName);
+        }
+        if (fieldIsX2Many) {
+            fieldsToFetch.push("display_name");
+        }
+        if (!fieldsToFetch.length) {
+            return [];
+        }
+        const records = await this.orm.searchRead(
+            field.relation,
+            [["id", "in", relatedIds]],
+            fieldsToFetch,
+            { context: { active_test: false } },
+        );
+        if (fieldIsX2Many) {
+            const nameById = Object.fromEntries(
+                records.map((r) => [r.id, r.display_name]),
+            );
+            for (const rawFilter of rawFilters) {
+                const id = rawFilter.id;
+                if (!id || !nameById[id]) {
+                    continue;
+                }
+                rawFilter[fieldName] = [id, nameById[id]];
+            }
+        }
+        return shouldFetchColor ? records : [];
     }
     /**
      * @protected

@@ -24,6 +24,41 @@ import { KanbanCogMenu } from "./kanban_cog_menu.js";
 import { KanbanRenderer } from "./kanban_renderer.js";
 import { useProgressBar } from "./progress_bar_hook.js";
 
+/** @type {WeakMap<Function, Function>} */
+const sampleModelByModel = new WeakMap();
+
+/**
+ * The kanban's view of sample data over a Model class: one subclass per Model,
+ * not one per controller instance.
+ *
+ * @param {any} Model
+ * @returns {any}
+ */
+function kanbanSampleModel(Model) {
+    let KanbanSampleModel = sampleModelByModel.get(Model);
+    if (!KanbanSampleModel) {
+        KanbanSampleModel = class KanbanSampleModel extends Model {
+            hasData() {
+                if (this.root.groups && !this.root.groups.length) {
+                    return true;
+                }
+                return super.hasData();
+            }
+
+            removeSampleDataInGroups() {
+                if (this.useSampleModel) {
+                    for (const group of this.root.groups) {
+                        group.count = 0;
+                        group.list.clearSampleData();
+                    }
+                }
+            }
+        };
+        sampleModelByModel.set(Model, KanbanSampleModel);
+    }
+    return KanbanSampleModel;
+}
+
 const QUICK_CREATE_FIELD_TYPES = [
     "char",
     "boolean",
@@ -69,29 +104,9 @@ export class KanbanController extends MultiRecordController {
      * @override
      */
     setupModel() {
-        const { Model } = this.props;
-
-        class KanbanSampleModel extends Model {
-            hasData() {
-                if (this.root.groups && !this.root.groups.length) {
-                    return true;
-                }
-                return super.hasData();
-            }
-
-            removeSampleDataInGroups() {
-                if (this.useSampleModel) {
-                    for (const group of this.root.groups) {
-                        group.count = 0;
-                        group.list.clearSampleData();
-                    }
-                }
-            }
-        }
-
         this.model = useState(
             useModelWithSampleData(
-                /** @type {any} */ (KanbanSampleModel),
+                /** @type {any} */ (kanbanSampleModel(this.props.Model)),
                 this.modelParams,
                 /** @type {any} */ (this.modelOptions),
             ),
@@ -135,71 +150,17 @@ export class KanbanController extends MultiRecordController {
             rootRef: this.rootRef,
             beforeUnload: this.beforeUnload.bind(this),
             beforeLeave: this.beforeLeave.bind(this),
-            getLocalState: () => {
-                const state = {
-                    activeBars: this.progressBarState?.activeBars,
-                    modelState: this.model.exportState(),
-                };
-                if (this.env.isSmall && this.model.root.isGrouped) {
-                    const columnScrollTops = [];
-                    const sel = ".o_kanban_group:not(.o_column_folded)";
-                    const columnEls = /** @type {HTMLElement} */ (
-                        this.rootRef.el
-                    ).querySelectorAll(sel);
-                    const groups = this.model.root.groups;
-                    for (const columnEl of columnEls) {
-                        const scrollTop = columnEl.scrollTop;
-                        if (scrollTop > 0) {
-                            const group = groups.find(
-                                (g) => g.id === columnEl.dataset.id,
-                            );
-                            if (group) {
-                                columnScrollTops.push([
-                                    group.serverValue,
-                                    columnEl.scrollTop,
-                                ]);
-                            }
-                        }
-                    }
-                    state.scrollPositions = {
-                        scrollLeft:
-                            this.rootRef.el?.querySelector(".o_renderer")?.scrollLeft ||
-                            0,
-                        columnScrollTops,
-                    };
-                }
-                return state;
-            },
+            getLocalState: () => this.getLocalState(),
         });
         useEffect(
             (isReady) => {
-                if (isReady) {
-                    if (this.env.isSmall && this.model.root.isGrouped) {
-                        const { scrollPositions } = this.props.state || {};
-                        if (scrollPositions) {
-                            const { scrollLeft, columnScrollTops } = scrollPositions;
-                            const renderer =
-                                this.rootRef.el?.querySelector(".o_renderer");
-                            if (renderer) {
-                                renderer.scrollLeft = scrollLeft;
-                            }
-                            const groups = this.model.root.groups;
-                            for (const [serverValue, scrollTop] of columnScrollTops) {
-                                const group = groups.find(
-                                    (g) => g.serverValue === serverValue,
-                                );
-                                if (group) {
-                                    const sel = `.o_kanban_group[data-id="${group.id}"]`;
-                                    const el = this.rootRef.el?.querySelector(sel);
-                                    if (el) {
-                                        el.scrollTop = scrollTop;
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        setScrollFromState();
-                    }
+                if (!isReady) {
+                    return;
+                }
+                if (this.env.isSmall && this.model.root.isGrouped) {
+                    this.restoreColumnScrollPositions();
+                } else {
+                    setScrollFromState();
                 }
             },
             () => [this.model.isReady],
@@ -223,6 +184,72 @@ export class KanbanController extends MultiRecordController {
                 };
             }
         });
+    }
+
+    /**
+     * @returns {Record<string, any>}
+     */
+    getLocalState() {
+        const state = {
+            activeBars: this.progressBarState?.activeBars,
+            modelState: this.model.exportState(),
+        };
+        if (this.env.isSmall && this.model.root.isGrouped) {
+            state.scrollPositions = this.getColumnScrollPositions();
+        }
+        return state;
+    }
+
+    /**
+     * Where each unfolded column and the renderer scrolled to, keyed by the
+     * group's server value so a reload can find the column again.
+     *
+     * @returns {{ scrollLeft: number, columnScrollTops: [any, number][] }}
+     */
+    getColumnScrollPositions() {
+        /** @type {[any, number][]} */
+        const columnScrollTops = [];
+        const sel = ".o_kanban_group:not(.o_column_folded)";
+        const columnEls = /** @type {HTMLElement} */ (this.rootRef.el).querySelectorAll(
+            sel,
+        );
+        const groups = this.model.root.groups;
+        for (const columnEl of columnEls) {
+            const scrollTop = columnEl.scrollTop;
+            if (scrollTop > 0) {
+                const group = groups.find((g) => g.id === columnEl.dataset.id);
+                if (group) {
+                    columnScrollTops.push([group.serverValue, columnEl.scrollTop]);
+                }
+            }
+        }
+        return {
+            scrollLeft: this.rootRef.el?.querySelector(".o_renderer")?.scrollLeft || 0,
+            columnScrollTops,
+        };
+    }
+
+    restoreColumnScrollPositions() {
+        const { scrollPositions } = this.props.state || {};
+        if (!scrollPositions) {
+            return;
+        }
+        const { scrollLeft, columnScrollTops } = scrollPositions;
+        const renderer = this.rootRef.el?.querySelector(".o_renderer");
+        if (renderer) {
+            renderer.scrollLeft = scrollLeft;
+        }
+        const groups = this.model.root.groups;
+        for (const [serverValue, scrollTop] of columnScrollTops) {
+            const group = groups.find((g) => g.serverValue === serverValue);
+            if (group) {
+                const sel = `.o_kanban_group[data-id="${group.id}"]`;
+                const el = this.rootRef.el?.querySelector(sel);
+                if (el) {
+                    el.scrollTop = scrollTop;
+                }
+            }
+        }
     }
 
     /**

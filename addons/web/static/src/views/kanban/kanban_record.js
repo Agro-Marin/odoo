@@ -250,6 +250,10 @@ export class KanbanRecord extends Component {
                 this.formattedRecord = getFormattedRecord(nextProps.record);
             }
         });
+        // A microtask boundary, not a no-op: without it a card created by a
+        // render fiber that a concurrent state write is about to supersede does
+        // its first render on the discarded fiber (wasted formatting, and a
+        // render count the kanban suite pins); see 4a6f41afb08.
         onWillStart(() => Promise.resolve());
         this.rootRef = useRef("root");
         this.hasTouch = hasTouch();

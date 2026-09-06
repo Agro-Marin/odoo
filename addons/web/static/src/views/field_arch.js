@@ -49,6 +49,96 @@ function warnUnknownOptions(widget, field, options) {
 }
 
 /**
+ * The sub-views an x2many field renders with: the widget's own related fields
+ * as a "default" view, and every <list>/<kanban>/... child parsed by its own
+ * arch parser. Mutates `fieldInfo`.
+ *
+ * @param {Element} node
+ * @param {Record<string, any>} fieldInfo
+ * @param {Record<string, any>} models
+ * @param {{ relation?: string, [k: string]: any }} field
+ */
+function parseX2ManyViews(node, fieldInfo, models, field) {
+    const views = {};
+    let relatedFields = fieldInfo.field.relatedFields;
+    if (relatedFields) {
+        if (relatedFields instanceof Function) {
+            relatedFields = relatedFields(fieldInfo);
+        }
+        const relatedFieldsArr = /** @type {any[]} */ (relatedFields);
+        for (const relatedField of relatedFieldsArr) {
+            if (!("readonly" in relatedField)) {
+                relatedField.readonly = true;
+            }
+        }
+        relatedFields = Object.fromEntries(relatedFieldsArr.map((f) => [f.name, f]));
+        views.default = {
+            fieldNodes: relatedFields,
+            fields: relatedFields,
+        };
+        if (!fieldInfo.field.useSubView) {
+            fieldInfo.viewMode = "default";
+        }
+    }
+    const relation = /** @type {string} */ (field.relation);
+    for (const child of node.children) {
+        const viewType = child.tagName;
+        const { ArchParser } =
+            /** @type {{ ArchParser: new () => { parse: (n: Element, m: any, r?: string) => any } }} */ (
+                viewRegistry.get(viewType)
+            );
+        const childCopy = /** @type {Element} */ (child.cloneNode(true));
+        const archInfo = new ArchParser().parse(childCopy, models, relation);
+        views[viewType] = {
+            ...archInfo,
+            limit: archInfo.limit || 40,
+            fields: models[relation].fields,
+        };
+    }
+
+    let viewMode = node.getAttribute("mode");
+    if (viewMode) {
+        if (viewMode.split(",").length !== 1) {
+            viewMode = isSmall() ? "kanban" : "list";
+        }
+    } else {
+        if (views.list && !views.kanban) {
+            viewMode = "list";
+        } else if (!views.list && views.kanban) {
+            viewMode = "kanban";
+        } else if (views.list && views.kanban) {
+            viewMode = isSmall() ? "kanban" : "list";
+        }
+    }
+    if (viewMode) {
+        fieldInfo.viewMode = viewMode;
+    }
+    if (Object.keys(views).length) {
+        fieldInfo.relatedFields = models[relation]?.fields;
+        fieldInfo.views = views;
+    }
+}
+
+/**
+ * @param {Record<string, any>} fieldInfo
+ */
+function parseMany2OneViews(fieldInfo) {
+    /** @type {any} */
+    let relatedFields = fieldInfo.field.relatedFields;
+    if (!relatedFields) {
+        return;
+    }
+    relatedFields = Object.fromEntries(relatedFields.map((f) => [f.name, f]));
+    fieldInfo.viewMode = "default";
+    fieldInfo.views = {
+        default: {
+            fieldNodes: relatedFields,
+            fields: relatedFields,
+        },
+    };
+}
+
+/**
  * @param {Element} node
  * @param {Record<string, { fields: Record<string, { type: string, string?: string, relation?: string, readonly?: boolean, [k: string]: any }> }>} models
  * @param {string} modelName
@@ -128,84 +218,10 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
     }
 
     if (isX2ManyType(fields[name].type)) {
-        const views = {};
-        let relatedFields = fieldInfo.field.relatedFields;
-        if (relatedFields) {
-            if (relatedFields instanceof Function) {
-                relatedFields = relatedFields(fieldInfo);
-            }
-            const relatedFieldsArr = /** @type {any[]} */ (relatedFields);
-            for (const relatedField of relatedFieldsArr) {
-                if (!("readonly" in relatedField)) {
-                    relatedField.readonly = true;
-                }
-            }
-            relatedFields = Object.fromEntries(
-                relatedFieldsArr.map((f) => [f.name, f]),
-            );
-            views.default = {
-                fieldNodes: relatedFields,
-                fields: relatedFields,
-            };
-            if (!fieldInfo.field.useSubView) {
-                fieldInfo.viewMode = "default";
-            }
-        }
-        for (const child of node.children) {
-            const viewType = child.tagName;
-            const { ArchParser } =
-                /** @type {{ ArchParser: new () => { parse: (n: Element, m: any, r?: string) => any } }} */ (
-                    viewRegistry.get(viewType)
-                );
-            const childCopy = /** @type {Element} */ (child.cloneNode(true));
-            const archInfo = new ArchParser().parse(
-                childCopy,
-                models,
-                fields[name].relation,
-            );
-            views[viewType] = {
-                ...archInfo,
-                limit: archInfo.limit || 40,
-                fields: models[/** @type {string} */ (fields[name].relation)].fields,
-            };
-        }
-
-        let viewMode = node.getAttribute("mode");
-        if (viewMode) {
-            if (viewMode.split(",").length !== 1) {
-                viewMode = isSmall() ? "kanban" : "list";
-            }
-        } else {
-            if (views.list && !views.kanban) {
-                viewMode = "list";
-            } else if (!views.list && views.kanban) {
-                viewMode = "kanban";
-            } else if (views.list && views.kanban) {
-                viewMode = isSmall() ? "kanban" : "list";
-            }
-        }
-        if (viewMode) {
-            fieldInfo.viewMode = viewMode;
-        }
-        if (Object.keys(views).length) {
-            fieldInfo.relatedFields =
-                models[/** @type {string} */ (fields[name].relation)]?.fields;
-            fieldInfo.views = views;
-        }
+        parseX2ManyViews(node, fieldInfo, models, fields[name]);
     }
     if (["many2one", "many2one_reference"].includes(fields[name].type)) {
-        /** @type {any} */
-        let relatedFields = fieldInfo.field.relatedFields;
-        if (relatedFields) {
-            relatedFields = Object.fromEntries(relatedFields.map((f) => [f.name, f]));
-            fieldInfo.viewMode = "default";
-            fieldInfo.views = {
-                default: {
-                    fieldNodes: relatedFields,
-                    fields: relatedFields,
-                },
-            };
-        }
+        parseMany2OneViews(fieldInfo);
     }
 
     return fieldInfo;

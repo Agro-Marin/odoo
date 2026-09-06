@@ -126,6 +126,15 @@ export class KanbanRenderer extends Component {
         }
         this.rootRef = useRef("root");
 
+        this.setupSelectionAndGroups();
+        this.setupSortable();
+        this.setupFocus();
+        onWillDestroy(() => {
+            this.dialogClose.forEach((close) => close());
+        });
+    }
+
+    setupSelectionAndGroups() {
         this.sel = useRecordSelection({
             getRecords: () => this.props.list.records,
             rangeToggle: (record) => this.toggleRangeSelection(record),
@@ -133,7 +142,6 @@ export class KanbanRenderer extends Component {
                 this.state.selectionAvailable = available;
             },
         });
-
         this.groupOps = useGroupManagement({
             getList: () => this.props.list,
             getArchInfo: () => this.props.archInfo,
@@ -143,7 +151,9 @@ export class KanbanRenderer extends Component {
                 }
             },
         });
+    }
 
+    setupSortable() {
         useKanbanSortable({
             rootRef: this.rootRef,
             getCanUseSortable: () => this.canUseSortable,
@@ -161,7 +171,6 @@ export class KanbanRenderer extends Component {
             onSortGroupDrop: (dataGroupId, params) =>
                 this.sortGroupDrop(dataGroupId, params),
         });
-
         useBounceButton(this.rootRef, (clickedEl) => {
             if (
                 this.props.list.isGrouped
@@ -180,10 +189,9 @@ export class KanbanRenderer extends Component {
             }
             return false;
         });
-        onWillDestroy(() => {
-            this.dialogClose.forEach((close) => close());
-        });
+    }
 
+    setupFocus() {
         if (this.env.searchModel) {
             useBus(this.env.searchModel, SearchModelEvent.FOCUS_VIEW, () => {
                 const { model } = this.props.list;
@@ -196,7 +204,6 @@ export class KanbanRenderer extends Component {
                 }
             });
         }
-
         useKanbanKeyboardNavigation({
             rootRef: this.rootRef,
             getCanOpenRecords: () => this.props.archInfo.canOpenRecords,
@@ -206,40 +213,42 @@ export class KanbanRenderer extends Component {
                 this.focusNextCard(area, direction) ?? false,
             searchModel: this.env.searchModel,
         });
+        onPatched(() => this.scrollToLastOpenedGroup());
+    }
 
-        onPatched(() => {
-            if (this.lastOpenedGroupId) {
-                const groups = this.getGroupsOrRecords();
-                const lastOpenedGroupIndex = groups.findIndex(
-                    (g) => g.group.id === this.lastOpenedGroupId,
-                );
-                let groupIdToFocus = this.lastOpenedGroupId;
-                if (
-                    lastOpenedGroupIndex >= 0 &&
-                    lastOpenedGroupIndex < groups.length - 1 &&
-                    groups[lastOpenedGroupIndex + 1].group.isFolded
-                ) {
-                    groupIdToFocus = groups[lastOpenedGroupIndex + 1].group.id;
-                }
-                const groupEl = /** @type {HTMLElement} */ (
-                    this.rootRef.el?.querySelector(
-                        `.o_kanban_group[data-id="${groupIdToFocus}"]`,
-                    )
-                );
-                if (!groupEl) {
-                    delete this.lastOpenedGroupId;
-                    return;
-                }
-                const rect = groupEl.getBoundingClientRect();
-                if (rect.x + rect.width > window.innerWidth) {
-                    groupEl.scrollIntoView({
-                        behavior: "smooth",
-                        inline: "end",
-                    });
-                }
-                delete this.lastOpenedGroupId;
-            }
-        });
+    /**
+     * After a folded group opens, bring it (or the folded neighbour it pushed
+     * off-screen) into view.
+     */
+    scrollToLastOpenedGroup() {
+        if (!this.lastOpenedGroupId) {
+            return;
+        }
+        const groups = this.getGroupsOrRecords();
+        const lastOpenedGroupIndex = groups.findIndex(
+            (g) => g.group.id === this.lastOpenedGroupId,
+        );
+        let groupIdToFocus = this.lastOpenedGroupId;
+        if (
+            lastOpenedGroupIndex >= 0 &&
+            lastOpenedGroupIndex < groups.length - 1 &&
+            groups[lastOpenedGroupIndex + 1].group.isFolded
+        ) {
+            groupIdToFocus = groups[lastOpenedGroupIndex + 1].group.id;
+        }
+        const groupEl = /** @type {HTMLElement} */ (
+            this.rootRef.el?.querySelector(
+                `.o_kanban_group[data-id="${groupIdToFocus}"]`,
+            )
+        );
+        delete this.lastOpenedGroupId;
+        if (!groupEl) {
+            return;
+        }
+        const rect = groupEl.getBoundingClientRect();
+        if (rect.x + rect.width > window.innerWidth) {
+            groupEl.scrollIntoView({ behavior: "smooth", inline: "end" });
+        }
     }
 
     get canUseSortable() {

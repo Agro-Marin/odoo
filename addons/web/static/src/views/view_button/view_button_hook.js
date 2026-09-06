@@ -54,6 +54,116 @@ function undefinedAsTrue(val) {
  */
 
 /**
+ * @param {Record<string, any>} clickParams
+ * @param {Record<string, any>} params the button's record parameters
+ * @returns {Record<string, any>}
+ */
+function buildButtonContext(clickParams, params) {
+    let buttonContext = {};
+    if (clickParams.context) {
+        buttonContext =
+            typeof clickParams.context === "string"
+                ? evaluateExpr(clickParams.context, params.evalContext)
+                : clickParams.context;
+    }
+    if (clickParams.buttonContext) {
+        Object.assign(buttonContext, clickParams.buttonContext);
+    }
+    return buttonContext;
+}
+
+/**
+ * Run one view button click end to end: the before hooks, the action, the
+ * after hook, then the dialog it may close.
+ *
+ * @param {Object} deps
+ * @param {any} deps.action
+ * @param {any} deps.comp
+ * @param {any} deps.env
+ * @param {ViewButtonsOptions} deps.options
+ * @param {Object} click
+ * @param {Record<string, any>} click.clickParams
+ * @param {() => Record<string, any>} click.getResParams
+ * @param {() => any} [click.beforeExecute]
+ * @param {boolean} [click.newWindow]
+ */
+async function executeViewButton(
+    { action, comp, env, options },
+    { clickParams, getResParams, beforeExecute, newWindow },
+) {
+    let _continue = true;
+    if (beforeExecute) {
+        _continue = undefinedAsTrue(await beforeExecute());
+    }
+    _continue =
+        _continue && undefinedAsTrue(await options.beforeExecuteAction?.(clickParams));
+    if (!_continue) {
+        return;
+    }
+    const closeDialog =
+        (clickParams.close || clickParams.special) && env.dialogData?.close;
+    const params = getResParams();
+    const doActionParams = {
+        ...clickParams,
+        resModel: params.resModel,
+        resId: params.resId,
+        resIds: params.resIds,
+        context: params.context || {},
+        buttonContext: buildButtonContext(clickParams, params),
+        onClose: async (onCloseInfo) => {
+            if (
+                !closeDialog &&
+                status(comp) !== "destroyed" &&
+                !onCloseInfo?.noReload
+            ) {
+                await options.reload?.();
+            }
+        },
+    };
+    let error;
+    try {
+        await action.doActionButton(doActionParams, { newWindow });
+    } catch (_e) {
+        error = _e;
+    }
+    await options.afterExecuteAction?.(clickParams);
+    if (closeDialog) {
+        closeDialog();
+    }
+    if (error) {
+        return Promise.reject(error);
+    }
+}
+
+/**
+ * @param {any} dialog
+ * @param {Record<string, any>} clickParams
+ * @param {() => Promise<any>} execute
+ * @returns {Promise<void>}
+ */
+function confirmThenExecute(dialog, clickParams, execute) {
+    return new Promise((resolve) => {
+        const dialogProps = {
+            ...(clickParams["confirm-title"] && {
+                title: clickParams["confirm-title"],
+            }),
+            ...(clickParams["confirm-label"] && {
+                confirmLabel: clickParams["confirm-label"],
+            }),
+            ...(clickParams["cancel-label"] && {
+                cancelLabel: clickParams["cancel-label"],
+            }),
+            body: clickParams.confirm,
+            confirm: () => execute(),
+            cancel: () => {},
+        };
+        dialog.add(ConfirmationDialog, dialogProps, {
+            onClose: /** @type {any} */ (resolve),
+        });
+    });
+}
+
+/**
  * @param {{ readonly el: HTMLElement | null; }} ref
  * @param {ViewButtonsOptions} [options={}]
  */
@@ -62,107 +172,7 @@ export function useViewButtons(ref, options = {}) {
     const dialog = useService("dialog");
     const comp = useComponent();
     const env = useEnv();
-    useSubEnv({
-        async onClickViewButton({
-            clickParams,
-            getResParams,
-            beforeExecute,
-            newWindow,
-        }) {
-            async function execute() {
-                let _continue = true;
-                if (beforeExecute) {
-                    _continue = undefinedAsTrue(await beforeExecute());
-                }
-
-                _continue =
-                    _continue &&
-                    undefinedAsTrue(await options.beforeExecuteAction?.(clickParams));
-                if (!_continue) {
-                    return;
-                }
-                const closeDialog =
-                    (clickParams.close || clickParams.special) && env.dialogData?.close;
-                const params = getResParams();
-                let buttonContext = {};
-                if (clickParams.context) {
-                    if (typeof clickParams.context === "string") {
-                        buttonContext = evaluateExpr(
-                            clickParams.context,
-                            params.evalContext,
-                        );
-                    } else {
-                        buttonContext = clickParams.context;
-                    }
-                }
-                if (clickParams.buttonContext) {
-                    Object.assign(buttonContext, clickParams.buttonContext);
-                }
-                const doActionParams = {
-                    ...clickParams,
-                    resModel: params.resModel,
-                    resId: params.resId,
-                    resIds: params.resIds,
-                    context: params.context || {},
-                    buttonContext,
-                    onClose: async (onCloseInfo) => {
-                        if (
-                            !closeDialog &&
-                            status(comp) !== "destroyed" &&
-                            !onCloseInfo?.noReload
-                        ) {
-                            await options.reload?.();
-                        }
-                    },
-                };
-                let error;
-                try {
-                    await action.doActionButton(doActionParams, { newWindow });
-                } catch (_e) {
-                    error = _e;
-                }
-                await options.afterExecuteAction?.(clickParams);
-                if (closeDialog) {
-                    closeDialog();
-                }
-                if (error) {
-                    return Promise.reject(error);
-                }
-            }
-
-            if (clickParams.confirm) {
-                return executeButtonCallback(
-                    /** @type {HTMLElement} */ (getEl()),
-                    async () => {
-                        await new Promise((resolve) => {
-                            const dialogProps = {
-                                ...(clickParams["confirm-title"] && {
-                                    title: clickParams["confirm-title"],
-                                }),
-                                ...(clickParams["confirm-label"] && {
-                                    confirmLabel: clickParams["confirm-label"],
-                                }),
-                                ...(clickParams["cancel-label"] && {
-                                    cancelLabel: clickParams["cancel-label"],
-                                }),
-                                body: clickParams.confirm,
-                                confirm: () => execute(),
-                                cancel: () => {},
-                            };
-                            dialog.add(ConfirmationDialog, dialogProps, {
-                                onClose: /** @type {any} */ (resolve),
-                            });
-                        });
-                    },
-                );
-            } else {
-                return executeButtonCallback(
-                    /** @type {HTMLElement} */ (getEl()),
-                    execute,
-                );
-            }
-        },
-    });
+    const deps = { action, comp, env, options };
 
     function getEl() {
         if (env.inDialog) {
@@ -172,6 +182,19 @@ export function useViewButtons(ref, options = {}) {
             return ref.el;
         }
     }
+
+    useSubEnv({
+        async onClickViewButton(click) {
+            const execute = () => executeViewButton(deps, click);
+            const el = /** @type {HTMLElement} */ (getEl());
+            if (click.clickParams.confirm) {
+                return executeButtonCallback(el, () =>
+                    confirmThenExecute(dialog, click.clickParams, execute),
+                );
+            }
+            return executeButtonCallback(el, execute);
+        },
+    });
 }
 
 sharedComponents.add("executeButtonCallback", executeButtonCallback);
