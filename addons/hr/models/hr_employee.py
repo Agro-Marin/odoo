@@ -892,6 +892,7 @@ class HrEmployee(models.Model):
             self._reparent_private_address()
             self._bind_resource_to_party()
             self._move_identifiers_to_party(former_parties)
+            self._retire_former_party(former_parties)
         if version_vals:
             version_vals["last_modified_date"] = fields.Datetime.now()
             version_vals["last_modified_uid"] = self.env.uid
@@ -2925,6 +2926,29 @@ class HrEmployee(models.Model):
             )
             if to_move:
                 to_move.partner_id = party.id
+
+    def _retire_former_party(self, former_parties):
+        # The party a link leaves behind is a shell when nothing else is that
+        # person: no login, no other employment, no place in a contact tree.
+        # Its tags join the survivor and it is archived, never left as a live
+        # duplicate contact and never deleted.
+        for employee in self:
+            former = former_parties.get(employee)
+            party = employee.partner_id
+            if not former or not party or former == party:
+                continue
+            former = former.sudo()
+            if (
+                former.user_ids
+                or former.employee_ids
+                or former.is_company
+                or former.parent_id
+                or former.child_ids
+            ):
+                continue
+            if former.tag_ids:
+                party.sudo().tag_ids = [(4, tag.id) for tag in former.tag_ids]
+            former.active = False
 
     def _update_bank_account_contact(self, partner_id):
         accounts_sudo = (

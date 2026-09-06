@@ -27,3 +27,4 @@ from . import test_version_delegation_gate
 from . import test_private_facet_identity
 from . import test_party_delegation
 from . import test_party_identifiers
+from . import test_party_link
