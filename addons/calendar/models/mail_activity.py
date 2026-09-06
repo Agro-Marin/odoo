@@ -80,8 +80,15 @@ class MailActivity(models.Model):
 
     def unlink_w_meeting(self):
         events = self.mapped("calendar_event_id")
+        # Only unlink an event no OTHER activity (outside self) still
+        # references -- calendar_event_id.activity_ids is a One2many, so more
+        # than one activity can share one event, and its ondelete='cascade'
+        # would otherwise take that other activity down as collateral damage.
+        events_to_unlink = events.filtered(
+            lambda event: not (event.activity_ids - self)
+        )
         res = self.unlink()
-        events.unlink()
+        events_to_unlink.unlink()
         return res
 
     def _to_store_defaults(self, target):
