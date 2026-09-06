@@ -368,40 +368,36 @@ export class EmbeddedActions {
     }
 
     /**
-     * @returns {Promise<boolean>}
+     * Whether the name typed for the new action can be saved: present, and
+     * not already taken on this bar. Says why not, when not.
+     *
+     * @returns {boolean}
      */
-    async saveNewAction() {
-        const actionConfig = /** @type {any} */ (this.env.config);
-        const {
-            newActionName,
-            newActionIsShared,
-            embeddedActions,
-            currentEmbeddedAction,
-            visibleEmbeddedActions,
-        } = this.embeddedInfos;
+    _validateNewActionName() {
+        const { newActionName, embeddedActions } = this.embeddedInfos;
+        let problem;
         if (!newActionName) {
-            this.notificationService.add(
-                _t("A name for your new action is required."),
-                {
-                    type: "danger",
-                },
-            );
+            problem = _t("A name for your new action is required.");
+        } else if (embeddedActions.some(({ name }) => name === newActionName)) {
+            problem = _t("An action with the same name already exists.");
+        }
+        if (problem) {
+            this.notificationService.add(problem, { type: "danger" });
             return false;
         }
-        const duplicateName = embeddedActions.some(
-            ({ name }) => name === newActionName,
-        );
-        if (duplicateName) {
-            this.notificationService.add(
-                _t("An action with the same name already exists."),
-                {
-                    type: "danger",
-                },
-            );
-            return false;
-        }
-        const userId = newActionIsShared ? false : user.userId;
+        return true;
+    }
 
+    /**
+     * The `ir.embedded.actions` record for a new action cloned from the
+     * current one under the typed name.
+     *
+     * @returns {Record<string, any>}
+     */
+    _newActionValues() {
+        const actionConfig = /** @type {any} */ (this.env.config);
+        const { newActionName, newActionIsShared, currentEmbeddedAction } =
+            this.embeddedInfos;
         const {
             parent_action_id,
             action_id,
@@ -416,7 +412,7 @@ export class EmbeddedActions {
             parent_action_id: relationId(parent_action_id),
             parent_res_model,
             parent_res_id: this.env.searchModel.globalContext.active_id,
-            user_id: userId,
+            user_id: newActionIsShared ? false : user.userId,
             is_deletable: true,
             default_view_mode: actionConfig.viewType,
             domain,
@@ -429,6 +425,20 @@ export class EmbeddedActions {
         } else {
             values.action_id = relationId(action_id) || actionConfig.actionId;
         }
+        return values;
+    }
+
+    /**
+     * @returns {Promise<boolean>}
+     */
+    async saveNewAction() {
+        if (!this._validateNewActionName()) {
+            return false;
+        }
+        const { newActionName, newActionIsShared, currentEmbeddedAction } =
+            this.embeddedInfos;
+        const { parent_action_id, action_id } = currentEmbeddedAction;
+        const values = this._newActionValues();
         const [embeddedActionId] = await this.orm.create("ir.embedded.actions", [
             values,
         ]);
@@ -451,7 +461,7 @@ export class EmbeddedActions {
             enrichedNewEmbeddedAction,
         ];
         this.embeddedInfos.visibleEmbeddedActions = [
-            ...visibleEmbeddedActions,
+            ...this.embeddedInfos.visibleEmbeddedActions,
             embeddedActionId,
         ];
         const order = this.embeddedInfos.embeddedActions.map((el) => el.id);

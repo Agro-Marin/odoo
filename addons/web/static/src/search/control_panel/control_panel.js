@@ -107,7 +107,15 @@ export class ControlPanel extends Component {
         });
 
         this.onScrollThrottledBound = this.onScrollThrottled.bind(this);
+        this.setupViewSwitcherCommands();
+        this.setupMobileStickiness();
+    }
 
+    /**
+     * One palette command per switchable view, and the hotkey cycling
+     * through them when there is more than one.
+     */
+    setupViewSwitcherCommands() {
         const { viewSwitcherEntries } = this.env.config;
         for (const view of viewSwitcherEntries || []) {
             useCommand(
@@ -136,13 +144,26 @@ export class ControlPanel extends Component {
                 },
             );
         }
+    }
 
+    /**
+     * @returns {boolean}
+     */
+    get adaptsToScroll() {
+        return (
+            this.env.isSmall &&
+            !("adaptToScroll" in this.display && !this.display.adaptToScroll)
+        );
+    }
+
+    /**
+     * On a small screen the panel slides away with the content's scroll and
+     * comes back on the way up; nothing on a large screen.
+     */
+    setupMobileStickiness() {
         useEffect(
             () => {
-                if (
-                    !this.env.isSmall ||
-                    ("adaptToScroll" in this.display && !this.display.adaptToScroll)
-                ) {
+                if (!this.adaptsToScroll) {
                     return;
                 }
                 const scrollingEl = this.getScrollingElement();
@@ -172,10 +193,7 @@ export class ControlPanel extends Component {
         );
 
         onMounted(() => {
-            if (
-                !this.env.isSmall ||
-                ("adaptToScroll" in this.display && !this.display.adaptToScroll)
-            ) {
+            if (!this.adaptsToScroll) {
                 return;
             }
             this.oldScrollTop = 0;

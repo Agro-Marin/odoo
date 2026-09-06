@@ -315,6 +315,8 @@ describe("EmbeddedActions.saveNewAction", () => {
                     notifications.push(opts.type),
             },
             configHandler: { setEmbeddedActionsConfig: async () => true },
+            _validateNewActionName: EmbeddedActions.prototype._validateNewActionName,
+            _newActionValues: EmbeddedActions.prototype._newActionValues,
             env: {
                 config: { viewType: "list", actionId: 999 },
                 searchModel: {
