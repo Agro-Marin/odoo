@@ -279,13 +279,20 @@ class CalendarAlarm_Manager(models.AbstractModel):
         attendees = events.filtered(lambda e: e.stop > now).attendee_ids.filtered(
             lambda a: a.state != "declined"
         )
+        # Group once by event id instead of re-scanning the whole `attendees`
+        # recordset with `.filtered()` inside the alarm loop below -- that made
+        # this O(alarms x total_attendees) instead of one grouping pass.
+        attendees_by_event = {}
+        for attendee in attendees:
+            attendees_by_event.setdefault(attendee.event_id.id, []).append(attendee.id)
         alarms = self.env["calendar.alarm"].browse(events_by_alarm.keys())
         for alarm in alarms:
-            alarm_attendees = attendees.filtered(
-                lambda attendee, alarm=alarm: (
-                    attendee.event_id.id in events_by_alarm[alarm.id]
-                )
-            )
+            alarm_attendee_ids = [
+                attendee_id
+                for event_id in events_by_alarm[alarm.id]
+                for attendee_id in attendees_by_event.get(event_id, [])
+            ]
+            alarm_attendees = self.env["calendar.attendee"].browse(alarm_attendee_ids)
             alarm_attendees.with_context(
                 calendar_template_ignore_recurrence=True
             )._notify_attendees(
