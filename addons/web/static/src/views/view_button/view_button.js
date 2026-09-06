@@ -52,6 +52,15 @@ function iconFromString(iconString) {
     return icon;
 }
 
+/**
+ * The slice of a record a view button's action is built from.
+ *
+ * @param {Object} record
+ */
+export function recordResParams(record) {
+    return pick(record, "context", "evalContext", "resModel", "resId", "resIds");
+}
+
 export class ViewButton extends Component {
     static template = "web.views.ViewButton";
     static props = {
@@ -160,15 +169,7 @@ export class ViewButton extends Component {
     execute(newWindow) {
         return this.env.onClickViewButton({
             clickParams: this.clickParams,
-            getResParams: () =>
-                pick(
-                    this.props.record || {},
-                    "context",
-                    "evalContext",
-                    "resModel",
-                    "resId",
-                    "resIds",
-                ),
+            getResParams: () => recordResParams(this.props.record || {}),
             beforeExecute: () => this.dropdownControl.close(),
             newWindow,
         });
