@@ -90,3 +90,6 @@ class DocumentsDocument(models.Model):
             'res_id': product.id,
             'view_id': view_id,
         }
+
+    def _get_details_panel_res_models(self) -> list[str]:
+        return [*super()._get_details_panel_res_models(), 'product.product']

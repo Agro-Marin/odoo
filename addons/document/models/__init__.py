@@ -9,12 +9,12 @@ from . import document_type
 from . import document_document_type
 
 from . import document_document_access
+from . import document_document_access_members
 from . import document_document_user_folder
 from . import document_document_search_panel
 from . import document_document_versioning
 from . import document_document_embedded_actions
 from . import document_document_mail
-from . import document_redirect
 from . import document_tag
 
 from . import ir_attachment

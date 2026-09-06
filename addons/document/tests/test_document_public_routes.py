@@ -609,3 +609,16 @@ class TestDocumentsPublicRouteInput(HttpCase, TransactionCaseDocuments):
             allow_redirects=False,
         )
         self.assertIn(res.status_code, (400, 404))
+
+    def test_bare_odoo_documents_path_is_the_app_not_a_share_link(self):
+        # `/odoo/documents` alone used to read the literal `documents` as an
+        # access token, sending a portal user to `/documents/documents`.
+        self.portal_user.password = "portal_pw"
+        self.authenticate("portal_user", "portal_pw")
+        res = self.url_open("/odoo/documents", allow_redirects=False)
+        self.assertNotIn("/documents/documents", res.headers.get("Location", ""))
+        self.assertNotEqual(res.status_code, 404)
+        self.authenticate(self.manager.login, self.manager.login)
+        res = self.url_open("/odoo/documents", allow_redirects=False)
+        self.assertNotIn("/documents/documents", res.headers.get("Location", ""))
+        self.assertNotEqual(res.status_code, 404)

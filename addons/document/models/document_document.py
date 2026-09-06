@@ -711,10 +711,19 @@ class DocumentsDocument(models.Model):
         versioned = self.browse()
         for record in self:
             attachments_was_present.append(bool(record.attachment_id))
+            # A request whose file arrives here is logged by the activity
+            # feedback below (through the nested attachment_id write), so the
+            # plain log would say the same thing twice.
+            fulfils_request = (
+                record.request_activity_id
+                and not record.attachment_id
+                and (has_content or vals.get("attachment_id"))
+            )
             if (
                 record.type == "binary"
                 and (writes_content or "url" in vals)
                 and (not record.attachment_id or not record.attachment_id.file_size)
+                and not fulfils_request
             ):
                 body = _(
                     "Document Request: %(name)s Uploaded by: %(user)s",
@@ -1255,8 +1264,7 @@ class DocumentsDocument(models.Model):
             attachment = record.attachment_id
             if attachment:
                 record.res_model = (
-                    attachment.res_model != "document.document"
-                    and attachment.res_model
+                    attachment.res_model != "document.document" and attachment.res_model
                 ) or False
                 record.res_id = (
                     attachment.res_model != "document.document" and attachment.res_id
@@ -1433,9 +1441,6 @@ class DocumentsDocument(models.Model):
             values["sequence"] = result[0]["sequence"] + 1
 
         return self.write(values)
-
-    def action_change_owner(self, new_user_id: int) -> None:
-        self.owner_id = new_user_id
 
     def action_create_shortcut(
         self, location_user_folder_id: str | None = None
@@ -1667,30 +1672,6 @@ class DocumentsDocument(models.Model):
         )
         return super(DocumentsDocument, to_unarchive_documents).action_unarchive()
 
-    def access_content(self) -> dict:
-        self.check_singleton()
-        action = {
-            "type": "ir.actions.act_url",
-            "target": "new",
-        }
-        if self.url:
-            action["url"] = self.url
-        elif self.type == "binary":
-            action["url"] = f"/documents/content/{quote(self.access_token, safe='')}"
-        return action
-
-    def open_resource(self) -> dict | bool:
-        self.check_singleton()
-        if self.res_model and self.res_id:
-            view_id = self.env[self.res_model].get_formview_id(self.res_id)
-            return {
-                "res_id": self.res_id,
-                "res_model": self.res_model,
-                "type": "ir.actions.act_window",
-                "views": [[view_id, "form"]],
-            }
-        return False
-
     def add_documents_attachment(
         self, res_model: str, res_id: int, is_public: bool = False
     ) -> list[dict]:
@@ -1760,17 +1741,14 @@ class DocumentsDocument(models.Model):
                 self.name,
             )
             return False
-        stream = io.BytesIO(decoded)
         try:
-            return len(PdfReader(stream, strict=False).pages) > 1
-        except AttributeError:
-            raise
+            return len(PdfReader(io.BytesIO(decoded), strict=False).pages) > 1
         except Exception:
-            message = (
-                "Impossible to count pages in %r. It could be due to a malformed document or a "
-                "(possibly known) issue within PyPDF2."
+            _logger.warning(
+                "Impossible to count pages in %r: malformed PDF",
+                self.name,
+                exc_info=True,
             )
-            _logger.warning(message, self.name, exc_info=True)
             return False
 
     @api.model
@@ -1802,23 +1780,18 @@ class DocumentsDocument(models.Model):
                 _logger.error("invalid %s: %r", key, value)
         return odoo.http.DEFAULT_MAX_CONTENT_LENGTH
 
+    @api.model
+    def _get_details_panel_res_models(self) -> list[str]:
+        # Each document_* bridge adds the model it links documents to; these
+        # two have no bridge module to declare them from.
+        return ["purchase.order", "sale.order"]
+
     @api.readonly
     @api.model
     def get_details_panel_res_models(self) -> list:
-        functional_models = [
-            "account.move",
-            "fleet.vehicle",
-            "hr.expense",
-            "hr.leave",
-            "product.product",
-            "project.project",
-            "project.task",
-            "purchase.order",
-            "sale.order",
-        ]
         return [
             model
-            for model in functional_models
+            for model in self._get_details_panel_res_models()
             if (res_model := self.env.get(model)) is not None
             and res_model.has_access("read")
         ]

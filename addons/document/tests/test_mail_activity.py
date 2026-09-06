@@ -202,3 +202,22 @@ class TestDocumentsRequestActivityReschedule(TransactionCaseDocuments):
             datetime.combine(new_date, datetime.max.time()),
             "requestee access expiration should have been synced (in sudo)",
         )
+
+    def test_request_fulfilment_is_logged_once(self):
+        doc = self.env["document.document"].create(
+            {"type": "binary", "name": "req.txt", "folder_id": self.folder_a.id}
+        )
+        activity = doc.activity_schedule(
+            "mail.mail_activity_data_todo", user_id=self.doc_user.id
+        )
+        doc.request_activity_id = activity
+        before = doc.message_ids
+        doc.with_user(self.doc_user).write({"raw": b"content"})
+        doc.invalidate_recordset()
+        new_bodies = (doc.message_ids - before).mapped("body")
+        self.assertEqual(
+            sum("Uploaded by" in body for body in new_bodies),
+            1,
+            "the activity feedback already says who uploaded what: %s" % new_bodies,
+        )
+        self.assertFalse(doc.request_activity_id)

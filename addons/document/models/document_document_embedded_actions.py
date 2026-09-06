@@ -9,7 +9,7 @@ class DocumentsDocument(models.Model):
     _inherit = "document.document"
 
     @api.depends_context("uid", "allowed_company_ids")
-    @api.depends("folder_id")
+    @api.depends("folder_id", "type", "shortcut_document_id")
     def _compute_available_embedded_actions_ids(self) -> None:
         embedded_actions = self._get_folder_embedded_actions(self.folder_id.ids)
         embedded_actions_per_folder = {
@@ -217,9 +217,7 @@ class DocumentsDocument(models.Model):
             [
                 [("id", "in", candidate_actions_sudo)],
                 [("parent_id", "=", False)],
-                [
-                    ("child_ids", "not any", [("id", "not in", candidate_actions_sudo)])
-                ],
+                [("child_ids", "not any", [("id", "not in", candidate_actions_sudo)])],
             ]
         )
 

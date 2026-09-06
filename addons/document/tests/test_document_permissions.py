@@ -661,7 +661,7 @@ class TestDocumentsAccessRightsUpdate(TransactionCaseDocuments):
 
     def test_c5_sharing_wizard_no_crash_on_self_access_loss(self):
         if "document.sharing" not in self.env:
-            self.skipTest("documents_enterprise is not installed")
+            self.skipTest("document_enterprise is not installed")
         doc = (
             self.env["document.document"]
             .with_user(self.document_manager)
@@ -761,7 +761,7 @@ class TestDocumentsLinkedRecordAuthorization(TransactionCaseDocuments):
 class TestDocumentsOperationWizard(TransactionCaseDocuments):
     def test_operation_add_without_attachment_message(self):
         if "document.operation" not in self.env:
-            self.skipTest("documents_enterprise is not installed")
+            self.skipTest("document_enterprise is not installed")
         wizard = self.env["document.operation"].create(
             {"operation": "add", "destination": "MY"}
         )

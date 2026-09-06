@@ -522,14 +522,6 @@ class ShareRoute(http.Controller):
         with replace_exceptions(ValueError, by=BadRequest):
             member_id = int(member_id or "0")
 
-        if not document_sudo:
-            Redirect = request.env["document.redirect"].sudo()
-            if document_sudo := Redirect._get_redirection(access_token):
-                return request.redirect(
-                    f"/documents/{quote(document_sudo.access_token, safe='')}?{keep_query('*')}",
-                    HTTPStatus.MOVED_PERMANENTLY,
-                )
-
         if request.env.user._is_public():
             if not document_sudo:
                 redirect_url = (
@@ -693,12 +685,6 @@ class ShareRoute(http.Controller):
     def documents_content(self, access_token: str, download: Any = True) -> Any:
         document_sudo = self._from_access_token(access_token, skip_log=True)
         if not document_sudo:
-            Redirect = request.env["document.redirect"].sudo()
-            if document_sudo := Redirect._get_redirection(access_token):
-                return request.redirect(
-                    f"/odoo/documents/{quote(document_sudo.access_token, safe='')}",
-                    HTTPStatus.MOVED_PERMANENTLY,
-                )
             raise request.not_found()
         if document_sudo.type == "url":
             if not _is_safe_redirect_url(document_sudo.url):

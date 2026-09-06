@@ -2,7 +2,6 @@ from odoo import Command, models
 
 
 class MixinDocuments(models.AbstractModel):
-
     _name = "mixin.documents"
     _inherit = "mixin.documents.unlink"
     _description = "Documents creation mixin"
@@ -51,7 +50,7 @@ class MixinDocuments(models.AbstractModel):
     def _get_document_partner(self) -> models.Model:
         return self.env["res.partner"]
 
-    def _get_document_access_ids(self) -> bool | list:
+    def _get_document_access_ids(self) -> list:
         return []
 
     def _check_create_documents(self) -> bool:
@@ -96,25 +95,18 @@ class MixinDocuments(models.AbstractModel):
             partner_with_access = {
                 access[2]["partner_id"] for access in access_ids if access[2]
             }
-            related_document_access = related_record._get_document_access_ids()
-            if related_document_access is False:
-                access_ids = [a for a in access_ids if a[2] and not a[2].get("role")]
-            else:
-                accesses_to_add = [
-                    (partner, access)
-                    for partner, access in related_document_access
-                    if partner.id not in partner_with_access
-                ]
-                if accesses_to_add:
-                    access_ids.extend(
-                        Command.create(
-                            {
-                                "partner_id": partner.id,
-                                "role": role,
-                                "expiration_date": expiration_date,
-                            }
-                        )
-                        for partner, (role, expiration_date) in accesses_to_add
-                    )
+            access_ids.extend(
+                Command.create(
+                    {
+                        "partner_id": partner.id,
+                        "role": role,
+                        "expiration_date": expiration_date,
+                    }
+                )
+                for partner, (role, expiration_date) in (
+                    related_record._get_document_access_ids()
+                )
+                if partner.id not in partner_with_access
+            )
             vals["access_ids"] = access_ids
         return vals_list

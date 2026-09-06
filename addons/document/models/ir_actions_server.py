@@ -63,24 +63,28 @@ class IrActionsServer(models.Model):
 
     def _check_access_to_run(self, records: models.Model) -> None:
         if self.usage == "documents_embedded":
-            for record in records:
-                record_actions = record.available_embedded_actions_ids.action_id
-                record_server_actions_sudo = record_actions.sudo().filtered(
-                    lambda a: a.type == "ir.actions.server"
-                )
-                available_server_actions_sudo = (
+            # The pinned actions are a property of the folder, so resolve
+            # them once per folder rather than once per record.
+            for folder_records in records.grouped("folder_id").values():
+                available_sudo = (
                     self.env["ir.actions.server"]
-                    .browse(record_server_actions_sudo.ids)
                     .sudo()
+                    .browse(
+                        folder_records[:1]
+                        .available_embedded_actions_ids.action_id.sudo()
+                        .filtered(lambda a: a.type == "ir.actions.server")
+                        .ids
+                    )
                 )
+                frontier = available_sudo
+                while frontier.child_ids:
+                    next_frontier = frontier.child_ids - available_sudo
+                    available_sudo |= frontier.child_ids
+                    frontier = next_frontier
 
-                actions = available_server_actions_sudo
-                while actions.child_ids:
-                    next_actions = actions.child_ids - available_server_actions_sudo
-                    available_server_actions_sudo |= actions.child_ids
-                    actions = next_actions
-
-                if self not in available_server_actions_sudo:
+                if self not in available_sudo or any(
+                    not d.available_embedded_actions_ids for d in folder_records
+                ):
                     raise UserError(
                         _(
                             "This action was not made available on the containing folder."

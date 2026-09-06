@@ -4,7 +4,7 @@ from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase
 
 
-class testAttachmentAccess(TransactionCase):
+class TestAttachmentAccess(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

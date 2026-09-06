@@ -2,7 +2,6 @@ from odoo import fields, models
 
 
 class ResPartner(models.Model):
-
     _inherit = "res.partner"
 
     document_ids = fields.One2many(
@@ -33,13 +32,4 @@ class ResPartner(models.Model):
                 "default_partner_id": self.id,
                 "searchpanel_default_user_folder_id": False,
             },
-        }
-
-    def action_create_members_to_invite(self) -> dict:
-        return {
-            "res_model": "res.partner",
-            "target": "new",
-            "type": "ir.actions.act_window",
-            "view_id": self.env.ref("base.view_partner_simple_form").id,
-            "view_mode": "form",
         }

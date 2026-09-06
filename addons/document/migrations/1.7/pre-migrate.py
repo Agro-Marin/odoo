@@ -19,7 +19,7 @@ artifacts users made.
 Every statement is idempotent: the guard stops matching once a row is rewritten.
 """
 
-MODEL = "documents.document"
+MODEL = "document.document"
 RENAMES = (("favorited_ids", "favorite_user_ids"), ("is_favorited", "is_user_favorite"))
 
 

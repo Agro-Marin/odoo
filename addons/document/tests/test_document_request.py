@@ -6,12 +6,13 @@ from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo import Command, fields, http
-from odoo.tests import Form, HttpCase, RecordCapturer
+from odoo.tests import Form, HttpCase, RecordCapturer, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.mail.tests.common import MailCommon
 
 
+@tagged("post_install", "-at_install")
 class TestDocumentRequest(MailCommon, HttpCase):
     @classmethod
     def setUpClass(cls):

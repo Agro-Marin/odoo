@@ -131,9 +131,9 @@ class DocumentsDocument(models.Model):
         m2m_commands = msg_vals["attachment_ids"]
         attachments = self.env["ir.attachment"].browse([x[1] for x in m2m_commands])
         disable_mail_to_document = literal_eval(
-            self.env["ir.config_parameter"].get_param(
-                "document.disable_mail_to_document", default="0"
-            )
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("document.disable_mail_to_document", default="0")
         )
         documents = None
 
@@ -172,9 +172,7 @@ class DocumentsDocument(models.Model):
                 sub_message_values.pop("attachment_ids", None)
                 document.message_post(**sub_message_values)
         elif not self.attachment_id and not disable_mail_to_document:
-            attachment = self.env[
-                "ir.attachment"
-            ].create(
+            attachment = self.env["ir.attachment"].create(
                 {
                     "name": msg_vals.get("subject")
                     or msg_vals.get("email_from", _("email")),
@@ -229,21 +227,7 @@ class DocumentsDocument(models.Model):
                             settings_record.create_activity_date_deadline_range_type: settings_record.create_activity_date_deadline_range
                         }
                     )
-                if (
-                    settings_record._fields.get("create_has_owner_activity")
-                    and settings_record.create_has_owner_activity
-                    and record.owner_id
-                ):
-                    user = record.owner_id
-                elif (
-                    settings_record._fields.get("create_activity_user_id")
-                    and settings_record.create_activity_user_id
-                ):
-                    user = settings_record.create_activity_user_id
-                elif settings_record._fields.get("user_id") and settings_record.user_id:
-                    user = settings_record.user_id
-                else:
-                    user = self.env.user
-                if user:
-                    activity_vals["user_id"] = user.id
+                activity_vals["user_id"] = (
+                    settings_record.create_activity_user_id or self.env.user
+                ).id
                 record.activity_schedule(**activity_vals)

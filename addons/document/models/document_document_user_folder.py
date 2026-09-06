@@ -10,7 +10,13 @@ class DocumentsDocument(models.Model):
     _inherit = "document.document"
 
     @api.depends_context("uid", "allowed_company_ids")
-    @api.depends("folder_id", "folder_id.user_permission", "owner_id", "active")
+    @api.depends(
+        "folder_id",
+        "folder_id.user_permission",
+        "owner_id",
+        "active",
+        "user_permission",
+    )
     def _compute_user_folder_id(self) -> None:
         SHARED = UserFolder.SHARED if not self.env.user.share else False
         self.user_folder_id = False

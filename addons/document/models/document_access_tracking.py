@@ -8,7 +8,6 @@ _logger = logging.getLogger(__name__)
 
 
 class DocumentsAccessTracking(models.Model):
-
     _name = "document.access.tracking"
     _description = "Document Access Tracking"
     _log_access = False
@@ -154,13 +153,11 @@ class DocumentsAccessTracking(models.Model):
             *members_dict["updated"],
             *members_dict["removed"],
         ]
-        existing_ids = set(
-            self.env["res.partner"].browse(int(key) for key in keys).exists().ids
-        )
-        partners_by_id = {
-            partner.id: partner
-            for partner in self.env["res.partner"].browse(existing_ids)
-        }
+        partners_by_id = (
+            self.env["res.partner"].browse(int(key) for key in keys).exists()
+        ).grouped("id")
         return {
-            key: partners_by_id[int(key)] for key in keys if int(key) in existing_ids
+            key: partner
+            for key in keys
+            if (partner := partners_by_id.get(int(key))) is not None
         }

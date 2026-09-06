@@ -8,7 +8,7 @@
 Store, organize and share files: a folder tree with per-document access rights,
 share links, versioning, a trash and the Documents workspace.
 
-`documents_enterprise` adds the sharing, operation and link-to-record wizards,
+`document_enterprise` adds the sharing, operation and link-to-record wizards,
 the onboarding tour, the digest KPIs and the Studio automation upsell.
     """,
     "author": "Odoo S.A.",
@@ -59,7 +59,6 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
             "document/static/src/scss/document_kanban_view.scss",
             "document/static/src/attachments/**/*",
             "document/static/src/core/**/*",
-            "document/static/src/js/**/*",
             "document/static/src/mail/**/*",
             "document/static/src/owl/**/*",
             "document/static/src/utils.js",

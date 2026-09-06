@@ -14,28 +14,26 @@ class Home(web_home.Home):
 
     def _web_client_readonly(self, rule: Any, args: Any) -> bool:
         path = request.httprequest.path
-        if (
-            path.startswith("/odoo/documents")
-            and (
-                request.httprequest.args.get("access_token")
-                or path.removeprefix("/odoo/documents/")
-            )
-            and request.session.uid
+        if request.session.uid and self._share_access_token(
+            path.removeprefix("/odoo/"), request.httprequest.args
         ):
             return False
         return super()._web_client_readonly(rule, args)
 
+    @staticmethod
+    def _share_access_token(subpath: str, params: Any) -> str:
+        # `/odoo/documents` alone is the app, not a share link; only what
+        # follows `documents/` (or an explicit parameter) is a token.
+        if subpath == "documents":
+            return params.get("access_token") or ""
+        if subpath.startswith("documents/"):
+            return params.get("access_token") or subpath.removeprefix("documents/")
+        return ""
+
     @route(readonly=_web_client_readonly)
     def web_client(self, s_action: str | None = None, **kw: Any) -> Any:
-        subpath = kw.get("subpath", "")
-        access_token = request.params.get("access_token") or subpath.removeprefix(
-            "documents/"
-        )
-        if (
-            not subpath.startswith("documents")
-            or not access_token
-            or "/" in access_token
-        ):
+        access_token = self._share_access_token(kw.get("subpath", ""), request.params)
+        if not access_token or "/" in access_token:
             return super().web_client(s_action, **kw)
 
         ensure_db()
@@ -51,14 +49,6 @@ class Home(web_home.Home):
         document_sudo = ShareRoute._from_access_token(
             access_token, follow_shortcut=False
         )
-
-        if not document_sudo:
-            Redirect = request.env["document.redirect"].sudo()
-            if document_sudo := Redirect._get_redirection(access_token):
-                return request.redirect(
-                    f"/odoo/documents/{quote(document_sudo.access_token, safe='')}?{keep_query('*')}",
-                    HTTPStatus.MOVED_PERMANENTLY,
-                )
 
         query = {}
         if request.session.debug:

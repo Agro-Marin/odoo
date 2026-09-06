@@ -28,17 +28,15 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             }
         )
 
-        document.with_user(self.document_manager).action_change_owner(
-            self.internal_user.id
-        )
+        document.with_user(self.document_manager).owner_id = self.internal_user
         self.assertEqual(document.owner_id, self.internal_user)
 
-        document.with_user(self.doc_user).sudo().action_change_owner(self.doc_user.id)
+        document.with_user(self.doc_user).sudo().owner_id = self.doc_user
         self.assertEqual(document.owner_id, self.doc_user)
 
         document.sudo().owner_id = self.document_manager.id
         with self.assertRaises(AccessError):
-            document.with_user(self.doc_user).action_change_owner(self.doc_user.id)
+            document.with_user(self.doc_user).owner_id = self.doc_user
         self.assertEqual(document.owner_id, self.document_manager)
 
     def test_noop_access_update_queues_no_tracking_work(self):
@@ -600,6 +598,23 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             )
         self.assertEqual(portal_2_a_a_access.expiration_date, IN_ONE_DAY)
         self.assertEqual(portal_2_a_a_access.role, "view")
+
+        # Update expiration alone via parent: the role is left as it is, and
+        # a partner who is not a member gains nothing.
+        self._settled_caches()
+        self.folder_a.action_update_access_rights(
+            partners={
+                portal_user_2.partner_id: (None, IN_12_H),
+                self.internal_user.partner_id: (None, IN_12_H),
+            }
+        )
+        self.assertEqual(portal_2_a_a_access.expiration_date, IN_12_H)
+        self.assertEqual(portal_2_a_a_access.role, "view")
+        self.assertFalse(
+            (self.folder_a | self.folder_a_a).access_ids.filtered(
+                lambda a: a.partner_id == self.internal_user.partner_id and a.role
+            )
+        )
 
         partners = {self.portal_user.partner_id.id: (False, None)}
 
