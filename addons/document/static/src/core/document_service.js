@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { humanSize } from "@web/core/utils/format/binary";
 import { AccessRightsUpdateConfirmationDialog } from "@document/owl/components/access_update_confirmation_dialog/access_update_confirmation_dialog";
 import { Document } from "./document_model.js";
 import { DocumentsManageVersions } from "@document/components/document_manage_versions_panel/document_manage_versions_panel";
@@ -15,7 +16,6 @@ import { user } from "@web/core/user";
 import { debounce } from "@web/core/utils/timing";
 import { Deferred } from "@web/core/utils/concurrency";
 import { session } from "@web/session";
-import { formatFieldFloat } from "@web/core/formatters";
 
 import { DateTime } from "luxon";
 
@@ -692,7 +692,7 @@ export class DocumentService {
         }
         const message = _t(
             "Some files could not be uploaded (max size: %s).",
-            formatFieldFloat(maxUploadSize, { humanReadable: true }),
+            humanSize(maxUploadSize),
         );
         this.notification.add(message, { type: "danger" });
     }

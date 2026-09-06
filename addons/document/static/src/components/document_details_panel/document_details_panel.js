@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { humanSize } from "@web/core/utils/format/binary";
 import { _t } from "@web/core/translation";
 import { ModelSelector } from "@web/components/model_selector";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
-import { formatFloat } from "@web/core/utils/format/numbers";
 import { CharField } from "@web/fields/basic/char/char_field";
 import { Many2OneAvatarField } from "@web/fields/relational/many2one_avatar/many2one_avatar_field";
 import { Many2OneField } from "@web/fields/relational/many2one";
@@ -111,7 +111,7 @@ export class DocumentsDetailsPanel extends Component {
         if (!nBytes) {
             return "";
         }
-        return `${isFolderTotal ? "~" : ""}${formatFloat(nBytes, { humanReadable: true })}B`;
+        return `${isFolderTotal ? "~" : ""}${humanSize(nBytes)}`;
     }
 
     get rootFolderPlaceholder() {

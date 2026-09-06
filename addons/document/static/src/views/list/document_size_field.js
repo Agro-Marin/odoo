@@ -1,7 +1,7 @@
 /** @odoo-module native */
+import { humanSize } from "@web/core/utils/format/binary";
 import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
-import { formatFloat } from "@web/core/utils/format/numbers";
 import { IntegerField } from "@web/fields/basic/integer/integer_field";
 
 export class DocumentSizeIntegerField extends IntegerField {
@@ -9,7 +9,7 @@ export class DocumentSizeIntegerField extends IntegerField {
         if (!this.value) {
             return "";
         }
-        return `${formatFloat(this.value, { humanReadable: true })}B`;
+        return humanSize(this.value);
     }
 }
 
