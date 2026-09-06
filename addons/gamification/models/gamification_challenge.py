@@ -1220,7 +1220,7 @@ class GamificationChallenge(models.Model):
                 else:
                     continue  # No adjustment needed
 
-                adjusted = round(max(base_target * factor, 1), 2)
+                adjusted = round(max(base_target * factor, 0), 2)
                 adjustments[(user.id, line.id)] = adjusted
 
         return adjustments
