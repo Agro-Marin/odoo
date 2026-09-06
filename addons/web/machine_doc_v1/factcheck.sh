@@ -290,7 +290,7 @@ count_prod_decls() {
     files=$(grep -REl --include='*.js' \
         --exclude-dir=filestore --exclude-dir=sessions \
         --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=__pycache__ \
-        --exclude-dir=worktrees \
+        --exclude-dir=worktrees --exclude-dir=.worktrees \
         "$pattern" "$ADDONS/" 2>/dev/null \
         | grep -v "machine_doc\|\.test\.js\|\.md$")
     if [ -z "$files" ]; then
@@ -1577,7 +1577,7 @@ import pathlib, re, sys
 call = re.compile(r"(?<!function )\b(registerField|registerFallbackField)\(\s*")
 tot = plain = spec = 0
 for p in pathlib.Path(sys.argv[1]).rglob("*.js"):
-    if "machine_doc" in str(p) or "node_modules" in str(p):
+    if "machine_doc" in str(p) or "node_modules" in str(p) or ".worktrees" in p.parts:
         continue
     try:
         t = p.read_text(errors="ignore")
