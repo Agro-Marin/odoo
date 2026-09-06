@@ -33,9 +33,7 @@
                             string="Client Secret"
                             password="True"
                             required="external_calendar_provider == 'google'" />
-                        <field
-                            name="cal_sync_paused"
-                            required="external_calendar_provider == 'google'" />
+                        <field name="cal_sync_paused" />
                     </group>
                 </div>
                 <div invisible="external_calendar_provider != 'microsoft'">
@@ -61,9 +59,7 @@
                             string="Client Secret"
                             password="True"
                             required="external_calendar_provider == 'microsoft'" />
-                        <field
-                            name="microsoft_outlook_sync_paused"
-                            required="external_calendar_provider == 'microsoft'" />
+                        <field name="microsoft_outlook_sync_paused" />
                     </group>
                 </div>
                 <footer>
