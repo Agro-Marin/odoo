@@ -22,17 +22,17 @@ class ResUsers(models.Model):
     def _get_calendar_event_resource(self):
         """Return the ``resource.resource`` whose capacity this user's meetings claim.
 
-        The override point for the user->resource mapping, mirroring
-        ``_get_project_task_resource``. Core resolves it through
-        ``resource.resource.user_id``, the only link available at this layer;
-        an ``hr`` installation owns a richer one (the employee's resource) and
-        is free to replace this.
+        The override point for the user->resource mapping. Core resolves it
+        through ``resource.resource.user_id``, the only link available at this
+        layer; an installed module owning a richer mapping (e.g. the
+        employee's own resource) is free to replace this.
 
         Scoped to the user's own company: a user may hold one resource per
         company, and booking the wrong one would claim capacity on a calendar
         nobody consults. A company-less resource is shared reference data and
         always eligible -- ``resource.resource`` declines ``check_company`` for
-        that same reason.
+        that same reason. When both a company-matching and a company-less
+        resource survive that filter, the company-matching one is preferred.
         """
         self.check_singleton()
         resources = self.sudo().resource_ids.filtered(
@@ -40,7 +40,9 @@ class ResUsers(models.Model):
                 not resource.company_id or resource.company_id == self.company_id
             )
         )
-        return resources[:1]
+        return resources.sorted(
+            key=lambda resource: resource.company_id != self.company_id
+        )[:1]
 
     @property
     def SELF_READABLE_FIELDS(self):
