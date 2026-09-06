@@ -28,6 +28,10 @@ export const DocumentsRendererMixin = (component) =>
         static dropTargetSelector = null;
         static dropHoverClasses = { hover: "o_drag_hover", invalid: "o_drag_invalid" };
 
+        getDocumentsAttachmentViewerProps() {
+            return { previewStore: this.props.previewStore };
+        }
+
         setup() {
             super.setup();
             this.root = useRef("root");

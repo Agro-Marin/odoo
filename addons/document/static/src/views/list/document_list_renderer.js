@@ -9,7 +9,7 @@ import { ListRenderer } from "@web/views/list";
 import { DocumentsRightPanel } from "@document/components/document_right_panel/document_right_panel";
 import { DocumentsActionHelper } from "@document/views/helper/document_action_helper";
 import { DocumentsDropZone } from "@document/views/helper/document_drop_zone";
-import { DocumentsFileViewer } from "@document/views/helper/document_file_viewer";
+import { DocumentsFileViewerHost } from "@document/views/helper/document_file_viewer";
 import { DocumentsRendererMixin } from "@document/views/document_renderer_mixin";
 
 export class DocumentsSecondaryListRenderer extends ListRenderer {
@@ -26,7 +26,7 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(
         FileUploadProgressDataRow,
         DocumentsDropZone,
         DocumentsActionHelper,
-        DocumentsFileViewer,
+        DocumentsFileViewerHost,
         DocumentsRightPanel,
     });
 
@@ -56,10 +56,6 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(
             ...super.getRowProps(record, group, groupId),
             rightPanelState: this.rightPanelState,
         };
-    }
-
-    getDocumentsAttachmentViewerProps() {
-        return { previewStore: this.props.previewStore };
     }
 
     onGlobalKeydown(ev) {

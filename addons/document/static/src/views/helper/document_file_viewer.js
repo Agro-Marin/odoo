@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { FileViewer } from "@document/attachments/document_file_viewer";
+import { DocumentsFileViewer } from "@document/attachments/document_file_viewer";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
-export class DocumentsFileViewer extends Component {
+/** Fixed-position host of the viewer inside a documents view. */
+export class DocumentsFileViewerHost extends Component {
     static template = "document.DocumentsFileViewer";
     static components = {
-        FileViewer,
+        DocumentsFileViewer,
     };
     static props = ["parentRoot", "previewStore"];
 

@@ -11,7 +11,7 @@
         </xpath>
         <table position="before">
             <DocumentsDropZone parentRoot="root"/>
-            <DocumentsFileViewer parentRoot="root" t-props="getDocumentsAttachmentViewerProps()"/>
+            <DocumentsFileViewerHost parentRoot="root" t-props="getDocumentsAttachmentViewerProps()"/>
             <FileUploadProgressContainer fileUploads="this.documentUploads" Component="constructor.components.FileUploadProgressDataRow"
                                          shouldDisplay="(upload) => !upload.data.get('document_id') &amp;&amp; !upload.data.get('thread_id')"/>
         </table>

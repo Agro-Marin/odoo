@@ -10,7 +10,7 @@
         </xpath>
         <xpath expr="//div[hasclass('o_kanban_renderer')]" position="inside">
             <DocumentsDropZone parentRoot="root"/>
-            <DocumentsFileViewer parentRoot="root" t-props="getDocumentsAttachmentViewerProps()"/>
+            <DocumentsFileViewerHost parentRoot="root" t-props="getDocumentsAttachmentViewerProps()"/>
         </xpath>
         <t t-foreach="getGroupsOrRecords()" position="attributes">
             <attribute name="t-if" add="!this.isRecentFolder" separator="and"/>

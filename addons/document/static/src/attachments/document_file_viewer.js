@@ -4,7 +4,7 @@ import { useService } from "@web/core/utils/hooks";
 import { FileViewer as WebFileViewer } from "@web/components/file_viewer";
 import { onWillStart, onWillUpdateProps, reactive, useState } from "@odoo/owl";
 
-export class FileViewer extends WebFileViewer {
+export class DocumentsFileViewer extends WebFileViewer {
     static template = "document.FileViewer";
     static components = {
         DocumentsAction,
@@ -18,11 +18,7 @@ export class FileViewer extends WebFileViewer {
             { document: this.documentService.documentList.documents[this.state.index] },
             async () => {
                 this.documentService.setPreviewedDocument(this.previewed.document);
-                if (this.state.file.isDocumentEmail) {
-                    await this.state.file.loadDocumentEmailContent();
-                } else if (this.state.file.isMimetypeTextual) {
-                    await this.state.file.loadDocumentTextContent();
-                }
+                await this._loadFileContent();
             },
         );
         this.folderId = this.documentService.documentList?.folderId;
@@ -38,13 +34,21 @@ export class FileViewer extends WebFileViewer {
             this.previewed.document =
                 this.documentService.documentList.documents[nextProps.startIndex];
         });
-        onWillStart(async () => {
-            if (this.state.file.isDocumentEmail) {
-                await this.state.file.loadDocumentEmailContent();
-            } else if (this.state.file.isMimetypeTextual) {
-                await this.state.file.loadDocumentTextContent();
-            }
-        });
+        onWillStart(() => this._loadFileContent());
+    }
+
+    /** Email and textual files are fetched on demand; the others are streamed. */
+    async _loadFileContent() {
+        if (this.state.file.isDocumentEmail) {
+            await this.state.file.loadDocumentEmailContent();
+        } else if (this.state.file.isMimetypeTextual) {
+            await this.state.file.loadDocumentTextContent();
+        }
+    }
+
+    _syncPreviewedDocument() {
+        this.previewed.document =
+            this.documentService.documentList.documents[this.state.index];
     }
 
     get isChatterButtonVisible() {
@@ -59,13 +63,11 @@ export class FileViewer extends WebFileViewer {
 
     next() {
         super.next();
-        this.previewed.document =
-            this.documentService.documentList.documents[this.state.index];
+        this._syncPreviewedDocument();
     }
 
     previous() {
         super.previous();
-        this.previewed.document =
-            this.documentService.documentList.documents[this.state.index];
+        this._syncPreviewedDocument();
     }
 }

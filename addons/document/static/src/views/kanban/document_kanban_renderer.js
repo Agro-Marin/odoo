@@ -12,7 +12,7 @@ import { DocumentsRightPanel } from "@document/components/document_right_panel/d
 import { DocumentsRendererMixin } from "@document/views/document_renderer_mixin";
 import { DocumentsActionHelper } from "@document/views/helper/document_action_helper";
 import { DocumentsDropZone } from "@document/views/helper/document_drop_zone";
-import { DocumentsFileViewer } from "@document/views/helper/document_file_viewer";
+import { DocumentsFileViewerHost } from "@document/views/helper/document_file_viewer";
 import { DocumentsKanbanRecord } from "@document/views/kanban/document_kanban_record";
 
 import { onMounted } from "@odoo/owl";
@@ -26,7 +26,7 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
         FileUploadProgressKanbanRecord,
         KanbanRecord: DocumentsKanbanRecord,
         DocumentsActionHelper,
-        DocumentsFileViewer,
+        DocumentsFileViewerHost,
         DocumentsRightPanel,
     });
 
@@ -144,10 +144,6 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
             }
             return true;
         }
-    }
-
-    getDocumentsAttachmentViewerProps() {
-        return { previewStore: this.props.previewStore };
     }
 
     folderCount() {
