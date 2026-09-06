@@ -14,7 +14,7 @@ class ResourceCalendarLeaves(models.Model):
             return dt.replace(tzinfo=tz).astimezone(UTC).replace(tzinfo=None)
 
         leaves_by_contract = self.grouped(
-            lambda leave: leave.resource_id.employee_id.version_id
+            lambda leave: leave.resource_id.employee_id[:1].version_id
         )
         remaining = leaves_by_contract.pop(
             self.env["hr.version"],
