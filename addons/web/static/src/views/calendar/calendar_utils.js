@@ -28,7 +28,7 @@ export function convertRecordToEvent(record, forceAllDay = false) {
 }
 
 const CSS_COLOR_REGEX =
-    /^((#[A-F0-9]{3})|(#[A-F0-9]{6})|((hsl|rgb)a?\(\s*(?:(\s*\d{1,3}%?\s*),?){3}(\s*,[0-9.]{1,4})?\))|)$/i;
+    /^((#[A-F0-9]{3})|(#[A-F0-9]{6})|((hsl|rgb)a?\(\s*(?:(\s*\d{1,3}%?\s*),?){3}(\s*,\s*[0-9.]{1,4}\s*)?\))|)$/i;
 const colorMap = new Map();
 /**
  * @param {string|number|false} key
