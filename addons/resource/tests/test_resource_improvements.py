@@ -722,6 +722,62 @@ class TestLeaveCompanyFallback(TransactionCase):
             "the resource's company must beat the acting company",
         )
 
+    def test_explicit_company_survives_a_calendarless_leave(self):
+        company_b = self.env["res.company"].create({"name": "Company B"})
+        self.assertNotEqual(self.env.company, company_b)
+
+        leave = self.env["resource.calendar.leaves"].create(
+            {
+                "name": "Company B public holiday",
+                "company_id": company_b.id,
+                "date_from": datetime(2025, 12, 25, 0, 0),
+                "date_to": datetime(2025, 12, 25, 23, 59),
+            }
+        )
+        leave.flush_recordset()
+        self.env.invalidate_all()
+
+        self.assertFalse(leave.calendar_id)
+        self.assertFalse(leave.resource_id)
+        self.assertEqual(
+            leave.company_id,
+            company_b,
+            "a public holiday declared for another company must not be "
+            "reassigned to the acting company",
+        )
+
+    def test_calendarless_leave_without_a_company_still_falls_back(self):
+        leave = self.env["resource.calendar.leaves"].create(
+            {
+                "name": "No company given",
+                "date_from": datetime(2025, 12, 26, 0, 0),
+                "date_to": datetime(2025, 12, 26, 23, 59),
+            }
+        )
+        leave.flush_recordset()
+        self.assertEqual(leave.company_id, self.env.company)
+
+    def test_a_calendar_still_beats_the_stored_company(self):
+        company_b = self.env["res.company"].create({"name": "Company B"})
+        calendar = self.env["resource.calendar"].create(
+            {"name": "Acting company schedule", "company_id": self.env.company.id}
+        )
+        leave = self.env["resource.calendar.leaves"].create(
+            {
+                "name": "Moved by its calendar",
+                "company_id": company_b.id,
+                "calendar_id": calendar.id,
+                "date_from": datetime(2025, 12, 27, 0, 0),
+                "date_to": datetime(2025, 12, 27, 23, 59),
+            }
+        )
+        leave.flush_recordset()
+        self.assertEqual(
+            leave.company_id,
+            self.env.company,
+            "the calendar's company is still the strongest signal",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestDurationHoursRecompute(TransactionCase):
