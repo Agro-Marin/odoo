@@ -1160,6 +1160,14 @@
                                             readonly="state in ['done', 'cancel']"
                                             style="width: 3rem"
                                             invisible="not require_payment" />
+                                        <span
+                                            class="mx-2"
+                                            invisible="not require_payment">or</span>
+                                        <field
+                                            name="prepayment_amount"
+                                            readonly="state in ['done', 'cancel']"
+                                            style="width: 6rem"
+                                            invisible="not require_payment" />
                                     </div>
                                     <field
                                         name="reference"
