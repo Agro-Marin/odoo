@@ -76,7 +76,8 @@ class AccountMoveLine(models.Model):
             orders = orders_per_project.get(project)
             if not orders:
                 continue
-            orders = orders.sorted("create_date")
+            # Newest first: an older order of the same project is likely closed.
+            orders = orders.sorted("create_date", reverse=True)
             in_sale_state_orders = orders.filtered(lambda s: s.state == "done")
 
             mapping[move_line.id] = (

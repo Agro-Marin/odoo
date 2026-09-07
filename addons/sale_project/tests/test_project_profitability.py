@@ -1837,3 +1837,42 @@ class TestSaleProjectProfitability(TestProjectProfitabilityCommon, TestSaleCommo
                 },
             },
         )
+
+    def test_cancelled_vendor_bills_are_not_listed_on_the_dashboard(self):
+        """The dashboard's vendor bill list excludes what its cost section excludes."""
+        project = self.project_billable_no_company
+        distribution = {project.account_id.id: 100}
+        bill, credit_note = self.env["account.move"].create(
+            [
+                {
+                    "name": "Bill that stays",
+                    "move_type": move_type,
+                    "partner_id": self.partner.id,
+                    "invoice_date": datetime.today(),
+                    "invoice_line_ids": [
+                        Command.create(
+                            {
+                                "analytic_distribution": distribution,
+                                "product_id": self.product_a.id,
+                                "quantity": 1,
+                                "price_unit": self.product_a.standard_price,
+                            }
+                        )
+                    ],
+                }
+                for move_type in ("in_invoice", "in_refund")
+            ]
+        )
+        credit_note.action_cancel()
+        self.assertEqual(credit_note.state, "cancel")
+
+        [(_field, _operator, listed_ids)] = project.action_view_project_vendor_bills()[
+            "domain"
+        ]
+        self.assertIn(bill.id, listed_ids, "A live bill belongs in the list.")
+        self.assertNotIn(
+            credit_note.id,
+            listed_ids,
+            "A cancelled credit note must not be listed: the cost section of the same "
+            "dashboard already leaves it out.",
+        )
