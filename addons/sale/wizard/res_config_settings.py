@@ -80,16 +80,6 @@ class ResConfigSettings(models.TransientModel):
     )
 
     module_delivery = fields.Boolean(string="Delivery Methods")
-    module_delivery_bpost = fields.Boolean(string="bpost Connector")
-    module_delivery_dhl = fields.Boolean(string="DHL Express Connector")
-    module_delivery_easypost = fields.Boolean(string="Easypost Connector")
-    module_delivery_envia = fields.Boolean(string="Envia.com Connector")
-    module_delivery_fedex_rest = fields.Boolean(string="FedEx Connector")
-    module_delivery_sendcloud = fields.Boolean(string="Sendcloud Connector")
-    module_delivery_shiprocket = fields.Boolean(string="Shiprocket Connector")
-    module_delivery_starshipit = fields.Boolean(string="Starshipit Connector")
-    module_delivery_ups_rest = fields.Boolean(string="UPS Connector")
-    module_delivery_usps_rest = fields.Boolean(string="USPS Connector")
 
     module_product_email_template = fields.Boolean(string="Specific Email")
     module_sale_amazon = fields.Boolean(string="Amazon Sync")
@@ -100,7 +90,6 @@ class ResConfigSettings(models.TransientModel):
     module_sale_pdf_quote_builder = fields.Boolean(string="PDF Quote builder")
     module_sale_product_matrix = fields.Boolean(string="Sales Grid Entry")
     module_sale_shopee = fields.Boolean(string="Shopee Sync")
-
 
     @api.onchange("group_discount_per_so_line")
     def _onchange_group_discount_per_so_line(self):
@@ -128,7 +117,6 @@ class ResConfigSettings(models.TransientModel):
             _("Quotation Validity"),
         )
 
-
     def set_values(self):
         super().set_values()
         if self.default_invoice_policy != "ordered":
@@ -136,7 +124,6 @@ class ResConfigSettings(models.TransientModel):
                 key="sale.automatic_invoice", value=False
             )
         self._sync_order_lock("lock_confirmed_so", "order_lock_so")
-
 
     def action_sale_start_payment_onboarding(self):
         menu = self.env.ref("sale.menu_sale_general_settings", raise_if_not_found=False)
