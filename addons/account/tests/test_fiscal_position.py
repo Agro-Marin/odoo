@@ -123,6 +123,54 @@ class TestFiscalPosition(common.TransactionCase):
 
         self.assertEqual(mapped_taxes, self.dst1_tax | self.dst2_tax)
 
+    def test_map_tax_and_account_from_an_onchange_record(self):
+        """`tax_map` and `account_map` are keyed by database ids.
+
+        An onchange evaluates against NewId-wrapped records, so keying the
+        lookup on `record.id` misses every entry and silently returns the
+        *unmapped* tax or account -- a line priced in a form is then priced
+        without its fiscal position.
+        """
+        src_tax = self.env["account.tax"].create({"name": "SRC-NEW", "amount": 7.0})
+        fpos = self.fp.create({"name": "FP-NEWID"})
+        dst_tax = self.env["account.tax"].create(
+            {
+                "name": "DST-NEW",
+                "amount": 9.0,
+                "fiscal_position_ids": [Command.set(fpos.ids)],
+                "original_tax_ids": [Command.set(src_tax.ids)],
+            }
+        )
+        self.assertEqual(fpos.map_tax(src_tax), dst_tax)
+
+        draft_tax = self.env["account.tax"].new(origin=src_tax)
+        self.assertFalse(draft_tax.id, "the probe must be a NewId record")
+        self.assertEqual(
+            fpos.map_tax(draft_tax),
+            dst_tax,
+            msg="a NewId tax must map like the record it originates from",
+        )
+
+        src_account, dst_account = self.env["account.account"].create(
+            [
+                {"name": "SRC-ACC", "code": "FPNEW1", "account_type": "income"},
+                {"name": "DST-ACC", "code": "FPNEW2", "account_type": "income"},
+            ]
+        )
+        fpos.account_ids = [
+            Command.create(
+                {"account_src_id": src_account.id, "account_dest_id": dst_account.id}
+            )
+        ]
+        self.assertEqual(fpos.map_account(src_account), dst_account)
+
+        draft_account = self.env["account.account"].new(origin=src_account)
+        self.assertEqual(
+            fpos.map_account(draft_account),
+            dst_account,
+            msg="a NewId account must map like the record it originates from",
+        )
+
     def test_30_fp_delivery_address(self):
         self.env.company.vat = "BE0477472701"
         self.env.company.country_id = self.be

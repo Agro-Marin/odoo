@@ -308,11 +308,15 @@ class AccountFiscalPosition(models.Model):
         self.check_singleton()
         if not self.tax_ids:
             return taxes.filtered(lambda tax: not tax.fiscal_position_ids)
+        tax_map = self.tax_map or {}
         return self.env["account.tax"].browse(
             unique(
                 tax_id
                 for tax in taxes
-                for tax_id in (self.tax_map or {}).get(tax.id, [tax.id])
+                # `tax_map` is keyed by database ids, but an onchange hands us
+                # NewId-wrapped records; keying on the NewId misses every entry
+                # and silently returns the unmapped tax.
+                for tax_id in tax_map.get(tax._origin.id or tax.id, [tax.id])
             )
         )
 
@@ -320,8 +324,9 @@ class AccountFiscalPosition(models.Model):
         if not self:
             return account
         self.check_singleton()
+        account_map = self.account_map or {}
         return self.env["account.account"].browse(
-            (self.account_map or {}).get(account.id, account.id)
+            account_map.get(account._origin.id or account.id, account.id)
         )
 
     @api.model
