@@ -57,6 +57,11 @@
                     string="In the Order"
                     domain="[('is_in_sale_order', '=', True)]"
                     invisible="context.get('active_model', '') != 'sale.order.line'" />
+                <filter
+                    name="products_previously_bought_by_customer"
+                    string="Previously Bought"
+                    domain="[('previously_bought_by_customer', '=', True)]"
+                    invisible="context.get('active_model', '') != 'sale.order.line'" />
             </filter>
         </field>
     </record>
