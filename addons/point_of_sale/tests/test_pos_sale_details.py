@@ -607,3 +607,59 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
             report["discount_number"], 1, "one of the two orders carries a discount"
         )
         self.assertEqual(report["discount_amount"], 50.0)
+
+    def test_a_matching_ref_in_another_journal_is_a_different_entry(self):
+        """The closing difference is posted to the payment method's own journal.
+        Identifying it by ref alone lets any entry whose free-text reference reads
+        the same be reported as this method's counted difference."""
+        product = self.create_product("Journals", self.categ_basic, 100)
+        session = self._open_session()
+        order = self._order(session, product, 100)
+        self.make_payment(order, self.bank_pm1, 100)
+        session.action_pos_session_closing_control()
+
+        ref = session._get_diff_account_move_ref(self.bank_pm1)
+        self.env["account.move"].search([("ref", "=", ref)]).unlink()
+        other_journal = self.env["account.journal"].search(
+            [("id", "!=", self.bank_pm1.journal_id.id), ("type", "=", "general")],
+            limit=1,
+        )
+        self.assertTrue(other_journal, "the fixture needs a second journal")
+        self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "journal_id": other_journal.id,
+                "ref": ref,
+                "line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "account_id": self.bank_pm1.journal_id.loss_account_id.id
+                            or self.company_data["default_account_expense"].id,
+                            "debit": 70.0,
+                        },
+                    ),
+                    (
+                        0,
+                        0,
+                        {
+                            "account_id": self.company_data[
+                                "default_account_receivable"
+                            ].id,
+                            "credit": 70.0,
+                        },
+                    ),
+                ],
+            }
+        )
+
+        report = self.report.get_sale_details(session_ids=[session.id])
+        row = next(p for p in report["payments"] if p.get("id") == self.bank_pm1.id)
+        self.assertNotEqual(
+            row.get("money_difference"),
+            -70.0,
+            "an entry in another journal is not this payment method's difference",
+        )
+        self.assertEqual(row["money_counted"], 100.0)
+        self.assertEqual(row["money_difference"], 0.0)

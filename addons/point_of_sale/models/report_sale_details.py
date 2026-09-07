@@ -441,16 +441,31 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         if not ref_by_key:
             return {}
 
-        move_by_ref = {}
-        for move in self.env["account.move"].search(
-            [("ref", "in", list(set(ref_by_key.values())))]
-        ):
-            move_by_ref.setdefault(move.ref, move)
-        return {
-            key: move_by_ref[ref]
-            for key, ref in ref_by_key.items()
-            if ref in move_by_ref
-        }
+        # A closing difference is posted to the payment method's own journal, so
+        # the journal is part of what identifies it. Without that the report will
+        # take any entry whose free-text ref happens to read the same -- and ref
+        # is unindexed, so it also makes the query selective rather than a scan.
+        moves = self.env["account.move"].search(
+            [
+                ("ref", "in", list(set(ref_by_key.values()))),
+                ("journal_id", "in", methods.journal_id.ids),
+            ]
+        )
+        move_by_key = {}
+        journal_by_method = {method.id: method.journal_id.id for method in methods}
+        for key, ref in ref_by_key.items():
+            journal_id = journal_by_method.get(key[1])
+            match = next(
+                (
+                    move
+                    for move in moves
+                    if move.ref == ref and move.journal_id.id == journal_id
+                ),
+                None,
+            )
+            if match is not None:
+                move_by_key[key] = match
+        return move_by_key
 
     def _get_session_cash_moves(self, session, statement_lines_by_session):
         return statement_lines_by_session.get(
