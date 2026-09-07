@@ -130,7 +130,7 @@ try:
     def phone_get_region_data_for_number(number):
         try:
             phone_obj = phone_parse(number, None)
-        except phonenumbers.phonenumberutil.NumberParseException, UserError:
+        except UserError:
             return {
                 "code": "",
                 "national_number": "",
