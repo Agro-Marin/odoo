@@ -10,6 +10,10 @@ _logger = logging.getLogger(__name__)
 
 ROLE_BY_LEVEL = {"read": "view", "upload": "edit", "admin": "edit"}
 BATCH = 200
+# `ir.attachment.file_size` is a 4-byte integer, so no attachment in Odoo can
+# record a size above this. Objects larger than it are still imported and still
+# download, because the bytes are fetched by URL and never by this number.
+MAX_FILE_SIZE = 2**31 - 1
 
 
 class DriveImport:
@@ -35,6 +39,7 @@ class DriveImport:
         self.folders = {"": self.root}
         self.files = {}
         self.skipped_objects = []
+        self.clamped_objects = []
 
     def run(self, grants=()):
         self._import_objects()
@@ -44,6 +49,7 @@ class DriveImport:
             "folders": len(self.folders) - 1,
             "files": len(self.files),
             "skipped_objects": len(self.skipped_objects),
+            "clamped_objects": len(self.clamped_objects),
             "grants": len(grants) - len(skipped),
             "skipped_grants": skipped,
         }
@@ -74,7 +80,18 @@ class DriveImport:
                     self._folder_for(key.rstrip("/"))
                     continue
                 parent, name = posixpath.split(key)
-                pending.append((key, self._folder_for(parent), name, obj["Size"]))
+                size = obj["Size"]
+                if size > MAX_FILE_SIZE:
+                    _logger.warning(
+                        "%s is %s bytes, past what ir.attachment.file_size can "
+                        "hold; imported with its size reported as %s",
+                        key,
+                        size,
+                        MAX_FILE_SIZE,
+                    )
+                    self.clamped_objects.append(key)
+                    size = MAX_FILE_SIZE
+                pending.append((key, self._folder_for(parent), name, size))
                 if len(pending) >= BATCH:
                     self._create_files(pending)
                     pending = []
