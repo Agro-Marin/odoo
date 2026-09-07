@@ -8,6 +8,11 @@ past ``v``, nothing runs, and the data the script was written to repair keeps
 its old shape while the new code assumes the new one. Nothing about the file
 looks wrong and no test fails, which is why this needs a check of its own.
 
+A *modified* script in such a directory is the same defect wearing different
+clothes: the file already ran at its old contents, and the version rule will not
+run it again, so the correction is inert exactly where it was needed. That one is
+easy to miss because the diff looks like an ordinary edit.
+
 The rule cannot be evaluated from one tree -- it needs the version the module
 was released at *before* the change. So this compares two refs.
 """
@@ -85,10 +90,15 @@ def _manifest_version(ref, module_path):
         return None
 
 
-def added_scripts(from_ref, to_ref):
-    """{(module_path, module, version_dir): [paths]} for newly added scripts."""
+def touched_scripts(from_ref, to_ref):
+    """{(module_path, module, version_dir): [paths]} for added or edited scripts.
+
+    Editing counts. A script whose directory the database has already passed
+    will not be re-run, so a correction made there never reaches the data it
+    was written to correct.
+    """
     found = {}
-    out = _git("diff", "--diff-filter=A", "--name-only", from_ref, to_ref)
+    out = _git("diff", "--diff-filter=AM", "--name-only", from_ref, to_ref)
     for path in (line for line in out.split("\n") if line.strip()):
         parts = path.split("/")
         if len(parts) < 5 or parts[-3] not in MIGRATION_DIRS:
@@ -102,7 +112,7 @@ def added_scripts(from_ref, to_ref):
 def check(from_ref, to_ref):
     problems = []
     for (module_path, module, version), files in sorted(
-        added_scripts(from_ref, to_ref).items()
+        touched_scripts(from_ref, to_ref).items()
     ):
         why = verdict(
             _manifest_version(from_ref, module_path),
@@ -125,7 +135,7 @@ def main(argv=None):
 
     problems = check(args.from_ref, args.to_ref)
     if not problems:
-        print("migration-version-guard: every added migration is reachable")
+        print("migration-version-guard: every added or edited migration is reachable")
         return 0
     print("migration-version-guard: unreachable migration script(s)\n")
     for problem in problems:

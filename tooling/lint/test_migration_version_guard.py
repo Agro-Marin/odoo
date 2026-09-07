@@ -33,3 +33,11 @@ def test_the_odoo_series_prefix_is_equivalent_to_the_bare_version():
 def test_an_intermediate_directory_still_runs():
     # released 1.0.2, shipping 1.0.5, a 1.0.3 script in between must still run
     assert guard.verdict("1.0.2", "1.0.3", "1.0.5") is None
+
+
+def test_an_edited_script_is_judged_by_the_same_rule():
+    # A correction to a script the database has already run is inert: the
+    # version rule will not run it again, so it never reaches the rows it was
+    # written to repair.
+    assert guard.verdict("1.0.4", "1.0.4", "1.0.4") is not None
+    assert guard.verdict("1.0.4", "1.0.5", "1.0.5") is None
