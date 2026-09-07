@@ -1,3 +1,4 @@
+from odoo.exceptions import ValidationError
 from odoo.tests import tagged
 
 from odoo.addons.hr.tests.common import TestHrCommon
@@ -16,3 +17,12 @@ class TestHourlyCost(TestHrCommon):
 
         employee.with_user(self.res_users_hr_officer).hourly_cost = 42.0
         self.assertEqual(employee.hourly_cost, 42.0)
+
+    def test_hourly_cost_cannot_be_negative(self):
+        employee = (
+            self.env["hr.employee"]
+            .with_user(self.res_users_hr_officer)
+            .create({"name": "Negative Hourly Cost Employee"})
+        )
+        with self.assertRaises(ValidationError):
+            employee.with_user(self.res_users_hr_officer).hourly_cost = -1.0
