@@ -44,6 +44,14 @@ HR_WRITABLE_FIELDS = [
 class ResUsers(models.Model):
     _inherit = "res.users"
 
+    @property
+    def SELF_READABLE_FIELDS(self):
+        return super().SELF_READABLE_FIELDS + HR_READABLE_FIELDS + HR_WRITABLE_FIELDS
+
+    @property
+    def SELF_WRITEABLE_FIELDS(self):
+        return super().SELF_WRITEABLE_FIELDS + HR_WRITABLE_FIELDS
+
     def _domain_employee_ids(self):
         return [
             (
@@ -72,58 +80,62 @@ class ResUsers(models.Model):
     )
     work_email = fields.Char(
         related="employee_id.work_email",
-        readonly=False,
         related_sudo=False,
+        readonly=False,
     )
     tag_ids = fields.Many2many(
         related="employee_id.tag_ids",
+        related_sudo=False,
         string="Employee Tags",
         readonly=False,
-        related_sudo=False,
     )
     work_location_id = fields.Many2one(
         related="employee_id.work_location_id",
-        readonly=False,
         related_sudo=False,
+        readonly=False,
     )
-    work_location_name = fields.Char(related="employee_id.work_location_name")
-    work_location_type = fields.Selection(related="employee_id.work_location_type")
+    work_location_name = fields.Char(
+        related="employee_id.work_location_name",
+    )
+    work_location_type = fields.Selection(
+        related="employee_id.work_location_type",
+    )
     private_street = fields.Char(
         related="employee_id.private_street",
+        related_sudo=False,
         string="Private Street",
         readonly=False,
-        related_sudo=False,
     )
     private_street2 = fields.Char(
         related="employee_id.private_street2",
+        related_sudo=False,
         string="Private Street2",
         readonly=False,
-        related_sudo=False,
     )
     private_city = fields.Char(
         related="employee_id.private_city",
+        related_sudo=False,
         string="Private City",
         readonly=False,
-        related_sudo=False,
     )
     private_state_id = fields.Many2one(
         related="employee_id.private_state_id",
+        related_sudo=False,
         string="Private State",
         readonly=False,
-        related_sudo=False,
         domain="[('country_id', '=?', private_country_id)]",
     )
     private_zip = fields.Char(
         related="employee_id.private_zip",
+        related_sudo=False,
         readonly=False,
         string="Private Zip",
-        related_sudo=False,
     )
     private_country_id = fields.Many2one(
         related="employee_id.private_country_id",
+        related_sudo=False,
         string="Private Country",
         readonly=False,
-        related_sudo=False,
     )
     private_phone_ids = fields.Many2many(
         related="employee_id.private_phone_ids",
@@ -132,15 +144,19 @@ class ResUsers(models.Model):
     )
     private_email = fields.Char(
         related="employee_id.private_email",
+        related_sudo=False,
         string="Private Email",
+        readonly=False,
+    )
+    km_home_work = fields.Integer(
+        related="employee_id.km_home_work",
         readonly=False,
         related_sudo=False,
     )
-    km_home_work = fields.Integer(
-        related="employee_id.km_home_work", readonly=False, related_sudo=False
-    )
     emergency_contact = fields.Char(
-        related="employee_id.emergency_contact", readonly=False, related_sudo=False
+        related="employee_id.emergency_contact",
+        related_sudo=False,
+        readonly=False,
     )
     emergency_phone_ids = fields.Many2many(
         related="employee_id.emergency_phone_ids",
@@ -148,80 +164,50 @@ class ResUsers(models.Model):
         groups="hr.group_hr_user",
     )
     visa_expire = fields.Date(
-        related="employee_id.visa_expire", readonly=False, related_sudo=False
+        related="employee_id.visa_expire",
+        readonly=False,
+        related_sudo=False,
     )
     additional_note = fields.Text(
-        related="employee_id.additional_note", readonly=False, related_sudo=False
+        related="employee_id.additional_note",
+        readonly=False,
+        related_sudo=False,
     )
     barcode = fields.Char(
-        related="employee_id.barcode", readonly=False, related_sudo=False
+        related="employee_id.barcode",
+        readonly=False,
+        related_sudo=False,
     )
-    pin = fields.Char(related="employee_id.pin", readonly=False, related_sudo=False)
+    pin = fields.Char(
+        related="employee_id.pin",
+        readonly=False,
+        related_sudo=False,
+    )
     employee_count = fields.Integer(compute="_compute_employee_count")
     employee_resource_calendar_id = fields.Many2one(
         related="employee_id.resource_calendar_id",
         string="Employee's Working Hours",
         readonly=True,
     )
-    bank_account_ids = fields.Many2many(related="employee_id.bank_account_ids")
+    bank_account_ids = fields.Many2many(
+        related="employee_id.bank_account_ids",
+    )
 
     create_employee = fields.Boolean(
-        store=False,
-        default=False,
-        copy=False,
         string="Technical field, whether to create an employee",
+        default=False,
+        store=False,
+        copy=False,
     )
     create_employee_id = fields.Many2one(
         "hr.employee",
+        string="Technical field, bind user to this employee on create",
         store=False,
         copy=False,
-        string="Technical field, bind user to this employee on create",
     )
 
     is_system = fields.Boolean(compute="_compute_is_system")
     is_hr_user = fields.Boolean(compute="_compute_is_hr_user")
-
-    @api.depends_context("uid")
-    def _compute_is_system(self):
-        self.is_system = self.env.user._is_system()
-
-    @api.depends_context("uid")
-    def _compute_is_hr_user(self):
-        self.is_hr_user = self.env.user.has_group("hr.group_hr_user")
-
-    @api.depends("employee_ids")
-    def _compute_employee_count(self):
-        for user in self.with_context(active_test=False):
-            user.employee_count = len(user.employee_ids)
-
-    @property
-    def SELF_READABLE_FIELDS(self):
-        return super().SELF_READABLE_FIELDS + HR_READABLE_FIELDS + HR_WRITABLE_FIELDS
-
-    @property
-    def SELF_WRITEABLE_FIELDS(self):
-        return super().SELF_WRITEABLE_FIELDS + HR_WRITABLE_FIELDS
-
-    @api.onchange("private_state_id")
-    def _onchange_private_state_id(self):
-        if self.private_state_id:
-            self.private_country_id = self.private_state_id.country_id
-
-    @api.model
-    def get_views(self, views, options=None):
-        preferences_view = self.env.ref("hr.res_users_view_form_preferences")
-        preferences_form = preferences_view and [preferences_view.id, "form"]
-        if preferences_form and preferences_form in views:
-            views.remove(preferences_form)
-            views.append(preferences_form)
-        return super().get_views(views, options)
-
-    @api.model
-    def get_view(self, view_id=None, view_type="form", **options):
-        preferences_view = self.env.ref("hr.res_users_view_form_preferences")
-        if preferences_view and view_id == preferences_view.id:
-            self = self.with_user(SUPERUSER_ID)
-        return super().get_view(view_id, view_type, **options)
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -247,6 +233,73 @@ class ResUsers(models.Model):
                 clean_context(self.env.context)
             ).create(employee_create_vals)
         return res
+
+    def write(self, vals):
+        hr_fields = [
+            field_name
+            for field_name, field in self._fields.items()
+            if field.related_field
+            and field.related_field.model_name == "hr.employee"
+            and field_name in vals
+        ]
+        employee_domain = [
+            *self.env["hr.employee"]._check_company_domain(self.env.company),
+            ("user_id", "in", self.ids),
+        ]
+
+        self_sudo = self.sudo()
+        old_hr_values = {
+            field_name: {user.id: user[field_name] for user in self_sudo}
+            for field_name in hr_fields
+        }
+
+        result = super().write(vals)
+
+        changed_hr_fields = [
+            field_name
+            for field_name in hr_fields
+            if any(
+                old_hr_values[field_name][user.id] != user[field_name]
+                for user in self_sudo
+            )
+        ]
+        if changed_hr_fields:
+            self._notify_hr_of_personal_info_change(changed_hr_fields, employee_domain)
+        return result
+
+    @api.depends_context("uid")
+    def _compute_is_system(self):
+        self.is_system = self.env.user._is_system()
+
+    @api.depends_context("uid")
+    def _compute_is_hr_user(self):
+        self.is_hr_user = self.env.user.has_group("hr.group_hr_user")
+
+    @api.depends("employee_ids")
+    def _compute_employee_count(self):
+        for user in self.with_context(active_test=False):
+            user.employee_count = len(user.employee_ids)
+
+    @api.onchange("private_state_id")
+    def _onchange_private_state_id(self):
+        if self.private_state_id:
+            self.private_country_id = self.private_state_id.country_id
+
+    @api.model
+    def get_views(self, views, options=None):
+        preferences_view = self.env.ref("hr.res_users_view_form_preferences")
+        preferences_form = preferences_view and [preferences_view.id, "form"]
+        if preferences_form and preferences_form in views:
+            views.remove(preferences_form)
+            views.append(preferences_form)
+        return super().get_views(views, options)
+
+    @api.model
+    def get_view(self, view_id=None, view_type="form", **options):
+        preferences_view = self.env.ref("hr.res_users_view_form_preferences")
+        if preferences_view and view_id == preferences_view.id:
+            self = self.with_user(SUPERUSER_ID)
+        return super().get_view(view_id, view_type, **options)
 
     def _get_notify_reason_and_partner_ids(self, employee):
         if employee.version_id.hr_responsible_id:
@@ -286,39 +339,6 @@ class ResUsers(models.Model):
                 ),
                 partner_ids=partner_ids,
             )
-
-    def write(self, vals):
-        hr_fields = [
-            field_name
-            for field_name, field in self._fields.items()
-            if field.related_field
-            and field.related_field.model_name == "hr.employee"
-            and field_name in vals
-        ]
-        employee_domain = [
-            *self.env["hr.employee"]._check_company_domain(self.env.company),
-            ("user_id", "in", self.ids),
-        ]
-
-        self_sudo = self.sudo()
-        old_hr_values = {
-            field_name: {user.id: user[field_name] for user in self_sudo}
-            for field_name in hr_fields
-        }
-
-        result = super().write(vals)
-
-        changed_hr_fields = [
-            field_name
-            for field_name in hr_fields
-            if any(
-                old_hr_values[field_name][user.id] != user[field_name]
-                for user in self_sudo
-            )
-        ]
-        if changed_hr_fields:
-            self._notify_hr_of_personal_info_change(changed_hr_fields, employee_domain)
-        return result
 
     @api.model
     def action_get(self):
