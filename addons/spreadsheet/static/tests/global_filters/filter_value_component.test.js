@@ -362,3 +362,70 @@ test("numeric filter", async function () {
         { message: "value is set" },
     );
 });
+
+test("a text filter value box carries a placeholder", async function () {
+    const env = await makeMockEnv();
+    const model = new Model(
+        {},
+        { custom: { odooDataProvider: new OdooDataProvider(env) } },
+    );
+    await addGlobalFilter(model, {
+        id: "42",
+        type: "text",
+        label: "Text Filter",
+    });
+    await mountFilterValueComponent({
+        model,
+        filter: model.getters.getGlobalFilter("42"),
+    });
+    expect(".o-autocomplete input").toHaveAttribute(
+        "placeholder",
+        "Enter one or several values",
+    );
+});
+
+test("a numeric filter value box carries a placeholder", async function () {
+    const env = await makeMockEnv();
+    const model = new Model(
+        {},
+        { custom: { odooDataProvider: new OdooDataProvider(env) } },
+    );
+    await addGlobalFilter(model, {
+        id: "42",
+        type: "numeric",
+        label: "Numeric Filter",
+        // the numeric branch of the template reads `filterValue.targetValue`
+        // unguarded, so it needs a value to render at all
+        defaultValue: { operator: "=", targetValue: 1 },
+    });
+    await mountFilterValueComponent({
+        model,
+        filter: model.getters.getGlobalFilter("42"),
+    });
+    expect(".o-global-filter-numeric-value").toHaveAttribute(
+        "placeholder",
+        "Enter a value",
+    );
+});
+
+test("a relation filter value box carries a placeholder", async function () {
+    const env = await makeMockEnv();
+    const model = new Model(
+        {},
+        { custom: { odooDataProvider: new OdooDataProvider(env) } },
+    );
+    await addGlobalFilter(model, {
+        id: "42",
+        type: "relation",
+        label: "Relation Filter",
+        modelName: "partner",
+    });
+    await mountFilterValueComponent({
+        model,
+        filter: model.getters.getGlobalFilter("42"),
+    });
+    expect(".o_input input").toHaveAttribute(
+        "placeholder",
+        "Select one or several criteria",
+    );
+});

@@ -8,6 +8,7 @@
                 input="inputRef"
                 onChange.bind="onInputChange"
                 inputDebounceDelay="0"
+                placeholder="placeholder"
             />
         </div>
     </t>

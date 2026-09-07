@@ -8,6 +8,7 @@
             t-att-value="props.value ?? ''"
             t-on-change="(e) => this.onChange(e.target.value)"
             inputmode="decimal"
+            t-att-placeholder="props.placeholder"
         />
     </t>
 </templates>

@@ -6,6 +6,7 @@ import { Component, onWillStart } from "@odoo/owl";
 import { getFields, ModelNotFoundError } from "@spreadsheet/data_sources/data_source";
 import {
     getDefaultValue,
+    getFilterValuePlaceholder,
     isSetOperator,
     isTextualOperator,
 } from "@spreadsheet/global_filters/helpers";
@@ -99,6 +100,11 @@ export class FilterValue extends Component {
                 model,
             },
         );
+    }
+
+    get placeholder() {
+        const operator = this.filterValue?.operator ?? this.getDefaultOperator();
+        return getFilterValuePlaceholder(this.filter, operator);
     }
 
     getDefaultOperator() {
