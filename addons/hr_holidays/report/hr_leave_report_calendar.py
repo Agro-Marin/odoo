@@ -117,11 +117,12 @@ class HrLeaveReportCalendar(models.Model):
     @api.depends("employee_id.name", "leave_id")
     @api.depends_context("uid")
     def _compute_name(self):
+        is_holidays_user = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
         for leave in self:
             leave.name = leave.employee_id.name
-            if self.env.user.has_group("hr_holidays.group_hr_holidays_user"):
+            if is_holidays_user:
                 leave.name += f" {leave.leave_id.holiday_status_id.name}"
-            leave.name += f": {leave.sudo().leave_id.duration_display}"
+                leave.name += f": {leave.sudo().leave_id.duration_display}"
 
     @api.depends("leave_manager_id")
     @api.depends_context("uid")
