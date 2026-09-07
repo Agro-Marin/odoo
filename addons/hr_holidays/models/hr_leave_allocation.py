@@ -664,6 +664,7 @@ class HrLeaveAllocation(models.Model):
                     allocation._message_log(body=first_allocation)
             (current_level, current_level_idx) = (False, 0)
             current_level_maximum_leave = 0.0
+            cap_days_by_level = {}
             while allocation.nextcall <= date_to:
                 (current_level, current_level_idx) = (
                     allocation._get_current_accrual_plan_level_id(allocation.nextcall)
@@ -671,9 +672,13 @@ class HrLeaveAllocation(models.Model):
                 if not current_level:
                     break
                 if current_level.cap_accrued_time:
-                    current_level_maximum_leave = allocation._level_amount_in_days(
-                        current_level, current_level.maximum_leave
-                    )
+                    if current_level.id not in cap_days_by_level:
+                        cap_days_by_level[current_level.id] = (
+                            allocation._level_amount_in_days(
+                                current_level, current_level.maximum_leave
+                            )
+                        )
+                    current_level_maximum_leave = cap_days_by_level[current_level.id]
                 nextcall = current_level._get_next_date(allocation.nextcall)
                 period_start = current_level._get_previous_date(allocation.lastcall)
                 period_end = current_level._get_next_date(allocation.lastcall)
