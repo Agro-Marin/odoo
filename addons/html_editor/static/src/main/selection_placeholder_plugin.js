@@ -234,8 +234,8 @@ export class SelectionPlaceholderPlugin extends Plugin {
         if (selection.isCollapsed) {
             const anchor = closestElement(selection.anchorNode);
             if (
-                closestBlock(anchor.parentElement) === this.editable &&
                 anchor?.hasAttribute(PLACEHOLDER_ATTRIBUTE) &&
+                closestBlock(anchor.parentElement) === this.editable &&
                 !getNonWhitespaceSibling("next", anchor)
             ) {
                 this.persistPlaceholder(anchor);
