@@ -1436,15 +1436,19 @@ class TestEsbuildLockCursor(TransactionCase):
         return self.env.cr.fetchone()[0]
 
     def test_the_lock_is_released_when_the_block_exits(self):
-        held = "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'"
-        self.env.cr.execute(held)
-        before = self.env.cr.fetchone()[0]
+        # pg_locks spans every database and every backend of the cluster, so a
+        # count over it reads the whole workspace; ask for this one key instead.
+        free = "SELECT pg_try_advisory_xact_lock(hashtext(%s))"
         with self._qweb._get_esbuild_lock_cursor("b.x") as lock_cr:
             self.assertTrue(self._qweb._acquire_esbuild_lock("b.x", cr=lock_cr))
-        self.env.cr.execute(held)
-        self.assertEqual(
+            self.env.cr.execute(free, ("esbuild:b.x",))
+            self.assertFalse(
+                self.env.cr.fetchone()[0],
+                msg="the compile must hold the lock against another backend",
+            )
+        self.env.cr.execute(free, ("esbuild:b.x",))
+        self.assertTrue(
             self.env.cr.fetchone()[0],
-            before,
             msg="the advisory lock must not outlive the compile",
         )
 
