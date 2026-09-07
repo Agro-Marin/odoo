@@ -126,9 +126,7 @@ class TestSaleReportCurrencyRate(SaleCommon):
         )
 
         sale_orders = self.env["sale.order"]
-        expected_reported_amount = (
-            0
-        )
+        expected_reported_amount = 0
         qty = 0
 
         for company in companies:
@@ -257,3 +255,73 @@ class TestSaleReportCurrencyRate(SaleCommon):
             ),
             0,
         )
+
+
+@tagged("-at_install", "post_install")
+class TestSaleReportPartnerTags(SaleCommon):
+    """The Sales Analysis has to segment by the tags the customers actually carry.
+
+    Contact tags are how the sales side records crop, commercial profile, debt
+    quality and who collects; almost every order here belongs to a tagged
+    customer, and none of that reached the report.
+    """
+
+    def test_sales_analysis_groups_by_customer_tag(self):
+        gold, silver = self.env["res.partner.tag"].create(
+            [{"name": "Gold"}, {"name": "Silver"}]
+        )
+        partners = self.env["res.partner"].create(
+            [
+                {"name": "Gold Customer", "tag_ids": [Command.set(gold.ids)]},
+                {"name": "Silver Customer", "tag_ids": [Command.set(silver.ids)]},
+            ]
+        )
+        orders = self.env["sale.order"].create(
+            [
+                {
+                    "partner_id": partner.id,
+                    "line_ids": [Command.create({"product_id": self.product.id})],
+                }
+                for partner in partners
+            ]
+        )
+        orders.action_confirm()
+        orders.line_ids.flush_recordset()
+
+        groups = self.env["sale.report"].formatted_read_group(
+            [("order_reference", "in", [f"sale.order,{order.id}" for order in orders])],
+            ["partner_tag_ids"],
+            ["__count"],
+        )
+
+        self.assertEqual(
+            {group["partner_tag_ids"][1] for group in groups},
+            {"Gold", "Silver"},
+            "each customer tag has to come back as its own bucket",
+        )
+        self.assertEqual(
+            [group["__count"] for group in groups],
+            [1, 1],
+            "one order per tag",
+        )
+
+    def test_customer_tag_follows_the_contact(self):
+        """The column is the contact's own tags, read through the order.
+
+        A stored copy would go stale the moment someone retags the customer.
+        """
+        tag = self.env["res.partner.tag"].create({"name": "Retagged"})
+        order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner.id,
+                "line_ids": [Command.create({"product_id": self.product.id})],
+            }
+        )
+        order.action_confirm()
+        order.line_ids.flush_recordset()
+
+        report_line = self.env["sale.report"].search(
+            [("order_reference", "=", f"sale.order,{order.id}")]
+        )
+        self.partner.tag_ids = [Command.link(tag.id)]
+        self.assertIn(tag, report_line.partner_tag_ids)
