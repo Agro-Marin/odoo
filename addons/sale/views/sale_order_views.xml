@@ -708,6 +708,19 @@
                                 readonly="state in ['done', 'cancel']"
                                 placeholder="Immediate"
                                 options="{'no_open': True, 'no_create': True}" />
+                            <label for="date_commitment" string="Delivery Date" />
+                            <div
+                                name="date_commitment_div"
+                                class="o_row align-items-center">
+                                <field
+                                    name="date_commitment"
+                                    readonly="state == 'cancel' or locked" />
+                                <span
+                                    name="expected_date_span"
+                                    invisible="not date_planned"
+                                    class="text-muted">
+                                    Expected: <field name="date_planned" class="oe_inline" /></span>
+                            </div>
                         </group>
                     </group>
                     <notebook>
@@ -1204,21 +1217,10 @@
                                         invisible="1"
                                         groups="!base.group_no_one" />
                                 </group>
-                                <group name="sale_shipping" string="Shipping">
-                                    <label
-                                        for="date_commitment"
-                                        string="Delivery Date" />
-                                    <div name="date_commitment_div" class="o_row">
-                                        <field
-                                            name="date_commitment"
-                                            readonly="state == 'cancel' or locked" />
-                                        <span
-                                            name="expected_date_span"
-                                            invisible="not date_planned"
-                                            class="text-muted">
-                                            Expected: <field name="date_planned" class="oe_inline" /></span>
-                                    </div>
-                                </group>
+                                <group
+                                    name="sale_shipping"
+                                    string="Shipping"
+                                    invisible="1" />
                                 <group name="tracking_info" string="Tracking">
                                     <field name="origin" />
                                     <field

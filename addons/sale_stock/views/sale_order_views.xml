@@ -32,8 +32,9 @@
                 <attribute name="groups"/><!-- Remove the res.group on the group and set
                 it on the field directly-->
                 <attribute name="string">Delivery</attribute>
+                <attribute name="invisible"/><!-- The group is ours to fill again -->
             </group>
-            <label for="date_commitment" position="before">
+            <group name="sale_shipping" position="inside">
                 <field
                     name="warehouse_id"
                     options="{'no_create': True}"
@@ -47,30 +48,30 @@
                     name="picking_policy"
                     required="True"
                     readonly="state != 'draft'" />
-            </label>
-            <span name="expected_date_span" position="attributes">
-                <attribute name="invisible">date_effective and date_commitment</attribute>
-            </span>
+                <field name="date_effective" invisible="not date_effective" />
+            </group>
             <div name="date_commitment_div" position="replace">
-                <div class="o_row">
+                <div name="date_commitment_div" class="o_row align-items-center">
                     <field name="date_commitment" />
+                    <field
+                        string=" "
+                        name="json_popover"
+                        widget="stock_rescheduling_popover"
+                        invisible="not show_json_popover" />
                     <span
+                        name="expected_date_span"
                         class="text-muted"
                         invisible="not date_planned or (date_effective and date_commitment)">
                         Expected: <field name="date_planned" class="oe_inline" /></span>
+                    <field
+                        name="transfer_state"
+                        widget="badge"
+                        decoration-success="transfer_state == 'done'"
+                        decoration-warning="transfer_state == 'partial'"
+                        decoration-info="transfer_state == 'to do'"
+                        invisible="state != 'done'" />
                 </div>
-                <field name="date_effective" invisible="not date_effective" />
-                <field name="transfer_state" invisible="state != 'done'" />
             </div>
-            <xpath
-                expr="//page[@name='other_information']//field[@name='date_planned']"
-                position="after">
-                <field
-                    string=" "
-                    name="json_popover"
-                    widget="stock_rescheduling_popover"
-                    invisible="not show_json_popover" />
-            </xpath>
             <xpath
                 expr="//field[@name='line_ids']//form//field[@name='analytic_distribution']"
                 position="before">

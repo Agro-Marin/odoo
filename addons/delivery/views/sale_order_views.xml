@@ -36,9 +36,12 @@
                     add="(recompute_delivery_price and is_delivery)"
                     separator="or" />
             </xpath>
-            <label for="date_commitment" position="before">
+            <group name="sale_shipping" position="attributes">
+                <attribute name="invisible"/><!-- The group is ours to fill again -->
+            </group>
+            <group name="sale_shipping" position="inside">
                 <field name="shipping_weight" readonly="True" />
-            </label>
+            </group>
         </field>
     </record>
 
