@@ -120,6 +120,19 @@
             <field name="perm_read" eval="1" />
             <field name="perm_create" eval="0" />
         </record>
+        <record id="survey_survey_rule_recruitment_user" model="ir.rule">
+            <field
+                name="name">Survey survey: recruitment officer: all recruitment</field>
+            <field name="model_id" ref="survey.model_survey_survey" />
+            <field name="domain_force">[('survey_type', '=', 'recruitment')]</field>
+            <field
+                name="groups"
+                eval="[(4, ref('hr_recruitment.group_hr_recruitment_user'))]" />
+            <field name="perm_unlink" eval="1" />
+            <field name="perm_write" eval="1" />
+            <field name="perm_read" eval="1" />
+            <field name="perm_create" eval="1" />
+        </record>
         <record id="survey_invite_recruitment_user" model="ir.rule">
             <field
                 name="name">Survey invite: recruitment officer: unrestricted or in restricted users</field>

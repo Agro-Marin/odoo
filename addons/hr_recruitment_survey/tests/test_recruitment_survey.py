@@ -90,17 +90,23 @@ class TestRecruitmentSurvey(common.TransactionCase):
         invite_recruitment.with_user(self.hr_recruitment_manager).action_invite()
         with self.assertRaises(AccessError):
             self.survey_custom.with_user(self.hr_recruitment_manager).read(["title"])
-        for user in (self.hr_recruitment_interviewer, self.hr_recruitment_user):
-            with self.subTest(user=user):
-                with self.assertRaises(AccessError):
-                    invite_recruitment.with_user(user).action_invite()
-                self.job.interviewer_ids = user
-                invite_recruitment.with_user(user).action_invite()
-                self.job.interviewer_ids = False
-                with self.assertRaises(AccessError):
-                    invite_recruitment.with_user(user).action_invite()
-                self.job_applicant.interviewer_ids = user
-                invite_recruitment.with_user(user).action_invite()
+
+        # Officer: unrestricted access to recruitment surveys, no interviewer gate.
+        invite_recruitment.with_user(self.hr_recruitment_user).action_invite()
+        with self.assertRaises(AccessError):
+            self.survey_custom.with_user(self.hr_recruitment_user).read(["title"])
+
+        # Interviewer: gated on being set as interviewer, on the job or the applicant.
+        user = self.hr_recruitment_interviewer
+        with self.assertRaises(AccessError):
+            invite_recruitment.with_user(user).action_invite()
+        self.job.interviewer_ids = user
+        invite_recruitment.with_user(user).action_invite()
+        self.job.interviewer_ids = False
+        with self.assertRaises(AccessError):
+            invite_recruitment.with_user(user).action_invite()
+        self.job_applicant.interviewer_ids = user
+        invite_recruitment.with_user(user).action_invite()
 
     @mute_logger("odoo.addons.base.models.ir_rule")
     def test_print_survey(self):
@@ -124,9 +130,8 @@ class TestRecruitmentSurvey(common.TransactionCase):
             self.survey_custom.with_user(
                 self.hr_recruitment_manager
             ).action_print_survey()
-        with self.assertRaises(AccessError):
-            self.job_applicant.with_user(self.hr_recruitment_user).action_print_survey()
-        self.job_applicant.interviewer_ids = self.hr_recruitment_user
+
+        # Officer: unrestricted access to recruitment surveys, no interviewer gate.
         self.job_applicant.with_user(self.hr_recruitment_user).action_print_survey()
 
     def _prepare_invite(self, survey, applicant):
