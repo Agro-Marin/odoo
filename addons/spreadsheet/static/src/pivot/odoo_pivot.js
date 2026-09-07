@@ -710,7 +710,9 @@ pivotRegistry.add("ODOO", {
             field.type === "many2one") &&
         field.name !== "id" &&
         !field.name.includes(".") && // relational field path are not supported as measures (e.g. 'company_id.partner_id')
-        field.store,
+        // a non-stored field still carrying an aggregator is one the server
+        // proved it can aggregate: `fields_get` drops the attribute otherwise
+        (field.store || field.aggregator),
     isGroupable: (field) => field.groupable,
     canHaveCustomGroup: (field) =>
         field.groupable &&
