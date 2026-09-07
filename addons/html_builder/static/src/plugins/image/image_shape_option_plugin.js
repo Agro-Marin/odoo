@@ -488,7 +488,6 @@ export class ImageShapeOptionPlugin extends Plugin {
                 : null,
         );
     }
-    applyShapeColors(editingElement, newColors) {}
     isTransformableShape(shapeId) {
         if (!shapeId) {
             return false;
