@@ -1055,11 +1055,14 @@ export class DeletePlugin extends Plugin {
             let blockSwitch;
             const nodeClosestBlock = closestBlock(node);
             let leaf = adjacentLeafFromPos(node, offset, editableRoot);
+            const systemNodeSelectors = this.getResource("system_node_selectors").join(
+                ",",
+            );
             while (leaf) {
                 const leafClosestBlock = closestBlock(leaf);
                 blockSwitch ||= leafClosestBlock !== nodeClosestBlock;
 
-                if (this.shouldSkip(leaf, blockSwitch)) {
+                if (this.shouldSkip(leaf, blockSwitch, systemNodeSelectors)) {
                     leaf = adjacentLeaf(leaf, editableRoot);
                     continue;
                 }
@@ -1143,8 +1146,11 @@ export class DeletePlugin extends Plugin {
         return false;
     }
 
-    shouldSkip(leaf, blockSwitch) {
-        const systemNodeSelectors = this.getResource("system_node_selectors").join(",");
+    shouldSkip(
+        leaf,
+        blockSwitch,
+        systemNodeSelectors = this.getResource("system_node_selectors").join(","),
+    ) {
         if (systemNodeSelectors && closestElement(leaf, systemNodeSelectors)) {
             return true;
         }
