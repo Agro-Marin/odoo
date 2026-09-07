@@ -29,3 +29,4 @@ from . import test_party_delegation
 from . import test_party_identifiers
 from . import test_party_link
 from . import test_party_create_path
+from . import test_party_stored_mirrors
