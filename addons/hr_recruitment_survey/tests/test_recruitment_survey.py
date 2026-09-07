@@ -134,6 +134,11 @@ class TestRecruitmentSurvey(common.TransactionCase):
         # Officer: unrestricted access to recruitment surveys, no interviewer gate.
         self.job_applicant.with_user(self.hr_recruitment_user).action_print_survey()
 
+    def test_new_survey_sets_recruitment_type(self):
+        action = self.job.with_user(self.hr_recruitment_manager).action_new_survey()
+        survey = self.env["survey.survey"].browse(action["res_id"])
+        self.assertEqual(survey.survey_type, "recruitment")
+
     def _prepare_invite(self, survey, applicant):
         survey.write({"access_mode": "public", "users_login_required": False})
         return Form.from_action(self.env, applicant.action_send_survey()).save()
