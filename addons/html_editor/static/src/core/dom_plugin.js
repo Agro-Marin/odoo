@@ -320,7 +320,6 @@ export class DomPlugin extends Plugin {
             const toInsert = childNodes(containerLastChild);
             _insertAt(currentNode, [...toInsert], insertBefore);
             currentNode = insertBefore ? toInsert[0] : currentNode;
-            toInsert[toInsert.length - 1];
         }
         const firstInsertedNodes = childNodes(containerFirstChild);
         if (containerFirstChild.hasChildNodes()) {
