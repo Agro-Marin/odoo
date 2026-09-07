@@ -663,3 +663,101 @@ class TestSaleOrder(SaleManagementCommon):
             self.assertTrue(sale_order_form.line_ids)
             self.assertFalse(sale_order_form.show_update_pricelist)
             sale_order_form.partner_id = self.partner
+
+    def test_create_quotation_template_from_order(self):
+        """An order can be captured as a reusable quotation template in one step.
+
+        Also pins the quantity mapping in the direction opposite to
+        `test_template_quantity_transferred`: on `sale.order.line` the editable
+        quantity is `product_qty`, while `product_uom_qty` is the read-only
+        projection into the product's reference UoM. Reading the projection
+        would store 24 instead of 2 for a line sold by the dozen.
+        """
+        self.product.uom_ids += self.uom_dozen
+        order = self._create_so(
+            notes="<p>Terms straight from the order</p>",
+            line_ids=[
+                Command.create(
+                    {
+                        "display_type": "line_section",
+                        "name": "Optional extras",
+                        "is_optional": True,
+                    }
+                ),
+                Command.create(
+                    {
+                        "product_id": self.product.id,
+                        "product_qty": 2.0,
+                        "product_uom_id": self.uom_dozen.id,
+                    }
+                ),
+                Command.create(
+                    {
+                        "product_id": self.service_product.id,
+                        "product_qty": 7.5,
+                    }
+                ),
+                # A down payment carries no product, which our order line
+                # tolerates and the template line does not: it must be left
+                # behind rather than raise on the template's CHECK.
+                Command.create(
+                    {
+                        "name": "Down payment",
+                        "is_downpayment": True,
+                        "price_unit": 50.0,
+                    }
+                ),
+            ],
+        )
+        order.require_signature = True
+
+        dozen_line = order.line_ids.filtered(
+            lambda line: line.product_uom_id == self.uom_dozen
+        )
+        self.assertEqual(dozen_line.product_qty, 2.0)
+        self.assertEqual(
+            dozen_line.product_uom_qty,
+            24.0,
+            "Precondition: the reference-UoM projection must differ from the "
+            "editable quantity, or this test cannot tell the two apart.",
+        )
+
+        action = order.action_create_quotation_template()
+
+        template = order.sale_order_template_id
+        self.assertTrue(
+            template, "The order is left pointing at the template it produced."
+        )
+        self.assertEqual(action["res_model"], "sale.order.template")
+        self.assertEqual(action["res_id"], template.id)
+        self.assertEqual(template.company_id, order.company_id)
+        self.assertEqual(template.note, order.notes)
+        self.assertTrue(template.require_signature)
+
+        t_lines = template.sale_order_template_line_ids
+        self.assertEqual(
+            len(t_lines),
+            3,
+            "The section and the two product lines cross; the down payment does not.",
+        )
+
+        section = t_lines.filtered(lambda line: line.display_type == "line_section")
+        self.assertEqual(section.name, "Optional extras")
+        self.assertTrue(section.is_optional, "An optional section stays optional.")
+        self.assertFalse(section.product_id)
+        self.assertFalse(section.product_uom_id)
+        self.assertEqual(section.product_uom_qty, 0.0)
+
+        dozen_t_line = t_lines.filtered(lambda line: line.product_id == self.product)
+        self.assertEqual(dozen_t_line.product_uom_id, self.uom_dozen)
+        self.assertEqual(
+            dozen_t_line.product_uom_qty,
+            2.0,
+            "The template must carry the quantity in the line's own UoM: 2 dozen, "
+            "not the 24 units of the reference-UoM projection.",
+        )
+
+        service_t_line = t_lines.filtered(
+            lambda line: line.product_id == self.service_product
+        )
+        self.assertEqual(service_t_line.product_uom_qty, 7.5)

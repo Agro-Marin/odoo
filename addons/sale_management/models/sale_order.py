@@ -1,7 +1,7 @@
 from datetime import timedelta
 from itertools import starmap, zip_longest
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 from odoo.tools import is_html_empty
 
 
@@ -172,3 +172,51 @@ class SaleOrder(models.Model):
                     order.sale_order_template_id.mail_template_id
                 )
         return res
+
+    def action_create_quotation_template(self):
+        """Capture this order as a new, reusable quotation template."""
+        self.check_singleton()
+
+        template = self.env["sale.order.template"].create(
+            self._prepare_template_order_values()
+        )
+        # Leave the order pointing at what it produced, so the next quotation
+        # built from that template starts from the same lines.
+        self.sale_order_template_id = template
+
+        return {
+            "type": "ir.actions.act_window",
+            "res_model": "sale.order.template",
+            "res_id": template.id,
+            "view_mode": "form",
+        }
+
+    # === TOOLING METHODS ===#
+
+    def _prepare_template_order_values(self):
+        """Give the values to create a quotation template from this order.
+
+        :return: `sale.order.template` create values
+        :rtype: dict
+        """
+        self.check_singleton()
+        return {
+            "company_id": self.company_id.id,
+            "journal_id": self.journal_id.id,
+            "name": _("Template from %s", self.name),
+            # Our order calls its terms `notes`; the template calls them `note`.
+            "note": self.notes,
+            "prepayment_percent": self.prepayment_percent,
+            "require_payment": self.require_payment,
+            "require_signature": self.require_signature,
+            "sale_order_template_line_ids": [
+                fields.Command.create(line._prepare_template_line_values())
+                # Down payments are one order's invoicing arrangement, not
+                # something to template -- and they are the one line type that
+                # cannot cross: our order line lets a down payment carry no
+                # product (`_accountable_required_fields` exempts it), while the
+                # template line's `_accountable_product_id_required` has no such
+                # exemption, so copying one raises on the CHECK.
+                for line in self.line_ids.filtered(lambda l: not l.is_downpayment)
+            ],
+        }
