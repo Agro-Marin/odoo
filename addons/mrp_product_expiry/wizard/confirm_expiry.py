@@ -1,5 +1,4 @@
 from odoo import api, fields, models
-from odoo.exceptions import AccessError
 
 
 class ExpiryPickingConfirmation(models.TransientModel):
@@ -26,21 +25,6 @@ class ExpiryPickingConfirmation(models.TransientModel):
         super(ExpiryPickingConfirmation, self - manufacturing)._compute_description()
 
     def confirm_produce(self):
-        if not self.env.user.has_group("mrp.group_mrp_manager"):
-            raise AccessError(
-                self.env._(
-                    "Only a Manufacturing Manager can confirm a production"
-                    " using expired lots."
-                )
-            )
-        body = self.env._(
-            "%(user)s confirmed production using expired lot(s): %(lots)s.",
-            user=self.env.user.name,
-            lots=", ".join(self.lot_ids.mapped("name")),
-        )
-        self.production_ids._message_log_batch(
-            bodies=dict.fromkeys(self.production_ids.ids, body)
-        )
         return self.production_ids.with_context(
             **self._validation_context()
         ).button_mark_done()
