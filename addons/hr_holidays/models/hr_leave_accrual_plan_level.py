@@ -305,6 +305,10 @@ class HrLeaveAccrualLevel(models.Model):
 
     @api.depends("start_count", "start_type")
     def _compute_sequence(self):
+        # Approximate day-equivalents for list ordering only; the actual
+        # transition date uses real calendar arithmetic (see
+        # _get_level_transition_date), so a tie/inversion here only affects
+        # display order, never accrual dates.
         start_type_multipliers = {
             "day": 1,
             "month": 30,
