@@ -15,7 +15,9 @@ whatever the shape of the names.
 Nothing matches on a prefix. A stored value is rewritten only when it equals a
 known old model name in full, which is what makes discovering the columns safe:
 a column called ``model`` that holds a car model is untouched, because no car is
-called ``documents.document``. Every statement is idempotent -- the guard stops
+called ``documents.document``. ``model_id`` is in the list because ``ir.filters``
+stores a model *name* in a column of that name; the text-type filter keeps every
+genuine many2one ``model_id`` out. Every statement is idempotent -- the guard stops
 matching once a row is rewritten.
 """
 
@@ -98,6 +100,7 @@ TABLES = dict(
 # file never heard of is repointed too; exact equality is what makes that safe.
 MODEL_COLUMNS = (
     "model",
+    "model_id",
     "res_model",
     "model_name",
     "src_model",
