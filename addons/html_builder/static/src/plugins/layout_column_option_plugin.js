@@ -103,8 +103,9 @@ export class ChangeColumnCountAction extends BuilderAction {
         // the column and the row and remove them.
         if (nbColumns === 0) {
             const cursors = this.dependencies.selection.preserveSelection();
-            const columnEl = editingElement.querySelector(".row > div");
-            editingElement.append(...columnEl.children);
+            for (const columnEl of rowEl.children) {
+                editingElement.append(...columnEl.children);
+            }
             rowEl.remove();
             cursors.restore();
         } else if (prevNbColumns === 0) {
