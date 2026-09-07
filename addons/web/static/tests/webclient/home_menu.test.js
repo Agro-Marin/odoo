@@ -17,8 +17,8 @@ import {
     runAllTimers,
     test,
 } from "@odoo/hoot";
-import { reactive } from "@odoo/owl";
-import { onRendered } from "@odoo/owl";
+import { Deferred } from "@odoo/hoot-mock";
+import { onRendered, reactive } from "@odoo/owl";
 import {
     defineMenus,
     getService,
@@ -716,7 +716,7 @@ test("setting the company default with no default passed in still clears the res
 
     await click(".o_home_menu_company_default");
     await animationFrame();
-    expect(homeMenu.defaultConfig.hidden).toEqual(["app.3"]);
+    expect(homeMenu.layout.defaultConfig.hidden).toEqual(["app.3"]);
     expect(".o_home_menu_reset").toHaveCount(0, {
         message: "this layout is the company's now, so there is nothing to reset",
     });
@@ -1066,12 +1066,12 @@ test("reset after publishing a company default returns the TILES to it, not only
     const homeMenu = await mountWithCleanup(HomeMenu, { props });
 
     props.reorderApps(["c", "a", "b"]);
-    homeMenu.config.order = ["c", "a", "b"];
+    homeMenu.layout.config.order = ["c", "a", "b"];
     await homeMenu._setCompanyDefault();
     await animationFrame();
 
     props.reorderApps(["b", "c", "a"]);
-    homeMenu.config.order = ["b", "c", "a"];
+    homeMenu.layout.config.order = ["b", "c", "a"];
     await animationFrame();
     expect(queryAllAttributes(".o_apps .o_app", "data-menu-xmlid")).toEqual([
         "b",
@@ -1081,7 +1081,7 @@ test("reset after publishing a company default returns the TILES to it, not only
 
     await homeMenu._resetLayout();
     await animationFrame();
-    expect(homeMenu.config.order).toEqual(["c", "a", "b"]);
+    expect(homeMenu.layout.config.order).toEqual(["c", "a", "b"]);
     expect(queryAllAttributes(".o_apps .o_app", "data-menu-xmlid")).toEqual(
         ["c", "a", "b"],
         { message: "the grid follows the company default the admin just set" },
@@ -1140,4 +1140,54 @@ test("a keystroke evaluates each derived list once per render, not once per resu
     for (const [name, n] of Object.entries(counts)) {
         expect(n).toBe(renders, { message: `${name}: once per render` });
     }
+});
+
+test("two quick pins are written one after the other, so neither can be lost", async () => {
+    // res.users.settings writes are not serialised, so this used to put two
+    // whole layouts in flight at once -- {pinned:[a]} and {pinned:[a,b]} --
+    // and whichever reached the server last won. Losing the second pin left
+    // nothing behind to show it had happened. Two clicks are two writes,
+    // being a tick apart; what changed is that the second waits.
+    patchWithCleanup(user, { settings: { id: 1 } });
+    const pending = [];
+    onRpc("set_res_users_settings", ({ kwargs }) => {
+        const def = new Deferred();
+        pending.push(def);
+        expect.step(kwargs.new_settings.homemenu_config);
+        return def;
+    });
+    const apps = ["a", "b"].map((xmlid, i) => ({
+        actionID: 100 + i,
+        href: `/odoo/action-${100 + i}`,
+        appID: i + 1,
+        id: i + 1,
+        label: xmlid.toUpperCase(),
+        parents: "",
+        webIcon: false,
+        xmlid,
+    }));
+    await mountWithCleanup(HomeMenu, {
+        props: {
+            apps,
+            config: reactive(parseHomeMenuConfig(null)),
+            reorderApps: (order) => reorderApps(apps, order),
+        },
+    });
+    await click(".o_home_menu_customize");
+    await animationFrame();
+
+    await click(".o_app[data-menu-xmlid='a'] .o_app_pin");
+    await click(".o_app[data-menu-xmlid='b'] .o_app_pin");
+    await animationFrame();
+    expect(pending).toHaveLength(1, {
+        message: "one request in flight: the second waits for the first",
+    });
+    expect.verifySteps(['{"version":2,"order":[],"pinned":["a"],"hidden":[]}']);
+
+    pending[0].resolve({});
+    await animationFrame();
+    expect(pending).toHaveLength(2);
+    expect.verifySteps(['{"version":2,"order":[],"pinned":["a","b"],"hidden":[]}'], {
+        message: "and the later layout goes out last, carrying both pins",
+    });
 });

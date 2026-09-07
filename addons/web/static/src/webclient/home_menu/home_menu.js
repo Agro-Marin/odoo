@@ -16,21 +16,20 @@ import { hasTouch, isIosApp, isMacOS } from "@web/core/browser/feature_detection
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { user } from "@web/core/user";
 import { useSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
-import { session } from "@web/session";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 import {
     flattenMenuTree,
     menuSearchKey,
     parseHomeMenuConfig,
-    serializeHomeMenuConfig,
 } from "@web/webclient/menus/menu_utils";
 
 import { loadHomeMenuBadges } from "./badges.js";
 import { ExpirationPanel } from "./expiration_panel.js";
+import { gridRows, nextFocusedIndex } from "./grid_navigation.js";
+import { HomeMenuLayout } from "./home_menu_layout.js";
 import { SysAdminPanel } from "./sysadmin_panel.js";
 
 // A stable object, so a menu service without `getMenuAsTree` still resolves
@@ -133,17 +132,13 @@ export class HomeMenu extends Component {
      * }}
      */
     state;
-    /** @type {import("@web/webclient/menus/menu_utils").HomeMenuConfig} */
-    config;
     /**
-     * The layout this user falls back to, their company's or the empty one.
-     * A field and not a getter: making the current layout the company default
-     * moves it, and a getter minting a fresh object per call would move a copy
-     * nobody reads.
+     * Which apps are pinned, hidden and in what order, and the writing of it
+     * down. The grid reads it; it owns it.
      *
-     * @type {import("@web/webclient/menus/menu_utils").HomeMenuConfig}
+     * @type {HomeMenuLayout}
      */
-    defaultConfig;
+    layout;
     /** @type {boolean} */
     compositionStart = false;
     /** @type {boolean} */
@@ -180,10 +175,11 @@ export class HomeMenu extends Component {
             badges: {},
             query: "",
         });
-        this.config = useState(
-            this.props.config ?? reactive(parseHomeMenuConfig(null)),
-        );
-        this.defaultConfig = this.props.defaultConfig ?? parseHomeMenuConfig(null);
+        this.layout = new HomeMenuLayout({
+            config: useState(this.props.config ?? reactive(parseHomeMenuConfig(null))),
+            defaultConfig: this.props.defaultConfig ?? parseHomeMenuConfig(null),
+            orm: this.orm,
+        });
         this.inputRef = useRef("input");
         this.rootRef = useRef("root");
 
@@ -205,10 +201,10 @@ export class HomeMenu extends Component {
             // State is reset on each remount
             this.state.focusedIndex = null;
             if (nextProps.config && nextProps.config !== this.props.config) {
-                this.config = reactive(nextProps.config, () => this.render());
+                this.layout.setConfig(reactive(nextProps.config, () => this.render()));
             }
             if (nextProps.defaultConfig) {
-                this.defaultConfig = nextProps.defaultConfig;
+                this.layout.defaultConfig = nextProps.defaultConfig;
             }
         });
 
@@ -275,7 +271,7 @@ export class HomeMenu extends Component {
                 .filter((app) => app.xmlid !== undefined && this._isShown(app))
                 .map((app) => [app.xmlid, app]),
         );
-        return this.config.pinned.flatMap((xmlid) => {
+        return this.layout.config.pinned.flatMap((xmlid) => {
             const app = byXmlid.get(xmlid);
             return app ? [app] : [];
         });
@@ -327,15 +323,12 @@ export class HomeMenu extends Component {
 
     /** @returns {boolean} */
     get hasCustomLayout() {
-        return (
-            serializeHomeMenuConfig(this.config) !==
-            serializeHomeMenuConfig(this.defaultConfig)
-        );
+        return this.layout.isCustomised;
     }
 
     /** @returns {boolean} */
     get canSetCompanyDefault() {
-        return user.isAdmin;
+        return this.layout.canSetCompanyDefault;
     }
 
     /**
@@ -363,12 +356,12 @@ export class HomeMenu extends Component {
 
     /** @param {HomeMenuApp} app */
     isPinned(app) {
-        return app.xmlid !== undefined && this.config.pinned.includes(app.xmlid);
+        return this.layout.isPinned(app);
     }
 
     /** @param {HomeMenuApp} app */
     isHidden(app) {
-        return app.xmlid !== undefined && this.config.hidden.includes(app.xmlid);
+        return this.layout.isHidden(app);
     }
 
     /** @returns {number} */
@@ -409,66 +402,24 @@ export class HomeMenu extends Component {
         );
     }
 
-    _persistConfig() {
-        return user.setUserSettings(
-            "homemenu_config",
-            serializeHomeMenuConfig(this.config),
-        );
-    }
-
     /** @param {HomeMenuApp} app */
     _togglePinned(app) {
-        if (app.xmlid === undefined) {
-            return;
-        }
-        const index = this.config.pinned.indexOf(app.xmlid);
-        if (index === -1) {
-            this.config.pinned.push(app.xmlid);
-        } else {
-            this.config.pinned.splice(index, 1);
-        }
-        this._persistConfig();
+        return this.layout.togglePinned(app);
     }
 
     /** @param {HomeMenuApp} app */
     _toggleHidden(app) {
-        if (app.xmlid === undefined) {
-            return;
-        }
-        const index = this.config.hidden.indexOf(app.xmlid);
-        if (index === -1) {
-            this.config.hidden.push(app.xmlid);
-            // A hidden app has no place to be pinned to.
-            const pinnedIndex = this.config.pinned.indexOf(app.xmlid);
-            if (pinnedIndex !== -1) {
-                this.config.pinned.splice(pinnedIndex, 1);
-            }
-        } else {
-            this.config.hidden.splice(index, 1);
-        }
-        this._persistConfig();
+        return this.layout.toggleHidden(app);
     }
 
     _resetLayout() {
-        const defaults = this.defaultConfig;
-        this.config.order = [...defaults.order];
-        this.config.pinned = [...defaults.pinned];
-        this.config.hidden = [...defaults.hidden];
-        this.props.resetApps?.(defaults.order);
-        // No layout of their own: the user follows the company's again.
-        return user.setUserSettings("homemenu_config", null);
+        const { order, saved } = this.layout.reset();
+        this.props.resetApps?.(order);
+        return saved;
     }
 
     async _setCompanyDefault() {
-        const config = JSON.parse(serializeHomeMenuConfig(this.config));
-        await this.orm.write("res.company", [user.activeCompany.id], {
-            homemenu_default_config: config,
-        });
-        session.homemenu_default_config = config;
-        // The company's layout is this one now, so this user has nothing of
-        // their own left to reset. A copy, because the props object belongs to
-        // whoever passed it.
-        this.defaultConfig = parseHomeMenuConfig(config);
+        await this.layout.setCompanyDefault();
         this.render();
     }
 
@@ -544,68 +495,24 @@ export class HomeMenu extends Component {
      *
      * @returns {number[][]} visible indices, row by row
      */
+    /** @returns {number[][]} visible indices, row by row */
     get keyboardRows() {
-        /** @type {number[][]} */
-        const rows = [];
-        let index = 0;
-        for (const section of [this.pinnedApps, this.unpinnedApps]) {
-            for (let i = 0; i < section.length; i += this.maxIconNumber) {
-                const row = [];
-                for (
-                    let j = i;
-                    j < Math.min(i + this.maxIconNumber, section.length);
-                    j++
-                ) {
-                    row.push(index++);
-                }
-                rows.push(row);
-            }
-        }
-        // Each matching menu is a row of its own under the tiles.
-        for (let i = 0; i < this.menuMatches.length; i++) {
-            rows.push([index++]);
-        }
-        return rows;
+        return gridRows(
+            [this.pinnedApps.length, this.unpinnedApps.length],
+            this.maxIconNumber,
+            this.menuMatches.length,
+        );
     }
 
-    /**
-     * Update this.state.focusedIndex if not null.
-     * @param {string} cmd
-     */
+    /** @param {string} cmd */
     _updateFocusedIndex(cmd) {
-        const rows = this.keyboardRows;
-        if (!rows.length) {
+        const next = nextFocusedIndex(this.keyboardRows, this.state.focusedIndex, cmd);
+        if (next === null) {
             return;
         }
+        // The arrows move the real focus, not just the highlight.
         this.focusSelectedTile = true;
-        const focusedIndex = this.state.focusedIndex;
-        if (focusedIndex === null) {
-            this.state.focusedIndex = 0;
-            return;
-        }
-        let r = rows.findIndex((row) => row.includes(focusedIndex));
-        if (r === -1) {
-            this.state.focusedIndex = 0;
-            return;
-        }
-        let c = rows[r].indexOf(focusedIndex);
-        switch (cmd) {
-            case "previousColumn":
-                c = c > 0 ? c - 1 : rows[r].length - 1;
-                break;
-            case "nextColumn":
-                c = c < rows[r].length - 1 ? c + 1 : 0;
-                break;
-            case "previousLine":
-                r = r > 0 ? r - 1 : rows.length - 1;
-                break;
-            case "nextLine":
-                r = r < rows.length - 1 ? r + 1 : 0;
-                break;
-            default:
-                return;
-        }
-        this.state.focusedIndex = rows[r][Math.min(c, rows[r].length - 1)];
+        this.state.focusedIndex = next;
     }
 
     _focusInput() {
@@ -655,8 +562,7 @@ export class HomeMenu extends Component {
         }
         // apply new order
         this.props.reorderApps(order);
-        this.config.order = order;
-        this._persistConfig();
+        this.layout.setOrder(order);
     }
 
     /** @param {import("@web/core/utils/dnd/sortable").SortableHandlerParams} params */
