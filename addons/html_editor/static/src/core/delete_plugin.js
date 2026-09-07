@@ -1023,7 +1023,7 @@ export class DeletePlugin extends Plugin {
         const indexAfterChar = isDirectionForward ? charRightPos : charLeftPos;
         const textEdgePos = isDirectionForward ? startPos : endPos;
         const adjacentLeaf = (
-            isDirectionForward ? this.nextLeaf : this.previousLeaf
+            isDirectionForward ? this.nextAdjustedLeaf : this.previousAdjustedLeaf
         ).bind(this);
         const adjacentLeafFromPos = (
             isDirectionForward ? this.nextLeafFromPos : this.previousLeafFromPos
@@ -1206,11 +1206,11 @@ export class DeletePlugin extends Plugin {
         return nonEditableRoot || leaf;
     }
 
-    previousLeaf(node, editableRoot) {
+    previousAdjustedLeaf(node, editableRoot) {
         return this.adjustedLeaf(previousLeaf(node, editableRoot), editableRoot);
     }
 
-    nextLeaf(node, editableRoot) {
+    nextAdjustedLeaf(node, editableRoot) {
         return this.adjustedLeaf(nextLeaf(node, editableRoot), editableRoot);
     }
 
