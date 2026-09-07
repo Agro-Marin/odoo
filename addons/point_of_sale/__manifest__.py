@@ -96,6 +96,10 @@
                 "remove",
                 "point_of_sale/static/src/**/*.css",
             ),
+            (
+                "remove",
+                "web_tour/static/src/**/*",
+            ),
             "web/static/src/components/errors/error_handlers.js",
             "web/static/src/ui/dialog/dialog.scss",
         ],

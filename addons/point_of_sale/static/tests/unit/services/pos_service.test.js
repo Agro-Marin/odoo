@@ -665,37 +665,37 @@ describe("pos_store.js", () => {
                 getCompanyLogo256Url(companyId),
             );
         });
+    });
 
-        test("preSyncAllOrders", async () => {
-            const store = await setupPosEnv();
-            const order = await getFilledOrder(store);
+    test("preSyncAllOrders writes price_subtotal with the sign of qty", async () => {
+        const store = await setupPosEnv();
+        const order = await getFilledOrder(store);
 
-            await store.preSyncAllOrders([order]);
-            expect(order.amount_total).toEqual(17.85);
-            expect(order.amount_tax).toEqual(2.85);
-            expect(order.lines[0].qty).toEqual(3);
-            expect(order.lines[0].price_unit).toEqual(3);
-            expect(order.lines[0].price_subtotal).toEqual(9);
-            expect(order.lines[0].price_subtotal_incl).toEqual(10.35);
-            expect(order.lines[1].qty).toEqual(2);
-            expect(order.lines[1].price_unit).toEqual(3);
-            expect(order.lines[1].price_subtotal).toEqual(6);
-            expect(order.lines[1].price_subtotal_incl).toEqual(7.5);
+        await store.preSyncAllOrders([order]);
+        expect(order.amount_total).toEqual(17.85);
+        expect(order.amount_tax).toEqual(2.85);
+        expect(order.lines[0].qty).toEqual(3);
+        expect(order.lines[0].price_unit).toEqual(3);
+        expect(order.lines[0].price_subtotal).toEqual(9);
+        expect(order.lines[0].price_subtotal_incl).toEqual(10.35);
+        expect(order.lines[1].qty).toEqual(2);
+        expect(order.lines[1].price_unit).toEqual(3);
+        expect(order.lines[1].price_subtotal).toEqual(6);
+        expect(order.lines[1].price_subtotal_incl).toEqual(7.5);
 
-            order.is_refund = true;
-            order.lines.forEach((line) => (line.qty = -line.qty));
-            await store.preSyncAllOrders([order]);
+        order.is_refund = true;
+        order.lines.forEach((line) => (line.qty = -line.qty));
+        await store.preSyncAllOrders([order]);
 
-            expect(order.amount_total).toEqual(-17.85);
-            expect(order.amount_tax).toEqual(-2.85);
-            expect(order.lines[0].qty).toEqual(-3);
-            expect(order.lines[0].price_unit).toEqual(3);
-            expect(order.lines[0].price_subtotal).toEqual(9);
-            expect(order.lines[0].price_subtotal_incl).toEqual(10.35);
-            expect(order.lines[1].qty).toEqual(-2);
-            expect(order.lines[1].price_unit).toEqual(3);
-            expect(order.lines[1].price_subtotal).toEqual(6);
-            expect(order.lines[1].price_subtotal_incl).toEqual(7.5);
-        });
+        expect(order.amount_total).toEqual(-17.85);
+        expect(order.amount_tax).toEqual(-2.85);
+        expect(order.lines[0].qty).toEqual(-3);
+        expect(order.lines[0].price_unit).toEqual(3);
+        expect(order.lines[0].price_subtotal).toEqual(-9);
+        expect(order.lines[0].price_subtotal_incl).toEqual(-10.35);
+        expect(order.lines[1].qty).toEqual(-2);
+        expect(order.lines[1].price_unit).toEqual(3);
+        expect(order.lines[1].price_subtotal).toEqual(-6);
+        expect(order.lines[1].price_subtotal_incl).toEqual(-7.5);
     });
 });
