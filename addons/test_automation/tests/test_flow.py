@@ -282,7 +282,7 @@ if env.context.get('old_values', None): # on write only
         - apply when: employee is True
         """
         partner = self.res_partner_1
-        partner.write({"employee": False})
+        partner.write({"test_automation_employee": False})
 
         create_automation(
             self,
@@ -301,7 +301,7 @@ if env.context.get('old_values', None): # on write only
         self.assertEqual(lead.user_id, self.user_root)
 
         # change partner, recompute on lead should trigger the rule
-        partner.write({"employee": True})
+        partner.write({"test_automation_employee": True})
         self.env.flush_all()  # ensures the recomputation is done
         self.assertEqual(lead.partner_id, partner)
         self.assertEqual(lead.employee, True)
@@ -2290,7 +2290,7 @@ class TestHttp(common.HttpCase):
             with self.allow_requests(all_requests=True):
                 self.cr.postcommit.run()  # webhooks run in postcommit
         self.cr.clear()
-        self._wait_remaining_requests(strict=False)
+        self._wait_remaining_requests()
         self.assertEqual(
             json.loads(obj.another_field),
             {

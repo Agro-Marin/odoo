@@ -49,11 +49,11 @@ class AutomationLeadTest(models.Model):
                     [("name", "ilike", "new")], limit=1
                 ) or Test_AutomationStage.create({"name": "New"})
 
-    @api.depends("partner_id.employee", "priority")
+    @api.depends("partner_id.test_automation_employee", "priority")
     def _compute_employee_deadline(self):
         # this method computes two fields on purpose; don't split it
         for record in self:
-            record.employee = record.partner_id.employee
+            record.employee = record.partner_id.test_automation_employee
             if not record.priority or not record.create_date:
                 record.deadline = False
             else:
