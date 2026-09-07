@@ -8,7 +8,7 @@ import { TimeOffCalendarCommonPopover } from "./calendar_common_popover.js";
 
 export class TimeOffCalendarCommonRenderer extends CalendarCommonRenderer {
     static components = {
-        ...TimeOffCalendarCommonRenderer,
+        ...CalendarCommonRenderer.components,
         Popover: TimeOffCalendarCommonPopover,
     };
     setup() {
