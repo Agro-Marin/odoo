@@ -1290,3 +1290,50 @@ test("a re-render that leaves the grid alone keeps the keyboard selection", asyn
         message: "the grid changed shape, so the selection is dropped",
     });
 });
+
+test("the grid scrolls to follow an arrow key, and stays put for anything else", async () => {
+    // scrollIntoView used to run on every patch while a tile was selected, so
+    // a badge provider answering -- or any unrelated render -- dragged the
+    // grid back to a centred tile under a user who had scrolled away from it.
+    let scrolls = 0;
+    patchWithCleanup(Element.prototype, {
+        scrollIntoView() {
+            scrolls++;
+        },
+    });
+    const apps = Array.from({ length: 12 }, (_, i) => ({
+        actionID: 100 + i,
+        href: `/odoo/action-${100 + i}`,
+        appID: i + 1,
+        id: i + 1,
+        label: `App ${i}`,
+        parents: "",
+        webIcon: false,
+        xmlid: `app${i}`,
+    }));
+    const homeMenu = await mountWithCleanup(HomeMenu, {
+        props: { apps, reorderApps: (order) => reorderApps(apps, order) },
+    });
+    await animationFrame();
+
+    scrolls = 0;
+    await press("ArrowDown");
+    await animationFrame();
+    expect(scrolls).toBe(1, { message: "the arrow brings its tile into view" });
+
+    await press("ArrowRight");
+    await animationFrame();
+    expect(scrolls).toBe(2);
+
+    scrolls = 0;
+    for (let i = 0; i < 3; i++) {
+        homeMenu.render();
+        await animationFrame();
+    }
+    expect(scrolls).toBe(0, {
+        message: "renders that did not move the selection leave the scroll alone",
+    });
+    expect(".o_menuitem.o_focused").toHaveCount(1, {
+        message: "and the selection itself is still there",
+    });
+});

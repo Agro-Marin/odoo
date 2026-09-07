@@ -237,20 +237,24 @@ export class HomeMenu extends Component {
         });
 
         onPatched(() => {
-            if (this.state.focusedIndex !== null && !this.env.isSmall) {
-                const selectedItem = /** @type {HTMLElement | null} */ (
-                    this.rootRef.el?.querySelector(".o_menuitem.o_focused")
-                );
-                if (selectedItem) {
-                    // The arrow keys move the real focus: from the search box
-                    // onto the tiles, then between them.
-                    if (this.focusSelectedTile) {
-                        this.focusSelectedTile = false;
-                        selectedItem.focus({ preventScroll: true });
-                    }
-                    selectedItem.scrollIntoView({ block: "center" });
-                }
+            // Only when an arrow key just moved the selection. Scrolling on
+            // every patch instead would drag the grid back to a centred tile
+            // under a user who had scrolled away from it, and cost a forced
+            // layout for each unrelated render.
+            if (!this.focusSelectedTile || this.env.isSmall) {
+                return;
             }
+            const selectedItem = /** @type {HTMLElement | null} */ (
+                this.rootRef.el?.querySelector(".o_menuitem.o_focused")
+            );
+            if (!selectedItem) {
+                return;
+            }
+            this.focusSelectedTile = false;
+            // The arrow keys move the real focus: from the search box onto the
+            // tiles, then between them, and the grid follows.
+            selectedItem.focus({ preventScroll: true });
+            selectedItem.scrollIntoView({ block: "center" });
         });
     }
 
