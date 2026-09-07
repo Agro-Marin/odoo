@@ -58,12 +58,22 @@
 
     .o_home_menu_search {
         padding-left: map-get($spacers, 5);
-        background-color: var(
-            --AppLauncherIcon-background,
-            #{$o-home-menu-app-icon-background-color}
-        );
-        border-color: transparent;
-        box-shadow: var(--AppLauncherIcon-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.05));
+    }
+
+    .o_home_menu_menu_results {
+        max-width: $o-home-menu-search-max-width;
+
+        .o_menu_result {
+            color: var(
+                --homeMenuCaption-color,
+                #{o-token(--o-text, $o-home-menu-caption-color)}
+            );
+
+            &:hover,
+            &:focus-visible {
+                background: $component-active-bg;
+            }
+        }
     }
 
     .o_app .o_app_badge {

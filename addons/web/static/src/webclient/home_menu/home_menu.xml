@@ -27,7 +27,7 @@
             <ExpirationPanel t-if="subscription.warningType and !subscription.isWarningHidden and subscription.daysLeft &lt;= 30 and subscription.daysLeft > 0 and !subscription.sysadmin.replace"/>
             <SysAdminPanel t-if="subscription.daysLeft > 0 and subscription.sysadmin.message"/>
             <t t-set="recents" t-value="recentApps"/>
-            <nav t-if="recents.length" class="o_home_menu_recent mt-4 mx-0" aria-label="Recent apps">
+            <nav t-if="recents.length and !state.query" class="o_home_menu_recent mt-4 mx-0" aria-label="Recent apps">
                 <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Recent</div>
                 <div class="o_recent_apps row user-select-none mx-0" role="list">
                     <div t-foreach="recents" t-as="app" t-key="app.id" class="col-3 col-md-2 mb-3 px-0" role="listitem">
@@ -60,9 +60,19 @@
                     </div>
                 </div>
             </div>
-            <div t-else="" class="o_no_result">
+            <div t-elif="!state.query" class="o_no_result">
                 No apps available
             </div>
+            <div t-elif="!menuMatches.length" class="o_no_result text-center text-muted mt-5">
+                No apps or menus match
+            </div>
+            <t t-set="menuResults" t-value="menuMatches"/>
+            <nav t-if="menuResults.length" class="o_home_menu_menu_results mx-auto mt-3" aria-label="Matching menus">
+                <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Menus</div>
+                <a t-foreach="menuResults" t-as="menu" t-key="menu.id" class="o_menu_result d-block px-2 py-1 rounded text-decoration-none" t-att-href="menu.href" t-on-click.prevent="() => this._onMenuResultClick(menu)">
+                    <span class="text-muted" t-esc="menu.parents"/><span class="text-muted"> / </span><span t-esc="menu.label"/>
+                </a>
+            </nav>
         </div>
     </div>
 </t>

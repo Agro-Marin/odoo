@@ -19,9 +19,11 @@ import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
+import { fuzzyLookup } from "@web/core/utils/search";
 import { session } from "@web/session";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 import {
+    computeAppsAndMenuItems,
     parseHomeMenuConfig,
     serializeHomeMenuConfig,
 } from "@web/webclient/menus/menu_utils";
@@ -33,6 +35,7 @@ import { SysAdminPanel } from "./sysadmin_panel.js";
 const APPS_PER_ROW = 6;
 const RECENT_APPS = 6;
 const DIRECT_JUMP_HOTKEYS = 9;
+const MENU_MATCHES = 8;
 
 class FooterComponent extends Component {
     static template = "web.HomeMenu.CommandPalette.Footer";
@@ -159,6 +162,7 @@ export class HomeMenu extends Component {
             isIosApp: isIosApp(),
             editing: false,
             badges: {},
+            query: "",
         });
         this.config = useState(
             this.props.config ?? reactive(parseHomeMenuConfig(null)),
@@ -183,6 +187,7 @@ export class HomeMenu extends Component {
         onWillUpdateProps((nextProps) => {
             // State is reset on each remount
             this.state.focusedIndex = null;
+            this.menuItems = undefined;
             if (nextProps.config && nextProps.config !== this.props.config) {
                 this.config = reactive(nextProps.config, () => this.render());
             }
@@ -233,7 +238,16 @@ export class HomeMenu extends Component {
     }
 
     /** @returns {HomeMenuApp[]} */
+    /** The apps the layout shows, before any query. */
+    get shownApps() {
+        return this.displayedApps.filter((app) => this._isShown(app));
+    }
+
+    /** @returns {HomeMenuApp[]} */
     get pinnedApps() {
+        if (this.state.query) {
+            return [];
+        }
         const byXmlid = new Map(
             this.displayedApps
                 .filter((app) => app.xmlid !== undefined && this._isShown(app))
@@ -247,14 +261,33 @@ export class HomeMenu extends Component {
 
     /** @returns {HomeMenuApp[]} */
     get unpinnedApps() {
-        return this.displayedApps.filter(
-            (app) => !this.isPinned(app) && this._isShown(app),
-        );
+        if (this.state.query) {
+            return fuzzyLookup(this.state.query, this.shownApps, (app) => app.label);
+        }
+        return this.shownApps.filter((app) => !this.isPinned(app));
     }
 
     /** @returns {HomeMenuApp[]} */
     get recentApps() {
-        return menuUsage.rank(this.visibleApps, RECENT_APPS);
+        return this.state.query ? [] : menuUsage.rank(this.visibleApps, RECENT_APPS);
+    }
+
+    /**
+     * The menu items matching the query, deepest name first the way the
+     * palette ranks them, so "quotations" beats "Sales / Orders / Quotations".
+     *
+     * @returns {import("@web/webclient/menus/menu_utils").MenuEntry[]}
+     */
+    get menuMatches() {
+        if (!this.state.query) {
+            return [];
+        }
+        this.menuItems ??= computeAppsAndMenuItems(
+            this.menus.getMenuAsTree?.("root") ?? { childrenTree: [] },
+        ).menuItems;
+        return fuzzyLookup(this.state.query, this.menuItems, (menu) =>
+            `${menu.parents} / ${menu.label}`.split("/").reverse().join("/"),
+        ).slice(0, MENU_MATCHES);
     }
 
     /** @returns {boolean} */
@@ -419,6 +452,49 @@ export class HomeMenu extends Component {
         this.state.focusedIndex = null;
     }
 
+    _clearQuery() {
+        this.state.query = "";
+        this.state.focusedIndex = null;
+        if (this.inputEl) {
+            this.inputEl.value = "";
+        }
+    }
+
+    _onEscape() {
+        if (this.state.query) {
+            this._clearQuery();
+        } else if (this.state.editing) {
+            this._toggleEditing();
+        } else {
+            this.homeMenuService.toggle(false);
+        }
+    }
+
+    /** Enter in the search box: the selected tile, else the first match. */
+    _onEnter() {
+        const focusedIndex = this.state.focusedIndex;
+        if (focusedIndex !== null) {
+            const app = this.visibleApps[focusedIndex];
+            return app && this._openMenu(app);
+        }
+        if (!this.state.query) {
+            return;
+        }
+        const [app] = this.unpinnedApps;
+        if (app) {
+            return this._openMenu(app);
+        }
+        const [menu] = this.menuMatches;
+        if (menu) {
+            return this.menus.selectMenu(menu);
+        }
+    }
+
+    /** @param {import("@web/webclient/menus/menu_utils").MenuEntry} menu */
+    _onMenuResultClick(menu) {
+        return this.menus.selectMenu(menu);
+    }
+
     /**
      * Update this.state.focusedIndex if not null.
      * @param {string} cmd
@@ -563,33 +639,16 @@ export class HomeMenu extends Component {
             ["ArrowRight", () => this._updateFocusedIndex("nextColumn")],
             ["ArrowUp", () => this._updateFocusedIndex("previousLine")],
             ["ArrowLeft", () => this._updateFocusedIndex("previousColumn")],
-            [
-                "Escape",
-                () =>
-                    this.state.editing
-                        ? this._toggleEditing()
-                        : this.homeMenuService.toggle(false),
-            ],
+            ["Escape", () => this._onEscape()],
         ];
         for (const [hotkey, callback] of hotkeys) {
             useHotkey(hotkey, callback, { allowRepeat: true, isAvailable });
         }
         // A tile with the real focus is a link: Enter is its own click.
-        useHotkey(
-            "Enter",
-            () => {
-                const focusedIndex = this.state.focusedIndex;
-                const menu =
-                    focusedIndex === null ? undefined : this.visibleApps[focusedIndex];
-                if (menu) {
-                    this._openMenu(menu);
-                }
-            },
-            {
-                allowRepeat: true,
-                isAvailable: (target) => isAvailable() && target === this.inputEl,
-            },
-        );
+        useHotkey("Enter", () => this._onEnter(), {
+            allowRepeat: true,
+            isAvailable: (target) => isAvailable() && target === this.inputEl,
+        });
         useExternalListener(window, "keydown", this._onKeydownFocusInput);
     }
 
@@ -608,22 +667,22 @@ export class HomeMenu extends Component {
     }
 
     _onInputSearch() {
-        const onClose = () => {
-            this._focusInput();
-            if (this.inputEl) {
-                this.inputEl.value = "";
-            }
-        };
         const typed = this.compositionStart ? "" : (this.inputEl?.value.trim() ?? "");
         this.compositionStart = false;
         // A leading namespace character the palette knows is the user's
-        // choice of namespace; anything else searches the menus.
+        // choice of namespace and goes to the palette; anything else filters
+        // the tiles here and lists the matching menus below them.
         const isNamespace =
             typed.length > 0 && registry.category("command_setup").contains(typed[0]);
-        const searchValue = isNamespace ? typed : `/${typed}`;
+        if (!isNamespace) {
+            this.state.query = typed;
+            this.state.focusedIndex = null;
+            return;
+        }
+        this._clearQuery();
         this.command.openMainPalette(
-            /** @type {any} */ ({ searchValue, FooterComponent }),
-            onClose,
+            /** @type {any} */ ({ searchValue: typed, FooterComponent }),
+            () => this._focusInput(),
         );
     }
 

@@ -316,17 +316,18 @@ test("The HomeMenu input takes the focus when you press a key only if no other e
     await pointerDown(otherInput);
     await pointerDown(document.body);
     expect(document.body).toBeFocused();
-    expect(".o_command_palette_search input").not.toHaveCount();
+    expect(".o_home_menu_search").not.toBeFocused();
 
     await press("a");
     await animationFrame();
     expect(document.body).toBeFocused();
-    expect(".o_command_palette_search input").not.toHaveCount();
+    expect(".o_home_menu_search").not.toBeFocused();
 
     getService("ui").deactivateElement(activeElement);
     await press("a");
     await animationFrame();
-    expect(".o_command_palette_search input").toBeFocused();
+    expect(".o_home_menu_search").toBeFocused();
+    expect(".o_home_menu_search").toHaveValue("a");
 });
 
 test("the search input takes the focus back after a blur onto the body", async () => {
@@ -363,12 +364,13 @@ test("The HomeMenu input does not take the focus if it is already on another inp
     await press("a");
     await animationFrame();
     expect(otherInput).toBeFocused();
-    expect(".o_command_palette_search input").not.toHaveCount();
+    expect(".o_home_menu_search").not.toBeFocused();
 
     otherInput.remove();
     await press("a");
     await animationFrame();
-    expect(".o_command_palette_search input").toBeFocused();
+    expect(".o_home_menu_search").toBeFocused();
+    expect(".o_home_menu_search").toHaveValue("a");
 });
 
 test("The HomeMenu input does not take the focus if it is already on a textarea", async () => {
@@ -383,12 +385,13 @@ test("The HomeMenu input does not take the focus if it is already on a textarea"
     await press("a");
     await animationFrame();
     expect(textarea).toBeFocused();
-    expect(".o_command_palette_search input").not.toHaveCount();
+    expect(".o_home_menu_search").not.toBeFocused();
 
     textarea.remove();
     await press("a");
     await animationFrame();
-    expect(".o_command_palette_search input").toBeFocused();
+    expect(".o_home_menu_search").toBeFocused();
+    expect(".o_home_menu_search").toHaveValue("a");
 });
 
 test("home search input shouldn't be focused on touch devices", async () => {
@@ -507,7 +510,10 @@ test("a namespace character typed in the search reaches the palette as such", as
         input.value = typed;
         input.dispatchEvent(new InputEvent("input", { bubbles: true }));
     }
-    expect.verifySteps(["/cal", "@bob"]);
+    expect(".o_home_menu_search").toHaveValue("", {
+        message: "the box hands its text to the palette and empties",
+    });
+    expect.verifySteps(["@bob"], { message: "a plain query never opens the palette" });
 });
 
 /** @param {unknown} [raw] */
@@ -769,9 +775,10 @@ test("the arrows move the real focus from the search box onto the tiles, a lette
 
     await press("a");
     await animationFrame();
-    expect(".o_command_palette_search input").toBeFocused({
+    expect(".o_home_menu_search").toBeFocused({
         message: "typing on a tile searches, as it does from the box",
     });
+    expect(".o_home_menu_search").toHaveValue("a");
 });
 
 test("with a pinned row the arrows follow the rows on screen, not one flat grid", async () => {
@@ -798,4 +805,126 @@ test("with a pinned row the arrows follow the rows on screen, not one flat grid"
         { key: "ArrowUp", index: 7 },
         { key: "ArrowUp", index: 1 }, // back on the six-wide row, same column
     ]);
+});
+
+function searchFor(text) {
+    const input = /** @type {HTMLInputElement} */ (queryOne(".o_home_menu_search"));
+    input.value = text;
+    input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    return animationFrame();
+}
+
+test("the search box filters the tiles in place and lists the matching menus", async () => {
+    mockService("menu", {
+        getMenuAsTree: () => ({
+            id: "root",
+            name: "root",
+            appID: "root",
+            childrenTree: [
+                {
+                    id: 1,
+                    name: "Discuss",
+                    appID: 1,
+                    actionID: 121,
+                    childrenTree: [
+                        {
+                            id: 11,
+                            name: "Channels",
+                            appID: 1,
+                            actionID: 122,
+                            childrenTree: [],
+                        },
+                    ],
+                },
+                {
+                    id: 2,
+                    name: "Calendar",
+                    appID: 2,
+                    actionID: 121,
+                    childrenTree: [
+                        {
+                            id: 21,
+                            name: "Calls",
+                            appID: 2,
+                            actionID: 123,
+                            childrenTree: [],
+                        },
+                    ],
+                },
+            ],
+        }),
+        async selectMenu(menu) {
+            expect.step(`selectMenu ${/** @type {any} */ (menu).id}`);
+        },
+    });
+    menuUsage.record({ xmlid: "app.3" });
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps('{"pinned":["app.1"]}') });
+    expect(".o_pinned_apps").toHaveCount(1);
+    expect(".o_recent_apps").toHaveCount(1);
+
+    await searchFor("cal");
+    expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual(["Calendar"]);
+    expect(".o_pinned_apps").toHaveCount(0, { message: "a query is one flat list" });
+    expect(".o_recent_apps").toHaveCount(0);
+    expect(queryAllTexts(".o_home_menu_menu_results .o_menu_result")).toEqual(
+        ["Calendar / Calls", "Discuss / Channels"],
+        { message: "the fuzzy match ranks the closer name first" },
+    );
+    expect(".o_command_palette").toHaveCount(0, { message: "no second search box" });
+
+    await click(".o_home_menu_menu_results .o_menu_result");
+    expect.verifySteps(["selectMenu 21"]);
+
+    await searchFor("zzz");
+    expect(".o_apps_listbox").toHaveCount(0);
+    expect(".o_no_result").toHaveText("No apps or menus match");
+
+    await press("escape");
+    await animationFrame();
+    expect(".o_home_menu_search").toHaveValue("");
+    expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual([
+        "Discuss",
+        "Calendar",
+        "Contacts",
+    ]);
+    menuUsage.clear();
+});
+
+test("Enter in the search box opens the first matching app, or the first menu", async () => {
+    mockService("menu", {
+        getMenuAsTree: () => ({
+            id: "root",
+            name: "root",
+            appID: "root",
+            childrenTree: [
+                {
+                    id: 3,
+                    name: "Contacts",
+                    appID: 3,
+                    actionID: 121,
+                    childrenTree: [
+                        {
+                            id: 31,
+                            name: "Vendors",
+                            appID: 3,
+                            actionID: 124,
+                            childrenTree: [],
+                        },
+                    ],
+                },
+            ],
+        }),
+        async selectMenu(menu) {
+            expect.step(`selectMenu ${/** @type {any} */ (menu).id}`);
+        },
+    });
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    await searchFor("cont");
+    await press("enter");
+    expect.verifySteps(["selectMenu 3"]);
+
+    await searchFor("vend");
+    expect(".o_apps_listbox").toHaveCount(0);
+    await press("enter");
+    expect.verifySteps(["selectMenu 31"]);
 });
