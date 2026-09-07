@@ -26,7 +26,7 @@ import {
     parseHomeMenuConfig,
 } from "@web/webclient/menus/menu_utils";
 
-import { loadHomeMenuBadges } from "./badges.js";
+import { appBadge, loadHomeMenuBadges } from "./badges.js";
 import { ExpirationPanel } from "./expiration_panel.js";
 import { gridRows, nextFocusedIndex } from "./grid_navigation.js";
 import { HomeMenuLayout } from "./home_menu_layout.js";
@@ -35,6 +35,11 @@ import { SysAdminPanel } from "./sysadmin_panel.js";
 // A stable object, so a menu service without `getMenuAsTree` still resolves
 // against the flattened-tree cache instead of missing it on a fresh literal.
 const EMPTY_MENU_TREE = { childrenTree: [] };
+
+/** @param {{ xmlid?: string }[]} apps */
+function homeMenuAppsKey(apps) {
+    return apps.map((app) => app.xmlid ?? "").join("\u0000");
+}
 
 const APPS_PER_ROW = 6;
 const RECENT_APPS = 6;
@@ -206,7 +211,18 @@ export class HomeMenu extends Component {
             if (nextProps.defaultConfig) {
                 this.layout.defaultConfig = nextProps.defaultConfig;
             }
+            // A menu reload can install or remove an app; its counts are not
+            // the ones fetched at mount. Keyed on which apps there are, not on
+            // the array's identity, because `MENUS_APP_CHANGED` also fires for
+            // a plain navigation and mints a fresh array every time.
+            const appsKey = homeMenuAppsKey(nextProps.apps);
+            if (appsKey !== this.appsKey) {
+                this.appsKey = appsKey;
+                this._loadBadges(nextProps.apps);
+            }
         });
+
+        this.appsKey = homeMenuAppsKey(this.props.apps);
 
         onMounted(() => {
             if (!hasTouch()) {
@@ -282,7 +298,7 @@ export class HomeMenu extends Component {
         if (this.state.query) {
             return fuzzyLookup(this.state.query, this.shownApps, (app) => app.label);
         }
-        return this.shownApps.filter((app) => !this.isPinned(app));
+        return this.shownApps.filter((app) => !this.layout.isPinned(app));
     }
 
     /**
@@ -331,37 +347,19 @@ export class HomeMenu extends Component {
         return this.layout.canSetCompanyDefault;
     }
 
-    /**
-     * @param {HomeMenuApp} app
-     * @returns {number}
-     */
+    /** @param {HomeMenuApp} app */
     badgeFor(app) {
-        return app.xmlid === undefined ? 0 : this.state.badges[app.xmlid] || 0;
+        return appBadge(this.state.badges, app);
     }
 
     /** @param {HomeMenuApp} app */
     pinTitle(app) {
-        return this.isPinned(app) ? _t("Unpin") : _t("Pin");
+        return this.layout.isPinned(app) ? _t("Unpin") : _t("Pin");
     }
 
     /** @param {HomeMenuApp} app */
     hideTitle(app) {
-        return this.isHidden(app) ? _t("Show") : _t("Hide");
-    }
-
-    /** @param {number} count */
-    badgeLabel(count) {
-        return _t("%s pending", count);
-    }
-
-    /** @param {HomeMenuApp} app */
-    isPinned(app) {
-        return this.layout.isPinned(app);
-    }
-
-    /** @param {HomeMenuApp} app */
-    isHidden(app) {
-        return this.layout.isHidden(app);
+        return this.layout.isHidden(app) ? _t("Show") : _t("Hide");
     }
 
     /** @returns {number} */
@@ -390,15 +388,19 @@ export class HomeMenu extends Component {
 
     /** @param {HomeMenuApp} app */
     _isShown(app) {
-        return this.state.editing || !this.isHidden(app);
+        return this.state.editing || !this.layout.isHidden(app);
     }
 
-    async _loadBadges() {
+    /**
+     * @param {HomeMenuApp[]} [apps] the apps to count for, when the ones on
+     *  `props` are not the ones about to be shown
+     */
+    async _loadBadges(apps) {
         this.state.badges = await loadHomeMenuBadges(
             /** @type {import("@web/env").OdooEnv} */ (
                 /** @type {unknown} */ (this.env)
             ),
-            this.displayedApps,
+            apps ?? this.displayedApps,
         );
     }
 

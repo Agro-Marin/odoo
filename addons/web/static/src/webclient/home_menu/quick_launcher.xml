@@ -12,7 +12,7 @@
                 </div>
                 <div class="o_caption w-100 text-center text-truncate small mt-1" t-esc="app.label"/>
                 <t t-set="badge" t-value="badgeFor(app)"/>
-                <span t-if="badge" class="o_app_badge badge rounded-pill text-bg-danger position-absolute" t-att-aria-label="badgeLabel(badge)" t-esc="badge > 99 ? '99+' : badge"/>
+                <t t-call="web.AppBadge"/>
             </a>
         </nav>
         <button type="button" class="o_quick_launcher_all btn btn-link btn-sm w-100 mt-1" t-on-click="onAllAppsClick">All apps</button>

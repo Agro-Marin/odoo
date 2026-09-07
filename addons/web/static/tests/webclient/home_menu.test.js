@@ -18,7 +18,7 @@ import {
     test,
 } from "@odoo/hoot";
 import { Deferred } from "@odoo/hoot-mock";
-import { onRendered, reactive } from "@odoo/owl";
+import { Component, onRendered, reactive, useState, xml } from "@odoo/owl";
 import {
     defineMenus,
     getService,
@@ -1190,4 +1190,69 @@ test("two quick pins are written one after the other, so neither can be lost", a
     expect.verifySteps(['{"version":2,"order":[],"pinned":["a","b"],"hidden":[]}'], {
         message: "and the later layout goes out last, carrying both pins",
     });
+});
+
+test("a count too wide for an icon is shown as 99+, by the same rule in both launchers", async () => {
+    const badgeRegistry = registry.category("home_menu_badges");
+    badgeRegistry.add("ceiling", {
+        provide: () => ({ "app.1": 99, "app.2": 100, "app.3": 4200 }),
+    });
+    await mountWithCleanup(HomeMenu, { props: getDefaultHomeMenuProps() });
+    await animationFrame();
+    expect(queryAllTexts(".o_app_badge")).toEqual(["99", "99+", "99+"], {
+        message: "99 still fits; anything above it does not",
+    });
+    expect(".o_app[data-menu-xmlid='app.2'] .o_app_badge").toHaveAttribute(
+        "aria-label",
+        "100 pending",
+        { message: "the reader is told the real number, not the shortened one" },
+    );
+});
+
+test("a menu reload that changes the apps re-counts their badges", async () => {
+    let counted = [];
+    registry.category("home_menu_badges").add("recount", {
+        provide: (env, apps) => {
+            counted = apps.map((app) => app.xmlid);
+            return {};
+        },
+    });
+    const base = getDefaultHomeMenuProps();
+    const newApp = {
+        actionID: 124,
+        href: "/odoo/action-124",
+        appID: 4,
+        id: 4,
+        label: "Helpdesk",
+        parents: "",
+        webIcon: false,
+        xmlid: "app.4",
+    };
+    // A parent that can hand the launcher a different app list, which is what
+    // HomeMenuAction does on MENUS_APP_CHANGED.
+    class Parent extends Component {
+        static components = { HomeMenu };
+        static props = {};
+        static template = xml`<HomeMenu t-props="state.props"/>`;
+        setup() {
+            this.state = useState({ props: base });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await animationFrame();
+    expect(counted).toEqual(["app.1", "app.2", "app.3"]);
+
+    counted = [];
+    parent.state.props = { ...base, apps: [...base.apps, newApp] };
+    await animationFrame();
+    expect(counted).toEqual(["app.1", "app.2", "app.3", "app.4"], {
+        message: "the new app is counted, not left blank until the next visit",
+    });
+
+    // A re-render that changes no app must not re-count: MENUS_APP_CHANGED
+    // also fires for a plain navigation, and a provider may cost a request.
+    counted = [];
+    parent.state.props = { ...base, apps: [...base.apps, newApp] };
+    await animationFrame();
+    expect(counted).toEqual([], { message: "same apps, no second count" });
 });

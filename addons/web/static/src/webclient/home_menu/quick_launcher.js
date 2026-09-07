@@ -2,11 +2,10 @@
 /** @odoo-module native */
 
 import { Component, onMounted, useState } from "@odoo/owl";
-import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 
-import { loadHomeMenuBadges } from "./badges.js";
+import { appBadge, loadHomeMenuBadges } from "./badges.js";
 import { computeHomeMenuLayout } from "./home_menu_service.js";
 
 const TILES = 12;
@@ -71,14 +70,9 @@ export class QuickLauncher extends Component {
         return [...new Set(ordered)].slice(0, TILES);
     }
 
-    /** @param {number} count */
-    badgeLabel(count) {
-        return _t("%s pending", count);
-    }
-
     /** @param {import("./home_menu.js").HomeMenuApp} app */
     badgeFor(app) {
-        return app.xmlid === undefined ? 0 : this.state.badges[app.xmlid] || 0;
+        return appBadge(this.state.badges, app);
     }
 
     /** @param {import("./home_menu.js").HomeMenuApp} app */
