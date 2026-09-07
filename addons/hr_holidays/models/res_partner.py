@@ -10,8 +10,8 @@ class ResPartner(models.Model):
 
     def _compute_leave_date_to(self):
         for partner in self:
-            dates = partner.user_ids.mapped("leave_date_to")
-            partner.leave_date_to = min(dates) if dates and all(dates) else False
+            dates = [date for date in partner.user_ids.mapped("leave_date_to") if date]
+            partner.leave_date_to = min(dates) if dates else False
 
     def _compute_presence(self):
         super()._compute_presence()
