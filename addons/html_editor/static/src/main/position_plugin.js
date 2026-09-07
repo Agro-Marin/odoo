@@ -12,9 +12,16 @@ export class PositionPlugin extends Plugin {
     static id = "position";
     /** @type {import("plugins").EditorResources} */
     resources = {
-        external_history_step_handlers: this.layoutGeometryChange.bind(this),
-        history_reset_from_steps_handlers: this.layoutGeometryChange.bind(this),
-        step_added_handlers: this.layoutGeometryChange.bind(this),
+        // `layoutGeometryChange` is reassigned to a throttled wrapper in
+        // `setup()`, which runs after these class fields are initialized —
+        // wrapping the call instead of pre-binding here ensures each handler
+        // resolves `this.layoutGeometryChange` at call time, always getting
+        // the throttled version.
+        external_history_step_handlers: (...args) =>
+            this.layoutGeometryChange(...args),
+        history_reset_from_steps_handlers: (...args) =>
+            this.layoutGeometryChange(...args),
+        step_added_handlers: (...args) => this.layoutGeometryChange(...args),
         before_filter_mutation_record_handlers:
             this.handlePotentialLayoutGeometryChange.bind(this),
     };
