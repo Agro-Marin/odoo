@@ -43,6 +43,7 @@ export class DataServiceOptions {
             "pos.order": ["uuid"],
             "pos.order.line": ["uuid"],
             "pos.payment": ["uuid"],
+            "decimal.precision": ["name"],
             "product.template": ["pos_categ_ids"],
             "product.product": ["pos_categ_ids", "barcode"],
             "account.fiscal.position": ["tax_ids"],

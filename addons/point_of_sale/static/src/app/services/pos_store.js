@@ -44,6 +44,7 @@ import { AlertDialog } from "@web/ui/dialog";
 import { FormViewDialog } from "@web/views/view_dialogs";
 
 import { SelectionPopup } from "../components/popups/selection_popup/selection_popup.js";
+import { PRODUCT_UNIT } from "../models/decimal_precision.js";
 import { computeComboItems } from "../models/utils/compute_combo_items.js";
 import { changesToOrder, getOrderChanges } from "../models/utils/order_change.js";
 import {
@@ -993,8 +994,9 @@ export class PosStore extends WithLazyGetterTrap {
             configure
         ) {
             if (values.product_tmpl_id.isScaleAvailable) {
-                const decimalAccuracy = this.models["decimal.precision"].find(
-                    (dp) => dp.name === "Product Unit",
+                const decimalAccuracy = this.models["decimal.precision"].getBy(
+                    "name",
+                    PRODUCT_UNIT,
                 ).digits;
 
                 const overridedValues = {};
@@ -1878,8 +1880,9 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     isProductQtyZero(qty) {
-        const ProductUnit = this.models["decimal.precision"].find(
-            (dp) => dp.name === "Product Unit",
+        const ProductUnit = this.models["decimal.precision"].getBy(
+            "name",
+            PRODUCT_UNIT,
         );
         return ProductUnit.isZero(qty);
     }

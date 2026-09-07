@@ -4,12 +4,15 @@ import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { escapeRegExp } from "@web/core/utils/format/strings";
+
+import { PRODUCT_UNIT } from "../models/decimal_precision.js";
 export const contextualUtilsService = {
     dependencies: ["pos", "localization"],
     start(env, { pos, localization }) {
         const res_currency = pos.currency;
-        const ProductUnit = pos.data.models["decimal.precision"].find(
-            (dp) => dp.name === "Product Unit",
+        const ProductUnit = pos.data.models["decimal.precision"].getBy(
+            "name",
+            PRODUCT_UNIT,
         );
         const decimalPoint = localization.decimalPoint;
         const thousandsSep = localization.thousandsSep;

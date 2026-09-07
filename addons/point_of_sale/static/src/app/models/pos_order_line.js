@@ -10,6 +10,7 @@ import { _t } from "@web/core/translation";
 import { formatFloat } from "@web/core/utils/format/numbers";
 
 import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.js";
+import { PRODUCT_PRICE, PRODUCT_UNIT } from "./decimal_precision.js";
 import { parseNoteEntries } from "./utils/note_entries.js";
 
 export class PosOrderline extends PosOrderlineAccounting {
@@ -83,8 +84,9 @@ export class PosOrderline extends PosOrderlineAccounting {
 
         if (unit) {
             if (unit.rounding) {
-                const ProductUnit = this.models["decimal.precision"].find(
-                    (dp) => dp.name === "Product Unit",
+                const ProductUnit = this.models["decimal.precision"].getBy(
+                    "name",
+                    PRODUCT_UNIT,
                 );
 
                 if (qty % 1 === 0) {
@@ -287,7 +289,7 @@ export class PosOrderline extends PosOrderlineAccounting {
 
         const rounder =
             this.product_id.uom_id ||
-            this.models["decimal.precision"].find((dp) => dp.name === "Product Unit");
+            this.models["decimal.precision"].getBy("name", PRODUCT_UNIT);
 
         this.qty = rounder.round(quant);
 
@@ -361,8 +363,9 @@ export class PosOrderline extends PosOrderlineAccounting {
         // Resolving the pricelist is the expensive half of this predicate and
         // the only one that survives every cheap discriminator above, so it is
         // reached once per genuine candidate instead of once per order line.
-        const ProductPrice = this.models["decimal.precision"].find(
-            (dp) => dp.name === "Product Price",
+        const ProductPrice = this.models["decimal.precision"].getBy(
+            "name",
+            PRODUCT_PRICE,
         );
         const price = ProductPrice.round(this.price_unit || 0);
         const order_line_price = product.getPrice(
@@ -402,8 +405,9 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setUnitPrice(price) {
-        const ProductPrice = this.models["decimal.precision"].find(
-            (dp) => dp.name === "Product Price",
+        const ProductPrice = this.models["decimal.precision"].getBy(
+            "name",
+            PRODUCT_PRICE,
         );
         let parsed_price;
         if (!isNaN(price)) {

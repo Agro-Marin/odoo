@@ -1,3 +1,4 @@
+import { PRODUCT_PRICE } from "@point_of_sale/app/models/decimal_precision";
 /* global posmodel */
 
 function assert(condition, message) {
@@ -18,8 +19,9 @@ function assertProductPrice(product, pricelist_name, quantity, expected_price) {
             false,
             product.product_variant_ids[0],
         );
-        const ProductPrice = posmodel.data.models["decimal.precision"].find(
-            (dp) => dp.name === "Product Price",
+        const ProductPrice = posmodel.data.models["decimal.precision"].getBy(
+            "name",
+            PRODUCT_PRICE,
         );
         frontend_price = ProductPrice.round(frontend_price);
         const diff = Math.abs(expected_price - frontend_price);

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { PRODUCT_PRICE } from "@point_of_sale/app/models/decimal_precision";
 import { PosOrder } from "@point_of_sale/app/models/pos_order";
 import { loyaltyIdsGenerator } from "@pos_loyalty/app/services/pos_store";
 import { luxon } from "@web/core/l10n/luxon";
@@ -412,8 +413,9 @@ patch(PosOrder.prototype, {
             return 0;
         }
         let res = 0;
-        const ProductPrice = this.models["decimal.precision"].find(
-            (dp) => dp.name === "Product Price",
+        const ProductPrice = this.models["decimal.precision"].getBy(
+            "name",
+            PRODUCT_PRICE,
         );
         for (const rule of program.rule_ids) {
             for (const line of rewardLines) {
@@ -543,8 +545,9 @@ patch(PosOrder.prototype, {
      * @returns {Object} Containing the points gained per program
      */
     pointsForPrograms(programs) {
-        const ProductPrice = this.models["decimal.precision"].find(
-            (dp) => dp.name === "Product Price",
+        const ProductPrice = this.models["decimal.precision"].getBy(
+            "name",
+            PRODUCT_PRICE,
         );
         pointsForProgramsCountedRules = {};
         const orderLines = this.getOrderlines().filter((line) => !line.combo_parent_id);
@@ -1342,8 +1345,9 @@ patch(PosOrder.prototype, {
      * @returns {Integer} Available quantity to be given as reward for the given product
      */
     _computeUnclaimedFreeProductQty(reward, coupon_id, product, remainingPoints) {
-        const ProductPrice = this.models["decimal.precision"].find(
-            (dp) => dp.name === "Product Price",
+        const ProductPrice = this.models["decimal.precision"].getBy(
+            "name",
+            PRODUCT_PRICE,
         );
         let claimed = 0;
         let available = 0;
