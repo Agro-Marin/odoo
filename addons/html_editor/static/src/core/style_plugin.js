@@ -17,7 +17,8 @@ export class StylePlugin extends Plugin {
     setBackgroundImageUrl(el, value) {
         const parts = backgroundImageCssToParts(el.style["background-image"]);
         if (value) {
-            parts.url = `url('${value}')`;
+            const escapedValue = value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+            parts.url = `url('${escapedValue}')`;
         } else {
             delete parts.url;
         }
