@@ -124,7 +124,9 @@ class ReportHr_HolidaysReport_Holidayssummary(models.AbstractModel):
             )
         elif "emp" in data:
             return self.env["hr.employee"].browse(data["emp"])
-        return self.env["hr.employee"].search([])
+        return self.env["hr.employee"].search(
+            [("company_id", "in", self.env.companies.ids)]
+        )
 
     def _get_data_from_report(self, data):
         res = []
