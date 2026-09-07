@@ -9,6 +9,7 @@ HR_READABLE_FIELDS = [
     "active",
     "child_ids",
     "employee_id",
+    "job_title",
     "employee_ids",
     "is_hr_user",
     "is_system",
@@ -32,7 +33,6 @@ HR_WRITABLE_FIELDS = [
     "tag_ids",
     "emergency_contact",
     "emergency_phone_ids",
-    "job_title",
     "km_home_work",
     "pin",
     "visa_expire",
@@ -54,19 +54,26 @@ class ResUsers(models.Model):
         ]
 
     employee_ids = fields.One2many(
-        "hr.employee", "user_id", string="Related employee", domain=_domain_employee_ids
+        "hr.employee",
+        "user_id",
+        string="Related employee",
+        domain=_domain_employee_ids,
     )
     employee_id = fields.Many2one(
         "hr.employee",
         string="Company employee",
         compute="_compute_employee_id",
-        search="_search_employee_id",
         store=False,
+        search="_search_employee_id",
     )
 
-    job_title = fields.Char(related="employee_id.job_title")
+    job_title = fields.Char(
+        related="employee_id.job_title",
+    )
     work_email = fields.Char(
-        related="employee_id.work_email", readonly=False, related_sudo=False
+        related="employee_id.work_email",
+        readonly=False,
+        related_sudo=False,
     )
     tag_ids = fields.Many2many(
         related="employee_id.tag_ids",
@@ -75,7 +82,9 @@ class ResUsers(models.Model):
         related_sudo=False,
     )
     work_location_id = fields.Many2one(
-        related="employee_id.work_location_id", readonly=False, related_sudo=False
+        related="employee_id.work_location_id",
+        readonly=False,
+        related_sudo=False,
     )
     work_location_name = fields.Char(related="employee_id.work_location_name")
     work_location_type = fields.Selection(related="employee_id.work_location_type")

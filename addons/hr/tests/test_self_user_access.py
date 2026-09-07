@@ -328,3 +328,32 @@ class TestSelfAccessRights(TestHrCommon):
             .display_name,
             "FR******7890",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestSelfWritableFieldsAreWritable(TestHrCommon):
+    def test_every_self_writable_field_can_actually_be_written(self):
+        users = self.env["res.users"]
+        unwritable = [
+            fname
+            for fname in users.SELF_WRITEABLE_FIELDS
+            if (field := users._fields.get(fname)) and field.readonly
+        ]
+        self.assertFalse(
+            unwritable,
+            "SELF_WRITEABLE_FIELDS grants a write on fields that are readonly, "
+            "so the write is silently dropped rather than refused: "
+            f"{unwritable}",
+        )
+
+    def test_a_user_cannot_silently_lose_a_self_write(self):
+        user = new_test_user(
+            self.env, login="selfwrite", groups="base.group_user", name="Self Writer"
+        )
+        employee = self.env["hr.employee"].create(
+            {"name": "Self Writer", "user_id": user.id}
+        )
+        as_self = user.with_user(user)
+        as_self.write({"private_street": "Own Street 1"})
+        employee.invalidate_recordset(["private_street"])
+        self.assertEqual(employee.private_street, "Own Street 1")
