@@ -663,3 +663,29 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         )
         self.assertEqual(row["money_counted"], 100.0)
         self.assertEqual(row["money_difference"], 0.0)
+
+    def test_two_categories_sharing_a_name_are_two_rows(self):
+        """Products are grouped by category, and two pos.category records may
+        carry the same name. Grouping on the name merges them into one row whose
+        quantity and total belong to neither."""
+        first = self.env["pos.category"].create({"name": "Drinks"})
+        second = self.env["pos.category"].create({"name": "Drinks"})
+        self.assertNotEqual(first.id, second.id)
+        cola = self.create_product("Cola", self.categ_basic, 100)
+        cola.product_tmpl_id.pos_categ_ids = [(6, 0, first.ids)]
+        beer = self.create_product("Beer", self.categ_basic, 100)
+        beer.product_tmpl_id.pos_categ_ids = [(6, 0, second.ids)]
+
+        session = self._open_session()
+        for product in (cola, beer):
+            order = self._order(session, product, 100)
+            self.make_payment(order, self.cash_pm1, 100)
+
+        report = self.report.get_sale_details(session_ids=[session.id])
+        drinks = [c for c in report["products"] if c["name"] == "Drinks"]
+        self.assertEqual(
+            len(drinks),
+            2,
+            "two categories are two rows even when they print the same name",
+        )
+        self.assertEqual(sorted(c["qty"] for c in drinks), [1.0, 1.0])

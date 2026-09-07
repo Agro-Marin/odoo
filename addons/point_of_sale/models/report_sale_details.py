@@ -219,11 +219,10 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         )
 
     def _update_products_and_taxes(self, line, accumulator, currency, precision):
-        category = (
-            line.product_id.product_tmpl_id.pos_categ_ids[0].name
-            if line.product_id.product_tmpl_id.pos_categ_ids
-            else _("Not Categorized")
-        )
+        # Keyed on the category, not on its name: two pos.category records may
+        # carry the same one, and grouping by name merges them into a row whose
+        # quantity and total belong to neither.
+        category = line.product_id.product_tmpl_id.pos_categ_ids[:1]
         combo_products_label = (
             " (" + ", ".join(line.combo_line_ids.product_id.mapped("name")) + ")"
             if line.combo_line_ids
@@ -298,10 +297,11 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         }
 
     def _serialize_products_by_category(self, products_by_category):
-        categories = [
-            {
-                "name": category_name,
-                "products": sorted(
+        rows = [
+            (
+                category.name if category else _("Not Categorized"),
+                category.id or 0,
+                sorted(
                     [
                         {
                             "product_id": product.id,
@@ -324,10 +324,13 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                     ],
                     key=lambda line: line["product_name"],
                 ),
-            }
-            for category_name, product_list in products_by_category.items()
+            )
+            for category, product_list in products_by_category.items()
         ]
-        return sorted(categories, key=lambda category: category["name"])
+        # (name, id): same-named categories print together but keep a stable
+        # order, so two runs over the same data render the same page.
+        rows.sort(key=lambda row: (row[0], row[1]))
+        return [{"name": name, "products": products} for name, _id, products in rows]
 
     def _get_total_and_qty_per_category(self, categories):
         qty_precision = self.env["decimal.precision"].get_precision("Product Unit")
