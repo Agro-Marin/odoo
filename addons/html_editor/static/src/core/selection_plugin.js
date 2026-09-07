@@ -704,7 +704,7 @@ export class SelectionPlugin extends Plugin {
                     focusNode,
                     focusOffset,
                 );
-                this.activeSelection = this.makeActiveSelection(selection, true);
+                this.activeSelection = this.makeActiveSelection(selection);
             } else {
                 let range = new Range();
                 range.setStart(anchorNode, anchorOffset);
