@@ -34,6 +34,7 @@ class DriveImport:
         )
         self.folders = {"": self.root}
         self.files = {}
+        self.skipped_objects = []
 
     def run(self, grants=()):
         self._import_objects()
@@ -42,6 +43,7 @@ class DriveImport:
             "root_id": self.root.id,
             "folders": len(self.folders) - 1,
             "files": len(self.files),
+            "skipped_objects": len(self.skipped_objects),
             "grants": len(grants) - len(skipped),
             "skipped_grants": skipped,
         }
@@ -108,10 +110,29 @@ class DriveImport:
                 )
             ]
         )
-        for (key, _folder, _name, _size), document in zip(
-            pending, documents, strict=True
+        # `document.document.create` may return fewer records than it was given:
+        # the CFDI bridge drops a value whose folio the database already holds,
+        # so an object that is already in the ERP is skipped rather than
+        # duplicated a second time. Match the result back by attachment instead
+        # of by position -- zipping the two derails the whole import on the
+        # first such object, and every bucket holding an already-filed CFDI has
+        # one.
+        document_by_attachment = {
+            document.attachment_id.id: document for document in documents
+        }
+        orphaned = self.attachments.browse()
+        for (key, _folder, _name, _size), attachment in zip(
+            pending, attachments, strict=True
         ):
-            self.files[key] = document
+            document = document_by_attachment.get(attachment.id)
+            if document:
+                self.files[key] = document
+            else:
+                orphaned |= attachment
+                self.skipped_objects.append(key)
+        # nothing points at these: the document they were created for was
+        # dropped, and the object they name is already filed under its own.
+        orphaned.unlink()
 
     def _apply_grants(self, grants):
         skipped = []
