@@ -2979,17 +2979,24 @@ class TestPageScopedScriptsAreRenderedOnce(TransactionCase):
         self.assertEqual(self._kinds(first), ["importmap", "shim", "other"])
         self.assertEqual(self._kinds(second), ["other"])
 
-    def test_dropping_a_specifier_the_page_lacks_is_reported(self):
+    def test_a_specifier_the_first_bundle_lacks_is_mapped_by_the_second(self):
         IrQweb = self.env["ir.qweb"]
         logger = get_asset_logger("esm")
         with patch.object(ir_qweb_assets, "request", SimpleNamespace()):
             IrQweb._dedup_request_page_scripts("a", self._pre("a", ["@a/one"]))
-            with self.assertLogs(logger.name, level="WARNING") as caught:
-                IrQweb._dedup_request_page_scripts(
+            with self.assertNoLogs(logger.name, level="WARNING"):
+                second = IrQweb._dedup_request_page_scripts(
                     "b", self._pre("b", ["@a/one", "@b/only"])
                 )
-        self.assertIn("unresolvable=1", caught.output[0])
-        self.assertIn("@b/only", caught.output[0])
+        self.assertEqual(self._kinds(second), ["importmap", "other"])
+        self.assertEqual(
+            IrQweb._get_import_map_specs(second),
+            frozenset({"@b/only"}),
+            "a page carrying two ESM bundles must be able to resolve every "
+            "specifier either declares: @a/one is already mapped so the later "
+            "map omits it, and @b/only would be unresolvable if the map were "
+            "dropped wholesale as it once was",
+        )
 
     def test_a_superset_page_logs_no_warning(self):
         IrQweb = self.env["ir.qweb"]

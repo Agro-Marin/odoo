@@ -1,5 +1,5 @@
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Container, Iterable, Mapping, Sequence
 from typing import Any
 
 from odoo.tools.assets.constants import (
@@ -22,6 +22,7 @@ __all__ = [
     "is_import_map_node",
     "is_loader_shim_node",
     "link_to_node",
+    "narrow_import_map_node",
     "prepare_register_native_modules_js",
 ]
 
@@ -61,6 +62,19 @@ def import_map_specs(nodes: Iterable[AssetNode]) -> frozenset[str]:
         if is_import_map_node(node)
         for spec in json.loads(node[1]["text"])["imports"]
     )
+
+
+def narrow_import_map_node(
+    node: AssetNode, already_mapped: Container[str]
+) -> AssetNode | None:
+    imports = {
+        spec: url
+        for spec, url in json.loads(node[1]["text"])["imports"].items()
+        if spec not in already_mapped
+    }
+    if not imports:
+        return None
+    return (node[0], {**node[1], "text": json.dumps({"imports": imports})})
 
 
 def count_import_map_urls(import_map: Mapping[str, str]) -> tuple[int, int, int]:

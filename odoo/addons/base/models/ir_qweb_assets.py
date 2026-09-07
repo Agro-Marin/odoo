@@ -46,6 +46,7 @@ from odoo.tools.assets.nodes import (
     is_import_map_node,
     is_loader_shim_node,
     link_to_node,
+    narrow_import_map_node,
     prepare_register_native_modules_js,
 )
 from odoo.tools.json import scriptsafe as json
@@ -979,6 +980,7 @@ class IrQweb(models.AbstractModel):
     _is_import_map_node = staticmethod(is_import_map_node)
     _is_loader_shim_node = staticmethod(is_loader_shim_node)
     _get_import_map_specs = staticmethod(import_map_specs)
+    _narrow_import_map_node = staticmethod(narrow_import_map_node)
 
     def _dedup_request_page_scripts(
         self,
@@ -994,26 +996,40 @@ class IrQweb(models.AbstractModel):
             request._esm_import_map_rendered = True
             request._esm_import_map_specs = self._get_import_map_specs(pre_nodes)
             return pre_nodes
-        self._warn_on_dropped_import_map_specs(bundle, pre_nodes)
-        return [
-            node
-            for node in pre_nodes
-            if not (self._is_import_map_node(node) or self._is_loader_shim_node(node))
-        ]
-
-    def _warn_on_dropped_import_map_specs(
-        self, bundle: str, pre_nodes: list[AssetNode]
-    ) -> None:
         rendered = getattr(request, "_esm_import_map_specs", frozenset())
-        dropped = sorted(self._get_import_map_specs(pre_nodes) - rendered)
+        nodes, added = self._narrow_import_map_nodes(pre_nodes, rendered)
+        if added:
+            request._esm_import_map_specs = rendered | added
+        self._log_narrowed_import_map(bundle, added)
+        return nodes
+
+    def _narrow_import_map_nodes(
+        self, pre_nodes: list[AssetNode], rendered: frozenset[str]
+    ) -> tuple[list[AssetNode], frozenset[str]]:
+        nodes: list[AssetNode] = []
+        mapped = set(rendered)
+        for node in pre_nodes:
+            if self._is_loader_shim_node(node):
+                continue
+            if not self._is_import_map_node(node):
+                nodes.append(node)
+                continue
+            narrowed = self._narrow_import_map_node(node, mapped)
+            if narrowed is None:
+                continue
+            mapped |= self._get_import_map_specs([narrowed])
+            nodes.append(narrowed)
+        return nodes, frozenset(mapped) - rendered
+
+    def _log_narrowed_import_map(self, bundle: str, added: frozenset[str]) -> None:
         log_event(
             _esm_log,
-            logging.WARNING if dropped else logging.DEBUG,
-            "importmap_skipped",
+            logging.DEBUG,
+            "importmap_narrowed",
             bundle=bundle,
-            reason="already_rendered",
-            unresolvable=len(dropped),
-            specs=",".join(dropped[:5]),
+            reason="specs_already_rendered",
+            added=len(added),
+            specs=",".join(sorted(added)[:5]),
         )
 
     def _get_native_module_nodes_uncached(

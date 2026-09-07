@@ -482,10 +482,12 @@ class TestDebugNodesAreRequestIndependent(TransactionCase):
         with patch.object(ir_qweb_assets, "request", req):
             return self.env["ir.qweb"]._get_native_module_nodes(self.BUNDLE)
 
-    @staticmethod
-    def _page_holding_a_map():
+    def _page_holding_a_map(self, specs=None):
+        if specs is None:
+            pre, _post = self._nodes_for(SimpleNamespace())
+            specs = self.env["ir.qweb"]._get_import_map_specs(pre)
         return SimpleNamespace(
-            _esm_import_map_rendered=True, _esm_import_map_specs=frozenset()
+            _esm_import_map_rendered=True, _esm_import_map_specs=frozenset(specs)
         )
 
     def test_a_page_already_holding_a_map_does_not_poison_the_cache(self):
@@ -496,6 +498,28 @@ class TestDebugNodesAreRequestIndependent(TransactionCase):
         first_on_page, _post = self._nodes_for(SimpleNamespace())
         self.assertTrue(any(IrQweb._is_import_map_node(n) for n in first_on_page))
         self.assertTrue(any(IrQweb._is_loader_shim_node(n) for n in first_on_page))
+
+    def test_a_later_bundle_still_maps_the_specifiers_the_first_one_lacked(self):
+        IrQweb = self.env["ir.qweb"]
+        alone, _post = self._nodes_for(SimpleNamespace())
+        specs = IrQweb._get_import_map_specs(alone)
+        self.assertTrue(specs)
+
+        partial = sorted(specs)[: len(specs) // 2] or sorted(specs)[:-1]
+        later, _post = self._nodes_for(self._page_holding_a_map(partial))
+
+        emitted = IrQweb._get_import_map_specs(later)
+        self.assertEqual(
+            emitted,
+            specs - frozenset(partial),
+            "a page carrying two ESM bundles must end up able to resolve every "
+            "specifier either bundle declares: the later map is narrowed to what "
+            "the earlier ones did not already carry, never dropped wholesale",
+        )
+        self.assertFalse(
+            any(IrQweb._is_loader_shim_node(n) for n in later),
+            "the loader shim is still emitted once per page",
+        )
 
     def test_the_bridge_is_the_same_in_either_position(self):
         _pre, later = self._nodes_for(self._page_holding_a_map())
