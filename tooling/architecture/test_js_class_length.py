@@ -55,7 +55,9 @@ def test_the_unit_is_excess_not_offender_count(monkeypatch, tmp_path):
 def test_an_anonymous_class_is_named_after_what_it_is_bound_to(monkeypatch, tmp_path):
     body = "".join(f"    m{i}() {{}}\n" for i in range(500))
     got = _measure(
-        monkeypatch, tmp_path, {"a.js": f"const Patched = class extends Base {{\n{body}}};\n"}
+        monkeypatch,
+        tmp_path,
+        {"a.js": f"const Patched = class extends Base {{\n{body}}};\n"},
     )
     assert [c.what for c in got] == ["Patched"]
 

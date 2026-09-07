@@ -248,9 +248,7 @@ def test_an_alias_chain_that_leads_nowhere_invents_no_point(tree):
 
 def test_a_static_object_written_shorthand_and_longhand_both_resolve(tree):
     root, web_src = tree
-    _write(
-        web_src, "components/tag.js", "export class Tag {\n    render() {}\n}\n"
-    )
+    _write(web_src, "components/tag.js", "export class Tag {\n    render() {}\n}\n")
     _write(
         web_src,
         "views/renderer.js",

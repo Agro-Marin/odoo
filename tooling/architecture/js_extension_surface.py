@@ -376,7 +376,9 @@ class Index:
             kind, home, payload = current
             if kind == "map":
                 target = payload.get(part)
-                current = self._lookup_value(home, target, depth + 1) if target else None
+                current = (
+                    self._lookup_value(home, target, depth + 1) if target else None
+                )
                 continue
             statics = self.files[home]["classes"][payload].get("statics", {})
             if part in statics:
