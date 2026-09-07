@@ -1,4 +1,5 @@
 from odoo.tools.module_data import (
+    absorb_readonly_forerunners,
     adopt_xmlids,
     remove_xmlid_records,
     retire_empty_module,
@@ -29,6 +30,7 @@ DROPPED = (
 def migrate(cr, version):
     if not version:
         return
+    absorb_readonly_forerunners(cr)
     adopt_xmlids(cr, FROM_MODULE, MODULE, ADOPTED)
     remove_xmlid_records(cr, FROM_MODULE, DROPPED)
     retire_empty_module(cr, FROM_MODULE)

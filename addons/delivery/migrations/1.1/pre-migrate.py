@@ -1,4 +1,8 @@
-from odoo.tools.module_data import adopt_xmlids, retire_empty_module
+from odoo.tools.module_data import (
+    absorb_readonly_forerunners,
+    adopt_xmlids,
+    retire_empty_module,
+)
 
 FROM_MODULE = "group_readonly"
 MODULE = "delivery"
@@ -12,5 +16,6 @@ ADOPTED = (
 def migrate(cr, version):
     if not version:
         return
+    absorb_readonly_forerunners(cr)
     adopt_xmlids(cr, FROM_MODULE, MODULE, ADOPTED)
     retire_empty_module(cr, FROM_MODULE)
