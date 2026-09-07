@@ -516,3 +516,81 @@ class TestTheDeadServerCheckAsksAboutIdentity:
     def test_no_server_at_all_is_a_dead_one(self, cli, monkeypatch):
         r = self._run(cli, monkeypatch, 111, None)
         assert r.server_died is True
+
+
+class TestSelfTestsRideTheShardRun:
+    """HOOT's own suites run beside the tree they underwrite.
+
+    They are not shardable and do not want to be: they live on their own page,
+    are in no asset bundle, and cost ~6s. Nothing ran them at all until
+    `./hoot --self` existed, which is why the framework every suite here depends
+    on carried a red test for weeks. Running them by default in the full-tree
+    runner is the closest thing to a lane this repo has.
+    """
+
+    class _Args:
+        db_prefix = "hoot_web"
+        timeout = 900
+        verbose = False
+
+    def test_the_real_cli_accepts_no_self_and_defaults_to_running_them(self):
+        """Drive hoot-shard's own parser, not a lookalike built here.
+
+        `--plan` prints the partition and exits without booting anything, so
+        this exercises the actual argument surface for a few milliseconds.
+        """
+        for argv in ([], ["--no-self"]):
+            done = subprocess.run(
+                [sys.executable, str(HERE / "hoot-shard"), "--plan", *argv],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            assert done.returncode == 0, done.stderr
+            assert "Shard plan" in done.stdout
+
+        rejected = subprocess.run(
+            [sys.executable, str(HERE / "hoot-shard"), "--plan", "--self"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert rejected.returncode != 0, (
+            "--self is not hoot-shard's spelling; they run by default and "
+            "--no-self opts out, so accepting --self would silently mean "
+            "something else"
+        )
+
+    def test_the_self_run_targets_shard_zeros_server(self, shard, monkeypatch):
+        seen = {}
+
+        class _Done:
+            returncode = 0
+            stdout = "PASS  @hoot  (204 passed, 5.7s)\n"
+            stderr = ""
+
+        def fake_run(cmd, **kwargs):
+            seen["cmd"] = cmd
+            return _Done()
+
+        monkeypatch.setattr(shard.subprocess, "run", fake_run)
+        res = shard.run_self_tests(self._Args())
+        assert "--self" in seen["cmd"], "the self page is what makes these reachable"
+        assert seen["cmd"][seen["cmd"].index("--db") + 1] == shard.db_for(
+            0, "hoot_web"
+        ), "reuse shard 0's warm server rather than booting a sixth"
+        assert (res.passed, res.failed) == (204, 0)
+
+    def test_a_red_self_test_is_a_red_run(self, shard, monkeypatch):
+        class _Done:
+            returncode = 1
+            stdout = (
+                "FAIL  @hoot  (1 failed / 203 passed, 5.7s)\n"
+                "  - @hoot/core/test/run is async and lazily formatted\n"
+            )
+            stderr = ""
+
+        monkeypatch.setattr(shard.subprocess, "run", lambda cmd, **kw: _Done())
+        res = shard.run_self_tests(self._Args())
+        assert res.failed == 1
+        assert res.failed_tests == ["@hoot/core/test/run is async and lazily formatted"]

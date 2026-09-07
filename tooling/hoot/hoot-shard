@@ -207,6 +207,37 @@ def shard_deadline(suites: list[str], args) -> float:
     return len(suites) * args.timeout + SHARD_BOOT_GRACE_S
 
 
+def run_self_tests(args) -> ShardResult:
+    """HOOT's own suites, on shard 0's warm server, after the pool has drained.
+
+    They are not shardable and do not want to be: they live on their own page
+    (`lib/hoot/tests/index.html`), are in no asset bundle, and take ~6s. Nothing
+    ran them at all until `./hoot --self` existed, which is exactly why the
+    framework every suite here depends on had a test red for weeks. Running them
+    beside the tree they underwrite is the cheapest lane this repo can have.
+    """
+    db = db_for(0, args.db_prefix)
+    res = ShardResult(-1, db)
+    extra = ["--db", db, "--self", "--timeout", str(args.timeout)]
+    if args.verbose:
+        extra.append("-v")
+    try:
+        proc = subprocess.run(
+            hoot_cmd(extra),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=args.timeout + SHARD_BOOT_GRACE_S,
+        )
+        res.raw = proc.stdout + proc.stderr
+        res.rc = proc.returncode
+    except subprocess.TimeoutExpired as exc:
+        res.raw = _as_text(exc.stdout) + _as_text(exc.stderr)
+        res.rc = 124
+    res.parse()
+    return res
+
+
 def run_shard(index: int, suites: list[str], args) -> ShardResult:
     db = db_for(index, args.db_prefix)
     res = ShardResult(index, db)
@@ -291,6 +322,13 @@ def main() -> int:
         help="Shard count (default: auto from CPU count).",
     )
     p.add_argument("--preset", choices=("desktop", "mobile"), default="desktop")
+    p.add_argument(
+        "--no-self",
+        dest="self_tests",
+        action="store_false",
+        help="Skip HOOT's own suites (they run by default, on shard 0's "
+        "server, and cost ~6s).",
+    )
     p.add_argument(
         "--timeout",
         type=int,
@@ -394,6 +432,8 @@ def main() -> int:
         results = list(
             pool.map(lambda ig: run_shard(ig[0], ig[1], args), enumerate(shards))
         )
+    if args.self_tests:
+        results.append(run_self_tests(args))
     wall = time.time() - t0
 
     total_passed = total_failed = 0
@@ -407,9 +447,10 @@ def main() -> int:
         code = (
             C_GREEN if r.status == "PASS" else (C_YEL if r.status == "WARN" else C_RED)
         )
+        label = "self" if r.index < 0 else f"s{r.index}"
         print(
             _color(
-                f"  s{r.index} [{r.db}]  {r.status}  "
+                f"  {label} [{r.db}]  {r.status}  "
                 f"({r.failed} failed / {r.passed} passed, {r.wall:.1f}s)",
                 code,
             )
