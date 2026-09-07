@@ -259,7 +259,7 @@ export class BackgroundPositionOverlay extends Component {
             return 1;
         }
         const values = matrix
-            .match(/matrix\(([^)]+)\)/)[1]
+            .match(/matrix(?:3d)?\(([^)]+)\)/)[1]
             .split(",")
             .map(parseFloat);
         return values[0];
