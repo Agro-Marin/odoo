@@ -1,6 +1,7 @@
 /** @ts-check */
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
+import { registries } from "@odoo/o-spreadsheet";
 import {
     addGlobalFilter,
     setCellContent,
@@ -15,6 +16,7 @@ describe.current.tags("headless");
 defineSpreadsheetModels();
 
 const { DateTime } = luxon;
+const { functionRegistry } = registries;
 
 /**
  * @typedef {import("@spreadsheet").GlobalFilter} GlobalFilter
@@ -248,4 +250,52 @@ test("ODOO.FILTER.VALUE.V18 with escaped quotes in the filter label", async func
     });
     setCellContent(model, "A1", '=ODOO.FILTER.VALUE.V18("my \\"special\\" filter")');
     expect(getCellValue(model, "A1")).toBe("Jean-Jacques");
+});
+
+test("ODOO.FILTER.LABEL is offered in the function list", async function () {
+    // `hidden` is what keeps a function out of the "Insert function" menu, so
+    // the label variant is only reachable by typing its name blindly until it
+    // is registered under a name of its own.
+    const label = functionRegistry.get("ODOO.FILTER.LABEL");
+    expect(label).not.toBe(undefined);
+    expect(label.hidden).toBe(false);
+    // the v18 name stays registered, and stays hidden, for existing sheets
+    expect(functionRegistry.get("ODOO.FILTER.VALUE.V18").hidden).toBe(true);
+});
+
+test("ODOO.FILTER.LABEL returns the label of a relation filter", async function () {
+    const { model } = await createModelWithDataSource({
+        mockRPC: function (route, { method, args }) {
+            if (method === "web_search_read") {
+                const resIds = args[0][0][2];
+                const names = {
+                    1: "Jean-Jacques",
+                    2: "Raoul Grosbedon",
+                };
+                return {
+                    records: resIds.map((resId) => ({
+                        id: resId,
+                        display_name: names[resId],
+                    })),
+                };
+            }
+        },
+    });
+    setCellContent(model, "A10", `=ODOO.FILTER.LABEL("Relation Filter")`);
+    setCellContent(model, "A11", `=ODOO.FILTER.VALUE("Relation Filter")`);
+    await addGlobalFilter(model, {
+        id: "42",
+        type: "relation",
+        label: "Relation Filter",
+        modelName: "partner",
+    });
+    const [filter] = model.getters.getGlobalFilters();
+    await setGlobalFilterValue(model, {
+        id: filter.id,
+        value: { operator: "in", ids: [1] },
+    });
+    await animationFrame();
+    // ODOO.FILTER.VALUE gives the id, ODOO.FILTER.LABEL gives the name
+    expect(getCellValue(model, "A10")).toBe("Jean-Jacques");
+    expect(getCellValue(model, "A11")).toBe("1");
 });
