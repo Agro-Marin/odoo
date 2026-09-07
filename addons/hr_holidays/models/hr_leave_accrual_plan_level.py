@@ -3,7 +3,7 @@ from calendar import monthrange
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import ValidationError
 
 
 def _get_selection_days(self):
@@ -280,7 +280,7 @@ class HrLeaveAccrualLevel(models.Model):
     def _check_maximum_leaves(self):
         for level in self:
             if level.cap_accrued_time and level.maximum_leave <= 0:
-                raise UserError(
+                raise ValidationError(
                     self.env._(
                         "You cannot have a balance cap on accrued time set to 0."
                     )
