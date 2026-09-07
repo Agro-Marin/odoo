@@ -1249,6 +1249,7 @@ class ProjectProject(models.Model):
     def action_view_project_vendor_bills(self):
         move_lines = self.env["account.move.line"].search_fetch(
             [
+                ("parent_state", "!=", "cancel"),
                 ("move_id.move_type", "in", ["in_invoice", "in_refund"]),
                 ("analytic_distribution", "in", self.account_id.ids),
             ],
