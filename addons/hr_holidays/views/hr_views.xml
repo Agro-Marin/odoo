@@ -121,14 +121,20 @@
         <field name="inherit_id" ref="hr.hr_kanban_view_employees" />
         <field name="arch" type="xml">
             <xpath expr="//templates" position="before">
-                <field name="current_leave_id" />
+                <field name="current_leave_id" groups="hr.group_hr_user" />
                 <field name="current_leave_state" />
-                <field name="leave_date_from" />
-                <field name="leave_date_to" />
+                <field name="leave_date_from" groups="hr.group_hr_user" />
+                <field name="leave_date_to" groups="hr.group_hr_user" />
                 <field name="is_absent" />
             </xpath>
-            <xpath expr="//field[@name='hr_icon_display']" position="attributes">
-                <attribute name="widget">hr_presence_status_private</attribute>
+            <xpath expr="//field[@name='hr_icon_display']" position="after">
+                <field
+                    name="hr_icon_display"
+                    widget="hr_presence_status_private"
+                    groups="hr.group_hr_user" />
+            </xpath>
+            <xpath expr="//field[@name='hr_icon_display'][1]" position="attributes">
+                <attribute name="groups">!hr.group_hr_user</attribute>
             </xpath>
         </field>
     </record>
@@ -145,8 +151,15 @@
                     string="Time Off"
                     widget="many2one_avatar_user" />
             </xpath>
-            <xpath expr="//field[@name='hr_icon_display']" position="attributes">
-                <attribute name="widget">hr_presence_status_private</attribute>
+            <xpath expr="//field[@name='hr_icon_display']" position="after">
+                <field
+                    name="hr_icon_display"
+                    widget="hr_presence_status_private"
+                    invisible="not show_hr_icon_display or not id or not active"
+                    groups="hr.group_hr_user" />
+            </xpath>
+            <xpath expr="//field[@name='hr_icon_display'][1]" position="attributes">
+                <attribute name="groups">!hr.group_hr_user</attribute>
             </xpath>
             <button name="action_view_versions" position="before">
                 <field name="show_leaves" invisible="1" />

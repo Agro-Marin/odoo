@@ -989,12 +989,11 @@ class TestHrEmployeeLinks(HttpCase):
                 "name": "Sonic the Hedgehog",
             }
         )
-        with mute_logger("odoo.http"):
-            self.start_tour(
-                f"/odoo/employees/{employee_sonic.id}",
-                "check_public_employee_link_redirect",
-                login=user_amy.login,
-            )
+        self.start_tour(
+            f"/odoo/employees/{employee_sonic.id}",
+            "check_employee_link_opens_the_profile",
+            login=user_amy.login,
+        )
 
 
 @tagged("-at_install", "post_install")

@@ -705,7 +705,7 @@
                             </page>
                         </notebook>
                     </sheet>
-                    <chatter reload_on_follower="True" />
+                    <chatter reload_on_follower="True" groups="hr.group_hr_user" />
                 </form>
             </field>
         </record>
