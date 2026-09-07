@@ -576,18 +576,18 @@ export class SelectionPlugin extends Plugin {
 
         Object.defineProperty(selectionData, "deepEditableSelection", {
             get: function () {
-                [anchorNode, anchorOffset] = getDeepestPosition(
+                const [deepAnchorNode, deepAnchorOffset] = getDeepestPosition(
                     anchorNode,
                     anchorOffset,
                 );
-                [focusNode, focusOffset] = isCollapsed
-                    ? [anchorNode, anchorOffset]
+                const [deepFocusNode, deepFocusOffset] = isCollapsed
+                    ? [deepAnchorNode, deepAnchorOffset]
                     : getDeepestPosition(focusNode, focusOffset);
                 return this.createEditorSelection(
-                    anchorNode,
-                    anchorOffset,
-                    focusNode,
-                    focusOffset,
+                    deepAnchorNode,
+                    deepAnchorOffset,
+                    deepFocusNode,
+                    deepFocusOffset,
                     direction,
                 );
             }.bind(this),
