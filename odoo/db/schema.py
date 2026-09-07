@@ -37,13 +37,6 @@ _SQL_TYPE_TOKEN = re.compile(
 )
 _SQL_NAME_TOKEN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
-_BOOLEAN_TYPE_NAMES = frozenset({"BOOL", "BOOLEAN"})
-
-
-def _is_boolean_type(columntype: str) -> bool:
-    base_name = columntype.strip().split("(", 1)[0].split()[0]
-    return base_name.upper() in _BOOLEAN_TYPE_NAMES
-
 
 def _get_invalid_name_message(kind: str, value: object) -> str:
     return f"{kind} {value!r} is not a PostgreSQL name: refusing to build DDL from it"
@@ -262,7 +255,19 @@ def create_column(
         SQL.identifier(tablename),
         SQL.identifier(columnname),
         SQL(columntype),
-        SQL("DEFAULT false" if _is_boolean_type(columntype) else ""),
+        # The spelling is load-bearing: DO NOT normalize "bool" into this.
+        # `fields.Boolean._column_type` is ("bool", "bool"), so every column the
+        # ORM creates for a Boolean field takes the empty branch, which is what
+        # lets `_init_column` backfill the FIELD's default -- it updates
+        # `WHERE <column> IS NULL`, and a DDL default fills those rows first, so
+        # the backfill then matches nothing. A field declared `default=True`
+        # therefore lands false on every pre-existing row. `res.company.active`
+        # is exactly that: `base_data.sql` inserts company 1 with no `active`,
+        # and with a DDL default the company comes up ARCHIVED, `company_ids`
+        # filters it out of every user, and base cannot install its own admin.
+        # Only the explicit "boolean"/"BOOLEAN" spelling, which four hand-written
+        # callers use deliberately, takes the default.
+        SQL("DEFAULT false" if columntype.upper() == "BOOLEAN" else ""),
     )
     if comment:
         sql = SQL(
