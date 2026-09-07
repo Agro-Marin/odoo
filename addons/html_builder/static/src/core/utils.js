@@ -768,7 +768,7 @@ export function useInputBuilderComponent({
             return {};
         }
         const actionWithGetValue = getAllActions().find(
-            ({ actionId }) => getAction(actionId).getValue,
+            ({ actionId }) => getAction(actionId).has("getValue"),
         );
         const { actionId, actionParam } = actionWithGetValue;
         try {
