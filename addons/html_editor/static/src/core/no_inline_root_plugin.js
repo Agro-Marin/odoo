@@ -23,12 +23,6 @@ export class NoInlineRootPlugin extends Plugin {
         this.addDomListener(this.editable, "keydown", (ev) => {
             this.currentKeyDown = ev.key;
         });
-        this.addDomListener(this.editable, "pointerdown", () => {
-            this.isPointerDown = true;
-        });
-        this.addDomListener(this.editable, "pointerup", () => {
-            this.isPointerDown = false;
-        });
     }
 
     /**
