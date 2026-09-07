@@ -1,0 +1,141 @@
+import re
+
+from odoo.tests import tagged
+from odoo.tests.common import TransactionCase
+
+# Every field of a template that is itself an inline template. A rename breaks
+# `partner_to` as readily as a body, and more quietly: the mail then addresses
+# nobody instead of raising.
+EXPRESSION_FIELDS = (
+    "body_html",
+    "subject",
+    "email_from",
+    "email_to",
+    "email_cc",
+    "partner_to",
+    "reply_to",
+    "scheduled_date",
+)
+
+# `object.a.b.c` and `env['some.model']` as they appear inside those fields.
+OBJECT_CHAIN = re.compile(r"\bobject((?:\.[a-z_][a-z0-9_]*)+)")
+MODEL_LITERAL = re.compile(r"""env\[['"]([a-z_][a-z0-9_.]*)['"]\]""")
+HASATTR_GUARD = re.compile(r"hasattr\(\s*object\s*,\s*['\"]([a-z_0-9]+)['\"]")
+
+
+@tagged("mail_tools", "-at_install", "post_install")
+class TestMailTemplateReferences(TransactionCase):
+    """Every shipped mail template still names things that exist.
+
+    A ``mail.template`` is ``noupdate``, so an upgrade never rewrites its body.
+    When a refactor renames a model or a field, the source XML is corrected and
+    the copy in the database is not, and the template goes on raising until
+    something finally tries to send it -- which for a template nobody sends
+    daily can be months.
+
+    This reads the stored records rather than the XML on purpose: the XML is
+    always right, and the database is what actually renders.
+    """
+
+    def _shipped_templates(self):
+        """Templates a module owns, archived ones included.
+
+        Archived is not deleted -- a template still reachable through a
+        many2one that does not filter on ``active`` can be sent -- and a
+        template a user wrote is their business, not ours.
+        """
+        data = self.env["ir.model.data"].search([("model", "=", "mail.template")])
+        return (
+            self.env["mail.template"]
+            .with_context(active_test=False)
+            .browse(data.mapped("res_id"))
+            .exists()
+        )
+
+    def _expressions(self, template):
+        """The template's inline-template fields, as one string per field."""
+        return [str(template[name] or "") for name in EXPRESSION_FIELDS]
+
+    def _broken_hop(self, model, chain):
+        """The first name in ``chain`` its owner does not have, or None.
+
+        Walks the dotted chain while it stays relational, so a rename two hops
+        out -- ``object.employee_id.work_contact_id`` -- is caught as readily as
+        one on the template's own model. The walk stops at the first name that
+        is not a field, because past that point the expression is operating on
+        something that is no longer a recordset and cannot be resolved here.
+        """
+        for name in chain.strip(".").split("."):
+            field = model._fields.get(name)
+            if field is None:
+                return None if hasattr(type(model), name) else name
+            if not field.comodel_name:
+                return None
+            model = self.env[field.comodel_name]
+        return None
+
+    def test_every_shipped_template_names_a_live_model(self):
+        broken = []
+        for template in self._shipped_templates():
+            for body in self._expressions(template):
+                broken.extend(
+                    f"{template.name} (id {template.id}): env[{name!r}]"
+                    for name in sorted(set(MODEL_LITERAL.findall(body)))
+                    if name not in self.env
+                )
+        self.assertFalse(
+            broken,
+            "mail templates naming a model the registry does not have:\n  "
+            + "\n  ".join(broken),
+        )
+
+    def test_every_shipped_template_names_a_live_field(self):
+        broken = []
+        for template in self._shipped_templates():
+            model_name = template.model_id.model
+            if not model_name or model_name not in self.env:
+                continue
+            model = self.env[model_name]
+            for body in self._expressions(template):
+                # `hasattr(object, 'x')` is how a template reads a field that
+                # only exists when some other module is installed. Guarded is
+                # not broken.
+                guarded = set(HASATTR_GUARD.findall(body))
+                for chain in sorted(set(OBJECT_CHAIN.findall(body))):
+                    if chain.strip(".").split(".")[0] in guarded:
+                        continue
+                    name = self._broken_hop(model, chain)
+                    if name:
+                        broken.append(
+                            f"{template.name} (id {template.id}): "
+                            f"object{chain} -- no {name!r}"
+                        )
+        self.assertFalse(
+            broken,
+            "mail templates reading a field that does not exist:\n  "
+            + "\n  ".join(sorted(set(broken))),
+        )
+
+    def test_every_template_model_column_agrees_with_its_model_id(self):
+        """``model`` is a stored related on ``model_id.model``.
+
+        A stored related that was never recomputed leaves the two disagreeing,
+        and rendering then browses one model with the other's ids -- which
+        raises nothing and quietly reads the wrong records. Checked for every
+        template, not only shipped ones, because the drift is in our column
+        rather than in anyone's authored text.
+        """
+        drifted = [
+            f"{template.name} (id {template.id}): "
+            f"model={template.model!r} but model_id names "
+            f"{template.model_id.model!r}"
+            for template in self.env["mail.template"]
+            .with_context(active_test=False)
+            .search([])
+            if template.model != template.model_id.model
+        ]
+        self.assertFalse(
+            drifted,
+            "mail templates whose model column never caught up:\n  "
+            + "\n  ".join(drifted),
+        )
