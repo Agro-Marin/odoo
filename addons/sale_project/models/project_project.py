@@ -85,7 +85,7 @@ class ProjectProject(models.Model):
         string="Sales Order",
         groups="sales_team.group_sale_salesman",
         copy=False,
-        domain="[('partner_id', '=', partner_id)]",
+        domain="['|', ('partner_id', '=', partner_id), ('partner_id.commercial_partner_id.id', 'parent_of', partner_id)]",
         index="btree_not_null",
         help="Products added to stock pickings, whose operation type is configured to generate analytic costs, will be re-invoiced in this sales order if they are set up for it.",
     )
