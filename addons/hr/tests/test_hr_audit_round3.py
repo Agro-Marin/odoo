@@ -425,6 +425,7 @@ class TestHrAuditRound3(TestHrCommon):
         employee = self.Employee.create(
             {
                 "name": "R3 Expiring",
+                "permit_no": "R3-WP-1",
                 "work_permit_expiration_date": today + timedelta(days=5),
             }
         )

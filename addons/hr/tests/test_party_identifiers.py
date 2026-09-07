@@ -148,3 +148,39 @@ class TestPartyIdentifiers(TransactionCase):
         with_one = Employee.search([("passport_id", "!=", False)])
         self.assertIn(carrying, with_one)
         self.assertNotIn(lacking, with_one)
+
+    def test_an_expiry_cannot_be_recorded_without_its_document(self):
+        Employee = self.env["hr.employee"]
+        for expiry in (
+            "visa_expire",
+            "work_permit_expiration_date",
+            "passport_expiration_date",
+        ):
+            with self.subTest(expiry=expiry), self.assertRaises(ValidationError):
+                Employee.create({"name": "Dateless", expiry: "2030-01-01"})
+
+    def test_clearing_the_document_number_refuses_to_orphan_its_expiry(self):
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Passport Holder",
+                "passport_id": "P-CLEAR",
+                "passport_expiration_date": "2030-01-01",
+            }
+        )
+        with self.assertRaises(ValidationError):
+            employee.passport_id = False
+        employee.write({"passport_id": False, "passport_expiration_date": False})
+        self.assertFalse(self._rows(employee).get("PASSPORT"))
+
+    def test_the_document_and_its_expiry_are_accepted_together(self):
+        employee = self.env["hr.employee"].create(
+            {
+                "name": "Permit Holder",
+                "permit_no": "WP-1",
+                "work_permit_expiration_date": "2030-01-01",
+                "visa_no": "V-1",
+                "visa_expire": "2031-01-01",
+            }
+        )
+        self.assertEqual(employee.permit_no, "WP-1")
+        self.assertEqual(employee.visa_no, "V-1")

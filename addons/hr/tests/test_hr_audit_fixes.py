@@ -201,6 +201,7 @@ class TestHrAuditCoverage(TestHrCommon):
         )
         wp_expiring = self._new_employee(
             "Expiring Permit",
+            permit_no="WP-EXPIRING",
             work_permit_expiration_date=fields.Date.to_string(
                 today + relativedelta(days=wp_notice)
             ),

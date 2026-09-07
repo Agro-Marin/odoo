@@ -663,6 +663,28 @@ class HrEmployee(models.Model):
         "A user cannot be linked to multiple employees in the same company.",
     )
 
+    _EXPIRY_REQUIRES_ITS_DOCUMENT = {
+        "visa_expire": "visa_no",
+        "work_permit_expiration_date": "permit_no",
+    }
+
+    @api.constrains(
+        "visa_expire", "visa_no", "work_permit_expiration_date", "permit_no"
+    )
+    def _check_expiry_has_its_document(self):
+        for employee in self:
+            for expiry, number in self._EXPIRY_REQUIRES_ITS_DOCUMENT.items():
+                if employee[expiry] and not employee[number]:
+                    raise ValidationError(
+                        self.env._(
+                            "%(expiry_label)s cannot be set without "
+                            "%(number_label)s: an expiry date belongs to a "
+                            "document, and there is no document to attach it to.",
+                            expiry_label=self._fields[expiry].string,
+                            number_label=self._fields[number].string,
+                        )
+                    )
+
     @api.constrains("barcode")
     def _check_barcode(self):
         for employee in self:
@@ -2677,9 +2699,21 @@ class HrEmployee(models.Model):
                 value = employee[fname]
                 row = by_code.get(code)
                 vals = {"value": value}
-                if expiry := self._IDENTIFIER_EXPIRY.get(code):
+                expiry = self._IDENTIFIER_EXPIRY.get(code)
+                if expiry:
                     vals["valid_until"] = employee[expiry]
                 if not value:
+                    if expiry and employee[expiry]:
+                        raise ValidationError(
+                            self.env._(
+                                "%(expiry_label)s cannot be set without "
+                                "%(number_label)s: an expiry date belongs to a "
+                                "document, and there is no document to attach "
+                                "it to.",
+                                expiry_label=self._fields[expiry].string,
+                                number_label=self._fields[fname].string,
+                            )
+                        )
                     if row:
                         row.unlink()
                     continue
