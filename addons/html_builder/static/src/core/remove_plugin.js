@@ -101,7 +101,9 @@ export class RemovePlugin extends Plugin {
             !el.classList.contains("oe_structure") &&
             !el.parentElement.classList.contains("carousel-item") &&
             (!optionsTargetEls.includes(el) ||
-                optionsTargetEls.some((targetEl) => targetEl.contains(el))) &&
+                optionsTargetEls.some(
+                    (targetEl) => targetEl !== el && targetEl.contains(el),
+                )) &&
             isRemovable(el)
         );
     }
