@@ -27,7 +27,7 @@ export class TimeOffDashboard extends Component {
         });
 
         onWillStart(async () => {
-            this.loadDashboardData();
+            await this.loadDashboardData();
         });
     }
 
