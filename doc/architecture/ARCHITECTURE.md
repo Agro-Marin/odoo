@@ -5,8 +5,10 @@ system, utilities. This page carries context, forces, cross-cutting mechanisms
 and the index of the views. Per-addon maps live in
 `addons/*/machine_doc_v1/ARCHITECTURE.md`.
 
-The [2026-09-04 fork audit](../audits/architecture-2026-09-04.md) records prioritized findings,
-implemented transaction and dependency improvements, and remaining work.
+The 2026-09-04 fork audit records prioritized findings, implemented transaction
+and dependency improvements, and remaining work. It lives in the knowledge
+vault, under `agromarin-knowledge/research/`, dated 2026-09-04: this page
+linked it inside `odoo` until commit `19e72c2120b` deleted it there.
 
 | If you are… | Read |
 |---|---|
