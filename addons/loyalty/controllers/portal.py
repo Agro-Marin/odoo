@@ -160,5 +160,11 @@ class CustomerPortalLoyalty(CustomerPortal):
                 }
                 for reward in rewards
             ],
-            "img_path": f"/loyalty/static/src/img/{program_type}.svg",
+            # Only 'loyalty' and 'ewallet' ship art under static/src/img/;
+            # other program types' art lives under static/img/ (no 'src/').
+            "img_path": (
+                f"/loyalty/static/src/img/{program_type}.svg"
+                if program_type in ("loyalty", "ewallet")
+                else False
+            ),
         }
