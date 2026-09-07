@@ -7,6 +7,7 @@ from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import Form, new_test_user, tagged
 
+from odoo.addons.hr.models.res_users import HR_READABLE_FIELDS
 from odoo.addons.hr.tests.common import TestHrCommon
 
 
@@ -253,12 +254,18 @@ class TestSelfAccessRights(TestHrCommon):
             self.hubert.with_user(self.richard).read(self.self_protected_fields_user)
 
     def testWriteSelfUserEmployee(self):
+        """Decided 2026-09-07: a user does not edit their own HR information.
+
+        This wrote each of these fields on oneself and expected it to land.
+        Reading them is untouched -- testReadSelfUserEmployee still passes.
+        """
         for f, v in self.self_protected_fields_user.items():
             val = None
             if v.type in {"char", "text"}:
                 val = "0000" if f in ["pin", "barcode"] else "dummy"
             if val is not None:
-                self.richard.with_user(self.richard).write({f: val})
+                with self.subTest(field=f), self.assertRaises(AccessError):
+                    self.richard.with_user(self.richard).write({f: val})
 
     def testWriteOtherUserEmployee(self):
         for f in self.self_protected_fields_user:
@@ -346,14 +353,47 @@ class TestSelfWritableFieldsAreWritable(TestHrCommon):
             f"{unwritable}",
         )
 
-    def test_a_user_cannot_silently_lose_a_self_write(self):
+    def test_hr_grants_no_self_write_at_all(self):
+        """Decided 2026-09-07: an internal user does not edit their own HR data.
+
+        This class used to assert the opposite -- that a self-write of
+        `private_street` reached the employee. It did, and that was the
+        behaviour withdrawn: personal facts now change through
+        hr.employee.change.request, with an HR user approving.
+        """
+        users = self.env["res.users"]
+        self.assertFalse(
+            set(HR_READABLE_FIELDS) & set(users.SELF_WRITEABLE_FIELDS),
+            "hr contributes a self-writable field again",
+        )
+
+    def test_a_user_cannot_edit_their_own_personal_information(self):
         user = new_test_user(
             self.env, login="selfwrite", groups="base.group_user", name="Self Writer"
         )
         employee = self.env["hr.employee"].create(
-            {"name": "Self Writer", "user_id": user.id}
+            {"name": "Self Writer", "user_id": user.id, "private_street": "Seeded 1"}
         )
         as_self = user.with_user(user)
-        as_self.write({"private_street": "Own Street 1"})
+        for fname, value in (
+            ("private_street", "Own Street 1"),
+            ("private_email", "me@home.test"),
+            ("emergency_contact", "Someone"),
+            ("pin", "4321"),
+        ):
+            with self.subTest(field=fname), self.assertRaises(AccessError):
+                as_self.write({fname: value})
         employee.invalidate_recordset(["private_street"])
-        self.assertEqual(employee.private_street, "Own Street 1")
+        self.assertEqual(employee.private_street, "Seeded 1")
+
+    def test_a_user_still_reads_their_own_personal_information(self):
+        user = new_test_user(
+            self.env, login="selfread", groups="base.group_user", name="Self Reader"
+        )
+        self.env["hr.employee"].create(
+            {"name": "Self Reader", "user_id": user.id, "private_street": "Seeded 2"}
+        )
+        as_self = user.with_user(user)
+        self.assertEqual(
+            as_self.read(["private_street"])[0]["private_street"], "Seeded 2"
+        )

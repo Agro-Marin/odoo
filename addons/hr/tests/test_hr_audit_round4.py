@@ -870,12 +870,12 @@ class TestSelfWriteDoesNotEscalateThroughRelations(TestHrCommon):
             " comodel record under sudo",
         )
 
-    def test_linking_an_existing_tag_to_oneself_still_works(self):
-        self._write_as_self({"tag_ids": [Command.link(self.existing_tag.id)]})
+    def test_linking_an_existing_tag_to_oneself_is_refused_now(self):
+        with self.assertRaises(AccessError):
+            self._write_as_self({"tag_ids": [Command.link(self.existing_tag.id)]})
         self.env.invalidate_all()
-        self.assertIn(
+        self.assertNotIn(
             self.existing_tag,
             self.self_user.employee_id.sudo().tag_ids,
-            "LINK is inside _RELATION_ONLY_COMMANDS and is the self-service case"
-            " the field exists for; the guard must not break it",
+            "a refused self-write must not link the tag anyway",
         )

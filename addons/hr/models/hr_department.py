@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import _lt, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
@@ -123,18 +125,25 @@ class HrDepartment(models.Model):
     @api.depends_context("allowed_company_ids")
     @api.constrains("company_id")
     def _check_members_are_of_this_company(self):
-        for department in self:
-            if not department.company_id:
-                continue
-            stranded = (
-                self.env["hr.employee"]
-                .sudo()
-                .search(
-                    [
-                        ("department_id", "=", department.id),
-                        ("company_id", "!=", False),
-                        ("company_id", "!=", department.company_id.id),
-                    ]
+        scoped = self.filtered("company_id")
+        if not scoped:
+            return
+        # One search for the whole batch, and a search rather than member_ids:
+        # the employee writes that put them here may still be pending in the
+        # same flush, and the one2many cache would then report none.
+        members = (
+            self.env["hr.employee"]
+            .sudo()
+            .search([("department_id", "in", scoped.ids), ("company_id", "!=", False)])
+        )
+        empty = self.env["hr.employee"].sudo()
+        by_department = defaultdict(empty.browse)
+        for member in members:
+            by_department[member.department_id.id] |= member
+        for department in scoped:
+            stranded = by_department[department.id].filtered(
+                lambda member, department=department: (
+                    member.company_id != department.company_id
                 )
             )
             if stranded:

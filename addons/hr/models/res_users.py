@@ -7,50 +7,51 @@ from odoo.tools.misc import clean_context
 
 HR_READABLE_FIELDS = [
     "active",
-    "child_ids",
-    "employee_id",
-    "job_title",
-    "employee_ids",
-    "is_hr_user",
-    "is_system",
-    "employee_resource_calendar_id",
-    "bank_account_ids",
-    "work_location_name",
-    "work_location_type",
-]
-
-HR_WRITABLE_FIELDS = [
     "additional_note",
-    "private_street",
-    "private_street2",
-    "private_city",
-    "private_state_id",
-    "private_zip",
-    "private_country_id",
-    "private_phone_ids",
-    "private_email",
+    "bank_account_ids",
     "barcode",
-    "tag_ids",
+    "child_ids",
     "emergency_contact",
     "emergency_phone_ids",
+    "employee_id",
+    "employee_ids",
+    "employee_resource_calendar_id",
+    "is_hr_user",
+    "is_system",
+    "job_title",
     "km_home_work",
     "pin",
+    "private_city",
+    "private_country_id",
+    "private_email",
+    "private_phone_ids",
+    "private_state_id",
+    "private_street",
+    "private_street2",
+    "private_zip",
+    "tag_ids",
     "visa_expire",
     "work_email",
     "work_location_id",
+    "work_location_name",
+    "work_location_type",
 ]
 
 
 class ResUsers(models.Model):
     _inherit = "res.users"
 
-    @property
-    def SELF_READABLE_FIELDS(self):
-        return super().SELF_READABLE_FIELDS + HR_READABLE_FIELDS + HR_WRITABLE_FIELDS
+    def action_request_information_change(self):
+        """Open this person's pending change request, seeded from what they hold.
+
+        Without the seeding an empty request would read as "clear every one of
+        these fields" when an HR user approved it.
+        """
+        return self.env["hr.employee.change.request"].action_open_my_request()
 
     @property
-    def SELF_WRITEABLE_FIELDS(self):
-        return super().SELF_WRITEABLE_FIELDS + HR_WRITABLE_FIELDS
+    def SELF_READABLE_FIELDS(self):
+        return super().SELF_READABLE_FIELDS + HR_READABLE_FIELDS
 
     def _domain_employee_ids(self):
         return [

@@ -20,6 +20,13 @@
             action="open_view_employee_list_my"
             sequence="3" />
         <menuitem
+            id="menu_hr_employee_change_request"
+            name="Change Requests"
+            parent="menu_hr_root"
+            action="hr_employee_change_request_action"
+            sequence="4"
+            groups="group_hr_user" />
+        <menuitem
             id="hr_menu_hr_reports"
             name="Reporting"
             parent="menu_hr_root"
