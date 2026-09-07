@@ -42,7 +42,9 @@ export class LeaveStatsComponent extends Component {
             await this.loadDepartmentLeaves(this.state.department, this.state.employee);
         });
 
+        this.loadGeneration = 0;
         useRecordObserver(async (record) => {
+            const generation = ++this.loadGeneration;
             const dateFrom = record.data.date_from || DateTime.now();
             const dateTo = record.data.date_to || DateTime.now();
             const dateChanged =
@@ -58,7 +60,7 @@ export class LeaveStatsComponent extends Component {
                 (employee &&
                     (this.state.employee && this.state.employee.id) !== employee.id)
             ) {
-                proms.push(this.loadLeaves(employee));
+                proms.push(this.loadLeaves(employee, generation));
             }
             if (
                 dateChanged ||
@@ -66,9 +68,12 @@ export class LeaveStatsComponent extends Component {
                     (this.state.department && this.state.department.id) !==
                         department.id)
             ) {
-                proms.push(this.loadDepartmentLeaves(department, employee));
+                proms.push(this.loadDepartmentLeaves(department, employee, generation));
             }
             await Promise.all(proms);
+            if (generation !== this.loadGeneration) {
+                return;
+            }
             this.state.date_from = dateFrom;
             this.state.employee = employee;
             this.state.department = department;
@@ -85,9 +90,11 @@ export class LeaveStatsComponent extends Component {
         return this.state.date_from.toFormat("yyyy");
     }
 
-    async loadDepartmentLeaves(department, employee) {
+    async loadDepartmentLeaves(department, employee, generation) {
         if (!(department && employee)) {
-            this.state.departmentLeaves = [];
+            if (generation === undefined || generation === this.loadGeneration) {
+                this.state.departmentLeaves = [];
+            }
             return;
         }
 
@@ -113,12 +120,16 @@ export class LeaveStatsComponent extends Component {
                 },
             },
         );
-        this.state.departmentLeaves = this.arrangeData(leaves.records);
+        if (generation === undefined || generation === this.loadGeneration) {
+            this.state.departmentLeaves = this.arrangeData(leaves.records);
+        }
     }
 
-    async loadLeaves(employee) {
+    async loadLeaves(employee, generation) {
         if (!employee) {
-            this.state.leaves = [];
+            if (generation === undefined || generation === this.loadGeneration) {
+                this.state.leaves = [];
+            }
             return;
         }
 
@@ -143,7 +154,9 @@ export class LeaveStatsComponent extends Component {
                 },
             },
         );
-        this.state.leaves = this.arrangeData(leaves.records);
+        if (generation === undefined || generation === this.loadGeneration) {
+            this.state.leaves = this.arrangeData(leaves.records);
+        }
     }
     arrangeData(leaves) {
         leaves.forEach((leave) => {
