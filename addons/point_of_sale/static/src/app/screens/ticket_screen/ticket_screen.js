@@ -584,14 +584,15 @@ export class TicketScreen extends Component {
         return Math.ceil(this.filteredOrdersCount / this.state.nbrByPage);
     }
     getPageNumber() {
-        if (!this.filteredOrdersCount) {
+        // Read once: outside the SYNCED filter this getter filters, fuzzy-matches
+        // and sorts every order in the session on each access.
+        const count = this.filteredOrdersCount;
+        if (!count) {
             return `0/0`;
-        } else {
-            return `${(this.state.page - 1) * this.state.nbrByPage + 1}-${Math.min(
-                this.state.page * this.state.nbrByPage,
-                this.filteredOrdersCount,
-            )} / ${this.filteredOrdersCount}`;
         }
+        const first = (this.state.page - 1) * this.state.nbrByPage + 1;
+        const last = Math.min(this.state.page * this.state.nbrByPage, count);
+        return `${first}-${last} / ${count}`;
     }
     getHasItemsToRefund() {
         const order = this.getSelectedOrder();

@@ -33,6 +33,13 @@ export class OrderSummary extends Component {
         return this.pos.selectedOrder;
     }
 
+    // A combo child's quantity and discount belong to its parent; its price does
+    // not, which is why the price branch of _setValue reads the selected line.
+    get editedLine() {
+        const line = this.currentOrder.getSelectedOrderline();
+        return line?.combo_parent_id || line;
+    }
+
     async editPackLotLines(line) {
         const isAllowOnlyOneLot = line.product_id.isAllowOnlyOneLot();
         let editedPackLotLines;
@@ -233,32 +240,25 @@ export class OrderSummary extends Component {
 
     _setValue(val) {
         const { numpadMode } = this.pos;
-        let selectedLine = this.currentOrder.getSelectedOrderline();
-        if (selectedLine) {
-            if (numpadMode === "quantity") {
-                if (selectedLine.combo_parent_id) {
-                    selectedLine = selectedLine.combo_parent_id;
-                }
-                if (val === "remove") {
-                    this.currentOrder.removeOrderline(selectedLine);
-                } else {
-                    const result = selectedLine.setQuantity(
-                        val,
-                        Boolean(selectedLine.combo_line_ids?.length),
-                    );
-                    if (result !== true) {
-                        this.dialog.add(AlertDialog, result);
-                        this.numberBuffer.reset();
-                    }
-                }
-            } else if (numpadMode === "discount" && val !== "remove") {
-                if (selectedLine.combo_parent_id) {
-                    selectedLine = selectedLine.combo_parent_id;
-                }
-                this.pos.setDiscountFromUI(selectedLine, val);
-            } else if (numpadMode === "price" && val !== "remove") {
-                this.setLinePrice(selectedLine, val);
+        const selectedLine = this.currentOrder.getSelectedOrderline();
+        if (!selectedLine) {
+            return;
+        }
+        if (numpadMode === "quantity") {
+            const line = this.editedLine;
+            if (val === "remove") {
+                this.currentOrder.removeOrderline(line);
+                return;
             }
+            const result = line.setQuantity(val, Boolean(line.combo_line_ids?.length));
+            if (result !== true) {
+                this.dialog.add(AlertDialog, result);
+                this.numberBuffer.reset();
+            }
+        } else if (numpadMode === "discount" && val !== "remove") {
+            this.pos.setDiscountFromUI(this.editedLine, val);
+        } else if (numpadMode === "price" && val !== "remove") {
+            this.setLinePrice(selectedLine, val);
         }
     }
 
@@ -280,10 +280,7 @@ export class OrderSummary extends Component {
     }
     async updateQuantityNumber(newQuantity) {
         if (newQuantity !== null) {
-            let selectedLine = this.currentOrder.getSelectedOrderline();
-            if (selectedLine.combo_parent_id) {
-                selectedLine = selectedLine.combo_parent_id;
-            }
+            const selectedLine = this.editedLine;
             const currentQuantity = selectedLine.getQuantity();
             if (newQuantity >= currentQuantity) {
                 selectedLine.setQuantity(
@@ -300,10 +297,7 @@ export class OrderSummary extends Component {
         return false;
     }
     async handleDecreaseUnsavedLine(newQuantity) {
-        let selectedLine = this.currentOrder.getSelectedOrderline();
-        if (selectedLine.combo_parent_id) {
-            selectedLine = selectedLine.combo_parent_id;
-        }
+        const selectedLine = this.editedLine;
         const decreaseQuantity = selectedLine.getQuantity() - newQuantity;
         selectedLine.setQuantity(
             newQuantity,
@@ -312,10 +306,7 @@ export class OrderSummary extends Component {
         return decreaseQuantity;
     }
     async handleDecreaseLine(newQuantity) {
-        let selectedLine = this.currentOrder.getSelectedOrderline();
-        if (selectedLine.combo_parent_id) {
-            selectedLine = selectedLine.combo_parent_id;
-        }
+        const selectedLine = this.editedLine;
         let current_saved_quantity = selectedLine.uiState.savedQuantity;
         const decreaseLineUuid = selectedLine.uiState.decreaseLineUuid;
         if (decreaseLineUuid) {
@@ -340,10 +331,7 @@ export class OrderSummary extends Component {
         return decreasedQuantity;
     }
     getNewLine() {
-        let selectedLine = this.currentOrder.getSelectedOrderline();
-        if (selectedLine.combo_parent_id) {
-            selectedLine = selectedLine.combo_parent_id;
-        }
+        const selectedLine = this.editedLine;
         let newLine = selectedLine;
         if (selectedLine.uiState.savedQuantity !== 0) {
             const existingUuid = selectedLine.uiState.decreaseLineUuid;
