@@ -33,6 +33,15 @@ set -u
 # missing file and returned empty, which the assertions reported as 156
 # "failures" that were really one path error.
 DOC="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# Interpreter resolution + a scan that cannot fail silently. See the header of
+# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+_fc_root="$DOC"
+while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
+    _fc_root="$(dirname -- "$_fc_root")"
+done
+# shellcheck source=/dev/null
+source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+
 MAIL="$(dirname -- "$DOC")"
 # A couple of claims depend on the FRAMEWORK, not on mail. Resolve it once, here,
 # rather than spelling "$MAIL/../.." at each use — otherwise relocating the
@@ -49,14 +58,14 @@ FAIL=0
 UPDATED=0
 
 # The rewriter below needs a python; the venv's is preferred so a workspace run
-# matches CI, but any python3 will do -- it only edits text.
+# matches CI, but any "$PY" will do -- it only edits text.
 VENV_PY="${VENV_PY:-}"
 if [ -z "$VENV_PY" ] || [ ! -x "$VENV_PY" ]; then
     for _cand in "$(dirname "$ODOO")"/*/bin/python3 "$(dirname "$ODOO")"/*/bin/python; do
         [ -x "$_cand" ] && VENV_PY="$_cand" && break
     done
 fi
-[ -n "$VENV_PY" ] && [ -x "$VENV_PY" ] || VENV_PY="$(command -v python3)"
+[ -n "$VENV_PY" ] && [ -x "$VENV_PY" ] || VENV_PY="$(command -v "$PY")"
 
 # `--update` is opt-in and touches nothing on the default path, so a CI run and a
 # developer run execute the same assertions.
@@ -185,7 +194,7 @@ assert_doc_cites "ROUTE_MAP.md cites the handler count and its split" \
 # The count above tallies DECORATORS, not URLs — decorators are multi-line, so a URL can be
 # renamed or dropped without moving it (verified by mutation: deleting the
 # /discuss/voice/worklet_processor URL line left the count at 65). Pin the URL set itself.
-route_urls=$(python3 - "$MAIL" <<'PYEOF'
+route_urls=$("$PY" - "$MAIL" <<'PYEOF'
 import ast,pathlib,hashlib,sys
 urls=[]
 for p in sorted(pathlib.Path(sys.argv[1],"controllers").rglob("*.py")):
@@ -374,16 +383,16 @@ assert_eq "discuss.rtc service in rtc_service.js" \
 
 # ============================ ASSET_LAYERS ============================
 assert_eq "manifest esm.bundles lists exactly the 3 documented ESM bundles" \
-    "$(python3 -c "import ast,sys;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(','.join(sorted(m['esm']['bundles'])))")" \
+    "$("$PY" -c "import ast,sys;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(','.join(sorted(m['esm']['bundles'])))")" \
     "mail.assets_discuss_public_test_tours,mail.assets_lamejs,mail.assets_public"
 assert_eq "manifest declares the SFU client as a library" \
-    "$(python3 -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(m['esm']['external_libs']['@odoo/sfu'])")" \
+    "$("$PY" -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(m['esm']['external_libs']['@odoo/sfu'])")" \
     "/mail/static/lib/odoo_sfu/odoo_sfu.js"
 # 15: web.assets_web_dark went away with the dark-mode rework (mail ships no
 # *.dark.scss and web now answers both colour schemes from one stylesheet), and
 # mail.assets_odoo_sfu became the `@odoo/sfu` library.
 assert_eq "manifest declares 15 asset bundles" \
-    "$(python3 -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(len(m['assets']))")" "15"
+    "$("$PY" -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(len(m['assets']))")" "15"
 assert_eq "manifest declares no dark bundle" \
     "$(grep -c 'assets_web_dark' "$MAIL/__manifest__.py")" "0"
 assert_eq "mail ships no *.dark.scss" \
@@ -687,9 +696,9 @@ assert_eq "no common/ file anywhere imports from a higher layer" \
 # service_worker.js is in no bundle at all (CONVENTIONS gotcha 2 named a non-existent
 # "@odoo-module ignore" annotation; the real evidence is manifest absence).
 assert_eq "service_worker.js appears in no asset bundle" \
-    "$(python3 -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(sum(1 for b in m['assets'].values() for i in b if isinstance(i,str) and i.endswith('src/service_worker.js')))")" "0"
+    "$("$PY" -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(sum(1 for b in m['assets'].values() for i in b if isinstance(i,str) and i.endswith('src/service_worker.js')))")" "0"
 assert_eq "service_worker_utils.js IS exposed to HOOT" \
-    "$(python3 -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(int('mail/static/src/service_worker_utils.js' in m['assets']['web.assets_unit_tests']))")" "1"
+    "$("$PY" -c "import ast;m=ast.literal_eval(open('$MAIL/__manifest__.py').read());print(int('mail/static/src/service_worker_utils.js' in m['assets']['web.assets_unit_tests']))")" "1"
 
 # ================= Round-4 fact-check: previously uncovered claims =================
 # Everything below was wrong or unguarded in round 3.
@@ -834,7 +843,7 @@ assert_eq "TEST_TAGS.md no stale venv/ interpreter path" \
     "$(grep -c 'venv/p314o19marin/bin/python' "$DOC/TEST_TAGS.md")" "0"
 
 # Untagged test files: TEST_TAGS states 28 of 52 are unreachable by --test-tags.
-untagged=$(python3 - "$MAIL" <<'PYEOF'
+untagged=$("$PY" - "$MAIL" <<'PYEOF'
 import ast, pathlib, sys
 root = pathlib.Path(sys.argv[1], "tests")
 SKIP = {"post_install", "-at_install", "at_install", "standard", "-standard"}
@@ -856,7 +865,7 @@ assert_doc_cites "TEST_TAGS.md cites both halves of the untagged split" \
 # The same walk scoped to discuss/. This figure sat in the prose ungated and had
 # drifted to "14 of the 23" against a filesystem of 27 -- both halves wrong, and
 # invisible because nothing checked it.
-disc=$(python3 - "$MAIL" <<'PYEOF'
+disc=$("$PY" - "$MAIL" <<'PYEOF'
 import ast, pathlib, sys
 root = pathlib.Path(sys.argv[1], "tests", "discuss")
 SKIP = {"post_install", "-at_install", "at_install", "standard", "-standard"}

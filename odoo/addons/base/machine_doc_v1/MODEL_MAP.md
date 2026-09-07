@@ -1397,6 +1397,14 @@ Login tracking.
 User deletion queue.
 **Key Methods:** `_gc_portal_users(batch_size=50)` — Cron: batch-delete queued users
 
+### models/res_users_login_cooldown.py
+
+#### ResUsersLoginCooldown — `res.users.login.cooldown` (`_name`)
+
+Durable, cross-process counter behind the login-failure cooldown: one row per
+source, carrying the failure tally and the moment of the last one.
+**Key Fields:** `source` (indexed), `failures`, `last_failure` (indexed)
+
 ### models/res_users_settings.py
 
 #### ResUsersSettings — `res.users.settings` (`_name`, unique `user_id`)
@@ -1649,6 +1657,17 @@ Adds properties support to any model.
 
 **Fields:** `name` (Char, required, unique), `digits` (Integer, required, default=2)
 **Key Methods:** `precision_get(application)` — Cached lookup of digits (ormcache)
+
+### models/phone_number.py
+
+#### PhoneNumber — `phone.number` (`_name`)
+
+A phone number as a record several contacts can share, which is what replaced
+the `phone` and `mobile` columns on partners, users and companies.
+`_rec_name` is `number`; `_rec_names_search` also covers `sanitized` and `label`.
+**Key Fields:** `number`, `sanitized` (computed), `type`, `country_id`,
+`primary`, `label`, `partner_ids`
+**Key Methods:** `_sanitize_number(number, country)`, `_phone_country()`
 
 ### models/report_layout.py / report_paperformat.py
 
@@ -1974,6 +1993,7 @@ Quick lookup — file → model → primary role:
 | `mixin_image.py` | mixin.image | Multi-resolution images |
 | `properties_base_definition.py` | properties.base.definition | Properties definitions |
 | `mixin_properties_base_definition.py` | mixin.properties.base.definition | Properties mixin |
+| `phone_number.py` | phone.number | Shared phone numbers |
 | `report_layout.py` | report.layout | Report templates |
 | `report_paperformat.py` | report.paperformat | Paper format config |
 | `res_bank.py` | res.bank, res.partner.bank | Banks + accounts |
@@ -1997,6 +2017,7 @@ Quick lookup — file → model → primary role:
 | `res_users_deletion.py` | res.users.deletion | User deletion queue |
 | `res_users_identitycheck.py` | res.users.identitycheck | Password verification |
 | `res_users_log.py` | res.users.log | Login tracking |
+| `res_users_login_cooldown.py` | res.users.login.cooldown | Login-failure cooldown |
 | `res_users_settings.py` | res.users.settings | User preferences |
 
 Wizards (`wizard/`):

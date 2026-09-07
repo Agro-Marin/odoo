@@ -70,7 +70,7 @@ access control, and ORM extensions that those controllers depend on.
 odoo/addons/base/
 ├── __manifest__.py              # Module metadata + asset/data file declarations
 ├── __init__.py                  # Imports models, report, wizard + post_init hook
-├── models/                      # 92 Python model files (core ORM infrastructure)
+├── models/                      # 94 Python model files (core ORM infrastructure)
 │   ├── assetsbundle/            #   Asset compilation package (bundle, JS/CSS/XML pipelines, store)
 │   ├── decimal_precision.py         #   Configurable decimal precision
 │   ├── ir_actions_act_url.py        #   URL action
@@ -140,6 +140,7 @@ odoo/addons/base/
 │   ├── mixin_tag.py                 #   Coloured label with a stable code
 │   ├── mixin_tag_nested.py          #   Tag with a parent/child hierarchy
 │   ├── mixin_user_favorite.py       #   Per-user favourite flag
+│   ├── phone_number.py              #   Shared phone number records
 │   ├── properties_base_definition.py #   Properties field definitions
 │   ├── report_layout.py             #   Report layout templates
 │   ├── report_paperformat.py        #   Paper format configuration
@@ -162,6 +163,7 @@ odoo/addons/base/
 │   ├── res_users_deletion.py        #   User deletion queue
 │   ├── res_users_identitycheck.py   #   Password verification wizard
 │   ├── res_users_log.py             #   Login tracking
+│   ├── res_users_login_cooldown.py  #   Login-failure cooldown counter
 │   ├── res_users_settings.py        #   Per-user settings
 │   └── tag_tag.py                   #   Generic tag records
 ├── wizard/                      # 11 transient model files
@@ -266,7 +268,7 @@ Derived by `factcheck.sh`, which re-measures every row against the tree.
 
 | Category | Count |
 |----------|-------|
-| Python (models) | 92 |
+| Python (models) | 94 |
 | Python (wizards) | 11 |
 | Python (tests) | 135 |
 | XML (views) | 38 |

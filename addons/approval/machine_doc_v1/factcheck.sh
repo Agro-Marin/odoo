@@ -19,6 +19,15 @@
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Interpreter resolution + a scan that cannot fail silently. See the header of
+# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+_fc_root="$SCRIPT_DIR"
+while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
+    _fc_root="$(dirname -- "$_fc_root")"
+done
+# shellcheck source=/dev/null
+source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+
 MOD="$(dirname "$SCRIPT_DIR")"                  # <repo>/approval
 DOCS=("$SCRIPT_DIR"/*.md)
 
@@ -42,7 +51,7 @@ assert_cited_in() {  # <file> <needle> <human description>
 }
 
 manifest_key() {  # <key>
-    python3 - "$MOD/__manifest__.py" "$1" <<'PY'
+    "$PY" - "$MOD/__manifest__.py" "$1" <<'PY'
 import ast, sys
 manifest = ast.literal_eval(open(sys.argv[1]).read())
 value = manifest.get(sys.argv[2])
@@ -159,7 +168,14 @@ done
 # Stated in prose AND in the Key Statistics table, so both spellings are
 # checked: a number corrected in one place and not the other is the drift
 # this harness exists to catch.
-migrations=$(find "$MOD/migrations" -mindepth 1 -maxdepth 1 -type d | wc -l)
+# Directories holding a script, not directories: renaming the migration
+# directories left 18 of the old names alive in a working checkout, each
+# empty but for a __pycache__ of the script that moved away. git cannot see
+# them (a directory of ignored files is not a path), so this read 19 in a
+# fresh clone and 37 next to a tree someone had actually run -- a gate whose
+# answer depends on that is not measuring the repository.
+migrations=$(find "$MOD/migrations" -mindepth 2 -maxdepth 2 -name "*.py" \
+    -not -path "*/__pycache__/*" -printf "%h\n" | sort -u | wc -l)
 assert_doc_cites "$migrations script directories" "the migration directory count"
 assert_cited_in index.md "| Migration script directories | $migrations |" \
     "the migration count in Key Statistics"
@@ -205,7 +221,7 @@ grep -q '_DECISION_STATES = frozenset' "$MOD/models/approval_request.py" \
 # The approver-ordering defaults index.md tabulates, derived from the data file.
 while read -r param; do
     [ -z "$param" ] && continue
-    value=$(python3 - "$MOD/data/ir_config_parameter_data.xml" "$param" <<'PY'
+    value=$("$PY" - "$MOD/data/ir_config_parameter_data.xml" "$param" <<'PY'
 import re, sys
 xml = open(sys.argv[1]).read()
 block = re.search(

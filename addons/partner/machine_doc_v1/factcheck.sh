@@ -11,6 +11,15 @@
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Interpreter resolution + a scan that cannot fail silently. See the header of
+# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+_fc_root="$SCRIPT_DIR"
+while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
+    _fc_root="$(dirname -- "$_fc_root")"
+done
+# shellcheck source=/dev/null
+source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+
 MOD="$(dirname "$SCRIPT_DIR")"                  # <repo>/addons/partner
 REPO="$(dirname "$(dirname "$MOD")")"           # <repo>
 DOCS=("$SCRIPT_DIR"/*.md)
@@ -164,7 +173,7 @@ else bad "ARCHITECTURE.md describes _compute_views merging view_ids with view_mo
 # branch was pruned for exactly the group the ACL was written for. Neither the
 # ACL nor the menu was wrong alone, which is why only a check spanning both
 # catches it.
-acl_report=$(python3 - "$MOD" <<'ACL'
+acl_report=$("$PY" - "$MOD" <<'ACL'
 import csv, pathlib, sys
 import xml.etree.ElementTree as ET
 
@@ -216,7 +225,7 @@ done <<< "$acl_report"
 # odoo/CLAUDE.md holds these directories to an invariant: a backticked path
 # asserts that one particular file exists, so a deliberately-absent file -- or
 # one in a sibling repo CI never checks out -- is named in PLAIN PROSE instead.
-path_report=$(python3 - "$SCRIPT_DIR" "$MOD" "$REPO" <<'PY'
+path_report=$("$PY" - "$SCRIPT_DIR" "$MOD" "$REPO" <<'PY'
 import pathlib, re, sys
 
 doc_dir, mod, repo = (pathlib.Path(p) for p in sys.argv[1:4])

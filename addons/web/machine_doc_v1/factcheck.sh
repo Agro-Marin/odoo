@@ -23,6 +23,15 @@ set -u
 # ships in. Hardcoded absolute paths made a copied/CI checkout silently verify
 # the ORIGINAL tree and report a clean pass.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Interpreter resolution + a scan that cannot fail silently. See the header of
+# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+_fc_root="$SCRIPT_DIR"
+while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
+    _fc_root="$(dirname -- "$_fc_root")"
+done
+# shellcheck source=/dev/null
+source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+
 WEB="$(dirname "$SCRIPT_DIR")"                 # <repo>/addons/web
 REPO="$(cd "$WEB/../.." && pwd)"               # <repo>  (the odoo fork)
 ADDONS="$(dirname "$REPO")"                    # <workspace> — holds the sibling
@@ -33,7 +42,7 @@ WORKSPACE="$ADDONS"                            # same directory: this fork keeps
 
 # The interpreter and config are DISCOVERED, not assumed. `WORKSPACE` used to be
 # `dirname "$ADDONS"` — one level above the checkouts — which named a layout this
-# workspace does not use: the `<ws>/venv/<env>/bin/python` probe missed, `python3`
+# workspace does not use: the `<ws>/venv/<env>/bin/python` probe missed, `"$PY"`
 # took over as the fallback, `parse_config` was handed a path that does not
 # exist, and all eight prepare_suite counts reported LOADER_FAILED. A gate reduced
 # to noise by a path guess is the same failure mode the roots above were written
@@ -65,10 +74,10 @@ _env_found="$(_discover_env "$WORKSPACE" "$WORKSPACE" \
 VENV_PY="${VENV_PY:-$(printf '%s' "$_env_found" | sed -n 1p)}"
 ODOO_CONF="${ODOO_CONF:-$(printf '%s' "$_env_found" | sed -n 2p)}"
 if [ -z "$VENV_PY" ] || [ ! -x "$VENV_PY" ]; then
-    VENV_PY="$(command -v python3)"
-    # A discovery miss silently falls back to system python3, whose grammar
+    VENV_PY="$(command -v "$PY")"
+    # A discovery miss silently falls back to system "$PY", whose grammar
     # can differ from this repo's own floor (a comma-except line the repo's
-    # actual interpreter accepts can be a SyntaxError under system python3,
+    # actual interpreter accepts can be a SyntaxError under system "$PY",
     # reported as an ordinary PARSE_FAILED assertion -- indistinguishable
     # from real doc staleness). Loud on the miss so that distinction is not
     # lost silently.
@@ -287,7 +296,13 @@ SIGNALSTORE_PATTERN='^(\s*export\s+)?class\s+\w+\s+extends\s+SignalStore\b'
 count_prod_decls() {
     local pattern="$1"
     local files
-    files=$(grep -REl --include='*.js' \
+    # -r, not -R: -R follows symlinks, and a deployment serves each addon's
+    # static/ through a symlink farm beside the checkouts. Every matching file
+    # was then found twice, once by its real path and once through the farm, so
+    # this counted 50 declarations against the 25 that exist. The exclusions
+    # below are the same defence by name; not following symlinks is that defence
+    # made general, and no addon in the path is reached only through a link.
+    files=$(grep -rEl --include='*.js' \
         --exclude-dir=filestore --exclude-dir=sessions \
         --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=__pycache__ \
         --exclude-dir=worktrees --exclude-dir=.worktrees \
@@ -1043,9 +1058,9 @@ PYEOF
 # the Chart.js/FullCalendar LIBRARIES are lazy. The docs contradicted
 # themselves on this, so pin both the manifest fact and the wording.
 assert_eq "assets_backend eagerly globs views/** (graph+pivot are not lazy)" \
-    "$(python3 -c "import ast;m=ast.literal_eval(open('$WEB/__manifest__.py').read());print(sum(1 for i in m['assets']['web.assets_backend'] if isinstance(i,str) and 'static/src/views/**' in i))")" "1"
+    "$("$PY" -c "import ast;m=ast.literal_eval(open('$WEB/__manifest__.py').read());print(sum(1 for i in m['assets']['web.assets_backend'] if isinstance(i,str) and 'static/src/views/**' in i))")" "1"
 assert_eq "no backend lazy bundle exists" \
-    "$(python3 -c "import ast;m=ast.literal_eval(open('$WEB/__manifest__.py').read());print(sum(1 for b in m['assets'] if 'lazy' in b and 'frontend' not in b))")" "0"
+    "$("$PY" -c "import ast;m=ast.literal_eval(open('$WEB/__manifest__.py').read());print(sum(1 for b in m['assets'] if 'lazy' in b and 'frontend' not in b))")" "0"
 assert_eq "ARCHITECTURE.md does not call the graph/pivot views lazy-loaded" \
     "$(grep -cE '^\| (Graph|Pivot) \|.*— lazy loaded' "$DOC/ARCHITECTURE.md")" "0"
 
@@ -1250,7 +1265,7 @@ assert_eq "JSDOC doc does not restate the tsc floor" \
     "$(grep -cE '\*\*(1917|2002|2274|2155)\*\* errors' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "0"
 assert_eq "typecheck.yml does not restate the tsc floor" \
     "$(grep -cE '^# \(Floor [0-9]+ as of' "$TYPECHECK_YML")" "0"
-tsc_floor=$(python3 -c "import json;print(json.load(open('$REPO/tooling/ratchet/baselines/tsc.json'))['count'])" 2>/dev/null || echo "missing")
+tsc_floor=$("$PY" -c "import json;print(json.load(open('$REPO/tooling/ratchet/baselines/tsc.json'))['count'])" 2>/dev/null || echo "missing")
 # The floor must equal what tsc actually reports; a floor above reality makes
 # the ratchet exit 1 on "improvement" and leaves mainline red.
 assert_eq "committed tsc ratchet floor is a plausible current value" \

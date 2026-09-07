@@ -32,6 +32,15 @@
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Interpreter resolution + a scan that cannot fail silently. See the header of
+# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+_fc_root="$SCRIPT_DIR"
+while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
+    _fc_root="$(dirname -- "$_fc_root")"
+done
+# shellcheck source=/dev/null
+source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+
 MOD="$(dirname "$SCRIPT_DIR")"                  # <repo>/addons/automation
 DOCS=("$SCRIPT_DIR"/*.md)
 
@@ -71,7 +80,7 @@ done < <(grep -hoP '_name = "\K[a-z_.]+' "$MOD"/models/*.py | sort -u)
 # ---------------------------------------------------------------- triggers ---
 # The Selection is the source of truth for both the count and the categories.
 # Both drifted, independently, which is why both are asserted.
-trigger_count=$(python3 - "$MOD/models/automation_rule.py" <<'PY'
+trigger_count=$("$PY" - "$MOD/models/automation_rule.py" <<'PY'
 import ast, sys
 tree = ast.parse(open(sys.argv[1]).read())
 for node in ast.walk(tree):
@@ -94,7 +103,7 @@ fi
 # the check `on_unlink` failed -- it was a real trigger no document mentioned.
 while read -r value; do
     assert_doc_cites "$value" "trigger value $value"
-done < <(python3 - "$MOD/models/automation_rule.py" <<'PY'
+done < <("$PY" - "$MOD/models/automation_rule.py" <<'PY'
 import ast, sys
 tree = ast.parse(open(sys.argv[1]).read())
 for node in ast.walk(tree):
@@ -114,7 +123,7 @@ PY
 # Reverse: the Trigger Categories block must not invent a value. A category line
 # naming a trigger the Selection dropped sends the reader configuring something
 # that cannot be selected.
-valid_triggers=$(python3 - "$MOD/models/automation_rule.py" <<'PY'
+valid_triggers=$("$PY" - "$MOD/models/automation_rule.py" <<'PY'
 import ast, sys
 tree = ast.parse(open(sys.argv[1]).read())
 for node in ast.walk(tree):
@@ -143,7 +152,7 @@ done < <(sed -n '/^### Trigger Categories/,/^```$/p' "$SCRIPT_DIR/models.md" \
 # writes 240, and `0.10` where Python renders 0.1 -- a gate matching strings
 # forces one side to spell the number the other's language prefers, which is how
 # a correct document fails a gate and gets "fixed" into a worse one.
-constants_report=$(python3 - "$MOD/models/automation_rule.py" "$SCRIPT_DIR/models.md" <<'PY'
+constants_report=$("$PY" - "$MOD/models/automation_rule.py" "$SCRIPT_DIR/models.md" <<'PY'
 import ast, re, sys
 
 source, doc = sys.argv[1], sys.argv[2]
@@ -232,7 +241,7 @@ fi
 # Resolution is deliberately confined to THIS repository, because that is the
 # only tree CI has. Anything naming a sibling checkout is therefore a violation
 # by construction, which is precisely why the rule says prose.
-path_report=$(python3 - "$SCRIPT_DIR" "$MOD" <<'PY'
+path_report=$("$PY" - "$SCRIPT_DIR" "$MOD" <<'PY'
 import pathlib, re, sys
 
 doc_dir, mod = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])

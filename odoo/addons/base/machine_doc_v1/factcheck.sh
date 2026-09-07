@@ -37,6 +37,15 @@ UPDATE=0
 [ "${1:-}" = "--update" ] && UPDATE=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Interpreter resolution + a scan that cannot fail silently. See the header of
+# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+_fc_root="$SCRIPT_DIR"
+while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
+    _fc_root="$(dirname -- "$_fc_root")"
+done
+# shellcheck source=/dev/null
+source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+
 MOD="$(dirname "$SCRIPT_DIR")"                  # <repo>/odoo/addons/base
 DOCS=("$SCRIPT_DIR"/*.md)
 
@@ -62,7 +71,7 @@ done
 # `models/tests/` is excluded: `stub.model` there is a fixture built to exercise
 # the name manager, not part of the module's surface, and documenting it would
 # tell a reader it is something they can use.
-model_report=$(python3 - "$MOD" "$SCRIPT_DIR/MODEL_MAP.md" <<'PY'
+model_report=$("$PY" - "$MOD" "$SCRIPT_DIR/MODEL_MAP.md" <<'PY'
 import ast, pathlib, re, sys
 
 mod, doc_path = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
@@ -149,11 +158,11 @@ done
 #
 #     bash machine_doc_v1/factcheck.sh --update
 if [ "$UPDATE" = 1 ]; then
-    inventory=$(python3 "$SCRIPT_DIR/_test_inventory.py" "$MOD" --update)
+    inventory=$("$PY" "$SCRIPT_DIR/_test_inventory.py" "$MOD" --update)
     [ "$inventory" = "UPDATED" ] && printf '  UPDATED  TEST_TAGS.md inventory\n'
     ok
 else
-    inventory=$(python3 "$SCRIPT_DIR/_test_inventory.py" "$MOD")
+    inventory=$("$PY" "$SCRIPT_DIR/_test_inventory.py" "$MOD")
     if [ "$inventory" = "CURRENT" ]; then ok
     else bad "TEST_TAGS.md's tables, Statistics or header disagree with tests/ — run factcheck.sh --update"; fi
 fi
@@ -164,7 +173,7 @@ fi
 # one in a sibling repo CI never checks out -- is named in PLAIN PROSE instead.
 # All four pages located this module under a `core/` directory that does not
 # exist, which is exactly the failure this sweep makes impossible to repeat.
-path_report=$(python3 - "$SCRIPT_DIR" "$MOD" <<'PY'
+path_report=$("$PY" - "$SCRIPT_DIR" "$MOD" <<'PY'
 import pathlib, re, sys
 
 doc_dir, mod = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
@@ -200,7 +209,7 @@ done <<< "$path_report"
 # The directory tree names every model and wizard file, so a renamed file
 # must leave the tree with it; and the per-directory counts on the tree and in
 # the File Counts table are re-measured, never read.
-tree_report=$(python3 - "$MOD" "$SCRIPT_DIR/ARCHITECTURE.md" "$SCRIPT_DIR/CONVENTIONS.md" <<'PY'
+tree_report=$("$PY" - "$MOD" "$SCRIPT_DIR/ARCHITECTURE.md" "$SCRIPT_DIR/CONVENTIONS.md" <<'PY'
 import pathlib, re, sys
 
 mod, arch_path, conv_path = (pathlib.Path(p) for p in sys.argv[1:4])

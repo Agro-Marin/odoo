@@ -11,6 +11,15 @@
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Interpreter resolution + a scan that cannot fail silently. See the header of
+# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+_fc_root="$SCRIPT_DIR"
+while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
+    _fc_root="$(dirname -- "$_fc_root")"
+done
+# shellcheck source=/dev/null
+source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+
 MOD="$(dirname "$SCRIPT_DIR")"                    # <repo>/odoo/addons/test_lint
 REPO="$(cd "$MOD/../../.." && pwd)"
 DOCS=("$SCRIPT_DIR"/*.md)
@@ -36,7 +45,7 @@ for f in "$MOD"/tests/_checker_*.py; do
 done
 
 # Every rule the registry declares is named by the map.
-rules="$(python3 "$SCRIPT_DIR/_rule_names.py" "$MOD/tests/_rules.py")"
+rules="$("$PY" "$SCRIPT_DIR/_rule_names.py" "$MOD/tests/_rules.py")"
 if [ -z "$rules" ]; then
     bad "could not read any rule out of _rules.py"
 fi
@@ -77,7 +86,7 @@ while read -r cited; do
     else
         bad "docs cite a path that does not resolve: $cited"
     fi
-done < <(python3 "$SCRIPT_DIR/_cited_paths.py" "${DOCS[@]}")
+done < <("$PY" "$SCRIPT_DIR/_cited_paths.py" "${DOCS[@]}")
 
 printf '\n%s: %d passed, %d failed\n' "$(basename "$MOD")" "$pass" "$fail"
 [ "$fail" -eq 0 ]

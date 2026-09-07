@@ -27,6 +27,15 @@
 
 set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Interpreter resolution + a scan that cannot fail silently. See the header of
+# tooling/machine_doc/factcheck_env.sh for what bare `"$PY"` did here.
+_fc_root="$SCRIPT_DIR"
+while [[ "$_fc_root" != "/" && ! -f "$_fc_root/odoo-bin" ]]; do
+    _fc_root="$(dirname -- "$_fc_root")"
+done
+# shellcheck source=/dev/null
+source "$_fc_root/tooling/machine_doc/factcheck_env.sh"
+
 PKG="$(dirname "$SCRIPT_DIR")"                  # <repo>/odoo/tests
 DOCS=("$SCRIPT_DIR"/*.md)
 
@@ -71,7 +80,7 @@ done < <(grep -oP '^\| `\K[a-z_0-9]+\.py(?=`)' "$SCRIPT_DIR/index.md")
 # M2MProxy", and warns that a public helper missing from __all__ will not
 # resolve through `from odoo.tests import X`. Derive both halves; the claim is
 # only useful while it is true.
-api_report=$(python3 - "$PKG" <<'PY'
+api_report=$("$PY" - "$PKG" <<'PY'
 import ast, pathlib, sys
 
 pkg = pathlib.Path(sys.argv[1])
@@ -152,7 +161,7 @@ done < <(grep -ohP '`\K(ODOO_[A-Z_]+)(?=`)' "${DOCS[@]}" | sort -u)
 # `odoo/CLAUDE.md` holds these directories to an invariant: a backticked path
 # asserts that one particular file exists, so a deliberately-absent file -- or
 # one in a sibling repo CI never checks out -- is named in PLAIN PROSE instead.
-path_report=$(python3 - "$SCRIPT_DIR" "$PKG" <<'PY'
+path_report=$("$PY" - "$SCRIPT_DIR" "$PKG" <<'PY'
 import pathlib, re, sys
 
 doc_dir, pkg = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
