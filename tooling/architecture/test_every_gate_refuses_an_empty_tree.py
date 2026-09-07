@@ -58,6 +58,7 @@ GATES = {
     "naming_vocabulary": ["--count"],
     "naming_core_vocabulary": ["--count"],
     "order_line_qty": ["--count"],
+    "readonly_tiers": ["--count"],
     "translation_catalog": ["--count"],
     "compute_context_deps": ["--count"],
     "orphan_depends": ["--count"],

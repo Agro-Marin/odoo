@@ -134,7 +134,7 @@ happen, and it needed no schema knowledge to detect.
 than an error, because an addon may legitimately keep a helper module beside its
 scripts. Measured across this repository's two addon trees — the scope a checkout of
 this repository alone reproduces, a workspace reading being whatever checkouts happened to be on
-disk: **317** scripts in `migrations/` and **7** in `upgrades/`, all correctly
+disk: **335** scripts in `migrations/` and **7** in `upgrades/`, all correctly
 prefixed, **0** dropped.
 
 A risk stated at the level of its hardest half hides the half that is cheap to
@@ -225,7 +225,7 @@ record to learn what `ir.attachment`'s dual storage costs.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **233 specifiers**
+the surface can only shrink. It stands at **234 specifiers**
 (`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 
@@ -247,7 +247,8 @@ mean:
 | the enterprise web client folded into `web` | **229** | `c0481e4b06e` moved the home menu, the app switcher and the Studio upsell into `web` and `caa80b58e1b` deleted the module, so `home_menu` and `promote_studio`'s three specifiers are now reached from `enterprise` rather than shipped there — four entries the pin had never needed to carry |
 | the flow editor published for `automation` | **230** | `automation`'s workflow canvas is the first consumer of `@web/core/flow_editor/flow_editor`, the node-graph editor backported from the enterprise call-flow builder; one specifier, entered at the component's own module rather than at the geometry and store beneath it |
 | the html expander and section renderer moved into `web` | **233** | `form_with_html_expander` and the section list renderer lived in `resource`, which has no coupling to either: the expander is reached by `project`, `project_todo` and enterprise's `helpdesk` and by nothing in `resource`. Three specifiers change module rather than appear -- the same files under `@web/`, with no `@resource/` entry surviving in either pin |
-| **today** | **233 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
+| `three.js` behind a library facade in `agromarin` | **234** | agromarin's `95586d8fa` moved its three.js facade under `static/src/lib` and loads it through `@web/core/lib/lazy_lib` rather than a second loader, which is one new specifier; the same sync dropped `agromarin` from `@web/core/currency`'s scopes, a change of who reaches a specifier and not of how many there are |
+| **today** | **234 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
 
 **A scope is not a specifier.** Recording that `agromarin`'s `geoengine` also
 enters at `@web/views/widgets` added a third scope tag to a line already pinned

@@ -29,7 +29,6 @@ All three are hard zeros. ``--census`` prints the table the plan restates.
 from __future__ import annotations
 
 import argparse
-import ast
 import csv
 import re
 import sys
@@ -43,6 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from _repo_root import find_odoo_root, sibling_repos_root
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _ast_cache
 import _count_gate
 
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="readonly_tiers")
@@ -238,9 +238,8 @@ def _read_rules(module_dir: Path) -> list[Rule]:
 
 
 def _depends(module_dir: Path) -> list[str]:
-    try:
-        manifest = ast.literal_eval((module_dir / "__manifest__.py").read_text())
-    except SyntaxError, ValueError:
+    manifest = _ast_cache.literal_file(module_dir / "__manifest__.py")
+    if not isinstance(manifest, dict):
         return []
     return list(manifest.get("depends", []))
 
@@ -259,6 +258,12 @@ def _closure(module: str, depends: dict[str, list[str]]) -> frozenset[str]:
 class Tree:
     def __init__(self) -> None:
         dirs = _module_dirs(_all_addon_roots())
+        if not dirs:
+            raise RuntimeError(
+                "no module found under "
+                + ", ".join(str(root) for root in _all_addon_roots())
+                + " -- refusing to report a count measured over nothing"
+            )
         self.acl = [row for d in dirs for row in _read_acl(d)]
         self.rules = [rule for d in dirs for rule in _read_rules(d)]
         self.depends = {d.name: _depends(d) for d in dirs}
@@ -393,7 +398,11 @@ def main(argv: list[str] | None = None) -> int:
     pre.add_argument("--kind", choices=KINDS, default="grants_write")
     pre.add_argument("--census", action="store_true")
     known, rest = pre.parse_known_args(argv)
-    tree = Tree()
+    try:
+        tree = Tree()
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if known.census:
         print(census(tree))
         return 0

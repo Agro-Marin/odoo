@@ -1396,3 +1396,21 @@ msgstr ""
 #: code:addons/resource/models/resource_calendar_attendance.py:0
 msgid "this week"
 msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/resource_assignment.py:0
+msgid "%(assignee)s, %(role)s of %(resource)s"
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/resource_assignment.py:0
+msgid "%(name)s is not a human resource and cannot hold an assignment."
+msgstr ""
+
+#. module: resource
+#. odoo-python
+#: code:addons/resource/models/resource_assignment.py:0
+msgid "A resource cannot be assigned to itself."
+msgstr ""

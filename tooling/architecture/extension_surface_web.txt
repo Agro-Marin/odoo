@@ -193,6 +193,8 @@ GroupConfigMenu.permissions  odoo  :keep
 GroupConfigMenu.setup  odoo enterprise  :keep
 HomeMenu._enableAppsSorting  enterprise  :promote
 HomeMenu._openMenu  enterprise  :promote
+HomeMenu.appTemplate  enterprise  :triage
+HomeMenu.canEditLayout  enterprise  :triage
 HomeMenu.displayedApps  enterprise  :triage
 HomeMenu.setup  enterprise  :keep
 ImageField.onFileRemove  odoo  :triage

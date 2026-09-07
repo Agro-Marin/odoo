@@ -39,7 +39,7 @@
 @web/core/color_scheme  odoo enterprise
 @web/core/colors/colors  odoo enterprise
 @web/core/context  odoo enterprise
-@web/core/currency  odoo enterprise agromarin
+@web/core/currency  odoo enterprise
 @web/core/debug/debug_context  odoo enterprise
 @web/core/domain  odoo enterprise agromarin
 @web/core/errors/error_service  odoo
@@ -55,6 +55,7 @@
 @web/core/l10n/utils  odoo enterprise
 @web/core/lib/chartjs  odoo enterprise agromarin
 @web/core/lib/fullcalendar  enterprise
+@web/core/lib/lazy_lib  agromarin
 @web/core/name_service  enterprise
 @web/core/navigation/navigation  odoo
 @web/core/network  odoo enterprise agromarin

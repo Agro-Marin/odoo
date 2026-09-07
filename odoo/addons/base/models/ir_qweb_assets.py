@@ -334,7 +334,7 @@ class IrQweb(models.AbstractModel):
         # two instances.
         if debug_assets:
             return dict(self._external_libs())
-        self._ensure_served_libs()
+        self._create_served_libs()
         return dict(self._served_external_libs_table())
 
     @staticmethod
@@ -343,7 +343,7 @@ class IrQweb(models.AbstractModel):
         minified = minify_js(source, label=declared_url, keep_names=True)
         return (minified if minified is not None else source).encode("utf-8")
 
-    def _ensure_served_libs(self) -> None:
+    def _create_served_libs(self) -> None:
         files = self._served_lib_files()
         if not files:
             return

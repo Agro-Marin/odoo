@@ -435,7 +435,7 @@ bucket lets one mask the other.
 | Floor | Split off because |
 |---|---|
 | `c901` | cyclomatic complexity in `odoo/`, threshold `[lint.mccabe] max-complexity = 20`. In the `ruff` aggregate a complexity fix could be masked by an unrelated new finding. It gated nothing before: `ruff.toml` selected the `C90` family while ignoring `C901`, its only rule |
-| `c901_addons` | the same gate over `addons/`, where the 653 bundled modules and most business logic live and complexity was unbounded. The two trees move by different hands |
+| `c901_addons` | the same gate over `addons/`, where the 658 bundled modules and most business logic live and complexity was unbounded. The two trees move by different hands |
 
 **A third floor, `ruff_docstring`, existed and is retired.** It is the worked
 example of why the split is worth making and of what to do when the question
@@ -497,7 +497,7 @@ missed `addons/mrp/tests/test_order.py`, which asserts on it, and left that test
 erroring — every assertion after the failing line unexecuted.
 
 `test_read_group` (123 test methods, the only coverage of the five
-`read_group/` units) and `test_access_rights` (54, record rules and ACLs) were
+`read_group/` units) and `test_access_rights` (55, record rules and ACLs) were
 both green before anyone ran them — 123 of 123 and 52 of 52 with one
 environment skip — so neither is a repair; they are coverage that existed and
 ran nowhere. **A suite outside the set is a suite nobody runs.**

@@ -102,6 +102,114 @@ function reverseForRTL(direction, variant = "middle") {
   }
   return [direction, variant];
 }
+function scorePlacement(d, v, m) {
+  const [direction, variant] = reverseForRTL(DIRECTIONS[d], VARIANTS[v]);
+  const result = { direction, variant, top: 0, left: 0 };
+  const vertical = ["t", "b", "c"].includes(d);
+  const variantPrefix = vertical ? "v" : "h";
+  const directionValue = m.directionsData[d];
+  let variantValue = m.variantsData[variantPrefix + v];
+  const [leftCompensation, topCompensation] = m.containerIsInIframe ? [m.iframeBox.left, m.iframeBox.top] : [0, 0];
+  const [directionSize, variantSize] = vertical ? [m.popBox.height, m.popBox.width] : [m.popBox.width, m.popBox.height];
+  let [directionMin, directionMax] = vertical ? [m.contBox.top + topCompensation, m.contBox.bottom + topCompensation] : [m.contBox.left + leftCompensation, m.contBox.right + leftCompensation];
+  let [variantMin, variantMax] = vertical ? [m.contBox.left + leftCompensation, m.contBox.right + leftCompensation] : [m.contBox.top + topCompensation, m.contBox.bottom + topCompensation];
+  if (m.containerIsHTMLNode) {
+    const [directionScroll, variantScroll] = vertical ? [m.cont.scrollTop, m.cont.scrollLeft] : [m.cont.scrollLeft, m.cont.scrollTop];
+    directionMin += directionScroll;
+    directionMax += directionScroll;
+    variantMin += variantScroll;
+    variantMax += variantScroll;
+  }
+  let directionOverflow = 0;
+  if (Math.floor(directionValue) < Math.ceil(directionMin)) {
+    directionOverflow = Math.floor(directionValue) - Math.ceil(directionMin);
+  } else if (Math.ceil(directionValue + directionSize) > Math.floor(directionMax)) {
+    directionOverflow = Math.ceil(directionValue + directionSize) - Math.floor(directionMax);
+  }
+  let variantOverflow = 0;
+  if (Math.floor(variantValue) < Math.ceil(variantMin)) {
+    variantOverflow = Math.floor(variantValue) - Math.ceil(variantMin);
+  } else if (Math.ceil(variantValue + variantSize) > Math.floor(variantMax)) {
+    variantOverflow = Math.ceil(variantValue + variantSize) - Math.floor(variantMax);
+  }
+  let malus = Math.abs(directionOverflow) + (variantOverflow && 1);
+  variantValue -= variantOverflow;
+  result.variantOffset = -variantOverflow;
+  const positioning = vertical ? { top: directionValue, left: variantValue } : { top: variantValue, left: directionValue };
+  result.top = positioning.top - m.popBox.top;
+  result.left = positioning.left - m.popBox.left;
+  if (d === "c") {
+    malus = 1.001;
+    result.top -= directionOverflow;
+  } else if (m.shrink && malus) {
+    const minTop = Math.floor(
+      !vertical && v === "s" ? m.targetBox.top : m.contBox.top
+    );
+    result.top = Math.max(minTop, result.top);
+    let height;
+    if (vertical) {
+      height = Math.abs(
+        m.targetBox[
+          /** @type {"top" | "bottom" | "left" | "right"} */
+          direction
+        ] - (d === "t" ? directionMin : directionMax)
+      );
+    } else {
+      height = {
+        s: variantMax - m.targetBox.top,
+        m: variantMax - variantMin,
+        e: m.targetBox.bottom - variantMin
+      }[
+        /** @type {"s" | "m" | "e"} */
+        v
+      ];
+    }
+    result.maxHeight = Math.floor(height);
+  }
+  return { result, malus };
+}
+function measurePlacement(popper, target, cont, margin, shrink) {
+  const popperStyle = viewOf(popper).getComputedStyle(popper);
+  const { marginTop, marginLeft, marginRight, marginBottom } = popperStyle;
+  const popMargins = {
+    top: parseFloat(marginTop),
+    left: parseFloat(marginLeft),
+    right: parseFloat(marginRight),
+    bottom: parseFloat(marginBottom)
+  };
+  const shouldAccountForIFrame = popper.ownerDocument !== target.ownerDocument;
+  const iframe = shouldAccountForIFrame ? getIFrame(popper, target) : null;
+  const popBox = popper.getBoundingClientRect();
+  const targetBox = target.getBoundingClientRect();
+  const iframeBox = iframe?.getBoundingClientRect() ?? { top: 0, left: 0 };
+  return {
+    popBox,
+    targetBox,
+    contBox: cont.getBoundingClientRect(),
+    iframeBox,
+    cont,
+    containerIsHTMLNode: cont === cont.ownerDocument.firstElementChild,
+    containerIsInIframe: shouldAccountForIFrame && target.ownerDocument === cont.ownerDocument,
+    shrink,
+    directionsData: {
+      t: iframeBox.top + targetBox.top - popMargins.bottom - margin - popBox.height,
+      b: iframeBox.top + targetBox.bottom + popMargins.top + margin,
+      r: iframeBox.left + targetBox.right + popMargins.left + margin,
+      l: iframeBox.left + targetBox.left - popMargins.right - margin - popBox.width,
+      c: iframeBox.top + targetBox.top + targetBox.height / 2 - popBox.height / 2
+    },
+    variantsData: {
+      vf: iframeBox.left + targetBox.left,
+      vs: iframeBox.left + targetBox.left + popMargins.left,
+      vm: iframeBox.left + targetBox.left + targetBox.width / 2 - popBox.width / 2,
+      ve: iframeBox.left + targetBox.right - popMargins.right - popBox.width,
+      hf: iframeBox.top + targetBox.top,
+      hs: iframeBox.top + targetBox.top + popMargins.top,
+      hm: iframeBox.top + targetBox.top + targetBox.height / 2 - popBox.height / 2,
+      he: iframeBox.top + targetBox.bottom - popMargins.bottom - popBox.height
+    }
+  };
+}
 function computePosition(popper, target, {
   container,
   extendedFlipping,
@@ -136,109 +244,11 @@ function computePosition(popper, target, {
     const styleProperty = ["top", "bottom"].includes(direction) ? "width" : "height";
     popper.style[styleProperty] = viewOf(target).getComputedStyle(target)[styleProperty];
   }
-  const popperStyle = viewOf(popper).getComputedStyle(popper);
-  const { marginTop, marginLeft, marginRight, marginBottom } = popperStyle;
-  const popMargins = {
-    top: parseFloat(marginTop),
-    left: parseFloat(marginLeft),
-    right: parseFloat(marginRight),
-    bottom: parseFloat(marginBottom)
-  };
-  const shouldAccountForIFrame = popper.ownerDocument !== target.ownerDocument;
-  const iframe = shouldAccountForIFrame ? getIFrame(popper, target) : null;
-  const popBox = popper.getBoundingClientRect();
-  const targetBox = target.getBoundingClientRect();
-  const contBox = cont.getBoundingClientRect();
-  const iframeBox = iframe?.getBoundingClientRect() ?? { top: 0, left: 0 };
-  const containerIsHTMLNode = cont === cont.ownerDocument.firstElementChild;
-  const containerIsInIframe = shouldAccountForIFrame && target.ownerDocument === cont.ownerDocument;
-  const directionsData = {
-    t: iframeBox.top + targetBox.top - popMargins.bottom - margin - popBox.height,
-    b: iframeBox.top + targetBox.bottom + popMargins.top + margin,
-    r: iframeBox.left + targetBox.right + popMargins.left + margin,
-    l: iframeBox.left + targetBox.left - popMargins.right - margin - popBox.width,
-    c: iframeBox.top + targetBox.top + targetBox.height / 2 - popBox.height / 2
-  };
-  const variantsData = {
-    vf: iframeBox.left + targetBox.left,
-    vs: iframeBox.left + targetBox.left + popMargins.left,
-    vm: iframeBox.left + targetBox.left + targetBox.width / 2 - popBox.width / 2,
-    ve: iframeBox.left + targetBox.right - popMargins.right - popBox.width,
-    hf: iframeBox.top + targetBox.top,
-    hs: iframeBox.top + targetBox.top + popMargins.top,
-    hm: iframeBox.top + targetBox.top + targetBox.height / 2 - popBox.height / 2,
-    he: iframeBox.top + targetBox.bottom - popMargins.bottom - popBox.height
-  };
-  function getPositioningData(d2, v2) {
-    const [direction2, variant2] = reverseForRTL(DIRECTIONS[d2], VARIANTS[v2]);
-    const result = { direction: direction2, variant: variant2, top: 0, left: 0 };
-    const vertical = ["t", "b", "c"].includes(d2);
-    const variantPrefix = vertical ? "v" : "h";
-    const directionValue = directionsData[d2];
-    let variantValue = variantsData[variantPrefix + v2];
-    const [leftCompensation, topCompensation] = containerIsInIframe ? [iframeBox.left, iframeBox.top] : [0, 0];
-    const [directionSize, variantSize] = vertical ? [popBox.height, popBox.width] : [popBox.width, popBox.height];
-    let [directionMin, directionMax] = vertical ? [contBox.top + topCompensation, contBox.bottom + topCompensation] : [contBox.left + leftCompensation, contBox.right + leftCompensation];
-    let [variantMin, variantMax] = vertical ? [contBox.left + leftCompensation, contBox.right + leftCompensation] : [contBox.top + topCompensation, contBox.bottom + topCompensation];
-    if (containerIsHTMLNode) {
-      const [directionScroll, variantScroll] = vertical ? [cont.scrollTop, cont.scrollLeft] : [cont.scrollLeft, cont.scrollTop];
-      directionMin += directionScroll;
-      directionMax += directionScroll;
-      variantMin += variantScroll;
-      variantMax += variantScroll;
-    }
-    let directionOverflow = 0;
-    if (Math.floor(directionValue) < Math.ceil(directionMin)) {
-      directionOverflow = Math.floor(directionValue) - Math.ceil(directionMin);
-    } else if (Math.ceil(directionValue + directionSize) > Math.floor(directionMax)) {
-      directionOverflow = Math.ceil(directionValue + directionSize) - Math.floor(directionMax);
-    }
-    let variantOverflow = 0;
-    if (Math.floor(variantValue) < Math.ceil(variantMin)) {
-      variantOverflow = Math.floor(variantValue) - Math.ceil(variantMin);
-    } else if (Math.ceil(variantValue + variantSize) > Math.floor(variantMax)) {
-      variantOverflow = Math.ceil(variantValue + variantSize) - Math.floor(variantMax);
-    }
-    let malus = Math.abs(directionOverflow) + (variantOverflow && 1);
-    variantValue -= variantOverflow;
-    result.variantOffset = -variantOverflow;
-    const positioning = vertical ? { top: directionValue, left: variantValue } : { top: variantValue, left: directionValue };
-    result.top = positioning.top - popBox.top;
-    result.left = positioning.left - popBox.left;
-    if (d2 === "c") {
-      malus = 1.001;
-      result.top -= directionOverflow;
-    } else if (shrink && malus) {
-      const minTop = Math.floor(
-        !vertical && v2 === "s" ? targetBox.top : contBox.top
-      );
-      result.top = Math.max(minTop, result.top);
-      let height;
-      if (vertical) {
-        height = Math.abs(
-          targetBox[
-            /** @type {"top" | "bottom" | "left" | "right"} */
-            direction2
-          ] - (d2 === "t" ? directionMin : directionMax)
-        );
-      } else {
-        height = {
-          s: variantMax - targetBox.top,
-          m: variantMax - variantMin,
-          e: targetBox.bottom - variantMin
-        }[
-          /** @type {"s" | "m" | "e"} */
-          v2
-        ];
-      }
-      result.maxHeight = Math.floor(height);
-    }
-    return { result, malus };
-  }
+  const measure = measurePlacement(popper, target, cont, margin, shrink);
   const matches = [];
-  for (const d2 of directions) {
-    for (const v2 of variants) {
-      const match = getPositioningData(d2, v2);
+  for (const dir of directions) {
+    for (const va of variants) {
+      const match = scorePlacement(dir, va, measure);
       if (!match.malus) {
         return match.result;
       }
