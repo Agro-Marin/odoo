@@ -814,11 +814,14 @@ class AccountAccount(models.Model):
                     code for code, accs in accounts_by_code.items() if len(accs) > 1
                 ]
 
+            # One query per company, not per record: `code` is company-dependent
+            # and is searched under that company's context, which a single
+            # query over every company cannot express.
             elif duplicates := (
                 self.with_company(company)
                 .sudo()
                 .with_context(active_test=False)
-                .search_fetch(
+                .search_fetch(  # pylint: disable=n-plus-one-query
                     [
                         ("code", "in", list(accounts_by_code)),
                         ("id", "not in", self.ids),

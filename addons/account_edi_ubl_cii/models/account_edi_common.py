@@ -606,6 +606,23 @@ class AccountEdiCommon(models.AbstractModel):
         logs = []
         xpaths = self._get_document_allowance_charge_xpaths()
         line_vals = []
+        # One tax query per document rather than one per allowance node: every
+        # percentage the document names is fetched at once and the first match
+        # per amount, in the model's own order, stands in for the old limit=1.
+        tax_amounts = {
+            float(node.text)
+            for allow_el in tree.iterfind(xpaths['root'])
+            for node in allow_el.iterfind(xpaths['tax_percentage'])
+        }
+        tax_by_amount = {}
+        if tax_amounts:
+            for tax in self.env['account.tax'].search([
+                *self.env['account.tax']._check_company_domain(record.company_id),
+                ('amount', 'in', list(tax_amounts)),
+                ('amount_type', '=', 'percent'),
+                ('type_tax_use', '=', tax_type),
+            ]):
+                tax_by_amount.setdefault(tax.amount, tax)
         for allow_el in tree.iterfind(xpaths['root']):
             name = allow_el.findtext(xpaths['reason']) or ""
             # Charge indicator factor: -1 for discount, 1 for charge
@@ -624,12 +641,7 @@ class AccountEdiCommon(models.AbstractModel):
             tax_ids = []
             for tax_percent_node in allow_el.iterfind(xpaths['tax_percentage']):
                 tax_amount = float(tax_percent_node.text)
-                tax = self.env['account.tax'].search([
-                    *self.env['account.tax']._check_company_domain(record.company_id),
-                    ('amount', '=', tax_amount),
-                    ('amount_type', '=', 'percent'),
-                    ('type_tax_use', '=', tax_type),
-                ], limit=1)
+                tax = tax_by_amount.get(tax_amount)
                 if tax:
                     tax_ids += tax.ids
                 elif name:
