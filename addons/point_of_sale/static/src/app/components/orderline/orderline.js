@@ -100,7 +100,7 @@ export class Orderline extends Component {
         }
         if (
             line.customer_note ||
-            line.note ||
+            line.noteEntries.length ||
             line.discount ||
             line.packLotLines?.length
         ) {
@@ -135,6 +135,7 @@ export class Orderline extends Component {
         if (!line.order_id) {
             return {};
         }
+        const noteEntries = line.noteEntries;
 
         const imageUrl = line.product_id?.getImageUrl();
         const basic = this.props.basic_receipt;
@@ -145,7 +146,7 @@ export class Orderline extends Component {
         const discount = line.getDiscountStr();
         const mode = this.props.mode;
         const attributeStr = line.orderDisplayProductName.attributeString;
-        const taxGroup = this.line.taxGroupLabels;
+        const taxGroup = line.taxGroupLabels;
         const showPrice =
             !basic &&
             line.getQuantity() !== 1 &&
@@ -160,8 +161,7 @@ export class Orderline extends Component {
                     ? line.full_product_name
                     : line.orderDisplayProductName.name,
             attributeString: mode === "display" && attributeStr && `- ${attributeStr}`,
-            internalNote:
-                mode === "display" && line.note && JSON.parse(this.line.note || "[]"),
+            internalNote: mode === "display" && noteEntries.length && noteEntries,
             isReceipt: mode === "receipt",
             isDisplay: mode === "display",
             discount:
@@ -179,7 +179,7 @@ export class Orderline extends Component {
             decimalPart: decimalPart && `${decimalPoint}${decimalPart}`,
             productImage: this.props.showImage && imageUrl,
             taxGroup: this.props.showTaxGroup && taxGroup,
-            price: !basic && !line.combo_parent_id && this.line.currencyDisplayPrice,
+            price: !basic && !line.combo_parent_id && line.currencyDisplayPrice,
             lotLines: line.product_id.tracking !== "none" && (line.packLotLines || []),
         };
     }

@@ -75,6 +75,6 @@ export class OrderDisplay extends Component {
     }
 
     getInternalNotes() {
-        return JSON.parse(this.props.order.internal_note || "[]");
+        return this.props.order.internalNoteEntries;
     }
 }

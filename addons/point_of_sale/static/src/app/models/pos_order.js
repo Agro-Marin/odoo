@@ -8,6 +8,7 @@ import { _t } from "@web/core/translation";
 import { logPosMessage } from "../utils/pretty_console_log.js";
 import { PosOrderAccounting } from "./accounting/pos_order_accounting.js";
 import { computeComboItems } from "./utils/compute_combo_items.js";
+import { parseNoteEntries } from "./utils/note_entries.js";
 const { DateTime } = luxon;
 
 export class PosOrder extends PosOrderAccounting {
@@ -784,6 +785,9 @@ export class PosOrder extends PosOrderAccounting {
     }
     setInternalNote(note) {
         this.internal_note = note || "";
+    }
+    get internalNoteEntries() {
+        return parseNoteEntries(this.internal_note);
     }
 
     get showChange() {

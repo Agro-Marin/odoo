@@ -2,6 +2,7 @@
 import { Component } from "@odoo/owl";
 import { TextInputPopup } from "@point_of_sale/app/components/popups/text_input_popup/text_input_popup";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { parseNoteEntries } from "@point_of_sale/app/models/utils/note_entries";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -131,7 +132,7 @@ export class InternalNoteButton extends NoteButton {
 
     async onClick() {
         const selectedOrderline = this.pos.getOrder().getSelectedOrderline();
-        const selectedNote = JSON.parse(this.currentNote || "[]");
+        const selectedNote = parseNoteEntries(this.currentNote);
         const payload = await this.openTextInput(
             selectedNote.map((n) => n.text).join("\n"),
         );

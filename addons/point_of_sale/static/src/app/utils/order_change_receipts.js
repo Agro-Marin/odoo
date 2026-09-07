@@ -2,39 +2,14 @@
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
 
-import { CONSOLE_COLOR } from "../services/pos_store.js";
-import { logPosMessage } from "./pretty_console_log.js";
+import { parseNoteEntries } from "../models/utils/note_entries.js";
 
 const { DateTime } = luxon;
 
 export function getStrNotes(note) {
-    if (!note) {
-        return "";
-    }
-    if (Array.isArray(note)) {
-        return note.map((n) => (typeof n === "string" ? n : n.text)).join(", ");
-    }
-    if (typeof note === "string") {
-        try {
-            const parsed = JSON.parse(note);
-            if (Array.isArray(parsed)) {
-                return parsed
-                    .map((n) => (typeof n === "string" ? n : n.text))
-                    .join(", ");
-            }
-            return note;
-        } catch (error) {
-            logPosMessage(
-                "Store",
-                "getStrNotes",
-                "Error while parsing note, not valid JSON",
-                CONSOLE_COLOR,
-                [error],
-            );
-            return note;
-        }
-    }
-    return "";
+    return parseNoteEntries(note)
+        .map((entry) => entry.text)
+        .join(", ");
 }
 
 export function getOrderData(pos, order, reprint) {

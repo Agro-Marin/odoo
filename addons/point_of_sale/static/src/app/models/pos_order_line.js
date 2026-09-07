@@ -10,6 +10,7 @@ import { _t } from "@web/core/translation";
 import { formatFloat } from "@web/core/utils/format/numbers";
 
 import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.js";
+import { parseNoteEntries } from "./utils/note_entries.js";
 
 export class PosOrderline extends PosOrderlineAccounting {
     static pythonModel = "pos.order.line";
@@ -490,6 +491,9 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
     getNote() {
         return this.note || "[]";
+    }
+    get noteEntries() {
+        return parseNoteEntries(this.note);
     }
     setNote(note) {
         this.note = note || "[]";
