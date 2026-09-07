@@ -13,8 +13,9 @@ SANITIZE = r"""
 """
 
 
-def migrate(env, version):
-    cr = env.cr
+def migrate(cr, version):
+    if not version:
+        return
     for table, column, phone_type, rel, owner_column in SOURCES:
         if not column_exists(cr, table, column):
             continue

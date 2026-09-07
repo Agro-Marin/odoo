@@ -95,8 +95,9 @@ def _repoint_foreign_keys(cr, survivor, duplicates):
     )
 
 
-def migrate(env, version):
-    cr = env.cr
+def migrate(cr, version):
+    if not version:
+        return
     if not column_exists(cr, "res_partner_bank", "partner_id"):
         return
     cr.execute(
