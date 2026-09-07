@@ -151,6 +151,32 @@ class TestSaleGroupReadonly(TransactionCase):
         lines = self.sale_order.line_ids.with_user(self.user_readonly)
         lines.read(["product_id", "product_uom_qty", "price_unit"])
 
+    def test_readonly_user_can_post_on_the_order_chatter(self) -> None:
+        """Reading an order has to be enough to comment on it.
+
+        The tier exists so that accounting and project people can follow a sale
+        they may not touch. Requiring write to post would leave them a thread
+        they can read and never answer -- and `mixin.mail.thread` hides the
+        composer outright when posting is denied.
+        """
+        order = self.sale_order.with_user(self.user_readonly)
+        message = order.message_post(body="A comment from the read-only tier")
+        self.assertEqual(message.author_id, self.user_readonly.partner_id)
+        self.assertEqual(message.model, "sale.order")
+        self.assertEqual(message.res_id, self.sale_order.id)
+
+    def test_posting_on_an_order_needs_read_not_write(self) -> None:
+        """Pin the attribute by what it does, not by its value.
+
+        `_mail_post_access` is what `mail.message`'s own ACL consults when the
+        message is created (`mail/models/mail_message_access.py`), so asserting
+        the resolved operation is what actually gates the composer.
+        """
+        self.assertEqual(
+            self.sale_order._mail_get_operation_for_mail_message_operation("create"),
+            {self.sale_order: "read"},
+        )
+
     def test_the_all_documents_rung_implies_readonly(self) -> None:
         """The lowest rung that already sees every document implies the tier.
 

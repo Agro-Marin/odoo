@@ -10,7 +10,6 @@ class SaleReport(models.Model):
     _auto = False
     _order = "date_order desc"
 
-
     order_reference = fields.Reference(
         string="Order",
         selection=[("sale.order", "Sales Order")],
@@ -47,6 +46,15 @@ class SaleReport(models.Model):
     industry_id = fields.Many2one(
         comodel_name="res.partner.industry",
         string="Customer Industry",
+        readonly=True,
+    )
+    # Not selected by `_get_fields_select()` on purpose: a non-stored related is
+    # resolved at read time, and `_read_group_groupby_many2many` joins it through
+    # `partner_id`, so the report groups by it without a column of its own.
+    partner_tag_ids = fields.Many2many(
+        comodel_name="res.partner.tag",
+        string="Customer Tags",
+        related="partner_id.tag_ids",
         readonly=True,
     )
     pricelist_id = fields.Many2one(
@@ -133,14 +141,12 @@ class SaleReport(models.Model):
         readonly=True,
     )
 
-
     @api.model
     def _get_done_states(self):
         return ["done"]
 
     def _case_value_or_one(self, value):
         return f"""CASE COALESCE({value}, 0) WHEN 0 THEN 1.0 ELSE {value} END"""
-
 
     def _get_fields_select(self) -> dict:
         currency_rate_o = self._case_value_or_one("o.currency_rate")

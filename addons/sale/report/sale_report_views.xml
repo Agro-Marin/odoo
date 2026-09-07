@@ -73,6 +73,10 @@
                         name="industry_id"
                         context="{'group_by':'industry_id'}" />
                     <filter
+                        string="Customer Tags"
+                        name="partner_tag_ids"
+                        context="{'group_by':'partner_tag_ids'}" />
+                    <filter
                         string="Product"
                         name="product_tmpl_id"
                         context="{'group_by':'product_tmpl_id'}" />
