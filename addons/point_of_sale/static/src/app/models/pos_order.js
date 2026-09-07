@@ -428,10 +428,10 @@ export class PosOrder extends PosOrderAccounting {
     removeOrderline(line) {
         const linesToRemove = line.getAllLinesInCombo();
         for (const lineToRemove of linesToRemove) {
-            if (lineToRemove.refunded_orderline_id?.uuid in this.uiState.lineToRefund) {
-                delete this.uiState.lineToRefund[
-                    lineToRemove.refunded_orderline_id.uuid
-                ];
+            const refunded = lineToRemove.refunded_orderline_id;
+            const refundMap = refunded?.order_id?.uiState?.lineToRefund;
+            if (refundMap && refunded.uuid in refundMap) {
+                delete refundMap[refunded.uuid];
             }
 
             if (this.assertEditable()) {

@@ -257,13 +257,8 @@ export class PosOrderline extends PosOrderlineAccounting {
                 ? quantity
                 : parseFloat("" + (quantity ? quantity : 0));
 
-        const allLineToRefundUuids = this.models["pos.order"].reduce((acc, order) => {
-            Object.assign(acc, order.uiState.lineToRefund);
-            return acc;
-        }, {});
-
-        if (this.refunded_orderline_id?.uuid in allLineToRefundUuids) {
-            const refundDetails = allLineToRefundUuids[this.refunded_orderline_id.uuid];
+        const refundDetails = this.refundDetail;
+        if (refundDetails) {
             const maxQtyToRefund =
                 refundDetails.line.qty - refundDetails.line.refundedQty - this.qty;
             if (quant > 0) {
@@ -535,6 +530,13 @@ export class PosOrderline extends PosOrderlineAccounting {
     get canBeRemoved() {
         return this.product_id.uom_id?.isZero(this.qty) ?? this.qty === 0;
     }
+    /** The ticket screen files a refund detail on the order that owns the line
+     * being refunded, keyed by that line's uuid -- never on the refunding order. */
+    get refundDetail() {
+        const refunded = this.refunded_orderline_id;
+        return refunded?.order_id?.uiState?.lineToRefund?.[refunded.uuid];
+    }
+
     get refundedQty() {
         return (
             this.refund_orderline_ids?.reduce(
