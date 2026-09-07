@@ -120,7 +120,6 @@ class DriveImport:
         document_by_attachment = {
             document.attachment_id.id: document for document in documents
         }
-        orphaned = self.attachments.browse()
         for (key, _folder, _name, _size), attachment in zip(
             pending, attachments, strict=True
         ):
@@ -128,11 +127,14 @@ class DriveImport:
             if document:
                 self.files[key] = document
             else:
-                orphaned |= attachment
+                # The attachment is left in place on purpose. `unlink()` on a
+                # `cloud_storage` attachment deletes the object it names from
+                # the bucket (see ir_attachment.unlink), and here that object is
+                # the drive's own source file, which the surviving document
+                # still needs. A detached row costs a row; deleting the source
+                # cannot be undone.
+                attachment.res_model = False
                 self.skipped_objects.append(key)
-        # nothing points at these: the document they were created for was
-        # dropped, and the object they name is already filed under its own.
-        orphaned.unlink()
 
     def _apply_grants(self, grants):
         skipped = []
