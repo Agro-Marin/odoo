@@ -7,7 +7,7 @@
         name="Documents"
         sequence="65"
         groups="base.group_user"
-        web_icon="documents,static/description/icon.png" />
+        web_icon="document,static/description/icon.png" />
 
     <!-- Top bar menus -->
     <menuitem
