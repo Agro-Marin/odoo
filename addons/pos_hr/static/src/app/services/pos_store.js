@@ -13,11 +13,13 @@ patch(PosStore.prototype, {
             }
         }
         browser.addEventListener("online", () => {
-            this.employeeBuffer.forEach((employee) =>
-                this.data.write("pos.session", [this.config.current_session_id.id], {
-                    employee_id: employee.id,
-                }),
-            );
+            if (this.config.current_session_id?.id) {
+                this.employeeBuffer.forEach((employee) =>
+                    this.data.write("pos.session", [this.config.current_session_id.id], {
+                        employee_id: employee.id,
+                    }),
+                );
+            }
             this.employeeBuffer = [];
         });
     },
