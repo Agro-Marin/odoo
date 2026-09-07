@@ -324,6 +324,10 @@ class AccountEdiXmlUBLHR(models.AbstractModel):
     def _ubl_get_tax_category_node(self, vals, tax_category):
         # Override the node 'cac:TaxCategory' in 'cac:SubTotal' to include fields that are needed for HR
         return {
+            # bis3 pairs a subtotal's category with a line's by currency, so an
+            # override that rebuilds the node instead of extending it has to
+            # carry the key forward.
+            '_currency': tax_category['currency'],
             'cbc:ID': {'_text': tax_category['tax_category_code']},
             'cbc:Name': {'_text': tax_category.get('name')},
             'cbc:Percent': {'_text': tax_category['percent']},
@@ -338,6 +342,7 @@ class AccountEdiXmlUBLHR(models.AbstractModel):
     def _ubl_get_line_item_node_classified_tax_category_node(self, vals, tax_category):
         # Override the node 'cac:ClassifiedTaxCategory' in 'cac:Item' to include fields that are needed for HR
         return {
+            '_currency': tax_category['currency'],
             'cbc:ID': {'_text': tax_category['tax_category_code']},
             'cbc:Name': {'_text': tax_category.get('name')},
             'cbc:Percent': {'_text': tax_category['percent']},

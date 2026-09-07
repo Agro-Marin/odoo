@@ -87,8 +87,10 @@ class ResponseCache(models.Model):
             cache.is_expired = cache.date_expiration < now
 
     def _search_is_expired(self, operator: str, value: Any):
+        if operator not in ("=", "!=") or not isinstance(value, bool):
+            return NotImplemented
         now = fields.Datetime.now()
-        if (operator == "=" and value) or (operator == "!=" and not value):
+        if (operator == "=") == value:
             return [("date_expiration", "<", now)]
         return [("date_expiration", ">=", now)]
 

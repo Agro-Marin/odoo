@@ -37,7 +37,10 @@ class TestL10nHrEdiCommon(AccountTestInvoicingCommon):
             'vat': 'HR68139364755',
             'l10n_hr_personal_oib': '68139364755',
             'country_id': self.env.ref('base.hr').id,
-            'bank_ids': [Command.create({'acc_number': 'HR10000000000000'})],
+            # This helper is only ever applied to the company's own partner, and
+            # this fork refuses to post an invoice whose company bank is not
+            # trusted -- which is the state a real company's account is in.
+            'bank_ids': [Command.create({'acc_number': 'HR10000000000000', 'allow_out_payment': True})],
             'email': 'test1@test.test',
             'invoice_sending_method': 'mojeracun',
         })

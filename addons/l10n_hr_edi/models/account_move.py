@@ -152,8 +152,7 @@ class AccountMove(models.Model):
             )
 
     def _search_l10n_hr_payment_unreported(self, operator, value):
-        # A specific override to enable the "Has unreported payments" filter on the list view
-        if operator == "!=":
+        if operator in ("=", "!=") and isinstance(value, bool):
             query = self._search([])
             query.join(
                 "account_move", "id", "l10n_hr_edi_addendum", "move_id", "addendum"
@@ -174,8 +173,9 @@ class AccountMove(models.Model):
                     ),
                 )
             )
-            return [("id", "in", query)]
-        return []
+            unreported = (operator == "=") == value
+            return [("id", "in" if unreported else "not in", query)]
+        return NotImplemented
 
     @api.constrains("move_type", "l10n_hr_process_type")
     def _check_l10n_hr_process_type(self):

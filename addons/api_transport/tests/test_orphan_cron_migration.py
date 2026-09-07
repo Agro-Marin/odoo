@@ -3,8 +3,14 @@ from pathlib import Path
 
 from odoo.tests.common import TransactionCase, tagged
 
-_MIGRATION = (
-    Path(__file__).resolve().parents[1] / "migrations" / "19.0.1.6.0" / "pre-migrate.py"
+_MIGRATIONS = Path(__file__).resolve().parents[1] / "migrations"
+_MIGRATION = next(
+    (
+        candidate
+        for name in ("1.6.0", "19.0.1.6.0")
+        if (candidate := _MIGRATIONS / name / "pre-migrate.py").is_file()
+    ),
+    _MIGRATIONS / "1.6.0" / "pre-migrate.py",
 )
 
 _LIVE_EXPIRY_CRON = "credential.ir_cron_check_expiring_credentials"
