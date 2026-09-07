@@ -170,20 +170,31 @@ class TestWebsocketWorkerBundle(HttpCaseWithUserDemo):
         self.assertEqual(conditional.status_code, 304)
         self.assertFalse(conditional.content)
 
-    def test_cors_headers_echoed_only_for_this_host(self):
-        host = urlsplit(self.base_url()).hostname
-        origin = f"http://{host}:8072"
-        response = self._get_bundle(headers={"Origin": origin})
-        self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), origin)
+    def test_cors_headers_echoed_only_for_this_exact_origin(self):
+        base = self.base_url()
+        host = urlsplit(base).hostname
+
+        response = self._get_bundle(headers={"Origin": base})
+        self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), base)
         self.assertEqual(
             response.headers.get("Access-Control-Allow-Credentials"), "true"
         )
         self.assertIn("Origin", response.headers.get("Vary", ""))
 
-        response = self._get_bundle(headers={"Origin": "https://evil.example"})
-        self.assertNotIn("Access-Control-Allow-Origin", response.headers)
-        self.assertNotIn("Access-Control-Allow-Credentials", response.headers)
-        self.assertIn("Origin", response.headers.get("Vary", ""))
+        for refused in (
+            f"http://{host}:8072",
+            f"https://{host}",
+            "https://evil.example",
+            f"http://{host}:8072.evil.example",
+            "http://[",
+        ):
+            response = self._get_bundle(headers={"Origin": refused})
+            self.assertEqual(
+                response.status_code, 200, f"{refused} must be refused, not raised on"
+            )
+            self.assertNotIn("Access-Control-Allow-Origin", response.headers)
+            self.assertNotIn("Access-Control-Allow-Credentials", response.headers)
+            self.assertIn("Origin", response.headers.get("Vary", ""))
 
         response = self._get_bundle()
         self.assertNotIn("Access-Control-Allow-Origin", response.headers)

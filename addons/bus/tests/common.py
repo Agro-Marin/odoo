@@ -90,9 +90,7 @@ class WebsocketCase(HttpCase):
             WebsocketConnectionHandler, "_serve_forever", wraps=_mocked_serve_forever
         )
         self.startPatcher(self._serve_forever_patch)
-        self.enterContext(
-            release_test_lock()
-        )
+        self.enterContext(release_test_lock())
         self.http_request_key = "websocket"
 
     def tearDown(self):
