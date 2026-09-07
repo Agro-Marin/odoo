@@ -3332,7 +3332,7 @@ class TestServedLibraries(TransactionCase):
                     posixpath.join(posixpath.dirname(served_url), spec)
                 )
                 self.assertIn(target, by_url, f"{declared} imports {spec}")
-        prefix = lambda spec: served[spec].split("/web/static/", 1)[0]  # noqa: E731
+        prefix = lambda spec: served[spec].split("/web/static/", 1)[0]  # noqa: E731  closes over served for the three assertions below
         self.assertEqual(
             prefix("@odoo/hoot-dom-helpers-dom"),
             prefix("@odoo/hoot-dom-helpers-events"),

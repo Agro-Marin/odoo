@@ -718,7 +718,7 @@ class TestEsbuildEntryLines(BaseCase):
         self.assertEqual(again, root, "the same roots reuse the same directory")
 
     def test_a_bundle_naming_no_test_file_gets_no_test_externals(self):
-        provider = lambda root: (  # noqa: E731
+        provider = lambda root: (  # noqa: E731  a constant stub for addon_flags_provider, which takes a callable
             ["--alias:@a=./addons/a/static/src"],
             ["--external:@a/../tests/*", "--external:./addons/a/static/tests/*"],
         )
