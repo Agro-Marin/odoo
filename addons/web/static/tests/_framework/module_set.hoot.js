@@ -122,13 +122,64 @@ export function setupTestEnvironment() {
     }
 
     const R_OWL_SYNTHETIC_LISTENER = /\bnativeToSyntheticEvent\b/;
+    const R_MINIFIED_DELEGATION = /^\(?[\w$]+\)?\s*=>\s*[\w$]+\([\w$]+\s*,\s*[\w$]+\)$/;
+
+    /**
+     * Owl installs ONE delegation listener per event type on the document and
+     * memoizes that it has, so it never reinstalls. Removing it after a test
+     * kills every `t-on-*.synthetic` handler in the page for the rest of the
+     * run -- silently, because the elements keep their `__event__synthetic_*`
+     * data and the click still reaches the document.
+     *
+     * Its name is not a safe way to recognise it. The bundled test page serves
+     * `(event) => nativeToSyntheticEvent(eventKey, event)` as `i=>On(e,i)`, so
+     * the regex above matches nothing and the exemption silently stops
+     * applying. What the bundler cannot rename is the key Owl reads off the
+     * event target, built from the string literal `__event__synthetic_`: a
+     * listener of the right shape is handed a probe target and asked whether it
+     * reads that key.
+     *
+     * @param {string} type
+     * @param {EventListenerOrEventListenerObject} listener
+     * @param {boolean | AddEventListenerOptions} [options]
+     */
+    function isOwlSyntheticListener(type, listener, options) {
+        if (typeof listener !== "function") {
+            return false;
+        }
+        const source = String(listener).trim();
+        if (R_OWL_SYNTHETIC_LISTENER.test(source)) {
+            return true;
+        }
+        if (!R_MINIFIED_DELEGATION.test(source)) {
+            return false;
+        }
+        const capture = Boolean(
+            typeof options === "object" ? options?.capture : options,
+        );
+        const key = `__event__synthetic_${type}${capture ? "_capture" : ""}`;
+        let read = false;
+        const target = {
+            parentNode: null,
+            get [key]() {
+                read = true;
+                return null;
+            },
+        };
+        try {
+            listener({ target, type });
+        } catch {
+            return false;
+        }
+        return read;
+    }
 
     function trackTestListeners(target) {
         const origAdd = target.addEventListener;
         const origRemove = target.removeEventListener;
         let trackedListeners = null;
         target.addEventListener = function (type, listener, options) {
-            if (trackedListeners && !R_OWL_SYNTHETIC_LISTENER.test(String(listener))) {
+            if (trackedListeners && !isOwlSyntheticListener(type, listener, options)) {
                 trackedListeners.push({ type, listener, options });
             }
             return origAdd.call(target, type, listener, options);
@@ -181,7 +232,6 @@ export function setupTestEnvironment() {
         trackTestListeners(routerModule.routerBus);
     }
     trackTestListeners(window);
-    trackTestListeners(document);
     trackTestListeners(document);
     trackTestListeners(document.body);
 
