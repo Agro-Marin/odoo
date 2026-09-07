@@ -308,6 +308,17 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def get_nearest_lang(self, lang_code: str | None) -> str | None:
+        """Return the active frontend language code nearest to ``lang_code``.
+
+        An exact match wins outright. Otherwise, among the active frontend
+        languages that share ``lang_code``'s base (e.g. ``es_MX`` and
+        ``es_419`` both base to ``"es"``), the first one in
+        ``res.lang._get_frontend()``'s iteration order is returned — which is
+        alphabetical by language display name, not by any linguistic or
+        geographic notion of "nearest". When two or more variants of the same
+        base are active, which one wins this tie-break is therefore
+        arbitrary but deterministic.
+        """
         if not lang_code:
             return None
 

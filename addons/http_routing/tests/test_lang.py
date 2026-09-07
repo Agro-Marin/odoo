@@ -50,6 +50,16 @@ class TestNearestLang(TransactionCase):
         self.assertEqual(self.IrHttp.get_nearest_lang("sr_RS"), "sr@latin")
         self.assertEqual(self.IrHttp.get_nearest_lang("sr"), "sr@latin")
 
+    def test_two_variants_of_the_same_base_pick_alphabetically_by_name(self):
+        self.env["res.lang"]._activate_lang("es_MX")
+        self.env["res.lang"]._activate_lang("es_419")
+        frontend_langs = self.env["res.lang"]._get_frontend()
+        es_variants = sorted(
+            (code for code in frontend_langs if code.startswith("es_")),
+            key=lambda code: frontend_langs[code].name,
+        )
+        self.assertEqual(self.IrHttp.get_nearest_lang("es_ES"), es_variants[0])
+
 
 @tagged("-at_install", "post_install")
 class TestRedirectLang(TransactionCase):
