@@ -146,7 +146,7 @@ export function filterExtends(arr, PotentialSuperClass) {
  * @returns {boolean} True if `potentialSubClass` extends `potentialSuperClass`,
  * false otherwise.
  */
-export function doesExtendsClass(PotentialSubClass, PotentialSuperClass) {
+function doesExtendsClass(PotentialSubClass, PotentialSuperClass) {
     if (PotentialSubClass === PotentialSuperClass) {
         return false;
     }
