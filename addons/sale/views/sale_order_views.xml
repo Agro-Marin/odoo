@@ -536,7 +536,10 @@
                         name="action_cancel"
                         groups="sales_team.group_sale_salesman"
                         type="object"
-                        confirm="Are you sure you want to cancel this order?"
+                        confirm-title="Cancel Order"
+                        confirm="Cancelling this order will set its status to 'Cancelled' and will update related documents and processes. Are you sure?"
+                        confirm-label="Yes, cancel order"
+                        cancel-label="No, go back"
                         data-hotkey="x"
                         invisible="state not in ['draft', 'done'] or not id or locked" />
                     <!-- 10. Reset to draft -->
