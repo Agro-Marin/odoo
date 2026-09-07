@@ -32,6 +32,10 @@ Using this application you can manage Sales Teams with CRM and/or Sales
         ],
         "web.assets_unit_tests": [
             "sales_team/static/tests/**/*",
+            ("remove", "sales_team/static/tests/tours/**/*"),
+        ],
+        "web.assets_tests": [
+            "sales_team/static/tests/tours/**/*",
         ],
     },
     "installable": True,
