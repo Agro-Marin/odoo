@@ -198,8 +198,36 @@ class HrWorkEntryRegenerationWizard(models.TransientModel):
         return employee_ids_by_range
 
     @api.model
+    def _filter_out_validated_slots(self, slots):
+        if not slots:
+            return slots
+        employee_ids = {slot["employee_id"] for slot in slots}
+        dates = [fields.Date.to_date(slot["date"]) for slot in slots]
+        validated = (
+            self.env["hr.work.entry"]
+            .sudo()
+            .search_fetch(
+                [
+                    ("employee_id", "in", list(employee_ids)),
+                    ("date", ">=", min(dates)),
+                    ("date", "<=", max(dates)),
+                    ("state", "=", "validated"),
+                ],
+                ["employee_id", "date"],
+            )
+        )
+        validated_pairs = {(w.employee_id.id, w.date) for w in validated}
+        return [
+            slot
+            for slot in slots
+            if (slot["employee_id"], fields.Date.to_date(slot["date"]))
+            not in validated_pairs
+        ]
+
+    @api.model
     def _regenerate_slots(self, slots):
         work_entries = self.env["hr.work.entry"]
+        slots = self._filter_out_validated_slots(slots)
         for (date_from, date_to), employee_ids in self._group_slots_into_ranges(
             slots
         ).items():

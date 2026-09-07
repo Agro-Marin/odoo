@@ -223,6 +223,47 @@ class TestHrWorkEntry(TransactionCase):
         )
         self.assertEqual(sum(regenerated.mapped("duration")), 8)
 
+    def test_reset_slots_skips_a_validated_day(self):
+        self.employee_b.tz = "Europe/Brussels"
+        self.employee_b.resource_calendar_id.tz = "Europe/Brussels"
+        generated = self.employee_b.generate_work_entries(
+            date(2024, 2, 5), date(2024, 2, 9)
+        )
+        validated_day = generated.filtered(lambda w: w.date == date(2024, 2, 6))
+        other_day = generated.filtered(lambda w: w.date == date(2024, 2, 7))
+        validated_day.action_validate()
+
+        self.env["hr.work.entry.regeneration.wizard"].regenerate_work_entries(
+            slots=[
+                {"employee_id": self.employee_b.id, "date": "2024-02-06"},
+                {"employee_id": self.employee_b.id, "date": "2024-02-07"},
+            ]
+        )
+
+        self.assertEqual(
+            validated_day.exists(),
+            validated_day,
+            "The validated entry must survive untouched.",
+        )
+        self.assertTrue(
+            validated_day.active,
+            "The validated entry must stay active, not archived.",
+        )
+        same_day_entries = self.env["hr.work.entry"].search(
+            [("employee_id", "=", self.employee_b.id), ("date", "=", date(2024, 2, 6))]
+        )
+        self.assertEqual(
+            same_day_entries,
+            validated_day,
+            "Resetting a slot list must not create a duplicate active entry "
+            "alongside an already-validated day, even when another slot in the "
+            "same call is a legitimate, non-validated day.",
+        )
+        self.assertFalse(
+            other_day.exists().filtered("active"),
+            "A non-validated day in the same slot list must still be reset.",
+        )
+
     def test_recompute_with_validated_entries_leaves_other_employees_alone(self):
         self.employee_a.generate_work_entries(date(2024, 4, 1), date(2024, 4, 30))
         other_entries = self.employee_b.generate_work_entries(
