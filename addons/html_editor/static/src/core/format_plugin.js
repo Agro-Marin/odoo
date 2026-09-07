@@ -478,11 +478,11 @@ export class FormatPlugin extends Plugin {
                     isParentNodeBlockAndCompletelySelected &&
                     formatName === "setFontSizeClassName"
                 ) {
-                    for (const node of [
+                    for (const descendantNode of [
                         parentNode,
                         ...descendants(parentNode).filter(isElement),
                     ]) {
-                        removeFormat(node, formatSpec, cursor);
+                        removeFormat(descendantNode, formatSpec, cursor);
                     }
                 } else {
                     const skipNeutral =
