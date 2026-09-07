@@ -19,6 +19,12 @@ class AccountMove(models.Model):
         index="btree_not_null",
         help="The pos order that was reverted after closing the session to create an invoice for it.",
     )
+    pos_diff_session_id = fields.Many2one(
+        "pos.session",
+        "POS Closing Difference",
+        index="btree_not_null",
+        help="Session whose closing produced this payment-method difference entry.",
+    )
     pos_session_ids = fields.One2many("pos.session", "move_id", "POS Sessions")
     pos_order_count = fields.Integer(
         compute="_compute_pos_order_count", string="POS Order Count"

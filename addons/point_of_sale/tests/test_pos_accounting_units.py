@@ -211,25 +211,17 @@ class TestPosSessionAmountBuilders(TestPoSCommon):
         self.assertEqual(new["amount_converted"], 15.0)
         self.assertEqual(old, {"amount": 10.0, "amount_converted": 10.0})
 
-    def test_update_amounts_tracks_base_amount(self):
+    def test_update_amounts_accumulates_the_base_unconverted(self):
+        """account.tax hands tax_base_amount in company currency already."""
         session = self._start_pos_session(self.cash_pm1, 0)
         date = fields.Datetime.now()
-        old = {
-            "amount": 0.0,
-            "amount_converted": 0.0,
-            "base_amount": 0.0,
-            "base_amount_converted": 0.0,
-        }
-        new = session._update_amounts(old, {"amount": 7.0, "base_amount": 100.0}, date)
+        old = {"amount": 0.0, "amount_converted": 0.0, "base_amount_converted": 0.0}
+        new = session._update_amounts(
+            old, {"amount": 7.0, "base_amount_converted": 100.0}, date
+        )
         self.assertEqual(new["amount"], 7.0)
-        self.assertEqual(new["base_amount"], 100.0)
         self.assertEqual(new["base_amount_converted"], 100.0)
-
-    def test_round_amounts_uses_company_currency_for_converted(self):
-        session = self._start_pos_session(self.cash_pm1, 0)
-        rounded = session._round_amounts({"amount": 10.126, "amount_converted": 10.124})
-        self.assertAlmostEqual(rounded["amount"], 10.13)
-        self.assertAlmostEqual(rounded["amount_converted"], 10.12)
+        self.assertNotIn("base_amount", new)
 
     def test_credit_and_debit_amounts_sign_split(self):
         session = self._start_pos_session(self.cash_pm1, 0)

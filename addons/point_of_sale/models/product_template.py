@@ -319,11 +319,10 @@ class ProductTemplate(models.Model):
 
     @api.model
     def _get_pos_pricelist_data(self, product_tmpls, products, config):
-        session = config.current_session_id
-        if not session:
-            return {"product.pricelist": [], "product.pricelist.item": []}
-        return session.get_pos_ui_product_pricelist_item_by_product(
-            product_tmpls.ids, products.ids, config.id
+        # asks the config directly: the pricelists, the company and the two field
+        # lists are all its own, so the guard against an absent session goes too
+        return config.get_pos_ui_product_pricelist_item_by_product(
+            product_tmpls.ids, products.ids
         )
 
     @api.model

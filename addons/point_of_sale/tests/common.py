@@ -530,6 +530,15 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             cls.company.account_default_pos_receivable_account_id,
             {"name": "POS Receivable Bank"},
         )
+        # AccountTestInvoicingCommon sets inbound_payment_channel only when the
+        # company has a bank journal, which at_install it does not. Say so here:
+        # the AttributeError this replaces pointed at the fixture, not at the
+        # missing decorator that actually caused it.
+        assert hasattr(cls, "inbound_payment_channel"), (
+            f"{cls.__name__} reached TestPoSCommon.setUpClass without a bank"
+            " journal. TestPoSCommon needs post_install fixtures — decorate the"
+            ' class with @odoo.tests.tagged("post_install", "-at_install").'
+        )
         cls.outstanding_bank = cls.copy_account(
             cls.inbound_payment_channel.payment_account_id,
             {"name": "Outstanding Bank"},

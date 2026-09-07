@@ -43,18 +43,6 @@ msgstr ""
 
 #. module: point_of_sale
 #. odoo-python
-#: code:addons/point_of_sale/models/pos_config.py:0
-msgid "%(amount)s (%(count)s order)"
-msgstr ""
-
-#. module: point_of_sale
-#. odoo-python
-#: code:addons/point_of_sale/models/pos_config.py:0
-msgid "%(amount)s (%(count)s orders)"
-msgstr ""
-
-#. module: point_of_sale
-#. odoo-python
 #: code:addons/point_of_sale/models/stock_warehouse.py:0
 msgid "%(name)s Picking POS"
 msgstr ""
@@ -3449,12 +3437,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:point_of_sale.field_pos_config__use_fast_payment
 #: model:ir.model.fields,field_description:point_of_sale.field_res_config_settings__pos_use_fast_payment
 msgid "Fast Payment Validation"
-msgstr ""
-
-#. module: point_of_sale
-#. odoo-python
-#: code:addons/point_of_sale/models/pos_config.py:0
-msgid "Fast payment validation on the point of sale %s needs at least one fast payment method."
 msgstr ""
 
 #. module: point_of_sale
@@ -9128,11 +9110,6 @@ msgid ""
 " Please pay the exact amount or add a cash payment method in the point of sale configuration"
 msgstr ""
 
-#. module: point_of_sale
-#. odoo-python
-#: code:addons/point_of_sale/models/pos_session.py:0
-msgid "There is no cash payment method for this PoS Session"
-msgstr ""
 
 #. module: point_of_sale
 #. odoo-python
@@ -10548,11 +10525,6 @@ msgid ""
 "                                    <i class=\"fa-solid fa-info-circle me-1\" title=\"This setting is common to all PoS.\" pos-data-toggle=\"tooltip\"/>"
 msgstr ""
 
-#. module: point_of_sale
-#. odoo-python
-#: code:addons/point_of_sale/models/pos_session.py:0
-msgid "A cash movement must have a non-zero amount."
-msgstr ""
 
 #. module: point_of_sale
 #. odoo-python
@@ -11003,4 +10975,50 @@ msgstr ""
 #. odoo-python
 #: code:addons/point_of_sale/models/pos_preset.py:0
 msgid "Timed presets require a positive interval and capacity."
+msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/pos_session.py:0
+msgid "Closing control message: "
+msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/pos_session.py:0
+msgid "Unknown message type %(type)s."
+msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/pos_session.py:0
+msgid ""
+"A cash movement must have a non-zero amount, and %(amount)s rounds to zero in "
+"%(sessions)s."
+msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/pos_session.py:0
+msgid "There is no cash payment method for %(sessions)s."
+msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/pos_config.py:0
+msgid "%(amount)s (%(count)s order)"
+msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/pos_config.py:0
+msgid "%(amount)s (%(count)s orders)"
+msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/pos_config.py:0
+msgid ""
+"Fast payment validation on the point of sale %s needs at least one fast "
+"payment method."
 msgstr ""

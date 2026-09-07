@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
-from odoo import models, api
 import json
+
+from odoo import api, models
 
 
 class PosSession(models.Model):
@@ -9,7 +9,7 @@ class PosSession(models.Model):
     @api.model
     def _get_model_names_to_load(self, config):
         data = super()._get_model_names_to_load(config)
-        if self.config_id.module_pos_restaurant:
+        if config.module_pos_restaurant:
             data += ['restaurant.floor', 'restaurant.table', 'restaurant.order.course']
         return data
 
