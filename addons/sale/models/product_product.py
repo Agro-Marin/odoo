@@ -4,7 +4,6 @@ from odoo import _, api, fields, models
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
-
     sales_count = fields.Float(
         string="Sold",
         digits="Product Unit",
@@ -14,7 +13,10 @@ class ProductProduct(models.Model):
         compute="_compute_is_in_sale_order",
         search="_search_is_in_sale_order",
     )
-
+    previously_bought_by_customer = fields.Boolean(
+        string="Previously Bought",
+        search="_search_previously_bought_by_customer",
+    )
 
     def _compute_sales_count(self):
         self._compute_ordered_qty(
@@ -29,12 +31,35 @@ class ProductProduct(models.Model):
     def _compute_is_in_sale_order(self):
         self._compute_is_in_order("sale.order.line", "is_in_sale_order")
 
-
     def _search_is_in_sale_order(self, operator, value):
         if operator != "in":
             return NotImplemented
         return self._search_is_in_order("sale.order.line")
 
+    def _search_previously_bought_by_customer(self, operator, value):
+        """The products this order's customer has already been sold.
+
+        The customer comes from the `order_id` the catalog action already puts
+        in the context (`product/models/mixin_product_catalog.py`), so nothing
+        outside `sale` has to carry a second key for it. With no order there is
+        no customer, and a filter with no customer must match nothing rather
+        than hand back the whole catalog.
+        """
+        if operator != "in":
+            return NotImplemented
+        order_id = self.env.context.get("order_id")
+        if not order_id:
+            return [("id", "in", [])]
+        partner = self.env["sale.order"].browse(order_id).partner_id
+        product_ids = (
+            self.env["sale.order.line"]
+            .search_fetch(
+                [("partner_id", "=", partner.id), ("state", "=", "done")],
+                ["product_id"],
+            )
+            .product_id.ids
+        )
+        return [("id", "in", product_ids)]
 
     @api.onchange("type")
     def _onchange_type(self):
@@ -48,7 +73,6 @@ class ProductProduct(models.Model):
                 }
             }
         return None
-
 
     @api.readonly
     def action_view_sales(self):
@@ -65,7 +89,6 @@ class ProductProduct(models.Model):
         ]
         action["display_name"] = _("Sales History for %s", self.display_name)
         return action
-
 
     def _filter_to_unlink(self):
         domain = [("product_id", "in", self.ids)]

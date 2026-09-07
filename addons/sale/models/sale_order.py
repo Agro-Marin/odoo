@@ -795,6 +795,41 @@ class SaleOrder(models.Model):
             ],
         }
 
+    def action_force_invoice_state(self):
+        """Report a confirmed order as fully invoiced, and say so in the chatter.
+
+        The flag, its short-circuit in `_compute_invoice_state` and this method
+        all live on `base_order`'s invoice mixin, shared with purchase. What is
+        added here is what makes it usable on a sales order: the state guard
+        and the trace. Both stay in `sale` so the mixin keeps serving purchase
+        unchanged.
+        """
+        orders_not_confirmed = self.filtered(lambda order: order.state != "done")
+        if orders_not_confirmed:
+            raise UserError(
+                _(
+                    "Only confirmed orders can be closed for invoicing: %s\n\n"
+                    "A quotation has nothing pending to close.",
+                    format_list(
+                        self.env,
+                        orders_not_confirmed.mapped("display_name"),
+                    ),
+                ),
+            )
+        orders_to_close = self.filtered(lambda order: not order.force_fully_invoiced)
+        super(SaleOrder, orders_to_close).action_force_invoice_state()
+        orders_to_close._message_log_batch(
+            bodies=dict.fromkeys(orders_to_close.ids, _("Invoicing closed")),
+        )
+
+    def action_unforce_invoice_state(self):
+        """Put a manually closed order back in the invoicing list."""
+        orders_to_reopen = self.filtered("force_fully_invoiced")
+        super(SaleOrder, orders_to_reopen).action_unforce_invoice_state()
+        orders_to_reopen._message_log_batch(
+            bodies=dict.fromkeys(orders_to_reopen.ids, _("Invoicing reopened")),
+        )
+
     def action_confirm(self):
         res = super().action_confirm()
 

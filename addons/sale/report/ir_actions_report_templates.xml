@@ -385,8 +385,9 @@
                 </table>
                 <div name="so_total_summary">
                     <div id="total" class="row" name="total">
-                        <div class="col-6 ms-auto">
-                            <table class="o_total_table table table-borderless">
+                        <div>
+                            <table
+                                class="o_total_table table table-borderless ms-auto w-auto">
                                 <!-- Tax totals -->
                                 <t t-call="sale.document_tax_totals">
                                     <t t-set="tax_totals" t-value="doc.tax_totals" />
