@@ -14,6 +14,13 @@ import format_literals as gate
 # invocation of its own. It blocks through `pytest tooling/architecture/`,
 # as the four other checkers `gates.md` names outside the table do, and none of
 # them carries a baseline either.
+# 25 until 2026-09-06, when the scan was found to be measuring nothing: the
+# only Format() call left in odoo/libs/documents/formats.py binds its mimetype
+# and extension from a loop over a table, so `declared_formats` read no literal
+# pair, `measure` raised, and this test had been failing rather than counting.
+# 66 is the first true reading since. It is not 41 new offenders: the scan now
+# also sees the formats `addons/speech` registers the same way, and 13 of the
+# 66 are its audio mimetypes, which nothing had ever counted.
 FLOOR = 66
 
 REGISTRATION = """
