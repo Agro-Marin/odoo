@@ -378,7 +378,20 @@ class IrQweb(models.AbstractModel):
             )
         if not vals_list:
             return
-        self._save_esm_attachment_rows(vals_list, bundle="esm.libs")
+        try:
+            self._save_esm_attachment_rows(vals_list, bundle="esm.libs")
+        except ReadOnlySqlTransaction:
+            if not self.env.cr.readonly:
+                raise
+            log_event(
+                _attach_log,
+                logging.WARNING,
+                "libs_save_declined",
+                files=len(vals_list),
+                reused=len(present),
+                readonly=True,
+            )
+            raise _EsmReadonlyDeclined from None
         log_event(
             _attach_log,
             logging.INFO,
