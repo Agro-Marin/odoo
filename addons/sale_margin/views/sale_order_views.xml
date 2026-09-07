@@ -28,9 +28,10 @@
                 expr="//field[@name='line_ids']//list//field[@name='price_unit']"
                 position="after">
                 <field name="purchase_price" optional="hide" />
-                <field name="margin" optional="hide" />
+                <field name="margin" readonly="qty_invoiced &gt; 0" optional="hide" />
                 <field
                     name="margin_percent"
+                    readonly="purchase_price == 0 or qty_invoiced &gt; 0"
                     invisible="price_subtotal == 0"
                     optional="hide"
                     widget="percentage" />
