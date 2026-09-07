@@ -934,3 +934,21 @@ test("a record button must not cancel a home menu still opening behind it", asyn
 
     expect(".o_home_menu").toHaveCount(1);
 });
+
+test("the home menu service state never proxies the action service it drives", async () => {
+    await mountWebClient({ WebClient });
+    const homeMenu = getService("home_menu");
+    expect(homeMenu.action).toBe(getService("action"), {
+        message: "read through the reactive state, the action service is still itself",
+    });
+    await contains(".o_home_menu .o_app[data-menu-xmlid=menu_1]").click();
+    expect(".o_home_menu").toHaveCount(0);
+    await homeMenu.toggle(true);
+    await homeMenu.toggle(false);
+    const { currentController } = getService("action");
+    expect(() => structuredClone(currentController.state)).not.toThrow({
+        message:
+            "a controller state with a proxy inside cannot reach history.pushState",
+    });
+    expect(() => structuredClone(browser.history.state)).not.toThrow();
+});

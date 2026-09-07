@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onMounted, onWillUnmount, reactive, xml } from "@odoo/owl";
+import { Component, markRaw, onMounted, onWillUnmount, reactive, xml } from "@odoo/owl";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -28,8 +28,11 @@ export class HomeMenuState {
 
     /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
-        this.action = env.services.action;
-        this.mutex = new Mutex();
+        // The state is reactive for its two flags. A service reached through
+        // it would run on a proxied `this` and hand out proxied objects, which
+        // `history.pushState` cannot clone: services are not state.
+        this.action = markRaw(env.services.action);
+        this.mutex = markRaw(new Mutex());
     }
 
     /** @param {boolean} [show] */
