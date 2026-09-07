@@ -68,18 +68,21 @@ class HrVersion(models.Model):
         tracking=True,
         groups="hr.group_hr_user",
     )
-    pending_employee_vals = fields.Json(copy=False, groups="hr.group_hr_user")
+    pending_employee_vals = fields.Json(
+        copy=False,
+        groups="hr.group_hr_user",
+    )
     last_modified_uid = fields.Many2one(
         "res.users",
         string="Last Modified by",
-        default=lambda self: self.env.uid,
         required=True,
+        default=lambda self: self.env.uid,
         groups="hr.group_hr_user",
     )
     last_modified_date = fields.Datetime(
         string="Last Modified on",
-        default=fields.Datetime.now,
         required=True,
+        default=fields.Datetime.now,
         groups="hr.group_hr_user",
     )
 
@@ -93,13 +96,16 @@ class HrVersion(models.Model):
             ("freelance", "Freelancer"),
         ],
         string="Employee Type",
-        default="employee",
         required=True,
-        groups="hr.group_hr_user",
+        default="employee",
         tracking=True,
+        groups="hr.group_hr_user",
     )
     department_id = fields.Many2one(
-        "hr.department", check_company=True, tracking=True, index=True
+        "hr.department",
+        check_company=True,
+        tracking=True,
+        index=True,
     )
     member_of_department = fields.Boolean(
         "Member of department",
@@ -109,17 +115,17 @@ class HrVersion(models.Model):
     )
     job_id = fields.Many2one("hr.job", check_company=True, tracking=True, index=True)
     job_title = fields.Char(
-        compute="_compute_job_title",
-        inverse="_inverse_job_title",
-        store=True,
-        readonly=False,
         string="Job Title",
+        compute="_compute_job_title",
+        store=True,
+        inverse="_inverse_job_title",
+        readonly=False,
         tracking=True,
     )
     is_custom_job_title = fields.Boolean(
+        default=False,
         compute="_compute_is_custom_job_title",
         store=True,
-        default=False,
         groups="hr.group_hr_user",
     )
     address_id = fields.Many2one(
@@ -147,10 +153,15 @@ class HrVersion(models.Model):
         tracking=True,
     )
     departure_description = fields.Html(
-        string="Additional Information", groups="hr.group_hr_user", copy=False
+        string="Additional Information",
+        copy=False,
+        groups="hr.group_hr_user",
     )
     departure_date = fields.Date(
-        string="Departure Date", groups="hr.group_hr_user", copy=False, tracking=True
+        string="Departure Date",
+        copy=False,
+        tracking=True,
+        groups="hr.group_hr_user",
     )
 
     resource_calendar_id = fields.Many2one(
@@ -165,45 +176,59 @@ class HrVersion(models.Model):
         tracking=True,
     )
     is_flexible = fields.Boolean(
-        compute="_compute_flexibility", store=True, groups="hr.group_hr_user"
+        compute="_compute_flexibility",
+        store=True,
+        groups="hr.group_hr_user",
     )
     is_fully_flexible = fields.Boolean(
-        compute="_compute_flexibility", store=True, groups="hr.group_hr_user"
+        compute="_compute_flexibility",
+        store=True,
+        groups="hr.group_hr_user",
     )
     tz = fields.Selection(related="employee_id.tz")
 
     contract_date_start = fields.Date(
-        "Contract Start Date", tracking=True, groups="hr.group_hr_manager"
+        "Contract Start Date",
+        tracking=True,
+        groups="hr.group_hr_manager",
     )
     contract_date_end = fields.Date(
         "Contract End Date",
         tracking=True,
-        help="End date of the contract (if it's a fixed-term contract).",
         groups="hr.group_hr_manager",
+        help="End date of the contract (if it's a fixed-term contract).",
     )
     trial_date_end = fields.Date(
         "End of Trial Period",
-        help="End date of the trial period (if there is one).",
-        groups="hr.group_hr_manager",
         tracking=True,
+        groups="hr.group_hr_manager",
+        help="End date of the trial period (if there is one).",
     )
     date_start = fields.Date(
-        compute="_compute_dates", store=True, groups="hr.group_hr_manager"
+        compute="_compute_dates",
+        store=True,
+        groups="hr.group_hr_manager",
     )
     date_end = fields.Date(
-        compute="_compute_dates", store=True, groups="hr.group_hr_manager"
+        compute="_compute_dates",
+        store=True,
+        groups="hr.group_hr_manager",
     )
     is_current = fields.Boolean(
-        compute="_compute_date_state", groups="hr.group_hr_manager"
+        compute="_compute_date_state",
+        groups="hr.group_hr_manager",
     )
     is_past = fields.Boolean(
-        compute="_compute_date_state", groups="hr.group_hr_manager"
+        compute="_compute_date_state",
+        groups="hr.group_hr_manager",
     )
     is_future = fields.Boolean(
-        compute="_compute_date_state", groups="hr.group_hr_manager"
+        compute="_compute_date_state",
+        groups="hr.group_hr_manager",
     )
     is_in_contract = fields.Boolean(
-        compute="_compute_is_in_contract", groups="hr.group_hr_manager"
+        compute="_compute_is_in_contract",
+        groups="hr.group_hr_manager",
     )
 
     contract_template_id = fields.Many2one(
@@ -230,7 +255,9 @@ class HrVersion(models.Model):
         groups="hr.group_hr_user",
     )
     currency_id = fields.Many2one(
-        string="Currency", related="company_id.currency_id", readonly=True
+        string="Currency",
+        related="company_id.currency_id",
+        readonly=True,
     )
     wage = fields.Monetary(
         "Wage",
@@ -240,7 +267,9 @@ class HrVersion(models.Model):
         groups="hr.group_hr_manager",
     )
     contract_wage = fields.Monetary(
-        "Contract Wage", compute="_compute_contract_wage", groups="hr.group_hr_manager"
+        "Contract Wage",
+        compute="_compute_contract_wage",
+        groups="hr.group_hr_manager",
     )
     company_country_id = fields.Many2one(
         "res.country",
@@ -249,13 +278,20 @@ class HrVersion(models.Model):
         readonly=True,
     )
     country_code = fields.Char(
-        related="company_country_id.code", depends=["company_country_id"], readonly=True
+        related="company_country_id.code",
+        depends=["company_country_id"],
+        readonly=True,
     )
     contract_type_id = fields.Many2one(
-        "hr.contract.type", "Contract Type", tracking=True, groups="hr.group_hr_manager"
+        "hr.contract.type",
+        "Contract Type",
+        tracking=True,
+        groups="hr.group_hr_manager",
     )
     additional_note = fields.Text(
-        string="Additional Note", groups="hr.group_hr_user", tracking=True
+        string="Additional Note",
+        groups="hr.group_hr_user",
+        tracking=True,
     )
 
     def _domain_hr_responsible_id(self):
@@ -287,9 +323,6 @@ class HrVersion(models.Model):
 
     @api.depends("employee_id.company_id")
     def _compute_company_id(self):
-        # A version belongs to its employee's company; a value given at
-        # creation could only ever have been the current company's, which is
-        # wrong for every employee of another company.
         for version in self:
             version.company_id = (
                 version.employee_id.company_id or version.company_id or self.env.company
@@ -349,6 +382,41 @@ class HrVersion(models.Model):
                         calendar=version.resource_calendar_id.display_name,
                         calendar_company=calendar_company.display_name,
                         employee=version.display_name,
+                        company=version.company_id.display_name,
+                    )
+                )
+
+    @api.constrains("department_id", "company_id")
+    def _check_department_company(self):
+        department_field = self._fields["department_id"]
+        for version in self:
+            if self.env.is_to_compute(
+                department_field, version
+            ) or self.env.is_protected(department_field, version):
+                continue
+            # Only the version in force. `company_id` here is derived from the
+            # employee's CURRENT company, so a historical version holding the
+            # department the person had while in another company would be judged
+            # by a company it never had -- that is history, not a violation.
+            if version.employee_id.version_id != version:
+                continue
+            department_company = version.department_id.company_id
+            if (
+                department_company
+                and version.company_id
+                and department_company != version.company_id
+            ):
+                raise ValidationError(
+                    self.env._(
+                        "The department %(department)s belongs to "
+                        "%(department_company)s and cannot hold %(employee)s of "
+                        "%(company)s.",
+                        department=version.department_id.display_name,
+                        department_company=department_company.display_name,
+                        # NOT version.display_name -- a version is named by its
+                        # date, which reads as nonsense in this sentence.
+                        employee=version.employee_id.display_name
+                        or version.display_name,
                         company=version.company_id.display_name,
                     )
                 )
@@ -492,9 +560,6 @@ class HrVersion(models.Model):
 
     @api.depends("company_id")
     def _compute_resource_calendar_id(self):
-        # A version's working hours are its company's unless a schedule of that
-        # company (or a company-less one) was chosen; a version moved to another
-        # company leaves the schedule it cannot keep behind.
         for version in self:
             calendar = version.resource_calendar_id
             if not calendar or (

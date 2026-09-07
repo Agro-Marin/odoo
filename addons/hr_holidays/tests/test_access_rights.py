@@ -460,6 +460,11 @@ class TestMultiCompany(TestHrHolidaysCommon):
                 "requires_allocation": False,
             }
         )
+        # An employee changing company leaves the old company's department
+        # behind, and must do so FIRST: hr.employee.write applies employee
+        # fields before version fields, so a combined write is validated with
+        # the new company and the old department still in place.
+        cls.employee_emp.department_id = False
         cls.employee_emp.company_id = cls.new_company
         cls.rd_dept.manager_id = False
         cls.hr_dept.manager_id = False

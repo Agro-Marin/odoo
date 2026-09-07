@@ -1,4 +1,5 @@
 from odoo import _lt, api, fields, models
+from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
 
@@ -9,7 +10,11 @@ class HrDepartment(models.Model):
     _order = "complete_name"
     _rec_name = "complete_name"
 
-    name = fields.Char("Department Name", required=True, translate=True)
+    name = fields.Char(
+        "Department Name",
+        required=True,
+        translate=True,
+    )
     complete_name = fields.Char(
         "Complete Name",
         compute="_compute_complete_name",
@@ -29,10 +34,15 @@ class HrDepartment(models.Model):
         default=lambda self: self.env.company,
     )
     parent_id = fields.Many2one(
-        "hr.department", string="Parent Department", index=True, check_company=True
+        "hr.department",
+        string="Parent Department",
+        index=True,
+        check_company=True,
     )
     child_ids = fields.One2many(
-        "hr.department", "parent_id", string="Child Departments"
+        "hr.department",
+        "parent_id",
+        string="Child Departments",
     )
     manager_id = fields.Many2one(
         "hr.employee",
@@ -41,14 +51,19 @@ class HrDepartment(models.Model):
         domain="['|', ('company_id', '=', False), ('company_id', 'in', allowed_company_ids)]",
     )
     member_ids = fields.One2many(
-        "hr.employee", "department_id", string="Members", readonly=True
+        "hr.employee",
+        "department_id",
+        string="Members",
+        readonly=True,
     )
     has_read_access = fields.Boolean(
-        search="_search_has_read_access", store=False, export_string_translation=False
+        search="_search_has_read_access",
+        store=False,
+        export_string_translation=False,
     )
     total_employee = fields.Integer(
-        compute="_compute_total_employee",
         string="Total Employee",
+        compute="_compute_total_employee",
         export_string_translation=False,
     )
     jobs_ids = fields.One2many("hr.job", "department_id", string="Jobs")
@@ -106,6 +121,33 @@ class HrDepartment(models.Model):
             dept.master_department_id = dept._root()
 
     @api.depends_context("allowed_company_ids")
+    @api.constrains("company_id")
+    def _check_members_are_of_this_company(self):
+        for department in self:
+            if not department.company_id:
+                continue
+            stranded = (
+                self.env["hr.employee"]
+                .sudo()
+                .search(
+                    [
+                        ("department_id", "=", department.id),
+                        ("company_id", "!=", False),
+                        ("company_id", "!=", department.company_id.id),
+                    ]
+                )
+            )
+            if stranded:
+                raise ValidationError(
+                    self.env._(
+                        "%(department)s cannot move to %(company)s while it "
+                        "holds %(employees)s of another company.",
+                        department=department.display_name,
+                        company=department.company_id.display_name,
+                        employees=", ".join(stranded.mapped("name")),
+                    )
+                )
+
     @api.depends("member_ids")
     def _compute_total_employee(self):
         emp_data = (

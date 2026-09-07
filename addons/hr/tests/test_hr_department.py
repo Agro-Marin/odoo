@@ -1,3 +1,5 @@
+from odoo.exceptions import ValidationError
+
 from odoo.addons.hr.tests.test_multi_company import TestMultiCompany
 
 
@@ -9,21 +11,45 @@ class TestHrDepartment(TestMultiCompany):
         cls.department = cls.env["hr.department"].create(
             {
                 "name": "test department",
+                "company_id": cls.company_a.id,
+            }
+        )
+        cls.department_b = cls.env["hr.department"].create(
+            {
+                "name": "test department of company B",
+                "company_id": cls.company_b.id,
             }
         )
         cls.employee_a.department_id = cls.department
         cls.employee_other_a.department_id = cls.department
-        cls.employee_b.department_id = cls.department
+        cls.employee_b.department_id = cls.department_b
 
     def test_dapartment_total_employee_count(self):
-        employee_count = self.department.with_company(self.company_a).total_employee
-        self.assertEqual(employee_count, 2)
+        self.assertEqual(self.department.with_company(self.company_a).total_employee, 2)
+        self.department.invalidate_recordset(["total_employee"])
+        self.assertEqual(self.department.total_employee, 2)
+        self.assertEqual(self.department_b.total_employee, 1)
 
-        self.department._compute_total_employee()
-        employee_count = self.department.total_employee
-        self.assertEqual(employee_count, 3)
+    def test_an_employee_cannot_join_another_companys_department(self):
+        with self.assertRaises(ValidationError):
+            self.employee_b.department_id = self.department
+
+    def test_a_department_cannot_move_away_from_its_members(self):
+        with self.assertRaises(ValidationError):
+            self.department.company_id = self.company_b
+
+    def test_a_department_with_no_company_holds_anyone(self):
+        shared = self.env["hr.department"].create(
+            {"name": "shared department", "company_id": False}
+        )
+        self.employee_a.department_id = shared
+        self.employee_b.department_id = shared
+        self.assertEqual(shared.total_employee, 2)
 
     def test_department_company_id(self):
+        self.department = self.env["hr.department"].create(
+            {"name": "company-hopping department"}
+        )
         self.parent_department = self.env["hr.department"].create(
             {
                 "name": "parent of the test department",
@@ -93,3 +119,20 @@ class TestHrDepartment(TestMultiCompany):
                 "ROOT / L1 / L2 / L3 / L4 / L5",
             ],
         )
+
+    def test_moving_to_another_company_requires_settling_the_department_first(self):
+        """The rule bites on the company change too, not only on the assignment.
+
+        `hr.employee.write` applies employee fields before version fields, so a
+        single write carrying both the new company and a cleared department is
+        validated with the new company and the old department still in place.
+        Settling the department first is therefore the supported order, and it
+        is also what a real transfer does.
+        """
+        employee = self.employee_other_a
+        self.assertEqual(employee.department_id, self.department)
+        with self.assertRaises(ValidationError):
+            employee.company_id = self.company_b
+        employee.department_id = False
+        employee.company_id = self.company_b
+        self.assertEqual(employee.company_id, self.company_b)

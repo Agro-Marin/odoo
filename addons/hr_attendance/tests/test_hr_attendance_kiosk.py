@@ -25,11 +25,14 @@ class TestHrAttendanceKiosk(HttpCase):
                 "department_id": cls.department_A.id,
             }
         )
+        cls.department_B = cls.env["hr.department"].create(
+            {"name": "department_B", "company_id": cls.company_A.id}
+        )
         cls.employee_B = cls.env["hr.employee"].create(
             {
                 "name": "employee_B",
                 "company_id": cls.company_A.id,
-                "department_id": cls.department_A.id,
+                "department_id": cls.department_B.id,
             }
         )
 
