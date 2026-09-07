@@ -54,7 +54,11 @@ class IapAccount(models.Model):
         for account in self:
             if account.warning_threshold < 0:
                 raise UserError(_("Please set a positive email alert threshold."))
-            if account.warning_threshold > 0 and not account.warning_user_ids:
+            if (
+                account.warning_threshold > 0
+                and not account.warning_user_ids
+                and not self.env.context.get("disable_iap_update")
+            ):
                 raise UserError(_("Please set at least one email alert recipient."))
             users_with_no_email = [
                 user.name for user in self.warning_user_ids if not user.email

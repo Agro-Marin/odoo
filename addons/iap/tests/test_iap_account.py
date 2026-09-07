@@ -187,3 +187,26 @@ class TestIapAccount(TransactionCase):
         # 'reveal' is an integer_balance service: rounds to a whole unit.
         self.assertEqual(account.balance, "12 Credits")
         self.assertTrue(account.service_locked)
+
+    def test_get_account_information_from_iap_positive_threshold_no_recipient(self):
+        """A positive warning_threshold synced FROM the IAP server, on an
+        account with no local recipient, must not crash the sync (and
+        therefore web_read()) with the same UserError a direct user write
+        would get -- the server is reporting an existing state, not asking
+        for a new one."""
+        account = self.env["iap.account"].create({"service_id": self.service.id})
+        token = account.sudo().account_token
+        fake_payload = {
+            token: {
+                "balance": 5,
+                "warning_threshold": 10,
+                "registered": "registered",
+            }
+        }
+        with (
+            patch.object(iap_account_module.module, "current_test", False),
+            patch.object(iap_tools, "iap_jsonrpc", return_value=fake_payload),
+        ):
+            account._get_account_information_from_iap()
+        self.assertEqual(account.warning_threshold, 10)
+        self.assertFalse(account.warning_user_ids)
