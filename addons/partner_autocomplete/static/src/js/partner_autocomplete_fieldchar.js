@@ -45,9 +45,13 @@ export class PartnerAutoCompleteCharField extends CharField {
         }
 
         if (data.logo) {
-            const logoField =
+            // `data.logo` is a URL (e.g. https://logo.clearbit.com/...), not
+            // base64 image bytes. Writing it under the target field's own
+            // name here means the server will reject it loudly if the
+            // record is ever saved with no further processing in between.
+            const logoUrlField =
                 this.props.record.resModel === "res.partner" ? "image_1920" : "logo";
-            data.company[logoField] = data.logo;
+            data.company[logoUrlField] = data.logo;
         }
 
         const additionalData = {

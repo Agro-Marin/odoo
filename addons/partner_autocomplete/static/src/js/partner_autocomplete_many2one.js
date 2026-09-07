@@ -97,6 +97,9 @@ export class PartnerAutoCompleteMany2one extends Component {
         }
 
         if (data.logo) {
+            // `data.logo` is a URL (e.g. https://logo.clearbit.com/...), not
+            // base64 image bytes - the field name below is only where the
+            // default context key ends up, not what the value actually is.
             context.default_image_1920 = data.logo;
         }
 
