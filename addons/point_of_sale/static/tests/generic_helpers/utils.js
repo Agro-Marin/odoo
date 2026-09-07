@@ -1,6 +1,26 @@
 /* global posmodel */
 
-import { simulateBarCode } from "@barcodes/../tests/legacy/helpers";
+import { triggerEvent } from "@web/../tests/helpers/utils";
+
+/**
+ * Emit a barcode one keydown at a time on <body>, the way a scanner does.
+ *
+ * POS listens for keydown on `document` (see navbar.js), so dispatching on
+ * <body> reaches it and deliberately touches nothing else.
+ *
+ * Not interchangeable with `barcodes/static/tests/barcode_test_helpers.js`:
+ * that one is built on `press` from `@odoo/hoot-dom`, which ships in
+ * `web.assets_unit_tests`, not in the tour bundles this file belongs to -- and
+ * `press` types into the focused element whenever that element is editable,
+ * which a scanner emitting into a screen does not.
+ *
+ * @param {string[]} chars keys to emit, e.g. [..."0100100", "Enter"]
+ */
+function simulateBarCode(chars) {
+    for (const char of chars) {
+        triggerEvent(document.body, undefined, "keydown", { key: char });
+    }
+}
 
 export function negate(selector, parent = "body") {
     return `${parent}:not(:has(${selector}))`;
