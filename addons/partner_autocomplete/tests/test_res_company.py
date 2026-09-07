@@ -2,6 +2,12 @@ from odoo.tests import common, tagged
 
 from odoo.addons.partner_autocomplete.tests.common import MockIAPPartnerAutocomplete
 
+# Two distinct, valid, minimal 1x1 PNGs (base64) used to tell a "manual" logo
+# apart from an "IAP-fetched" one without relying on byte-for-byte equality
+# with the un-reprocessed input (Odoo re-encodes image fields on write).
+MANUAL_LOGO = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+IAP_LOGO = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+
 
 @tagged("post_install", "-at_install")
 class TestResCompany(common.TransactionCase, MockIAPPartnerAutocomplete):
@@ -22,6 +28,19 @@ class TestResCompany(common.TransactionCase, MockIAPPartnerAutocomplete):
             res = company._enrich()
             self.assertTrue(res)
             self.assertEqual(company.country_id, self.env.ref("base.de"))
+
+    def test_enrich_does_not_overwrite_manual_logo(self):
+        """`_enrich()` must not clobber a manually-uploaded company logo."""
+        company = self.env["res.company"].create({"name": "Test Company 2"})
+        company.partner_id.image_1920 = MANUAL_LOGO
+        manual_logo_processed = company.partner_id.image_1920
+
+        company.write({"email": "friedrich@heinrich.de"})
+        with self.mockPartnerAutocomplete(default_data={"image_1920": IAP_LOGO}):
+            res = company._enrich()
+            self.assertTrue(res)
+
+        self.assertEqual(company.partner_id.image_1920, manual_logo_processed)
 
     def test_extract_company_domain(self):
         company_1 = self.env["res.company"].create({"name": "Test Company 1"})
