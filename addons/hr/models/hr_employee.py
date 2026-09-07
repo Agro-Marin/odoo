@@ -20,6 +20,19 @@ from odoo.addons.mail.tools.discuss import Store
 _ALLOW_READ_HR_EMPLOYEE = object()
 
 
+def _searches_for_absence(operator, value):
+    if operator not in ("=", "!=", "in", "not in"):
+        return None
+    operands = (
+        [value]
+        if isinstance(value, str) or not hasattr(value, "__iter__")
+        else list(value)
+    )
+    if not operands or any(operands):
+        return None
+    return operator in ("=", "in")
+
+
 class HrEmployee(models.Model):
     _name = "hr.employee"
     _description = "Employee"
@@ -306,6 +319,7 @@ class HrEmployee(models.Model):
         compute_sudo=True,
         tracking=True,
         groups="hr.group_hr_user",
+        search="_search_passport_expiration_date",
     )
     sex = fields.Selection(
         string="Gender",
@@ -2624,6 +2638,9 @@ class HrEmployee(models.Model):
         "passport_id": "PASSPORT",
         "barcode": "BADGE",
     }
+    _IDENTIFIER_EXPIRY = {
+        "PASSPORT": "passport_expiration_date",
+    }
 
     @api.depends(
         "partner_id.identifier_ids.type_id",
@@ -2638,10 +2655,9 @@ class HrEmployee(models.Model):
             }
             for fname, code in self._IDENTIFIER_TYPES.items():
                 employee[fname] = by_code[code].value if code in by_code else False
-            passport = by_code.get("PASSPORT")
-            employee.passport_expiration_date = (
-                passport.valid_until if passport else False
-            )
+            for code, fname in self._IDENTIFIER_EXPIRY.items():
+                row = by_code.get(code)
+                employee[fname] = row.valid_until if row else False
 
     def _inverse_identifiers(self):
         Type = self.env["res.partner.identifier.type"].sudo()
@@ -2661,8 +2677,8 @@ class HrEmployee(models.Model):
                 value = employee[fname]
                 row = by_code.get(code)
                 vals = {"value": value}
-                if code == "PASSPORT":
-                    vals["valid_until"] = employee.passport_expiration_date
+                if expiry := self._IDENTIFIER_EXPIRY.get(code):
+                    vals["valid_until"] = employee[expiry]
                 if not value:
                     if row:
                         row.unlink()
@@ -2678,10 +2694,14 @@ class HrEmployee(models.Model):
 
     @api.model
     def _search_identifier(self, code, operator, value):
-        if operator in ("=", "!=") and not value:
-            has_one = "any" if operator == "!=" else "not any"
+        absent = _searches_for_absence(operator, value)
+        if absent is not None:
             return [
-                ("partner_id.identifier_ids", has_one, [("type_id.code", "=", code)])
+                (
+                    "partner_id.identifier_ids",
+                    "not any" if absent else "any",
+                    [("type_id.code", "=", code)],
+                )
             ]
         return [
             (
@@ -2703,6 +2723,20 @@ class HrEmployee(models.Model):
     def _search_barcode(self, operator, value):
         return self._search_identifier("BADGE", operator, value)
 
+    def _search_passport_expiration_date(self, operator, value):
+        absent = _searches_for_absence(operator, value)
+        if absent is not None:
+            dated = [("type_id.code", "=", "PASSPORT"), ("valid_until", "!=", False)]
+            has = "not any" if absent else "any"
+            return [("partner_id.identifier_ids", has, dated)]
+        return [
+            (
+                "partner_id.identifier_ids",
+                "any",
+                [("type_id.code", "=", "PASSPORT"), ("valid_until", operator, value)],
+            )
+        ]
+
     def _reparent_private_address(self):
         for employee in self.sudo():
             home = employee.private_address_id
@@ -2711,8 +2745,6 @@ class HrEmployee(models.Model):
                 home.parent_id = contact
 
     def _move_identifiers_to_party(self, former_parties):
-        # The identifiers are the person's; when the employee's party changes
-        # (a login is linked), they follow, like the facet and the bank accounts.
         codes = set(self._IDENTIFIER_TYPES.values())
         for employee in self:
             former = former_parties.get(employee)
@@ -2761,10 +2793,6 @@ class HrEmployee(models.Model):
             employee.is_user = employee.id == user_employee_id
 
     def _retire_former_party(self, former_parties):
-        # The party a link leaves behind is a shell when nothing else is that
-        # person: no login, no other employment, no place in a contact tree.
-        # Its tags join the survivor and it is archived, never left as a live
-        # duplicate contact and never deleted.
         for employee in self:
             former = former_parties.get(employee)
             party = employee.partner_id

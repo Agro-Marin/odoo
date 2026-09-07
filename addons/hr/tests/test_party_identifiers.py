@@ -98,3 +98,53 @@ class TestPartyIdentifiers(TransactionCase):
             .with_user(colleague)
             .search([("partner_id", "=", employee.partner_id.id)])
         )
+
+    def test_the_passport_expiry_can_be_searched(self):
+        Employee = self.env["hr.employee"]
+        expiring = Employee.create(
+            {
+                "name": "Passport Expiring",
+                "passport_id": "P-SOON",
+                "passport_expiration_date": "2030-02-10",
+            }
+        )
+        later = Employee.create(
+            {
+                "name": "Passport Later",
+                "passport_id": "P-LATER",
+                "passport_expiration_date": "2031-02-10",
+            }
+        )
+        none = Employee.create({"name": "No Passport"})
+        undated_holder = Employee.create(
+            {"name": "Passport Undated", "passport_id": "P-UNDATED"}
+        )
+        window = Employee.search(
+            [
+                ("passport_expiration_date", ">=", "2030-01-01"),
+                ("passport_expiration_date", "<=", "2030-12-31"),
+            ]
+        )
+        self.assertIn(expiring, window)
+        self.assertNotIn(later, window)
+        self.assertNotIn(none, window)
+        self.assertNotIn(undated_holder, window)
+        undated = Employee.search([("passport_expiration_date", "=", False)])
+        self.assertIn(none, undated)
+        self.assertIn(undated_holder, undated)
+        self.assertNotIn(expiring, undated)
+        dated = Employee.search([("passport_expiration_date", "!=", False)])
+        self.assertIn(expiring, dated)
+        self.assertNotIn(none, dated)
+        self.assertNotIn(undated_holder, dated)
+
+    def test_an_absent_identifier_can_be_searched(self):
+        Employee = self.env["hr.employee"]
+        carrying = Employee.create({"name": "Has Passport", "passport_id": "P-HAS"})
+        lacking = Employee.create({"name": "Lacks Passport"})
+        without = Employee.search([("passport_id", "=", False)])
+        self.assertIn(lacking, without)
+        self.assertNotIn(carrying, without)
+        with_one = Employee.search([("passport_id", "!=", False)])
+        self.assertIn(carrying, with_one)
+        self.assertNotIn(lacking, with_one)

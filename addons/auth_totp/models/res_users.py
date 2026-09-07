@@ -72,13 +72,10 @@ class ResUsers(models.Model):
 
     @api.depends("totp_secret")
     def _compute_totp_enabled(self):
-        # self and self.sudo() are recordsets over the identical id set, so
-        # they're always equal length - strict=True would be a no-op.
         for r, v in zip(self, self.sudo(), strict=True):
             r.totp_enabled = bool(v.totp_secret)
 
     def _is_rpc_api_key_only(self):
-        # 2FA enabled means we can't allow password-based RPC
         self.check_singleton()
         return self.totp_enabled or super()._is_rpc_api_key_only()
 
@@ -118,10 +115,6 @@ class ResUsers(models.Model):
             _logger.info("2FA enable: REJECT for %s %r", self, self.login)
             return False
 
-        # Rate-limit code-verification attempts here too, matching
-        # _check_credentials' 'totp' branch: without it, the setup wizard's
-        # secret + code pair (the code space is only 10**DIGITS) could be
-        # brute-forced through repeated enable() calls.
         self._totp_rate_limit("code_check")
 
         secret = compress(secret).upper()
@@ -135,7 +128,6 @@ class ResUsers(models.Model):
         self._totp_rate_limit_purge("code_check")
         if request:
             self.env.flush_all()
-            # update session token so the user does not get logged out (cache cleared by change)
             new_token = self.env.user._get_session_token(request.session.sid)
             request.session.session_token = new_token
 
@@ -205,7 +197,6 @@ class ResUsers(models.Model):
 
         if request and self == self.env.user:
             self.env.flush_all()
-            # update session token so the user does not get logged out (cache cleared by change)
             new_token = self.env.user._get_session_token(request.session.sid)
             request.session.session_token = new_token
 
@@ -240,9 +231,6 @@ class ResUsers(models.Model):
 
         secret_bytes_count = TOTP_SECRET_SIZE // 8
         secret = base64.b32encode(os.urandom(secret_bytes_count)).decode()
-        # format secret in groups of 4 characters for readability. TOTP_SECRET_SIZE
-        # is fixed (RFC 4226 R6), so the base32-encoded secret's length is always a
-        # multiple of 4 - strict=True documents/enforces that invariant defensively.
         secret = " ".join(map("".join, zip(*[iter(secret)] * 4, strict=True)))
         w = self.env["auth_totp.wizard"].create(
             {
@@ -291,8 +279,13 @@ class ResUsers(models.Model):
             )
 
     def _totp_enable_search(self, operator, value):
-        value = not value if operator == "!=" else value
-        if value:
+        operands = (
+            [value]
+            if isinstance(value, str) or not hasattr(value, "__iter__")
+            else list(value)
+        )
+        positive = operator in ("=", "in")
+        if positive == bool(any(operands)):
             self.env.cr.execute(
                 "SELECT id FROM res_users WHERE totp_secret IS NOT NULL"
             )
