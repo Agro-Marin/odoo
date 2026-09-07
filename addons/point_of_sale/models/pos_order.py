@@ -93,7 +93,16 @@ class PosOrder(models.Model):
         help="The rate of the currency to the currency of rate applicable at the date of the order",
     )
 
-    is_refund = fields.Boolean(string="Is Refund", readonly=True, default=False)
+    is_refund = fields.Boolean(
+        string="Is Refund",
+        readonly=True,
+        default=False,
+        help="Provenance only: this order was created by refunding another. It "
+        "does NOT carry the sign of any amount -- `price_subtotal`, `total_cost` "
+        "and `amount_total` each carry their own -- and it is not the same "
+        "question as whether the order credits the customer, which is what "
+        "`_is_credit_document` tests.",
+    )
     state = fields.Selection(
         [
             ("draft", "New"),
@@ -782,14 +791,10 @@ class PosOrder(models.Model):
     @api.depends("lines.margin", "is_total_cost_computed")
     def _compute_margins(self):
         for order in self:
-            sign = -1 if order.is_refund else 1
             if order.is_total_cost_computed:
                 order.margin = sum(order.lines.mapped("margin"))
-                amount_untaxed = (
-                    order.currency_id.round(
-                        sum(line.price_subtotal for line in order.lines)
-                    )
-                    * sign
+                amount_untaxed = order.currency_id.round(
+                    sum(line.price_subtotal for line in order.lines)
                 )
                 order.margin_percent = (
                     not float_is_zero(
@@ -2247,9 +2252,18 @@ class PosOrderLine(models.Model):
     )
     price_unit = fields.Float(string="Unit Price", digits=0)
     qty = fields.Float("Quantity", digits="Product Unit", default=1)
-    price_subtotal = fields.Monetary(string="Tax Excl.", readonly=True, required=True)
+    price_subtotal = fields.Monetary(
+        string="Tax Excl.",
+        readonly=True,
+        required=True,
+        help="Carries the sign of `qty`: negative on a refund or a deduction "
+        "line, exactly as `total_cost` and `pos.order.amount_total` do.",
+    )
     price_subtotal_incl = fields.Monetary(
-        string="Tax Incl.", readonly=True, required=True
+        string="Tax Incl.",
+        readonly=True,
+        required=True,
+        help="Carries the sign of `qty`, as `price_subtotal` does.",
     )
     price_extra = fields.Float(string="Price extra")
     price_type = fields.Selection(
@@ -2522,14 +2536,13 @@ class PosOrderLine(models.Model):
 
     def _compute_amount_line_all(self):
         self.check_singleton()
-        sign = -1 if self.order_id.is_refund else 1
         fpos = self.order_id.fiscal_position_id
         tax_ids_after_fiscal_position = fpos.map_tax(self.tax_ids)
         price = self.price_unit * (1 - (self.discount or 0.0) / 100.0)
         taxes = tax_ids_after_fiscal_position.compute_all(
             price,
             self.order_id.currency_id,
-            self.qty * sign,
+            self.qty,
             product=self.product_id,
             partner=self.order_id.partner_id,
         )
@@ -2696,18 +2709,19 @@ class PosOrderLine(models.Model):
     @api.depends("price_subtotal", "total_cost")
     def _compute_margins(self):
         for line in self:
-            sign = -1 if line.order_id.is_refund else 1
             if line.product_id.type == "combo":
                 line.margin = 0
                 line.margin_percent = 0
             else:
-                line.margin = (line.price_subtotal * sign) - line.total_cost
+                # `price_subtotal` and `total_cost` both carry the sign of `qty`,
+                # so the margin is their plain difference.
+                line.margin = line.price_subtotal - line.total_cost
                 line.margin_percent = (
                     not float_is_zero(
                         line.price_subtotal,
                         precision_rounding=line.currency_id.rounding,
                     )
-                    and line.margin / (line.price_subtotal * sign)
+                    and line.margin / line.price_subtotal
                 ) or 0
 
     def _prepare_base_line_for_taxes_computation(self):

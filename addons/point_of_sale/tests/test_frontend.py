@@ -2459,8 +2459,12 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
         refund_order = current_session.order_ids.filtered(lambda order: order.is_refund)
+        # Negative, like the `price_total` and `margin` this same test asserts on
+        # the report below. Those two were already negative while the stored
+        # column was positive, because `pos_order_report` laundered the sign back
+        # in; the column now carries it and the view reads it as it stands.
         self.assertEqual(
-            refund_order.lines[0].price_subtotal, 2 * test_product.list_price
+            refund_order.lines[0].price_subtotal, -2 * test_product.list_price
         )
         total_cash_payment = sum(
             current_session.mapped("order_ids.payment_ids")

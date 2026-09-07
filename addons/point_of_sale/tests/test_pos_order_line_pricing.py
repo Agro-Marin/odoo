@@ -101,20 +101,44 @@ class TestPosOrderLinePricing(TestPoSCommon):
             ),
         )
 
-    def test_refund_line_subtotals_are_magnitudes(self):
-        """A refund line carries a negative quantity and positive subtotals; the
-        sign lives on the order, which is what `_compute_margins` and
-        `_recompute_amounts` both read."""
+    def test_line_subtotals_carry_the_sign_of_their_quantity(self):
+        """One convention, whatever kind of order the line sits on.
+
+        A refund line and a deduction line of identical economic value used to
+        store `+200` and `-100`; every consumer had to join to the order and
+        read `is_refund` to know which it was holding, and `pos_order_report`'s
+        SQL gave up and rebuilt the sign from `qty`.
+        """
+        self.open_new_session()
+        for is_refund in (True, False):
+            order = self._new_order(is_refund=is_refund)
+            line = self._add_line(order, qty=-2)
+            line._onchange_amount_line_all()
+
+            self.assertAlmostEqual(
+                line.price_subtotal,
+                -200.0,
+                msg=f"is_refund={is_refund}: subtotal must follow qty",
+            )
+            self.assertAlmostEqual(line.price_subtotal_incl, -214.0)
+
+            order._recompute_amounts()
+            self.assertAlmostEqual(order.amount_total, -214.0)
+
+    def test_margin_is_the_plain_difference(self):
+        """`price_subtotal` and `total_cost` now carry the same sign, so the
+        margin needs no compensating flip -- and must not have gained one."""
         self.open_new_session()
         order = self._new_order(is_refund=True)
         line = self._add_line(order, qty=-2)
-
         line._onchange_amount_line_all()
-        self.assertAlmostEqual(line.price_subtotal, 200.0)
-        self.assertAlmostEqual(line.price_subtotal_incl, 214.0)
+        line._compute_total_cost(None)
+        order.invalidate_recordset()
+        line.invalidate_recordset()
 
-        order._recompute_amounts()
-        self.assertAlmostEqual(order.amount_total, -214.0)
+        self.assertAlmostEqual(line.total_cost, -100.0)
+        self.assertAlmostEqual(line.margin, -100.0)
+        self.assertAlmostEqual(order.margin, -100.0)
 
     def test_form_created_line_keeps_the_taxes_it_was_priced_with(self):
         """The backend form prices a new line with the product's taxes, so it
