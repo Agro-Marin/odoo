@@ -538,3 +538,72 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
             [payment["session"] for payment in report["payments"]],
             "the quiet session must get its uncounted cash row",
         )
+
+    def _count_session_selects(self, run):
+        """How many times the report goes to pos_session, whatever else it does."""
+        seen = []
+        cursor_class = type(self.env.cr)
+        original = cursor_class.execute
+
+        def record(cr, query, params=None, *args, **kwargs):
+            seen.append(str(query))
+            return original(cr, query, params, *args, **kwargs)
+
+        self.patch(cursor_class, "execute", record)
+        run()
+        return len([q for q in seen if 'FROM "pos_session"' in q])
+
+    def test_the_drawer_history_costs_one_query_not_one_per_session(self):
+        """The uncounted-cash row opens on the previous session's counted total.
+        Looked up inside the per-session loop that is one query per session, so
+        the report's cost grows with the history it covers. Counting the
+        statements rather than the total pins the mechanism: a total moves with
+        every unrelated change, and by one query it would not discriminate."""
+        product = self.create_product("Historic", self.categ_basic, 100)
+        session_ids = []
+        for _index in range(6):
+            session = self._open_session()
+            order = self._order(session, product, 100)
+            self.make_payment(order, self.bank_pm1, 100)
+            session.update_closing_cash_details(0)
+            session.close_session_from_ui()
+            session_ids.append(session.id)
+
+        self.env.invalidate_all()
+        two = self._count_session_selects(
+            lambda: self.report.get_sale_details(session_ids=session_ids[:2])
+        )
+        self.env.invalidate_all()
+        six = self._count_session_selects(
+            lambda: self.report.get_sale_details(session_ids=session_ids)
+        )
+        report = self.report.get_sale_details(session_ids=session_ids)
+        self.assertEqual(
+            len([row for row in report["payments"] if not row["id"]]),
+            6,
+            "each session still gets its own uncounted cash row",
+        )
+        self.assertEqual(
+            six,
+            two,
+            "reporting three times as many sessions must not take more "
+            f"pos_session queries: 2 sessions took {two}, 6 took {six}",
+        )
+
+    def test_discounts_are_counted_in_the_pass_that_reads_the_lines(self):
+        """New coverage, not a regression pin: nothing asserted these two figures,
+        which is why folding them into the product pass could not be verified."""
+        product = self.create_product("Marked Down", self.categ_basic, 100)
+        session = self._open_session()
+        discounted = self._order(session, product, 100, qty=2)
+        discounted.lines.discount = 25
+        discounted.lines._onchange_amount_line_all()
+        self.make_payment(discounted, self.cash_pm1, discounted.amount_total)
+        plain = self._order(session, product, 100)
+        self.make_payment(plain, self.cash_pm1, plain.amount_total)
+
+        report = self.report.get_sale_details(session_ids=[session.id])
+        self.assertEqual(
+            report["discount_number"], 1, "one of the two orders carries a discount"
+        )
+        self.assertEqual(report["discount_amount"], 50.0)

@@ -32,7 +32,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         )
         currency = self._get_report_currency(configs)
 
-        total, sold, refunded = self._accumulate_products_and_taxes(orders, currency)
+        sales = self._accumulate_products_and_taxes(orders, currency)
         payments = self._get_counted_payments(orders, sessions)
 
         return {
@@ -48,12 +48,13 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             "currency": {
                 "symbol": currency.symbol,
                 "position": currency.position == "after",
-                "total_paid": currency.round(total),
+                "total_paid": currency.round(sales["total"]),
                 "precision": currency.decimal_places,
             },
-            **self._prepare_products_section(configs, sold, refunded),
+            "discount_number": sales["discount_number"],
+            "discount_amount": sales["discount_amount"],
+            **self._prepare_products_section(configs, sales["sold"], sales["refunded"]),
             **self._prepare_payments_section(payments, session_ids),
-            **self._prepare_discount_section(orders),
             **self._prepare_invoice_section(sessions),
         }
 
@@ -159,6 +160,8 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         total = 0.0
         sold = self._prepare_sales_accumulator()
         refunded = self._prepare_sales_accumulator()
+        discounted_orders = set()
+        discount_amount = 0.0
         precision = self.env["decimal.precision"].get_precision("Product Unit")
 
         for order in orders:
@@ -179,8 +182,17 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                 self._update_products_and_taxes(
                     line, accumulator, session_currency, precision
                 )
+                if line.discount > 0:
+                    discounted_orders.add(order.id)
+                    discount_amount += line._get_discount_amount()
 
-        return total, sold, refunded
+        return {
+            "total": total,
+            "sold": sold,
+            "refunded": refunded,
+            "discount_number": len(discounted_orders),
+            "discount_amount": discount_amount,
+        }
 
     def _prepare_sales_accumulator(self):
         # Sales and refunds are accumulated into two of these and rendered as two
@@ -359,6 +371,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             .grouped(lambda line: line.pos_session_id.id)
         )
         diff_moves = self._get_closing_difference_moves(sessions, payments)
+        previous_sessions = self._get_previous_closed_sessions(sessions)
 
         counted = []
         for session in sessions:
@@ -366,7 +379,9 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             if not any(payment["cash"] for payment in session_payments):
                 counted.append(
                     self._prepare_uncounted_cash_row(
-                        session, statement_lines_by_session
+                        session,
+                        statement_lines_by_session,
+                        previous_sessions.get(session.id, self.env["pos.session"]),
                     )
                 )
             for payment in session_payments:
@@ -442,15 +457,35 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             session.id, self.env["account.bank.statement.line"]
         ).sorted(lambda line: (line.date, line.id))
 
-    def _prepare_uncounted_cash_row(self, session, statement_lines_by_session):
-        previous_session = self.env["pos.session"].search(
+    def _get_previous_closed_sessions(self, sessions):
+        """The closed session each of these follows, in one query rather than one
+        per session: the uncounted-cash row opens on the previous drawer count."""
+        if not sessions:
+            return {}
+        candidates = self.env["pos.session"].search(
             [
-                ("id", "<", session.id),
+                ("config_id", "in", sessions.config_id.ids),
                 ("state", "=", "closed"),
-                ("config_id", "=", session.config_id.id),
+                ("id", "<", max(sessions.ids)),
             ],
-            limit=1,
+            order="id desc",
         )
+        by_config = candidates.grouped(lambda session: session.config_id.id)
+        return {
+            session.id: next(
+                (
+                    candidate
+                    for candidate in by_config.get(session.config_id.id, ())
+                    if candidate.id < session.id
+                ),
+                self.env["pos.session"],
+            )
+            for session in sessions
+        }
+
+    def _prepare_uncounted_cash_row(
+        self, session, statement_lines_by_session, previous_session
+    ):
         final_count = (
             previous_session.cash_register_balance_end_real
             + session.cash_real_transaction
@@ -594,15 +629,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             "payments_per_method": list(payments_per_method.values()),
             "show_payment_per_method": not session_ids,
             "total_paid": sum(payment["total"] for payment in payments),
-        }
-
-    def _prepare_discount_section(self, orders):
-        discounted_lines = orders.lines.filtered(lambda line: line.discount > 0)
-        return {
-            "discount_number": len(discounted_lines.order_id),
-            "discount_amount": sum(
-                line._get_discount_amount() for line in discounted_lines
-            ),
         }
 
     def _prepare_invoice_section(self, sessions):
