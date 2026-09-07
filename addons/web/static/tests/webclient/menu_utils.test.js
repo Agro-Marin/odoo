@@ -1,9 +1,12 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
+import { registry } from "@web/core/registry";
 import {
     computeAppsAndMenuItems,
+    flattenMenuTree,
     isDefaultHomeMenuConfig,
+    menuSearchKey,
     parseHomeMenuConfig,
     reorderApps,
     serializeHomeMenuConfig,
@@ -281,4 +284,80 @@ test("computeAppsAndMenuItems lists the models an app's menus open", () => {
     };
     const { apps } = computeAppsAndMenuItems(tree);
     expect(apps[0].models).toEqual(["sale.order", "res.partner"]);
+});
+
+test("flattenMenuTree walks a tree once and hands every caller the same result", () => {
+    const tree = makeTree([
+        {
+            id: 1,
+            name: "Sales",
+            xmlid: "sale.menu_root",
+            actionID: 10,
+            children: [{ id: 2, name: "Orders", actionID: 11 }],
+        },
+    ]);
+    const first = flattenMenuTree(tree);
+    const second = flattenMenuTree(tree);
+    expect(second).toBe(first, {
+        message: "the home menu and the command palette share one traversal",
+    });
+    expect(second.apps).toBe(first.apps);
+    // A different tree object is a different answer, which is how a menu
+    // reload invalidates this without a cache key of its own.
+    expect(flattenMenuTree(makeTree([]))).not.toBe(first);
+});
+
+test("reordering a flattened tree's apps is the caller's copy, never the shared array", () => {
+    const tree = makeTree([
+        { id: 1, name: "Sales", xmlid: "a", actionID: 10 },
+        { id: 2, name: "Purchase", xmlid: "b", actionID: 11 },
+    ]);
+    const shared = flattenMenuTree(tree).apps;
+    const mine = [...shared];
+    reorderApps(mine, ["b", "a"]);
+    expect(mine.map((a) => a.xmlid)).toEqual(["b", "a"]);
+    expect(shared.map((a) => a.xmlid)).toEqual(["a", "b"], {
+        message: "one launcher's layout does not reorder another consumer's apps",
+    });
+});
+
+test("menuSearchKey puts a menu's own name before its ancestors, normalized", () => {
+    const menu = { parents: "Sales / Órders", label: "Quotations" };
+    // The deepest name first, accents folded away. The ragged spacing is the
+    // reversal splitting on a bare "/" while the path joins on " / "; it is
+    // the shape the palette has always matched against, and fuzzy matching
+    // does not read the separators, so it is pinned here rather than changed.
+    expect(menuSearchKey(menu)).toBe(" quotations/ orders /sales ");
+    expect(menuSearchKey(menu)).toBe(menuSearchKey(menu), {
+        message: "computed once per entry, so a keystroke re-normalizes nothing",
+    });
+});
+
+test("a launcher's stored order never reaches the command palette, which shares the flatten", async () => {
+    // The two used to traverse the tree separately, so this could not happen.
+    // They share one cached flatten now, and the launcher sorts its apps.
+    const tree = makeTree([
+        { id: 1, name: "Alpha", xmlid: "a", actionID: 10 },
+        { id: 2, name: "Beta", xmlid: "b", actionID: 11 },
+        { id: 3, name: "Gamma", xmlid: "c", actionID: 12 },
+    ]);
+    const shared = flattenMenuTree(tree).apps;
+    expect(shared.map((a) => a.xmlid)).toEqual(["a", "b", "c"]);
+
+    const mine = [...shared];
+    reorderApps(mine, ["c", "b", "a"]);
+    expect(mine.map((a) => a.xmlid)).toEqual(["c", "b", "a"]);
+    expect(flattenMenuTree(tree).apps.map((a) => a.xmlid)).toEqual(["a", "b", "c"], {
+        message: "the shared array is still in menu order",
+    });
+
+    const provider = registry.category("command_provider").get("menu");
+    const result = await provider.provide(
+        { services: { menu: { getMenuAsTree: () => tree } } },
+        { searchValue: "" },
+    );
+    const names = result.filter((r) => r.category === "apps").map((r) => r.name);
+    expect(names).toEqual(["Alpha", "Beta", "Gamma"], {
+        message: "the palette lists apps in menu order regardless",
+    });
 });

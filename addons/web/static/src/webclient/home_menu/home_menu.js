@@ -23,7 +23,8 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { session } from "@web/session";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 import {
-    computeAppsAndMenuItems,
+    flattenMenuTree,
+    menuSearchKey,
     parseHomeMenuConfig,
     serializeHomeMenuConfig,
 } from "@web/webclient/menus/menu_utils";
@@ -31,6 +32,10 @@ import {
 import { loadHomeMenuBadges } from "./badges.js";
 import { ExpirationPanel } from "./expiration_panel.js";
 import { SysAdminPanel } from "./sysadmin_panel.js";
+
+// A stable object, so a menu service without `getMenuAsTree` still resolves
+// against the flattened-tree cache instead of missing it on a fresh literal.
+const EMPTY_MENU_TREE = { childrenTree: [] };
 
 const APPS_PER_ROW = 6;
 const RECENT_APPS = 6;
@@ -50,19 +55,13 @@ class FooterComponent extends Component {
 }
 
 /**
- * @typedef {{
- *  actionID: number;
- *  href: string;
- *  appID: number;
- *  id: number;
- *  label: string;
- *  parents: string;
- *  module?: string;
- *  models?: string[];
- *  webIcon?: boolean | string | { iconClass: string; color: string; backgroundColor: string };
- *  webIconData?: string;
- *  xmlid: string;
- * }} HomeMenuApp
+ * The launcher's name for what `computeAppsAndMenuItems` calls an app. It was
+ * a second declaration of the same record, and the two had drifted: this one
+ * made `xmlid` required, which every reader of it already disbelieved --
+ * `isPinned`, `isHidden`, `badgeFor` and `_sortAppDrop` all test it against
+ * `undefined` first.
+ *
+ * @typedef {import("@web/webclient/menus/menu_utils").AppEntry} HomeMenuApp
  */
 
 /**
@@ -124,10 +123,27 @@ export class HomeMenu extends Component {
         },
     };
 
-    /** @type {{ focusedIndex: number | null; isIosApp: boolean; editing: boolean; badges: Record<string, number> }} */
+    /**
+     * @type {{
+     *  focusedIndex: number | null;
+     *  isIosApp: boolean;
+     *  editing: boolean;
+     *  badges: Record<string, number>;
+     *  query: string;
+     * }}
+     */
     state;
     /** @type {import("@web/webclient/menus/menu_utils").HomeMenuConfig} */
     config;
+    /**
+     * The layout this user falls back to, their company's or the empty one.
+     * A field and not a getter: making the current layout the company default
+     * moves it, and a getter minting a fresh object per call would move a copy
+     * nobody reads.
+     *
+     * @type {import("@web/webclient/menus/menu_utils").HomeMenuConfig}
+     */
+    defaultConfig;
     /** @type {boolean} */
     compositionStart = false;
     /** @type {boolean} */
@@ -167,6 +183,7 @@ export class HomeMenu extends Component {
         this.config = useState(
             this.props.config ?? reactive(parseHomeMenuConfig(null)),
         );
+        this.defaultConfig = this.props.defaultConfig ?? parseHomeMenuConfig(null);
         this.inputRef = useRef("input");
         this.rootRef = useRef("root");
 
@@ -187,9 +204,11 @@ export class HomeMenu extends Component {
         onWillUpdateProps((nextProps) => {
             // State is reset on each remount
             this.state.focusedIndex = null;
-            this.menuItems = undefined;
             if (nextProps.config && nextProps.config !== this.props.config) {
                 this.config = reactive(nextProps.config, () => this.render());
+            }
+            if (nextProps.defaultConfig) {
+                this.defaultConfig = nextProps.defaultConfig;
             }
         });
 
@@ -237,8 +256,11 @@ export class HomeMenu extends Component {
         return [...this.pinnedApps, ...this.unpinnedApps];
     }
 
-    /** @returns {HomeMenuApp[]} */
-    /** The apps the layout shows, before any query. */
+    /**
+     * The apps the layout shows, before any query.
+     *
+     * @returns {HomeMenuApp[]}
+     */
     get shownApps() {
         return this.displayedApps.filter((app) => this._isShown(app));
     }
@@ -267,7 +289,15 @@ export class HomeMenu extends Component {
         return this.shownApps.filter((app) => !this.isPinned(app));
     }
 
-    /** @returns {HomeMenuApp[]} */
+    /**
+     * Reads `visibleApps` and not the cheaper `shownApps`, which holds the
+     * same apps in a different order: `menuUsage.rank` sorts by frecency, and
+     * `Array.sort` is stable, so two entries on the same count and the same
+     * millisecond keep the order they arrived in. Rare, but it is a difference
+     * in what the user sees, and the grid order is the one to show it in.
+     *
+     * @returns {HomeMenuApp[]}
+     */
     get recentApps() {
         return this.state.query ? [] : menuUsage.rank(this.visibleApps, RECENT_APPS);
     }
@@ -282,22 +312,17 @@ export class HomeMenu extends Component {
         if (!this.state.query) {
             return [];
         }
-        this.menuItems ??= computeAppsAndMenuItems(
-            this.menus.getMenuAsTree?.("root") ?? { childrenTree: [] },
-        ).menuItems;
-        return fuzzyLookup(this.state.query, this.menuItems, (menu) =>
-            `${menu.parents} / ${menu.label}`.split("/").reverse().join("/"),
-        ).slice(0, MENU_MATCHES);
+        const { menuItems } = flattenMenuTree(
+            this.menus.getMenuAsTree?.("root") ?? EMPTY_MENU_TREE,
+        );
+        return fuzzyLookup(this.state.query, menuItems, menuSearchKey, {
+            preNormalized: true,
+        }).slice(0, MENU_MATCHES);
     }
 
     /** @returns {boolean} */
     get canEditLayout() {
         return true;
-    }
-
-    /** @returns {import("@web/webclient/menus/menu_utils").HomeMenuConfig} */
-    get defaultConfig() {
-        return this.props.defaultConfig ?? parseHomeMenuConfig(null);
     }
 
     /** @returns {boolean} */
@@ -429,7 +454,7 @@ export class HomeMenu extends Component {
         this.config.order = [...defaults.order];
         this.config.pinned = [...defaults.pinned];
         this.config.hidden = [...defaults.hidden];
-        this.props.resetApps?.();
+        this.props.resetApps?.(defaults.order);
         // No layout of their own: the user follows the company's again.
         return user.setUserSettings("homemenu_config", null);
     }
@@ -440,10 +465,10 @@ export class HomeMenu extends Component {
             homemenu_default_config: config,
         });
         session.homemenu_default_config = config;
-        const defaults = this.defaultConfig;
-        defaults.order = [...this.config.order];
-        defaults.pinned = [...this.config.pinned];
-        defaults.hidden = [...this.config.hidden];
+        // The company's layout is this one now, so this user has nothing of
+        // their own left to reset. A copy, because the props object belongs to
+        // whoever passed it.
+        this.defaultConfig = parseHomeMenuConfig(config);
         this.render();
     }
 
@@ -470,7 +495,6 @@ export class HomeMenu extends Component {
         }
     }
 
-    /** Enter in the search box: the selected tile, else the first match. */
     /**
      * The item the keyboard selection points at: a tile, or past the tiles a
      * matching menu.
@@ -484,24 +508,15 @@ export class HomeMenu extends Component {
             : this.menuMatches[index - apps.length];
     }
 
-    /** @param {number} index */
-    isMenuResultFocused(index) {
-        return this.state.focusedIndex === this.visibleApps.length + index;
-    }
-
-    /** @param {number} index */
-    _onMenuResultFocus(index) {
-        this.state.focusedIndex = this.visibleApps.length + index;
-    }
-
     _onEnter() {
         const focusedIndex = this.state.focusedIndex;
         if (focusedIndex !== null) {
+            const appCount = this.visibleApps.length;
             const item = this.keyboardItem(focusedIndex);
             if (!item) {
                 return;
             }
-            return focusedIndex < this.visibleApps.length
+            return focusedIndex < appCount
                 ? this._openMenu(/** @type {HomeMenuApp} */ (item))
                 : this.menus.selectMenu(item);
         }
@@ -523,10 +538,6 @@ export class HomeMenu extends Component {
         return this.menus.selectMenu(menu);
     }
 
-    /**
-     * Update this.state.focusedIndex if not null.
-     * @param {string} cmd
-     */
     /**
      * The tiles as rows: the pinned ones first, then the rest, each section
      * wrapping at the grid's width, so the arrows follow what is on screen.
@@ -658,8 +669,8 @@ export class HomeMenu extends Component {
         this._openMenu(app);
     }
 
-    /** @param {number} index */
-    _onAppFocus(index) {
+    /** @param {number} index into the flat keyboard order */
+    _onItemFocus(index) {
         this.state.focusedIndex = index;
     }
 

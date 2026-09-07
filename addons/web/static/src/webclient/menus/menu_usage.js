@@ -37,11 +37,6 @@ function write(table) {
     } catch {}
 }
 
-/**
- * @param {UsageEntry} entry
- * @param {number} now
- * @returns {number}
- */
 /** @param {unknown} entry */
 function isUsed(entry) {
     return (
@@ -51,6 +46,11 @@ function isUsed(entry) {
     );
 }
 
+/**
+ * @param {UsageEntry | undefined} entry
+ * @param {number} now
+ * @returns {number}
+ */
 function frecency(entry, now) {
     const count = Number(entry?.n) || 0;
     const last = Number(entry?.t) || 0;
@@ -69,16 +69,17 @@ export const menuUsage = {
         if (!menu.xmlid) {
             return;
         }
+        const now = Date.now();
         const table = read();
         const entry = table[menu.xmlid] || { n: 0, t: 0 };
-        table[menu.xmlid] = { n: entry.n + 1, t: Date.now() };
+        table[menu.xmlid] = { n: entry.n + 1, t: now };
         const xmlids = Object.keys(table);
         if (xmlids.length > MAX_ENTRIES) {
+            // One clock reading for the whole eviction: a comparator that
+            // re-reads it scores the same entry differently in two comparisons,
+            // which is not an ordering.
             xmlids
-                .sort(
-                    (a, b) =>
-                        frecency(table[a], Date.now()) - frecency(table[b], Date.now()),
-                )
+                .sort((a, b) => frecency(table[a], now) - frecency(table[b], now))
                 .slice(0, xmlids.length - MAX_ENTRIES)
                 .forEach((xmlid) => delete table[xmlid]);
         }

@@ -14,7 +14,7 @@ import {
     standardActionServiceProps,
 } from "@web/webclient/actions";
 import {
-    computeAppsAndMenuItems,
+    flattenMenuTree,
     isDefaultHomeMenuConfig,
     parseHomeMenuConfig,
     reorderApps,
@@ -65,33 +65,60 @@ export class HomeMenuState {
 }
 
 /**
+ * The apps in the order a launcher shows them and the layout that ordered
+ * them: what both the home menu and the quick launcher start from, without the
+ * reactivity and the callbacks only the home menu needs.
+ *
  * @param {import("services").ServiceFactories["menu"]} menus
- * @returns {import("./home_menu.js").HomeMenu["props"]}
+ * @returns {{
+ *  apps: import("./home_menu.js").HomeMenuApp[],
+ *  config: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
+ *  defaultConfig: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
+ *  defaultOrder: string[],
+ * }}
  */
-export function computeHomeMenuProps(menus) {
+export function computeHomeMenuLayout(menus) {
     // The company's default applies until the user has a layout of their own;
     // a layout is the user's whole answer, never a per-field merge.
     const defaultConfig = parseHomeMenuConfig(session.homemenu_default_config);
     const own = parseHomeMenuConfig(user.settings?.homemenu_config);
-    const config = reactive(
-        isDefaultHomeMenuConfig(own) ? parseHomeMenuConfig(defaultConfig) : own,
-    );
-    const apps = reactive(computeAppsAndMenuItems(menus.getMenuAsTree("root")).apps);
+    const config = isDefaultHomeMenuConfig(own)
+        ? parseHomeMenuConfig(defaultConfig)
+        : own;
+    // A copy: the flattened tree is shared with the palette, and reordering
+    // sorts in place.
+    const apps = [...flattenMenuTree(menus.getMenuAsTree("root")).apps];
     const defaultOrder = apps.flatMap((app) =>
         app.xmlid === undefined ? [] : [app.xmlid],
     );
     if (config.order.length) {
         reorderApps(apps, config.order);
     }
+    return { apps, config, defaultConfig, defaultOrder };
+}
+
+/**
+ * @param {import("services").ServiceFactories["menu"]} menus
+ * @returns {import("./home_menu.js").HomeMenu["props"]}
+ */
+export function computeHomeMenuProps(menus) {
+    const layout = computeHomeMenuLayout(menus);
+    const { defaultConfig, defaultOrder } = layout;
+    const apps = reactive(layout.apps);
+    const config = reactive(layout.config);
     return {
         apps,
         config,
         defaultConfig,
         reorderApps: (/** @type {string[]} */ order) => reorderApps(apps, order),
-        resetApps: () => {
+        // The order comes from the caller: the component owns the fallback
+        // layout and can be handed a new one (an admin publishing the current
+        // layout as the company's), so a closure over the layout read at mount
+        // would reset the tiles to a default that has since been replaced.
+        resetApps: (/** @type {string[]} */ order) => {
             reorderApps(apps, defaultOrder);
-            if (defaultConfig.order.length) {
-                reorderApps(apps, defaultConfig.order);
+            if (order?.length) {
+                reorderApps(apps, order);
             }
         },
     };

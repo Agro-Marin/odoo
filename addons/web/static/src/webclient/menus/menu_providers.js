@@ -8,7 +8,7 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { DefaultCommandItem } from "@web/ui/commands/command_palette";
 
 import { menuUsage } from "./menu_usage.js";
-import { computeAppsAndMenuItems } from "./menu_utils.js";
+import { flattenMenuTree, menuSearchKey } from "./menu_utils.js";
 
 const RECENT_MENU_ITEMS = 5;
 
@@ -32,21 +32,6 @@ commandSetupRegistry.add("/", {
     placeholder: _t("Search for a menu..."),
 });
 
-/**
- * @type {WeakMap<object, ReturnType<typeof computeAppsAndMenuItems>>}
- */
-const flattenedTrees = new WeakMap();
-
-/** @param {object} tree */
-function flattenMenuTree(tree) {
-    let flattened = flattenedTrees.get(tree);
-    if (!flattened) {
-        flattened = computeAppsAndMenuItems(tree);
-        flattenedTrees.set(tree, flattened);
-    }
-    return flattened;
-}
-
 const commandProviderRegistry = registry.category("command_provider");
 commandProviderRegistry.add("menu", {
     namespace: "/",
@@ -65,9 +50,9 @@ commandProviderRegistry.add("menu", {
             matchingItems = menuUsage.rank(menuItems, RECENT_MENU_ITEMS);
         } else {
             apps = fuzzyLookup(options.searchValue, apps, (menu) => menu.label);
-            matchingItems = fuzzyLookup(options.searchValue, menuItems, (menu) =>
-                `${menu.parents} / ${menu.label}`.split("/").reverse().join("/"),
-            );
+            matchingItems = fuzzyLookup(options.searchValue, menuItems, menuSearchKey, {
+                preNormalized: true,
+            });
         }
         matchingItems.forEach((menu) => {
             result.push({

@@ -5,17 +5,20 @@ import {
     click,
     describe,
     drag,
+    edit,
     expect,
     mockDate,
     mockTouch,
     pointerDown,
     press,
+    queryAllAttributes,
     queryAllTexts,
     queryOne,
     runAllTimers,
     test,
 } from "@odoo/hoot";
 import { reactive } from "@odoo/owl";
+import { onRendered } from "@odoo/owl";
 import {
     defineMenus,
     getService,
@@ -29,6 +32,7 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { session } from "@web/session";
 import { HomeMenu } from "@web/webclient/home_menu/home_menu";
+import { computeHomeMenuProps } from "@web/webclient/home_menu/home_menu_service";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 import { parseHomeMenuConfig, reorderApps } from "@web/webclient/menus/menu_utils";
 import { WebClient } from "@web/webclient/webclient";
@@ -692,6 +696,33 @@ test("an admin can make the current layout the company default", async () => {
     expect(".o_home_menu_company_default").toHaveCount(0);
 });
 
+test("setting the company default with no default passed in still clears the reset", async () => {
+    // `defaultConfig` is an optional prop, and the fallback used to be minted
+    // fresh per read: the layout was written to a copy nobody read, so the
+    // launcher went on offering to reset a layout that was now the default.
+    patchWithCleanup(user, { isAdmin: true });
+    onRpc("set_res_users_settings", () => ({}));
+    onRpc("res.company", "write", () => true);
+    const props = getLayoutProps();
+    delete props.defaultConfig;
+    const homeMenu = await mountWithCleanup(HomeMenu, { props });
+
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    await click(".o_app[data-menu-xmlid='app.3'] .o_app_hide");
+    await animationFrame();
+    expect(".o_home_menu_reset").toHaveCount(1);
+    expect(".o_home_menu_company_default").toHaveCount(1);
+
+    await click(".o_home_menu_company_default");
+    await animationFrame();
+    expect(homeMenu.defaultConfig.hidden).toEqual(["app.3"]);
+    expect(".o_home_menu_reset").toHaveCount(0, {
+        message: "this layout is the company's now, so there is nothing to reset",
+    });
+    expect(".o_home_menu_company_default").toHaveCount(0);
+});
+
 test("a user without a layout of their own gets the company default", async () => {
     patchWithCleanup(session, {
         homemenu_default_config: {
@@ -988,4 +1019,125 @@ test("with a query on, the arrows walk the tiles and then the matching menus", a
 
     await press("enter");
     expect.verifySteps(["selectMenu 22"]);
+});
+
+/**
+ * @param {string[]} xmlids
+ * @param {number} [childrenPerApp] deeper menus, which is what the search box
+ *  lists under the tiles
+ */
+function menuTreeOf(xmlids, childrenPerApp = 0) {
+    let childId = 10000;
+    return {
+        id: "root",
+        name: "root",
+        appID: "root",
+        childrenTree: xmlids.map((xmlid, i) => ({
+            id: i + 1,
+            appID: i + 1,
+            name: xmlid.toUpperCase(),
+            actionID: 100 + i,
+            xmlid,
+            webIcon: false,
+            childrenTree: Array.from({ length: childrenPerApp }, (_, c) => ({
+                id: childId++,
+                appID: i + 1,
+                name: `App submenu ${c}`,
+                actionID: childId,
+                xmlid: `${xmlid}.sub${c}`,
+                childrenTree: [],
+            })),
+        })),
+    };
+}
+
+test("reset after publishing a company default returns the TILES to it, not only the config", async () => {
+    // resetApps used to close over the layout read at mount, so publishing a
+    // new company default left it resetting to the old one: the config said
+    // one order and the grid showed another.
+    patchWithCleanup(user, { isAdmin: true, settings: {} });
+    patchWithCleanup(session, { homemenu_default_config: null });
+    onRpc("set_res_users_settings", () => ({}));
+    onRpc("res.company", "write", () => true);
+    const tree = menuTreeOf(["a", "b", "c"]);
+    const menus = { getMenuAsTree: () => tree, selectMenu: () => {} };
+    mockService("menu", menus);
+    const props = computeHomeMenuProps(menus);
+    const homeMenu = await mountWithCleanup(HomeMenu, { props });
+
+    props.reorderApps(["c", "a", "b"]);
+    homeMenu.config.order = ["c", "a", "b"];
+    await homeMenu._setCompanyDefault();
+    await animationFrame();
+
+    props.reorderApps(["b", "c", "a"]);
+    homeMenu.config.order = ["b", "c", "a"];
+    await animationFrame();
+    expect(queryAllAttributes(".o_apps .o_app", "data-menu-xmlid")).toEqual([
+        "b",
+        "c",
+        "a",
+    ]);
+
+    await homeMenu._resetLayout();
+    await animationFrame();
+    expect(homeMenu.config.order).toEqual(["c", "a", "b"]);
+    expect(queryAllAttributes(".o_apps .o_app", "data-menu-xmlid")).toEqual(
+        ["c", "a", "b"],
+        { message: "the grid follows the company default the admin just set" },
+    );
+});
+
+test("a keystroke evaluates each derived list once per render, not once per result row", async () => {
+    // The matching-menu rows used to ask for the app grid's length one row at
+    // a time, so eight rows rebuilt the pinned map and the fuzzy-matched list
+    // eight times over, per render, per character typed.
+    const counts = { shownApps: 0, pinnedApps: 0, unpinnedApps: 0, menuMatches: 0 };
+    let renders = 0;
+    class Counted extends HomeMenu {
+        setup() {
+            super.setup();
+            onRendered(() => renders++);
+        }
+    }
+    for (const name of Object.keys(counts)) {
+        const desc = Object.getOwnPropertyDescriptor(HomeMenu.prototype, name);
+        Object.defineProperty(Counted.prototype, name, {
+            ...desc,
+            get() {
+                counts[name]++;
+                return desc.get.call(this);
+            },
+        });
+    }
+    const xmlids = Array.from({ length: 20 }, (_, i) => `app${i}`);
+    const tree = menuTreeOf(xmlids, 5);
+    mockService("menu", { getMenuAsTree: () => tree, selectMenu: () => {} });
+    const apps = xmlids.map((xmlid, i) => ({
+        actionID: 100 + i,
+        href: `/odoo/action-${100 + i}`,
+        appID: i + 1,
+        id: i + 1,
+        label: `App ${i}`,
+        parents: "",
+        webIcon: false,
+        xmlid,
+    }));
+    await mountWithCleanup(Counted, {
+        props: { apps, reorderApps: (o) => reorderApps(apps, o) },
+    });
+    await animationFrame();
+    renders = 0;
+    for (const k of Object.keys(counts)) {
+        counts[k] = 0;
+    }
+    await click(".o_home_menu_search");
+    await edit("app", { confirm: false });
+    await animationFrame();
+
+    expect(renders).toBe(3, { message: "one render per character" });
+    expect(".o_menu_result").toHaveCount(8, { message: "eight rows on screen" });
+    for (const [name, n] of Object.entries(counts)) {
+        expect(n).toBe(renders, { message: `${name}: once per render` });
+    }
 });

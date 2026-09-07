@@ -1,6 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
+import { normalize } from "@web/core/l10n/utils";
+
 /**
  * @param {Object} tree
  * @param {Function} cb
@@ -41,11 +43,28 @@ export function menuHref(menu) {
  */
 
 /**
+ * An app: a menu whose id is its own appID. `computeAppsAndMenuItems` pushes
+ * one only for a node carrying both an id and an action, and gives every one
+ * of them an icon, so a launcher can read those fields off any app without
+ * checking. `MenuEntry` alone does not say that, being the type of the deeper
+ * menus too.
+ *
+ * @typedef {MenuEntry & {
+ *  actionID: number|string,
+ *  appID: number,
+ *  href: string,
+ *  id: number,
+ *  label: string,
+ *  parents: string,
+ * }} AppEntry
+ */
+
+/**
  * @param {Object} menuTree
- * @returns {{ apps: MenuEntry[], menuItems: MenuEntry[] }}
+ * @returns {{ apps: AppEntry[], menuItems: MenuEntry[] }}
  */
 export function computeAppsAndMenuItems(menuTree) {
-    /** @type {MenuEntry[]} */
+    /** @type {AppEntry[]} */
     const apps = [];
     /** @type {MenuEntry[]} */
     const menuItems = [];
@@ -105,6 +124,55 @@ export function computeAppsAndMenuItems(menuTree) {
         app.models = [...(modelsByApp.get(/** @type {number} */ (app.appID)) || [])];
     }
     return { apps, menuItems };
+}
+
+/** @type {WeakMap<Object, { apps: AppEntry[], menuItems: MenuEntry[] }>} */
+const flattenedTrees = new WeakMap();
+
+/**
+ * `computeAppsAndMenuItems` over a tree, cached on the tree object itself.
+ * `menuService.getMenuAsTree` hands back the same object until the menus
+ * change and a fresh one after, so the cache needs no invalidating of its own
+ * and a tree is walked once for all of its consumers rather than once each.
+ *
+ * The two arrays are shared with every other caller: reorder a copy, never
+ * what this returns.
+ *
+ * @param {Object} menuTree
+ * @returns {{ apps: AppEntry[], menuItems: MenuEntry[] }}
+ */
+export function flattenMenuTree(menuTree) {
+    let flattened = flattenedTrees.get(menuTree);
+    if (!flattened) {
+        flattened = computeAppsAndMenuItems(menuTree);
+        flattenedTrees.set(menuTree, flattened);
+    }
+    return flattened;
+}
+
+/** @type {WeakMap<object, string>} */
+const searchKeys = new WeakMap();
+
+/**
+ * What a menu entry is matched against: its own name first and its ancestors
+ * behind it, so "quotations" ranks "Sales / Orders / Quotations" above a menu
+ * named after its app. Normalized once here and searched `preNormalized`, so
+ * a keystroke re-normalizes nothing: normalizing is two Unicode passes and a
+ * regex per string, and a query runs over every menu in the database.
+ *
+ * @param {{ parents: string, label: string }} menu the two fields it reads,
+ *  rather than a whole `MenuEntry`, which is more than it needs
+ * @returns {string}
+ */
+export function menuSearchKey(menu) {
+    let key = searchKeys.get(menu);
+    if (key === undefined) {
+        key = normalize(
+            `${menu.parents} / ${menu.label}`.split("/").reverse().join("/"),
+        );
+        searchKeys.set(menu, key);
+    }
+    return key;
 }
 
 /**

@@ -61,3 +61,29 @@ test("a corrupt or foreign table reads as empty, a malformed entry as unused", (
         message: "an entry without a positive count was never a use",
     });
 });
+
+test("rank keeps the caller's order when frecency ties, so the input order is part of the answer", () => {
+    // Not a curiosity: it is why the home menu ranks its recents over the grid
+    // order rather than over the cheaper unsorted list. Array.sort is stable,
+    // so entries on the same count and the same millisecond come back in the
+    // order they went in.
+    browser.localStorage.setItem(
+        `webclient_menu_usage:${user.userId}`,
+        JSON.stringify({
+            "app.sale": { n: 3, t: 1000 },
+            "app.crm": { n: 3, t: 1000 },
+            "app.stock": { n: 3, t: 1000 },
+        }),
+    );
+    const tied = apps.slice(0, 3);
+    expect(menuUsage.rank(tied).map((a) => a.xmlid)).toEqual([
+        "app.sale",
+        "app.crm",
+        "app.stock",
+    ]);
+    expect(menuUsage.rank([tied[2], tied[0], tied[1]]).map((a) => a.xmlid)).toEqual([
+        "app.stock",
+        "app.sale",
+        "app.crm",
+    ]);
+});

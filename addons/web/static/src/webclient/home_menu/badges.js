@@ -29,7 +29,10 @@ export async function loadHomeMenuBadges(env, apps) {
             console.warn("Home menu badge provider failed", result.reason);
             continue;
         }
-        for (const [xmlid, count] of Object.entries(result.value || {})) {
+        for (const [xmlid, value] of Object.entries(result.value || {})) {
+            // Coerced, not trusted: a provider is addon code, and a count that
+            // is not a number would concatenate into every later sum.
+            const count = Number(value);
             if (count > 0) {
                 badges[xmlid] = (badges[xmlid] || 0) + count;
             }

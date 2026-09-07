@@ -42,6 +42,10 @@
             </nav>
             <t t-set="pinned" t-value="pinnedApps"/>
             <t t-set="unpinned" t-value="unpinnedApps"/>
+            <!-- Read once: each of these walks every app or every menu in the
+                 database, and the branches below ask for them more than once. -->
+            <t t-set="menuResults" t-value="menuMatches"/>
+            <t t-set="menuIndexOffset" t-value="pinned.length + unpinned.length"/>
             <div t-if="pinned.length or unpinned.length" id="o_apps_listbox" role="list" aria-label="Apps" class="o_apps_listbox user-select-none" t-att-class="{'mt-5': !recents.length, 'mt-3': recents.length, o_home_menu_editing: state.editing}">
                 <div t-if="pinned.length" class="o_pinned_apps mb-2">
                     <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Pinned</div>
@@ -66,13 +70,12 @@
             <div t-elif="!state.query" class="o_no_result">
                 No apps available
             </div>
-            <div t-elif="!menuMatches.length" class="o_no_result text-center text-muted mt-5">
+            <div t-elif="!menuResults.length" class="o_no_result text-center text-muted mt-5">
                 No apps or menus match
             </div>
-            <t t-set="menuResults" t-value="menuMatches"/>
             <nav t-if="menuResults.length" class="o_home_menu_menu_results mx-auto mt-3" aria-label="Matching menus">
                 <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Menus</div>
-                <a t-foreach="menuResults" t-as="menu" t-key="menu.id" t-att-id="'result_menu_' + menu_index" class="o_menu_result o_menuitem d-block px-2 py-1 rounded text-decoration-none" t-att-class="{o_focused: isMenuResultFocused(menu_index)}" t-att-href="menu.href" t-on-click.prevent="() => this._onMenuResultClick(menu)" t-on-focus="() => this._onMenuResultFocus(menu_index)">
+                <a t-foreach="menuResults" t-as="menu" t-key="menu.id" t-att-id="'result_menu_' + menu_index" class="o_menu_result o_menuitem d-block px-2 py-1 rounded text-decoration-none" t-att-class="{o_focused: state.focusedIndex === menuIndexOffset + menu_index}" t-att-href="menu.href" t-on-click.prevent="() => this._onMenuResultClick(menu)" t-on-focus="() => this._onItemFocus(menuIndexOffset + menu_index)">
                     <span class="text-muted" t-esc="menu.parents"/><span class="text-muted"> / </span><span t-esc="menu.label"/>
                 </a>
             </nav>
@@ -90,7 +93,7 @@
         t-att-data-hotkey="gridIndex !== undefined and gridIndex &lt; directJumpHotkeys ? '' + (gridIndex + 1) : undefined"
         t-att-href="app.href"
         t-on-click.prevent="() => this._onAppClick(app)"
-        t-on-focus="() => gridIndex !== undefined and this._onAppFocus(gridIndex)"
+        t-on-focus="() => gridIndex !== undefined and this._onItemFocus(gridIndex)"
         >
         <img t-if="app.webIconData" class="o_app_icon rounded-3" alt=""
             t-attf-src="{{app.webIconData}}"
@@ -100,7 +103,7 @@
         >
             <i t-attf-class="{{app.webIcon.iconClass}} position-relative w-auto h-auto" t-attf-style="color: {{app.webIcon.color}};"/>
         </div>
-        <div class="o_caption w-100 text-center text-truncate mt-2" t-esc="app.label or app.name"/>
+        <div class="o_caption w-100 text-center text-truncate mt-2" t-esc="app.label"/>
         <t t-set="badge" t-value="badgeFor(app)"/>
         <span t-if="badge and !state.editing" class="o_app_badge badge rounded-pill text-bg-danger position-absolute" t-att-aria-label="badgeLabel(badge)" t-esc="badge > 99 ? '99+' : badge"/>
         <div t-if="state.editing and gridIndex !== undefined and app.xmlid" class="o_app_edit_actions position-absolute top-0 end-0 d-flex gap-1 p-1">

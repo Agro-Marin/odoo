@@ -7,7 +7,7 @@ import { useService } from "@web/core/utils/hooks";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 
 import { loadHomeMenuBadges } from "./badges.js";
-import { computeHomeMenuProps } from "./home_menu_service.js";
+import { computeHomeMenuLayout } from "./home_menu_service.js";
 
 const TILES = 12;
 
@@ -37,7 +37,9 @@ export class QuickLauncher extends Component {
         this.homeMenu = useService("home_menu");
         this.command = useService("command");
         this.state = useState({ badges: {} });
-        const { apps, config } = computeHomeMenuProps(this.menus);
+        // The layout, not the home menu's props: the popover reorders
+        // nothing, so it needs neither the reactive wrappers nor the callbacks.
+        const { apps, config } = computeHomeMenuLayout(this.menus);
         this.apps = this._pickApps(apps, config);
         // Counts arrive after the tiles: a slow provider must not hold the popover.
         onMounted(async () => {
@@ -58,7 +60,9 @@ export class QuickLauncher extends Component {
         const shown = apps.filter(
             (app) => app.xmlid === undefined || !config.hidden.includes(app.xmlid),
         );
-        const byXmlid = new Map(shown.map((app) => [app.xmlid, app]));
+        const byXmlid = new Map(
+            shown.flatMap((app) => (app.xmlid === undefined ? [] : [[app.xmlid, app]])),
+        );
         const pinned = config.pinned.flatMap((xmlid) => {
             const app = byXmlid.get(xmlid);
             return app ? [app] : [];
