@@ -28,6 +28,11 @@ ERROR_MESSAGES = {
     "banned_account": _lt(
         "This phone number/account has been banned from our service."
     ),
+    # Errors that any of the three registration calls can return
+    "country_not_supported": _lt(
+        "Your country is not supported due to sender registration legislation."
+    ),
+    "not_active_db": _lt("Your database is not activated."),
     # Errors that could occur while verifying the code
     "invalid_code": _lt("The verification code is incorrect."),
     "no_sms_account": _lt("We were not able to find your account in our database."),
