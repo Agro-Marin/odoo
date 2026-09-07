@@ -1,3 +1,4 @@
+from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
 
 from odoo.fields import Command
@@ -696,4 +697,63 @@ class TestReInvoice(TestSaleCommon):
         )[0]
         self.assertRecordValues(
             aml, [{"analytic_distribution": {str(analytic_account_default.id): 100}}]
+        )
+
+    def test_cost_reinvoiced_on_the_most_recent_sale_order(self):
+        """A cost lands on the newest order of the project, not on the oldest one."""
+        self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
+        # Our fork refuses to confirm an order with no lines
+        # (`base_order/models/mixin_order.py:689`), so both carry a plain line.
+        sale_order_recent = (
+            self.env["sale.order"]
+            .with_context(mail_notrack=True, mail_create_nolog=True)
+            .create(
+                {
+                    "partner_id": self.partner_a.id,
+                    "project_id": self.project.id,
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "product_id": self.company_data["product_order_no"].id,
+                                "product_qty": 1,
+                            }
+                        )
+                    ],
+                }
+            )
+        )
+        self.env["sale.order.line"].create(
+            {
+                "order_id": self.sale_order.id,
+                "product_id": self.company_data["product_order_no"].id,
+                "product_qty": 1,
+            }
+        )
+        # Age the order from setUpClass so the two are unambiguously ordered.
+        self.env.cr.execute(
+            "UPDATE sale_order SET create_date = %s WHERE id = %s",
+            (self.sale_order.create_date - relativedelta(months=3), self.sale_order.id),
+        )
+        self.sale_order.invalidate_recordset(["create_date"])
+        self.assertGreater(sale_order_recent.create_date, self.sale_order.create_date)
+
+        (self.sale_order + sale_order_recent).action_confirm()
+
+        move_form = Form(self.AccountMove)
+        move_form.partner_id = self.partner_a
+        with move_form.invoice_line_ids.new() as line_form:
+            line_form.product_id = self.company_data["product_order_cost"]
+            line_form.quantity = 1.0
+            line_form.analytic_distribution = {self.analytic_account.id: 100}
+        bill = move_form.save()
+        bill.action_post()
+
+        self.assertFalse(
+            self.sale_order.line_ids.filtered("is_expense"),
+            "The oldest order of the project must be left alone.",
+        )
+        self.assertEqual(
+            sale_order_recent.line_ids.filtered("is_expense").product_id,
+            self.company_data["product_order_cost"],
+            "The cost must be reinvoiced on the most recent order of the project.",
         )
