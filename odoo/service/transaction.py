@@ -99,7 +99,6 @@ def _commit_and_signal_changes(env: Environment) -> None:
 
 
 def _rollback_transaction(env: Environment, exc: Exception) -> None:
-    """Require successful recovery before allowing another attempt."""
     try:
         env.cr.rollback()
     except Exception as rollback_error:

@@ -229,8 +229,6 @@ def _prepare_upsert_query(
     s_cols = [
         SQL("s.%s%s", col_id, cast) for col_id, cast in zip(col_ids, casts, strict=True)
     ]
-    # The source rows are bound server-side, so an uncast VALUES column reaches
-    # PostgreSQL as text; the join must cast it like the SET and INSERT halves do.
     on_pred = SQL(" AND ").join(
         SQL("t.%s = s.%s%s", SQL.identifier(c), SQL.identifier(c), _pg_cast(c))
         for c in conflict

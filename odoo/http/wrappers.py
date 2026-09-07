@@ -77,8 +77,6 @@ def _set_cookie_on(
         samesite,
     )
     _remove_staged_cookie(carrier, key)
-    # unbound call on purpose: the carrier need not be a werkzeug Response,
-    # only duck-type .headers and .max_cookie_size (FutureResponse does)
     werkzeug.wrappers.Response.set_cookie(
         carrier,
         key,
@@ -330,9 +328,6 @@ def _unwrap_proxy(value: Any) -> Any:
 class Headers(Proxy):
     _wrapped__ = werkzeug.datastructures.Headers
 
-    # werkzeug's Headers.__eq__ trusts the proxy's forged __class__ and reads
-    # other._list directly, so the reflected `real == proxy` comparison needs
-    # the private attribute forwarded to reach the wrapped list.
     _list = ProxyAttr()
 
     __getitem__ = ProxyFunc()

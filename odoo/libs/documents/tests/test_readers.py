@@ -96,17 +96,6 @@ class TestRegistry(unittest.TestCase):
             _forget(named, fallback)
 
     def test_no_two_library_readers_claim_one_mimetype_at_one_cost(self):
-        """Where two readers claim one mimetype for one representation at one
-        cost, `get_readers` has nothing to order them by and `sorted` is stable,
-        so module load order decides and nothing declares it.
-
-        Scope is the whole of what this test can be: Tier 1 stubs the addon
-        packages, so `registered_readers()` here holds the library's own and no
-        others. The registry-wide twin, which is the one that can see two addons
-        claiming `application/pdf`, is
-        `extract/tests/test_registry_is_unambiguous.py` and runs
-        post-install.
-        """
         claims: dict[tuple, list[str]] = {}
         for reader in registered_readers():
             for representation in reader.yields:
@@ -254,9 +243,6 @@ class TestDeriving(unittest.TestCase):
             _forget(dear)
 
     def test_provides_never_promises_what_the_ceiling_forbids(self):
-        """`BaseExtractor.applies_to` reads `provides` to decide whether to run a
-        strategy, so a probe answering for a reader the ceiling refuses would
-        select a strategy against a representation that comes back empty."""
 
         class _Probing(_Stub):
             def provides(self, document):
@@ -328,9 +314,6 @@ class TestDeriving(unittest.TestCase):
             _forget(cheap, dear)
 
     def test_a_caller_may_raise_the_text_bound(self):
-        """`TEXT_MAX_CHARS` is what a strategy may be handed, not what every
-        caller must live with. `ir.attachment._index` stores about seventy times
-        more, and inheriting this bound would truncate the stored index."""
         long = "x" * (TEXT_MAX_CHARS + 100)
         reader = _Stub("long", {"a/b"}, (TEXT,), long, cost=FREE)
         register_reader(reader)
@@ -352,10 +335,6 @@ class TestDeriving(unittest.TestCase):
             _forget(reader)
 
     def test_the_bound_reaches_the_decode_fallback_too(self):
-        """The clamp is applied in two places -- where a reader answered and
-        where nothing claimed the mimetype and the bytes were decoded. A bound
-        honoured in one and not the other would depend on whether a reader
-        happened to exist."""
         doc = Document(
             b"y" * (TEXT_MAX_CHARS + 50),
             "application/x-nothing",
@@ -497,11 +476,6 @@ class TestDocument(unittest.TestCase):
 
 
 class TestBuiltinsAreInTheTable(unittest.TestCase):
-    # The reader and writer registries used to spell every mimetype for
-    # themselves, and `xml_text` in extract drifted from the xml
-    # format by one alias. Every built-in is derived from the table now, and
-    # this is what keeps the next one from being spelled by hand.
-
     def test_every_builtin_reader_mimetype_is_a_registered_format(self):
         from odoo.libs.documents.formats import get_format
         from odoo.libs.documents.readers import registered_readers

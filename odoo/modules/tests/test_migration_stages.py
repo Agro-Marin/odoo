@@ -99,7 +99,6 @@ class _FakePkg:
 
 
 def _no_cursor() -> Cursor:
-    # Indexing never reaches the cursor; only running a script would.
     return typing.cast("Cursor", None)
 
 

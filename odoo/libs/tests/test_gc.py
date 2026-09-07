@@ -64,8 +64,6 @@ class TestGcInfo(unittest.TestCase):
         self.assertIsInstance(info["cumulative_time"], float)
         self.assertEqual(len(info["count"]), len(gc.get_stats()))
         thresholds, limits = info["thresholds"]
-        # live counters (gc.get_count() ticks with every intervening
-        # allocation), so only shape/type is stable across the two calls.
         self.assertEqual(len(thresholds), len(gc.get_count()))
         self.assertEqual(limits, gc.get_threshold())
 
@@ -78,8 +76,6 @@ class TestGcInfo(unittest.TestCase):
             self.assertIn("avg_time_ms", entry)
             self.assertIn("time_ms", entry)
             self.assertIn("share", entry)
-            # no collections have run yet since enabling: avg_time_ms must not
-            # divide by zero.
             self.assertEqual(entry["avg_time_ms"], 0.0)
 
     def test_share_after_a_real_collection(self):

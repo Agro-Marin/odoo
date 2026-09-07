@@ -297,9 +297,6 @@ class TestStalePlanIsRetriedAtTheRequestLayer(unittest.TestCase):
     def test_the_marker_issues_no_sql(self):
         cr = self._cursor()
         exc = psycopg.errors.FeatureNotSupported("cached plan must not change")
-        # _Refusing raises on any attribute of the connection's execute or the
-        # psycopg cursor: the transaction is already aborted here, and a
-        # DEALLOCATE would raise InFailedSqlTransaction over the real error.
         self.assertTrue(cr._note_stale_cached_plan(exc))
 
     def test_the_family_is_exported_for_the_request_layer(self):
@@ -459,10 +456,6 @@ class TestASavepointIsNeverOpenedInsideAPipeline(unittest.TestCase):
     def test_it_asks_through_getattr_so_a_test_cursor_forwards(self):
         class _Forwarding(cursor.BaseCursor):
             def __getattr__(self, name):
-                # odoo.tests.cursor.TestCursor forwards by __getattr__, which
-                # runs only for names the class does not have: a BaseCursor
-                # default would answer False for a test cursor that is
-                # pipelining.
                 if name == "in_pipeline":
                     return True
                 raise AttributeError(name)

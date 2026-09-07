@@ -113,12 +113,6 @@ def _recompute_singly(
                 computed_ids.append(record.id)
 
     record_ids = records._ids
-    # Never widen the batch from inside another record's compute: a
-    # descendant computed while its ancestor is protected reads the
-    # ancestor's stored, pre-write value and stores it for good.  The
-    # question is whether ANY field is protected, not this one: a recursive
-    # edge that alternates between two fields protects only the one being
-    # computed, so a per-field test lets the other widen unguarded.
     expanded = (
         len(record_ids) == 1
         and record_ids[0] in to_compute_ids

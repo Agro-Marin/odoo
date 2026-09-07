@@ -148,9 +148,6 @@ class IrAttachment(models.Model):
                 seen_names.add(att.name)
                 live_ids.add(att.id)
                 live_dirs.add(att.url.rpartition("/")[0])
-        # A chunk shared by the entries of one compiled group carries a hash
-        # name nothing else ever reuses, so it is judged by the directory
-        # that its entries keep alive, not by its own name.
         return (
             artifacts.filtered(
                 lambda a: (

@@ -10,9 +10,7 @@ from odoo.libs.tests._native_references import (
     rows_to_dicts_ref,
 )
 
-fast = pytest.importorskip(
-    "odoo_rust", exc_type=ImportError
-)  # a parity test needs both sides
+fast = pytest.importorskip("odoo_rust", exc_type=ImportError)
 
 SEED = 20260828
 

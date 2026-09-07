@@ -1064,14 +1064,15 @@ class PosConfig(models.Model):
             if field_name not in vals and field_name in defaults:
                 vals[field_name] = defaults[field_name]
 
-    def _ensure_company_warehouse(self, company, name):
+    def _get_or_create_company_warehouse(self, company, name):
         # Keyed off the company being created for, not env.company, and off that
         # record's own name rather than the batch's first: a two-company create used
         # to get one warehouse, in whichever company happened to be active.
         Warehouse = self.env["stock.warehouse"]
-        if Warehouse.search(Warehouse._check_company_domain(company), limit=1):
-            return
-        Warehouse.create({"code": (name or "POS")[:3], "company_id": company.id})
+        warehouse = Warehouse.search(Warehouse._check_company_domain(company), limit=1)
+        if warehouse:
+            return warehouse
+        return Warehouse.create({"code": (name or "POS")[:3], "company_id": company.id})
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -1081,7 +1082,7 @@ class PosConfig(models.Model):
                 if vals.get("company_id")
                 else self.env.company
             )
-            self._ensure_company_warehouse(company, vals.get("name"))
+            self._get_or_create_company_warehouse(company, vals.get("name"))
             if vals.get("company_id") and vals["company_id"] != self.env.company.id:
                 self._add_company_defaults(vals)
         for vals in vals_list:

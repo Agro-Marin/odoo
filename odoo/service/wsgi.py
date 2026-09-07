@@ -23,10 +23,6 @@ from .settings import current
 
 _logger = logging.getLogger("odoo.service.server")
 
-# Answers a request the accept loop cannot hand off to a thread. Running the
-# WSGI app synchronously here instead would block accept() -- and therefore
-# every other connection, including health checks -- for the app's full
-# runtime, at the exact moment the server is already out of threads.
 _THREAD_EXHAUSTION_RESPONSE = (
     b"HTTP/1.1 503 Service Unavailable\r\n"
     b"Content-Length: 0\r\n"
@@ -215,13 +211,6 @@ class RequestHandler(CommonRequestHandler):
     def end_headers(self, *a: Any, **kw: Any) -> None:
         super().end_headers(*a, **kw)
         if self._is_websocket_upgrade():
-            # Swap first, then close what was swapped out. rfile is a
-            # makefile() over the connection, and an outstanding one keeps
-            # socket.close() from reaching the descriptor, so the fd outlives
-            # the websocket by however long a cyclic GC pass takes to free this
-            # handler. Closing it here only decrements the socket's io
-            # refcount; the websocket's own close() then frees the fd. The
-            # websocket reads the raw socket out of the environ, never these.
             orphans = (self.rfile, self.wfile)
             self.rfile = BytesIO()
             self.wfile = BytesIO()

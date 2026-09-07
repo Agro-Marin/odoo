@@ -22,9 +22,6 @@ def adopt_xmlids(
     names: Iterable[str],
     renamed: Mapping[str, str] | None = None,
 ) -> int:
-    # Re-homing an xmlid before the adopting module's data loads makes the
-    # loader update the existing row in place instead of creating a second
-    # record nobody references -- for a group, one nobody is a member of.
     moved = 0
     for old, new in {**dict.fromkeys(names), **(renamed or {})}.items():
         cr.execute(
@@ -76,9 +73,6 @@ def remove_xmlid_records(cr: BaseCursor, module: str, names: Iterable[str]) -> i
 
 
 def retire_empty_module(cr: BaseCursor, module: str) -> None:
-    # A module whose every record has been adopted elsewhere must not stay
-    # `installed`: its manifest is gone or uninstallable, and every registry
-    # load would warn that it could not be loaded.
     cr.execute(SQL("SELECT 1 FROM ir_model_data WHERE module = %s LIMIT 1", module))
     if cr.fetchone():
         return

@@ -80,15 +80,12 @@ class TestPrivateAddressAccess(TransactionCase):
         self.assertIn(self.reader_home, self._visible())
 
     def test_the_person_themselves_stays_readable(self):
-        """The rule hides the private child, never the party it hangs from."""
         self.assertIn(self.subject, self._visible())
 
     def test_an_ordinary_address_of_the_same_parent_stays_readable(self):
-        """Only `private` is withdrawn -- delivery, invoice and other are not."""
         self.assertIn(self.ordinary_child, self._visible())
 
     def test_the_rule_does_not_narrow_ordinary_contacts(self):
-        """Everything a reader could see before the rule, they still can."""
         as_superuser = self.env["res.partner"].search([("type", "!=", "private")])
         as_reader = (
             self.env["res.partner"]
@@ -98,21 +95,10 @@ class TestPrivateAddressAccess(TransactionCase):
         self.assertEqual(as_superuser, as_reader)
 
     def test_reading_the_columns_directly_is_refused_too(self):
-        """`search` is not the only way in; a browse of a known id is another.
-
-        Nothing here hands a reader that id, but a rule that filtered `search`
-        and not `read` would be a rule in name only.
-        """
         with self.assertRaises(AccessError):
             self.subject_home.with_user(self.reader).read(["street", "city"])
 
     def test_a_contact_manager_cannot_delete_another_persons_private_address(self):
-        """Hidden rows were still deletable by id; the rule now covers unlink.
-
-        Write is already refused because the ORM will not write a row the user
-        cannot read, but unlink checked only the ACL, so any partner manager
-        who obtained the id could remove someone else's home address.
-        """
         with self.assertRaises(AccessError):
             self.subject_home.with_user(self.manager).unlink()
         self.assertTrue(self.subject_home.exists())
@@ -136,31 +122,11 @@ class TestPrivateAddressAccess(TransactionCase):
         self.assertFalse(other.exists())
 
     def test_the_rule_is_global_and_must_stay_global(self):
-        """A group-scoped rule here would be permissive, not restrictive.
-
-        `_get_domain_accessible_records` ORs every applicable group rule
-        together and only then ANDs the result with the global ones. A group
-        rule whose domain is true for ordinary contacts -- which this domain is,
-        by its first branch -- would therefore OR away any OTHER group-scoped
-        restriction on res.partner rather than adding one of its own.
-
-        `test_acl.TestIrRule.test_ir_rule_access_error_message` is the
-        standing proof that this matters: it installs a deny-everything
-        `base.group_user` rule on res.partner and asserts the denial holds.
-        Scoping this rule to `base.group_user` makes that test fail, which is
-        how the shape was found to be wrong.
-        """
         rule = self.env.ref("base.res_partner_private_address_rule")
         self.assertTrue(rule["global"])
         self.assertFalse(rule.groups)
 
     def test_the_domain_names_parent_id_rather_than_child_of(self):
-        """`child_of user.partner_id` reads as the natural spelling and is wider.
-
-        A reader whose own partner is a company would gain every private
-        address parented anywhere beneath it, which is the population this rule
-        exists to withhold.
-        """
         rule = self.env.ref("base.res_partner_private_address_rule")
         self.assertIn("parent_id", rule.domain_force)
         self.assertNotIn("child_of", rule.domain_force)

@@ -299,8 +299,6 @@ class Monetary(Field[float]):
         currency_field_name = self.get_currency_field(record)
         if not currency_field_name:
             return None
-        # [:1] narrows the prefetch set with the ids; ride the caller's batch
-        # so a cache miss fetches the whole batch's currencies in one query
         return (
             record[:1]
             .with_prefetch(record._prefetch_ids)

@@ -182,7 +182,6 @@
             "@hr_recruitment_reports/*": ["../enterprise/hr_recruitment_reports/static/src/*"],
             "@hr_recruitment_skills/*": ["addons/hr_recruitment_skills/static/src/*"],
             "@hr_referral/*": ["../enterprise/hr_referral/static/src/*"],
-            "@hr_schedule_payment/*": ["../agromarin/hr_schedule_payment/static/src/*"],
             "@hr_skills/*": ["addons/hr_skills/static/src/*"],
             "@hr_skills_slides/*": ["addons/hr_skills_slides/static/src/*"],
             "@hr_timesheet/*": ["addons/hr_timesheet/static/src/*"],

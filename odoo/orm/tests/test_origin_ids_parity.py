@@ -4,9 +4,7 @@ from odoo.libs.accel import origin_ids as _origin_ids
 from odoo.libs.accel import origin_ids_python as _origin_ids_python
 from odoo.orm.primitives import NewId
 
-odoo_rust = pytest.importorskip(
-    "odoo_rust", exc_type=ImportError
-)  # a parity test needs both sides
+odoo_rust = pytest.importorskip("odoo_rust", exc_type=ImportError)
 origin_ids_rust = odoo_rust.origin_ids
 
 

@@ -199,8 +199,6 @@ class IrModelData(models.Model):
             query = self._prepare_update_xmlids_query(sub_rows, update)
             try:
                 self.env.cr.execute(query)
-                # never seed _xmlid_lookup's cache here: it is shared across
-                # transactions and no rollback path could remove the entry
                 repointed = repointed or any(
                     not inserted for (inserted,) in self.env.cr.fetchall()
                 )

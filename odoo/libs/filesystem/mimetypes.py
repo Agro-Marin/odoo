@@ -234,16 +234,6 @@ def _parses_as_json(data: bytes) -> bool:
 
 
 def _place_structured_text(data: bytes) -> str | None:
-    # libmagic places structured text only by its declaration, so an XML
-    # document with no `<?xml ?>` prolog -- which plenty of EDI payloads are --
-    # comes back as text/plain and loses its tree. JSON is placed correctly
-    # today; probing for it keeps the two symmetric.
-    #
-    # The probe PARSES rather than peeking at the first byte. A note that opens
-    # `<note> this is prose` peeks identically to a document and is not one,
-    # and calling it XML costs it its text: no reader can parse it, and the
-    # decode path is no longer reached. Parsing is the only test that
-    # distinguishes them, and it runs only for text libmagic could not place.
     head = data.lstrip()[:1]
     if head == b"<" and _parses_as_xml(data):
         return "application/xml"
@@ -263,10 +253,6 @@ def guess_mimetype(
     elif not isinstance(bin_data, bytes):
         msg = "`bin_data` must be bytes or bytearray"
         raise TypeError(msg)
-    # A declaration wins because the producer usually knows better than a
-    # probe -- but only when it says something. `ir.attachment` stores
-    # application/octet-stream for anything the upload did not label, and
-    # honouring that is how a readable document ends up providing nothing.
     declared = (declared or "").lower()
     if declared and declared not in _UNPLACED:
         return declared

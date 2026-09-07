@@ -38,8 +38,6 @@ class TransientModel(Model):
         return sum(counts), any(count >= GC_UNLINK_LIMIT for count in counts)
 
     def _transient_clean_old_rows(self, max_count: int) -> int:
-        # "count > max_count" without counting the whole table: one row at
-        # OFFSET max_count exists exactly when the count exceeds it
         self.env.cr.execute(
             SQL(
                 "SELECT 1 FROM %s OFFSET %s LIMIT 1",

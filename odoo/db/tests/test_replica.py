@@ -136,7 +136,7 @@ class TestRouting(unittest.TestCase):
 
     def test_get_health_surfaces_lag_and_breaker_snapshots(self):
         router = _router(lag=2.0, max_lag=30.0)
-        router.cursor(readonly=True)  # samples lag once
+        router.cursor(readonly=True)
         router.breaker.record_failure()
         health = router.get_health()
         self.assertEqual(health["lag"], router.lag.get_snapshot())

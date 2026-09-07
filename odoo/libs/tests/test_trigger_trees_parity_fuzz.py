@@ -23,9 +23,6 @@ def _random_graph(rng):
             meta.append((False, True, 0, rng.randrange(6), model, comodel))
         else:
             meta.append((False, False, rng.randrange(6), 0, model, comodel))
-    # Mostly forward edges with an occasional back edge: the walk enumerates
-    # simple paths, so a dense cyclic graph is exponential on both sides and
-    # nothing a registry produces; a sparse one with a few cycles is.
     triggers = []
     for dep in rng.sample(range(n_fields), rng.randrange(1, n_fields // 2 + 1)):
         buckets: dict[tuple[int, ...], list] = {}

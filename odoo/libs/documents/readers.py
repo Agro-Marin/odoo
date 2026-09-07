@@ -122,14 +122,6 @@ def get_readers(mimetype: str, representation: str) -> tuple[BaseReader, ...]:
 
 
 def registered_readers() -> tuple[BaseReader, ...]:
-    """Every registered reader object, once, in registration order.
-
-    `known_readers` answers with names, which is enough to say whether one is
-    installed and not enough to ask what it claims. A caller checking that no
-    two readers claim one mimetype for one representation at the same cost --
-    where the winner is module load order and nothing declares it -- needs the
-    objects.
-    """
     seen: dict[int, BaseReader] = {}
     for readers in _READERS.values():
         for reader in readers:
@@ -138,7 +130,6 @@ def registered_readers() -> tuple[BaseReader, ...]:
 
 
 def known_readers() -> tuple[str, ...]:
-    """Every registered reader, once, by name."""
     seen: dict[str, None] = {}
     for readers in _READERS.values():
         for reader in readers:

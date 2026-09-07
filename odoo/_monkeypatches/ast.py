@@ -5,8 +5,6 @@ from typing import Protocol, cast
 
 
 class _LiteralEval(Protocol):
-    # Not Callable[[...], object]: that spells a positional-only parameter, and
-    # this replaces ast.literal_eval, whose parameter is positional-or-keyword.
     def __call__(self, node_or_string: str | bytes | ast.AST) -> object: ...
 
 
@@ -36,9 +34,6 @@ def get_buffer_size_from_env() -> int:
 
 
 def prepare_literal_eval(buffer_size: int) -> _LiteralEval:
-    # The parameter keeps the stdlib's name. This function replaces
-    # ast.literal_eval wholesale, so a caller spelling the argument by keyword
-    # -- ast.literal_eval(node_or_string=src) -- must still reach it.
     def literal_eval(node_or_string: str | bytes | ast.AST) -> object:
         if (
             isinstance(node_or_string, str | bytes)
@@ -46,9 +41,6 @@ def prepare_literal_eval(buffer_size: int) -> _LiteralEval:
         ):
             msg = "expression can't exceed buffer limit"
             raise ValueError(msg)
-        # The guard above accepts bytes so an oversized one is refused here
-        # rather than deeper in; the stdlib itself takes str | AST and rejects
-        # bytes with its own ValueError, which is what the cast defers to.
         return orig_literal_eval(cast("str | ast.AST", node_or_string))
 
     return literal_eval

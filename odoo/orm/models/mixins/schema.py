@@ -173,13 +173,6 @@ class SchemaMixin(_ModelStubs):
         pass
 
     def _check_parent_path(self) -> None:
-        # A tree missing its path column is not degraded, it is wrong, and it
-        # says nothing: `child_of` silently takes the recursive fallback in
-        # orm/domain/optimizations.py -- one query per level instead of one
-        # indexed `=like` -- and no test anywhere asserts which branch ran. An
-        # unindexed column is the same failure with the index left off. Both
-        # used to be logger.error at registry build, which is a line nobody
-        # reads in a passing run.
         field = self._fields.get("parent_path")
         if field is None:
             raise ValueError(

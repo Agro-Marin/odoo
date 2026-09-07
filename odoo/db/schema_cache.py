@@ -7,7 +7,6 @@ class TransactionSchemaCache:
     def __init__(self) -> None:
         self._id_sequences: dict[str, str] = {}
         self._column_types: dict[tuple[str, tuple[str, ...]], list[int]] = {}
-        # table -> savepoint depth (0 = outside any savepoint) at lock time.
         self._locked_tables: dict[str, int] = {}
 
     def __repr__(self) -> str:
@@ -24,17 +23,6 @@ class TransactionSchemaCache:
         self._locked_tables.setdefault(table, depth)
 
     def release_locks_since_depth(self, depth: int) -> None:
-        """Drop the lock ledger entry -- and any cached catalog facts --
-        for every table locked at savepoint depth `depth` or deeper.
-
-        A ROLLBACK TO SAVEPOINT releases only the real PostgreSQL locks
-        taken since that savepoint opened, not ones held from before it.
-        Once such a table's lock is gone, a concurrent session's DDL may
-        already be visible for it, so its cached facts must be dropped
-        unconditionally -- regardless of whether *this* cursor issued any
-        DDL. Tables locked at a shallower depth keep both their lock
-        ledger entry and their cached facts untouched.
-        """
         released = [table for table, d in self._locked_tables.items() if d >= depth]
         if not released:
             return

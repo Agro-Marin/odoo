@@ -139,9 +139,6 @@ class SearchMixin(_ModelStubs):
                 if not self._is_rec_names_search_cyclic(fname)
             ]
             if not usable:
-                # a cycle is a configuration defect; degrading to the
-                # unsearchable fallback would return Domain.TRUE and turn a
-                # previously restricting search into "match everything"
                 raise UserError(
                     self.env._(
                         "Cannot search %(model)s by name: every entry of its "

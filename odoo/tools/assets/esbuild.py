@@ -426,6 +426,21 @@ class EsbuildCompiler:
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+    def _esbuild_entry_files(
+        self, entries: dict[str, list], entry_dir: Path, odoo_root: Path
+    ) -> tuple[list[str], int]:
+        entry_points = []
+        entry_bytes = 0
+        for name, modules in entries.items():
+            if not modules:
+                continue
+            text = "\n".join(self._esbuild_entry_lines(odoo_root, modules))
+            entry_file = entry_dir / f"{name}.js"
+            entry_file.write_text(text, encoding="utf-8")
+            entry_points.append(str(entry_file))
+            entry_bytes += len(text.encode("utf-8"))
+        return entry_points, entry_bytes
+
     def compile_group(
         self,
         entries: dict[str, list],
@@ -468,16 +483,9 @@ class EsbuildCompiler:
                 )
                 if flag not in moved
             ]
-            entry_points = []
-            entry_bytes = 0
-            for name, modules in entries.items():
-                if not modules:
-                    continue
-                text = "\n".join(self._esbuild_entry_lines(odoo_root, modules))
-                entry_file = entry_dir / f"{name}.js"
-                entry_file.write_text(text, encoding="utf-8")
-                entry_points.append(str(entry_file))
-                entry_bytes += len(text.encode("utf-8"))
+            entry_points, entry_bytes = self._esbuild_entry_files(
+                entries, entry_dir, odoo_root
+            )
             external_specifier_flags, alias_flags = self._esbuild_external_flags(
                 odoo_root, alias_flags
             )

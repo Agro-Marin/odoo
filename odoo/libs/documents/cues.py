@@ -90,8 +90,6 @@ def _dereference(text: str) -> str:
 
 
 def _plain(text: str, references: bool) -> str:
-    # Tags first: a cue holding `&lt;b&gt;` means those characters, not a tag,
-    # and decoding before stripping would delete the words it wraps.
     stripped = _TAG.sub("", text).strip()
     return _dereference(stripped) if references else stripped
 
@@ -136,9 +134,6 @@ def parse_vtt(text: str) -> list[Cue]:
 
 
 def parse_srt(text: str) -> list[Cue]:
-    # SubRip has no character references, so `&amp;` in one is those five
-    # characters and decoding it would put an ampersand where an author wrote a
-    # word.
     return _parse(text, references=False)
 
 

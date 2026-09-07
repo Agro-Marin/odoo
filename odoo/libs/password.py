@@ -30,7 +30,7 @@ def _pbkdf2_sha512(password: str, salt: bytes, rounds: int) -> bytes:
     )
 
 
-def _validate_rounds(rounds: int) -> int:
+def _check_rounds(rounds: int) -> int:
     if not 0 < rounds <= _MAX_ROUNDS:
         raise ValueError(f"pbkdf2_sha512__rounds must be in (0, {_MAX_ROUNDS}]")
     return rounds
@@ -73,7 +73,7 @@ class CryptContext:
         self._deprecated = set(deprecated) if deprecated else set()
         rounds = kwargs.get("pbkdf2_sha512__rounds", _DEFAULT_ROUNDS)
         assert isinstance(rounds, int), "pbkdf2_sha512__rounds must be an int"
-        self._rounds = _validate_rounds(rounds)
+        self._rounds = _check_rounds(rounds)
 
     def hash(self, password: str) -> str:
         return pbkdf2_sha512_hash(password, self._rounds)
@@ -141,7 +141,7 @@ class CryptContext:
         if "pbkdf2_sha512__rounds" in kwargs:
             new_rounds = kwargs["pbkdf2_sha512__rounds"]
             assert isinstance(new_rounds, int), "pbkdf2_sha512__rounds must be an int"
-            self._rounds = _validate_rounds(new_rounds)
+            self._rounds = _check_rounds(new_rounds)
 
     def copy(self) -> CryptContext:
         return CryptContext(

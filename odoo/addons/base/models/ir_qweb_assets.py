@@ -328,11 +328,6 @@ class IrQweb(models.AbstractModel):
     _served_lib_files = staticmethod(served_lib_files)
 
     def _served_external_libs(self, *, debug_assets: bool) -> dict[str, str]:
-        # A page under debug=assets imports the vendored file itself, readable
-        # and uncached; every other page imports a minified copy at a URL that
-        # changes with the file, so a browser may keep it for a year. The two
-        # tables never mix on one page: a library reached by two URLs would be
-        # two instances.
         if debug_assets:
             return dict(self._external_libs())
         self._create_served_libs()
@@ -550,10 +545,6 @@ class IrQweb(models.AbstractModel):
             return declared
         if page in declared:
             return (page,)
-        # A page stamps the bundle it rendered first, which may be a member of
-        # the family a child declares (web.assets_frontend_lazy is built by
-        # including web.assets_frontend): the declared parent that contributes
-        # to that page is the one whose modules the page holds.
         contributors = set(self._get_dynamic_parent_bundles(page, assets_params))
         matches = [parent for parent in declared if parent in contributors]
         if len(matches) == 1:
@@ -634,8 +625,6 @@ class IrQweb(models.AbstractModel):
         try:
             return self._save_esm_group(group, files, set(children))
         except ReadOnlySqlTransaction:
-            # The route retries on a read-write cursor, as for a page bundle;
-            # a per-file fallback here would be the split this build removes.
             raise
         except Exception as exc:
             log_event(
@@ -912,8 +901,6 @@ class IrQweb(models.AbstractModel):
         except _EsmFallbackError:
             if not page_scope:
                 raise
-        # The scope-less variant stubs only what every declared parent
-        # provides, so it resolves on any page that carries one of them.
         log_event(
             _fallback_log,
             logging.INFO,
@@ -965,9 +952,6 @@ class IrQweb(models.AbstractModel):
         page_scope: tuple[str, ...],
         esbuild_ok: bool,
     ) -> EsmNodePair:
-        # A readonly test cursor cannot persist a brand-new artifact, and
-        # that does not change until one is persisted or the assets cache
-        # is cleared, so the decline is remembered for exactly that long.
         remembered = esbuild_ok and self._is_esm_readonly_test_cursor()
         variant = (
             tuple(sorted((assets_params or {}).items())),
@@ -1605,10 +1589,6 @@ class IrQweb(models.AbstractModel):
     def _get_esm_library_preload_links(
         self, metafile: str | None, import_map: dict[str, str]
     ) -> list[AssetNode]:
-        # The browser learns that the bundle imports owl only after fetching
-        # and parsing the bundle; a preload for each library the bundle
-        # imports statically starts that fetch beside the bundle's. A
-        # library behind an `import()` is left to first use.
         served = self._served_external_libs_table()
         return [
             ("link", {"rel": "modulepreload", "href": import_map[spec]})
@@ -1692,10 +1672,6 @@ class IrQweb(models.AbstractModel):
         bridge_code = ""
 
         if non_hoot_specs:
-            # Imports go by URL, not by bare specifier: the page keeps only the
-            # first bundle's import map, so a later bundle's own specifiers are
-            # unresolvable through it, while the same URL yields the same module
-            # instance in either position and re-registration is a no-op.
             bridge_code = self._prepare_register_native_modules_js(
                 [(spec, import_map.get(spec, spec)) for spec in non_hoot_specs],
                 "__m",

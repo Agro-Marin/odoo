@@ -169,7 +169,6 @@ def get_timedelta(
     except KeyError:
         msg = f"Granularity must be hour, day, week, month or year, got {granularity!r}"
         raise ValueError(msg) from None
-    # Select calendar components, rather than the constructor's date-pair form.
     return relativedelta(dt1=None, dt2=None, **{argument: qty})
 
 
@@ -266,10 +265,6 @@ def date_range[D: (date, datetime)](
                 end.tzinfo, "zone", None
             )
             if start_key is None and end_key is None:
-                # Fixed-offset tzinfo (datetime.timezone, dateutil tzoffset)
-                # exposes neither attribute -- both sides collapsing to None
-                # would otherwise read as "same timezone" regardless of their
-                # actual offsets, so compare those directly instead.
                 mismatched = start.utcoffset() != end.utcoffset()
             else:
                 mismatched = start_key != end_key

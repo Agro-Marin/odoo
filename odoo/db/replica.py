@@ -53,7 +53,6 @@ class ReplicaRouter:
         }
 
     def cursor(self, readonly: bool = False) -> tuple[BaseCursor, CursorMode]:
-        """Return a cursor and which of the three modes it was opened in: ``"ro"`` (served from the replica), ``"ro->rw"`` (replica requested but unusable, fell back to primary), or ``"rw"``."""
         if not readonly or self.readonly is None:
             return self.primary.cursor(), "rw"
         cr = self._replica_cursor(self.readonly)

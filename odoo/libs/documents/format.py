@@ -54,18 +54,12 @@ def from_float(
     if places < 0:
         raise ValueError(f"places must not be negative, got {places}")
     try:
-        # str() first: Decimal(0.1) is 0.1000000000000000055511151231257827,
-        # and quantizing that rounds a total the document never stated.
         number = Decimal(str(value))
     except (InvalidOperation, ValueError) as e:
         raise ValueError(f"{value!r} is not a number") from e
     if not number.is_finite():
         raise ValueError(f"{value!r} has no finite value to write")
 
-    # ROUND_HALF_UP, not Python's banker's default: every money format this
-    # layer writes for -- an invoice total, a payroll line, a bank file -- is
-    # specified half-up, and a layer that silently rounds 2.675 down to 2.67
-    # disagrees with the document it is meant to reproduce.
     number = number.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP)
 
     negative = number < 0

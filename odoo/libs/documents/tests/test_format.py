@@ -39,7 +39,6 @@ class TestFromFloat(unittest.TestCase):
         )
 
     def test_half_up_not_bankers(self):
-        # Python's own round() and Decimal's default answer 2.67 here.
         self.assertEqual(from_float(2.675), "2.68")
         self.assertEqual(from_float(0.125, places=2), "0.13")
 

@@ -150,7 +150,6 @@ class MigrationManager:
         return pkg.load_state == "to upgrade"
 
     def update(self) -> None:
-        """Index any package added to the graph since the last (re)index."""
         self._index_migration_scripts()
 
     def _index_migration_scripts(self) -> None:

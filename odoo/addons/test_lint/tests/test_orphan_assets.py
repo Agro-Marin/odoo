@@ -31,7 +31,6 @@ URL_FETCHED = frozenset(
 class TestOrphanAssets(lint_case.LintCase):
     @staticmethod
     def _expand(spec, roots):
-        """The concrete files a manifest entry or ir.asset path names."""
         spec = spec.lstrip("/")
         addon, _, relative = spec.partition("/")
         root = roots.get(addon)
@@ -62,16 +61,6 @@ class TestOrphanAssets(lint_case.LintCase):
 
     @classmethod
     def _inactive_declared_paths(cls, env, manifests):
-        """Files an ir.asset record declares while sitting inactive.
-
-        `active` is a runtime state, not an absence of declaration. website
-        keeps a snippet's superseded stylesheet as an inactive record and
-        activates it per website when a page still carries that version of the
-        snippet, and a theme option activates ripple_effect.scss the same way.
-        _get_asset_paths only ever resolves ACTIVE records, so without this
-        every such file reads as reaching no bundle while being served the
-        moment its record is switched on.
-        """
         roots = {m.name: Path(m.path) for m in manifests}
         records = (
             env["ir.asset"]

@@ -301,11 +301,6 @@ class TestSelectionExport(TestBasicExport):
         )
 
     def test_selection_unknown_key(self):
-        # ir.qweb.field.selection falls back to the raw key
-        # (`selection.get(value, value)`) instead of raising for a value
-        # outside the declared choices. Pinning this intentionally, so a
-        # future tightening of that fallback shows up here rather than
-        # silently changing behavior.
         converter = self.get_converter("selection_str")
         value = converter("ZZZ-not-a-choice")
         self.assertEqual(value, "ZZZ-not-a-choice")

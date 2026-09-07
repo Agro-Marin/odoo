@@ -150,12 +150,6 @@ def test_declared_submodule_exports_are_pinned():
 
 
 def _accidental_from_disk(area: str) -> set[str]:
-    # `__all__` comes from the subprocess surface, not from importing the area
-    # here. The DB-free suites stub `odoo.libs.<area>` into a namespace-only
-    # module with no `__all__` at all (odoo/_testing_bootstrap.py), so an
-    # in-process read counted every module in a stubbed area as accidental --
-    # and which areas were stubbed depended on which other suites pytest had
-    # already collected. This measurement is about the tree, not about the run.
     entry = _runtime_surface().get(area, {})
     exported = set(entry.get("exported", ()))
     on_disk = {p.stem for p in (_LIBS / area).glob("*.py") if p.stem != "__init__"}

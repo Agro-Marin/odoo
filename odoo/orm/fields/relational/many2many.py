@@ -251,10 +251,6 @@ class Many2many(_RelationalMulti):
                     corecord = comodel.browse((y,))
                     ids0 = inv_cache.get(corecord.id, SENTINEL)
                     if ids0 is SENTINEL:
-                        # a stored corecord will fetch the truth from the
-                        # database; a NEW one has no database to consult, so
-                        # its inverse must be seeded or the link is invisible
-                        # -- the same allowance Many2one._update_inverses makes
                         if corecord.id:
                             continue
                         ids0 = ()

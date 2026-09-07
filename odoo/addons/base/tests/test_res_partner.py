@@ -631,9 +631,6 @@ class TestPartnerWriteContract(TransactionCase):
         self.assertEqual(second.website, "http://example.com")
 
     def test_write_only_runs_the_parent_sync_for_fields_it_syncs(self):
-        """The parent/commercial sync consults parent_id, type, the address
-        fields and the commercial fields; writing anything else must not snapshot
-        it (an attachment-backed image is the expensive case) nor run the sync."""
         Partner = self.env["res.partner"]
         parent = Partner.create({"name": "Sync Parent", "is_company": True})
         child = Partner.create(
@@ -1070,13 +1067,6 @@ class TestPartnerSimilarNameDuplicates(TransactionCase):
         )
 
     def test_the_offered_list_can_be_merged_from(self):
-        """The whole point of finding duplicates is resolving them.
-
-        `base.action_partner_merge` is bound to a res.partner list selection,
-        so this pins the hand-off: what the stat button opens is a selection
-        the merge wizard accepts, and merging it leaves one record holding
-        both contributions.
-        """
         keeper = self.Partner.create(
             {"name": "Halloran Cooperage", "email": "halloran@example.test"}
         )

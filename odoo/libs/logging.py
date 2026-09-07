@@ -14,10 +14,6 @@ _logger_locks: dict[str, threading.RLock] = {}
 
 
 def _lock_for(logger_name: str) -> threading.RLock:
-    """A process-wide RLock keyed by logger name, so concurrent (or nested)
-    `mute_logger`/`lower_logging` context managers touching the same
-    `logging.Logger` serialize instead of interleaving their save/restore of
-    `.handlers`/`.propagate`."""
     with _registry_lock:
         lock = _logger_locks.get(logger_name)
         if lock is None:
@@ -40,8 +36,6 @@ class mute_logger(logging.Handler):
         self._locks: list[list[threading.RLock]] = []
 
     def __enter__(self) -> None:
-        # Acquire in a stable (sorted) order across all instances so two
-        # `mute_logger`s targeting overlapping logger sets can't deadlock.
         locks = [_lock_for(name) for name in sorted(set(self.loggers))]
         for lock in locks:
             lock.acquire()

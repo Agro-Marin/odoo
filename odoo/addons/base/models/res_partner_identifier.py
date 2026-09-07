@@ -81,12 +81,6 @@ class ResPartnerIdentifier(models.Model):
 
     @api.constrains("partner_id", "type_id")
     def _check_one_per_contact(self):
-        """One value per type per contact, unless the type allows several.
-
-        One query for the whole recordset, not one per row: these constraints
-        fire on every create, and an import of ten thousand contacts would
-        otherwise issue ten thousand searches apiece.
-        """
         candidates = self.filtered(lambda i: not i.type_id.multiple_per_contact)
         if not candidates:
             return
@@ -111,12 +105,6 @@ class ResPartnerIdentifier(models.Model):
 
     @api.constrains("type_id", "normalized_value", "partner_id")
     def _check_not_taken_by_another_contact(self):
-        """Refuse a value another contact already carries under this type.
-
-        Scoped to the commercial entity: a company and its own addresses share
-        one tax ID by design, and that is not a collision. One query, for the
-        reason given on `_check_one_per_contact`.
-        """
         candidates = self.filtered(lambda i: i.type_id.unique_across_contacts)
         if not candidates:
             return

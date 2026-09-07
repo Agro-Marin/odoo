@@ -117,7 +117,8 @@ def test_a_debug_build_is_refused_by_name(monkeypatch):
     assert_optimised(module)
 
     del Module.__profile__
-    assert_optimised(Module())
+    with pytest.raises(RuntimeError, match="--release"):
+        assert_optimised(Module())
 
     monkeypatch.setenv("ODOO_ALLOW_DEBUG_RUST", "1")
     debug = Module()

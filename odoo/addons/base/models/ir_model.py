@@ -542,8 +542,6 @@ class IrModelInherit(models.Model):
         for model_name, classes in definitions.items():
             model_id = get_model_id(model_name)
             if model_id is None:
-                # In the registry but not in ir_model: the model's module was
-                # not part of this load, and its own update reflects it.
                 _logger.debug(
                     "Inheritance of %r not reflected: no ir_model row yet",
                     model_name,

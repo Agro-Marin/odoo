@@ -18,14 +18,6 @@ def is_maintenance_db(db_name: str, settings: PoolSettings | None = None) -> boo
 
 
 def iter_sql_code_ranges(query: str) -> list[tuple[int, int]]:
-    """Split `query` into (start, end) spans of plain SQL code, skipping
-    single/double-quoted string literals and -- / block comments.
-
-    A literal %s or %(name)s-shaped substring inside a quoted string or a
-    comment is not a real bind placeholder; scanning only within these
-    spans keeps both marker scanners (positional and named) from
-    miscounting -- or, worse, silently rewriting -- such text.
-    """
     ranges = []
     i, n = 0, len(query)
     start = 0

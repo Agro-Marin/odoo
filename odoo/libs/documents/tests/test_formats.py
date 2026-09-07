@@ -44,7 +44,6 @@ class TestLookup(unittest.TestCase):
         )
 
     def test_mimetypes_for_refuses_a_name_nobody_registered(self):
-        # An empty set would register a reader that reads nothing, silently.
         with self.assertRaises(ValueError):
             mimetypes_for("zzz")
 
@@ -69,8 +68,6 @@ class TestLookup(unittest.TestCase):
         self.assertIs(get_format("text/xml"), get_format("application/xml"))
 
     def test_an_alias_does_not_name_the_extension(self):
-        # `text/plain` is read as rows, and is not what a `.csv` means -- the
-        # asymmetry is the point of keeping `accepts` out of `extension_for`.
         self.assertIsNotNone(get_format("text/plain"))
         self.assertEqual(extension_for("text/plain"), "")
 

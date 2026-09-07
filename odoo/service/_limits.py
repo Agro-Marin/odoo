@@ -61,7 +61,6 @@ def get_job_real_time_budget() -> float:
 
 
 def get_memory_rss(process: Any) -> int:
-    # psutil's own API, not ours: memory_info() must not be swept into a rename.
     return process.memory_info().rss
 
 

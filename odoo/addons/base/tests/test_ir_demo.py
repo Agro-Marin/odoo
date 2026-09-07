@@ -65,26 +65,7 @@ class TestIrDemoFailure(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDemoDataLoadedCleanly(TransactionCase):
-    """`load_demo` catches its own exception, so a broken demo file is a WARNING.
-
-    Nothing then fails: the module is marked `demo = False`, and because
-    `ModuleNode.demo_installable` is `all(p.demo for p in self.depends)`, every
-    module downstream of it is never even attempted. One bad line in `base`
-    turns demo data off for the whole database and says so once, in a log
-    nobody reads. That is not hypothetical -- it is how a removed field left in
-    `base/demo/res_users_demo.xml` disabled demo everywhere, which in turn made
-    every demo-gated test skip instead of fail.
-    """
-
     def _demo_was_asked_for(self):
-        """Read the flag, never `base.module_base.demo`.
-
-        That column records the *outcome*: a failed demo load sets it False,
-        so guarding on it makes the gate skip in exactly the case it exists to
-        catch. Verified by reintroducing the original bug -- both assertions
-        skipped, reporting "database built without demo data" about a database
-        built with it.
-        """
         return bool(config["with_demo"])
 
     def test_no_module_was_quietly_left_without_its_demo_data(self):
@@ -117,11 +98,6 @@ class TestDemoDataLoadedCleanly(TransactionCase):
 
     @staticmethod
     def _blame(traceback_text):
-        """The exception line, not the last line.
-
-        A ParseError ends by dumping the offending XML, so `splitlines()[-1]`
-        reports `</record>` and names neither the file nor the cause.
-        """
         lines = [line for line in traceback_text.splitlines() if line.strip()]
         for line in reversed(lines):
             if re.match(r"^\S+(\.\S+)*(Error|Exception|Warning):", line):
@@ -129,7 +105,6 @@ class TestDemoDataLoadedCleanly(TransactionCase):
         return lines[-1] if lines else traceback_text
 
     def test_the_demo_files_a_manifest_promises_all_exist(self):
-        """A demo file that is gone raises inside the same swallowed try."""
         missing = []
         for module in self.env["ir.module.module"].search(
             [("state", "=", "installed")]

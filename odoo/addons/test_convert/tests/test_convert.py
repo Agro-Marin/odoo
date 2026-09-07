@@ -372,18 +372,11 @@ class TestConvertCsvEncoding(common.TransactionCase):
         self.assertEqual(self.env.ref("test_convert.plain_tag").name, "Plain Tag")
 
     def test_a_csv_saved_with_a_byte_order_mark_loads_too(self):
-        # A BOM lands on the first column name, so `id` reads as `﻿id`: the
-        # xmlid column is not recognised, and on an update the file is refused
-        # outright for not having one.
         self._load("﻿id,name\ntest_convert.bom_tag,BOM Tag\n")
 
         self.assertEqual(self.env.ref("test_convert.bom_tag").name, "BOM Tag")
 
     def test_a_csv_saved_with_a_byte_order_mark_updates_too(self):
-        # The bug this fixes was reported on an update, not an initial
-        # install: without BOM-stripping, the `id` column is unrecognised and
-        # `convert_csv_import`'s mode != "init" guard refuses the file
-        # outright, silently leaving the record unchanged.
         self._load("id,name\ntest_convert.update_tag,Original Tag\n")
 
         self._load("﻿id,name\ntest_convert.update_tag,Updated Tag\n", mode="update")

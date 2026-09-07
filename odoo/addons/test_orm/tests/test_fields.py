@@ -540,14 +540,6 @@ class TestFields(TransactionCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_12_recursive_alternating_fields_survive_a_middle_first_read(self):
-        """A recursive edge that alternates between two differently-computed fields.
-
-        Computing ``alternating_up`` protects ``alternating_up`` alone, so the
-        nested read of ``parent.alternating_down`` is free to widen that field's
-        whole pending batch -- the widening the single-field case forbids.  A
-        descendant reached that way computes while its ancestor's other field is
-        still protected, so it reads the ancestor's stored, pre-write value.
-        """
         Rec = self.env["test_orm.recursive"]
         root = Rec.create({"name": "Root"})
         chain = [root]
@@ -4565,9 +4557,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         )
 
     def test_ancestor_ids_walks_when_the_record_has_no_path_yet(self):
-        # An onchange builds a record that exists only in cache, and such a
-        # record has no parent_path -- so the helper must fall back to walking
-        # or it silently reports no ancestors at all.
         draft = self.cats().new({"name": "draft", "parent": self.cats(6).id})
         self.assertFalse(draft.parent_path)
         self.assertEqual(list(draft._ancestor_ids()), self.cats(0, 3, 6).ids)
@@ -4619,10 +4608,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
         self.assertFalse(self.cats(9)._is_descendant_of(self.cats()))
 
     def test_every_parent_path_ends_in_a_separator(self):
-        # Six descendant checks across the workspace are spelled
-        # `a.parent_path.startswith(b.parent_path)`.  That is only correct
-        # because every path ends in "/": without it "1/123/" starts with
-        # "1/12" and a sibling reads as a descendant.
         for category in self._cats:
             self.assertTrue(category.parent_path.endswith("/"))
 
@@ -4641,10 +4626,6 @@ class TestParentStore(TransactionCaseWithUserDemo):
             self.assertTrue(category.parent_path.endswith("/"))
 
     def test_startswith_is_a_descendant_test_only_because_of_the_separator(self):
-        # Why the invariant above is load-bearing rather than cosmetic.  Ids
-        # are decimal, so one id can be a string prefix of another (1 and 19).
-        # Comparing the paths WITH their trailing "/" separates them; dropping
-        # it makes an unrelated record read as a descendant.
         root = self.cats(0)
         self.assertTrue(self.cats(3).parent_path.startswith(root.parent_path))
 

@@ -308,9 +308,6 @@ def update_cache(
             for record in records:
                 Field._update_cache(field, record, dict(cache_value), dirty)
             return True
-        # copy for the singleton too: storing the caller's dict by reference
-        # lets a later per-language write on this record leak into whoever
-        # else was updated from the same dict
         Field._update_cache(field, records, dict(cache_value), dirty)
         return True
     return False
@@ -589,8 +586,6 @@ class LangProxyDict(collections.abc.MutableMapping):
     def __delitem__(self, key: IdType) -> None:
         vals = self._cache.get(key, _PROXY_MISSING)
         if vals is None:
-            # a stored NULL is visible through __iter__, so deleting it must
-            # evict the entry, not silently keep yielding the key
             del self._cache[key]
             return
         if vals is _PROXY_MISSING or self._lang not in vals:

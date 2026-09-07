@@ -33,8 +33,6 @@ class TestGuessMimetypeWithADeclaration(unittest.TestCase):
                 self.assertEqual(guess_mimetype(data), expected)
 
     def test_xml_without_a_prolog(self):
-        # libmagic places structured text by its declaration alone, so this is
-        # text/plain to it -- and plenty of EDI payloads arrive this way.
         self.assertEqual(
             guess_mimetype(b"<Invoice><Total/></Invoice>"), "application/xml"
         )

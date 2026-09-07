@@ -362,9 +362,6 @@ class RecomputeMixin(_ModelStubs):
                         record = _new(cls)
                         record.env = env
                         record._ids = (id_,)
-                        # the batch as prefetch: a conversion that misses the
-                        # cache (Monetary reading currency_id) then fetches
-                        # once per batch instead of once per record
                         record._prefetch_ids = some_ids
                         vals = {}
                         for f in id_to_fields[id_]:

@@ -45,16 +45,13 @@ class TestOpaqueFieldPreservesValue(BaseCase):
         )
         original, result = self._field_value(xml)
         self.assertNotIn("\n", result, "a single-line field must stay single-line")
-        # self-close normalization (`></t>` -> ` />`) is the only allowed change
         self.assertEqual(result.replace(" />", "></t>"), original)
 
     def test_overlong_single_line_html_field_wraps_attributes_not_content(self):
-        # Long enough that the whole `<field ...>...</field>` exceeds the
-        # line-length budget, the same shape that broke in daaa18e8e39.
         xml = (
             '<record id="x" model="mail.template">'
             '<field name="body_html" type="html">'
-            "<p>Hello <t t-out=\"object.name or a_much_longer_expression_here\"></t></p>"
+            '<p>Hello <t t-out="object.name or a_much_longer_expression_here"></t></p>'
             "</field></record>"
         )
         original, result = self._field_value(xml)
@@ -62,13 +59,11 @@ class TestOpaqueFieldPreservesValue(BaseCase):
         self.assertEqual(result.replace(" />", "></t>"), original)
 
     def test_genuinely_multi_line_arch_still_reindents(self):
-        # Unchanged behaviour: content already spread across lines (the
-        # normal shape for a view `arch`) is still reindented.
         xml = (
             '<record id="x" model="ir.ui.view">'
             '<field name="arch" type="xml">\n'
             "    <form>\n"
-            "        <field name=\"name\"/>\n"
+            '        <field name="name"/>\n'
             "    </form>\n"
             "</field></record>"
         )

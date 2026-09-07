@@ -109,9 +109,6 @@ class TestReportUrlFetcher(TransactionCase):
                 self.assertFalse(_is_host_blocked(host))
 
     def test_carrier_grade_nat_and_other_non_global_literals_are_blocked(self):
-        """CGNAT (100.64.0.0/10) is neither is_private nor is_reserved, so the
-        plain classification let it through; a report resource must not be able
-        to reach it or any other non-global literal."""
         for host in ("100.64.0.1", "100.127.255.254"):
             with self.subTest(host=host):
                 self.assertTrue(_is_host_blocked(host))
@@ -1057,9 +1054,6 @@ class TestHtmlToImageDiagnostics(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestReportPaperformatFallback(TransactionCase):
     def test_a_report_with_no_paperformat_falls_back_to_a_real_one(self):
-        """When neither the report nor the company names a paperformat,
-        get_paperformat() must not return an empty recordset: float(False) then
-        makes every @page margin 0mm and the running header overlaps the body."""
         report = self.env["ir.actions.report"].create(
             {
                 "name": "No Paperformat Report",

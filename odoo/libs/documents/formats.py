@@ -28,7 +28,6 @@ class Format:
 
     @property
     def mimetypes(self) -> frozenset[str]:
-        """Every spelling a reader of this format answers to, canonical first."""
         return frozenset({self.mimetype, *self.accepts})
 
     def __repr__(self) -> str:
@@ -61,19 +60,11 @@ def register_format(fmt: Format) -> Format:
     _BY_MIMETYPE[mimetype] = fmt
     _BY_EXTENSION[extension] = fmt
     for alias in fmt.accepts:
-        # A canonical spelling always wins: `text/csv` and `text/plain` are both
-        # read as rows, but only one of them is what `.csv` means and only one of
-        # them is what a csv writer emits. Registering the alias over a canonical
-        # entry is how `extension_for` starts answering `csv` for a plain note.
         _BY_ALIAS.setdefault(alias.lower(), fmt)
     return fmt
 
 
 def register_extension(extension: str, mimetype: str) -> Format:
-    # One mimetype, several extensions: `.xaf` is a Dutch audit file and
-    # `application/xml` is what it is. The localization that produces one says so
-    # from its own layer, rather than the format layer having to know every
-    # jurisdiction that ever named an XML document after itself.
     extension = (extension or "").lower().lstrip(".")
     fmt = _BY_MIMETYPE.get((mimetype or "").lower())
     if fmt is None:
@@ -104,20 +95,11 @@ def mimetype_for(extension: str) -> str:
 
 
 def extension_for(mimetype: str) -> str:
-    # Canonical only. An alias answers `get_format` because a document arriving
-    # mislabelled still has to be read; it does not answer this, because the
-    # name a file is written under is a statement about what it is.
     fmt = _BY_MIMETYPE.get((mimetype or "").lower())
     return fmt.extension if fmt else ""
 
 
 def mimetypes_for(*extensions: str) -> frozenset[str]:
-    """The mimetypes a reader of these formats claims, aliases included.
-
-    Raises for an extension nobody registered: a reader naming a format the
-    table does not hold is the drift this function exists to make impossible,
-    and answering an empty set would register a reader that reads nothing.
-    """
     claimed: set[str] = set()
     for fmt in _formats_of(extensions):
         claimed |= fmt.mimetypes
@@ -125,12 +107,6 @@ def mimetypes_for(*extensions: str) -> frozenset[str]:
 
 
 def canonical_mimetypes(*extensions: str) -> frozenset[str]:
-    """The one mimetype each of these formats is written under, aliases out.
-
-    An allow-list is a statement about what a file *is*, which is the
-    canonical spelling; `mimetypes_for` is what a reader *tolerates*. Raises
-    for a name nobody registered, for the same reason.
-    """
     return frozenset(fmt.mimetype for fmt in _formats_of(extensions))
 
 
@@ -149,7 +125,6 @@ def known_formats() -> tuple[Format, ...]:
 
 
 _BUILTIN_FORMATS = (
-    # (mimetype, extension, representation, accepts, label)
     (
         "text/csv",
         "csv",

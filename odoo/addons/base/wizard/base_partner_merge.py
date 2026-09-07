@@ -12,10 +12,6 @@ from odoo.tools import SQL
 
 _logger = logging.getLogger("odoo.addons.base.partner.merge")
 
-# Pairs fetched per group asked for. The recall stage is deliberately looser
-# than the scorer, so it returns far more pairs than survive; without a ceiling
-# a table where many names resemble each other (branches of one company, a
-# "Partner N" import) joins to millions of rows to fill a hundred groups.
 SIMILAR_NAME_PAIRS_PER_GROUP = 200
 
 
@@ -366,15 +362,8 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     "extension, which this database does not have."
                 )
             )
-        # Raw SQL: pending writes are not in the table yet, and a contact
-        # created moments ago is exactly the one being deduplicated.
         self.env["res.partner"].flush_model(["active", "complete_name"])
 
-        # `%` answers against pg_trgm's own threshold, which defaults far below
-        # the ratio the scorer demands. Lifting it discards, in the index, pairs
-        # the scorer would only reject after fetching them.
-        # set_config(), not SET: psycopg binds server-side, so a placeholder
-        # reaches PostgreSQL as $N and SET takes no parameter.
         self.env.cr.execute(
             SQL(
                 "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
@@ -385,8 +374,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         left = SQL('left_partner."complete_name"')
         right = SQL('right_partner."complete_name"')
         if registry.has_unaccent == FunctionStatus.INDEXABLE:
-            # Match the expression res_partner's trigram index is built on, or
-            # PostgreSQL cannot use it and this becomes a sequential self-join.
             left, right = registry.unaccent(left), registry.unaccent(right)
         query = SQL(
             """
@@ -425,8 +412,6 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         partners.fetch(["complete_name"])
         names = {p.id: (p.complete_name or "").lower() for p in partners}
 
-        # The trigram operator is the recall stage and is deliberately loose;
-        # SequenceMatcher is what decides, exactly as product name matching does.
         root: dict[int, int] = {}
 
         def find(node: int) -> int:

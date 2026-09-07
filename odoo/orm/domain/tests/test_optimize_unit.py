@@ -401,8 +401,6 @@ class TestSubdomainNestingGuardCaseInsensitive(unittest.TestCase):
 
 
 class TestDeepDomainSurfacesValueError(unittest.TestCase):
-    # the depth limit is enforced at node construction, so the object API
-    # (&, |, any) cannot build a domain the list parser would refuse
     def test_operator_chain_is_rejected_at_construction(self):
         domain = Domain("a", "=", 1)
         with self.assertRaisesRegex(ValueError, "nesting too deep"):
@@ -420,8 +418,6 @@ class TestDeepDomainSurfacesValueError(unittest.TestCase):
         self.assertLessEqual(domain._depth, 2)
 
     def test_every_node_kind_carries_a_depth(self):
-        # DomainCustom's own __new__ once skipped the stamp, and the first
-        # `custom & condition` died in DomainNary's max() over children
         from odoo.orm.domain.ast import DomainCustom, DomainNot
 
         custom = DomainCustom(lambda model, alias, query: SQL("TRUE"))

@@ -44,9 +44,6 @@ class HtmlDocumentWriter(Writer):
 
 
 def render_html(source: str) -> tuple[str, str]:
-    """Render ``source`` as a complete standalone HTML document (not a
-    fragment) plus any warnings docutils produced.
-    """
     warnings = io.StringIO()
     html = publish_string(
         source=source,

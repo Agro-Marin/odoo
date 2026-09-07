@@ -443,9 +443,6 @@ class TestViewInheritance(ViewCase):
         self.assertEqual(child_primary_no_arch.invalid_locators, False)
 
     def test_invalid_locators_survive_a_malformed_move_xpath(self):
-        """A syntactically invalid xpath makes apply_inheritance_specs raise
-        ValidationError, not ValueError; the compute must report the bad
-        locator rather than crash while building it."""
         base_view = self.makeView(
             "malformed_move_base", arch="<form><field name='id'/></form>"
         )
@@ -2757,10 +2754,6 @@ class TestViews(ViewCase):
         )
 
     def test_domain_date_part_is_a_property_not_a_hop(self):
-        """The ORM resolves a date part to date_part() in SQL, so a domain may
-        carry one; ``formatted_read_group`` hands the client this very shape
-        back as ``__extra_domain``. Reading it as a relational path refused a
-        domain the framework itself writes."""
         arch = """
             <form string="View">
                 <field name="name"/>
@@ -6883,8 +6876,6 @@ class ViewModifiers(ViewCase):
 
     @mute_logger("odoo.addons.base.models.ir_ui_view")
     def test_17_attrs_groups_validation(self):
-        # Every expectation below assumes the models' read access is exactly
-        # base.group_system, which any installed module may widen.
         IrModelAccess = type(self.env["ir.model.access"])
         system_only = (
             self.env["res.groups"]._get_group_definitions().parse("base.group_system")

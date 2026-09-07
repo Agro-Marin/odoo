@@ -3,9 +3,7 @@ from typing import Any
 
 import pytest
 
-odoo_rust = pytest.importorskip(
-    "odoo_rust", exc_type=ImportError
-)  # a parity test needs both sides
+odoo_rust = pytest.importorskip("odoo_rust", exc_type=ImportError)
 _fast_clone = odoo_rust.fast_clone
 
 

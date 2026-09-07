@@ -309,10 +309,6 @@ class BaseCase(TestCase):
 
                 if retry == tests_run_count - 1:
                     super().run(cast("TestResult", result))
-                    # Scoped to `type(self)`, not `BaseCase`: a permanent
-                    # failure disables retries for the rest of this class
-                    # only, so it never silently strips flake-tolerance from
-                    # unrelated classes running later in the same process.
                     if not result.wasSuccessful() and type(self)._tests_run_count != 1:
                         _logger.log(RUNBOT, "Disabling auto-retry after a failed test")
                         type(self)._tests_run_count = 1
@@ -747,13 +743,7 @@ class BaseCase(TestCase):
         "datetime": [datetime(2021, 3, 4, 5, 6, 7)],
     }
 
-    # Types eligible for probing beyond `_DEPENDS_PROBE_VALUES`'s static
-    # samples: used by `_depends_probe_names` to select/order candidates.
     _DEPENDS_PROBE_EXTRA_TYPES = frozenset({"selection", "many2one"})
-    # Subset of `_DEPENDS_PROBE_EXTRA_TYPES` actually dispatched through
-    # `_depends_probe_values`'s dynamic-values branch — "many2one" is
-    # deliberately absent: it is handled by its own branch earlier in that
-    # method, which always returns first, so it would never reach this set.
     _DEPENDS_PROBE_DYNAMIC = frozenset({"selection"})
 
     def assertDependsComplete(
@@ -884,11 +874,6 @@ class BaseCase(TestCase):
                 return []
             env.invalidate_all()
             before = self._depends_read(records, computed)
-            # Written one record at a time: batching the same probe value
-            # across several sampled records at once can violate a unique
-            # constraint the model holds on this field (e.g. `res.currency`'s
-            # unique `name`), which would abort the write and mask real
-            # staleness instead of revealing it.
             target.write({probe_name: value})
             cached = self._depends_read(records, computed)
             env.flush_all()

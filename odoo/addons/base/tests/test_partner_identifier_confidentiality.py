@@ -67,7 +67,6 @@ class TestIdentifierConfidentiality(TransactionCase):
             self.other_secret.with_user(self.reader).read(["value"])
 
     def test_the_rule_is_a_no_op_for_identifiers_of_unmarked_types(self):
-        """confidential defaults False, so landing the rule changes nothing."""
         self.assertFalse(self.public_type.confidential)
         everything = self.env["res.partner.identifier"].search(
             [("type_id", "=", self.public_type.id)]
@@ -104,8 +103,6 @@ class TestPrivateAddressType(TransactionCase):
         self.assertEqual(self.home.type_address_label, "Private Address")
 
     def test_it_is_distinguishable_in_the_complete_name(self):
-        """Without "private" in _complete_name_displayed_types a nameless home
-        address renders as the bare parent name, indistinguishable from it."""
         self.assertIn("private", self.env["res.partner"]._complete_name_displayed_types)
         self.assertNotEqual(self.home.complete_name, self.company.complete_name)
 
@@ -116,7 +113,6 @@ class TestPrivateAddressType(TransactionCase):
         self.assertEqual(self.home.city, "Smallville")
 
     def test_a_private_address_does_not_push_up_onto_its_parent(self):
-        """The direction that would leak an employee's home onto the company."""
         self.home.write({"street": "Home 2", "city": "Bludhaven"})
         self.company.invalidate_recordset()
         self.assertNotEqual(self.company.street, "Home 2")

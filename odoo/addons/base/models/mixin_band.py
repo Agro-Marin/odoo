@@ -75,11 +75,6 @@ class MixinBand(models.AbstractModel):
                 continue
             scales[repr(record._band_scope_domain())] |= record
 
-        # One query per distinct scale, not one per record. Which bands may
-        # conflict is a per-record notion -- two attributes' buckets, or two
-        # companies' bands, never overlap each other -- so the hook stays per
-        # record while every record answering it alike shares one search.
-        # Importing a scale used to cost one query per band in it.
         for records in scales.values():
             candidates = records.search(records[0]._band_scope_domain())
             for record in records:

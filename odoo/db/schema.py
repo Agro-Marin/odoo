@@ -255,18 +255,6 @@ def create_column(
         SQL.identifier(tablename),
         SQL.identifier(columnname),
         SQL(columntype),
-        # The spelling is load-bearing: DO NOT normalize "bool" into this.
-        # `fields.Boolean._column_type` is ("bool", "bool"), so every column the
-        # ORM creates for a Boolean field takes the empty branch, which is what
-        # lets `_init_column` backfill the FIELD's default -- it updates
-        # `WHERE <column> IS NULL`, and a DDL default fills those rows first, so
-        # the backfill then matches nothing. A field declared `default=True`
-        # therefore lands false on every pre-existing row. `res.company.active`
-        # is exactly that: `base_data.sql` inserts company 1 with no `active`,
-        # and with a DDL default the company comes up ARCHIVED, `company_ids`
-        # filters it out of every user, and base cannot install its own admin.
-        # Only the explicit "boolean"/"BOOLEAN" spelling, which four hand-written
-        # callers use deliberately, takes the default.
         SQL("DEFAULT false" if columntype.upper() == "BOOLEAN" else ""),
     )
     if comment:
@@ -604,14 +592,6 @@ def get_index_definition(
 
 
 def get_index_constraint(cr: BaseCursor, indexname: str) -> str | None:
-    """Name of the table constraint that owns ``indexname``, if any.
-
-    A UNIQUE, PRIMARY KEY or EXCLUDE constraint is backed by an index that
-    ``pg_indexes`` lists like any other, but which belongs to the constraint:
-    it cannot be dropped on its own, and its comment lives on the constraint.
-    Callers that mean to replace or remove an index have to ask this first,
-    because both operations take different DDL once the answer is not None.
-    """
     cr.execute(
         SQL(
             """

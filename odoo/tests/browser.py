@@ -555,10 +555,6 @@ class ChromeBrowser:
             timeout = 10.0 * self.throttling_factor
         f = self._websocket_send(method, params=params, with_future=True)
         if f is None:
-            # `self.ws` was removed between our guard above and
-            # `_websocket_send`'s own check (the receiver thread can `del
-            # self.ws` on a closed connection at any time) — treat it the
-            # same as the guard above having failed in the first place.
             return None
         try:
             return f.result(timeout=timeout)

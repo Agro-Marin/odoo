@@ -172,9 +172,6 @@ class ReconnectBackoff:
     def __init__(
         self, logger: logging.Logger, *, ceiling: int = BACKOFF_CEILING_S
     ) -> None:
-        # Rejected here rather than by backoff.bound on the first failure: a
-        # ceiling under the base is a wiring mistake, and the retry path is the
-        # worst place to discover one.
         if ceiling < BACKOFF_BASE_S:
             raise ValueError(
                 f"ceiling ({ceiling}) is below the {BACKOFF_BASE_S}s base, "

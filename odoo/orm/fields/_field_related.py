@@ -117,8 +117,6 @@ def compute_related(field: Field, records: BaseModel) -> None:
         try:
             group = falsy_groups.setdefault(key, (processed, []))
         except TypeError:
-            # same allowance as inverse_related: an unhashable falsy value is
-            # assigned per record instead of grouped
             record[field.name] = processed
             continue
         group[1].append(record.id)

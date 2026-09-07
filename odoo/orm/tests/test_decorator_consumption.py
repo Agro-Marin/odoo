@@ -154,10 +154,6 @@ class TestConstrainsUnknownFieldWarning:
 
 
 class TestNoShippedConstraintReliesOnSu:
-    # `_check_fields` hands a constraint `self.sudo()` unless the decorator says
-    # `sudo=False`, so `env.su` inside one reads True forever and a branch on it
-    # is dead. One shipped that way and no test could have caught it.
-
     ROOTS = ("odoo", "addons")
 
     @staticmethod
@@ -218,10 +214,6 @@ class TestNoShippedConstraintReliesOnSu:
         )
 
     def test_no_stored_compute_reads_su_without_declaring_compute_sudo_false(self):
-        # `compute_sudo` defaults to `store`, so the same shape one hook over.
-        # Blind spots, not exemptions: a `compute=` given as a callable, and a
-        # field declared in another class. A related field is NOT one -- its
-        # compute is generated, so there is no body in which to read the flag.
         offenders = self._stored_compute_offenders()
         assert offenders == [], (
             "these computes read `env.su` while computing a stored field, which "
@@ -290,8 +282,6 @@ class TestNoShippedConstraintReliesOnSu:
         return found
 
     def test_the_scan_reaches_a_constraint_at_all(self):
-        # The scans exclude `tests/`, and excluding a directory is how one
-        # quietly narrows to nothing and reads green forever.
         repo = Path(__file__).resolve().parents[3]
         seen = 0
         for path in (repo / "addons").rglob("*.py"):

@@ -125,11 +125,6 @@ def _convert_and_record(
     mode: LoadMode,
     kind: LoadKind,
 ) -> set[str]:
-    """Apply one data file and remember every record it wrote.
-
-    Used by both load paths, tracked and not: the skip decision below is only
-    sound if every write in the run is visible to it, whatever mode produced it.
-    """
     registry = env.registry
     recorder: set[str] = set()
     previous_recorder = registry._xmlid_recorder
@@ -164,13 +159,6 @@ def _load_tracked_file(
     registry = env.registry
     entry = stored_files.get(filename)
     if not dynamic and _is_reusable_checksum_entry(entry, digest):
-        # Unchanged is not the same as redundant. Two files may declare the
-        # same record -- one module ships a menu `active="0"` and a dependent
-        # one re-activates it -- and then the load order is the whole meaning:
-        # the later file wins. Skipping it because its own bytes did not move
-        # leaves the earlier write standing and reverses that order silently,
-        # so the record settles in a state neither file asks for. Only a file
-        # whose records nothing has rewritten this run is safe to skip.
         contended = registry._xmlids_written.intersection(entry["xmlids"])
         if _overrides_another_module(entry, package.name):
             _logger.info(
@@ -1064,9 +1052,6 @@ class _ModuleLoader:
     def _reflect_inherits_across_the_whole_registry(self) -> None:
         if not self.registry.updated_modules:
             return
-        # The reflection helpers defer their cache marking through the
-        # post-init queue, which exists only inside a window; this pass runs
-        # after every init_models() window has closed, so it opens its own.
         with self.registry.init_models_window(install=False):
             self.env["ir.model.inherit"]._reflect_inherits(list(self.registry.models))
 

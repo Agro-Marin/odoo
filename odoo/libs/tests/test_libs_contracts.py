@@ -167,8 +167,6 @@ class TestHexToRgb:
             "nope",
             "#gg0000",
             "#1234567",
-            # 4/8-digit forms carry an alpha channel this function has no
-            # way to return -- rejected, not silently dropped.
             "#ff0000ff",
             "#f00f",
         ],
@@ -866,14 +864,6 @@ class TestSqlJoinKeepsTheSeparatorsToFlush:
 
     @classmethod
     def _a_field(cls) -> Any:
-        """A stand-in for a `Field`, deliberately opaque.
-
-        `SQL` only stores `to_flush` and hands it back, so what this suite
-        asserts -- that `join` keeps the separator's own fields -- holds for any
-        object. `Any` is the type that says so, and it keeps `odoo/libs` free of
-        the ORM: naming `Field` here, even under `TYPE_CHECKING`, would point a
-        package that is Odoo-agnostic at one that is not.
-        """
         return cls._Field()
 
     def test_a_separator_without_params_reports_its_fields(self):

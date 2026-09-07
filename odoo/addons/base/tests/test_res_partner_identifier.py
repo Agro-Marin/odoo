@@ -39,7 +39,6 @@ class TestPartnerIdentifier(TransactionCase):
         )
 
     def test_punctuation_and_case_do_not_change_the_identifier(self):
-        """The typed form is kept; comparison uses the normalized one."""
         self.company._update_identifier("TEST_RFC", "van-850101-qw1")
 
         identifier = self.company.identifier_ids
@@ -47,7 +46,6 @@ class TestPartnerIdentifier(TransactionCase):
         self.assertEqual(identifier.normalized_value, "VAN850101QW1")
 
     def test_a_value_another_contact_holds_is_refused(self):
-        """Spelling it differently must not get past the uniqueness rule."""
         self.company._update_identifier("TEST_RFC", "VAN-850101-QW1")
         impostor = self.Partner.create({"name": "Impostor SA", "is_company": True})
 
@@ -56,7 +54,6 @@ class TestPartnerIdentifier(TransactionCase):
                 impostor._update_identifier("TEST_RFC", "van850101qw1")
 
     def test_a_contacts_own_address_may_share_its_identifier(self):
-        """One commercial entity is one holder, however many addresses it has."""
         self.company._update_identifier("TEST_RFC", "VAN850101QW1")
         address = self.Partner.create(
             {
@@ -114,12 +111,6 @@ class TestPartnerIdentifier(TransactionCase):
         self.assertFalse(self.company._get_identifier("TEST_RFC"))
 
     def test_each_type_decides_whether_it_follows_the_commercial_entity(self):
-        """The whole point of a per-type flag.
-
-        `_synced_commercial_fields` is one list of column names for every
-        contact, so it cannot say "a tax ID belongs to the company, a national
-        number belongs to the person". This can.
-        """
         self.company._update_identifier("TEST_RFC", "VAN850101QW1")
         person = self.Partner.create(
             {"name": "Nadia Okonkwo", "parent_id": self.company.id}
@@ -134,7 +125,6 @@ class TestPartnerIdentifier(TransactionCase):
         )
 
     def test_a_synced_type_is_readable_from_a_child_without_being_copied(self):
-        """Reading falls back to the commercial entity, so no copy is needed."""
         self.company._update_identifier("TEST_RFC", "VAN850101QW1")
         address = self.Partner.create(
             {"name": "Vantage Depot", "parent_id": self.company.id, "type": "delivery"}
@@ -150,13 +140,6 @@ class TestPartnerIdentifier(TransactionCase):
         self.assertFalse(child._get_identifier("TEST_CURP"))
 
     def test_a_collision_inside_one_batch_is_caught(self):
-        """The constraints query once for the whole recordset, not per row.
-
-        Hoisting the search out of the loop is what makes an import of many
-        contacts affordable, and it is also what makes this case work: two
-        colliding rows created in the same call are both in the recordset, so
-        neither is on disk yet when the other is checked.
-        """
         rival = self.Partner.create({"name": "Rival SA", "is_company": True})
 
         with self.assertRaises(ValidationError):
@@ -177,7 +160,6 @@ class TestPartnerIdentifier(TransactionCase):
                 )
 
     def test_unrelated_identifiers_in_one_batch_are_all_accepted(self):
-        """The batch path must not reject what is merely adjacent."""
         rival = self.Partner.create({"name": "Rival SA", "is_company": True})
 
         created = self.Identifier.create(
@@ -210,11 +192,6 @@ class TestPartnerIdentifier(TransactionCase):
                 )
 
     def test_a_code_specific_rule_runs_after_the_format(self):
-        """`_check_code_<code>` is the extension point a localization adds.
-
-        Patched onto the registry class, not the recordset: recordsets carry
-        `__slots__`, so an instance attribute raises rather than shadowing.
-        """
         checked = []
 
         def _check_code_test_rfc(self, value):
@@ -235,8 +212,6 @@ class TestPartnerIdentifier(TransactionCase):
                     self.company._update_identifier("TEST_RFC", "ZZZ850101QW1")
 
     def test_a_value_with_non_ascii_letters_is_normalized_not_stripped(self):
-        """A leading Ñ or an ampersand belongs to the RFC; normalizing must keep
-        them, not delete them into a value the pattern then rejects."""
         self.company._update_identifier("TEST_RFC", "ÑAM-010101-AB1")
         identifier = self.company.identifier_ids.filtered(
             lambda i: i.type_id == self.rfc
@@ -254,8 +229,6 @@ class TestPartnerIdentifier(TransactionCase):
         )
 
     def test_a_clash_with_an_unreadable_holder_raises_validation_not_access(self):
-        """The uniqueness check must see holders in other companies (so it can
-        refuse the value) without leaking the read as an AccessError."""
         company_b = self.env["res.company"].create({"name": "Other Co"})
         hidden = self.Partner.create(
             {"name": "Hidden Holder", "company_id": company_b.id}
@@ -291,9 +264,6 @@ class TestPartnerIdentifier(TransactionCase):
                 mine.with_user(manager)._update_identifier("TEST_RFC", "VAN850101QW1")
 
     def test_a_code_does_not_collide_with_a_model_method(self):
-        """The code-specific rule is dispatched by name, so a type whose code
-        happens to match a real method (e.g. "hook" -> _check_hook, or
-        "pattern_compiles" -> the constraint) must not hijack validation."""
         for code in ("hook", "pattern_compiles"):
             with self.subTest(code=code):
                 self.Type.create(

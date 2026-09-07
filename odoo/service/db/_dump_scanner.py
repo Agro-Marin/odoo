@@ -26,14 +26,6 @@ _ALLOWED_PSQL_META_COMMANDS: dict[str, re.Pattern[str]] = {
 _COPY_WORD_MAX_LEN = 5
 _DOLLAR_TAG_RE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
 
-# `standard_conforming_strings=off` makes an unprefixed backslash inside a
-# `'...'` string escape the closing quote, the same way `E'...'` always does.
-# The scanner below only treats a backslash that way when the string is
-# `E`/`e`-prefixed (see `single_quote_escaped`), so a dump that turns this
-# GUC off can make it close a string early and mistake the real closing quote
-# for the start of a second, never-closed one -- going blind to everything
-# after it, including a `\!` meta-command psql executes for real. A backup
-# produced by Odoo's own dump never needs to change this setting.
 _STANDARD_CONFORMING_STRINGS_OFF_RE = re.compile(
     r"(?i)standard_conforming_strings\s*(?:=|\bto\b)\s*'?off'?\b"
 )

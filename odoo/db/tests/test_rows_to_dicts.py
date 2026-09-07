@@ -2,9 +2,7 @@ import unittest
 
 import pytest
 
-odoo_rust = pytest.importorskip(
-    "odoo_rust", exc_type=ImportError
-)  # a parity test needs both sides
+odoo_rust = pytest.importorskip("odoo_rust", exc_type=ImportError)
 rows_to_dicts = odoo_rust.rows_to_dicts
 
 

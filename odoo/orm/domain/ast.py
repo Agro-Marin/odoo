@@ -871,8 +871,6 @@ class DomainCondition(Domain):
         value = self.value
         try:
             if value.__class__ in (list, tuple, set, frozenset, OrderedSet):
-                # the same type-tagged set _comparand_eq compares with, so
-                # conditions that compare equal cannot hash apart
                 h = hash(
                     (
                         self.field_expr,
@@ -943,13 +941,6 @@ class DomainCondition(Domain):
                 return DomainCondition(parent_fname, "any", parent_domain)
 
             if field.search and field.name == self.field_expr:
-                # A search method rewrites this condition into the fields it
-                # names, so this is the last point at which the field the
-                # caller asked about is still visible. A stored field is
-                # checked again in _to_sql, but a computed one never reaches
-                # there under its own name: without this its value would be
-                # searchable -- and therefore guessable -- by a user who
-                # cannot read it.
                 model._check_field_access(field, "read")
                 if field.is_boolean:
                     for opt in _OPTIMIZATIONS_FOR[level].get("boolean", ()):

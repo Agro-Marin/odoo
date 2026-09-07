@@ -182,7 +182,6 @@ def _prepare_postgres_search_query(
     check_access: bool = True,
     prof: typing.Any = None,
 ) -> Query:
-    """Compile the PostgreSQL query and its flush dependencies."""
     if prof is None:
         prof = _OrmProfile(_orm_read)
     query = Query(model.env, model._table, model._table_sql)
@@ -871,11 +870,6 @@ class InMemoryBackend:
         column_fields: list[Field],
         records: BaseModel,
     ) -> None:
-        """Seed the cache from storage, leaving values already in it alone.
-
-        `setdefault` is what makes this safe to call outside a read: a deferred
-        write lives in the cache and must win over the row it has not reached.
-        """
         if not column_fields:
             return
         env = model.env
@@ -921,11 +915,6 @@ class InMemoryBackend:
         all_ids = self.storage.table_ids(model._table)
         all_records = model.browse(all_ids)
 
-        # `filtered_domain` and `sorted` read through the descriptors, and a
-        # cache miss there re-enters `fetch` -- which models may override, and
-        # `test_orm.category` overrides with a `search_count`. Seeding the
-        # columns the domain and the order name breaks that cycle at its only
-        # entry point; `_load_column_cache` leaves deferred writes in place.
         fields = model._fields
         self._load_column_cache(
             model,

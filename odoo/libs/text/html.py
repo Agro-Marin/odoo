@@ -254,20 +254,11 @@ class _Cleaner(clean.Cleaner):
     sanitize_style = False
     conditional_comments = True
 
-    # lxml's HTML parser (used throughout this module) keeps "xml:base" as a
-    # literal attribute name -- it does not resolve it to the namespaced
-    # Clark-notation key an XML parser would use.
     _XML_BASE_ATTRS = ("xml:base", "{http://www.w3.org/XML/1998/namespace}base")
 
     def __call__(self, doc: etree._Element) -> None:
         super().__call__(doc)
 
-        # xml:base changes the base URI for relative-URL resolution within
-        # its subtree -- combined with a relative src/href elsewhere in the
-        # same fragment, an attacker-controlled xml:base can redirect those
-        # references to an attacker-controlled host. Strip it unconditionally
-        # rather than only when sanitize_attributes=True's safe_attrs
-        # allowlist happens to exclude it.
         for el in doc.iter(tag=etree.Element):
             for attr in self._XML_BASE_ATTRS:
                 el.attrib.pop(attr, None)
@@ -673,9 +664,6 @@ _EMPTY_TAG_RE = re.compile(
     r'<\s*\/?(?:p|div|section|span|br|b|i|font)\b(?:(\s+[A-Za-z_-][A-Za-z0-9-_]*(\s*=\s*[\'"][^"\']*[\'"]))*)(?:\s*>|\s*\/\s*>)'
 )
 
-# _EMPTY_TAG_RE only strips markup for its allowlisted tags, not the payload
-# of a tag it doesn't know -- script/style content has no visible output but
-# would otherwise count as "real" leftover text below.
 _SCRIPT_STYLE_RE = re.compile(
     r"<(script|style)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL
 )
@@ -699,10 +687,6 @@ _BR_TAGS_RE = re.compile(r"(([<]\s*[bB][rR]\s*/?[>]\s*){2,})")
 def normalize_url(url: str) -> str:
     if urlparse(url).scheme in ("http", "https", "ftp", "ftps"):
         return url
-    # A protocol-relative URL ("//evil.com/x") also starts with "/", but
-    # browsers resolve it against the current page's scheme to an absolute
-    # cross-origin URL, not a local path — LOCAL_LINK_PATTERNS below already
-    # excludes this exact case via its own `/(?!/)` negative lookahead.
     if url.startswith(("?", "#")) or (url.startswith("/") and not url.startswith("//")):
         return url
     return "http://" + url

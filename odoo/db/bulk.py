@@ -51,8 +51,9 @@ if TYPE_CHECKING:
         _cnx: psycopg.Connection
         _thread: threading.Thread
         _schema_cache: TransactionSchemaCache
-        _savepoint_depth: int
         dbname: str
+
+        def _note_table_locked(self, table: str) -> None: ...
 
         def execute(
             self,
@@ -373,7 +374,7 @@ class _BulkAccessMixin:
                 _get_table_identifier(table)
             )
         )
-        cache.mark_locked(table, self._savepoint_depth)
+        self._note_table_locked(table)
 
     def _get_id_sequence(self: _CursorInternals, table: str) -> str:
         cache = self._schema_cache

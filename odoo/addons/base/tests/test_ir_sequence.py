@@ -881,9 +881,6 @@ class TestIrSequenceTimezone(common.TransactionCase):
         )
 
     def test_date_ranged_and_plain_agree_on_the_year_across_the_tz_boundary(self):
-        """A plain sequence resolves "today" in the user's timezone; a date-ranged
-        one must do the same, or the two disagree on %(year)s near midnight.
-        2026-01-01 01:00 UTC is still 2025-12-31 in America/Mexico_City (UTC-6)."""
         with freeze_time("2026-01-01 01:00:00"):
             plain = self._seq(use_date_range=False)
             ranged = self._seq(use_date_range=True)

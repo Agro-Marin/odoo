@@ -39,9 +39,6 @@ class InMemoryRecordRulesNotSupported(NotImplementedError):
 
 
 class _GenerationDict(dict):
-    # the @ormcache decorator reads d.generation around the compute and only
-    # stores when it did not move -- mirror the real LRU's clear() bump so
-    # cached model methods work under the in-memory registry
     generation = 0
 
     def clear(self) -> None:

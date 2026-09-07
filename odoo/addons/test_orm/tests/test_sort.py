@@ -182,8 +182,6 @@ class TestSort(TransactionCase):
                     countries.sorted(order).mapped("name"),
                 )
 
-        # Unambiguous ASCII subset: independently-derived expected order,
-        # not just cross-checked against .sorted() as above.
         ascii_countries = self.env["test_orm.country"].create(
             [{"name": "Banana"}, {"name": "apple"}, {"name": "Cherry"}]
         )

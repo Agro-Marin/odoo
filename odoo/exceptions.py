@@ -54,10 +54,6 @@ class AccessError(UserError):
 
 
 class _Named(Protocol):
-    # All CacheMiss needs of a Field is its name. Stating that as a Protocol
-    # keeps this module foundational -- it imports nothing from odoo.orm, which
-    # the root-modules-are-foundational layering contract forbids -- while still
-    # typing the attribute the message reads.
     name: str
 
 

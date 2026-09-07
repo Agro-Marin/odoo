@@ -105,10 +105,6 @@ class Layout:
         return "".join(f"{self.render(record)}{terminator}" for record in records)
 
     def parse(self, line: str) -> dict[str, Any]:
-        # A short line is a defect in the file, not something to pad over: a
-        # record that stops early means every column after the truncation is
-        # read from the wrong offset, and silently returning blanks for them is
-        # how a wrong amount reaches a record.
         if len(line) < self.width:
             raise ValueError(
                 f"Line is {len(line)} characters and the layout is {self.width}"

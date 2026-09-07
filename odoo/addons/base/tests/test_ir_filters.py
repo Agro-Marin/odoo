@@ -424,9 +424,6 @@ class TestCreateFilterValidation(FiltersCase):
             )
 
     def test_create_filter_rejects_a_python_repr_sort(self):
-        """sort is stored under a JSON-array CHECK, so a Python-repr list must be
-        refused at validation with a clear message, not at flush with the SQL
-        constraint."""
         with self.assertRaises(ValidationError):
             self.env["ir.filters"].create_filter(
                 {

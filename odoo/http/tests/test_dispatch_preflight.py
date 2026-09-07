@@ -92,9 +92,6 @@ def test_plain_cors_still_emits_the_declared_value():
 
 
 def test_a_resolver_returning_a_wildcard_grants_no_credentials():
-    # _check_cors_credentials rejects a literal cors="*" at decoration time, but
-    # a resolver callable is only evaluated per request: the same pair must not
-    # get through here either.
     req = _request(headers={"Origin": "*"})
     _pre_dispatch(req, _rule(cors=lambda r: "*", cors_credentials=True))
 

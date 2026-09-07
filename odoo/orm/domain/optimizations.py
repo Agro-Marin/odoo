@@ -139,8 +139,6 @@ def nary_condition_optimization(
                     merge_conditions = []
                 result.append(domain)
             flush()
-            # identity is the caller's "nothing changed" signal; a fresh but
-            # equal list would make it rescan operators for no reason
             return result if merged_any else domains
 
         optimizer._match_operators = frozenset(operators)  # type: ignore[attr-defined]
@@ -458,8 +456,6 @@ def _optimize_boolean_in(condition, model):
     if not all(isinstance(v, bool) for v in value):
         if any(isinstance(v, str) for v in value):
             _logger.debug("Comparing boolean with a string in %s", condition)
-        # OrderedSet, not set: the convergence loop compares classes, so a
-        # plain set here costs one extra full pass to normalise it back
         value = OrderedSet(
             str2bool(v.lower(), False) if isinstance(v, str) else bool(v) for v in value
         )

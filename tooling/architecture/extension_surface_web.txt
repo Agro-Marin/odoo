@@ -143,7 +143,7 @@ FileViewer.setup  odoo enterprise  :keep
 FloatField.parse  odoo  :triage
 FormArchParser.parse  odoo enterprise  :keep
 FormCompiler.compile  odoo enterprise  :keep
-FormCompiler.compileNotebook  odoo enterprise  :keep
+FormCompiler.compileNotebook  odoo  :keep
 FormCompiler.createLabelFromField  enterprise  :triage
 FormController.afterExecuteActionButton  odoo  :triage
 FormController.archiveDialogProps  odoo enterprise  :keep
@@ -360,7 +360,6 @@ NavBar.isInApp  enterprise  :triage
 NavBar.onNavBarDropdownItemSelection  odoo enterprise  :keep
 NavBar.setup  odoo enterprise  :keep
 NavBar.systrayItems  odoo  :triage
-Notebook.setup  enterprise  :triage
 NotificationContainer.notificationComponent  odoo  :keep
 NotificationContainer.serviceName  odoo  :keep
 NumericInputFieldBase.formattedValue  odoo enterprise  :keep

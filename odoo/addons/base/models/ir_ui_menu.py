@@ -368,7 +368,6 @@ class IrUiMenu(models.Model):
         action_info_by_action = {}
         for model_name, action_ids in action_ids_by_type.items():
             actions = self.env[model_name].sudo().browse(action_ids)
-            # Only a window action opens a model; the others have no res_model.
             has_res_model = "res_model" in actions._fields
             actions.fetch(["path", "res_model"] if has_res_model else ["path"])
             for action in actions:

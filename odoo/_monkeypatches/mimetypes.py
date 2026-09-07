@@ -4,10 +4,6 @@ from typing import Any, Final, Protocol
 
 
 class _RepinningInit(Protocol):
-    # mimetypes.init resets the type map, dropping the types added above; the
-    # wrapper re-adds them and carries this marker so a second patch_module()
-    # does not wrap the wrapper. The Protocol is what makes the marker a
-    # declared contract rather than an attribute stamped onto a function.
     _odoo_repins: bool
 
     def __call__(self, files: Any = None) -> None: ...

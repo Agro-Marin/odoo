@@ -55,7 +55,6 @@ REQUIRE_ENV = "ODOO_REQUIRE_NATIVE"
 
 
 def native_required(environ: Mapping[str, str] | None = None) -> bool:
-    """Whether a missing odoo_rust is fatal: explicit ODOO_REQUIRE_NATIVE, else CI."""
     env = os.environ if environ is None else environ
     value = env.get(REQUIRE_ENV, env.get("CI", ""))
     return value.strip().lower() not in ("", "0", "false", "no")

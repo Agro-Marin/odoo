@@ -258,8 +258,6 @@ class Properties(Field):
         use_display_name: bool = True,
     ) -> list[typing.Any]:
         if not records:
-            # the per-record shape below is a definitions list, and the
-            # empty-record read of convert_to_read must match it
             return [[] for _ in values]
         if len(values) != len(records):
             raise ValueError(

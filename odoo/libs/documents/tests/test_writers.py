@@ -65,10 +65,6 @@ class TestRegistry(unittest.TestCase):
 
 
 class TestOutsideRegistration(unittest.TestCase):
-    # The seam the design rests on: a writer whose dependency lives above
-    # `libs` registers from where that dependency is, and every caller reaches
-    # it through the same registry as the built-ins.
-
     def setUp(self):
         writer = BaseWriter()
         writer.name = "tsv"

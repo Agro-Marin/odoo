@@ -84,7 +84,6 @@ def get_writers(mimetype: str, representation: str) -> tuple[BaseWriter, ...]:
 
 
 def registered_writers() -> tuple[BaseWriter, ...]:
-    """Every registered writer object, once, in registration order."""
     seen: dict[int, BaseWriter] = {}
     for writers in _WRITERS.values():
         for writer in writers:
@@ -119,9 +118,6 @@ def _write_csv(value: Any, **options: Any) -> bytes:
     quoting = options.get("quoting") or '"'
     encoding = options.get("encoding") or "utf-8"
     buffer = io.StringIO()
-    # `\r\n` is what RFC 4180 specifies and what `csv.writer` defaults to; it is
-    # named rather than defaulted so a caller writing for a system that rejects
-    # it has one option to set instead of a post-processing pass.
     writer = csv.writer(
         buffer,
         delimiter=separator,

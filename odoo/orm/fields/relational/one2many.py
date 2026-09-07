@@ -224,10 +224,6 @@ class One2many(_RelationalMulti):
         self, records_commands_list, model, comodel, create: bool
     ) -> None:
         inverse = self.inverse_name
-        # A Many2oneReference names its target with a pair: the id, and the model
-        # in its `model_field`. Setting only the id leaves the row pointing at an
-        # id in no model, which `_additional_domain` then filters out -- so a line
-        # written through this field would be invisible through that same field.
         inverse_field = comodel._fields[inverse]
         reference_model_field = (
             inverse_field.model_field if inverse_field.is_many2one_reference else None

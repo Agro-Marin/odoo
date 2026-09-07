@@ -138,9 +138,6 @@ class Shell(Command):
                     )
                 continue
             try:
-                # `supported_shells` is the enumerable domain of this getattr,
-                # so those four method names are keys in a dispatch table and
-                # are not free to be renamed (coding_guidelines 2.4.14).
                 shell_func = getattr(self, shell)
                 return shell_func(local_vars, pythonstartup)
             except Exception:

@@ -34,8 +34,6 @@ class WatchedFileHandler(logging.handlers.WatchedFileHandler):
         self._builtin_open = None
 
     def _open(self) -> TextIOWrapper:
-        # The return type is the supertype's, not IO[str]: FileHandler._open is
-        # declared over TextIOWrapper and its callers use .reconfigure().
         return cast(
             "TextIOWrapper",
             Path(self.baseFilename).open(
@@ -96,8 +94,6 @@ class PostgreSQLHandler(logging.Handler):
                 from . import modules
 
                 metadata = {}
-                # current_test is the literal True between tests (loader.py sets
-                # it so), and only a TestCase carries get_log_metadata.
                 test = modules.module.current_test
                 if test is not True and test:
                     with contextlib.suppress(Exception):
@@ -145,10 +141,6 @@ class PerfFilter(logging.Filter):
         return cursor_mode or "-"
 
     def filter(self, record: logging.LogRecord) -> bool:
-        # perf_info is declared on this module's LogRecord, which
-        # patch_logging() installs as the process-wide record factory, not on
-        # logging.LogRecord -- the parameter type the Filter contract fixes.
-        # The parameter keeps its name: Filter.filter's is positional-or-keyword.
         perf_record = cast("LogRecord", record)
         worker = current_worker_thread()
         if hasattr(worker, "query_count"):
@@ -229,8 +221,6 @@ class JSONFormatter(logging.Formatter):
             }
 
     def format(self, record: logging.LogRecord) -> str:
-        # Values are heterogeneous: most keys copy a LogRecord attribute, but
-        # "test" carries the metadata mapping get_log_metadata() returns.
         record_json: dict[str, object] = {}
         record_keys = self.record_keys
         if record_keys is None:
@@ -318,9 +308,6 @@ class _ShowWarning(Protocol):
     ) -> None: ...
 
 
-# The stdlib hook patch_logging() saves before replacing it. It starts as the
-# real one rather than None, so calling it before that point is a no-op rather
-# than a TypeError.
 showwarning: _ShowWarning = warnings.showwarning
 
 
@@ -391,8 +378,6 @@ def _apply_log_config_file() -> dict | None:
 
 def _install_log_handler() -> None:
     format = "%(asctime)s %(pid)s %(levelname)s uid:%(uid)s %(dbname)s %(name)s: %(message)s %(perf_info)s"
-    # Handler, not StreamHandler: the branches below replace it with syslog,
-    # NT-event-log and file handlers, none of which is a StreamHandler.
     handler: logging.Handler = logging.StreamHandler()
 
     if tools.config["syslog"]:
@@ -516,9 +501,6 @@ PSEUDOCONFIG_MAPPER: Final[dict[str, list[str]]] = {
 
 RUNBOT: Final[int] = 25
 
-# A custom level published on the logging module, and _nameToLevel is the
-# private table that resolves its name. Neither is something typeshed declares,
-# which is what makes these two lines a patch rather than an API call.
 logging.RUNBOT = RUNBOT  # type: ignore[attr-defined]
 logging.addLevelName(RUNBOT, "INFO")
 logging._nameToLevel["INFO"] = logging.INFO
@@ -537,8 +519,6 @@ def showwarning_with_traceback(
     file: TextIO | None = None,
     line: str | None = None,
 ) -> None:
-    # The signature is warnings.showwarning's, which this replaces: message is
-    # a str when a caller passes warnings.warn a plain string.
     if (
         category is BytesWarning
         and isinstance(message, Warning)
@@ -570,6 +550,4 @@ def runbot(self: logging.Logger, message: str, *args: object, **kws: Any) -> Non
     self.log(RUNBOT, message, *args, **kws)
 
 
-# Logger.runbot is this fork's own level-25 shorthand, added to the class the
-# same way Logger.warning et al. are defined on it.
 logging.Logger.runbot = runbot  # type: ignore[attr-defined]

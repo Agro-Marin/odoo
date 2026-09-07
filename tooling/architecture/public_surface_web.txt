@@ -116,7 +116,7 @@
 @web/fields/basic/monetary/monetary_field  odoo enterprise
 @web/fields/basic/phone/phone_field  odoo enterprise
 @web/fields/basic/text/text_field  odoo enterprise
-@web/fields/basic/url/url_field  odoo enterprise
+@web/fields/basic/url/url_field  odoo
 @web/fields/display/badge/badge_field  enterprise
 @web/fields/display/gauge/gauge_field  odoo
 @web/fields/display/percent_pie/percent_pie_field  enterprise

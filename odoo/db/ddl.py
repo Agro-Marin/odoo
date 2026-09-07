@@ -108,9 +108,6 @@ def _inline_ddl_params(qs: str, params: tuple | list | dict, ctx: Any) -> str:
         def _replace_named_marker(m: _re.Match) -> str:
             name = m.group(1)
             if name is None:
-                # %% escapes a literal percent uniformly across the whole
-                # template, quoted or not -- this is Python %-formatting
-                # syntax, not SQL string escaping.
                 return "%"
             if not _in_code_ranges(m.start(), m.end(), code_ranges):
                 return m.group(0)

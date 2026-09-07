@@ -2145,9 +2145,6 @@ class TestPermissions(TransactionCaseWithUserDemo):
         )
 
     def test_a_limited_search_returns_the_head_of_the_unbounded_order(self):
-        """On the access-scan path a limited search must return the same head as
-        the unbounded one, i.e. the newest by the model's id-desc order -- not a
-        different (res_model, id) ordering that made limit=1 pick the oldest."""
         atts = self.Attachments.create(
             [{"name": f"headtest-{i:02d}", "public": True} for i in range(6)]
         )

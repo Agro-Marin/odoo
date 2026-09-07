@@ -34,6 +34,35 @@ class EsbuildBundleError(RuntimeError):
     pass
 
 
+def _get_specs_imported_by_consumers(
+    consumers: list[AssetsBundle], members: set[str]
+) -> set[str]:
+    imported: set[str] = set()
+    for consumer in consumers:
+        own = [a for a in consumer.native_modules if a.module_path not in members]
+        own_specs = {name for a in own for name in module_specifiers(a)}
+        for asset in own:
+            lexed = lex_module(asset.raw_content)
+            if lexed is not None:
+                imported.update(
+                    imp["n"] for imp in lexed["imports"] if imp["n"] in members
+                )
+            else:
+                imported.update(
+                    spec
+                    for spec in _scan_import_specifiers(asset.raw_content)
+                    if spec in members
+                )
+        imported.update(
+            resolved
+            for _module, _spec, resolved in get_escaping_relative_imports(
+                own, own_specs
+            )
+            if resolved in members
+        )
+    return imported
+
+
 class IrQweb(models.AbstractModel):
     _inherit = "ir.qweb"
 
@@ -103,9 +132,6 @@ class IrQweb(models.AbstractModel):
     @contextlib.contextmanager
     def _get_esbuild_lock_cursor(self, bundle: str):
         if self.env.cr.readonly and _module.current_test:
-            # A test cannot open a read-write cursor on top of a readonly
-            # one, and an advisory lock is legal on a read-only transaction
-            # outside recovery -- only a hot standby refuses it.
             yield self.env.cr
             return
         try:
@@ -296,9 +322,6 @@ class IrQweb(models.AbstractModel):
             )
             exported_specs = None
             if standalone:
-                # A standalone build runs as one classic script on a page
-                # that has no parent bundle to import from, so nothing may
-                # stay external: every module it needs is bundled in.
                 dynamic_child_specs, secondary_stubs = None, {}
             else:
                 dynamic_child_specs, secondary_stubs = (
@@ -311,9 +334,6 @@ class IrQweb(models.AbstractModel):
                     bundle not in registry.secondary_bundle_names
                     and bundle not in registry.import_map_included_bundles
                 ):
-                    # A satellite's consumers are the runtime children of the
-                    # pages it rides on, which nothing declares under the
-                    # satellite itself; it keeps registering every member.
                     exported_specs = self._get_exported_specs(
                         bundle, asset_bundle, assets_params, child_bundles
                     )
@@ -365,10 +385,6 @@ class IrQweb(models.AbstractModel):
         ):
             for name in mapping.get(bundle, ()):
                 add_consumer(name)
-        # A page can be rendered from several bundles (web.assets_frontend_minimal
-        # then web.assets_frontend_lazy); a child compiled against the family's
-        # declared parent stubs every module of the family, so a bundle whose
-        # members that parent owns registers for the parent's children too.
         member_paths = {asset.module_path for asset in asset_bundle.native_modules}
         for parent, children in registry.dynamic_children.items():
             if parent == bundle or parent.partition(".")[0] not in installed:
@@ -383,38 +399,8 @@ class IrQweb(models.AbstractModel):
             if member_paths <= parent_specs:
                 for name in children:
                     add_consumer(name)
-        # The template registrar and the lazy-loading entry point are the
-        # page's own runtime API: a tour, a test or an embedding script reads
-        # them off the loader without a source this scan could see.
         exported = {"@web/core/templates", "@web/core/assets"} & members
-        for consumer in consumers:
-            own = [a for a in consumer.native_modules if a.module_path not in members]
-            own_specs = {name for a in own for name in module_specifiers(a)}
-            for asset in own:
-                lexed = lex_module(asset.raw_content)
-                if lexed is not None:
-                    exported.update(
-                        imp["n"] for imp in lexed["imports"] if imp["n"] in members
-                    )
-                else:
-                    exported.update(
-                        spec
-                        for spec in _scan_import_specifiers(asset.raw_content)
-                        if spec in members
-                    )
-            # A relative import that lands on a member the page owns is a
-            # loader read once the child is compiled against this page.
-            exported.update(
-                resolved
-                for _module, _spec, resolved in get_escaping_relative_imports(
-                    own, own_specs
-                )
-                if resolved in members
-            )
-        # A module read from the loader by name -- a migration listed in a
-        # registry, a test helper, a template registrar -- is named by a string
-        # literal that is not the target of a static import, in the bundle or
-        # in a consumer.
+        exported.update(_get_specs_imported_by_consumers(consumers, members))
         for source in (
             *asset_bundle.native_modules,
             *(a for c in consumers for a in c.native_modules),
@@ -446,8 +432,6 @@ class IrQweb(models.AbstractModel):
         installed = self.env["ir.asset"]._get_addons_installed()
         spec_sets = []
         for parent in parents:
-            # The page owns its bundle and, when the test satellites are
-            # rendered with it, everything they carry too.
             owners = [parent]
             if with_test_satellites:
                 owners.extend(

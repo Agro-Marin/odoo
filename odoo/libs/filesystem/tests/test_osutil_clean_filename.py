@@ -15,10 +15,6 @@ class TestCleanFilename(unittest.TestCase):
             self.assertEqual(clean_filename(name), "Untitled", name)
 
     def test_reserved_name_masked_by_leading_dot_or_hyphen_is_still_rejected(self):
-        # Regression test: `_CLEAN_FILENAME_RE.sub(...).lstrip(".-")` used to
-        # strip leading dots/hyphens *after* the WINDOWS_RESERVED check ran,
-        # so "-CON", ".CON", "--CON.txt" and "...NUL" bypassed the guard and
-        # returned the bare reserved stem unmasked.
         for name in ("-CON", ".CON", "--CON.txt", "...NUL"):
             self.assertEqual(clean_filename(name), "Untitled", name)
 

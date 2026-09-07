@@ -22,9 +22,6 @@ def bound(attempt: int, *, base: float, cap: float) -> float:
         )
     doublings = attempt - 1
     if doublings >= math.ceil(math.log2(cap / base)):
-        # Short-circuit rather than clamp the product: a caller still
-        # retrying after ~1024 attempts overflows the float before `min`
-        # ever sees it, out of the retry path that exists to survive that.
         return cap
     return min(base * 2.0**doublings, cap)
 

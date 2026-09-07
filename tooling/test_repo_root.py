@@ -231,6 +231,7 @@ class TestEveryToolAgrees:
         ("domain_parity", "check_parity"): "REPO_ROOT",
         ("trace", "stamp"): "ROOT",
         ("patchorder", "patchorder"): "ROOT",
+        ("lint", "migration_version_guard"): "ROOT",
         ("lint", "py_lint"): "REPO",
     }
 

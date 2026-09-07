@@ -213,12 +213,18 @@ assert safe_eval.safe_eval(
 
         patches = (_CORE / "_monkeypatches" / "pypdf.py").read_text(encoding="utf-8")
         for present in (
-            "pypdf.filters.decompress =",
             "DictionaryObject.get =",
             "NameObject.renumber_table.update",
         ):
             with self.subTest(patch=present):
                 self.assertIn(present, patches)
+        self.assertNotIn(
+            "pypdf.filters.decompress =",
+            patches,
+            "e20f37408ad deleted the decompress override as a DoS: it dropped "
+            "pypdf's ZLIB_MAX_OUTPUT_LENGTH cap on a FlateDecode stream reachable "
+            "from PdfReader(). It belongs in neither file.",
+        )
 
     def test_the_pdf_patches_are_actually_applied(self):
         from pypdf.generic import DictionaryObject, NameObject

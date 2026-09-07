@@ -15,9 +15,7 @@ from odoo.libs._field_access._fallback import (
     to_prefetch_ids,
 )
 
-odoo_rust = pytest.importorskip(
-    "odoo_rust", exc_type=ImportError
-)  # a parity test needs both sides
+odoo_rust = pytest.importorskip("odoo_rust", exc_type=ImportError)
 _rust_batch_cache_fill = odoo_rust.batch_cache_fill
 _rust_batch_cache_filter = odoo_rust.batch_cache_filter
 _rust_batch_cache_get = odoo_rust.batch_cache_get

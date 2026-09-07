@@ -113,8 +113,6 @@ class TestPgVarcharRejectsNonsense(unittest.TestCase):
     def test_a_non_int_is_rejected_even_when_falsy(self):
         from odoo.libs.sql.utils import pg_varchar
 
-        # Deliberately outside `pg_varchar`'s declared `int | None`: what is
-        # under test is that a falsy non-int is rejected rather than read as 0.
         bad_values: tuple[Any, ...] = (0.0, 2.5, "10")
         for bad in bad_values:
             with self.subTest(bad=bad), self.assertRaises(ValueError):

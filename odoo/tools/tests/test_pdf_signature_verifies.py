@@ -71,9 +71,6 @@ class TestTheSignatureVerifies(unittest.TestCase):
         contents = _CONTENTS_RE.search(data)
         assert contents is not None, "no /Contents blob in the signed document"
         blob = bytes.fromhex(contents.group(1).decode())
-        # Take the DER's own length, never rstrip: an Ed25519 signature ends in
-        # the high byte of a scalar reduced mod L, so it is NUL about one time
-        # in sixteen, and stripping it truncates the structure under test.
         content_info = cms.ContentInfo.load(blob)
         padding = blob[len(content_info.dump()) :]
         assert padding.strip(b"\x00") == b"", (

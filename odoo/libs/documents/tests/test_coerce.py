@@ -66,10 +66,6 @@ class TestNormalizeNumber(unittest.TestCase):
         )
 
     def test_a_space_before_the_symbol_defeats_inference(self):
-        # Preserved from base_import exactly: the space counts as a third
-        # non-numeric character, so the two real separators are no longer
-        # distinguishable and the caller's defaults stand. `to_float` is the
-        # API that copes; this one is what the import path has always done.
         self.assertEqual(normalize_number("$ 1,234.56", symbols=SYMBOLS), "1,234.56")
 
     def test_currency_and_grouping_without_a_space(self):
@@ -86,8 +82,6 @@ class TestNormalizeNumber(unittest.TestCase):
 
 class TestToFloat(unittest.TestCase):
     def test_the_shape_a_generative_extractor_returns(self):
-        # The prompt asks models to copy numbers exactly as printed; this is
-        # what "exactly as printed" looks like on an invoice.
         self.assertEqual(to_float("$1,234.56"), 1234.56)
         self.assertEqual(to_float("1.234,56 €"), 1234.56)
         self.assertEqual(to_float("(421.35)"), -421.35)
@@ -101,10 +95,6 @@ class TestToFloat(unittest.TestCase):
             to_float(True)
 
     def test_one_separator_stays_ambiguous_and_raises(self):
-        # `1,200` is twelve hundred in London and one-point-two in Madrid, and
-        # on a total the wrong reading is out by 1000x. Two separators
-        # disambiguate each other; one does not, and guessing is refused for
-        # the same reason an ambiguous date is.
         with self.assertRaises(ValueError):
             to_float("1,200")
         self.assertEqual(to_float("1,200", thousand=",", decimal="."), 1200.0)

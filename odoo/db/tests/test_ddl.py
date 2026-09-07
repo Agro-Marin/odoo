@@ -321,9 +321,6 @@ class TestInlineDdlParams(unittest.TestCase):
         )
 
     def test_literal_percent_s_inside_a_string_does_not_corrupt_positional(self):
-        # Only one real marker here; a naive scanner counting the literal
-        # "%s" inside the string too would silently overwrite it instead
-        # of raising on the count mismatch.
         with self.assertRaises(ValueError):
             _inline_ddl_params(
                 "COMMENT ON COLUMN t.c IS 'use %s as format' -- %s",
@@ -350,8 +347,6 @@ class TestInlineDdlParams(unittest.TestCase):
         )
 
     def test_named_marker_referenced_only_inside_a_string_is_not_required(self):
-        # A %(x)s-shaped substring entirely inside a string literal must not
-        # even be treated as "referenced", so an empty params dict is fine.
         self.assertEqual(
             _inline_ddl_params("IS 'contains %(x)s literally'", {}, None),
             "IS 'contains %(x)s literally'",

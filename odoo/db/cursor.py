@@ -540,6 +540,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
     def _on_rollback_to_savepoint(self) -> None:
         self._schema_cache.release_locks_since_depth(self._savepoint_depth)
 
+    def _note_table_locked(self, table: str) -> None:
+        self._schema_cache.mark_locked(table, self._savepoint_depth)
+
     def _note_stale_cached_plan(self, exc: Exception) -> bool:
         if not isinstance(exc, PG_STALE_PLAN_EXCEPTIONS):
             return False
@@ -670,12 +673,6 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 )
             raise
         finally:
-            # Pipeline mode times each queued statement's client-side queue
-            # time only; the real round-trip cost is paid at the implicit
-            # sync when the ExitStack above closes psycopg's pipeline, a
-            # point with no timer of its own. Attribute that gap to
-            # query_time (not query_count -- it is sync cost, not a new
-            # statement) instead of leaving it permanently unaccounted.
             sync_cost = monotonic() - t0 - self._pipeline_statement_time
             if sync_cost > 0:
                 self._record_metrics(sync_cost, count=0)

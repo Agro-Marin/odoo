@@ -10,12 +10,6 @@ if typing.TYPE_CHECKING:
     from ...primitives import IdType, ValuesType
 
 
-# A CLEAR or SET supersedes every CREATE, LINK and UNLINK before it -- the
-# field's content is what the last replacement said plus the commands after it
-# -- while UPDATE and DELETE act on existing records and survive one. A dict in
-# the list is a CREATE; any other non-command entry is the id of a record to LINK.
-# On a record being created there is nothing to replace, so `superseding=False`
-# keeps everything and a SET is only the ids to link.
 class CommandDelta:
     __slots__ = (
         "created",

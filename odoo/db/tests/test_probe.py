@@ -191,10 +191,6 @@ class TestLeaderRemovalAndCompletionAreAtomic(unittest.TestCase):
             first_done_id.setdefault("id", id(self_probe.done))
 
         def slow_set(event_self):
-            # Only the ORIGINAL leader's own done.set() is delayed here --
-            # a second caller that becomes a new leader on its own creates a
-            # brand new probe with a different `done` object, whose set()
-            # must not be slowed by this test's instrumentation too.
             if id(event_self) == first_done_id.get("id"):
                 entered_finally.set()
                 release_leader.wait(5)
@@ -223,11 +219,6 @@ class TestLeaderRemovalAndCompletionAreAtomic(unittest.TestCase):
             self.assertTrue(
                 entered_finally.wait(5), "leader never reached the finally block"
             )
-            # The leader is now inside the with self._lock: block, blocked in
-            # our patched set() -- del self._inflight[key] already ran, in
-            # the SAME critical section (same "with self._lock:"). A second
-            # caller must therefore block on self._lock for the whole span,
-            # not just for the del.
             second_thread = threading.Thread(target=second_caller, daemon=True)
             second_thread.start()
             time.sleep(0.2)

@@ -14,8 +14,6 @@ class TestGuessEncoding(unittest.TestCase):
         self.assertIsNone(guess_encoding(bytes([0x81, 0x8D, 0x8F, 0x90, 0x9D])))
 
     def test_bom_marked_utf16_loses_its_endianness_suffix(self):
-        # The suffixed name tells Python to keep the BOM as content; the
-        # unmarked one strips it, which is what a document reader wants.
         data = "name,total\n".encode("utf-16")
         self.assertEqual(guess_encoding(data), "utf-16")
         self.assertFalse(decode(data).startswith("﻿"))
@@ -34,7 +32,6 @@ class TestGuessEncoding(unittest.TestCase):
             self.assertIsNone(guess_encoding(b"whatever"))
 
     def test_non_ascii_past_the_first_chunk(self):
-        # The window-based implementations this replaced answered "ascii" here.
         data = b"a" * (1 << 17) + "é".encode("latin-1")
         self.assertNotIn(guess_encoding(data), (None, "ascii"))
 

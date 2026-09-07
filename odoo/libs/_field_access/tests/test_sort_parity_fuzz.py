@@ -7,9 +7,7 @@ from odoo.libs._field_access._fallback import (
     sort_ids_by_cache as sort_ids_by_cache_py,
 )
 
-odoo_rust = pytest.importorskip(
-    "odoo_rust", exc_type=ImportError
-)  # a parity test needs both sides
+odoo_rust = pytest.importorskip("odoo_rust", exc_type=ImportError)
 sort_ids_by_cache = odoo_rust.sort_ids_by_cache
 
 _PENDING = object()

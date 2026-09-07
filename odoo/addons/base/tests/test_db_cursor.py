@@ -3058,9 +3058,6 @@ class TestBorrowHonoursItsTimeout(BaseCase):
 
 class TestCheckSignalingDrains(BaseCase):
     def test_the_reload_branch_still_drains_the_database(self):
-        # The drain used to sit in check_signaling itself and now lives in the
-        # branch it delegates to, so the pin follows the delegation rather than
-        # the method it started in.
         self.assertIn(
             "_reload_after_signaling",
             inspect.getsource(Registry.check_signaling),

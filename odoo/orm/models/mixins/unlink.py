@@ -48,9 +48,6 @@ class UnlinkMixin(_ModelStubs):
         with self.env.protecting(self._fields.values(), self):
             self._modified_before(self._fields)
 
-        # after _modified_before, not before it: the trigger walk can mark the
-        # very ids being deleted (self-referencing computes), and such marks
-        # would later be computed against missing rows
         core = self.env._core
         if core.has_pending():
             model_name = self._name

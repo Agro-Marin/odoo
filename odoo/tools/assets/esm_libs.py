@@ -26,8 +26,6 @@ __all__ = [
 
 LIB_URL_PREFIX = "/web/assets/lib/"
 
-# Bumped when the transform a served copy went through changes shape, so a
-# returning browser never keeps an artifact of the previous transform.
 _TRANSFORM_TAG = b"minify-keep-names-1"
 
 _libs_log = get_asset_logger("bundle")
@@ -112,10 +110,6 @@ def served_lib_url(unique: str, url: str) -> str:
 
 
 def _merge_overlapping(closures: Mapping[str, dict[str, Path]]) -> dict[str, dict]:
-    # Two declared files whose closures share a file are one library on the
-    # wire: hoot-dom's helpers are declared one by one and import each other
-    # relatively, so they take one unique or a helper would be fetched under
-    # two prefixes, as two instances.
     groups: list[dict[str, Path]] = []
     owner: dict[str, int] = {}
     for declared_url, files in closures.items():
@@ -194,9 +188,6 @@ _content_cache: dict[str, bytes] = {}
 
 
 def served_lib_content(served_url: str, build: Callable[[], bytes]) -> bytes:
-    # Content-addressed, so a served URL names one byte string for the life
-    # of the process: a test rollback or a second database pays the
-    # transform once, not once per render.
     content = _content_cache.get(served_url)
     if content is None:
         content = _content_cache[served_url] = build()

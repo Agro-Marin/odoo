@@ -459,8 +459,6 @@ class TraversalMixin(_ModelStubs):
         has_path = "parent_path" in self._fields
         for record in self:
             rec = typing.cast("BaseModel", record)
-            # A record that exists only in cache -- what an onchange builds --
-            # carries no parent_path, so its chain has to be walked instead.
             path = rec["parent_path"] if has_path else None
             if path:
                 ids = [int(label) for label in path.split("/") if label]
@@ -504,9 +502,6 @@ class TraversalMixin(_ModelStubs):
 
     def _is_descendant_of(self, other: BaseModel, strict: bool = False) -> bool:
         self.check_singleton()
-        # An empty `other` answers False rather than raising: the natural call
-        # is `record._is_descendant_of(record[parent_name])`, and that argument
-        # is empty at every root.
         if not other:
             return False
         other.check_singleton()

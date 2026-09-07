@@ -34,8 +34,6 @@ def test_a_denied_cookie_is_not_given_a_year_long_expiry():
     (header,) = response.headers.getlist("Set-Cookie")
     assert "Max-Age=0" in header
     assert "Expires=" in header
-    # the Expires werkzeug derives from Max-Age=0 lands within the same
-    # UTC day this test runs, not ~365 days out.
     import datetime
 
     now = datetime.datetime.now(tz=datetime.UTC)

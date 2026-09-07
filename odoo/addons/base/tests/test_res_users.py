@@ -858,9 +858,6 @@ class TestLoginCooldown(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.res_users")
     def test_change_password_is_rate_limited(self):
-        """change_password verifies the current password, so it must go through
-        the same cooldown as login: after the threshold even a correct old
-        password is refused, without spending another PBKDF2."""
         target = self.env["res.users"].create(
             {
                 "name": "Cooldown Target",

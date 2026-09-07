@@ -127,16 +127,6 @@ class Graph(models.Model):
 
 
 def test_a_bare_count_depends_only_on_what_it_counts():
-    """Replacing a compute with a Count silently narrows its dependency set.
-
-    `_get_attrs` defaults `_depends` to `(count_of,)`, so a hand-written
-    `@api.depends("a_ids", "b_ids")` counting `b_ids` loses the `a_ids` half the
-    moment it becomes `fields.Count("b_ids")`. Nothing at the call site shows it,
-    and it matters wherever the counted rows are cascade-deleted through the
-    other relation: the ORM attributes that change to the relation it was told
-    to ignore, and a stored count goes stale in exactly the case the field
-    exists for.
-    """
     with model_test_env(Line, Node, Edge, Graph) as env:
         field = env["c.graph"]._fields["narrow_count"]
         assert tuple(field._depends) == ("edge_ids",)

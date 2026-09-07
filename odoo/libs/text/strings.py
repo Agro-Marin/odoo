@@ -94,10 +94,6 @@ def get_flag(country_code: str) -> str:
 
 
 def name_length_band(searched_length: int, threshold: float) -> tuple[float, float]:
-    # SequenceMatcher(a, b).ratio() is 2 * matches / (len(a) + len(b)) and
-    # matches <= min(len(a), len(b)), so a candidate outside this band is
-    # provably below the threshold. Comparing two integers is far cheaper than
-    # the quadratic comparison it lets us skip.
     return (
         searched_length * threshold / (2 - threshold),
         searched_length * (2 - threshold) / threshold,

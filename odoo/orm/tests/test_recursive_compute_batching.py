@@ -93,8 +93,6 @@ def test_the_compute_still_runs_one_record_at_a_time(env):
 
 
 def test_a_lazy_read_never_computes_a_record_inside_its_dependencys_window(env):
-    # Isolate the recompute guard with a deliberately staged pending set. The
-    # ordinary-write regression below also checks backend flush behavior.
     Node = env["rec.node"]
     root = Node.create([{"name": "root"}])
     chain = [root]
@@ -107,7 +105,6 @@ def test_a_lazy_read_never_computes_a_record_inside_its_dependencys_window(env):
     subtree = chain[1] + chain[2] + chain[3] + chain[4] + chain[5]
     parent_field = Node._fields["parent_id"]
     root_field = Node._fields["root_id"]
-    # Keep this isolated case independent of backend reads.
     subtree.fetch(["parent_id"])
     Node.invalidate_model(["root_id"], flush=False)
     parent_field.mark_dirty(detached, False)

@@ -158,11 +158,6 @@ class BaseCommon(TransactionCase):
 
 
 class _SeededUserCase:
-    # The identity is passed in rather than read off class attributes. A test
-    # class may inherit two seeded cases at once (HttpCaseWithUserDemo and
-    # HttpCaseWithUserPortal), and a class attribute resolves once through the
-    # MRO -- so both would have seeded the same login and the second user would
-    # never exist. Hook names are per identity for the same reason.
     @classmethod
     def _rename_admin_partner(cls):
         return False

@@ -848,7 +848,6 @@ class ResPartner(models.Model):
         return False
 
     def _update_identifier(self, code: str, value) -> None:
-        """Set, replace or clear this contact's identifier of type `code`."""
         self.check_singleton()
         identifier_type = self.env["res.partner.identifier.type"]._by_code(code)
         if not identifier_type:

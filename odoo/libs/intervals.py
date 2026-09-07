@@ -31,10 +31,6 @@ def _boundaries[T: SupportsOrdering](
             yield (stop, closing, recs)
 
 
-# Public alias: `_boundaries` is already imported directly from outside
-# odoo/libs (addons/hr_attendance), so it is de-facto public API. Keep the
-# private name for internal callers unchanged and export this one instead of
-# renaming in place, which would break that external caller.
 boundaries = _boundaries
 
 

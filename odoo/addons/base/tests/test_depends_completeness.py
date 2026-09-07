@@ -16,11 +16,6 @@ class TestPartnerDependsCompleteness(TransactionCase):
         )
         self.assertDependsComplete(
             parent + child,
-            # duplicate_count counts OTHER partners whose name resembles this
-            # one, and the query filters them on `candidate.active`. That is a
-            # dependency on another record's column, which @api.depends cannot
-            # express: declaring "active" here would only re-mark the partner
-            # whose own flag moved, which is not the one whose count changed.
             known_incomplete=["duplicate_count"],
         )
 

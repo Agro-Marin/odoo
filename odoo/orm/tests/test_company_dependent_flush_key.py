@@ -12,9 +12,6 @@ class CdHolder(models.Model):
     _description = "Company Dependent Flush Key Holder"
 
     plain = fields.Char(company_dependent=True)
-    # an explicit depends_context that does not lead with "company": the cache
-    # key is ordered by depends_context, so the flush must find the company
-    # component by position, not assume index 0
     shifted = fields.Char(company_dependent=True, depends_context=("lang", "company"))
 
 

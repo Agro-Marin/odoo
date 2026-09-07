@@ -3,9 +3,6 @@ import email.policy
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    # EmailPolicy is generic to typeshed and plain at runtime. Spelling the
-    # parameter states what this policy is actually for -- it replaces
-    # email.policy.SMTP, which is declared over EmailMessage, not Message.
     _EmailPolicyBase = email.policy.EmailPolicy[email.message.EmailMessage[Any, Any]]
 else:
     _EmailPolicyBase = email.policy.EmailPolicy
@@ -19,10 +16,6 @@ RFC5322_IDENTIFICATION_HEADERS = {
 USER_DEFINED_HEADERS = {"bcc", "cc", "from", "reply-to", "subject", "to"}
 
 
-# _fold is EmailPolicy's own folding hook. It is private, so typeshed declares
-# neither it nor the two policies cloned below; overriding it is nonetheless the
-# only seam the stdlib offers for per-header folding, which is what this patch
-# is for. Every ignore in this file is that one gap.
 class IdentificationFieldsNoFoldPolicy(_EmailPolicyBase):
     _no_fold_policy: Any
     _max_fold_policy: Any

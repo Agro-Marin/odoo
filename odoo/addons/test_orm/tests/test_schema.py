@@ -28,11 +28,6 @@ class TestReflection(common.TransactionCase):
         self.assertEqual(record, self.env.ref(xid))
 
     def test_models_fields(self):
-        # Every model this module defines gets an auto-generated
-        # "model_<name>" ir.model.data record owned by "test_orm" -- the
-        # exact same lookup assertModelXID checks below. Deriving the
-        # roster from that instead of a hand-maintained list means a new
-        # model is covered automatically instead of silently skipped.
         model_data = self.env["ir.model.data"].search(
             [("module", "=", "test_orm"), ("model", "=", "ir.model")]
         )

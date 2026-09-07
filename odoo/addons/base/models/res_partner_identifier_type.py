@@ -95,26 +95,9 @@ class ResPartnerIdentifierType(models.Model):
 
     @api.model
     def _normalize(self, value):
-        """Strip punctuation and case so two spellings compare equal.
-
-        Identifiers are written with spaces, dots and dashes that carry no
-        information: `RIFE001128IT2` and `RIFE-001128-IT2` are one value. The
-        stored `value` keeps whatever was typed; comparison and uniqueness use
-        this.
-        """
         return _NON_ALPHANUMERIC.sub("", value or "").upper()
 
     def validate(self, value):
-        """Check `value` against this type, raising ValidationError if it fails.
-
-        Three stages, cheapest first: the format, then a rule named after the
-        code, then whatever a localization adds by overriding `_check_hook`.
-        The code-specific rule is looked up as `_check_code_<code>` on this model,
-        the same dispatch `account_vat` uses for `check_vat_xx`, so a
-        localization adds one method instead of editing this one.
-
-        :return: the normalized value
-        """
         self.check_singleton()
         normalized = self._normalize(value)
         if not normalized:
@@ -142,9 +125,8 @@ class ResPartnerIdentifierType(models.Model):
         return normalized
 
     def _check_hook(self, normalized):
-        """Extension point for rules that need more than a true/false answer."""
+        pass
 
     @api.model
     def _by_code(self, code):
-        """Resolve a type by its stable code, or an empty recordset."""
         return self.search([("code", "=", code)], limit=1)

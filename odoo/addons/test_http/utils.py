@@ -135,8 +135,6 @@ class MemoryGeoipResolver:
 
 class MemorySessionStore(FilesystemSessionStore):
     def __init__(self, session_class, renew_missing=False):
-        # every disk operation is overridden below, so no path is meaningful;
-        # keep_alive's utime("") still falls back to save() through OSError
         super().__init__(
             path="", session_class=session_class, renew_missing=renew_missing
         )

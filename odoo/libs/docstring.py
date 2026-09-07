@@ -152,13 +152,6 @@ def iter_info_fields(doctree: nodes.document) -> Iterator[InfoField]:
 
 
 def stringify_annotation(annotation: typing.Any) -> str | None:
-    # The __origin__/isinstance(annotation, type) branches below are dead on
-    # every call path inside this module today: parse_signature always uses
-    # inspect.signature(..., annotation_format=Format.STRING), so annotation
-    # reaching this function is already a str or EMPTY, never a live type
-    # object or generic alias. Kept general-purpose (rather than trimmed to
-    # the two reachable branches) in case a caller ever passes an annotation
-    # through untouched by that Format.STRING conversion.
     if annotation is EMPTY:
         return None
     if isinstance(annotation, str):

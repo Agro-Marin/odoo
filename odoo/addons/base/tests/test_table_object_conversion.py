@@ -39,7 +39,6 @@ class TestTableObjectConversion(TransactionCase):
         return sql.get_index_definition(self.env.cr, _NAME)[0]
 
     def test_a_constraints_backing_index_is_attributed_to_it(self):
-        """The premise the whole fix rests on, taken from the server itself."""
         self._named(Constraint("UNIQUE(name)")).apply_to_database(self.model)
 
         self.assertTrue(
@@ -56,7 +55,6 @@ class TestTableObjectConversion(TransactionCase):
         self.assertIsNone(sql.get_index_constraint(self.env.cr, _NAME))
 
     def test_a_constraint_becomes_an_index(self):
-        """The conversion silently did nothing: the old rule stayed in force."""
         self._named(Constraint("UNIQUE(name)")).apply_to_database(self.model)
         self._named(UniqueIndex("(lower(name))")).apply_to_database(self.model)
 
@@ -73,7 +71,6 @@ class TestTableObjectConversion(TransactionCase):
         self.assertIsNone(sql.get_index_constraint(self.env.cr, _NAME))
 
     def test_an_index_becomes_a_constraint(self):
-        """The reverse conversion collided on the name it was reusing."""
         self._named(UniqueIndex("(lower(name))")).apply_to_database(self.model)
         self._named(Constraint("UNIQUE(name)")).apply_to_database(self.model)
 
@@ -81,7 +78,6 @@ class TestTableObjectConversion(TransactionCase):
         self.assertEqual(sql.get_index_constraint(self.env.cr, _NAME), _NAME)
 
     def test_reapplying_an_unchanged_index_is_not_a_rebuild(self):
-        """The early return still has to hold, or every upgrade rebuilds."""
         self._named(UniqueIndex("(lower(name))")).apply_to_database(self.model)
         self.env.cr.execute("SELECT oid FROM pg_class WHERE relname = %s", (_NAME,))
         before = self.env.cr.fetchone()
@@ -92,7 +88,6 @@ class TestTableObjectConversion(TransactionCase):
         self.assertEqual(self.env.cr.fetchone(), before)
 
     def test_the_rule_each_kind_enforces_actually_applies(self):
-        """Both conversions must leave a rule that bites, not just an object."""
         self._named(UniqueIndex("(lower(name))")).apply_to_database(self.model)
         self.env.cr.execute(f"INSERT INTO {_TABLE} (name) VALUES ('Casing')")
         with self.assertRaises(Exception):

@@ -4,10 +4,6 @@ from . import ir_model_common
 from . import ir_model
 from . import ir_model_fields
 
-# After ir_model, which declares the implicit `base` model every model
-# inherits, and before ir_ui_menu, which adopts this mixin: a mixin
-# imported on either side of that window raises
-# "inherits from non-existing model".
 from . import mixin_hierarchy
 from . import ir_model_fields_selection
 from . import ir_model_reflection

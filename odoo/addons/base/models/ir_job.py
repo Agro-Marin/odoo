@@ -182,9 +182,6 @@ def _release_job_session_lock(cr, job_id: int) -> None:
     try:
         cr.execute(unlock)
     except psycopg.errors.InFailedSqlTransaction:
-        # the session lock outlives the aborted transaction; release it on
-        # the rollback that ends the transaction, when the connection is
-        # usable again
         _logger.info(
             "Job %s: its transaction is aborted, releasing the liveness lock "
             "after the rollback",

@@ -613,9 +613,6 @@ class O2MForm(Form):
         else:
             vals = proxy._records[index]
             self._values.update(vals)
-            # `update()` is a shallow copy: clone nested x2many values so
-            # mutating this (possibly abandoned) O2MForm's subfields cannot
-            # reach back into the parent Form's stored data.
             for key, val in list(self._values.items()):
                 if isinstance(val, X2MValue):
                     self._values[key] = val.copy()
