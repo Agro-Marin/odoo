@@ -1805,16 +1805,23 @@ class PosOrder(models.Model):
                     )
                 )
 
-        draft_orders = self.filtered(lambda o: o.state == "draft")
-        if draft_orders:
-            draft_orders.write({"state": "cancel"})
-            for config in draft_orders.mapped("config_id"):
-                config.notify_synchronisation(
-                    config.current_session_id.id,
-                    self.env.context.get("device_identifier", 0),
-                )
-
+        draft_orders = self._cancel_draft_orders()
         return {"pos.order": self._load_pos_data_read(draft_orders, self.config_id)}
+
+    def _cancel_draft_orders(self):
+        # cancelling is one operation with one owner: it moves the state AND tells
+        # the other devices. Both public entry points reach it here, so neither
+        # can do half of it.
+        draft_orders = self.filtered(lambda order: order.state == "draft")
+        if not draft_orders:
+            return draft_orders
+        draft_orders.write({"state": "cancel"})
+        for config in draft_orders.config_id:
+            config.notify_synchronisation(
+                config.current_session_id.id,
+                self.env.context.get("device_identifier", 0),
+            )
+        return draft_orders
 
     def _get_open_order(self, order):
         return self.env["pos.order"].search(
@@ -2151,7 +2158,10 @@ class PosOrder(models.Model):
     @api.model
     def remove_from_ui(self, server_ids):
         orders = self.search([("id", "in", server_ids), ("state", "=", "draft")])
-        orders.write({"state": "cancel"})
+        # writing the state inline here sent no notification, and it also silenced
+        # the ondelete guard's own remedy: _unlink_except_draft_or_cancel calls
+        # action_pos_order_cancel() only for orders still in draft
+        orders._cancel_draft_orders()
         orders.mapped("payment_ids").sudo().unlink()
         orders.sudo().unlink()
         return orders.ids

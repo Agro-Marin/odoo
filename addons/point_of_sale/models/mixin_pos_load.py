@@ -68,6 +68,11 @@ class MixinPosLoad(models.AbstractModel):
     def _load_pos_data_read(self, records, config):
         if not config:
             raise ValueError("config must be provided to read PoS data.")
+        # a payload is read FOR one config. Without this the requirement is still
+        # enforced, but by `config.company_id.id` several frames down: this fork's
+        # relational fields return the union rather than raising on a multi-record
+        # receiver, so `config.company_id` reads fine and only `.id` blows up.
+        config.check_singleton()
 
         fields = self._load_pos_data_fields(config)
         records = records._filtered_access("read").read(fields, load=False)

@@ -55,29 +55,30 @@ class PosOrder(models.Model):
 
     @api.model
     def remove_from_ui(self, server_ids):
-        order_ids = self.env['pos.order'].browse(server_ids)
-        order_ids.state = 'cancel'
-        self._send_notification(order_ids)
+        # before super(), which unlinks them: config_id is unreadable after.
+        # It does NOT pre-cancel them either -- super() selects on state = draft,
+        # so cancelling here left it nothing to remove and the order survived.
+        self._notify_order_state_changed(self.env['pos.order'].browse(server_ids))
         return super().remove_from_ui(server_ids)
 
     @api.model
     def sync_from_ui(self, orders):
         result = super().sync_from_ui(orders)
         order_ids = self.browse([order['id'] for order in result['pos.order'] if order.get('id')])
-        self._send_notification(order_ids)
+        self._notify_order_state_changed(order_ids)
         return result
 
     def action_pos_order_cancel(self):
         orders = super().action_pos_order_cancel()
         success_orders_ids = [o['id'] for o in orders['pos.order'] if o['state'] == 'cancel']
         orders_ids = self.browse(success_orders_ids)
-        self._send_notification(orders_ids)
+        self._notify_order_state_changed(orders_ids)
         return orders
 
-    def _send_notification(self, order_ids):
-        config_ids = order_ids.config_id
-        for config in config_ids:
-            config.notify_synchronisation(config.current_session_id.id, self.env.context.get('device_identifier', 0))
+    def _notify_order_state_changed(self, order_ids):
+        # point_of_sale already emits SYNCHRONISATION for each of these three
+        # transitions, so this override adds only the message it owns
+        for config in order_ids.config_id:
             config._notify('ORDER_STATE_CHANGED', {})
 
     def _send_self_order_receipt(self):

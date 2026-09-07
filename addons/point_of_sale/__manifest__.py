@@ -83,7 +83,6 @@
             "point_of_sale/static/tests/pos/tours/**/*",
             "point_of_sale/static/tests/generic_helpers/**/*",
             "point_of_sale/static/tests/customer_display/**/*",
-            "point_of_sale/static/src/utils.js",
         ],
         "web.assets_unit_tests_setup": [
             (
@@ -299,6 +298,13 @@
             "point_of_sale.assets_debug",
         ],
         "secondary_import_map_includes": {
+            # the tests bundle borrows the POS app's modules from the app bundle
+            # instead of owning a second copy of them: utils.js used to be listed
+            # as a member of web.assets_tests, which gave it two owners on every
+            # page that loads both and evaluated it twice
+            "web.assets_tests": [
+                "point_of_sale.assets_prod",
+            ],
             "point_of_sale.assets_prod": [
                 "web.assets_tests",
                 "point_of_sale.assets_debug",
