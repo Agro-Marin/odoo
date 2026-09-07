@@ -147,8 +147,13 @@ def reached_members(code: str, param: str) -> set[str]:
         match.group(1)
         for match in re.finditer(rf"this\s*\.\s*{re.escape(param)}\s*\.\s*(\w+)", code)
     )
+    # `\b` alone ends the name at the `.` of `ctx.getProps()`, so a destructure
+    # of what a member RETURNS reads as a destructure of the bag itself, and the
+    # returned object's keys are attributed to the context. Require the bag to be
+    # the whole right-hand side.
     for match in re.finditer(
-        rf"\{{([^{{}}]*)\}}\s*=\s*(?:this\s*\.\s*)?{re.escape(param)}\b", code
+        rf"\{{([^{{}}]*)\}}\s*=\s*(?:this\s*\.\s*)?{re.escape(param)}\b(?![\s]*[.(\[])",
+        code,
     ):
         for part in match.group(1).split(","):
             name = part.split(":")[0].strip()

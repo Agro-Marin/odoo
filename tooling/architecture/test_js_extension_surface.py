@@ -188,6 +188,94 @@ def test_a_descriptor_property_base_resolves(tree):
     assert points(tree) == {"FormController.save"}
 
 
+def test_a_base_behind_a_member_chain_alias_resolves(tree):
+    """`const components = formView.Renderer.components` is a base, not noise.
+
+    web_studio reaches four `web` components this way. Before this resolved,
+    the gate saw no base at all and attributed none of their overrides -- and
+    because this list is shrink-only, the pins it already held for them were
+    reported as "no longer overridden", inviting a shrink that would have
+    deleted a live cross-repo dependency.
+    """
+    root, web_src = tree
+    _write(
+        web_src,
+        "components/notebook.js",
+        "export class Notebook {\n    computePages() {}\n}\n",
+    )
+    _write(
+        web_src,
+        "views/form_renderer.js",
+        'import { Notebook } from "@web/components/notebook";\n'
+        "export class FormRenderer {\n"
+        "    static components = {\n        Notebook,\n    };\n"
+        "}\n",
+    )
+    _write(
+        web_src,
+        "views/form.js",
+        'import { FormRenderer } from "@web/views/form_renderer";\n'
+        "export const formView = {\n    Renderer: FormRenderer,\n};\n",
+    )
+    _write(
+        root,
+        "addons/web_studio/static/src/x.js",
+        'import { formView } from "@web/views/form";\n'
+        "const components = formView.Renderer.components;\n"
+        "export class Notebook extends components.Notebook {\n"
+        "    computePages() {}\n"
+        "}\n",
+    )
+    assert points(tree) == {"Notebook.computePages"}
+
+
+def test_an_alias_chain_that_leads_nowhere_invents_no_point(tree):
+    root, web_src = tree
+    _write(
+        web_src,
+        "views/form.js",
+        "export const formView = {\n    Renderer: FormRenderer,\n};\n",
+    )
+    _write(
+        root,
+        "addons/web_studio/static/src/x.js",
+        'import { formView } from "@web/views/form";\n'
+        "const components = formView.Renderer.missing;\n"
+        "export class Thing extends components.Nothing {\n    setup() {}\n}\n",
+    )
+    assert points(tree) == set()
+
+
+def test_a_static_object_written_shorthand_and_longhand_both_resolve(tree):
+    root, web_src = tree
+    _write(
+        web_src, "components/tag.js", "export class Tag {\n    render() {}\n}\n"
+    )
+    _write(
+        web_src,
+        "views/renderer.js",
+        'import { Tag } from "@web/components/tag";\n'
+        "export class Renderer {\n"
+        "    static components = {\n        Named: Tag,\n        Tag,\n    };\n"
+        "}\n",
+    )
+    _write(
+        root,
+        "addons/website/static/src/a.js",
+        'import { Renderer } from "@web/views/renderer";\n'
+        "const parts = Renderer.components;\n"
+        "export class A extends parts.Named {\n    render() {}\n}\n",
+    )
+    _write(
+        root,
+        "addons/website/static/src/b.js",
+        'import { Renderer } from "@web/views/renderer";\n'
+        "const parts = Renderer.components;\n"
+        "export class B extends parts.Tag {\n    render() {}\n}\n",
+    )
+    assert points(tree) == {"Tag.render"}
+
+
 def test_a_mixin_wrapped_base_resolves(tree):
     root, web_src = tree
     _write(

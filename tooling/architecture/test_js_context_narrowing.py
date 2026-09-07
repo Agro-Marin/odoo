@@ -93,6 +93,47 @@ def test_destructuring_counts_as_reaching(tmp_path):
     assert jcn.analyse(static) == []
 
 
+def test_destructuring_what_a_member_returns_is_not_a_reach_on_the_bag(tmp_path):
+    static = _tree(
+        tmp_path,
+        {
+            "context.js": CONTEXT,
+            "consumer.js": _consumer(
+                ["getA"],
+                "    const { getB, getC } = ctx.getA();\n    return getB + getC;",
+            ),
+        },
+    )
+    assert jcn.analyse(static) == []
+
+
+def test_the_same_holds_behind_a_stored_field(tmp_path):
+    static = _tree(
+        tmp_path,
+        {
+            "context.js": CONTEXT,
+            "consumer.js": """\
+/**
+ * @param {Pick<import("./context.js").GridContext, "getA">} ctx
+ */
+export function useThing(ctx) {
+    return new Thing(ctx);
+}
+class Thing {
+    constructor(ctx) {
+        this.ctx = ctx;
+    }
+    run() {
+        const { getB } = this.ctx.getA();
+        return getB;
+    }
+}
+""",
+        },
+    )
+    assert jcn.analyse(static) == []
+
+
 def test_a_member_named_only_in_a_comment_does_not_count_as_reached(tmp_path):
     static = _tree(
         tmp_path,

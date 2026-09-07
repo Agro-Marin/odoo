@@ -22,6 +22,8 @@ BooleanFavoriteField.update  odoo  :triage
 BooleanField.onChange  odoo enterprise  :keep
 BooleanField.setup  odoo enterprise  :keep
 BurgerMenu.setup  odoo  :keep
+ButtonBox.isSlotVisible  enterprise  :triage
+ButtonBox.setup  enterprise  :triage
 CalendarArchParser.parse  enterprise  :triage
 CalendarCommonPopover.hasFooter  odoo  :keep
 CalendarCommonPopover.isEventDeletable  odoo enterprise  :keep
@@ -168,6 +170,7 @@ FormController.saveButtonClicked  enterprise  :triage
 FormController.setup  odoo enterprise  :keep
 FormControllerWithHTMLExpander.onRecordSaved  odoo  :triage
 FormControllerWithHTMLExpander.setup  odoo enterprise  :keep
+FormLabel.className  enterprise  :triage
 FormRenderer.setup  odoo enterprise  :keep
 FormRendererWithHtmlExpander._canExpandHTMLField  odoo  :promote
 FormRendererWithHtmlExpander.setup  odoo  :triage
@@ -360,6 +363,8 @@ NavBar.isInApp  enterprise  :triage
 NavBar.onNavBarDropdownItemSelection  odoo enterprise  :keep
 NavBar.setup  odoo enterprise  :keep
 NavBar.systrayItems  odoo  :triage
+Notebook.computePages  enterprise  :triage
+Notebook.setup  enterprise  :triage
 NotificationContainer.notificationComponent  odoo  :keep
 NotificationContainer.serviceName  odoo  :keep
 NumericInputFieldBase.formattedValue  odoo enterprise  :keep
