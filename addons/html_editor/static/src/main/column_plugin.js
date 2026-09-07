@@ -186,7 +186,7 @@ export class ColumnPlugin extends Plugin {
         }
     }
 
-    createColumns(anchor, numberOfColumns, addParagraphAfter) {
+    createColumns(anchor, numberOfColumns) {
         const { container, columns } = this.buildColumnsContainer(
             anchor,
             numberOfColumns,
