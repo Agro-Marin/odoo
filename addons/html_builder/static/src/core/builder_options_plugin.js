@@ -570,7 +570,7 @@ export class BuilderOptionsPlugin extends Plugin {
         );
         containers.reverse();
         if (!allowParent) {
-            containers = [containers[0]];
+            containers = containers[0] ? [containers[0]] : [];
         }
 
         // Find the given option in the active containers and the element on
