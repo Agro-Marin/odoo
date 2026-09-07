@@ -1,6 +1,6 @@
 {
     "name": "Purchase",
-    "version": "1.7",
+    "version": "1.8",
     "category": "Supply Chain/Purchase",
     "sequence": 35,
     "summary": "Purchase orders, tenders and agreements",

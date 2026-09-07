@@ -28,6 +28,12 @@
             <field
                 name="comment">Users in this group can unlock locked purchase orders</field>
         </record>
+        <!--
+            Read-only is the lowest rung, implied by "User: All Documents" and
+            not by "Own Documents Only": the tier's read rules OR with the
+            buyer's personal rule, so a narrower rung implying it would read
+            every order. Gates spell `group_purchase_user,group_purchase_readonly`.
+        -->
         <record id="group_purchase_readonly" model="res.groups">
             <field name="name">Read-only</field>
             <field name="sequence">5</field>
@@ -48,7 +54,9 @@
             <field name="name">User: All Documents</field>
             <field name="sequence">15</field>
             <field name="privilege_id" ref="res_groups_privilege_purchase" />
-            <field name="implied_ids" eval="[(4, ref('group_purchase_user'))]" />
+            <field
+                name="implied_ids"
+                eval="[(4, ref('group_purchase_user')), (4, ref('group_purchase_readonly'))]" />
             <field
                 name="comment">The user will have access to all records in the purchase application.</field>
         </record>
@@ -58,7 +66,7 @@
             <field name="privilege_id" ref="res_groups_privilege_purchase" />
             <field
                 name="implied_ids"
-                eval="[                     (4, ref('group_purchase_user_all')),                     (4, ref('group_order_lock')),                     (4, ref('group_order_unlock')),                     (4, ref('group_purchase_readonly')),                 ]" />
+                eval="[                     (4, ref('group_purchase_user_all')),                     (4, ref('group_order_lock')),                     (4, ref('group_order_unlock')),                 ]" />
             <field
                 name="user_ids"
                 eval="[                     (4, ref('base.user_root')),                     (4, ref('base.user_admin'))                 ]" />

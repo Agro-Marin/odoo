@@ -54,9 +54,15 @@ class TestPurchaseReadonlyGroup(TransactionCase):
             self.assertFalse(acl.perm_create, f"ACL {acl.name} should block create")
             self.assertFalse(acl.perm_unlink, f"ACL {acl.name} should block unlink")
 
-    def test_manager_implies_readonly(self) -> None:
-        group_manager = self.env.ref("purchase.group_purchase_manager")
-        self.assertIn(self.group_readonly, group_manager.implied_ids)
+    def test_the_all_documents_rung_implies_readonly(self) -> None:
+        # Not "Own Documents Only": the tier's read rules OR with the buyer's
+        # personal rule, so a narrower rung implying it would read every order.
+        user_all = self.env.ref("purchase.group_purchase_user_all")
+        user_own = self.env.ref("purchase.group_purchase_user")
+        manager = self.env.ref("purchase.group_purchase_manager")
+        self.assertIn(self.group_readonly, user_all.implied_ids)
+        self.assertIn(self.group_readonly, manager.all_implied_ids)
+        self.assertNotIn(self.group_readonly, user_own.all_implied_ids)
 
 
 @tagged("post_install", "-at_install", "fast")
@@ -260,15 +266,13 @@ class TestPurchaseReadonlyRecordRules(TransactionCase):
         with self.assertRaises(AccessError):
             self.other_order.with_user(self.buyer).read(["id"])
 
-    def test_readonly_group_does_not_widen_a_buyers_scope(self) -> None:
-        # A blanket [(1, '=', 1)] rule on the readonly group would OR-collapse
-        # core's "Personal Purchase Orders" rule and hand this user every
-        # buyer's orders.
+    def test_readonly_is_a_decision_to_see_every_order(self) -> None:
+        # The tier carries a read rule on purchase.order, so a buyer who is
+        # ALSO given the tier reads every order and still writes only their
+        # own: record rules OR across groups per permission.
+        self.other_order.with_user(self.buyer_with_readonly).read(["id"])
         with self.assertRaises(AccessError):
-            self.other_order.with_user(self.buyer_with_readonly).read(["id"])
+            self.other_order.with_user(self.buyer_with_readonly).write({"notes": "x"})
 
-    def test_readonly_only_user_still_reads_every_order(self) -> None:
-        # No group rule on purchase.order applies to a readonly-only user, so
-        # the ACL alone already grants the full read scope: narrowing instead
-        # of deleting the blanket rule would be a regression here.
+    def test_readonly_only_user_reads_every_order(self) -> None:
         self.other_order.with_user(self.readonly_user).read(["id"])

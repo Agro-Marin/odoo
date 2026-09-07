@@ -309,4 +309,61 @@
         <field name="perm_read" eval="False" />
     </record>
 
+    <!--
+        The Read-only tier's scope, stated: every order, and every customer
+        document. Read only; the rungs' personal and team rules keep governing
+        what they may change. Kept beside the rules they answer.
+    -->
+    <record id="sale_order_rule_readonly" model="ir.rule">
+        <field name="name">Read-only: all sales orders</field>
+        <field name="model_id" ref="model_sale_order" />
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('sales_team.group_sale_readonly'))]" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
+    </record>
+
+    <record id="sale_order_line_rule_readonly" model="ir.rule">
+        <field name="name">Read-only: all sales order lines</field>
+        <field name="model_id" ref="model_sale_order_line" />
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('sales_team.group_sale_readonly'))]" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
+    </record>
+
+    <record id="sale_order_report_rule_readonly" model="ir.rule">
+        <field name="name">Read-only: all sales analysis</field>
+        <field name="model_id" ref="model_sale_report" />
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('sales_team.group_sale_readonly'))]" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
+    </record>
+
+    <record id="account_invoice_rule_readonly" model="ir.rule">
+        <field name="name">Read-only: all customer invoices</field>
+        <field name="model_id" ref="account.model_account_move" />
+        <field
+            name="domain_force">[('move_type', 'in', ('out_invoice', 'out_refund'))]</field>
+        <field name="groups" eval="[(4, ref('sales_team.group_sale_readonly'))]" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
+    </record>
+
+    <record id="account_invoice_line_rule_readonly" model="ir.rule">
+        <field name="name">Read-only: all customer invoice lines</field>
+        <field name="model_id" ref="account.model_account_move_line" />
+        <field
+            name="domain_force">[('move_id.move_type', 'in', ('out_invoice', 'out_refund'))]</field>
+        <field name="groups" eval="[(4, ref('sales_team.group_sale_readonly'))]" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_unlink" eval="False" />
+    </record>
+
 </odoo>

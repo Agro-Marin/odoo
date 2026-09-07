@@ -91,3 +91,4 @@ from . import test_account_move_import_template
 from . import test_res_company
 from . import test_res_currency
 from . import test_account_move_marin_depends
+from . import test_group_readonly

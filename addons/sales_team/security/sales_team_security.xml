@@ -7,6 +7,14 @@
             <field name="sequence">1</field>
             <field name="category_id" ref="base.module_category_sales" />
         </record>
+        <!--
+            Read-only is the lowest rung. The rung that implies it is the lowest
+            one that already sees every document, "All Documents": record rules
+            OR across a user's groups, so the tier's read rules would hand an
+            own-documents salesperson every order if their rung implied it.
+            A gate on a sales affordance therefore spells the pair
+            `group_sale_salesman,group_sale_readonly`, as account's do.
+        -->
         <record id="group_sale_readonly" model="res.groups">
             <field name="name">Read-only</field>
             <field name="sequence">5</field>
@@ -35,7 +43,9 @@
             <field name="name">User: All Documents</field>
             <field name="sequence">20</field>
             <field name="privilege_id" ref="res_groups_privilege_sales" />
-            <field name="implied_ids" eval="[(4, ref('group_sale_salesman_team'))]" />
+            <field
+                name="implied_ids"
+                eval="[(4, ref('group_sale_salesman_team')), (4, ref('group_sale_readonly'))]" />
             <field
                 name="comment">The user will have access to all records of everyone in the sales application.</field>
         </record>
@@ -45,7 +55,7 @@
             <field name="privilege_id" ref="res_groups_privilege_sales" />
             <field
                 name="implied_ids"
-                eval="[                     (4, ref('group_sale_salesman_all_leads')),                     (4, ref('mail.group_mail_canned_response_admin')),                     (4, ref('group_sale_readonly'))                 ]" />
+                eval="[                     (4, ref('group_sale_salesman_all_leads')),                     (4, ref('mail.group_mail_canned_response_admin'))                 ]" />
             <field
                 name="user_ids"
                 eval="[                     (4, ref('base.user_root')),                     (4, ref('base.user_admin'))                 ]" />

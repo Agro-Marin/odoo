@@ -19,7 +19,7 @@ python tooling/architecture/layer_check.py --json    # machine-readable
 ```
 
 **Count ratchets** — `js_function_length`, `py_function_length`, `py_class_length`, `py_hook_arity`,
-`py_x2many_count`, `werkzeug_in_addons`, `config_in_addons`, `sql_in_placeholder`, `py_count_as_boolean`,
+`py_x2many_count`, `werkzeug_in_addons`, `config_in_addons`, `sql_in_placeholder`, `readonly_tiers`, `py_count_as_boolean`,
 `py_shadowed_member`, `naming_vocabulary`, `naming_core_vocabulary`,
 `field_hook_naming`, `field_hook_purity`, `js_service_shape`,
 `js_vacuous_assertions`, `js_duplication`, `compute_context_deps`,
@@ -78,6 +78,7 @@ werkzeug_in_addons werkzeug_in_addons
 config_in_addons   config_in_addons
 py_x2many_count    py_x2many_count
 sql_in_placeholder sql_in_placeholder
+readonly_tiers     readonly_tier_grants_write, readonly_tier_ruleless, readonly_tier_dead_rows (`--kind`)
 py_count_as_boolean py_count_as_boolean
 py_hook_arity      py_hook_arity
 py_shadowed_member py_shadowed_member
@@ -146,6 +147,10 @@ py_x2many_count.py --addon stock --count|py_x2many_count_stock --count
 py_x2many_count.py --addon tests --count|py_x2many_count_tests --count
 sql_in_placeholder.py --addon addons --count|sql_in_placeholder_addons --count
 sql_in_placeholder.py --addon tests --count|sql_in_placeholder_tests --count
+readonly_tiers.py --kind grants_write --count|readonly_tier_grants_write --count
+readonly_tiers.py --kind ruleless --count|readonly_tier_ruleless --count
+readonly_tiers.py --kind dead_rows --count|readonly_tier_dead_rows --count
+readonly_tiers.py --kind ruleless --addon enterprise --count|readonly_tier_ruleless_enterprise --count
 EOF
 ```
 

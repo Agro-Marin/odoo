@@ -149,13 +149,39 @@ class TestSaleGroupReadonly(TransactionCase):
         lines = self.sale_order.line_ids.with_user(self.user_readonly)
         lines.read(["product_id", "product_uom_qty", "price_unit"])
 
-    def test_manager_implies_readonly(self) -> None:
-        group_manager = self.env.ref("sales_team.group_sale_manager")
-        self.assertIn(
-            self.group_readonly,
-            group_manager.implied_ids,
-            "Manager group should imply readonly group",
+    def test_the_all_documents_rung_implies_readonly(self) -> None:
+        """The lowest rung that already sees every document implies the tier.
+
+        Not the salesperson: the tier's read rules OR with the personal rule,
+        so a narrower rung implying it would read every order through it.
+        """
+        all_documents = self.env.ref("sales_team.group_sale_salesman_all_leads")
+        salesman = self.env.ref("sales_team.group_sale_salesman")
+        manager = self.env.ref("sales_team.group_sale_manager")
+        self.assertIn(self.group_readonly, all_documents.implied_ids)
+        self.assertIn(self.group_readonly, manager.all_implied_ids)
+        self.assertNotIn(self.group_readonly, salesman.all_implied_ids)
+
+    def test_readonly_reads_every_order_whatever_else_it_holds(self) -> None:
+        """The tier is a decision to see everything, stated as a read rule.
+
+        Without it a salesperson given the tier would stay narrowed to their own
+        orders by the personal rule, and a reader holding the tier alone would
+        see everything only because no rule applied to them.
+        """
+        other_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner.id,
+                "user_id": self.env.ref("base.user_admin").id,
+            }
         )
+        with self.assertRaises(AccessError):
+            other_order.with_user(self.user_salesman).read(["id"])
+        self.user_salesman.write({"group_ids": [Command.link(self.group_readonly.id)]})
+        other_order.with_user(self.user_salesman).read(["id"])
+        with self.assertRaises(AccessError):
+            other_order.with_user(self.user_salesman).write({"client_order_ref": "x"})
+        other_order.with_user(self.user_readonly).read(["id"])
 
     def test_salesman_can_read_sale_order(self) -> None:
         order = self.sale_order.with_user(self.user_salesman)

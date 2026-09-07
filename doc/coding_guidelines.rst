@@ -6193,6 +6193,22 @@ Every new model ships explicit access rules ``[review]``. A model with no
   a reference into a module this checkout does not carry alone -- that is the
   optional-dependency idiom.
 
+* **A read-only tier is the lowest rung of its privilege**
+  ``[readonly_tiers]``. ``account``, ``stock``, ``sales_team``, ``purchase`` and
+  ``mrp`` each carry ``group_<app>_readonly``: sequence 5 or 10, ``privilege_id``
+  set, implying ``base.group_user``. It reads every model the app shows and
+  writes none (``grants_write``); where a rung of the same privilege narrows a
+  model by record rule, the tier carries a read rule stating its own scope
+  (``ruleless``), usually ``[(1, '=', 1)]`` or the rung's type clause without
+  its ownership clause; and no row duplicates a read ``base.group_user`` already
+  holds through the row's own dependency closure (``dead_rows``). Record rules
+  OR across a user's groups, so **the rung that implies the tier is the lowest
+  one that already sees every document** -- "All Documents" in sales and
+  purchase, User in stock and mrp, Invoicing in account -- and a gate on an
+  affordance the tier must reach spells the pair
+  ``groups="<transacting rung>,<tier>"``. A sixth app copies the rule, not a
+  module: ``tooling/architecture/readonly_tiers.py`` names the tiers.
+
 10.9 Configuration and secrets
 ------------------------------
 
@@ -6767,6 +6783,12 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.16
+     - 2026-09-06
+     - §10.8: a read-only tier is the lowest rung of its privilege, implied by
+       the lowest all-documents rung, with its own read rules and no dead rows;
+       three hard-zero checks in ``readonly_tiers.py``. account's hidden
+       building block becomes that rung.
    * - 6.15
      - 2026-09-05
      - ``[test_lint E8515]`` ``http-json-string``: a ``type="http"`` route
