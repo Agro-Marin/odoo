@@ -29,7 +29,7 @@ import {
 import { appBadge, loadHomeMenuBadges } from "./badges.js";
 import { ExpirationPanel } from "./expiration_panel.js";
 import { gridRows, nextFocusedIndex } from "./grid_navigation.js";
-import { HomeMenuLayout } from "./home_menu_layout.js";
+import { HomeMenuLayout, pinnedApps, shownApps } from "./home_menu_layout.js";
 import { SysAdminPanel } from "./sysadmin_panel.js";
 
 // A stable object, so a menu service without `getMenuAsTree` still resolves
@@ -283,23 +283,16 @@ export class HomeMenu extends Component {
      * @returns {HomeMenuApp[]}
      */
     get shownApps() {
-        return this.displayedApps.filter((app) => this._isShown(app));
+        // While editing, the hidden ones are on screen too, dimmed, so they
+        // can be brought back.
+        return this.state.editing
+            ? this.displayedApps
+            : shownApps(this.layout.config, this.displayedApps);
     }
 
     /** @returns {HomeMenuApp[]} */
     get pinnedApps() {
-        if (this.state.query) {
-            return [];
-        }
-        const byXmlid = new Map(
-            this.displayedApps
-                .filter((app) => app.xmlid !== undefined && this._isShown(app))
-                .map((app) => [app.xmlid, app]),
-        );
-        return this.layout.config.pinned.flatMap((xmlid) => {
-            const app = byXmlid.get(xmlid);
-            return app ? [app] : [];
-        });
+        return this.state.query ? [] : pinnedApps(this.layout.config, this.shownApps);
     }
 
     /** @returns {HomeMenuApp[]} */
@@ -388,11 +381,6 @@ export class HomeMenu extends Component {
     /** @param {HomeMenuApp} menu */
     _openMenu(menu) {
         return this.menus.selectMenu(menu);
-    }
-
-    /** @param {HomeMenuApp} app */
-    _isShown(app) {
-        return this.state.editing || !this.layout.isHidden(app);
     }
 
     /**
@@ -501,7 +489,6 @@ export class HomeMenu extends Component {
      *
      * @returns {number[][]} visible indices, row by row
      */
-    /** @returns {number[][]} visible indices, row by row */
     get keyboardRows() {
         return gridRows(
             [this.pinnedApps.length, this.unpinnedApps.length],

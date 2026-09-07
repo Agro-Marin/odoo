@@ -26,6 +26,41 @@ import {
  * launcher with six clicks is one request carrying the finished layout, not
  * six carrying six prefixes of it.
  */
+/**
+ * The apps a layout shows: everything it does not hide. An app the layout
+ * cannot name is always shown, since nothing can have hidden it.
+ *
+ * @template {{ xmlid?: string }} T
+ * @param {import("@web/webclient/menus/menu_utils").HomeMenuConfig} config
+ * @param {T[]} apps
+ * @returns {T[]}
+ */
+export function shownApps(config, apps) {
+    return apps.filter(
+        (app) => app.xmlid === undefined || !config.hidden.includes(app.xmlid),
+    );
+}
+
+/**
+ * The pinned ones among `apps`, in the order they were pinned rather than the
+ * order they arrived in. An xmlid pinned but absent — an app uninstalled since
+ * — is skipped rather than left as a hole.
+ *
+ * @template {{ xmlid?: string }} T
+ * @param {import("@web/webclient/menus/menu_utils").HomeMenuConfig} config
+ * @param {T[]} apps
+ * @returns {T[]}
+ */
+export function pinnedApps(config, apps) {
+    const byXmlid = new Map(
+        apps.flatMap((app) => (app.xmlid === undefined ? [] : [[app.xmlid, app]])),
+    );
+    return config.pinned.flatMap((xmlid) => {
+        const app = byXmlid.get(xmlid);
+        return app ? [app] : [];
+    });
+}
+
 export class HomeMenuLayout {
     /** @type {import("@web/webclient/menus/menu_utils").HomeMenuConfig} */
     config;

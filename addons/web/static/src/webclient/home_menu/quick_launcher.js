@@ -6,6 +6,7 @@ import { useService } from "@web/core/utils/hooks";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 
 import { appBadge, loadHomeMenuBadges } from "./badges.js";
+import { pinnedApps, shownApps } from "./home_menu_layout.js";
 import { computeHomeMenuLayout } from "./home_menu_service.js";
 
 const TILES = 12;
@@ -56,17 +57,14 @@ export class QuickLauncher extends Component {
      * @param {import("@web/webclient/menus/menu_utils").HomeMenuConfig} config
      */
     _pickApps(apps, config) {
-        const shown = apps.filter(
-            (app) => app.xmlid === undefined || !config.hidden.includes(app.xmlid),
-        );
-        const byXmlid = new Map(
-            shown.flatMap((app) => (app.xmlid === undefined ? [] : [[app.xmlid, app]])),
-        );
-        const pinned = config.pinned.flatMap((xmlid) => {
-            const app = byXmlid.get(xmlid);
-            return app ? [app] : [];
-        });
-        const ordered = [...pinned, ...menuUsage.rank(shown), ...shown];
+        const shown = shownApps(config, apps);
+        // Pinned first, then what the user opens, then the rest in the stored
+        // order; the Set keeps the first appearance of each.
+        const ordered = [
+            ...pinnedApps(config, shown),
+            ...menuUsage.rank(shown),
+            ...shown,
+        ];
         return [...new Set(ordered)].slice(0, TILES);
     }
 
