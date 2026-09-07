@@ -226,21 +226,10 @@
                                             class="fa-solid fa-phone me-1 text-primary"
                                             title="Work Phone" />
                                         <field
-                                            name="work_phone"
-                                            widget="phone"
+                                            name="phone_ids"
+                                            widget="many2many_tags"
                                             placeholder="Work Phone"
                                             string="Work Phone"
-                                            class="w-100 w-sm-75" />
-                                    </h5>
-                                    <h5 class="d-flex align-items-baseline mb-0">
-                                        <i
-                                            class="fa-solid fa-mobile-screen-button me-1 text-primary"
-                                            title="Work Mobile" />
-                                        <field
-                                            name="mobile_phone"
-                                            widget="phone"
-                                            placeholder="Work Mobile"
-                                            string="Work Mobile"
                                             class="w-100 w-sm-75" />
                                     </h5>
                                     <h5>
@@ -354,8 +343,8 @@
                                             placeholder="e.g. myprivateemail@example.com"
                                             string="Email" />
                                         <field
-                                            name="private_phone"
-                                            widget="phone"
+                                            name="private_phone_ids"
+                                            widget="many2many_tags"
                                             string="Phone" />
                                         <field
                                             name="has_multiple_bank_accounts"
@@ -459,8 +448,8 @@
                                             name="emergency_contact"
                                             string="Contact" />
                                         <field
-                                            name="emergency_phone"
-                                            class="o_force_ltr"
+                                            name="emergency_phone_ids"
+                                            widget="many2many_tags"
                                             string="Phone" />
                                     </group>
                                     <group string="Visa &amp; Work Permit">
@@ -652,7 +641,7 @@
                                                 string="User"
                                                 placeholder="No user linked"
                                                 domain="[('company_ids', 'in', company_id)]"
-                                                context="{                                                     'default_create_employee_id': id,                                                     'default_name': name,                                                     'default_phone': work_phone,                                                     'default_mobile': mobile_phone,                                                     'default_login': work_email,                                                     'default_partner_id': partner_id,                                                     'search_default_filter_no_share': 1,                                                 }"
+                                                context="{                                                     'default_create_employee_id': id,                                                     'default_name': name,                                                     'default_login': work_email,                                                     'default_partner_id': partner_id,                                                     'search_default_filter_no_share': 1,                                                 }"
                                                 widget="many2one_avatar_user"
                                                 groups="base.group_erp_manager" />
                                             <field
@@ -660,7 +649,7 @@
                                                 string="User"
                                                 placeholder="No user linked"
                                                 domain="[('company_ids', 'in', company_id)]"
-                                                context="{                                                     'default_create_employee_id': id,                                                     'default_name': name,                                                     'default_phone': work_phone,                                                     'default_mobile': mobile_phone,                                                     'default_login': work_email,                                                     'default_partner_id': partner_id,                                                     'search_default_filter_no_share': 1,                                                 }"
+                                                context="{                                                     'default_create_employee_id': id,                                                     'default_name': name,                                                     'default_login': work_email,                                                     'default_partner_id': partner_id,                                                     'search_default_filter_no_share': 1,                                                 }"
                                                 widget="many2one_avatar_user"
                                                 groups="!base.group_erp_manager"
                                                 options="{'no_open': True}" />
@@ -764,8 +753,8 @@
                         nolabel="1" />
                     <field name="name" readonly="1" />
                     <field
-                        name="work_phone"
-                        class="o_force_ltr"
+                        name="phone_ids"
+                        widget="many2many_tags"
                         readonly="1"
                         optional="show" />
                     <field name="work_email" optional="hide" />
@@ -869,8 +858,8 @@
                         nolabel="1" />
                     <field name="name" readonly="1" />
                     <field
-                        name="work_phone"
-                        class="o_force_ltr"
+                        name="phone_ids"
+                        widget="many2many_tags"
                         readonly="1"
                         optional="hide" />
                     <field name="work_email" optional="hide" />
@@ -999,11 +988,11 @@
                                         title="Email" />
                                     <field name="work_email" />
                                 </div>
-                                <div t-if="record.work_phone.raw_value">
+                                <div t-if="record.phone_ids.raw_value.length">
                                     <i
                                         class="fa-solid fa-phone me-2 text-primary"
                                         title="Phone" />
-                                    <field name="work_phone" />
+                                    <field name="phone_ids" widget="many2many_tags" />
                                 </div>
                                 <div
                                     t-if="record.contract_date_start.raw_value"

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from markupsafe import Markup
 
-from odoo import api, fields, models, tools
+from odoo import Command, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
@@ -51,13 +51,12 @@ CRM_LEAD_FIELDS_TO_MERGE = [
     "contact_name",
     "email_from",
     "function",
-    "phone",
     "website",
 ]
 
 PARTNER_FIELDS_TO_SYNC = [
     "lang",
-    "phone",
+    "phone_ids",
     "function",
     "website",
 ]
@@ -318,11 +317,15 @@ class CrmLead(models.Model):
         index="btree_not_null",
         store=True,
     )
-    phone = fields.Char(
-        "Phone",
+    phone_ids = fields.Many2many(
+        "phone.number",
+        "crm_lead_phone_number_rel",
+        "lead_id",
+        "phone_number_id",
+        string="Phone",
         tracking=50,
-        compute="_compute_phone",
-        inverse="_inverse_phone",
+        compute="_compute_phone_ids",
+        inverse="_inverse_phone_ids",
         readonly=False,
         store=True,
     )
@@ -685,7 +688,7 @@ class CrmLead(models.Model):
                     {
                         "partner_id": False,
                         "email_from": False,
-                        "phone": False,
+                        "phone_ids": False,
                     }
                 )
                 lead.commercial_partner_id = commercial_partner
@@ -759,29 +762,28 @@ class CrmLead(models.Model):
                 lead.email_normalized
             )
 
-    @api.depends("partner_id.phone")
-    def _compute_phone(self):
+    @api.depends("partner_id.phone_ids")
+    def _compute_phone_ids(self):
         for lead in self:
-            if lead.partner_id.phone and lead._get_partner_phone_update():
-                lead.phone = lead.partner_id.phone
+            if lead.partner_id.phone_ids and lead._get_partner_phone_update():
+                lead.phone_ids = lead.partner_id.phone_ids
 
-    def _inverse_phone(self):
+    def _inverse_phone_ids(self):
         for lead in self:
             if lead._get_partner_phone_update(force_void=False):
-                lead.partner_id.phone = lead.phone
+                lead.partner_id.phone_ids = lead.phone_ids
 
-    @api.depends("phone", "country_id.code")
+    @api.depends(
+        "phone_ids.number", "phone_ids.primary", "phone_ids.sequence", "country_id.code"
+    )
     def _compute_phone_state(self):
         for lead in self:
             phone_status = False
-            if lead.phone:
-                country_code = (
-                    lead.country_id.code
-                    if lead.country_id and lead.country_id.code
-                    else None
-                )
+            number = lead._phone_get_number().number
+            if number:
+                country_code = lead.country_id.code or None
                 try:
-                    if phone_validation.phone_parse(lead.phone, country_code):
+                    if phone_validation.phone_parse(number, country_code):
                         phone_status = "correct"
                 except UserError:
                     phone_status = "incorrect"
@@ -941,7 +943,7 @@ class CrmLead(models.Model):
         for lead in self:
             lead.partner_email_update = lead._get_partner_email_update(force_void=False)
 
-    @api.depends("phone", "partner_id")
+    @api.depends("phone_ids.sanitized", "partner_id.phone_ids.sanitized")
     def _compute_partner_phone_update(self):
         for lead in self:
             lead.partner_phone_update = lead._get_partner_phone_update(force_void=False)
@@ -953,14 +955,6 @@ class CrmLead(models.Model):
         for lead in self:
             lead.is_partner_visible = bool(
                 lead.type == "opportunity" or lead.partner_id or is_debug_mode
-            )
-
-    @api.onchange("phone", "country_id", "company_id")
-    def _onchange_phone_validation(self):
-        if self.phone:
-            self.phone = (
-                self._phone_format(fname="phone", force_format="INTERNATIONAL")
-                or self.phone
             )
 
     def _prepare_values_from_partner(self, partner):
@@ -1014,21 +1008,25 @@ class CrmLead(models.Model):
 
     def _get_partner_phone_update(self, force_void=True):
         self.check_singleton()
-        if (
-            self.partner_id
-            and (force_void or self.phone)
-            and self.phone != self.partner_id.phone
-        ):
-            lead_phone_formatted = (
-                self._phone_format(fname="phone") or self.phone or False
+        if self.partner_id and (force_void or self.phone_ids):
+            return set(self.phone_ids.mapped("sanitized")) != set(
+                self.partner_id.phone_ids.mapped("sanitized")
             )
-            partner_phone_formatted = (
-                self.partner_id._phone_format(fname="phone")
-                or self.partner_id.phone
-                or False
-            )
-            return lead_phone_formatted != partner_phone_formatted
         return False
+
+    @api.model
+    def _phone_commands_with_country(self, commands, country_id):
+        if not country_id or not isinstance(commands, list):
+            return commands
+        return [
+            (Command.CREATE, 0, {"country_id": country_id, **command[2]})
+            if isinstance(command, tuple | list)
+            and command[0] == Command.CREATE
+            and isinstance(command[2], dict)
+            and not command[2].get("country_id")
+            else command
+            for command in commands
+        ]
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -1036,6 +1034,10 @@ class CrmLead(models.Model):
             if vals.get("website"):
                 vals["website"] = self.env["res.partner"]._clean_website(
                     vals["website"]
+                )
+            if vals.get("phone_ids"):
+                vals["phone_ids"] = self._phone_commands_with_country(
+                    vals["phone_ids"], vals.get("country_id")
                 )
         leads = super().create(vals_list)
 
@@ -1058,8 +1060,9 @@ class CrmLead(models.Model):
                     commercial_partner = CommercialPartners.browse(
                         lead_vals["commercial_partner_id"]
                     )
-                    if (lead.phone or lead.email_from) and (
-                        lead.phone_sanitized != commercial_partner.phone_sanitized
+                    if (lead.phone_ids or lead.email_from) and (
+                        set(lead.phone_ids.mapped("sanitized"))
+                        != set(commercial_partner.phone_ids.mapped("sanitized"))
                         or lead.email_normalized != commercial_partner.email_normalized
                     ):
                         lead.partner_name = lead.partner_name or commercial_partner.name
@@ -1079,9 +1082,26 @@ class CrmLead(models.Model):
 
         return leads
 
+    def web_save(self, vals, specification, next_id=None, **kwargs):
+        to_sync = (
+            self.filtered("partner_phone_update")
+            if self and "phone_ids" not in vals
+            else self.browse()
+        )
+        result = super().web_save(vals, specification, next_id=next_id, **kwargs)
+        to_sync._inverse_phone_ids()
+        return result
+
     def write(self, vals):
         if vals.get("website"):
             vals["website"] = self.env["res.partner"]._clean_website(vals["website"])
+        if vals.get("phone_ids"):
+            country_id = vals.get("country_id")
+            if not country_id and len(self.country_id) == 1:
+                country_id = self.country_id.id
+            vals["phone_ids"] = self._phone_commands_with_country(
+                vals["phone_ids"], country_id
+            )
 
         now = self.env.cr.now()
         stage_is_won = False
@@ -1842,6 +1862,7 @@ class CrmLead(models.Model):
                 else False
             ),
             "tag_ids": lambda fname, leads: leads.mapped("tag_ids"),
+            "phone_ids": lambda fname, leads: leads.mapped("phone_ids"),
             "lost_reason_id": lambda fname, leads: (
                 False
                 if leads and leads[0].probability
@@ -2237,7 +2258,7 @@ class CrmLead(models.Model):
             "name": partner_name,
             "user_id": self.env.context.get("default_user_id") or self.user_id.id,
             "comment": self.description,
-            "phone": self.phone,
+            "phone_ids": [Command.set(self.phone_ids.ids)] if self.phone_ids else False,
             "email": email_parts[0] if email_parts else False,
             "function": self.function,
             "street": self.street,

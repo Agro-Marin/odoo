@@ -98,14 +98,30 @@ export class Form extends Interaction {
         }
         // fetch user data (required by fill-with behavior)
         if (user.userId) {
+            const fields = this.getUserPreFillFields();
+            const readFields = fields.map((field) =>
+                field === "phone" ? "phone_ids" : field,
+            );
             this.preFillValues =
                 (
-                    await this.services.orm.read(
-                        "res.users",
-                        [user.userId],
-                        this.getUserPreFillFields(),
-                    )
+                    await this.services.orm.read("res.users", [user.userId], readFields)
                 )[0] || {};
+            if (fields.includes("phone")) {
+                const [phoneId] = this.preFillValues.phone_ids || [];
+                let phone;
+                if (phoneId) {
+                    try {
+                        [phone] = await this.services.orm.read(
+                            "phone.number",
+                            [phoneId],
+                            ["number"],
+                        );
+                    } catch {
+                        phone = undefined;
+                    }
+                }
+                this.preFillValues.phone = phone?.number || "";
+            }
         }
         // Reset the form first, as it is still filled when coming back
         // after a redirect.

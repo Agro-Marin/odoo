@@ -120,12 +120,15 @@ class EventTrack(models.Model):
         store=True,
         tracking=20,
     )
-    partner_phone = fields.Char(
+    phone_ids = fields.Many2many(
+        "phone.number",
+        "event_track_phone_number_rel",
+        "track_id",
+        "phone_number_id",
         string="Phone",
-        compute="_compute_partner_phone",
+        compute="_compute_phone_ids",
         readonly=False,
         store=True,
-        tracking=30,
     )
     partner_biography = fields.Html(
         string="Biography",
@@ -164,12 +167,15 @@ class EventTrack(models.Model):
         store=True,
         tracking=20,
     )
-    contact_phone = fields.Char(
+    contact_phone_ids = fields.Many2many(
+        "phone.number",
+        "event_track_contact_phone_number_rel",
+        "track_id",
+        "phone_number_id",
         string="Contact Phone",
-        compute="_compute_contact_phone",
+        compute="_compute_contact_phone_ids",
         readonly=False,
         store=True,
-        tracking=30,
     )
     location_id = fields.Many2one("event.track.location", "Location")
     # time information
@@ -296,10 +302,10 @@ class EventTrack(models.Model):
                 track.partner_email = track.partner_id.email
 
     @api.depends("partner_id")
-    def _compute_partner_phone(self):
+    def _compute_phone_ids(self):
         for track in self:
-            if track.partner_id and not track.partner_phone:
-                track.partner_phone = track.partner_id.phone
+            if track.partner_id and not track.phone_ids:
+                track.phone_ids = track.partner_id.phone_ids._primary()
 
     @api.depends("partner_id")
     def _compute_partner_biography(self):
@@ -365,11 +371,11 @@ class EventTrack(models.Model):
             if track.partner_id:
                 track.contact_email = track.partner_id.email
 
-    @api.depends("partner_id", "partner_id.phone")
-    def _compute_contact_phone(self):
+    @api.depends("partner_id", "partner_id.phone_ids")
+    def _compute_contact_phone_ids(self):
         for track in self:
             if track.partner_id:
-                track.contact_phone = track.partner_id.phone
+                track.contact_phone_ids = track.partner_id.phone_ids._primary()
 
     # TIME
 

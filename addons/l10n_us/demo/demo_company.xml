@@ -9,7 +9,7 @@
         <field name="zip">44654</field>
         <field name="country_id" ref="base.us" />
         <field name="state_id" ref="base.state_us_30" />
-        <field name="phone">+1 555-555-5556</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+1 555-555-5556', 'type': 'landline'})]" />
     </record>
 
     <record id="demo_company_us" model="res.company">
@@ -20,7 +20,7 @@
 
     <record id="demo_bank_us" model="res.partner.bank">
         <field name="acc_number">BKIGRWRR</field>
-        <field name="partner_id" ref="partner_demo_company_us" />
+        <field name="partner_ids" eval="[(4, ref('partner_demo_company_us'))]" />
         <field name="company_id" ref="demo_company_us" />
     </record>
 

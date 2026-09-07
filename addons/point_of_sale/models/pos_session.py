@@ -220,6 +220,7 @@ class PosSession(models.Model):
             "product.combo.item",
             "res.users",
             "res.partner",
+            "phone.number",
             "product.uom",
             "decimal.precision",
             "uom.uom",

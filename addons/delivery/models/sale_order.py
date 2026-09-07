@@ -1,6 +1,6 @@
 import json
 
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -237,7 +237,7 @@ class SaleOrder(models.Model):
             )
             parent_id = order.partner_shipping_id.id
             email = order.partner_shipping_id.email
-            phone = order.partner_shipping_id.phone
+            phone = order.partner_shipping_id.phone_ids._primary()
 
             # Check if the current partner has a partner of type 'delivery' with the same address.
             existing_partner = order.env["res.partner"].search(
@@ -263,7 +263,7 @@ class SaleOrder(models.Model):
                     "zip": zip_code,
                     "country_id": country,
                     "email": email,
-                    "phone": phone,
+                    "phone_ids": [Command.link(phone.id)] if phone else [],
                     "is_pickup_location": True,
                 }
             )

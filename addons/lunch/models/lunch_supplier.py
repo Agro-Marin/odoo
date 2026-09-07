@@ -38,7 +38,7 @@ class LunchSupplier(models.Model):
 
     email = fields.Char(related='partner_id.email', readonly=False)
     email_formatted = fields.Char(related='partner_id.email_formatted', readonly=True)
-    phone = fields.Char(related='partner_id.phone', readonly=False)
+    phone_ids = fields.Many2many(related='partner_id.phone_ids', readonly=False)
     street = fields.Char(related='partner_id.street', readonly=False)
     street2 = fields.Char(related='partner_id.street2', readonly=False)
     zip_code = fields.Char(related='partner_id.zip', readonly=False)
@@ -114,11 +114,11 @@ class LunchSupplier(models.Model):
         'Automatic Email Sending Time should be between 0 and 12',
     )
 
-    @api.depends('phone')
+    @api.depends('phone_ids')
     def _compute_display_name(self):
         for supplier in self:
-            if supplier.phone:
-                supplier.display_name = f'{supplier.name} {supplier.phone}'
+            if phone := supplier.phone_ids._primary().number:
+                supplier.display_name = f'{supplier.name} {phone}'
             else:
                 supplier.display_name = supplier.name
 

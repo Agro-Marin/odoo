@@ -43,8 +43,8 @@
                     options="{'show_time': False}" />
                 <field name="email_from" readonly="1" optional="hide" />
                 <field
-                    name="partner_phone"
-                    widget="phone"
+                    name="phone_ids"
+                    widget="many2many_tags"
                     readonly="1"
                     optional="hide" />
                 <field
@@ -129,7 +129,7 @@
                 <field name="meeting_ids" invisible="1" />
                 <field name="refuse_reason_id" invisible="1" />
                 <field name="email_normalized" invisible="1" />
-                <field name="partner_phone_sanitized" invisible="1" />
+                <field name="phone_sanitized" invisible="1" />
                 <field name="emp_is_active" invisible="1" />
                 <field name="is_rotting" invisible="1" />
                 <field name="rotting_days" invisible="1" />
@@ -273,7 +273,7 @@
                                 name="email_from"
                                 placeholder="e.g. john.doe@example.com"
                                 widget="email" />
-                            <field name="partner_phone" widget="phone" />
+                            <field name="phone_ids" widget="many2many_tags" />
                             <field
                                 name="linkedin_profile"
                                 placeholder="e.g. https://www.linkedin.com/in/..."

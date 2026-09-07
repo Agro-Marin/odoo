@@ -3,7 +3,7 @@ import typing
 from collections.abc import Callable
 from typing import Any, Literal, Self
 
-from odoo import api, fields, models, tools
+from odoo import Command, api, fields, models, tools
 from odoo.api import DomainType, ValuesType
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
@@ -24,7 +24,7 @@ class ResPartner(models.Model):
 
     name = fields.Char(tracking=1)
     email = fields.Char(tracking=1)
-    phone = fields.Char(tracking=2)
+    phone_ids = fields.Many2many(tracking=2)
     parent_id: ResPartner = fields.Many2one(tracking=3)
     user_id: ResUsers = fields.Many2one(tracking=4)
     vat = fields.Char(tracking=5)
@@ -250,13 +250,24 @@ class ResPartner(models.Model):
             ]
             if tocreate_vals_list:
                 partners += self.with_context(mail_create_nosubscribe=True).create(
-                    tocreate_vals_list
+                    [self._phone_vals_to_commands(vals) for vals in tocreate_vals_list]
                 )
 
         if sort_key:
             partners = partners.sorted(key=sort_key, reverse=sort_reverse)
 
         return self._get_partner_per_email(name_emails, emails, partners)
+
+    @api.model
+    def _phone_vals_to_commands(self, vals: dict) -> dict:
+        commands = [
+            Command.create({"number": number, "type": phone_type})
+            for key, phone_type in (("phone", "landline"), ("mobile", "mobile"))
+            if (number := vals.pop(key, False))
+        ]
+        if commands:
+            vals["phone_ids"] = vals.get("phone_ids", []) + commands
+        return vals
 
     @api.model
     def _get_or_create_from_emails_key(self, email: str) -> str:
@@ -304,7 +315,9 @@ class ResPartner(models.Model):
             "partner_share",
         ]
         if target.is_internal(self.env):
-            fields.extend(["email", "phone"])
+            fields.extend(
+                ["email", Store.Attr("phone", lambda p: p._phone_get_number().number)]
+            )
         return fields
 
     def _field_store_repr(self, field_spec: StoreFieldSpec) -> list[StoreFieldSpec]:

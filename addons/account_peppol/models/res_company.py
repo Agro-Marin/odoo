@@ -1,12 +1,14 @@
 import contextlib
 import re
+
 import requests
 from lxml import etree
-from stdnum import get_cc_module, ean
+from stdnum import ean, get_cc_module
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools.urls import urljoin
+
 from odoo.addons.account.models.res_company import PEPPOL_LIST
 
 try:
@@ -33,7 +35,7 @@ PEPPOL_ENDPOINT_RULES = {
 
 PEPPOL_ENDPOINT_WARNINGS = {
     '0151': _cc_checker('au', 'abn'),
-    '0201': lambda endpoint: bool(re.match('[0-9a-zA-Z]{6}$', endpoint)),
+    '0201': lambda endpoint: bool(re.match(r'[0-9a-zA-Z]{6}$', endpoint)),
     '0210': _cc_checker('it', 'codicefiscale'),
     '0211': _cc_checker('it', 'iva'),
     '9906': _cc_checker('it', 'iva'),
@@ -301,14 +303,15 @@ class ResCompany(models.Model):
             if not company.account_peppol_contact_email:
                 company.account_peppol_contact_email = company.email
 
-    @api.depends('phone')
+    @api.depends('phone_ids')
     def _compute_account_peppol_phone_number(self):
         for company in self:
             if not company.account_peppol_phone_number:
                 try:
                     # precompute only if it's a valid phone number
-                    company._sanitize_peppol_phone_number(company.phone)
-                    company.account_peppol_phone_number = company.phone
+                    phone = company.phone_ids._primary().number
+                    company._sanitize_peppol_phone_number(phone)
+                    company.account_peppol_phone_number = phone
                 except ValidationError:
                     continue
 

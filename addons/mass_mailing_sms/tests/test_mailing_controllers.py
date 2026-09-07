@@ -1,6 +1,8 @@
-from odoo.tests.common import users
-from odoo.tests import tagged
+from odoo import Command
 from odoo.libs.web import urljoin as url_join
+from odoo.tests import tagged
+from odoo.tests.common import users
+
 from odoo.addons.mass_mailing_sms.tests.common import MassSMSCommon
 
 
@@ -13,7 +15,7 @@ class TestMailingListSms(MassSMSCommon):
         formatting and validation """
         partner = self.env['res.partner'].create({
             'name': 'Test Partner',
-            'phone': '+91 1234657890',
+            'phone_ids': [Command.create({"number": '+91 1234657890', "type": "landline"})],
         })
 
         mailing = self.env['mailing.mailing'].create({

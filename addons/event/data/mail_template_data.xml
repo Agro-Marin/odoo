@@ -280,8 +280,8 @@
                                                 <t t-if="event_organizer.email">
                                                     <li>Mail: <a t-attf-href="mailto:{{ event_organizer.email }}" t-attf-style="text-decoration:none;color: {{object.event_id.user_id.company_id.email_secondary_color or '#875A7B'}};" t-out="event_organizer.email">info@yourcompany.com</a></li>
                                                 </t>
-                                                <t t-if="event_organizer.phone">
-                                                    <li>Phone: <t t-out="event_organizer.phone">+1 650-123-4567</t></li>
+                                                <t t-if="event_organizer.phone_ids._primary()">
+                                                    <li>Phone: <t t-out="event_organizer.phone_ids._primary().number">+1 650-123-4567</t></li>
                                                 </t>
                                             </ul>
                                         </div>
@@ -687,8 +687,8 @@
                                                 <t t-if="event_organizer.email">
                                                     <li>Mail: <a t-attf-href="mailto:{{ event_organizer.email }}" t-attf-style="text-decoration:none; color: {{object.event_id.user_id.company_id.email_secondary_color or '#875A7B'}};" t-out="event_organizer.email or ''">info@yourcompany.com</a></li>
                                                 </t>
-                                                <t t-if="event_organizer.phone">
-                                                    <li>Phone: <t t-out="event_organizer.phone">+1 650-123-4567</t></li>
+                                                <t t-if="event_organizer.phone_ids._primary()">
+                                                    <li>Phone: <t t-out="event_organizer.phone_ids._primary().number">+1 650-123-4567</t></li>
                                                 </t>
                                             </ul>
                                         </div>
@@ -1080,8 +1080,8 @@
                                                 <t t-if="event_organizer.email">
                                                     <li>Mail: <a t-attf-href="mailto:{{ event_organizer.email }}" t-attf-style="text-decoration:none; color: {{object.event_id.user_id.company_id.email_secondary_color or '#875A7B'}};" t-out="event_organizer.email or ''" /></li>
                                                 </t>
-                                                <t t-if="event_organizer.phone">
-                                                    <li>Phone: <t t-out="event_organizer.phone or ''" /></li>
+                                                <t t-if="event_organizer.phone_ids._primary()">
+                                                    <li>Phone: <t t-out="event_organizer.phone_ids._primary().number or ''" /></li>
                                                 </t>
                                             </ul>
                                         </div>

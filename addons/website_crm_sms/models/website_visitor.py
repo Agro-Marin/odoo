@@ -8,7 +8,7 @@ class WebsiteVisitor(models.Model):
         check = super()._check_for_sms_composer()
         if not check and self.lead_ids:
             sorted_leads = self.lead_ids.filtered(
-                lambda l: l.phone == self.phone
+                lambda l: self.mobile in l.phone_ids.mapped("number")
             )._sort_by_confidence_level(reverse=True)
             if sorted_leads:
                 return True
@@ -17,13 +17,13 @@ class WebsiteVisitor(models.Model):
     def _prepare_sms_composer_context(self):
         if not self.partner_id and self.lead_ids:
             leads_with_number = self.lead_ids.filtered(
-                lambda l: l.phone == self.phone
+                lambda l: self.mobile in l.phone_ids.mapped("number")
             )._sort_by_confidence_level(reverse=True)
             if leads_with_number:
                 lead = leads_with_number[0]
                 return {
                     "default_res_model": "crm.lead",
                     "default_res_id": lead.id,
-                    "number_field_name": "phone",
+                    "number_field_name": "phone_ids",
                 }
         return super()._prepare_sms_composer_context()

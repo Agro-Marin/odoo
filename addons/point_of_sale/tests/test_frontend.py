@@ -2548,7 +2548,7 @@ class TestUi(TestPointOfSaleHttpCommon):
                 "state_id": self.env.ref("base.state_us_30").id,
                 "country_id": self.env.ref("base.us").id,
                 "zip": "26432685463",
-                "phone": "9898989899",
+                "phone_ids": [Command.create({"number": "9898989899", "type": "landline"})],
                 "email": "john@doe.com",
             }
         )

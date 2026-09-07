@@ -238,7 +238,9 @@ class BaseFollowersTest(MailCommon):
                 "name": "Valid Lelitre",
                 "email": "valid.lelitre@agrolait.com",
                 "country_id": self.env.ref("base.be").id,
-                "phone": "0456001122",
+                "phone_ids": [
+                    Command.create({"number": "0456001122", "type": "landline"})
+                ],
                 "active": False,
             }
         )
@@ -1727,7 +1729,9 @@ class RecipientsNotificationTest(MailCommon):
             {
                 "email": "customer@test.customer.com",
                 "name": "Customer",
-                "phone": "+32455778899",
+                "phone_ids": [
+                    Command.create({"number": "+32455778899", "type": "landline"})
+                ],
             }
         )
 
@@ -1736,7 +1740,9 @@ class RecipientsNotificationTest(MailCommon):
             {
                 "email": "common.partner@test.customer.com",
                 "name": "Common Partner",
-                "phone": "+32455998877",
+                "phone_ids": [
+                    Command.create({"number": "+32455998877", "type": "landline"})
+                ],
             }
         )
         cls.user_1, cls.user_2 = (
@@ -1905,7 +1911,9 @@ class RecipientsNotificationTest(MailCommon):
                 {
                     "email": "common.partner@test.customer.com",
                     "name": "Common Partner",
-                    "phone": "+32455998877",
+                    "phone_ids": [
+                        Command.create({"number": "+32455998877", "type": "landline"})
+                    ],
                 }
             )
         )

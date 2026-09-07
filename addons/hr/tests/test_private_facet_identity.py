@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase, tagged
 
@@ -17,7 +18,9 @@ class TestPrivateFacetIdentity(TransactionCase):
                 "birthday": "1990-04-05",
                 "country_id": self.env.ref("base.mx").id,
                 "private_email": "home@example.com",
-                "private_phone": "555",
+                "private_phone_ids": [
+                    Command.create({"number": "555", "type": "landline"})
+                ],
             }
         )
         home = employee.private_address_id
@@ -26,7 +29,7 @@ class TestPrivateFacetIdentity(TransactionCase):
         self.assertEqual(str(home.birthdate), "1990-04-05")
         self.assertEqual(home.nationality_id, self.env.ref("base.mx"))
         self.assertEqual(home.email, "home@example.com")
-        self.assertEqual(home.phone, "555")
+        self.assertEqual(home.phone_ids._primary().number, "555")
         self.assertEqual(employee.sex, "female")
         self.assertEqual(str(employee.birthday), "1990-04-05")
 

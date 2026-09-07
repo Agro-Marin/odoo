@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase, tagged
 
@@ -96,13 +97,15 @@ class TestPartyDelegation(TransactionCase):
             {
                 "name": "Party Channels",
                 "work_email": "channels@example.com",
-                "work_phone": "+1 555 0100",
-                "mobile_phone": "+1 555 0101",
+                "phone_ids": [
+                    Command.create({"number": "+1 555 0100", "type": "landline"}),
+                    Command.create({"number": "+1 555 0101", "type": "mobile"}),
+                ],
             }
         )
         party = employee.partner_id
         self.assertEqual(
-            (party.email, party.phone, party.mobile),
+            (party.email, *party.phone_ids.mapped("number")),
             ("channels@example.com", "+1 555 0100", "+1 555 0101"),
         )
         party.email = "moved@example.com"

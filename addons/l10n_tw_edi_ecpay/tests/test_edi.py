@@ -25,10 +25,10 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             'l10n_tw_edi_ecpay_merchant_id': '1234',
             'l10n_tw_edi_ecpay_hashkey': 'aaBBccDDeeFFggHH',
             'l10n_tw_edi_ecpay_hashIV': 'bbCCDDeeFFggHHaa',
-            'phone': '+886 123 456 781',
+            'phone_ids': [Command.create({"number": '+886 123 456 781', "type": "landline"})],
         })
         cls.partner_a.write({
-            'phone': '+886 123 456 789',
+            'phone_ids': [Command.create({"number": '+886 123 456 789', "type": "landline"})],
             'street': 'street七美',
             'city': '中正區',
             'state_id': cls.env.ref('base.state_tw_tpc').id,
@@ -36,7 +36,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             'is_company': False,
         })
         cls.partner_b.write({
-            'phone': '+886 123 456 789',
+            'phone_ids': [Command.create({"number": '+886 123 456 789', "type": "landline"})],
             'street': 'street七美',
             'city': '信義區',
             'state_id': cls.env.ref('base.state_tw_klc').id,
@@ -213,7 +213,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         # the partner is b2b but has no tax id
         test_partner = self.env['res.partner'].create({
             'name': 'Test Partner',
-            'phone': '+886 123 456 789',
+            'phone_ids': [Command.create({"number": '+886 123 456 789', "type": "landline"})],
             'street': 'street七美',
             'city': '中正區',
             'state_id': self.env.ref('base.state_tw_tpc').id,
@@ -239,7 +239,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
 
         # the partner's phone number is invalid
         test_partner.vat = '12345678'
-        test_partner.phone = '123+456+789'
+        test_partner.phone_ids = [Command.clear(), Command.create({'number': '123+456+789', 'type': 'landline'})]
         invoice_c = self.init_invoice(
             'out_invoice', partner=test_partner, products=self.product_a,
         )
@@ -248,7 +248,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         with self.assertRaises(UserError):
             send_and_print.action_send_and_print()
         # the invoice type is invalid
-        test_partner.phone = '+886 123 456 789'
+        test_partner.phone_ids = [Command.clear(), Command.create({'number': '+886 123 456 789', 'type': 'landline'})]
         invoice_d = self.init_invoice(
             'out_invoice', partner=test_partner, products=self.product_a,
         )

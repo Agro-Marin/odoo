@@ -40,7 +40,9 @@ class TestAvatarCardTour(MailCommon, HttpCase):
                 {
                     "name": "Test Other Partner",
                     "company_id": cls.company_2.id,
-                    "phone": "987654321",
+                    "phone_ids": [
+                        Command.create({"number": "987654321", "type": "landline"})
+                    ],
                 }
             )
         )
@@ -56,7 +58,9 @@ class TestAvatarCardTour(MailCommon, HttpCase):
                     "job_id": job.id,
                     "address_id": other_partner.id,
                     "work_email": "test_employee@test.com",
-                    "work_phone": "123456789",
+                    "phone_ids": [
+                        Command.create({"number": "123456789", "type": "landline"})
+                    ],
                 }
             )
         )

@@ -2,6 +2,7 @@ from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 
+from odoo import Command
 from odoo.tests import tagged
 
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo, HttpCaseWithUserPortal
@@ -27,7 +28,7 @@ class TestWEventBoothExhibitorCommon(HttpCaseWithUserDemo, HttpCaseWithUserPorta
                 "name": "Mitchell Admin",
                 "email": "mitchell.admin@example.com",
                 "street": "215 Vine St",
-                "phone": "+1 555-555-5555",
+                "phone_ids": [Command.create({"number": "+1 555-555-5555", "type": "landline"})],
                 "city": "Scranton",
                 "zip": "18503",
                 "country_id": self.env.ref("base.us").id,

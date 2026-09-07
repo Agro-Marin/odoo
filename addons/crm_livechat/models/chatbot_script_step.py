@@ -1,6 +1,6 @@
 from ast import literal_eval
 
-from odoo import _, fields, models
+from odoo import Command, _, fields, models
 from odoo.fields import Domain
 from odoo.tools import html2plaintext
 
@@ -70,7 +70,13 @@ class ChatbotScriptStep(models.Model):
         if self.env.user._is_public():
             create_values = {
                 "email_from": customer_values["email"],
-                "phone": customer_values["phone"],
+                "phone_ids": [
+                    Command.create(
+                        {"number": customer_values["phone"], "type": "landline"}
+                    )
+                ]
+                if customer_values["phone"]
+                else False,
             }
         else:
             create_values = {"partner_id": self.env.user.partner_id.id}

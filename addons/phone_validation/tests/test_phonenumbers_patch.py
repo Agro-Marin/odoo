@@ -10,9 +10,8 @@ from odoo.tests.common import BaseCase
 
 
 class TestPhonenumbersPatch(BaseCase):
-
     class PhoneInputOutputLine(NamedTuple):
-        """ Datastructure to store data for phone number parsing tests. Consist of single set of:
+        """Datastructure to store data for phone number parsing tests. Consist of single set of:
         - input phone data to be parsed
         - (optionally) ground-truths, i.e expected results
 
@@ -38,6 +37,7 @@ class TestPhonenumbersPatch(BaseCase):
         might want to perform additional validation on the parsed number, then we'd use optional expected fields that should
         trigger additional checks.
         """
+
         number: str
         region: str = ""
         gt_national_number: int = None
@@ -45,8 +45,10 @@ class TestPhonenumbersPatch(BaseCase):
         gt_italian_leading_zero: bool = None
         gt_number_of_leading_zeros: int = None
 
-    def _assert_parsing_phonenumbers(self, parse_test_lines: Iterable[PhoneInputOutputLine]):
-        """ Iterates over test_lines, performs asserts according to what data each test_line contains.
+    def _assert_parsing_phonenumbers(
+        self, parse_test_lines: Iterable[PhoneInputOutputLine]
+    ):
+        """Iterates over test_lines, performs asserts according to what data each test_line contains.
             Simple cases:
             1. test_line contains only the international number -> check if phonenumbers can parse it
             2. test_line contains national number and country code -> check if phonenumbers can parse it
@@ -56,48 +58,79 @@ class TestPhonenumbersPatch(BaseCase):
         :param parse_test_lines: An iterable consisting of PhoneInputOutputLine
         """
         if not phonenumbers:
-            self.skipTest('Cannot test parsing without phonenumbers module installed.')
+            self.skipTest("Cannot test parsing without phonenumbers module installed.")
 
         for parse_test_line in parse_test_lines:
             with self.subTest(**parse_test_line._asdict()):
-                parsed_phone = phonenumbers.parse(parse_test_line.number, region=parse_test_line.region)
-                self.assertTrue(phonenumbers.is_valid_number(parsed_phone),
-                    "Phone number does not match any patterns in the metadata.")
+                parsed_phone = phonenumbers.parse(
+                    parse_test_line.number, region=parse_test_line.region
+                )
+                self.assertTrue(
+                    phonenumbers.is_valid_number(parsed_phone),
+                    "Phone number does not match any patterns in the metadata.",
+                )
                 if parse_test_line.gt_national_number:
-                    self.assertEqual(parsed_phone.national_number, parse_test_line.gt_national_number,
-                        "Parsed national number differs from expected national number")
+                    self.assertEqual(
+                        parsed_phone.national_number,
+                        parse_test_line.gt_national_number,
+                        "Parsed national number differs from expected national number",
+                    )
                 if parse_test_line.gt_country_code:
-                    self.assertEqual(parsed_phone.country_code, parse_test_line.gt_country_code,
-                        "Parsed country code number differs from expected country code")
+                    self.assertEqual(
+                        parsed_phone.country_code,
+                        parse_test_line.gt_country_code,
+                        "Parsed country code number differs from expected country code",
+                    )
                 if parse_test_line.gt_italian_leading_zero:
-                    self.assertEqual(parsed_phone.italian_leading_zero, parse_test_line.gt_italian_leading_zero,
-                        "Parsed country code number differs from expected country code")
+                    self.assertEqual(
+                        parsed_phone.italian_leading_zero,
+                        parse_test_line.gt_italian_leading_zero,
+                        "Parsed country code number differs from expected country code",
+                    )
                 if parse_test_line.gt_number_of_leading_zeros:
-                    self.assertEqual(parsed_phone.number_of_leading_zeros, parse_test_line.gt_number_of_leading_zeros,
-                        "Parsed country code number differs from expected country code")
+                    self.assertEqual(
+                        parsed_phone.number_of_leading_zeros,
+                        parse_test_line.gt_number_of_leading_zeros,
+                        "Parsed country code number differs from expected country code",
+                    )
 
     def test_region_BR_monkey_patch(self):
-        """ Test Brazil phone numbers patch for added 9 in mobile numbers
+        """Test Brazil phone numbers patch for added 9 in mobile numbers
         It should not be added for fixed lines numbers"""
         if not phonenumbers:
-            self.skipTest('Cannot test without phonenumbers module installed.')
+            self.skipTest("Cannot test without phonenumbers module installed.")
 
         # Mobile number => 9 should be added
-        parsed = phonenumbers.parse('11 6123 4567', region="BR")
-        formatted = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
-        self.assertEqual(formatted, '+55 11 96123-4567')
+        parsed = phonenumbers.parse("11 6123 4567", region="BR")
+        formatted = phonenumbers.format_number(
+            parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL
+        )
+        self.assertEqual(formatted, "+55 11 96123-4567")
 
         # Fixed line => 9 should not be added
-        parsed = phonenumbers.parse('11 2345 6789', region="BR")
-        formatted = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
-        self.assertEqual(formatted, '+55 11 2345-6789')
+        parsed = phonenumbers.parse("11 2345 6789", region="BR")
+        formatted = phonenumbers.format_number(
+            parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL
+        )
+        self.assertEqual(formatted, "+55 11 2345-6789")
 
     def test_region_CI_monkey_patch(self):
         """Makes sure that patch for Ivory Coast phone numbers work"""
         parse_test_lines_CI = (
             self.PhoneInputOutputLine("+2250506007995"),
-            self.PhoneInputOutputLine("0506007995", region='CI', gt_national_number=506007995, gt_country_code=225, gt_italian_leading_zero=True),
-            self.PhoneInputOutputLine("+225 05 20 963 777", gt_national_number=520963777, gt_country_code=225, gt_italian_leading_zero=True),
+            self.PhoneInputOutputLine(
+                "0506007995",
+                region="CI",
+                gt_national_number=506007995,
+                gt_country_code=225,
+                gt_italian_leading_zero=True,
+            ),
+            self.PhoneInputOutputLine(
+                "+225 05 20 963 777",
+                gt_national_number=520963777,
+                gt_country_code=225,
+                gt_italian_leading_zero=True,
+            ),
         )
         self._assert_parsing_phonenumbers(parse_test_lines_CI)
 
@@ -110,8 +143,8 @@ class TestPhonenumbersPatch(BaseCase):
         self._assert_parsing_phonenumbers(parse_test_lines_CO)
 
     def test_region_IL_monkey_patch(self):
-        """ Makes sure that patch for Israeli phone numbers work
-            Example of wrong phone number: +972 55 731 1234
+        """Makes sure that patch for Israeli phone numbers work
+        Example of wrong phone number: +972 55 731 1234
         """
         parse_test_lines_IL = (
             self.PhoneInputOutputLine("055 294 1234", "IL"),
@@ -135,27 +168,49 @@ class TestPhonenumbersPatch(BaseCase):
         gt_MU_number = 57654321  # what national number we expect after parsing
         gt_MU_code = 230  # what country code we expect after parsing
         parse_test_lines_MU = (
-            self.PhoneInputOutputLine("+23057654321", gt_national_number=gt_MU_number, gt_country_code=gt_MU_code),
-            self.PhoneInputOutputLine("+2305 76/54 3-21 ", gt_national_number=gt_MU_number, gt_country_code=gt_MU_code),
-            self.PhoneInputOutputLine("57654321", region="MU", gt_national_number=gt_MU_number, gt_country_code=gt_MU_code),
-            self.PhoneInputOutputLine("5 76/54 3-21 ", region="MU", gt_national_number=gt_MU_number, gt_country_code=gt_MU_code),
+            self.PhoneInputOutputLine(
+                "+23057654321",
+                gt_national_number=gt_MU_number,
+                gt_country_code=gt_MU_code,
+            ),
+            self.PhoneInputOutputLine(
+                "+2305 76/54 3-21 ",
+                gt_national_number=gt_MU_number,
+                gt_country_code=gt_MU_code,
+            ),
+            self.PhoneInputOutputLine(
+                "57654321",
+                region="MU",
+                gt_national_number=gt_MU_number,
+                gt_country_code=gt_MU_code,
+            ),
+            self.PhoneInputOutputLine(
+                "5 76/54 3-21 ",
+                region="MU",
+                gt_national_number=gt_MU_number,
+                gt_country_code=gt_MU_code,
+            ),
         )
         self._assert_parsing_phonenumbers(parse_test_lines_MU)
 
     def test_region_MX_monkey_patch(self):
-        """ Test Mexican phone numbers patch for removed 1 in mobile numbers """
+        """Test Mexican phone numbers patch for removed 1 in mobile numbers"""
         if not phonenumbers:
-            self.skipTest('Cannot test without phonenumbers module installed.')
+            self.skipTest("Cannot test without phonenumbers module installed.")
 
         # Phone numbers starting with 1 should have the 1 removed
-        parsed = phonenumbers.parse('15585440749', region="MX")
-        formatted = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
-        self.assertEqual(formatted, '+52 55 8544 0749')
+        parsed = phonenumbers.parse("15585440749", region="MX")
+        formatted = phonenumbers.format_number(
+            parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL
+        )
+        self.assertEqual(formatted, "+52 55 8544 0749")
 
         # Phone numbers without the 1 should still be parsed
-        parsed = phonenumbers.parse('5595440749', region="MX")
-        formatted = phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
-        self.assertEqual(formatted, '+52 55 9544 0749')
+        parsed = phonenumbers.parse("5595440749", region="MX")
+        formatted = phonenumbers.format_number(
+            parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL
+        )
+        self.assertEqual(formatted, "+52 55 9544 0749")
 
     def test_region_KE_monkey_patch(self):
         """Makes sure that patch for kenyan phone numbers work"""
@@ -163,14 +218,50 @@ class TestPhonenumbersPatch(BaseCase):
         gt_KE_code = 254  # what country code we expect after parsing
 
         parse_test_lines_KE = (
-            self.PhoneInputOutputLine("+254711123456", gt_national_number=gt_KE_number, gt_country_code=gt_KE_code),
-            self.PhoneInputOutputLine("+254 711 123 456", gt_national_number=gt_KE_number, gt_country_code=gt_KE_code),
-            self.PhoneInputOutputLine("+254-711-123-456", gt_national_number=gt_KE_number, gt_country_code=gt_KE_code),
-            self.PhoneInputOutputLine("+254 711/123/456", gt_national_number=gt_KE_number, gt_country_code=gt_KE_code),
-            self.PhoneInputOutputLine("0711123456", region="KE", gt_national_number=gt_KE_number, gt_country_code=gt_KE_code),
-            self.PhoneInputOutputLine("0711 123 456", region="KE", gt_national_number=gt_KE_number, gt_country_code=gt_KE_code),
-            self.PhoneInputOutputLine("0711-123-456", region="KE", gt_national_number=gt_KE_number, gt_country_code=gt_KE_code),
-            self.PhoneInputOutputLine("0711/123/456", region="KE", gt_national_number=gt_KE_number, gt_country_code=gt_KE_code),
+            self.PhoneInputOutputLine(
+                "+254711123456",
+                gt_national_number=gt_KE_number,
+                gt_country_code=gt_KE_code,
+            ),
+            self.PhoneInputOutputLine(
+                "+254 711 123 456",
+                gt_national_number=gt_KE_number,
+                gt_country_code=gt_KE_code,
+            ),
+            self.PhoneInputOutputLine(
+                "+254-711-123-456",
+                gt_national_number=gt_KE_number,
+                gt_country_code=gt_KE_code,
+            ),
+            self.PhoneInputOutputLine(
+                "+254 711/123/456",
+                gt_national_number=gt_KE_number,
+                gt_country_code=gt_KE_code,
+            ),
+            self.PhoneInputOutputLine(
+                "0711123456",
+                region="KE",
+                gt_national_number=gt_KE_number,
+                gt_country_code=gt_KE_code,
+            ),
+            self.PhoneInputOutputLine(
+                "0711 123 456",
+                region="KE",
+                gt_national_number=gt_KE_number,
+                gt_country_code=gt_KE_code,
+            ),
+            self.PhoneInputOutputLine(
+                "0711-123-456",
+                region="KE",
+                gt_national_number=gt_KE_number,
+                gt_country_code=gt_KE_code,
+            ),
+            self.PhoneInputOutputLine(
+                "0711/123/456",
+                region="KE",
+                gt_national_number=gt_KE_number,
+                gt_country_code=gt_KE_code,
+            ),
         )
         self._assert_parsing_phonenumbers(parse_test_lines_KE)
 

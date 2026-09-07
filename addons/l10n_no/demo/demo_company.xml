@@ -8,7 +8,7 @@
         <field name="city">Åmot</field>
         <field name="country_id" ref="base.no" />
         <field name="zip" />
-        <field name="phone">+47 406 12 345</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+47 406 12 345', 'type': 'landline'})]" />
         <field name="email">info@company.noexample.com</field>
         <field name="website">www.noexample.com</field>
         <field name="l10n_no_bronnoysund_number">123456785</field>
@@ -22,7 +22,7 @@
 
     <record id="base.demo_bank_no" model="res.partner.bank" forcecreate="1">
         <field name="acc_number">NO8330001234567</field>
-        <field name="partner_id" ref="base.partner_demo_company_no" />
+        <field name="partner_ids" eval="[(4, ref('base.partner_demo_company_no'))]" />
         <field name="company_id" ref="base.demo_company_no" />
     </record>
 

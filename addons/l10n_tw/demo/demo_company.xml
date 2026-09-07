@@ -9,7 +9,7 @@
         <field name="country_id" ref="base.tw" />
         <field name="state_id" ref="base.state_tw_tpc" />
         <field name="zip">110</field>
-        <field name="phone">+886 2 1234 5678</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+886 2 1234 5678', 'type': 'landline'})]" />
         <field name="email">info@company.twexample.com</field>
         <field name="website">www.twexample.com</field>
         <field name="is_company" eval="True" />

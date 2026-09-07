@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo.addons.l10n_account_edi_ubl_cii_tests.tests.common import TestUBLCommon
+from odoo import Command
 from odoo.tests import tagged
 
 @tagged('post_install_l10n', 'post_install', '-at_install')
@@ -19,7 +20,7 @@ class TestCIIFR(TestUBLCommon):
             'vat': 'FR05677404089',
             'country_id': cls.env.ref('base.fr').id,
             'bank_ids': [(0, 0, {'acc_number': 'FR15001559627230'})],
-            'phone': '+1 (650) 555-0111',
+            'phone_ids': [Command.create({"number": '+1 (650) 555-0111', "type": "landline"})],
             'email': "partner1@yourcompany.com",
             'ref': 'ref_partner_1',
             'invoice_edi_format': 'facturx',
@@ -102,7 +103,7 @@ class TestCIIFR(TestUBLCommon):
     @classmethod
     def setup_independent_company(cls, **kwargs):
         return super().setup_independent_company(
-            phone='+1 (650) 555-0111',  # [BR-DE-6] "Seller contact telephone number" (BT-42) is required
+            phone_ids=[Command.create({'number': '+1 (650) 555-0111', 'type': 'landline'})],  # [BR-DE-6] "Seller contact telephone number" (BT-42) is required
             email="info@yourcompany.com",  # [BR-DE-7] The element "Seller contact email address" (BT-43) is required
             vat='FR23334175221', # [BR-CO-26]-In order for the buyer to automatically ...
             zip='123', # [BR-DE-4] The element "Seller post code" (BT-38) must be transmitted.
@@ -116,7 +117,7 @@ class TestCIIFR(TestUBLCommon):
     def test_export_pdf(self):
         acc_bank = self.env['res.partner.bank'].create({
             'acc_number': 'FR15001559627231',
-            'partner_id': self.company_data['company'].partner_id.id,
+            'partner_ids': [(4, self.company_data['company'].partner_id.id)],
         })
 
         invoice = self._generate_move(
@@ -399,7 +400,9 @@ class TestCIIFR(TestUBLCommon):
             invoice=invoice)
 
         # assert a new partner has been created
-        self.assertRecordValues(invoice.partner_id, [partner_vals])
+        expected_vals = {key: value for key, value in partner_vals.items() if key != 'phone'}
+        self.assertRecordValues(invoice.partner_id, [expected_vals])
+        self.assertEqual(invoice.partner_id._phone_get_number().number, partner_vals['phone'])
 
     def test_import_tax_included(self):
         """

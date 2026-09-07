@@ -1,4 +1,5 @@
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from odoo import Command
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 from odoo.addons.point_of_sale.tests.test_generic_localization import TestGenericLocalization
 from odoo.tests import tagged
@@ -17,7 +18,7 @@ class TestGenericSA(TestGenericLocalization):
         cls.main_pos_config.company_id.name = 'Generic SA'
         cls.company.write({
             'email': 'info@company.saexample.com',
-            'phone': '+966 51 234 5678',
+            'phone_ids': [Command.create({"number": '+966 51 234 5678', "type": "landline"})],
             'street2': 'Testomania',
             'vat': '311111111111113',
             'state_id': cls.env['res.country.state'].create({
@@ -43,7 +44,7 @@ class TestUi(TestPointOfSaleHttpCommon):
         cls.company.write({
             'name': 'SA Company Test',
             'email': 'info@company.saexample.com',
-            'phone': '+966 51 234 5678',
+            'phone_ids': [Command.create({"number": '+966 51 234 5678', "type": "landline"})],
             'street2': 'Testomania',
             'vat': '311111111111113',
             'state_id': cls.env['res.country.state'].create({

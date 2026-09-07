@@ -155,7 +155,7 @@ class ResUsers(models.Model):
             "share",
             "device_ids",
             "api_key_ids",
-            "phone",
+            "phone_ids",
             "display_name",
         ]
 
@@ -170,7 +170,7 @@ class ResUsers(models.Model):
             "image_1920",
             "lang",
             "tz",
-            "phone",
+            "phone_ids",
         ]
 
     @api.model
@@ -320,8 +320,8 @@ class ResUsers(models.Model):
         inherited=True,
         readonly=False,
     )
-    phone = fields.Char(
-        related="partner_id.phone",
+    phone_ids = fields.Many2many(
+        related="partner_id.phone_ids",
         inherited=True,
         readonly=False,
     )

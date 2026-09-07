@@ -36,7 +36,7 @@ class TestPartnerVCard(HttpCase):
                 {
                     "name": "John Doe",
                     "email": "john.doe@test.example.com",
-                    "phone": "+1 202 555 0122",
+                    "phone_ids": [Command.create({"number": "+1 202 555 0122"})],
                     "function": "Painter",
                     "street": "Cookieville Minimum-Security Orphanarium",
                     "city": "New York",
@@ -47,7 +47,7 @@ class TestPartnerVCard(HttpCase):
                 {
                     "name": "shut",
                     "email": "shut@test.example.com",
-                    "phone": "+1 202 555 0123",
+                    "phone_ids": [Command.create({"number": "+1 202 555 0123"})],
                     "function": "Developer",
                     "street": "Donutville Maximum-Security Orphanarium",
                     "city": "Washington DC",
@@ -98,12 +98,12 @@ class TestPartnerVCard(HttpCase):
         )
         self.assertEqual(
             vcard.contents["tel"][0].params["TYPE"],
-            ["work"],
+            ["cell"],
             "Vcard should have the same phone",
         )
         self.assertEqual(
             vcard.contents["tel"][0].value,
-            partner.phone,
+            partner.phone_ids.number,
             "Vcard should have the same phone",
         )
         self.assertEqual(

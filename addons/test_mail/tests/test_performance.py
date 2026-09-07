@@ -92,7 +92,9 @@ class BaseMailPerformance(MailCommon, TransactionCaseWithUserDemo):
                 "country_id": cls.env.ref("base.be").id,
                 "email": "partner_follower@example.com",
                 "name": "partner_follower",
-                "phone": "04560011122",
+                "phone_ids": [
+                    Command.create({"number": "04560011122", "type": "landline"})
+                ],
             }
         )
         cls.customers = cls.env["res.partner"].create(
@@ -101,7 +103,11 @@ class BaseMailPerformance(MailCommon, TransactionCaseWithUserDemo):
                     "country_id": cls.env.ref("base.be").id,
                     "email": f"customer.full.test.{idx}@example.com",
                     "name": f"Test Full Customer {idx}",
-                    "phone": f"045611111{idx}",
+                    "phone_ids": [
+                        Command.create(
+                            {"number": f"045611111{idx}", "type": "landline"}
+                        )
+                    ],
                 }
                 for idx in range(5)
             ]
@@ -155,7 +161,11 @@ class BaseMailPerformance(MailCommon, TransactionCaseWithUserDemo):
         test_partners = self.env["res.partner"].create(
             [
                 {
-                    "phone": f"0485{idx}{idx}1122",
+                    "phone_ids": [
+                        Command.create(
+                            {"number": f"0485{idx}{idx}1122", "type": "landline"}
+                        )
+                    ],
                     "email": f"test.customer.{idx}@test.example.com",
                     "name": f"Test Customer {idx}",
                 }
@@ -2743,7 +2753,9 @@ class BaseMailPostPerformance(BaseMailPerformance):
                 "country_id": cls.env.ref("base.be").id,
                 "email": "partner@example.com",
                 "name": "partner",
-                "phone": "0456334455",
+                "phone_ids": [
+                    Command.create({"number": "0456334455", "type": "landline"})
+                ],
             }
         )
 

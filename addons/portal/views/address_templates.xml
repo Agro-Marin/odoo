@@ -174,7 +174,7 @@
                 id="o_phone"
                 type="tel"
                 name="phone"
-                t-att-value="partner_sudo.phone"
+                t-att-value="partner_sudo.phone_ids._primary().number"
                 class="form-control" />
         </div>
         <t name="b2b_fields">

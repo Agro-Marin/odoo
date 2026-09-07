@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 from odoo.tools.misc import OrderedSet
@@ -20,8 +21,10 @@ class TestPartnerPhoneNameSearch(TransactionCase):
         cls.partner = cls.env["res.partner"].create(
             {
                 "name": "Zuleika Vandenbroucke",
-                "phone": "+32 485 60 70 80",
-                "mobile": "+32 470 11 22 33",
+                "phone_ids": [
+                    Command.create({"number": "+32 485 60 70 80", "type": "landline"}),
+                    Command.create({"number": "+32 470 11 22 33", "type": "mobile"}),
+                ],
             }
         )
 

@@ -175,7 +175,7 @@
                                     <field
                                         name="bank_account_id"
                                         string="Bank Account Number"
-                                        context="{'default_partner_id': company_partner_id}" />
+                                        context="{'default_partner_ids': [company_partner_id]}" />
                                     <field
                                         name="bank_id"
                                         invisible="not bank_account_id" />

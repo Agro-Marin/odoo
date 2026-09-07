@@ -109,7 +109,7 @@
             <field name="street">Rr. e Durrësit, Pall. M.C. Inerte</field>
             <field name="street2">Kati.1, Laprakë, Tirana, Shqipëri</field>
             <field name="email">coin.gourmand@yourcompany.example.com</field>
-            <field name="phone">+32485562388</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+32485562388', 'type': 'landline'})]" />
             <field name="is_company" eval="True" />
         </record>
         <record id="partner_pizza_inn" model="res.partner">
@@ -122,7 +122,7 @@
             <field name="street2">Gandhi Gramam</field>
             <field name="zip">607308</field>
             <field name="email">pizza.inn@yourcompany.example.com</field>
-            <field name="phone">+32456325289</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+32456325289', 'type': 'landline'})]" />
         </record>
         <record id="partner_corner" model="res.partner">
             <field name="name">The Corner</field>
@@ -131,7 +131,7 @@
             <field name="street">Genessee Ave SW</field>
             <field name="zip">607409</field>
             <field name="email">info@corner.com</field>
-            <field name="phone">+32654321515</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+32654321515', 'type': 'landline'})]" />
             <field name="is_company" eval="True" />
         </record>
         <record id="partner_sushi_shop" model="res.partner">
@@ -141,7 +141,7 @@
             <field name="street">Boulevard Saint-Germain</field>
             <field name="zip">486624</field>
             <field name="email">order@sushi.com</field>
-            <field name="phone">+32498859912</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+32498859912', 'type': 'landline'})]" />
             <field name="is_company" eval="True" />
         </record>
         <record id="supplier_coin_gourmand" model="lunch.supplier">

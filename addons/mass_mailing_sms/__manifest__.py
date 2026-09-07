@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 {
     "name": "SMS Marketing",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Marketing/Email Marketing",
     "sequence": 245,
     "summary": "Design, send and track SMS",

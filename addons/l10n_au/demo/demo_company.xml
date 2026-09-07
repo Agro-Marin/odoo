@@ -9,7 +9,7 @@
         <field name="country_id" ref="base.au" />
         <field name="state_id" ref="base.state_au_8" />
         <field name="zip">2850</field>
-        <field name="phone">+61 412 345 678</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+61 412 345 678', 'type': 'landline'})]" />
         <field name="email">info@company.auexample.com</field>
         <field name="website">www.auexample.com</field>
         <field name="is_company" eval="True" />

@@ -147,7 +147,7 @@ class TestEventSale(TestEventSaleCommon):
             'sale_order_line_id': ticket1_line.id,
         })
         self.assertEqual(ticket1_reg1.partner_id, self.event_customer)
-        for field in ['name', 'email', 'phone']:
+        for field in ['name', 'email', 'phone_ids']:
             self.assertEqual(ticket1_reg1[field], self.event_customer[field])
 
         # EVENT REGISTRATION EDITOR
@@ -163,7 +163,7 @@ class TestEventSale(TestEventSaleCommon):
 
         # check line linked to existing registration (ticket1_reg1)
         ticket1_editor_reg1 = editor.event_registration_ids.filtered(lambda line: line.registration_id)
-        for field in ['name', 'email', 'phone']:
+        for field in ['name', 'email', 'phone_ids']:
             self.assertEqual(ticket1_editor_reg1[field], ticket1_reg1[field])
 
         # check new lines
@@ -176,7 +176,7 @@ class TestEventSale(TestEventSaleCommon):
         ticket1_editor_other[0].write({
             'name': 'ManualEntry1',
             'email': 'manual.email.1@test.example.com',
-            'phone': '+32456111111',
+            'phone_ids': [Command.create({'number': '+32456111111', 'type': 'landline'})],
         })
         ticket1_editor_other[1].write({
             'name': 'ManualEntry2',
@@ -202,12 +202,12 @@ class TestEventSale(TestEventSaleCommon):
             {'manual.email.1@test.example.com', 'manual.email.2@test.example.com'}
         )
         self.assertEqual(
-            set(ticket1_new_reg.mapped('phone')),
-            {'+32456111111', self.event_customer._phone_format(fname='phone')}
+            set(ticket1_new_reg.phone_ids.mapped('number')),
+            {'+32456111111', self.event_customer._phone_get_number().number}
         )
         for field in ['name', 'email']:
             self.assertEqual(ticket2_new_reg[field], self.event_customer[field])
-        self.assertEqual(ticket2_new_reg['phone'], self.event_customer._phone_format(fname='phone'))
+        self.assertEqual(ticket2_new_reg.phone_ids, self.event_customer._phone_get_number())
 
         # ADDING MANUAL LINES ON SO
         # ------------------------------------------------------------

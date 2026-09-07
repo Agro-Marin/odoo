@@ -1,5 +1,6 @@
 from datetime import UTC, date, datetime
 
+from odoo import Command
 from odoo.fields import Date
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
@@ -296,7 +297,9 @@ class TestResource(TestHrCommon):
                     "name": "Test user",
                     "login": "test",
                     "email": "test@odoo.perso",
-                    "phone": "+32488990011",
+                    "phone_ids": [
+                        Command.create({"number": "+32488990011", "type": "landline"})
+                    ],
                 }
             ]
         )
@@ -324,18 +327,19 @@ class TestResource(TestHrCommon):
                     "job_title": "Tester",
                     "department_id": department.id,
                     "work_email": "test@odoo.pro",
-                    "work_phone": "+32800100100",
+                    "phone_ids": [
+                        Command.create({"number": "+32800100100", "type": "landline"})
+                    ],
                     "resource_id": resource.id,
                 }
             ]
         )
-        for field in "email", "phone", "im_status":
+        for field in "email", "phone_ids", "im_status":
             self.assertEqual(resource[field], user[field])
         for field in (
             "job_title",
             "department_id",
             "work_email",
-            "work_phone",
             "show_hr_icon_display",
             "hr_icon_display",
         ):

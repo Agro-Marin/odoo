@@ -168,7 +168,7 @@ class MailTestTrackCompute(models.Model):
     partner_id = fields.Many2one("res.partner", tracking=True)
     partner_name = fields.Char(related="partner_id.name", store=True, tracking=True)
     partner_email = fields.Char(related="partner_id.email", store=True, tracking=True)
-    partner_phone = fields.Char(related="partner_id.phone", tracking=True)
+    phone_ids = fields.Many2many(related="partner_id.phone_ids", tracking=True)
 
 
 class MailTestTrackDurationMixin(models.Model):

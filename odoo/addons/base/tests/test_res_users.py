@@ -340,11 +340,14 @@ class TestUsers(UsersCommonCase):
         test_user = self.env["res.users"].create(
             {"name": "John Smith", "login": "jsmith"}
         )
-        self.assertFalse(test_user.phone)
-        test_user.with_user(test_user).write({"phone": "2387478"})
+        self.assertFalse(test_user.phone_ids)
+        phone = (
+            self.env["phone.number"].with_user(test_user).create({"number": "2387478"})
+        )
+        test_user.with_user(test_user).write({"phone_ids": [Command.link(phone.id)]})
 
         self.assertEqual(
-            test_user.partner_id.phone,
+            test_user.partner_id.phone_ids.number,
             "2387478",
             "The phone of the partner_id shall be updated.",
         )

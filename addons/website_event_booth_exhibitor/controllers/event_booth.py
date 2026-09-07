@@ -12,8 +12,10 @@ class WebsiteEventBoothController(WebsiteEventController):
             booth_values["contact_email"] = kwargs.get("sponsor_email")
         if not booth_values.get("contact_name"):
             booth_values["contact_name"] = kwargs.get("sponsor_name")
-        if not booth_values.get("contact_phone"):
-            booth_values["contact_phone"] = kwargs.get("sponsor_phone")
+        if not self._phone_number_from_commands(booth_values.get("phone_ids")):
+            booth_values["phone_ids"] = self._phone_number_commands(
+                kwargs.get("sponsor_phone")
+            )
 
         booth_values.update(
             **self._prepare_booth_registration_sponsor_values(
@@ -37,8 +39,10 @@ class WebsiteEventBoothController(WebsiteEventController):
             or booth_values.get("contact_name"),
             "sponsor_email": kwargs.get("sponsor_email")
             or booth_values.get("contact_email"),
-            "sponsor_phone": kwargs.get("sponsor_phone")
-            or booth_values.get("contact_phone"),
+            "sponsor_phone_ids": self._phone_number_commands(
+                kwargs.get("sponsor_phone")
+            )
+            or booth_values.get("phone_ids"),
             "sponsor_subtitle": kwargs.get("sponsor_slogan"),
             "sponsor_website_description": plaintext2html(
                 kwargs.get("sponsor_description")

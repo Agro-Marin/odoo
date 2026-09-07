@@ -1,4 +1,3 @@
-
 def migrate(cr, version):
     # Remove the csrf_token and its surrounding div from the
     # website_hr_recruitment.apply (it was set with a t-att- breaking the

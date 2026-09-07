@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.fields import Domain
 from odoo.tests.common import TransactionCase, tagged
 
@@ -22,7 +23,7 @@ class TestSnippetFilterSecurity(TransactionCase):
                 "name": "Our Team",
                 "filter_id": cls.ir_filter.id,
                 "limit": 16,
-                "field_names": "name,email,phone",
+                "field_names": "name,email,website",
                 "website_published": True,
             }
         )
@@ -37,7 +38,7 @@ class TestSnippetFilterSecurity(TransactionCase):
             {
                 "name": "SECRET_UNPUBLISHED",
                 "email": "secret@hidden.example",
-                "phone": "555-SECRET",
+                "phone_ids": [Command.create({"number": "555-SECRET", "type": "landline"})],
                 "is_published": False,
             }
         )
@@ -132,7 +133,7 @@ class TestSnippetFilterSecurity(TransactionCase):
         Filter = self.env["website.snippet.filter"]
         self.snippet_filter.invalidate_recordset()
         meta = self.snippet_filter._get_filter_meta_data(Partner)
-        self.assertEqual(list(meta), ["name", "email", "phone"])
+        self.assertEqual(list(meta), ["name", "email", "website"])
         self.assertEqual(list(Filter._get_filter_meta_data(Partner)), [])
 
     def test_render_tolerates_a_malformed_public_payload(self):

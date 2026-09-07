@@ -16,7 +16,7 @@ class HrEmployee(models.Model):
             "conflicting": [],
             "safe_to_merge": [],
         }
-        fields_to_compare = ("email", "phone", "mobile", "street", "city", "zip")
+        fields_to_compare = ("email", "street", "city", "zip")
 
         for employee in self.sudo().with_context(active_test=False).search([]):
             report["total"] += 1
@@ -43,6 +43,13 @@ class HrEmployee(models.Model):
                 and user_partner[name]
                 and contact[name] != user_partner[name]
             }
+            contact_numbers = set(contact.phone_ids.mapped("sanitized"))
+            user_numbers = set(user_partner.phone_ids.mapped("sanitized"))
+            if contact_numbers and user_numbers and contact_numbers != user_numbers:
+                clashes["phone_ids"] = (
+                    sorted(contact_numbers),
+                    sorted(user_numbers),
+                )
             entry = {
                 "employee": employee.display_name,
                 "employee_id": employee.id,

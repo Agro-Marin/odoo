@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.tests import tagged
 
 from odoo.addons.sms.tests.common import SMSCommon
@@ -17,18 +17,18 @@ class TestCalendarSms(SMSCommon):
 
         cls.partner_phone = cls.env['res.partner'].create({
             'name': 'Partner With Phone Number',
-            'phone': '0477777777',
+            'phone_ids': [Command.create({"number": '0477777777', "type": "landline"})],
             'country_id': cls.env.ref('base.be').id,
         })
         cls.partner_phone_2 = cls.env['res.partner'].create({
             'name': 'Partner With Phone Number',
-            'phone': '0488888888',
+            'phone_ids': [Command.create({"number": '0488888888', "type": "landline"})],
             'country_id': cls.env.ref('base.be').id,
         })
 
         cls.partner_phone_3 = cls.env['res.partner'].create({
             'name': 'Partner With Phone Number',
-            'phone': '0499999999',
+            'phone_ids': [Command.create({"number": '0499999999', "type": "landline"})],
             'country_id': cls.env.ref('base.be').id,
         })
 

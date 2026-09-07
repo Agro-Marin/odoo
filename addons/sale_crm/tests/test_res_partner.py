@@ -1,4 +1,5 @@
 from odoo.tests import tagged, users
+from odoo import Command
 
 from odoo.addons.crm.tests.common import TestCrmCommon
 
@@ -15,7 +16,7 @@ class TestResPartner(TestCrmCommon):
                     "email": "bouffe.tete@test.example.com",
                     "function": "Bouffe-Tête",
                     "lang": cls.lang_en.code,
-                    "phone": False,
+                    "phone_ids": [Command.clear()],
                     "parent_id": cls.contact_1.id,
                     "is_company": False,
                     "street": "Same as Fry",
@@ -28,7 +29,7 @@ class TestResPartner(TestCrmCommon):
                     "email": "banjo@test.example.com",
                     "function": "Being a banjo",
                     "lang": cls.lang_en.code,
-                    "phone": False,
+                    "phone_ids": [Command.clear()],
                     "parent_id": cls.contact_1.id,
                     "is_company": False,
                     "street": "Same as Fry",

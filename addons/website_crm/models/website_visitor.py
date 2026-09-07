@@ -16,9 +16,9 @@ class WebsiteVisitor(models.Model):
 
     @api.depends(
         "partner_id.email_normalized",
-        "partner_id.phone",
+        "partner_id.phone_ids",
         "lead_ids.email_normalized",
-        "lead_ids.phone",
+        "lead_ids.phone_ids",
     )
     def _compute_email_phone(self):
         super()._compute_email_phone()
@@ -46,7 +46,12 @@ class WebsiteVisitor(models.Model):
                 )
             if not visitor.mobile:
                 visitor.mobile = next(
-                    (lead.phone for lead in visitor_leads if lead.phone), False
+                    (
+                        lead._phone_get_number().number
+                        for lead in visitor_leads
+                        if lead.phone_ids
+                    ),
+                    False,
                 )
 
     def _check_for_message_composer(self):

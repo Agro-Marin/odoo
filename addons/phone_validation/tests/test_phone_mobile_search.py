@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import TransactionCase, tagged
 
 
@@ -16,7 +17,7 @@ class TestPhoneMobileSearch(TransactionCase):
         partner = self.env["res.partner"].create(
             {
                 "name": "Local-format contact",
-                "phone": "012345678",
+                "phone_ids": [Command.create({"number": "012345678"})],
                 "country_id": self.env.ref("base.be").id,
             }
         )

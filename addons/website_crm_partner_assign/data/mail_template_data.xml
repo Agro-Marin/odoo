@@ -63,7 +63,7 @@
                                             Hello,<br />
                                             We have been contacted by those prospects that are in your region. Thus, the following leads have been assigned to <t t-out="ctx['partner_id'].name or ''" />:<br />
                                             <ol>
-                                                <li t-foreach="ctx['partner_leads']" t-as="lead"><a t-att-href="lead['lead_link']" t-out="lead['lead_id'].name or 'Subject Undefined'">Subject Undefined</a>, <t t-out="lead['lead_id'].partner_name or lead['lead_id'].contact_name or 'Contact Name Undefined'">Contact Name Undefined</t>, <t t-out="lead['lead_id'].country_id and lead['lead_id'].country_id.name or 'Country Undefined'">Country Undefined</t>, <t t-out="lead['lead_id'].email_from or 'Email Undefined' or ''">Email Undefined</t>, <t t-out="lead['lead_id'].phone or ''">+1 650-123-4567</t> </li><br />
+                                                <li t-foreach="ctx['partner_leads']" t-as="lead"><a t-att-href="lead['lead_link']" t-out="lead['lead_id'].name or 'Subject Undefined'">Subject Undefined</a>, <t t-out="lead['lead_id'].partner_name or lead['lead_id'].contact_name or 'Contact Name Undefined'">Contact Name Undefined</t>, <t t-out="lead['lead_id'].country_id and lead['lead_id'].country_id.name or 'Country Undefined'">Country Undefined</t>, <t t-out="lead['lead_id'].email_from or 'Email Undefined' or ''">Email Undefined</t>, <t t-out="lead['lead_id']._phone_get_number().number or ''">+1 650-123-4567</t> </li><br />
                                             </ol>
                                             <t t-if="ctx.get('partner_in_portal')">
                                                 Please connect to your <a t-att-href="'%s?db=%s' % (object.get_base_url(), object.env.cr.dbname)">Partner Portal</a> to get details. On each lead are two buttons on the top left corner that you should press after having contacted the lead: "I'm interested" &amp; "I'm not interested".<br />
@@ -106,8 +106,8 @@
                                     <t t-out="user.company_id.name or ''">YourCompany</t>
                                 </td></tr>
                                 <tr><td valign="middle" align="left" style="opacity: 0.7;">
-                                    <t t-out="user.company_id.phone or ''">+1 650-123-4567</t>
-                                    <t t-if="user.company_id.phone and (user.company_id.email or user.company_id.website)">|</t>
+                                    <t t-out="user.company_id._phone_get_number().number or ''">+1 650-123-4567</t>
+                                    <t t-if="user.company_id._phone_get_number() and (user.company_id.email or user.company_id.website)">|</t>
                                     <a t-if="user.company_id.email" t-att-href="'mailto:%s' % user.company_id.email" style="text-decoration:none; color: #454748;" t-out="user.company_id.email or ''">info@yourcompany.com</a>
                                     <t t-if="user.company_id.email and user.company_id.website">|</t>
                                     <a t-if="user.company_id.website" t-att-href="'%s' % user.company_id.website" style="text-decoration:none; color: #454748;" t-out="user.company_id.website or ''">http://www.example.com</a>

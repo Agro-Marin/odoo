@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from odoo import fields, tools
+from odoo import Command, fields, tools
 
 from odoo.addons.crm.tests.common import TestCrmCommon
 from odoo.addons.event.tests.common import EventCase
@@ -59,7 +59,9 @@ class EventCrmCase(TestCrmCommon, EventCase):
                     "name": "My Customer 00",
                     "partner_id": cls.event_customer2.id,
                     "email": "email.00@test.example.com",
-                    "phone": "0456000000",
+                    "phone_ids": [
+                        Command.create({"number": "0456000000", "type": "landline"})
+                    ],
                 }
             ]
             + [
@@ -69,7 +71,11 @@ class EventCrmCase(TestCrmCommon, EventCase):
                     if x == 0
                     else False,
                     "email": "email.%02d@test.example.com" % x,
-                    "phone": "04560000%02d" % x,
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "04560000%02d" % x, "type": "landline"}
+                        )
+                    ],
                 }
                 for x in range(1, 4)
             ]
@@ -122,7 +128,7 @@ class EventCrmCase(TestCrmCommon, EventCase):
         self.assertEqual(lead.event_id, event)
         self.assertEqual(lead.referred, event.name)
 
-        registration_phone = registrations._find_first_notnull("phone")
+        registration_phone_ids = registrations._find_first_notnull("phone_ids")
         self.assertEqual(lead.partner_id, partner)
         self.assertEqual(lead.name, "%s - %s" % (event.name, expected_reg_name))
         self.assertNotIn("False", lead.name)
@@ -135,8 +141,10 @@ class EventCrmCase(TestCrmCommon, EventCase):
             else registrations._find_first_notnull("email"),
         )
         self.assertEqual(
-            lead.phone,
-            partner.phone if partner and partner.phone else registration_phone,
+            lead.phone_ids.ids,
+            partner.phone_ids.ids
+            if partner and partner.phone_ids
+            else registration_phone_ids or [],
         )
 
         self.assertNotIn("False", lead.description)
@@ -155,8 +163,8 @@ class EventCrmCase(TestCrmCommon, EventCase):
                     self.assertIn(
                         tools.email_normalize(registration.email), lead.description
                     )
-            if registration.phone:
-                self.assertIn(registration.phone, lead.description)
+            if registration.phone_ids:
+                self.assertIn(registration._phone_get_number().number, lead.description)
 
         self.assertEqual(lead.type, rule.lead_type)
         self.assertEqual(lead.user_id, rule.lead_user_id)

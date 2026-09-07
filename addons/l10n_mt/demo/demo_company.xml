@@ -8,7 +8,7 @@
         <field name="city">Valletta</field>
         <field name="country_id" ref="base.mt" />
         <field name="zip">1155</field>
-        <field name="phone">+356 2123 1998</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+356 2123 1998', 'type': 'landline'})]" />
         <field name="email">info@company.mtexample.com</field>
         <field name="website">www.mtexample.com</field>
         <field name="is_company" eval="True" />
@@ -21,7 +21,7 @@
 
     <record id="demo_bank_mt" model="res.partner.bank">
         <field name="acc_number">MT84MALT011000012345MTLCAST001S</field>
-        <field name="partner_id" ref="partner_demo_company_mt" />
+        <field name="partner_ids" eval="[(4, ref('partner_demo_company_mt'))]" />
         <field name="company_id" ref="demo_company_mt" />
     </record>
 

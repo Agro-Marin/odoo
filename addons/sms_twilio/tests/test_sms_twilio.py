@@ -1,4 +1,5 @@
 from odoo.addons.sms_twilio.tests.common import MockSmsTwilio
+from odoo import Command
 from odoo.tests import tagged, users
 
 
@@ -11,8 +12,8 @@ class TestSmsTwilio(MockSmsTwilio):
         cls._setup_sms_twilio(cls.user_admin.company_id)
 
     def test_assert_initial_values(self):
-        self.assertEqual(self.valid_partner.phone, self.twilio_valid_phone_number)
-        self.assertEqual(self.invalid_partner.phone, self.twilio_invalid_phone_number)
+        self.assertEqual(self.valid_partner._phone_get_number().number, self.twilio_valid_phone_number)
+        self.assertEqual(self.invalid_partner._phone_get_number().number, self.twilio_invalid_phone_number)
 
     @users('employee')
     def test_send_sms_composer_number(self):
@@ -62,7 +63,7 @@ class TestSmsTwilio(MockSmsTwilio):
                 "A 'To' phone number is required", False
             ),
         ]:
-            with self.subTest(partner=partner, number=partner.phone, twilio_error=twilio_error):
+            with self.subTest(partner=partner, number=partner._phone_get_number().number, twilio_error=twilio_error):
                 with self.mock_sms_twilio_gateway(error_type=twilio_error):
                     body = f"Send SMS to {partner.name}"
                     composer = self.env['sms.composer'].with_context(
@@ -73,7 +74,7 @@ class TestSmsTwilio(MockSmsTwilio):
                     self.assertEqual(len(message), 1)
                     self.assertSMSNotification(
                         [{
-                            'number': partner.phone, 'partner': partner,
+                            'number': partner._phone_get_number().number, 'partner': partner,
                             'failure_type': exp_failure_type, 'failure_reason': exp_failure_reason,
                             'state': exp_notif_status,
                             'sms_fields_values': {
@@ -110,25 +111,25 @@ class TestSmsTwilio(MockSmsTwilio):
 
         partners_twilio = self.env['res.partner'].create([{
             "name": f"Partner Twilio {i}",
-            "phone": f"+1220215411{i}",
+            "phone_ids": [Command.create({"number": f"+1220215411{i}", "type": "landline"})],
             "company_id": company_twilio.id
         } for i in range(2)])
 
         partners_twilio_2 = self.env['res.partner'].create([{
             "name": f"Partner Twilio2 {i}",
-            "phone": f"+1220215422{i}",
+            "phone_ids": [Command.create({"number": f"+1220215422{i}", "type": "landline"})],
             "company_id": company_twilio_2.id
         } for i in range(2)])
 
         partners_iap = self.env['res.partner'].create([{
             "name": f"Partner IAP {i}",
-            "phone": f"+1220215433{i}",
+            "phone_ids": [Command.create({"number": f"+1220215433{i}", "type": "landline"})],
             "company_id": company_iap.id
         } for i in range(2)])
 
         partners_iap_2 = self.env['res.partner'].create([{
             "name": f"Partner IAP2 {i}",
-            "phone": f"+1220215444{i}",
+            "phone_ids": [Command.create({"number": f"+1220215444{i}", "type": "landline"})],
             "company_id": company_iap_2.id
         } for i in range(2)])
 
@@ -154,7 +155,7 @@ class TestSmsTwilio(MockSmsTwilio):
             # sms_twilio_sid is not stored ... meh
             for partner in partners_twilio:
                 self.assertSMS(
-                    partner, partner.phone, "pending",
+                    partner, partner._phone_get_number().number, "pending",
                     content="Mixed SMS",
                     failure_type=False,
                     fields_values={
@@ -163,7 +164,7 @@ class TestSmsTwilio(MockSmsTwilio):
                 )
             for partner in partners_twilio_2:
                 self.assertSMS(
-                    partner, partner.phone, "pending",
+                    partner, partner._phone_get_number().number, "pending",
                     content="Mixed SMS",
                     failure_type=False,
                     fields_values={
@@ -172,7 +173,7 @@ class TestSmsTwilio(MockSmsTwilio):
                 )
             for partner in partners_iap:
                 self.assertSMS(
-                    partner, partner.phone, "pending",
+                    partner, partner._phone_get_number().number, "pending",
                     content="Mixed SMS",
                     failure_type=False,
                     fields_values={
@@ -181,7 +182,7 @@ class TestSmsTwilio(MockSmsTwilio):
                 )
             for partner in partners_iap_2:
                 self.assertSMS(
-                    partner, partner.phone, "pending",
+                    partner, partner._phone_get_number().number, "pending",
                     content="Mixed SMS",
                     failure_type=False,
                     fields_values={

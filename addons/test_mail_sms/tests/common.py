@@ -8,7 +8,7 @@ class TestSMSRecipients(TestRecipients):
         super().setUpClass()
         cls.partner_numbers = [
             phone_validation.phone_format(
-                partner.phone,
+                partner._phone_get_number().number,
                 partner.country_id.code,
                 partner.country_id.phone_code,
                 force_format="E164",

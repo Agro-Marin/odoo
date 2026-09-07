@@ -131,7 +131,7 @@
                             <t t-out="object.project_id.company_id.name or ''">YourCompany</t>
                         </td></tr>
                         <tr><td style="opacity: 0.5;">
-                            <t t-out="object.project_id.company_id.phone or ''">1 650-123-4567</t>
+                            <t t-out="object.project_id.company_id.phone_ids._primary().number or ''">1 650-123-4567</t>
                             <t t-if="object.project_id.company_id.email">
                                 | <a t-attf-href="mailto:{{ object.project_id.company_id.email }}" style="text-decoration:none; color: #454748;" t-out="object.project_id.company_id.email or ''">info@yourcompany.com</a>
                             </t>

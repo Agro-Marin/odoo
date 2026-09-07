@@ -1,8 +1,7 @@
 from unittest.mock import patch
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
-from odoo.fields import Command
 from odoo.tests import Form, TransactionCase, new_test_user
 
 
@@ -21,7 +20,7 @@ class TestCommonTimesheet(TransactionCase):
             {
                 "name": "Customer Task",
                 "email": "customer@task.com",
-                "phone": "42",
+                "phone_ids": [Command.create({"number": "42", "type": "landline"})],
             }
         )
 
@@ -513,7 +512,7 @@ class TestTimesheet(TestCommonTimesheet):
             {
                 "name": "Customer Task 2",
                 "email": "customer2@task.com",
-                "phone": "43",
+                "phone_ids": [Command.create({"number": "43", "type": "landline"})],
             }
         )
 

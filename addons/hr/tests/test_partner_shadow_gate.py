@@ -42,7 +42,7 @@ SEPARATE_DESTINATION = frozenset(
         "country_id",
     }
 )
-DELEGATION_PROVIDES = frozenset({"name", "lang", "phone", "email", "im_status"})
+DELEGATION_PROVIDES = frozenset({"name", "lang", "phone_ids", "email", "im_status"})
 # What the employee reads from the PRIVATE FACET rather than from the party:
 # confidential person data, on a child row of type 'private' that a record rule
 # hides from everyone but HR. Putting these on the party would show an
@@ -54,7 +54,7 @@ FACET_PROVIDES = frozenset(
         "birthday",
         "country_id",
         "private_email",
-        "private_phone",
+        "private_phone_ids",
         "private_street",
         "private_street2",
         "private_city",

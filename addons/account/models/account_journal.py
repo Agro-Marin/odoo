@@ -399,7 +399,7 @@ class AccountJournal(models.Model):
         copy=False,
         index="btree_not_null",
         check_company=True,
-        domain="[('partner_id','=', company_partner_id)]",
+        domain="[('partner_ids', '=', company_partner_id)]",
     )
     bank_statements_source = fields.Selection(
         selection="_selection_bank_statements_source",
@@ -871,7 +871,11 @@ class AccountJournal(models.Model):
                             journal.company_id.name,
                         )
                     )
-                if journal.bank_account_id.partner_id != journal.company_id.partner_id:
+                if (
+                    journal.bank_account_id.partner_ids
+                    and journal.company_id.partner_id
+                    not in journal.bank_account_id.partner_ids
+                ):
                     raise ValidationError(
                         _(
                             "The holder of a journal's bank account must be the company (%s).",
@@ -1206,7 +1210,10 @@ class AccountJournal(models.Model):
                     if "company_id" in vals
                     else journal.company_id
                 )
-                if bank_account.partner_id != company.partner_id:
+                if (
+                    bank_account.partner_ids
+                    and company.partner_id not in bank_account.partner_ids
+                ):
                     raise UserError(
                         _(
                             "The partners of the journal's company and the related bank account mismatch."
@@ -1243,7 +1250,10 @@ class AccountJournal(models.Model):
                     journal.bank_account_id.write(
                         {
                             "company_id": company.id,
-                            "partner_id": company.partner_id.id,
+                            "partner_ids": [
+                                (3, journal.company_id.partner_id.id),
+                                (4, company.partner_id.id),
+                            ],
                         }
                     )
             if "currency_id" in vals and journal.bank_account_id:

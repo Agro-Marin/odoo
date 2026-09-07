@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.http import Request
 from odoo.libs.web import urls
 from odoo.tests import HttpCase, tagged
@@ -26,6 +27,21 @@ class TestPortalAddresses(BaseCommon, HttpCase):
             "country_id": cls.country_be.id,
             "phone": "+323333333333333",
         }
+        cls.record_address_values = {
+            **{
+                key: value
+                for key, value in cls.default_address_values.items()
+                if key != "phone"
+            },
+            "phone_ids": [
+                Command.create({"number": "+323333333333333", "type": "mobile"})
+            ],
+        }
+        cls.expected_address_values = {
+            key: value
+            for key, value in cls.default_address_values.items()
+            if key != "phone"
+        }
         base_url = cls.base_url()
         cls.submit_url = urls.urljoin(base_url, "/my/address/submit")
         cls.archive_url = urls.urljoin(base_url, "/my/address/archive")
@@ -41,7 +57,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
                 "city": "Ramillies",
                 "zip": "1367",
                 "country_id": cls.country_be.id,
-                "phone": "+3200000000000",
+                "phone_ids": [Command.create({"number": "+3200000000000", "type": "landline"})],
             }
         )
         (cls.account_a.partner_id + cls.account_b.partner_id).write(
@@ -124,7 +140,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         csrf_token = Request.csrf_token(self)
 
         internal_partner = self.internal_user.partner_id
-        internal_partner.write(self.default_address_values)
+        internal_partner.write(self.record_address_values)
 
         res = self._submit_address_values(
             {
@@ -141,7 +157,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         csrf_token = Request.csrf_token(self)
 
         internal_partner = self.internal_user.partner_id
-        internal_partner.write(self.default_address_values)
+        internal_partner.write(self.record_address_values)
 
         res = self._submit_address_values(
             {
@@ -168,7 +184,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         self.assertEqual(res, {"redirectUrl": "/my/addresses"})
         self.assertRecordValues(
             self.portal_user.partner_id,
-            [{**self.default_address_values, "vat": "BE0926372368"}],
+            [{**self.expected_address_values, "vat": "BE0926372368"}],
         )
 
     def test_cannot_update_vat_on_child_addresses(self):
@@ -199,7 +215,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         self.assertEqual(res, {"redirectUrl": "/my/addresses"})
         self.assertRecordValues(
             self.portal_user.partner_id,
-            [self.default_address_values],
+            [self.expected_address_values],
         )
 
     def test_success_url(self):
@@ -217,7 +233,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         self.assertEqual(res, {"redirectUrl": "/my/beautiful/url"})
         self.assertRecordValues(
             self.portal_user.partner_id,
-            [self.default_address_values],
+            [self.expected_address_values],
         )
 
     def test_billing_address_creation(self):
@@ -237,7 +253,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         self.assertEqual(billing_address.type, "invoice")
         self.assertRecordValues(
             self.portal_user.partner_id.child_ids,
-            [self.default_address_values],
+            [self.expected_address_values],
         )
 
     def test_delivery_address_creation(self):
@@ -257,7 +273,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         self.assertEqual(delivery_address.type, "delivery")
         self.assertRecordValues(
             self.portal_user.partner_id.child_ids,
-            [self.default_address_values],
+            [self.expected_address_values],
         )
 
     def test_delivery_use_as_billing_address_creation(self):
@@ -278,7 +294,7 @@ class TestPortalAddresses(BaseCommon, HttpCase):
         self.assertEqual(delivery_address.type, "other")
         self.assertRecordValues(
             self.portal_user.partner_id.child_ids,
-            [self.default_address_values],
+            [self.expected_address_values],
         )
 
 

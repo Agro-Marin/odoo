@@ -51,7 +51,7 @@
                         <br />
                         <div />
                         <!-- we dont use the address widget as it adds a new line on the phone and we want to reduce at maximum lines qty -->
-                        <t t-out="' - '.join([item for item in [                             ', '.join([item for item in [header_address.street, header_address.street2] if item]),                             header_address.city,                             header_address.state_id and header_address.state_id.name,                             header_address.zip,                             header_address.country_id and header_address.country_id.name] if item])" /><span t-if="header_address.phone"> - </span><span t-if="header_address.phone" style="white-space: nowrap;" t-out="'Tel: ' + header_address.phone" />
+                        <t t-out="' - '.join([item for item in [                             ', '.join([item for item in [header_address.street, header_address.street2] if item]),                             header_address.city,                             header_address.state_id and header_address.state_id.name,                             header_address.zip,                             header_address.country_id and header_address.country_id.name] if item])" /><t t-set="header_phone" t-value="header_address._phone_get_number().number" /><span t-if="header_phone"> - </span><span t-if="header_phone" style="white-space: nowrap;" t-out="'Tel: ' + header_phone" />
                         <br />
                         <span
                             t-att-style="'color: %s;' % o.company_id.primary_color"

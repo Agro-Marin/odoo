@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import TransactionCase, tagged
 
 
@@ -19,7 +20,10 @@ class TestPartyLink(TransactionCase):
         )
         employee.partner_id.tag_ids = tag
         bank = self.env["res.partner.bank"].create(
-            {"acc_number": "LINK-ACC-1", "partner_id": employee.partner_id.id}
+            {
+                "acc_number": "LINK-ACC-1",
+                "partner_ids": [Command.link(employee.partner_id.id)],
+            }
         )
         employee.bank_account_ids = bank
         return employee, tag, bank
@@ -34,7 +38,7 @@ class TestPartyLink(TransactionCase):
         self.assertEqual(employee.identification_id, "LINK-ID")
         self.assertEqual(employee.private_street, "Home Street 1")
         self.assertEqual(employee.private_address_id.parent_id, user.partner_id)
-        self.assertEqual(bank.partner_id, user.partner_id)
+        self.assertIn(user.partner_id, bank.partner_ids)
         self.assertIn(tag, user.partner_id.tag_ids)
         self.assertEqual(
             self.env["hr.employee"].search([("barcode", "=", "LINK0001")]), employee

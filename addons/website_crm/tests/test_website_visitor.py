@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from odoo import Command
 from odoo.tests import tagged
 from odoo.tests.common import users
 
@@ -16,7 +17,9 @@ class TestWebsiteVisitor(TestCrmCommon, WebsiteVisitorTestsCommon):
                 "name": "Test Customer",
                 "email": '"Test Customer" <test@test.example.com>',
                 "country_id": self.env.ref("base.be").id,
-                "phone": "+32456001122",
+                "phone_ids": [
+                    Command.create({"number": "+32456001122", "type": "landline"})
+                ],
             }
         )
 
@@ -38,7 +41,7 @@ class TestWebsiteVisitor(TestCrmCommon, WebsiteVisitorTestsCommon):
 
         visitor_sudo.write({"partner_id": self.test_partner.id})
         self.assertEqual(visitor.email, customer.email_normalized)
-        self.assertEqual(visitor.mobile, customer.phone)
+        self.assertEqual(visitor.mobile, customer._phone_get_number().number)
 
         visitor_sudo.write({"partner_id": False})
         self.assertFalse(visitor.email)
@@ -59,20 +62,22 @@ class TestWebsiteVisitor(TestCrmCommon, WebsiteVisitorTestsCommon):
                 "name": "Test Lead 1",
                 "email_from": "Martino Brie <brie@test.example.com",
                 "country_id": self.env.ref("base.be").id,
-                "phone": "+32456001122",
+                "phone_ids": [
+                    Command.create({"number": "+32456001122", "type": "landline"})
+                ],
                 "visitor_ids": [(4, visitor.id)],
             }
         )
         self.assertEqual(visitor.email, lead_1.email_normalized)
-        self.assertEqual(visitor.mobile, lead_2.phone)
+        self.assertEqual(visitor.mobile, lead_2._phone_get_number().number)
 
         visitor_sudo.write({"partner_id": self.test_partner.id})
         self.assertEqual(visitor.email, customer.email_normalized)
-        self.assertEqual(visitor.mobile, customer.phone)
+        self.assertEqual(visitor.mobile, customer._phone_get_number().number)
 
-        customer.write({"phone": False})
+        customer.write({"phone_ids": [Command.clear()]})
         self.assertEqual(visitor.email, customer.email_normalized)
-        self.assertEqual(visitor.mobile, lead_2.phone)
+        self.assertEqual(visitor.mobile, lead_2._phone_get_number().number)
 
     def test_clean_inactive_visitors_crm(self):
         active_visitors = self.env["website.visitor"].create(

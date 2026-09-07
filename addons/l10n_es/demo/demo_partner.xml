@@ -10,7 +10,7 @@
         <field name="country_id" ref="base.es" />
         <field name="state_id" ref="base.state_es_tf" />
         <field name="zip">38300</field>
-        <field name="phone">+34 922 123 456</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+34 922 123 456', 'type': 'landline'})]" />
         <field name="email">info@telefericosolutions.es</field>
         <field name="website">www.telefericosolutions.es</field>
     </record>
@@ -24,7 +24,7 @@
         <field name="country_id" ref="base.es" />
         <field name="state_id" ref="base.state_es_gr" />
         <field name="zip">18413</field>
-        <field name="phone">+34 958 654 321</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+34 958 654 321', 'type': 'landline'})]" />
         <field name="email">info@mulhacendigital.es</field>
         <field name="website">www.mulhacendigital.es</field>
     </record>

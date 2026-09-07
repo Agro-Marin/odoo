@@ -22,7 +22,8 @@ class TestWEventRegister(TestWEventCommon):
             {"Raoulette Poiluchette", "Michel Tractopelle"},
         )
         self.assertEqual(
-            set(new_registrations.mapped("phone")), {"0456112233", "0456332211"}
+            set(new_registrations.phone_ids.mapped("number")),
+            {"0456112233", "0456332211"},
         )
         self.assertEqual(
             set(new_registrations.mapped("email")),

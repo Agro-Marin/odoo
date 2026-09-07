@@ -32,7 +32,13 @@ class ResBank(models.Model):
     country = fields.Many2one("res.country")
     country_code = fields.Char(related="country.code", string="Country Code")
     email = fields.Char()
-    phone = fields.Char()
+    phone_ids = fields.Many2many(
+        "phone.number",
+        "res_bank_phone_number_rel",
+        "bank_id",
+        "phone_number_id",
+        string="Phone Numbers",
+    )
     active = fields.Boolean(default=True)
     bic = fields.Char(
         "Bank Identifier Code",
@@ -117,13 +123,12 @@ class ResPartnerBank(models.Model):
         readonly=False,
         store=True,
     )
-    partner_id = fields.Many2one(
+    partner_ids = fields.Many2many(
         "res.partner",
-        "Account Holder",
-        ondelete="cascade",
-        index=True,
-        domain=["|", ("is_company", "=", True), ("parent_id", "=", False)],
-        required=True,
+        "res_partner_res_partner_bank_rel",
+        "bank_account_id",
+        "partner_id",
+        string="Account Holders",
     )
     allow_out_payment = fields.Boolean(
         "Send Money",
@@ -137,20 +142,16 @@ class ResPartnerBank(models.Model):
     bank_bic = fields.Char(related="bank_id.bic", readonly=False)
     sequence = fields.Integer(default=10)
     currency_id = fields.Many2one("res.currency", string="Currency")
-    company_id = fields.Many2one(
-        "res.company",
-        "Company",
-        related="partner_id.company_id",
-        store=True,
-        readonly=True,
+    company_id = fields.Many2one("res.company", "Company", index="btree_not_null")
+    country_code = fields.Char(
+        related="partner_ids.country_code", string="Country Code"
     )
-    country_code = fields.Char(related="partner_id.country_code", string="Country Code")
     note = fields.Text("Notes")
     color = fields.Integer(compute="_compute_color")
 
     _unique_number = models.Constraint(
-        "unique(sanitized_acc_number, partner_id)",
-        "The combination Account Number/Partner must be unique.",
+        "unique(sanitized_acc_number)",
+        "This account number already exists.",
     )
 
     @api.depends("acc_number")
@@ -178,6 +179,12 @@ class ResPartnerBank(models.Model):
         allow_company_account_creation=False,
         extra_create_vals=None,
     ):
+        family = (
+            self.env["res.partner"]
+            .sudo()
+            .with_context(active_test=False)
+            .search([("id", "child_of", partner.commercial_partner_id.id)])
+        )
         bank_account = (
             self.env["res.partner.bank"]
             .sudo()
@@ -185,14 +192,24 @@ class ResPartnerBank(models.Model):
             .search(
                 [
                     ("acc_number", "=", account_number),
-                    ("partner_id", "child_of", partner.commercial_partner_id.id),
+                    ("partner_ids", "in", family.ids),
                 ]
             )
         )
         if bank_account and not bank_account.filtered("active"):
-            bank_account.filtered(lambda b: b.partner_id == partner).sudo(
+            bank_account.filtered(lambda b: partner in b.partner_ids).sudo(
                 False
             ).action_unarchive()
+        if not bank_account:
+            shared = (
+                self.env["res.partner.bank"]
+                .sudo()
+                .with_context(active_test=False)
+                .search([("acc_number", "=", account_number)], limit=1)
+            )
+            if shared:
+                shared.write({"partner_ids": [(4, partner.id)], "active": True})
+                bank_account = shared
         if not bank_account:
             if (
                 not allow_company_account_creation
@@ -212,7 +229,8 @@ class ResPartnerBank(models.Model):
                     {
                         **(extra_create_vals or {}),
                         "acc_number": account_number,
-                        "partner_id": partner.id,
+                        "partner_ids": [(4, partner.id)],
+                        "company_id": company.id if company else False,
                         "allow_out_payment": False,
                     }
                 )
@@ -224,7 +242,7 @@ class ResPartnerBank(models.Model):
                     ("active", "=", True),
                 ]
             )
-            .sorted(lambda b: b.partner_id != partner)
+            .sorted(lambda b: partner not in b.partner_ids)
             .sudo(False)[:1]
         )
 
@@ -233,10 +251,10 @@ class ResPartnerBank(models.Model):
         for bank in self:
             bank.acc_type = self._get_acc_type(bank.acc_number)
 
-    @api.depends("partner_id")
+    @api.depends("partner_ids")
     def _compute_acc_holder_name(self) -> None:
         for bank in self:
-            bank.acc_holder_name = bank.partner_id.name
+            bank.acc_holder_name = bank.partner_ids[:1].name
 
     @api.model
     def _get_acc_type(self, acc_number: str) -> str:

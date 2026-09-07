@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo.addons.l10n_account_edi_ubl_cii_tests.tests.common import TestUBLCommon
+from odoo import Command
 from odoo.tests import tagged
 
 
@@ -17,7 +18,7 @@ class TestUBLAU(TestUBLCommon):
             'zip': "3002",
             'city': "Melbourne",
             'vat': '83 914 571 673',
-            'phone': '+31 180 6 225789',
+            'phone_ids': [Command.create({"number": '+31 180 6 225789', "type": "landline"})],
             'email': 'info@outlook.au',
             'country_id': cls.env.ref('base.au').id,
             'bank_ids': [(0, 0, {'acc_number': '000099998B57'})],

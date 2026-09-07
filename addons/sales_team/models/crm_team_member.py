@@ -46,7 +46,7 @@ class CrmTeamMember(models.Model):
     )
     name = fields.Char(string="Name", related="user_id.display_name")
     email = fields.Char(string="Email", related="user_id.email")
-    phone = fields.Char(string="Phone", related="user_id.phone")
+    phone_ids = fields.Many2many(string="Phone Numbers", related="user_id.phone_ids")
     company_id = fields.Many2one(
         "res.company", string="Company", related="user_id.company_id"
     )

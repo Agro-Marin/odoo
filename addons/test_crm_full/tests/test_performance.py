@@ -1,4 +1,5 @@
 from freezegun import freeze_time
+from odoo import Command
 
 from odoo.tests import Form, tagged, users, warmup
 
@@ -49,7 +50,7 @@ class TestCrmPerformance(CrmPerformanceCase):
                     "function": "Noisy Customer",
                     "lang_id": lang_be_id,
                     "name": "Test Lead %02d" % idx,
-                    "phone": "04550000%02d" % idx,
+                    "phone_ids": [Command.create({"number": "04550000%02d" % idx, "type": "landline"})],
                     "street": "Super Street, %092d" % idx,
                     "zip": "1400",
                 }
@@ -81,7 +82,9 @@ class TestCrmPerformance(CrmPerformanceCase):
                 lead_form.function = "Noisy Customer"
                 lead_form.lang_id = lang_be
                 lead_form.name = "Test Lead"
-                lead_form.phone = "0455000011"
+                lead_form.phone_ids.add(
+                    self.env["phone.number"].create({"number": "0455000011"})
+                )
                 lead_form.street = "Super Street, 00"
                 lead_form.zip = "1400"
 
@@ -120,7 +123,7 @@ class TestCrmPerformance(CrmPerformanceCase):
                     "function": "Noisy Customer",
                     "lang_id": lang_be_id,
                     "name": "Test Lead",
-                    "phone": "0455000000",
+                    "phone_ids": [Command.create({"number": "0455000000", "type": "landline"})],
                     "street": "Super Street, 00",
                     "zip": "1400",
                 }

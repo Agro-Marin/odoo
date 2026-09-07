@@ -42,7 +42,7 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
                 {
                     "name": f"BenchmarkPartner_{i}",
                     "email": f"benchmark{i}@test.com",
-                    "phone": f"+1555{i:04d}",
+                    "website": f"+1555{i:04d}",
                     "is_company": i % 3 == 0,
                     "country_id": (
                         cls.env.ref("base.mx").id
@@ -65,7 +65,7 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
 
         def bench():
             self.Partner.browse(partner.id).read(
-                ["name", "email", "phone", "country_id"]
+                ["name", "email", "website", "country_id"]
             )
 
         self._run_benchmark("Single Record Read (by ID)", bench)
@@ -146,7 +146,7 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
         def bench():
             self.Partner.search_read(
                 [("is_company", "=", True)],
-                fields=["name", "email", "phone", "country_id"],
+                fields=["name", "email", "website", "country_id"],
                 limit=50,
             )
 
@@ -192,7 +192,7 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
         )
 
         def bench():
-            partners.write({"phone": f"+1555{int(time.time()) % 10000:04d}"})
+            partners.write({"website": f"+1555{int(time.time()) % 10000:04d}"})
 
         self._run_benchmark("Batch Write (50 records)", bench)
 
@@ -200,7 +200,7 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
         partners = self.Partner.search([], limit=100)
 
         def bench():
-            partners.read(["name", "email", "phone", "country_id", "is_company"])
+            partners.read(["name", "email", "website", "country_id", "is_company"])
 
         self._run_benchmark("Batch Read (100 records, 5 fields)", bench)
 
@@ -257,7 +257,7 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
 
         def bench():
             self.env.cr.execute("""
-                SELECT id, name, email, phone
+                SELECT id, name, email, website
                 FROM res_partner
                 WHERE is_company = true
                 LIMIT 100
@@ -271,7 +271,7 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
         def bench():
             self.Partner.search_read(
                 [("is_company", "=", True)],
-                fields=["name", "email", "phone"],
+                fields=["name", "email", "website"],
                 limit=100,
             )
 
@@ -511,7 +511,7 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
         def bench():
             names = partners.mapped("name")
             emails = partners.mapped("email")
-            phones = partners.mapped("phone")
+            phones = partners.mapped("website")
             return names, emails, phones
 
         self._run_benchmark("Bulk mapped() access (100 records, 3 fields)", bench)
@@ -546,7 +546,7 @@ class TestSQLBenchmark(BenchmarkCase, TransactionCase):
                     "|",
                     ("name", "ilike", "bench"),
                     ("email", "ilike", "bench"),
-                    ("phone", "ilike", "555"),
+                    ("website", "ilike", "555"),
                 ],
                 limit=100,
             )

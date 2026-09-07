@@ -51,7 +51,7 @@ class ResCompany(models.Model):
             "company_registry",
             "vat",
             "name",
-            "phone",
+            "phone_ids",
             "partner_id",
             "country_id",
             "state_id",

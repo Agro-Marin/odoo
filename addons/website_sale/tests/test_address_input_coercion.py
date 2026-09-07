@@ -10,6 +10,7 @@ same machinery as the portal one (``CustomerPortal._create_or_update_address``
 and friends), so it gets the same coercion guards.
 """
 
+from odoo import Command
 from odoo.http import root
 from odoo.tests import HttpCase, tagged
 from odoo.tests.common import JsonRpcException
@@ -130,7 +131,7 @@ class TestShopAddressReservedParams(HttpCase, WebsiteSaleCommon):
                 "zip": "1000",
                 "country_id": self.country_be.id,
                 "email": "reserved.params@example.com",
-                "phone": "+32 2 000 00 00",
+                "phone_ids": [Command.create({"number": "+32 2 000 00 00", "type": "landline"})],
             }
         )
         self.cart.write(

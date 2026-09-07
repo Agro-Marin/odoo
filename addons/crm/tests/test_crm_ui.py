@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import Form, HttpCase, TransactionCase
 from odoo.tests.common import tagged
 
@@ -11,7 +12,9 @@ class TestUi(HttpCase, TestCrmCommon):
             {
                 "name": "Brandon Freeman",
                 "email": "brandon.freeman55@example.com",
-                "phone": "(355)-687-3262",
+                "phone_ids": [
+                    Command.create({"number": "(355)-687-3262", "type": "landline"})
+                ],
                 "is_company": True,
             }
         )
@@ -52,16 +55,18 @@ class TestUi(HttpCase, TestCrmCommon):
                 "user_id": user_admin.id,
                 "partner_id": partner.id,
                 "email_from": "test@example.com",
-                "phone": "+32 494 44 44 44",
+                "phone_ids": [
+                    Command.create({"number": "+32 494 44 44 44", "type": "landline"})
+                ],
             }
         )
         partner.email = False
-        partner.phone = False
+        partner.phone_ids = [Command.clear()]
 
         self.assertFalse(partner.email)
-        self.assertFalse(partner.phone)
+        self.assertFalse(partner.phone_ids)
         self.assertEqual(lead.email_from, "test@example.com")
-        self.assertEqual(lead.phone, "+32 494 44 44 44")
+        self.assertEqual(lead._phone_get_number().number, "+32 494 44 44 44")
 
         self.assertTrue(lead.partner_email_update)
         self.assertTrue(lead.partner_phone_update)
@@ -76,7 +81,9 @@ class TestUi(HttpCase, TestCrmCommon):
             "Should not have changed the lead email",
         )
         self.assertEqual(
-            lead.phone, "+32 494 44 44 44", "Should not have changed the lead phone"
+            lead._phone_get_number().number,
+            "+32 494 44 44 44",
+            "Should not have changed the lead phone",
         )
         self.assertEqual(
             partner.email,
@@ -84,8 +91,8 @@ class TestUi(HttpCase, TestCrmCommon):
             "Should have propagated the lead email on the partner",
         )
         self.assertEqual(
-            partner.phone,
-            "+32 494 44 44 44",
+            partner.phone_ids.mapped("number"),
+            ["+32 494 44 44 44"],
             "Should have propagated the lead phone on the partner",
         )
 
@@ -151,74 +158,90 @@ class TestCrmKanbanUI(TransactionCase):
     def test_kanban_quick_create_partner_inherited_details(self):
         no_partner = self.env["res.partner"]
         company = self.childless_company
-        company.write({"email": "childless@test.lan", "phone": "+32 499 00 00 00"})
+        company_number, other_number = self.env["phone.number"].create(
+            [{"number": "+32 499 00 00 00"}, {"number": "+32 499 00 00 01"}]
+        )
+        no_number = company_number.browse()
+        company.write(
+            {
+                "email": "childless@test.lan",
+                "phone_ids": [Command.set(company_number.ids)],
+            }
+        )
 
         test_cases = [
             (
-                {"email_from": False, "phone": False},
+                {"email_from": False, "phone_ids": no_number},
                 {
                     "partner_id": company,
                     "email_from": company.email,
-                    "phone": company.phone,
+                    "phone_ids": company_number,
                 },
             ),
             (
-                {"email_from": company.email, "phone": False},
-                {"partner_id": no_partner, "email_from": company.email, "phone": False},
-            ),
-            (
-                {"email_from": company.email, "phone": company.phone[:-1] + "1"},
+                {"email_from": company.email, "phone_ids": no_number},
                 {
                     "partner_id": no_partner,
                     "email_from": company.email,
-                    "phone": company.phone[:-1] + "1",
+                    "phone_ids": no_number,
                 },
             ),
             (
-                {"email_from": company.email, "phone": company.phone},
+                {"email_from": company.email, "phone_ids": other_number},
+                {
+                    "partner_id": no_partner,
+                    "email_from": company.email,
+                    "phone_ids": other_number,
+                },
+            ),
+            (
+                {"email_from": company.email, "phone_ids": company_number},
                 {
                     "partner_id": company,
                     "email_from": company.email,
-                    "phone": company.phone,
+                    "phone_ids": company_number,
                 },
             ),
             (
-                {"email_from": company.email + "n", "phone": company.phone},
+                {"email_from": company.email + "n", "phone_ids": company_number},
                 {
                     "partner_id": no_partner,
                     "email_from": company.email + "n",
-                    "phone": company.phone,
+                    "phone_ids": company_number,
                 },
             ),
             (
                 {
                     "partner_id": self.child_contact_1,
                     "email_from": company.email,
-                    "phone": company.phone,
+                    "phone_ids": company_number,
                 },
                 {
                     "partner_name": self.parent_company.name,
                     "partner_id": self.child_contact_1,
                     "email_from": company.email,
-                    "phone": company.phone,
+                    "phone_ids": company_number,
                 },
             ),
         ]
         for form_values, expected_lead_values in test_cases:
             lead_form = Form(self.env["crm.lead"], self.quick_create_form_view)
             lead_form.commercial_partner_id = self.childless_company
-            self.assertFalse(lead_form.phone)
+            self.assertFalse(lead_form.phone_ids[:])
             self.assertFalse(lead_form.email_from)
             expected_lead_values = {"partner_name": company.name} | expected_lead_values
             with self.subTest(form_values=form_values):
                 for field_name, input_value in form_values.items():
-                    lead_form[field_name] = input_value
+                    if field_name == "phone_ids":
+                        lead_form.phone_ids.set(input_value)
+                    else:
+                        lead_form[field_name] = input_value
                 lead = lead_form.save()
                 for field_name, expected_value in expected_lead_values.items():
                     self.assertEqual(lead[field_name], expected_value)
 
         self.assertEqual(company.email, "childless@test.lan")
-        self.assertEqual(company.phone, "+32 499 00 00 00")
+        self.assertEqual(company.phone_ids, company_number)
 
         lead = self.env["crm.lead"].create(
             {
@@ -246,32 +269,42 @@ class TestCrmKanbanUI(TransactionCase):
 
         orphan = self.orphan_contact
         orphan.write(
-            {"email": "orphan_individual@example.com", "phone": "+32 488 00 00 00"}
+            {
+                "email": "orphan_individual@example.com",
+                "phone_ids": [
+                    Command.create({"number": "+32 488 00 00 00", "type": "landline"})
+                ],
+            }
         )
         child_contact = self.child_contact_1
         child_contact.write(
-            {"email": "child_contact@example.com", "phone": "+32 477 00 00 00"}
+            {
+                "email": "child_contact@example.com",
+                "phone_ids": [
+                    Command.create({"number": "+32 477 00 00 00", "type": "landline"})
+                ],
+            }
         )
 
         test_cases_default = {
             child_contact: {
                 "partner_id": child_contact,
                 "email_from": child_contact.email,
-                "phone": child_contact.phone,
+                "phone_ids": child_contact.phone_ids,
                 "partner_name": self.parent_company.name,
                 "commercial_partner_id": self.parent_company,
             },
             company: {
                 "partner_id": company,
                 "email_from": company.email,
-                "phone": company.phone,
+                "phone_ids": company.phone_ids,
                 "partner_name": company.name,
                 "commercial_partner_id": self.env["res.partner"],
             },
             orphan: {
                 "partner_id": orphan,
                 "email_from": orphan.email,
-                "phone": orphan.phone,
+                "phone_ids": orphan.phone_ids,
                 "partner_name": False,
                 "commercial_partner_id": self.env["res.partner"],
             },
@@ -287,4 +320,7 @@ class TestCrmKanbanUI(TransactionCase):
                         view,
                     )
                     for field_name, expected_value in expected_lead_values.items():
-                        self.assertEqual(lead_form[field_name], expected_value)
+                        value = lead_form[field_name]
+                        if field_name == "phone_ids":
+                            value = value[:]
+                        self.assertEqual(value, expected_value)

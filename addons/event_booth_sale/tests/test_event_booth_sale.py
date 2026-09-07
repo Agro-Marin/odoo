@@ -1,19 +1,19 @@
-# -*- coding: utf-8 -*-
 from datetime import datetime, timedelta
 
 from odoo import Command, fields
-from odoo.addons.event_booth_sale.tests.common import TestEventBoothSaleCommon
-from odoo.addons.sales_team.tests.common import TestSalesCommon
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests.common import tagged, users
 from odoo.tools import float_compare
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
+from odoo.addons.event_booth_sale.tests.common import TestEventBoothSaleCommon
+from odoo.addons.sales_team.tests.common import TestSalesCommon
 
 
 class TestEventBoothSaleWData(TestEventBoothSaleCommon, TestSalesCommon):
 
     @classmethod
     def setUpClass(cls):
-        super(TestEventBoothSaleWData, cls).setUpClass()
+        super().setUpClass()
 
         cls.event_0 = cls.env['event.event'].create({
             'name': 'TestEvent',
@@ -109,7 +109,7 @@ class TestEventBoothSale(TestEventBoothSaleWData):
                 booth.contact_name, self.event_customer.name,
                 "Booth contact name should be the same as sale order customer name.")
             self.assertEqual(
-                booth.contact_phone, self.event_customer.phone,
+                booth.phone_ids, self.event_customer._phone_get_number(),
                 "Booth contact phone should be the same as sale order customer phone.")
             self.assertEqual(
                 booth.state, 'unavailable',

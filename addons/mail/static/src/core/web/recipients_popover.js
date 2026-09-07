@@ -13,11 +13,9 @@ export class RecipientsPopover extends Component {
     setup() {
         this.orm = useService("orm");
         onWillStart(async () => {
-            [this.partner] = await this.orm.read(
-                "res.partner",
-                [this.props.id],
-                this.fieldNames,
-            );
+            [this.partner] = await this.orm.webRead("res.partner", [this.props.id], {
+                specification: this.fieldSpecification,
+            });
         });
     }
 
@@ -26,15 +24,21 @@ export class RecipientsPopover extends Component {
     }
 
     get phone() {
-        return this.partner.phone;
+        return this.partner.phone_ids?.[0]?.number;
     }
 
     get email() {
         return this.partner.email_normalized || this.partner.email;
     }
 
-    get fieldNames() {
-        return ["name", "email_normalized", "email", "phone", "display_name"];
+    get fieldSpecification() {
+        return {
+            name: {},
+            email_normalized: {},
+            email: {},
+            phone_ids: { fields: { number: {} }, limit: 1 },
+            display_name: {},
+        };
     }
 
     onClickViewProfile() {

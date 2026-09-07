@@ -16,7 +16,7 @@ from freezegun import freeze_time
 from lxml import html
 from markupsafe import Markup
 
-from odoo import fields, tools
+from odoo import Command, fields, tools
 from odoo.tests import RecordCapturer, common, new_test_user
 from odoo.tools import mute_logger
 from odoo.tools.mail import (
@@ -1460,7 +1460,11 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
                             "name": f"Partner_{idx}",
                             "email": f"{prefix}test_partner_{idx}@example.com",
                             "country_id": country_id,
-                            "phone": "047500%02d%02d" % (idx, idx),
+                            "phone_ids": [
+                                Command.create(
+                                    {"number": "047500%02d%02d" % (idx, idx)}
+                                )
+                            ],
                         }
                         for idx in range(count)
                     ]
@@ -2145,7 +2149,9 @@ class MailCommon(MailCase):
                     "email": "test.admin@test.example.com",
                     "name": "Mitchell Admin",
                     "notification_type": "inbox",
-                    "phone": "0455135790",
+                    "phone_ids": [
+                        Command.create({"number": "0455135790", "type": "landline"})
+                    ],
                 }
             )
         cls.user_root = cls.env.ref("base.user_root")

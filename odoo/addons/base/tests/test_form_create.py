@@ -74,9 +74,9 @@ class TestFormCreate(TransactionCase):
                     <form>
                         <field name="name" readonly="1"/>
                         <field name="name" readonly="0"/>
-                        <field name="phone"/>
                         <field name="ref"/>
-                        <group invisible="phone == 'x'">
+                        <field name="ref"/>
+                        <group invisible="ref == 'x'">
                             <field name="email" invisible="ref == 'y'"/>
                         </group>
                     </form>
@@ -88,9 +88,9 @@ class TestFormCreate(TransactionCase):
         partner_form.name = "a partner"
 
         self.assertFalse(partner_form._get_modifier("email", "invisible"))
-        partner_form.phone = "x"
+        partner_form.ref = "x"
         self.assertTrue(partner_form._get_modifier("email", "invisible"))
-        partner_form.phone = "y"
+        partner_form.ref = "y"
         partner_form.ref = "y"
         self.assertTrue(partner_form._get_modifier("email", "invisible"))
 

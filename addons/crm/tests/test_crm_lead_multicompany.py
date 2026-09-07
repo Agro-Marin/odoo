@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import Form, tagged
 from odoo.tests.common import users
@@ -371,7 +372,9 @@ class TestCRMLeadMultiCompany(TestCrmCommon):
             {
                 "company_id": self.company_2.id,
                 "email": "customer.another.company@test.customer.com",
-                "phone": "+32455000000",
+                "phone_ids": [
+                    Command.create({"number": "+32455000000", "type": "landline"})
+                ],
                 "name": "InCompany Customer",
             }
         )

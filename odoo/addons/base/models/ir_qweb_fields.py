@@ -744,7 +744,7 @@ class IrQwebFieldContact(models.AbstractModel):
         val = {
             "name": name_line,
             "address": address,
-            "phone": value.phone,
+            "phone": value.phone_ids._primary().number,
             "city": value.city,
             "country_id": value.country_id.display_name,
             "website": value.website,

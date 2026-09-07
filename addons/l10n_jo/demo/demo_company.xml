@@ -7,7 +7,7 @@
         <field name="street">K. Ali Ben Al-Hussein St. 146</field>
         <field name="city">Amman</field>
         <field name="vat">123456789</field>
-        <field name="phone">+20 27 370 423</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+20 27 370 423', 'type': 'landline'})]" />
         <field name="email">info@company.jo</field>
         <field name="website">www.jo-example.com</field>
         <field name="is_company" eval="True" />

@@ -8,7 +8,7 @@
         <field name="city">Phnom Penh</field>
         <field name="country_id" ref="base.kh" />
         <field name="zip">120101</field>
-        <field name="phone">+855 76 234 5678</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+855 76 234 5678', 'type': 'landline'})]" />
         <field name="email">info@company.khexample.com</field>
         <field name="website">www.khexample.com</field>
     </record>

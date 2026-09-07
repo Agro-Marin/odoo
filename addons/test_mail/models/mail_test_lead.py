@@ -22,7 +22,9 @@ class MailTestTLead(models.Model):
     customer_name = fields.Char()
     partner_id = fields.Many2one("res.partner", tracking=2)
     lang_code = fields.Char()
-    phone = fields.Char()
+    phone_ids = fields.Many2many(
+        "phone.number",
+    )
 
     def _creation_message(self):
         self.check_singleton()
@@ -44,7 +46,7 @@ class MailTestTLead(models.Model):
                 or parse_contact_from_email(lead.email_from)[0]
                 or lead.email_from
             )
-            values["phone"] = values.get("phone") or lead.phone
+            values["phone"] = values.get("phone") or lead.phone_ids[:1].number
         return email_normalized_to_values
 
     def _message_post_after_hook(self, message, msg_vals):

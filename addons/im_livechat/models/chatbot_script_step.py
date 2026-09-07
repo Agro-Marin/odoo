@@ -1,11 +1,13 @@
-from odoo import _, api, models, fields
+from collections import defaultdict
+
+from markupsafe import Markup
+
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import html2plaintext, email_normalize
-from odoo.addons.mail.tools.discuss import Store
+from odoo.tools import email_normalize, html2plaintext
 
-from collections import defaultdict
-from markupsafe import Markup
+from odoo.addons.mail.tools.discuss import Store
 
 
 class ChatbotScriptStep(models.Model):
@@ -140,7 +142,7 @@ class ChatbotScriptStep(models.Model):
             partner = self.env['res.partner'].create({
                 'name': input_email,
                 'email': input_email,
-                'phone': input_phone,
+                'phone_ids': [Command.create({'number': input_phone})] if input_phone else [],
             })
         elif not self.env.user._is_public():
             partner = self.env.user.partner_id
@@ -148,8 +150,8 @@ class ChatbotScriptStep(models.Model):
                 update_values = {}
                 if input_email and not partner.email:
                     update_values['email'] = input_email
-                if input_phone and not partner.phone:
-                    update_values['phone'] = input_phone
+                if input_phone and not partner.phone_ids:
+                    update_values['phone_ids'] = [Command.create({'number': input_phone})]
                 if update_values:
                     partner.write(update_values)
 

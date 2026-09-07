@@ -1,3 +1,5 @@
+from odoo import Command
+
 from odoo.addons.mass_mailing_sms.tests.common import MassSMSCommon
 from odoo.addons.phone_validation.tools import phone_validation
 
@@ -76,14 +78,16 @@ class TestMassMailCommon(MassSMSCommon):
     ):
         """Helper to create data. Currently simple, to be improved."""
         Model = cls.env[model]
-        phone_field = "phone_nbr" if "phone_nbr" in Model else "phone"
+        phone_field = "phone_nbr_ids" if "phone_nbr_ids" in Model else "phone_ids"
         partner_field = "customer_id" if "customer_id" in Model else "partner_id"
 
         vals_list = []
         for idx in range(count):
             vals = {
                 "name": "MassSMSTestRecord_%02d" % idx,
-                phone_field: "045600%02d%02d" % (idx, idx),
+                phone_field: [
+                    Command.create({"number": "045600%02d%02d" % (idx, idx)})
+                ],
             }
             if partners:
                 vals[partner_field] = partners[idx % len(partners)]
@@ -136,7 +140,9 @@ class TestMassSMSCommon(TestMassMailCommon):
                         "name": "Partner_%s" % (x),
                         "email": "_test_partner_%s@example.com" % (x),
                         "country_id": country_be_id,
-                        "phone": "045600%s%s99" % (x, x),
+                        "phone_ids": [
+                            Command.create({"number": "045600%s%s99" % (x, x)})
+                        ],
                     }
                 )
             )
@@ -147,13 +153,17 @@ class TestMassSMSCommon(TestMassMailCommon):
                     {
                         "name": "MassSMSTest_%s" % (x),
                         "customer_id": partners[x].id,
-                        "phone_nbr": "045600%s%s44" % (x, x),
+                        "phone_nbr_ids": [
+                            Command.create({"number": "045600%s%s44" % (x, x)})
+                        ],
                     }
                 )
             )
         cls.records = cls._reset_mail_context(records)
         cls.records_numbers = [
-            phone_validation.phone_format(r.phone_nbr, "BE", "32", force_format="E164")
+            phone_validation.phone_format(
+                r.phone_nbr_ids.number, "BE", "32", force_format="E164"
+            )
             for r in cls.records
         ]
         cls.partners = partners
@@ -168,7 +178,7 @@ class TestMassSMSCommon(TestMassMailCommon):
 
         cls.partner_numbers = [
             phone_validation.phone_format(
-                partner.phone,
+                partner._phone_get_number().number,
                 partner.country_id.code,
                 partner.country_id.phone_code,
                 force_format="E164",
@@ -189,7 +199,7 @@ class TestMassSMSCommon(TestMassMailCommon):
                         "name": f"Partner_{x}",
                         "email": f"_test_partner_{x}@example.com",
                         "country_id": country_be_id,
-                        "phone": mobile_number,
+                        "phone_ids": [Command.create({"number": mobile_number})],
                     }
                     for x, mobile_number in enumerate(mobile_numbers)
                 ]
@@ -203,7 +213,7 @@ class TestMassSMSCommon(TestMassMailCommon):
                     {
                         "name": f"MassSMSTest_{x}",
                         "customer_id": partner.id,
-                        "phone_nbr": mobile_number,
+                        "phone_nbr_ids": [Command.create({"number": mobile_number})],
                     }
                     for x, (mobile_number, partner) in enumerate(
                         zip(mobile_numbers, partners, strict=True)

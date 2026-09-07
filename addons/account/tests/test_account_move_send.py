@@ -113,7 +113,9 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
                     "country_id": country_id,
                     "email": f"test_partner_{idx}@test.example.com",
                     "invoice_edi_format": False,
-                    "phone": f"047500{idx:2d}{idx:2d}",
+                    "phone_ids": [
+                        Command.create({"number": f"047500{idx:2d}{idx:2d}"})
+                    ],
                     "lang": langs[idx % len(langs)],
                     "name": f"Partner_{idx}",
                 }

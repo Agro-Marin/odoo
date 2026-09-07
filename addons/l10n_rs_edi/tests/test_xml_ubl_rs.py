@@ -18,14 +18,14 @@ class TestUBLRS(TestUBLCommon):
             'city': 'Niš',
             'zip': '12000',
             'vat': 'RS101134702',
-            'phone': '+381 23 456 78 91',
+            'phone_ids': [Command.create({"number": '+381 23 456 78 91', "type": "landline"})],
             'street': 'Nikole Pašića 30a',
         })
         cls.company_data['company'].partner_id.l10n_rs_edi_registration_number = '87654321'
 
         cls.env['res.partner.bank'].create({
             'acc_type': 'iban',
-            'partner_id': cls.company_data['company'].partner_id.id,
+            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
             'acc_number': 'RS1234123456123456123456',
         })
 
@@ -35,7 +35,7 @@ class TestUBLRS(TestUBLCommon):
             'city': 'Belgrade',
             'street': 'Balkanska ulica, 21',
             'zip': '101801',
-            'phone': '+381 98 765 43 21',
+            'phone_ids': [Command.create({"number": '+381 98 765 43 21', "type": "landline"})],
             'vat': 'RS111032440',
             'bank_ids': [Command.create({'acc_number': 'RS1234567891234567892345'})],
             'l10n_rs_edi_registration_number': '12345678',

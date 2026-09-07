@@ -25,7 +25,7 @@
                 <div class="partner-line-adress p-1" t-if="props.partner.pos_contact_address" t-esc="props.partner.pos_contact_address" />
                 <div class="partner-line-email p-1">
                     <div class="mb-1" t-if="props.partner.phone">
-                        <i class="fa-solid fa-phone me-2" /><t t-esc="props.partner.phone" />
+                        <i class="fa-solid fa-phone me-2" /><t t-esc="props.partner.phoneNumbers" />
                     </div>
                     <div t-if="props.partner.email" class="email-field mb-1 d-flex align-items-start">
                         <i class="fa-regular fa-paper-plane me-2 lh-base flex-shrink-0" /><t t-esc="props.partner.email" />
@@ -51,7 +51,7 @@
                 </td>
                 <td class="partner-line-email w-100">
                     <div t-if="props.partner.phone">
-                        <i class="fa-solid fa-phone me-2"/><t t-esc="props.partner.phone"/>
+                        <i class="fa-solid fa-phone me-2"/><t t-esc="props.partner.phoneNumbers"/>
                     </div>
                     <div t-if="props.partner.email" class="email-field d-flex align-items-start">
                         <i class="fa-regular fa-paper-plane me-2 lh-base flex-shrink-0"/><span class="text-break" t-esc="props.partner.email" />

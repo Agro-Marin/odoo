@@ -46,7 +46,7 @@ class WebsiteVisitor(models.Model):
         for visitor in self:
             visitor.event_registration_count = visitor_mapping.get(visitor.id, 0)
 
-    @api.depends("event_registration_ids.email", "event_registration_ids.phone")
+    @api.depends("event_registration_ids.email", "event_registration_ids.phone_ids")
     def _compute_email_phone(self):
         super()._compute_email_phone()
 
@@ -62,7 +62,12 @@ class WebsiteVisitor(models.Model):
                 )
             if not visitor.mobile:
                 visitor.mobile = next(
-                    (reg.phone for reg in linked_registrations if reg.phone), False
+                    (
+                        reg._phone_get_number().number
+                        for reg in linked_registrations
+                        if reg.phone_ids
+                    ),
+                    False,
                 )
 
     @api.depends("event_registration_ids")

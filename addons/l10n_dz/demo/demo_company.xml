@@ -8,7 +8,7 @@
         <field name="city">عين صالح</field>
         <field name="country_id" ref="base.dz" />
         <field name="zip">11200</field>
-        <field name="phone">+213 5 916 9560 </field>
+        <field name="phone_ids" eval="[Command.create({'number': '+213 5 916 9560 ', 'type': 'landline'})]" />
         <field name="email">info@company.dzexample.com</field>
         <field name="website">www.dzexample.com</field>
         <field name="is_company" eval="True" />

@@ -32,7 +32,7 @@ class TestIrModelSmsCapability(TransactionCase):
         so it must not be offered (negative).
         """
         users_model = self._model_entry("res.users")
-        self.assertIn("phone", self.env["res.users"]._fields)
+        self.assertIn("phone_ids", self.env["res.users"]._fields)
         self.assertFalse(users_model.is_mail_thread)
         self.assertFalse(users_model.is_mail_thread_sms)
 

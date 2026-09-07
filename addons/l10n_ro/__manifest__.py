@@ -24,7 +24,7 @@ Romanian accounting chart and localization.
     "data": [
         "views/res_partner_view.xml",
         "data/account_tax_report_data.xml",
-        "data/res.bank.csv",
+        "data/res_bank_data.xml",
     ],
     "demo": [
         "demo/demo_company.xml",

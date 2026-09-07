@@ -92,6 +92,7 @@ from . import res_partner_tag
 from . import res_partner_industry
 from . import res_country
 from . import res_lang
+from . import phone_number
 from . import res_partner
 from . import res_partner_identifier
 from . import res_partner_identifier_type

@@ -208,7 +208,7 @@
                                 <small
                                     t-field="event.address_id"
                                     class="d-block mb-2"
-                                    t-options="{                                 &quot;widget&quot;: &quot;contact&quot;,                                 &quot;fields&quot;: [&quot;phone&quot;, &quot;mobile&quot;, &quot;email&quot;]                             }" />
+                                    t-options="{                                 &quot;widget&quot;: &quot;contact&quot;,                                 &quot;fields&quot;: [&quot;phone&quot;, &quot;email&quot;]                             }" />
                                 <a
                                     t-att-href="event._google_map_link()"
                                     target="_blank"
@@ -251,7 +251,7 @@
                                     t-field="event.organizer_id" />
                                 <small
                                     t-field="event.organizer_id"
-                                    t-options="{'widget': 'contact', 'fields': ['phone', 'mobile', 'email'], 'with_microdata': True,}" />
+                                    t-options="{'widget': 'contact', 'fields': ['phone', 'email'], 'with_microdata': True,}" />
                             </div>
                             <!-- Social -->
                             <div
@@ -756,7 +756,7 @@
                                 t-options="{                             &quot;widget&quot;: &quot;contact&quot;,                             &quot;fields&quot;: [&quot;address&quot;]                             }" />
                             <div
                                 t-field="event.organizer_id"
-                                t-options="{                             &quot;widget&quot;: &quot;contact&quot;,                             &quot;fields&quot;: [&quot;phone&quot;, &quot;mobile&quot;, &quot;email&quot;]                             }" />
+                                t-options="{                             &quot;widget&quot;: &quot;contact&quot;,                             &quot;fields&quot;: [&quot;phone&quot;, &quot;email&quot;]                             }" />
                         </div>
                     </div>
                 </div>

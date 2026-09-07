@@ -1148,7 +1148,7 @@ class TestEventRegistrationData(TestEventInternalsCommon):
         self.assertEqual(new_reg.partner_id, customer)
         self.assertEqual(new_reg.name, customer.name)
         self.assertEqual(new_reg.email, customer.email)
-        self.assertEqual(new_reg.phone, customer.phone)
+        self.assertEqual(new_reg._phone_get_number().number, customer._phone_get_number().number)
 
         # partial update
         event.write(
@@ -1179,8 +1179,8 @@ class TestEventRegistrationData(TestEventInternalsCommon):
             "Registration should take user input over computed partner value",
         )
         self.assertEqual(
-            new_reg.phone,
-            customer.phone,
+            new_reg._phone_get_number().number,
+            customer._phone_get_number().number,
             "Registration should take partner value if not user input",
         )
 
@@ -1193,7 +1193,7 @@ class TestEventRegistrationData(TestEventInternalsCommon):
                         0,
                         {
                             "name": "Nibbler In Space",
-                            "phone": test_phone,
+                            "phone_ids": [Command.create({"number": test_phone, "type": "landline"})],
                         },
                     )
                 ]
@@ -1202,12 +1202,12 @@ class TestEventRegistrationData(TestEventInternalsCommon):
         new_reg = event.registration_ids.sorted()[0]
         self.assertEqual(new_reg.name, "Nibbler In Space")
         self.assertEqual(new_reg.email, False)
-        self.assertEqual(new_reg.phone, test_phone_fmt)
+        self.assertEqual(new_reg._phone_get_number().number, test_phone_fmt)
         new_reg.write({"partner_id": customer.id})
         self.assertEqual(new_reg.partner_id, customer)
         self.assertEqual(new_reg.name, "Nibbler In Space")
         self.assertEqual(new_reg.email, customer.email)
-        self.assertEqual(new_reg.phone, test_phone_fmt)
+        self.assertEqual(new_reg._phone_get_number().number, test_phone_fmt)
 
     @users("user_eventmanager")
     def test_registration_partner_sync_company(self):
@@ -1237,7 +1237,7 @@ class TestEventRegistrationData(TestEventInternalsCommon):
                     "parent_id": company.id,
                     "type": "contact",
                     "email": "ContactEmail <contact.email@test.example.com>",
-                    "phone": "+32456998877",
+                    "phone_ids": [Command.create({"number": "+32456998877", "type": "landline"})],
                 }
             )
         )
@@ -1260,7 +1260,7 @@ class TestEventRegistrationData(TestEventInternalsCommon):
         self.assertEqual(new_reg.partner_id, customer)
         self.assertEqual(new_reg.name, contact.name)
         self.assertEqual(new_reg.email, contact.email)
-        self.assertEqual(new_reg.phone, contact.phone)
+        self.assertEqual(new_reg._phone_get_number().number, contact._phone_get_number().number)
 
 
 @tagged("event_registration", "phone_number")
@@ -1293,21 +1293,24 @@ class TestEventRegistrationPhone(EventCase):
         customer2 = self.event_customer2.with_env(self.env)
         event = self.test_event.with_env(self.env)
 
-        self.assertEqual(customer.phone, "0485112233")
-        self.assertEqual(customer2.phone, "0456987654")
+        self.assertEqual(customer._phone_get_number().number, "0485112233")
+        self.assertEqual(customer2._phone_get_number().number, "0456987654")
 
         self.assertEqual(event.company_id.country_id, self.env.ref("base.be"))
         self.assertEqual(event.country_id, self.env.ref("base.in"))
 
     @users("user_eventregistrationdesk")
     def test_registration_form_phone(self):
-        """Test onchange on phone / mobile, should try to format number"""
         event = self.test_event.with_user(self.env.user)
 
         reg_form = Form(self.env["event.registration"])
         reg_form.event_id = event
-        reg_form.phone = "7200000000"
-        self.assertEqual(reg_form.phone, "+917200000000")
+        reg_form.name = "Phone Form"
+        reg_form.phone_ids.add(
+            self.env["phone.number"].create({"number": "+917200000000"})
+        )
+        registration = reg_form.save()
+        self.assertEqual(registration._phone_get_number().number, "+917200000000")
 
     @users("user_eventregistrationdesk")
     def test_registration_phone_format(self):
@@ -1340,19 +1343,29 @@ class TestEventRegistrationPhone(EventCase):
                     "partner_id": partner_id,
                 }
                 if phone is not None:
-                    create_vals["phone"] = phone
+                    create_vals["phone_ids"] = [
+                        Command.create({"number": phone, "type": "landline"})
+                    ]
                 reg = self.env["event.registration"].create(create_vals)
-                self.assertEqual(reg.phone, exp_phone)
+                self.assertEqual(reg._phone_get_number().number, exp_phone)
 
         # no country on event -> based on partner or event company country
         self.test_event.write({"address_id": False})
+        sources = [
+            (self.event_customer.id, None),
+            (self.event_customer2.id, None),
+            (self.event_customer2.id, "0456001133"),
+            (False, "0456778800"),
+            (False, "7200000011"),
+            (False, "+917200000099"),
+        ]
         expected = [
             "0485112233",  # partner values, no format (phone only)
             "0456987654",  # partner values, no format (both: phone wins)
-            "+32456001122",  # BE on company
-            "+32456778899",  # BE on company
-            "7200000000",  # BE on company -> cannot format IN
-            "+917200000088",  # already formatted
+            "+32456001133",  # BE on company
+            "+32456778800",  # BE on company
+            "7200000011",  # BE on company -> cannot format IN
+            "+917200000099",  # already formatted
         ]
         for (partner_id, phone), exp_phone in zip(sources, expected, strict=True):
             with self.subTest(partner_id=partner_id, phone=phone):
@@ -1361,9 +1374,11 @@ class TestEventRegistrationPhone(EventCase):
                     "partner_id": partner_id,
                 }
                 if phone is not None:
-                    create_vals["phone"] = phone
+                    create_vals["phone_ids"] = [
+                        Command.create({"number": phone, "type": "landline"})
+                    ]
                 reg = self.env["event.registration"].create(create_vals)
-                self.assertEqual(reg.phone, exp_phone)
+                self.assertEqual(reg._phone_get_number().number, exp_phone)
 
 
 @tagged("event_ticket")

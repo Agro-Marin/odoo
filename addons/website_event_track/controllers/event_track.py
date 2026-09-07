@@ -7,7 +7,7 @@ from datetime import UTC, timedelta
 import babel.dates
 from werkzeug.exceptions import Forbidden, NotFound
 
-from odoo import _, fields, http, tools
+from odoo import Command, _, fields, http, tools
 from odoo.fields import Domain
 from odoo.http import content_disposition, request
 from odoo.libs.datetime import timezone
@@ -643,7 +643,16 @@ class EventTrackController(http.Controller):
                             {
                                 "email": valid_contact_email,
                                 "name": post.get("contact_name"),
-                                "phone": post.get("contact_phone"),
+                                "phone_ids": [
+                                    Command.create(
+                                        {
+                                            "number": post["contact_phone"],
+                                            "type": "landline",
+                                        }
+                                    )
+                                ]
+                                if post.get("contact_phone")
+                                else [],
                             }
                         )
                     )
@@ -668,9 +677,17 @@ class EventTrackController(http.Controller):
                     "partner_id": contact.id,
                     "partner_name": post["partner_name"],
                     "partner_email": post["partner_email"],
-                    "partner_phone": post["partner_phone"],
+                    "phone_ids": [
+                        Command.create(
+                            {"number": post["partner_phone"], "type": "landline"}
+                        )
+                    ]
+                    if post.get("partner_phone")
+                    else [],
                     "partner_function": post["partner_function"],
-                    "contact_phone": contact.phone,
+                    "contact_phone_ids": [
+                        Command.set(contact.phone_ids._primary().ids)
+                    ],
                     "contact_email": contact.email,
                     "event_id": event.id,
                     "tag_ids": [(6, 0, valid_tag_indices)],

@@ -42,7 +42,7 @@ class MondialRelay(http.Controller):
                 "zip": data["CP"],
                 "city": data["Ville"],
                 "country_code": data["Pays"][:2].lower(),
-                "phone": order_sudo.partner_id.phone,
+                "phone": order_sudo.partner_id.phone_ids._primary().number,
             }
         )
         if order_sudo.partner_shipping_id != partner_shipping:

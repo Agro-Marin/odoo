@@ -1,4 +1,4 @@
-from odoo import _, tools
+from odoo import Command, _, tools
 from odoo.exceptions import UserError
 from odoo.http import request, route
 
@@ -17,13 +17,14 @@ class MassMailController(main.MassMailController):
         fname = self._get_fname(subscription_type)
         is_subscriber = False
         if value and fname:
+            search_fname, _create_value = self._contact_value_lookup(fname, value)
             contacts_count = (
                 request.env["mailing.subscription"]
                 .sudo()
                 .search_count(
                     [
                         ("list_id", "in", [int(list_id)]),
-                        (f"contact_id.{fname}", "=", value),
+                        (f"contact_id.{search_fname}", "=", value),
                         ("opt_out", "=", False),
                     ]
                 )
@@ -43,6 +44,15 @@ class MassMailController(main.MassMailController):
 
     def _get_fname(self, subscription_type):
         return "email" if subscription_type == "email" else ""
+
+    @staticmethod
+    def _contact_value_lookup(fname, value):
+        field = request.env["mailing.contact"]._fields[fname]
+        if field.type == "many2many" and field.comodel_name == "phone.number":
+            return "phone_mobile_search", [
+                Command.create({"number": value, "type": "mobile"})
+            ]
+        return fname, value
 
     @route(
         "/website_mass_mailing/subscribe", type="jsonrpc", website=True, auth="public"
@@ -78,15 +88,21 @@ class MassMailController(main.MassMailController):
         elif subscription_type == "mobile":
             name = value
 
+        search_fname, create_value = MassMailController._contact_value_lookup(
+            fname, value
+        )
         subscription = ContactSubscription.search(
-            [("list_id", "=", int(list_id)), (f"contact_id.{fname}", "=", value)],
+            [
+                ("list_id", "=", int(list_id)),
+                (f"contact_id.{search_fname}", "=", value),
+            ],
             limit=1,
         )
         if not subscription:
             # inline add_to_list as we've already called half of it
-            contact_id = Contacts.search([(fname, "=", value)], limit=1)
+            contact_id = Contacts.search([(search_fname, "=", value)], limit=1)
             if not contact_id:
-                contact_id = Contacts.create({"name": name, fname: value})
+                contact_id = Contacts.create({"name": name, fname: create_value})
             ContactSubscription.create(
                 {"contact_id": contact_id.id, "list_id": int(list_id)}
             )

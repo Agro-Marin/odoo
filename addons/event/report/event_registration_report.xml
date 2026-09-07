@@ -47,7 +47,7 @@
                     <td><t t-out="attendee.name" /></td>
                     <td><t t-out="attendee.company_name" /></td>
                     <td><t t-out="attendee.event_ticket_id.name" /></td>
-                    <td><t t-out="attendee.phone" /></td>
+                    <td><t t-out="attendee._phone_get_number().number" /></td>
                     <td class="text-center">
                         <t t-if="attendee.barcode">
                             <img

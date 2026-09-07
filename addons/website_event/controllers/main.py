@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 import babel.dates
 from werkzeug.exceptions import NotFound
 
-from odoo import _, fields, http
+from odoo import Command, _, fields, http
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
@@ -426,7 +426,7 @@ class WebsiteEventController(http.Controller):
             default_first_attendee = {
                 "name": request.env.user.name,
                 "email": request.env.user.email,
-                "phone": request.env.user.phone,
+                "phone": request.env.user._phone_get_number().number,
             }
         else:
             visitor = request.env["website.visitor"]._get_visitor_from_request()
@@ -535,13 +535,18 @@ class WebsiteEventController(http.Controller):
             ) and question_type not in already_handled_fields_data.get(
                 registration_index, []
             ):
-                if question_type not in registration_fields:
+                if (
+                    "phone_ids" if question_type == "phone" else question_type
+                ) not in registration_fields:
                     continue
 
                 field_name = question_type
                 already_handled_fields_data.setdefault(registration_index, []).append(
                     field_name
                 )
+                if question_type == "phone":
+                    field_name = "phone_ids"
+                    value = [Command.create({"number": value, "type": "mobile"})]
 
                 if not int(registration_index):
                     general_identification_answers[field_name] = value

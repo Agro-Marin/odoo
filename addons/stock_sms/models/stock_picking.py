@@ -18,7 +18,7 @@ class StockPicking(models.Model):
             is_delivery = (
                 picking.company_id._get_text_validation("sms")
                 and picking.picking_type_id.code == "outgoing"
-                and picking.partner_id.phone
+                and picking.partner_id.phone_ids
             )
             if (
                 is_delivery
@@ -53,7 +53,7 @@ class StockPicking(models.Model):
                 lambda p: (
                     p.company_id._get_text_validation("sms")
                     and p.picking_type_id.code == "outgoing"
-                    and p.partner_id.phone
+                    and p.partner_id.phone_ids
                 )
             )
             for picking in pickings:

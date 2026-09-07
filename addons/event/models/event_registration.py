@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import UTC
 
-from odoo import SUPERUSER_ID, _, api, fields, models
+from odoo import SUPERUSER_ID, Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
@@ -122,8 +122,15 @@ class EventRegistration(models.Model):
     email = fields.Char(
         string="Email", compute="_compute_email", readonly=False, store=True, tracking=3
     )
-    phone = fields.Char(
-        string="Phone", compute="_compute_phone", readonly=False, store=True, tracking=4
+    phone_ids = fields.Many2many(
+        "phone.number",
+        "event_registration_phone_number_rel",
+        "registration_id",
+        "phone_number_id",
+        string="Phone",
+        compute="_compute_phone_ids",
+        readonly=False,
+        store=True,
     )
     company_name = fields.Char(
         string="Company Name",
@@ -270,8 +277,8 @@ class EventRegistration(models.Model):
         self._compute_from_partner("email")
 
     @api.depends("partner_id")
-    def _compute_phone(self):
-        self._compute_from_partner("phone")
+    def _compute_phone_ids(self):
+        self._compute_from_partner("phone_ids")
 
     @api.depends("partner_id")
     def _compute_company_name(self):
@@ -372,12 +379,15 @@ class EventRegistration(models.Model):
 
     def _synchronize_partner_values(self, partner, fnames=None):
         if fnames is None:
-            fnames = {"name", "email", "phone"}
+            fnames = {"name", "email", "phone_ids"}
         if partner:
             contact_id = partner.address_get().get("contact", False)
             if contact_id:
                 contact = self.env["res.partner"].browse(contact_id)
-                return {fname: contact[fname] for fname in fnames if contact[fname]}
+                values = {fname: contact[fname] for fname in fnames if contact[fname]}
+                if values.get("phone_ids"):
+                    values["phone_ids"] = contact._phone_get_number()
+                return values
         return {}
 
     @api.onchange("event_id")
@@ -386,18 +396,6 @@ class EventRegistration(models.Model):
             self.event_slot_id = False
         if self.event_ticket_id and self.event_id != self.event_ticket_id.event_id:
             self.event_ticket_id = False
-
-    @api.onchange("phone", "event_id", "partner_id")
-    def _onchange_phone_validation(self):
-        if self.phone:
-            country = (
-                self.partner_id.country_id
-                or self.event_id.country_id
-                or self.env.company.country_id
-            )
-            self.phone = (
-                self._phone_format(fname="phone", country=country) or self.phone
-            )
 
     @api.model
     def register_attendee(self, barcode, event_id):
@@ -436,7 +434,12 @@ class EventRegistration(models.Model):
             values["event_id"] for values in vals_list if values.get("event_id")
         }
         for values in vals_list:
-            if not values.get("phone"):
+            new_numbers = [
+                command[2]
+                for command in values.get("phone_ids") or ()
+                if command[0] == Command.CREATE and command[2].get("number")
+            ]
+            if not new_numbers:
                 continue
 
             related_country = self.env["res.country"]
@@ -456,10 +459,13 @@ class EventRegistration(models.Model):
                 )
             if not related_country:
                 related_country = self.env.company.country_id
-            values["phone"] = (
-                self._phone_format(number=values["phone"], country=related_country)
-                or values["phone"]
-            )
+            for number_values in new_numbers:
+                number_values["number"] = (
+                    self._phone_format(
+                        number=number_values["number"], country=related_country
+                    )
+                    or number_values["number"]
+                )
 
         registrations = super().create(vals_list)
         registrations._update_mail_schedulers()

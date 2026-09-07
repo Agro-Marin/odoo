@@ -22,7 +22,7 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         cls.partner = cls.env["res.partner"].create(
             {
                 "name": "Base Partner",
-                "phone": "111",
+                "ref": "111",
                 "function": "f0",
                 "parent_id": cls.c1.id,
             }
@@ -58,8 +58,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
             )
 
     def test_no_concurrency_args(self):
-        result = self.partner.web_save({"phone": "x"}, specification={"phone": {}})
-        self.assertEqual(result[0]["phone"], "x")
+        result = self.partner.web_save({"ref": "x"}, specification={"ref": {}})
+        self.assertEqual(result[0]["ref"], "x")
 
     def test_create_ignores_locking(self):
         result = self.env["res.partner"].web_save(
@@ -72,29 +72,29 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
     def test_disjoint_change_does_not_conflict(self):
         self._server_set(function="changed-by-other")
         self.partner.web_save(
-            {"phone": "222"},
-            specification={"phone": {}},
-            known_values={"phone": "111"},
+            {"ref": "222"},
+            specification={"ref": {}},
+            known_values={"ref": "111"},
         )
-        self.assertEqual(self.partner.phone, "222")
+        self.assertEqual(self.partner.ref, "222")
 
     def test_same_field_conflict(self):
-        self._server_set(phone="999")
+        self._server_set(ref="999")
         with self.assertRaises(UserError):
             self.partner.web_save(
-                {"phone": "222"},
-                specification={"phone": {}},
-                known_values={"phone": "111"},
+                {"ref": "222"},
+                specification={"ref": {}},
+                known_values={"ref": "111"},
             )
 
     def test_same_field_same_value_no_conflict(self):
-        self._server_set(phone="222")
+        self._server_set(ref="222")
         self.partner.web_save(
-            {"phone": "222"},
-            specification={"phone": {}},
-            known_values={"phone": "111"},
+            {"ref": "222"},
+            specification={"ref": {}},
+            known_values={"ref": "111"},
         )
-        self.assertEqual(self.partner.phone, "222")
+        self.assertEqual(self.partner.ref, "222")
 
     def test_many2one_conflict(self):
         self._server_set(parent_id=self.c2.id)
@@ -159,23 +159,23 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
     def test_only_written_fields_are_checked(self):
         self._server_set(parent_id=self.c2.id)
         self.partner.web_save(
-            {"phone": "222"},
-            specification={"phone": {}},
+            {"ref": "222"},
+            specification={"ref": {}},
             known_values={
-                "phone": "111",
+                "ref": "111",
                 "parent_id": {"id": self.c1.id, "display_name": "Company 1"},
             },
         )
-        self.assertEqual(self.partner.phone, "222")
+        self.assertEqual(self.partner.ref, "222")
 
     def test_empty_known_values_skips_check(self):
-        self._server_set(phone="999")
+        self._server_set(ref="999")
         self.partner.web_save(
-            {"phone": "222"},
-            specification={"phone": {}},
+            {"ref": "222"},
+            specification={"ref": {}},
             known_values={},
         )
-        self.assertEqual(self.partner.phone, "222")
+        self.assertEqual(self.partner.ref, "222")
 
     def test_translated_field_no_false_conflict(self):
         category = self.env["res.partner.tag"].create({"name": "Original"})
@@ -241,23 +241,23 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         self._server_set(write_date=self.partner.write_date + timedelta(seconds=5))
         with self.assertRaises(UserError):
             self.partner.web_save(
-                {"phone": "222"},
-                specification={"phone": {}},
+                {"ref": "222"},
+                specification={"ref": {}},
                 last_write_date=stale.isoformat(),
             )
 
     def test_multirecord_web_save_writes_all(self):
         recs = self.c1 + self.c2
-        result = recs.web_save({"phone": "9"}, specification={"phone": {}})
-        self.assertEqual([r["phone"] for r in result], ["9", "9"])
-        self.assertEqual(recs.mapped("phone"), ["9", "9"])
+        result = recs.web_save({"ref": "9"}, specification={"ref": {}})
+        self.assertEqual([r["ref"] for r in result], ["9", "9"])
+        self.assertEqual(recs.mapped("ref"), ["9", "9"])
 
     def test_multirecord_web_save_rejects_last_write_date(self):
         recs = self.c1 + self.c2
         with self.assertRaises(ValueError):
             recs.web_save(
-                {"phone": "9"},
-                specification={"phone": {}},
+                {"ref": "9"},
+                specification={"ref": {}},
                 last_write_date="2020-01-01T00:00:00.000Z",
             )
 
@@ -270,153 +270,153 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
 
     def test_multirecord_known_values_conflict(self):
         recs = self.c1 + self.c2 + self.c3
-        self.c1.phone = self.c2.phone = self.c3.phone = "start"
+        self.c1.ref = self.c2.ref = self.c3.ref = "start"
         self.env.flush_all()
-        self._server_set_on(self.c2, phone="999")
+        self._server_set_on(self.c2, ref="999")
         with self.assertRaises(UserError):
             recs.web_save(
-                {"phone": "new"},
-                specification={"phone": {}},
+                {"ref": "new"},
+                specification={"ref": {}},
                 known_values={
-                    self.c1.id: {"phone": "start"},
-                    self.c2.id: {"phone": "start"},
-                    self.c3.id: {"phone": "start"},
+                    self.c1.id: {"ref": "start"},
+                    self.c2.id: {"ref": "start"},
+                    self.c3.id: {"ref": "start"},
                 },
             )
         self.env.cr.execute(
-            "SELECT phone FROM res_partner WHERE id = %s", (self.c1.id,)
+            "SELECT ref FROM res_partner WHERE id = %s", (self.c1.id,)
         )
         self.assertEqual(self.env.cr.fetchone()[0], "start")
 
     def test_multirecord_known_values_no_conflict(self):
         recs = self.c1 + self.c2
         result = recs.web_save(
-            {"phone": "same"},
-            specification={"phone": {}},
+            {"ref": "same"},
+            specification={"ref": {}},
             known_values={
-                self.c1.id: {"phone": self.c1.phone or False},
-                self.c2.id: {"phone": self.c2.phone or False},
+                self.c1.id: {"ref": self.c1.ref or False},
+                self.c2.id: {"ref": self.c2.ref or False},
             },
         )
-        self.assertEqual([r["phone"] for r in result], ["same", "same"])
+        self.assertEqual([r["ref"] for r in result], ["same", "same"])
 
     def test_multirecord_disjoint_change_no_conflict(self):
         recs = self.c1 + self.c2
         self._server_set_on(self.c2, function="changed-by-other")
         recs.web_save(
-            {"phone": "999"},
-            specification={"phone": {}},
+            {"ref": "999"},
+            specification={"ref": {}},
             known_values={
-                self.c1.id: {"phone": self.c1.phone or False},
-                self.c2.id: {"phone": self.c2.phone or False},
+                self.c1.id: {"ref": self.c1.ref or False},
+                self.c2.id: {"ref": self.c2.ref or False},
             },
         )
-        self.assertEqual(recs.mapped("phone"), ["999", "999"])
+        self.assertEqual(recs.mapped("ref"), ["999", "999"])
 
     def test_multirecord_missing_baseline_fails_open(self):
         recs = self.c1 + self.c2
-        self._server_set_on(self.c2, phone="concurrent")
+        self._server_set_on(self.c2, ref="concurrent")
         recs.web_save(
-            {"phone": "999"},
-            specification={"phone": {}},
-            known_values={self.c1.id: {"phone": self.c1.phone or False}},
+            {"ref": "999"},
+            specification={"ref": {}},
+            known_values={self.c1.id: {"ref": self.c1.ref or False}},
         )
-        self.assertEqual(recs.mapped("phone"), ["999", "999"])
+        self.assertEqual(recs.mapped("ref"), ["999", "999"])
 
     def test_multirecord_same_value_no_conflict(self):
         recs = self.c1 + self.c2
-        self._server_set_on(self.c2, phone="target")
+        self._server_set_on(self.c2, ref="target")
         result = recs.web_save(
-            {"phone": "target"},
-            specification={"phone": {}},
+            {"ref": "target"},
+            specification={"ref": {}},
             known_values={
-                self.c1.id: {"phone": self.c1.phone or False},
-                self.c2.id: {"phone": "old"},
+                self.c1.id: {"ref": self.c1.ref or False},
+                self.c2.id: {"ref": "old"},
             },
         )
-        self.assertEqual([r["phone"] for r in result], ["target", "target"])
+        self.assertEqual([r["ref"] for r in result], ["target", "target"])
 
     def test_single_selected_row_massedit_still_checked(self):
-        self._server_set_on(self.c1, phone="999")
+        self._server_set_on(self.c1, ref="999")
         with self.assertRaises(UserError):
             self.c1.web_save(
-                {"phone": "new"},
-                specification={"phone": {}},
-                known_values={self.c1.id: {"phone": "start"}},
+                {"ref": "new"},
+                specification={"ref": {}},
+                known_values={self.c1.id: {"ref": "start"}},
             )
         self.env.cr.execute(
-            "SELECT phone FROM res_partner WHERE id = %s", (self.c1.id,)
+            "SELECT ref FROM res_partner WHERE id = %s", (self.c1.id,)
         )
         self.assertEqual(self.env.cr.fetchone()[0], "999")
 
     def test_single_selected_row_massedit_no_false_conflict(self):
-        self.c1.phone = "start"
+        self.c1.ref = "start"
         self.env.flush_all()
         result = self.c1.web_save(
-            {"phone": "new"},
-            specification={"phone": {}},
-            known_values={self.c1.id: {"phone": "start"}},
+            {"ref": "new"},
+            specification={"ref": {}},
+            known_values={self.c1.id: {"ref": "start"}},
         )
-        self.assertEqual(result[0]["phone"], "new")
+        self.assertEqual(result[0]["ref"], "new")
 
     def test_web_save_multi_writes_all_no_locking(self):
         recs = self.c1 + self.c2
         result = recs.web_save_multi(
-            [{"phone": "a1"}, {"phone": "a2"}],
-            specification={"phone": {}},
+            [{"ref": "a1"}, {"ref": "a2"}],
+            specification={"ref": {}},
         )
-        self.assertEqual([r["phone"] for r in result], ["a1", "a2"])
-        self.assertEqual(recs.mapped("phone"), ["a1", "a2"])
+        self.assertEqual([r["ref"] for r in result], ["a1", "a2"])
+        self.assertEqual(recs.mapped("ref"), ["a1", "a2"])
 
     def test_web_save_multi_per_record_no_conflict(self):
         recs = self.c1 + self.c2
         result = recs.web_save_multi(
-            [{"phone": "a1"}, {"phone": "a2"}],
-            specification={"phone": {}},
+            [{"ref": "a1"}, {"ref": "a2"}],
+            specification={"ref": {}},
             known_values={
-                self.c1.id: {"phone": self.c1.phone or False},
-                self.c2.id: {"phone": self.c2.phone or False},
+                self.c1.id: {"ref": self.c1.ref or False},
+                self.c2.id: {"ref": self.c2.ref or False},
             },
         )
-        self.assertEqual([r["phone"] for r in result], ["a1", "a2"])
+        self.assertEqual([r["ref"] for r in result], ["a1", "a2"])
 
     def test_web_save_multi_per_record_conflict(self):
         recs = self.c1 + self.c2
-        self.c1.phone = self.c2.phone = "start"
+        self.c1.ref = self.c2.ref = "start"
         self.env.flush_all()
-        self._server_set_on(self.c2, phone="999")
+        self._server_set_on(self.c2, ref="999")
         with self.assertRaises(UserError):
             recs.web_save_multi(
-                [{"phone": "a1"}, {"phone": "a2"}],
-                specification={"phone": {}},
+                [{"ref": "a1"}, {"ref": "a2"}],
+                specification={"ref": {}},
                 known_values={
-                    self.c1.id: {"phone": "start"},
-                    self.c2.id: {"phone": "start"},
+                    self.c1.id: {"ref": "start"},
+                    self.c2.id: {"ref": "start"},
                 },
             )
         self.env.cr.execute(
-            "SELECT phone FROM res_partner WHERE id = %s", (self.c1.id,)
+            "SELECT ref FROM res_partner WHERE id = %s", (self.c1.id,)
         )
         self.assertEqual(self.env.cr.fetchone()[0], "start")
 
     def test_web_save_multi_same_value_no_conflict(self):
         recs = self.c1 + self.c2
-        self._server_set_on(self.c2, phone="a2")
+        self._server_set_on(self.c2, ref="a2")
         result = recs.web_save_multi(
-            [{"phone": "a1"}, {"phone": "a2"}],
-            specification={"phone": {}},
+            [{"ref": "a1"}, {"ref": "a2"}],
+            specification={"ref": {}},
             known_values={
-                self.c1.id: {"phone": self.c1.phone or False},
-                self.c2.id: {"phone": "old"},
+                self.c1.id: {"ref": self.c1.ref or False},
+                self.c2.id: {"ref": "old"},
             },
         )
-        self.assertEqual([r["phone"] for r in result], ["a1", "a2"])
+        self.assertEqual([r["ref"] for r in result], ["a1", "a2"])
 
     def test_stale_field_in_vals_raises_usererror(self):
         with self.assertRaises(UserError):
             self.partner.web_save(
-                {"phone": "222", "stale_field_zz": 1},
-                specification={"phone": {}},
+                {"ref": "222", "stale_field_zz": 1},
+                specification={"ref": {}},
             )
         with self.assertRaises(UserError):
             self.env["res.partner"].web_save(
@@ -424,7 +424,7 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 specification={"name": {}},
             )
         self.env.cr.execute(
-            "SELECT phone FROM res_partner WHERE id = %s", (self.partner.id,)
+            "SELECT ref FROM res_partner WHERE id = %s", (self.partner.id,)
         )
         self.assertEqual(self.env.cr.fetchone()[0], "111")
 
@@ -447,10 +447,10 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
 
     def test_web_save_multi_missing_baseline_fails_open(self):
         recs = self.c1 + self.c2
-        self._server_set_on(self.c2, phone="concurrent")
+        self._server_set_on(self.c2, ref="concurrent")
         recs.web_save_multi(
-            [{"phone": "a1"}, {"phone": "a2"}],
-            specification={"phone": {}},
-            known_values={self.c1.id: {"phone": self.c1.phone or False}},
+            [{"ref": "a1"}, {"ref": "a2"}],
+            specification={"ref": {}},
+            known_values={self.c1.id: {"ref": self.c1.ref or False}},
         )
-        self.assertEqual(recs.mapped("phone"), ["a1", "a2"])
+        self.assertEqual(recs.mapped("ref"), ["a1", "a2"])

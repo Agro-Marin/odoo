@@ -13,6 +13,7 @@ export class ResPartner extends webModels.ResPartner {
     _inherit = ["mixin.mail.thread"];
 
     description = fields.Char({ string: "Description" });
+    phone = fields.Char({ string: "Phone" });
     hasWriteAccess = fields.Boolean({ default: true });
     is_in_call = fields.Boolean({ compute: "_compute_is_in_call" });
     activity_summary = fields.Char({ compute: "_compute_activity_next" });

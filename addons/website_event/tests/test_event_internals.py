@@ -115,7 +115,9 @@ class TestEventData(EventCase, MockVisitor):
                 {
                     "name": "Pixis",
                     "email": "pixis@gmail.com",
-                    "phone": "+32444444444",
+                    "phone_ids": [
+                        Command.create({"number": "+32444444444", "type": "mobile"})
+                    ],
                     "event_ticket_id": ticket_id_1.id,
                     "registration_answer_ids": [
                         (
@@ -179,7 +181,9 @@ class TestEventData(EventCase, MockVisitor):
                 {
                     "name": "Geluchat",
                     "email": "geluchat@gmail.com",
-                    "phone": "+32777777777",
+                    "phone_ids": [
+                        Command.create({"number": "+32777777777", "type": "mobile"})
+                    ],
                     "company_name": "My Company",
                     "event_ticket_id": ticket_id_2.id,
                     "registration_answer_ids": [

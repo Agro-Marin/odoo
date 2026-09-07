@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from freezegun import freeze_time
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.tests import BaseCase, TransactionCase
 
 from odoo.addons.base.models.ir_actions_report import IrActionsReport
@@ -79,7 +79,7 @@ class MarketingCardCommon(TransactionCase, MockImageRender):
         cls.partners = cls.env['res.partner'].create([
             {'name': 'John', 'email': 'john93@trombino.scope'},
             {'name': 'Bob', 'email': 'bob@justbob.me',
-             'phone': '+32 123 446 789', 'image_1920': base64.b64encode(VALID_JPEG),
+             'phone_ids': [Command.create({'number': '+32 123 446 789'})], 'image_1920': base64.b64encode(VALID_JPEG),
              },
         ])
 
@@ -124,7 +124,7 @@ class MarketingCardCommon(TransactionCase, MockImageRender):
             'content_sub_section1_dyn': True,
             'content_sub_section1_path': 'email',
             'content_sub_section2_dyn': True,
-            'content_sub_section2_path': 'phone',
+            'content_sub_section2_path': 'phone_ids.number',
             'content_image1_path': 'user_ids.image_256',
             'content_image2_path': 'image_256',
         })

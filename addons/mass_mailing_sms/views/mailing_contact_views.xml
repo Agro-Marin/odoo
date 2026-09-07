@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="mass_mailing.mailing_contact_view_search" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='name']" position="after">
-                <field name="mobile" />
+                <field name="phone_mobile_search" />
                 <field name="phone_sanitized" invisible="1" />
             </xpath>
             <xpath expr="//filter[@name='filter_blacklisted']" position="attributes">
@@ -40,7 +40,7 @@
         <field name="priority">20</field>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='country_id']" position="after">
-                <field name="mobile" class="o_force_ltr" readonly="1" />
+                <field name="phone_ids" widget="many2many_tags" class="o_force_ltr" readonly="1" />
                 <field name="phone_sanitized" column_invisible="True" />
                 <field name="phone_sanitized_blacklisted" />
             </xpath>
@@ -53,20 +53,17 @@
         <field name="inherit_id" ref="mass_mailing.mailing_contact_view_form" />
         <field name="arch" type="xml">
             <xpath expr="//div[@name='email_details']" position="after">
-                <label for="mobile" class="oe_inline" />
+                <label for="phone_ids" class="oe_inline" />
                 <div class="o_row o_row_readonly" name="phone_details">
                     <button
                         name="phone_action_blacklist_remove"
                         class="fa-solid fa-ban text-danger"
                         title="This phone number is blacklisted for SMS Marketing. Click to unblacklist."
                         type="object"
-                        context="{'default_phone': mobile}"
+                        context="{'default_phone': phone_sanitized}"
                         groups="base.group_user"
                         invisible="not phone_blacklisted" />
-                    <field
-                        name="mobile"
-                        widget="phone"
-                        options="{'enable_sms': True}" />
+                    <field name="phone_ids" widget="many2many_tags" />
                     <field name="phone_sanitized" invisible="1" />
                 </div>
             </xpath>
@@ -79,7 +76,7 @@
         <field name="inherit_id" ref="mass_mailing.mailing_contact_view_kanban" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='email']" position="after">
-                <field name="mobile" class="fw-bolder" />
+                <field name="phone_ids" widget="many2many_tags" class="fw-bolder" />
             </xpath>
         </field>
     </record>

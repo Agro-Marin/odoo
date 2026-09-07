@@ -44,8 +44,8 @@ class ResCompany(models.Model):
         related="partner_id.email",
         readonly=False,
     )
-    phone = fields.Char(
-        related="partner_id.phone",
+    phone_ids = fields.Many2many(
+        related="partner_id.phone_ids",
         readonly=False,
     )
     website = fields.Char(
@@ -71,7 +71,7 @@ class ResCompany(models.Model):
         default=lambda self: self._default_logo(),
         readonly=False,
     )
-    bank_ids = fields.One2many(
+    bank_ids = fields.Many2many(
         related="partner_id.bank_ids",
         readonly=False,
     )
@@ -343,7 +343,7 @@ class ResCompany(models.Model):
                             "is_company": True,
                             "image_1920": vals.get("logo"),
                             "email": vals.get("email"),
-                            "phone": vals.get("phone"),
+                            "phone_ids": vals.get("phone_ids"),
                             "website": vals.get("website"),
                             "vat": vals.get("vat"),
                             "country_id": vals.get("country_id"),

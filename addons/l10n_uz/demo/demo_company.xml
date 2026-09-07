@@ -11,7 +11,7 @@
         <field name="state_id" ref="base.state_uz_tk" />
         <field name="country_id" ref="base.uz" />
         <field name="zip">100123</field>
-        <field name="phone">+998 123 123 1234</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+998 123 123 1234', 'type': 'landline'})]" />
         <field name="email">info@company.uzexample.com</field>
         <field name="website">www.uzexample.com</field>
         <field name="is_company" eval="True" />

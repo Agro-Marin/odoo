@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests.common import TransactionCase
 
 
@@ -18,7 +19,9 @@ class TestRecipients(TransactionCase):
                 "name": "Valid Lelitre",
                 "email": "valid.lelitre@agrolait.com",
                 "country_id": cls.env.ref("base.be").id,
-                "phone": "0456001122",
+                "phone_ids": [
+                    Command.create({"number": "0456001122", "type": "landline"})
+                ],
             }
         )
         cls.partner_2 = Partner.create(
@@ -26,6 +29,8 @@ class TestRecipients(TransactionCase):
                 "name": "Valid Poilvache",
                 "email": "valid.other@gmail.com",
                 "country_id": cls.env.ref("base.be").id,
-                "phone": "+32 456 22 11 00",
+                "phone_ids": [
+                    Command.create({"number": "+32 456 22 11 00", "type": "landline"})
+                ],
             }
         )

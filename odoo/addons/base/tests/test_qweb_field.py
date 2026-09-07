@@ -2,7 +2,7 @@ import base64
 from datetime import date, datetime
 from unittest.mock import patch
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.tests import common, new_test_user
 from odoo.tools import NEGATIVE_SIGN_JOINER
 
@@ -247,7 +247,7 @@ class TestQwebFieldContact(common.TransactionCase):
             {
                 "name": "Wood Corner",
                 "email": "wood.corner26@example.com",
-                "phone": "(623)-853-7197",
+                "phone_ids": [Command.create({"number": "(623)-853-7197"})],
                 "website": "http://www.wood-corner.com",
             }
         )
@@ -258,7 +258,7 @@ class TestQwebFieldContact(common.TransactionCase):
         self.assertIn('itemprop="website"', result)
         self.assertIn(self.partner.website, result)
         self.assertIn('itemprop="telephone"', result)
-        self.assertIn(self.partner.phone, result)
+        self.assertIn(self.partner.phone_ids.number, result)
         self.assertNotIn('itemprop="email"', result)
 
     def test_value_to_html_without_phone(self):
@@ -266,7 +266,7 @@ class TestQwebFieldContact(common.TransactionCase):
         result = Contact.value_to_html(self.partner, {"fields": ["name", "website"]})
         self.assertIn('itemprop="website"', result)
         self.assertIn(self.partner.website, result)
-        self.assertNotIn(self.partner.phone, result)
+        self.assertNotIn(self.partner.phone_ids.number, result)
         self.assertIn(
             'itemprop="telephone"',
             result,

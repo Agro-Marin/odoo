@@ -4,7 +4,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from werkzeug.exceptions import Forbidden, NotFound
 
-from odoo import SUPERUSER_ID, _
+from odoo import SUPERUSER_ID, Command, _
 from odoo.exceptions import (
     AccessDenied,
     AccessError,
@@ -308,7 +308,10 @@ class CustomerPortal(Controller):
     def _has_all_address_fields(self, partner_sudo, field_names):
         if not partner_sudo:
             return False
-        return all(partner_sudo[field_name] for field_name in field_names)
+        return all(
+            partner_sudo["phone_ids" if field_name == "phone" else field_name]
+            for field_name in field_names
+        )
 
     def _get_mandatory_delivery_address_fields(self, country_sudo):
         return self._get_mandatory_address_form_fields(country_sudo)
@@ -511,22 +514,14 @@ class CustomerPortal(Controller):
                 request.env["res.partner"]
                 .sudo()
                 .with_context(create_context)
-                .create(address_values)
+                .create(self._phone_to_address_values(address_values))
             )
-            if hasattr(partner_sudo, "_onchange_phone_validation"):
-                partner_sudo._onchange_phone_validation()
         elif not self._are_same_addresses(address_values, partner_sudo):
             if (address_values.get("name") or "").strip() == (
                 partner_sudo.name or ""
             ).strip():
                 address_values.pop("name", None)
-            partner_sudo.write(
-                address_values
-            )
-            if "phone" in address_values and hasattr(
-                partner_sudo, "_onchange_phone_validation"
-            ):
-                partner_sudo._onchange_phone_validation()
+            partner_sudo.write(self._phone_to_address_values(address_values, partner_sudo))
 
         if company_name := (extra_form_data.get("company_name") or "").strip():
             commercial_partner = partner_sudo.commercial_partner_id
@@ -550,7 +545,9 @@ class CustomerPortal(Controller):
         for key, value in form_data.items():
             if isinstance(value, str):
                 value = value.strip()
-            if key in partner_fields and key in authorized_partner_fields:
+            if key == "phone" and key in authorized_partner_fields:
+                address_values[key] = value or False
+            elif key in partner_fields and key in authorized_partner_fields:
                 field = partner_fields[key]
                 if (
                     field.type == "many2one"
@@ -818,10 +815,32 @@ class CustomerPortal(Controller):
     def _are_same_addresses(self, address_values, partner):
         ResPartner = request.env["res.partner"]
         for key, new_val in address_values.items():
-            val = ResPartner._fields[key].convert_to_cache(partner[key], ResPartner)
+            if key == "phone":
+                val = partner.phone_ids._primary().number or False
+            else:
+                val = ResPartner._fields[key].convert_to_cache(
+                    partner[key], ResPartner
+                )
             if new_val != val and (val or new_val):
                 return False
         return True
+
+    def _phone_to_address_values(self, address_values, partner_sudo=None):
+        if "phone" not in address_values:
+            return address_values
+        values = dict(address_values)
+        phone = values.pop("phone")
+        current = partner_sudo.phone_ids._primary() if partner_sudo else None
+        if not phone:
+            values["phone_ids"] = [Command.clear()]
+        elif current:
+            values["phone_ids"] = [
+                Command.unlink(current.id),
+                Command.create({"number": phone, "type": current.type}),
+            ]
+        else:
+            values["phone_ids"] = [Command.create({"number": phone, "type": "mobile"})]
+        return values
 
     def _handle_extra_form_data(self, extra_form_data, address_values):
         pass

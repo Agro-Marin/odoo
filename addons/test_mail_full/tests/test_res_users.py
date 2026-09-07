@@ -1,3 +1,5 @@
+from odoo import Command
+
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.test_mail_full.tests.common import TestMailFullCommon
 
@@ -9,7 +11,7 @@ class TestResUsers(TestMailFullCommon):
         cls.portal_user = mail_new_test_user(
             cls.env,
             login="portal_user",
-            phone="+32 494 12 34 89",
+            phone_ids=[Command.create({"number": "+32 494 12 34 89"})],
             password="password",
             name="Portal User",
             email="portal@test.example.com",
@@ -19,7 +21,7 @@ class TestResUsers(TestMailFullCommon):
         cls.portal_user_2 = mail_new_test_user(
             cls.env,
             login="portal_user_2",
-            phone="invalid phone",
+            phone_ids=[Command.create({"number": "invalid phone"})],
             password="password",
             name="Portal User 2",
             email="portal_2@test.example.com",
@@ -29,7 +31,7 @@ class TestResUsers(TestMailFullCommon):
         cls.portal_user_3 = mail_new_test_user(
             cls.env,
             login="portal_user_3",
-            phone="+32 494 12 34 22",
+            phone_ids=[Command.create({"number": "+32 494 12 34 22"})],
             password="password",
             name="Portal User 3",
             email="portal_3@test.example.com",

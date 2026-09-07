@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import tagged
 from odoo.tools import mute_logger
 
@@ -27,7 +28,10 @@ class TestServerAction(SMSCommon, TestSMSRecipients):
                 {
                     "name": "Test Record 2",
                     "customer_id": False,
-                    "phone_nbr": cls.test_numbers[0],
+                    "phone_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": cls.test_numbers[0]}),
+                    ],
                 }
             )
         )

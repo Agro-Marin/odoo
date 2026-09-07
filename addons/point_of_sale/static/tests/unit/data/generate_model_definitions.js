@@ -11,6 +11,7 @@ import { BarcodeNomenclature } from "./barcode_nomenclature.data.js";
 import { DecimalPrecision } from "./decimal_precision.data.js";
 import { IrModuleModule } from "./ir_module_module.data.js";
 import { IrSequence } from "./ir_sequence.data.js";
+import { PhoneNumber } from "./phone_number.data.js";
 import { PosBill } from "./pos_bill.data.js";
 import { PosCategory } from "./pos_category.data.js";
 import { PosConfig } from "./pos_config.data.js";
@@ -99,6 +100,7 @@ export const hootPosModels = [
     StockPickingType,
     IrSequence,
     PosNote,
+    PhoneNumber,
     IrModuleModule,
     AccountJournal,
     ResourceCalendar,

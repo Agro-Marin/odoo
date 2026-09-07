@@ -47,7 +47,7 @@ class CalendarAttendee(models.Model):
         "res.partner", "Attendee", required=True, readonly=True, ondelete="cascade"
     )
     email = fields.Char("Email", related="partner_id.email")
-    phone = fields.Char("Phone", related="partner_id.phone")
+    phone_ids = fields.Many2many(string="Phone", related="partner_id.phone_ids")
     common_name = fields.Char("Common name", compute="_compute_common_name", store=True)
     # `access_token` is the bearer credential of the `calendar` auth method:
     # holding one is enough to accept or decline an invitation from an

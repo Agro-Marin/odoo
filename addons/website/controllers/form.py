@@ -6,7 +6,7 @@ from markupsafe import Markup
 from psycopg import IntegrityError
 from werkzeug.exceptions import BadRequest
 
-from odoo import SUPERUSER_ID, http
+from odoo import SUPERUSER_ID, Command, http
 from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.http import request
 from odoo.libs.text import nl2br, nl2br_enclose
@@ -235,6 +235,11 @@ class WebsiteForm(http.Controller):
                 if dest_model._name == "mail.mail" and field_name == "email_from":
                     custom_fields.append((_("email"), field_value))
 
+            elif field_name == "phone" and "phone_ids" in authorized_fields:
+                if field_value:
+                    data["record"]["phone_ids"] = [
+                        Command.create({"number": field_value, "type": "mobile"})
+                    ]
             elif field_name not in ("context", "website_form_signature"):
                 custom_fields.append((field_name, field_value))
 

@@ -93,9 +93,10 @@ class MailTestRating(models.Model):
         readonly=False,
         store=True,
     )
-    phone_nbr = fields.Char(
-        "Phone Number",
-        compute="_compute_phone_nbr",
+    phone_nbr_ids = fields.Many2many(
+        "phone.number",
+        string="Phone Numbers",
+        compute="_compute_phone_nbr_ids",
         precompute=True,
         readonly=False,
         store=True,
@@ -111,12 +112,12 @@ class MailTestRating(models.Model):
                 rating.email_from = False
 
     @api.depends("customer_id")
-    def _compute_phone_nbr(self):
+    def _compute_phone_nbr_ids(self):
         for rating in self:
-            if rating.customer_id.phone:
-                rating.phone_nbr = rating.customer_id.phone
-            elif not rating.phone_nbr:
-                rating.phone_nbr = False
+            if rating.customer_id.phone_ids:
+                rating.phone_nbr_ids = rating.customer_id.phone_ids
+            elif not rating.phone_nbr_ids:
+                rating.phone_nbr_ids = False
 
     @api.depends("name", "subject")
     def _compute_display_name(self):
@@ -130,7 +131,7 @@ class MailTestRating(models.Model):
             )
 
     def _get_phone_number_fields(self):
-        return ["phone_nbr"]
+        return ["phone_nbr_ids"]
 
     def _rating_apply_get_default_subtype_id(self):
         return self.env["ir.model.data"]._xmlid_to_res_id(

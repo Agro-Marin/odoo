@@ -77,7 +77,7 @@
                             </div>
                         </group>
                         <group name="communication_details">
-                            <field name="phone" class="o_force_ltr" />
+                            <field name="phone_ids" widget="many2many_tags" />
                             <field name="email" widget="email" />
                         </group>
                     </group>
@@ -114,7 +114,7 @@
                 <field
                     name="company_id"
                     invisible="context.get('company_hide', True)" />
-                <field name="partner_id" />
+                <field name="partner_ids" />
                 <separator />
                 <filter
                     name="inactive"
@@ -132,7 +132,7 @@
             <list string="Bank Accounts" multi_edit="1" decoration-muted="(not active)">
                 <field name="sequence" widget="handle" />
                 <field name="acc_number" />
-                <field name="partner_id" optional="hide" />
+                <field name="partner_ids" widget="many2many_tags" optional="hide" />
                 <field name="bank_name" string="Bank" optional="show" />
                 <field
                     name="company_id"
@@ -163,7 +163,7 @@
                         <group>
                             <field name="acc_number" />
                             <field name="clearing_number" />
-                            <field name="partner_id" />
+                            <field name="partner_ids" widget="many2many_tags" />
                             <field name="acc_holder_name" />
                             <field name="bank_id" />
                         </group>

@@ -400,7 +400,7 @@ class TestWorkflowDAGExecution(TransactionCase):
                 "name": "Set Phone",
                 "model_id": self.model_partner.id,
                 "state": "code",
-                "code": "record.write({'phone': '999-888-7777'})",
+                "code": "record.write({'ref': '999-888-7777'})",
                 "automation_rule_id": automation.id,
                 "usage": "automation",
             }
@@ -418,9 +418,9 @@ class TestWorkflowDAGExecution(TransactionCase):
         runtime.action_run_all()
 
         self.assertEqual(runtime.state, "done")
-        self.test_partner.invalidate_recordset(["email", "phone"])
+        self.test_partner.invalidate_recordset(["email", "ref"])
         self.assertEqual(self.test_partner.email, "dag@example.com")
-        self.assertEqual(self.test_partner.phone, "999-888-7777")
+        self.assertEqual(self.test_partner.ref, "999-888-7777")
 
     @mute_logger("odoo.addons.automation.models.automation_runtime_line")
     def test_error_in_action_marks_line_error(self):

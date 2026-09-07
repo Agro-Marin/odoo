@@ -1573,7 +1573,7 @@ class test_realworld(SavepointCaseWithUserDemo):
             file_open("test_import_export/data/contacts_big.json", "rt").read()
         )
         result = self.env["res.partner"].load(
-            ["name", "phone", "email", "image_1920"], data
+            ["name", "phone_ids/number", "email", "image_1920"], data
         )
         self.assertFalse(result["messages"])
         self.assertEqual(len(result["ids"]), len(data))

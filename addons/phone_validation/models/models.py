@@ -1,4 +1,4 @@
-from odoo import api, exceptions, models
+from odoo import Command, api, exceptions, models
 
 from odoo.addons.phone_validation.tools import phone_validation
 
@@ -6,29 +6,36 @@ from odoo.addons.phone_validation.tools import phone_validation
 class Base(models.AbstractModel):
     _inherit = "base"
 
-    # ------------------------------------------------------------
-    # FIELDS HELPERS
-    # ------------------------------------------------------------
-
     @api.model
     def _get_phone_number_fields(self):
-        """Return the fields likely to hold a phone number on the record (e.g. 'mobile', 'phone')."""
         return [
-            number_fname for number_fname in ("mobile", "phone") if number_fname in self
+            fname
+            for fname in ("phone_ids",)
+            if fname in self._fields
+            and self._fields[fname].type == "many2many"
+            and self._fields[fname].comodel_name == "phone.number"
         ]
 
+    def _phone_get_numbers(self, fname=False):
+        self.check_singleton()
+        numbers = self.env["phone.number"]
+        for field_name in [fname] if fname else self._get_phone_number_fields():
+            if field_name in self._fields:
+                numbers |= self[field_name]
+        return numbers
+
+    def _phone_get_number(self, *types, fname=False):
+        return self._phone_get_numbers(fname=fname)._primary(*types)
+
+    def _phone_replace_number(self, fname, number, *types):
+        self.check_singleton()
+        old = self._phone_get_numbers(fname=fname)._primary(*types)
+        commands = [Command.create({"number": number, "type": old.type or "mobile"})]
+        if old:
+            commands.insert(0, Command.unlink(old.id))
+        self.write({fname: commands})
+
     def _phone_get_country(self):
-        """Get a country likely to match the phone of the record.
-
-        By default we get it from:
-
-        - The country field of the target record (self) based on
-          :meth:`_phone_get_country_field`;
-        - The country of any mail partner (e.g. ``self.partner_ids[2].phone``),
-          considering we are going to contact the customer(s) of the record.
-          Done using generic :meth:`_mail_get_partner_fields` method allowing
-          to find record customers;
-        """
         country_by_record = {}
         record_country_fname = self._phone_get_country_field()
         for record in self:
@@ -57,43 +64,15 @@ class Base(models.AbstractModel):
         force_format="E164",
         raise_exception=False,
     ):
-        """Format and return number. This number can be found using a field
-        (in which case self should be a singleton recordet), or directly given
-        if the formatting itself is what matter. Field name can be found
-        automatically using :meth:`_get_phone_number_fields`.
-
-        :param str fname: if number is not given, fname indicates the field to
-          use to find the number; otherwise use :meth:`_get_phone_number_fields`.;
-        :param str number: number to format (in which case fields-based computation
-          is skipped);
-        :param <res.country> country: country used for formatting number; otherwise
-          it is fetched based on record, using :meth:`_phone_get_country`.;
-        :param str force_format: stringified version of format globals; should be
-          one of ``'E164'``, ``'INTERNATIONAL'``, ``'NATIONAL'`` or ``'RFC3966'``;
-        :param bool raise_exception: raise if formatting is not possible (notably
-          wrong formatting, invalid country information, ...). Otherwise ``False``
-          is returned;
-
-        :return: formatted number. If formatting is not possible ``False`` is
-          returned.
-        :rtype: str | Literal[False]
-        """
         if not number:
-            # if no number is given, having a singletong recordset is mandatory to
-            # always have a number as input
             self.check_singleton()
-            fnames = self._get_phone_number_fields() if not fname else [fname]
-            # Keep `fname in self and self[fname]`: `self` is a recordset (field-membership `in`
-            # + `self[fname]` access), NOT a dict — RUF019's self.get(fname) rewrite would crash.
-            number = next(
-                (self[fname] for fname in fnames if fname in self and self[fname]),  # noqa: RUF019
-                False,
-            )
+            phone = self._phone_get_number(fname=fname)
+            number = phone.number
+            if phone.country_id and not country:
+                country = phone.country_id
         if not number:
             return False
 
-        # fetch country info only if self is a singleton recordset allowing to
-        # effectively try to find a country
         if not country and self:
             self.check_singleton()
             country = self._phone_get_country().get(self.id)
@@ -110,8 +89,6 @@ class Base(models.AbstractModel):
     def _phone_format_number(
         self, number, country, force_format="E164", raise_exception=False
     ):
-        """Format and return number according to the asked format. This is
-        mainly a small helper around :func:`phone_validation.phone_format`."""
         if not number:
             return False
 
@@ -121,7 +98,7 @@ class Base(models.AbstractModel):
                 country.code,
                 country.phone_code,
                 force_format=force_format,
-                raise_exception=True,  # do not get original number returned
+                raise_exception=True,
             )
         except exceptions.UserError:
             if raise_exception:

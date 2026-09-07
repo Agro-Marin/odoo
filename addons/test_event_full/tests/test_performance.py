@@ -384,11 +384,12 @@ class TestRegistrationPerformance(EventPerformanceCase):
             self.env.cr._now = (
                 self.reference_now
             )  # force create_date to check schedulers
+            phone = self.env["phone.number"].create({"number": "0456000000"})
             with Form(self.env["event.registration"]) as reg_form:
                 reg_form.event_id = event
                 reg_form.email = "email.00@test.example.com"
                 reg_form.name = "My Customer"
-                reg_form.phone = "0456000000"
+                reg_form.phone_ids.add(phone)
             _registration = reg_form.save()
 
     @users("event_user")

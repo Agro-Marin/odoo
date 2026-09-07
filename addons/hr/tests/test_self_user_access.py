@@ -22,7 +22,10 @@ class TestSelfAccessPreferences(TestHrCommon):
         )
         james = james.with_user(james)
         james_bank_account = self.env["res.partner.bank"].create(
-            {"acc_number": "BE1234567890", "partner_id": james.partner_id.id}
+            {
+                "acc_number": "BE1234567890",
+                "partner_ids": [Command.link(james.partner_id.id)],
+            }
         )
         self.env["hr.employee"].create(
             {
@@ -172,7 +175,9 @@ class TestSelfAccessRights(TestHrCommon):
             {
                 "name": "Richard",
                 "user_id": cls.richard.id,
-                "private_phone": "21454",
+                "private_phone_ids": [
+                    Command.create({"number": "21454", "type": "landline"})
+                ],
             }
         )
         cls.hubert = new_test_user(
@@ -293,7 +298,10 @@ class TestSelfAccessRights(TestHrCommon):
         )
         hubert = hubert.with_user(hubert)
         hubert_acc = self.env["res.partner.bank"].create(
-            {"acc_number": "FR1234567890", "partner_id": hubert.partner_id.id}
+            {
+                "acc_number": "FR1234567890",
+                "partner_ids": [Command.link(hubert.partner_id.id)],
+            }
         )
         hubert_emp = self.env["hr.employee"].create(
             {

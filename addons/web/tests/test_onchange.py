@@ -71,7 +71,7 @@ class TestOnchange(common.TransactionCase):
 
     def test_snapshot_diff_link_lines_are_batched(self):
         Partner = self.env["res.partner"]
-        spec = {"child_ids": {"fields": {"name": {}, "email": {}, "phone": {}}}}
+        spec = {"child_ids": {"fields": {"name": {}, "email": {}, "ref": {}}}}
 
         def diff_queries(n):
             kids = Partner.create([{"name": f"kid{i}"} for i in range(n)])

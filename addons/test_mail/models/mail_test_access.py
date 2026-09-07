@@ -17,7 +17,9 @@ class MailTestAccess(models.Model):
 
     name = fields.Char()
     email_from = fields.Char()
-    phone = fields.Char()
+    phone_ids = fields.Many2many(
+        "phone.number",
+    )
     customer_id = fields.Many2one("res.partner", "Customer")
     access = fields.Selection(
         [
@@ -48,7 +50,9 @@ class MailTestAccessCusto(models.Model):
 
     name = fields.Char()
     email_from = fields.Char()
-    phone = fields.Char()
+    phone_ids = fields.Many2many(
+        "phone.number",
+    )
     customer_id = fields.Many2one("res.partner", "Customer")
     is_locked = fields.Boolean()
     is_readonly = fields.Boolean()
@@ -75,7 +79,9 @@ class MailTestAccessPublic(models.Model):
     name = fields.Char("Name")
     customer_id = fields.Many2one("res.partner", "Customer")
     email = fields.Char("Email")
-    mobile = fields.Char("Mobile")
+    phone_ids = fields.Many2many(
+        "phone.number",
+    )
     is_locked = fields.Boolean()
 
     def _mail_get_customer_information(self):
@@ -86,5 +92,5 @@ class MailTestAccessPublic(models.Model):
                 continue
             values = email_key_to_values.setdefault(record.email, {})
             if not values.get("phone"):
-                values["phone"] = record.mobile
+                values["phone"] = record.phone_ids[:1].number
         return email_key_to_values

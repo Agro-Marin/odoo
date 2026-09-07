@@ -35,7 +35,7 @@
                                     placeholder="Pick a Renter..." />
                                 <field name="contact_name" />
                                 <field name="contact_email" widget="email" />
-                                <field name="contact_phone" widget="phone" />
+                                <field name="phone_ids" widget="many2many_tags" />
                             </group>
                         </group>
                     </sheet>
@@ -77,7 +77,7 @@
                     <field name="partner_id" />
                     <field name="contact_name" optional="hide" />
                     <field name="contact_email" optional="hide" />
-                    <field name="contact_phone" optional="hide" />
+                    <field name="phone_ids" widget="many2many_tags" optional="hide" />
                     <field
                         name="state"
                         widget="badge"

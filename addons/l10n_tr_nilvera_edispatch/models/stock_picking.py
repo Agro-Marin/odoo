@@ -292,7 +292,9 @@ class StockPicking(models.Model):
             'zip': self._get_tag_text('./cac:PostalAddress/cbc:PostalZone', party),
             'state': self._get_tag_text('./cac:PostalAddress/cbc:CityName', party),
             'country': self._get_tag_text('./cac:PostalAddress/cac:Country/cbc:Name', party),
-            'phone': self._get_tag_text('./cac:Contact/cbc:Telephone', party),
+            'phone_ids': [Command.create({'number': phone, 'type': 'landline'})]
+            if (phone := self._get_tag_text('./cac:Contact/cbc:Telephone', party))
+            else False,
             'email': self._get_tag_text('./cac:Contact/cbc:ElectronicMail', party),
         }
 

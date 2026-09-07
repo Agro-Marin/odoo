@@ -11,7 +11,7 @@ class EventRegistration(models.Model):
     def _get_fields_website_registration_allowed(self):
         return {
             "name",
-            "phone",
+            "phone_ids",
             "email",
             "company_name",
             "event_id",

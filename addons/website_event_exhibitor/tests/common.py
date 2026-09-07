@@ -1,3 +1,5 @@
+from odoo import Command
+
 from odoo.addons.website_event.tests.common import TestEventOnlineCommon
 
 
@@ -18,7 +20,7 @@ class TestEventExhibitorCommon(TestEventOnlineCommon):
                 "name": "EventSponsor",
                 "country_id": cls.env.ref("base.be").id,
                 "email": "event.sponsor@example.com",
-                "phone": "04856112233",
+                "phone_ids": [Command.create({"number": "04856112233", "type": "landline"})],
             }
         )
 

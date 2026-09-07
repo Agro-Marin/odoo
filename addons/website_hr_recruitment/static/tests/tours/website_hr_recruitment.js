@@ -32,7 +32,7 @@ function applyForAJob(jobName, application) {
         },
         {
             content: "Complete phone number",
-            trigger: "input[name=partner_phone]",
+            trigger: "input[name=phone]",
             run: `edit ${application.phone}`,
         },
         {

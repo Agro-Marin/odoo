@@ -1,4 +1,5 @@
 from datetime import datetime
+from odoo import Command
 
 from freezegun import freeze_time
 
@@ -23,7 +24,7 @@ class TestMyUBLPint(AccountTestInvoicingCommon):
             'state_id': cls.env.ref('base.state_my_jhr').id,
             'street': 'that one street, 5',
             'city': 'Main city',
-            'phone': '+60123456789',
+            'phone_ids': [Command.create({"number": '+60123456789', "type": "landline"})],
         })
         cls.partner_a.write({
             'vat': 'C2584563201',
@@ -31,7 +32,7 @@ class TestMyUBLPint(AccountTestInvoicingCommon):
             'state_id': cls.env.ref('base.state_my_jhr').id,
             'street': 'that other street, 3',
             'city': 'Main city',
-            'phone': '+60123456786',
+            'phone_ids': [Command.create({"number": '+60123456786', "type": "landline"})],
         })
 
         cls.fakenow = datetime(2024, 7, 15, 10, 00, 00)

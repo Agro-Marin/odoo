@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import tagged
 from odoo.tests.common import users, warmup
 from odoo.tools import mute_logger
@@ -18,7 +19,7 @@ class TestSMSPerformance(BaseMailPerformance, sms_common.SMSCase):
                 {
                     "name": "Test",
                     "customer_id": cls.customer.id,
-                    "phone_nbr": "0456999999",
+                    "phone_nbr_ids": [Command.create({"number": "0456999999"})],
                 }
             )
         )
@@ -32,7 +33,11 @@ class TestSMSPerformance(BaseMailPerformance, sms_common.SMSCase):
                     {
                         "country_id": cls.env.ref("base.be").id,
                         "email": "test%s@example.com" % x,
-                        "phone": "0456%s%s0000" % (x, x),
+                        "phone_ids": [
+                            Command.create(
+                                {"number": "0456%s%s0000" % (x, x), "type": "landline"}
+                            )
+                        ],
                         "name": "Test %s" % x,
                     }
                     for x in range(10)
@@ -128,7 +133,14 @@ class TestSMSMassPerformance(BaseMailPerformance, sms_common.MockSMS):
                         "name": "Partner_%s" % (x),
                         "email": "_test_partner_%s@example.com" % (x),
                         "country_id": be_country_id,
-                        "phone": "047500%02d%02d" % (x, x),
+                        "phone_ids": [
+                            Command.create(
+                                {
+                                    "number": "047500%02d%02d" % (x, x),
+                                    "type": "landline",
+                                }
+                            )
+                        ],
                     }
                 )
             )

@@ -16,13 +16,17 @@ class MailTestSms(models.Model):
     subject = fields.Char()
     email_from = fields.Char()
     guest_ids = fields.Many2many("res.partner")
-    phone_nbr = fields.Char()
-    mobile_nbr = fields.Char()
+    phone_nbr_ids = fields.Many2many(
+        "phone.number", "mail_test_sms_phone_nbr_rel", "record_id", "phone_number_id"
+    )
+    mobile_nbr_ids = fields.Many2many(
+        "phone.number", "mail_test_sms_mobile_nbr_rel", "record_id", "phone_number_id"
+    )
     customer_id = fields.Many2one("res.partner", "Customer")
     country_id = fields.Many2one("res.country")
 
     def _get_phone_number_fields(self):
-        return ["phone_nbr", "mobile_nbr"]
+        return ["phone_nbr_ids", "mobile_nbr_ids"]
 
 
 class MailTestSmsBl(models.Model):
@@ -39,19 +43,32 @@ class MailTestSmsBl(models.Model):
     name = fields.Char()
     subject = fields.Char()
     email_from = fields.Char()
-    phone_nbr = fields.Char(compute="_compute_phone_nbr", readonly=False, store=True)
-    mobile_nbr = fields.Char()
+    phone_nbr_ids = fields.Many2many(
+        "phone.number",
+        "mail_test_sms_bl_phone_nbr_rel",
+        "record_id",
+        "phone_number_id",
+        compute="_compute_phone_nbr_ids",
+        readonly=False,
+        store=True,
+    )
+    mobile_nbr_ids = fields.Many2many(
+        "phone.number",
+        "mail_test_sms_bl_mobile_nbr_rel",
+        "record_id",
+        "phone_number_id",
+    )
     customer_id = fields.Many2one("res.partner", "Customer")
 
     @api.depends("customer_id")
-    def _compute_phone_nbr(self):
+    def _compute_phone_nbr_ids(self):
         for phone_record in self.filtered(
-            lambda rec: not rec.phone_nbr and rec.customer_id
+            lambda rec: not rec.phone_nbr_ids and rec.customer_id
         ):
-            phone_record.phone_nbr = phone_record.customer_id.phone
+            phone_record.phone_nbr_ids = phone_record.customer_id.phone_ids
 
     def _get_phone_number_fields(self):
-        return ["phone_nbr", "mobile_nbr"]
+        return ["phone_nbr_ids", "mobile_nbr_ids"]
 
 
 class MailTestSmsBlActivity(models.Model):
@@ -66,6 +83,11 @@ class MailTestSmsBlActivity(models.Model):
     ]
     _mailing_enabled = True
     _order = "name asc, id asc"
+
+    phone_nbr_ids = fields.Many2many(relation="mail_test_sms_bl_activity_phone_nbr_rel")
+    mobile_nbr_ids = fields.Many2many(
+        relation="mail_test_sms_bl_activity_mobile_nbr_rel"
+    )
 
 
 class MailTestSmsBlOptout(models.Model):
@@ -82,13 +104,23 @@ class MailTestSmsBlOptout(models.Model):
     name = fields.Char()
     subject = fields.Char()
     email_from = fields.Char()
-    phone_nbr = fields.Char()
-    mobile_nbr = fields.Char()
+    phone_nbr_ids = fields.Many2many(
+        "phone.number",
+        "mail_test_sms_bl_optout_phone_nbr_rel",
+        "record_id",
+        "phone_number_id",
+    )
+    mobile_nbr_ids = fields.Many2many(
+        "phone.number",
+        "mail_test_sms_bl_optout_mobile_nbr_rel",
+        "record_id",
+        "phone_number_id",
+    )
     customer_id = fields.Many2one("res.partner", "Customer")
     opt_out = fields.Boolean()
 
     def _get_phone_number_fields(self):
-        return ["phone_nbr", "mobile_nbr"]
+        return ["phone_nbr_ids", "mobile_nbr_ids"]
 
     def _mailing_get_opt_out_list_sms(self, mailing):
         res_ids = mailing._get_recipients()

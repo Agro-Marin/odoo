@@ -1,6 +1,6 @@
 from math import floor, log10
 
-from odoo import api, models
+from odoo import Command, api, models
 
 
 class CrmIapLeadHelpers(models.Model):
@@ -57,8 +57,12 @@ class CrmIapLeadHelpers(models.Model):
             "name": company_data.get("name", "") or company_data.get("domain", ""),
             "partner_name": company_data.get("name", ""),
             "email_from": next(iter(company_data.get("email", [])), ""),
-            "phone": company_data.get("phone")
-            or next(iter(company_data.get("phone_numbers", [])), ""),
+            "phone_ids": [Command.create({"number": phone, "type": "landline"})]
+            if (
+                phone := company_data.get("phone")
+                or next(iter(company_data.get("phone_numbers", [])), "")
+            )
+            else False,
             "website": website_url,
             "street": company_data.get("street") or company_data.get("location", ""),
             "street2": company_data.get("street2"),

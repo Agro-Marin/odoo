@@ -517,8 +517,16 @@ class PosOrder(models.Model):
     email = fields.Char(
         string="Email", compute="_compute_contact_details", readonly=False, store=True
     )
-    mobile = fields.Char(
-        string="Mobile", compute="_compute_contact_details", readonly=False, store=True
+    phone_ids = fields.Many2many(
+        "phone.number",
+        "pos_order_phone_number_rel",
+        "order_id",
+        "phone_number_id",
+        string="Phone Numbers",
+        compute="_compute_contact_details",
+        inverse="_inverse_phone_ids",
+        readonly=False,
+        store=True,
     )
     is_edited = fields.Boolean(string="Edited", compute="_compute_is_edited")
     has_deleted_line = fields.Boolean(string="Has Deleted Line")
@@ -656,9 +664,13 @@ class PosOrder(models.Model):
     def _compute_contact_details(self):
         for order in self:
             order.email = order.partner_id.email or ""
-            order.mobile = order._phone_format(
-                number=order.partner_id.phone or "", country=order.partner_id.country_id
-            )
+            order.phone_ids = order.partner_id.phone_ids
+
+    def _inverse_phone_ids(self):
+        for order in self.filtered("partner_id"):
+            missing = order.phone_ids - order.partner_id.phone_ids
+            if missing:
+                order.partner_id.phone_ids = [Command.link(p.id) for p in missing]
 
     def _update_total_cost_in_real_time(self):
         for order in self:
@@ -807,8 +819,7 @@ class PosOrder(models.Model):
     def write(self, vals):
         vals = dict(vals)
         if len(self) > 1 and (
-            vals.get("mobile")
-            or vals.get("payment_ids")
+            vals.get("payment_ids")
             or (vals.get("state") == "paid" and any(o.name == "/" for o in self))
             or (
                 vals.get("has_deleted_line") is not None
@@ -831,11 +842,6 @@ class PosOrder(models.Model):
                     else False
                 )
                 vals["name"] = order._get_order_name(session)
-            if vals.get("mobile"):
-                vals["mobile"] = order._phone_format(
-                    number=vals.get("mobile"),
-                    country=order.partner_id.country_id or self.env.company.country_id,
-                )
             if vals.get("has_deleted_line") is not None and order.has_deleted_line:
                 del vals["has_deleted_line"]
             allowed_vals = ["paid", "done"]

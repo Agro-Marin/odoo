@@ -1,6 +1,6 @@
 from itertools import product
 
-from odoo import SUPERUSER_ID
+from odoo import SUPERUSER_ID, Command
 from odoo.fields import Datetime
 from odoo.tests import Form, tagged, users
 
@@ -160,19 +160,22 @@ class TestLeadConvert(crm_common.TestLeadConvertCommon):
             self.lead_1.date_open, Datetime.from_string("2020-01-15 11:30:00")
         )
         self.assertEqual(self.lead_1.lang_id, self.lang_fr)
-        self.assertEqual(self.lead_1.phone, "+1 202 555 9999")
+        self.assertEqual(self.lead_1._phone_get_number().number, "+1 202 555 9999")
         self.assertEqual(self.lead_1.user_id, self.user_sales_leads)
         self.assertEqual(self.lead_1.team_id, self.sales_team_1)
         self.assertEqual(self.lead_1.stage_id, self.stage_team1_1)
 
     @users("user_sales_manager")
     def test_lead_convert_base(self):
-        self.contact_2.phone = False
-        self.assertFalse(self.contact_2.phone)
+        self.contact_2.phone_ids = [Command.clear()]
+        self.assertFalse(self.contact_2.phone_ids)
         lead = self.lead_1.with_user(self.env.user)
         lead.write(
             {
-                "phone": "123456789",
+                "phone_ids": [
+                    Command.clear(),
+                    Command.create({"number": "123456789", "type": "landline"}),
+                ],
             }
         )
         self.assertEqual(lead.team_id, self.sales_team_1)
@@ -185,7 +188,7 @@ class TestLeadConvert(crm_common.TestLeadConvertCommon):
         self.assertEqual(lead.partner_id, self.contact_2)
         self.assertEqual(lead.email_from, self.contact_2.email)
         self.assertEqual(lead.lang_id, self.lang_en)
-        self.assertEqual(lead.phone, "123456789")
+        self.assertEqual(lead._phone_get_number().number, "123456789")
         self.assertEqual(lead.team_id, self.sales_team_1)
         self.assertEqual(lead.stage_id, self.stage_team1_1)
 
@@ -337,7 +340,7 @@ class TestLeadConvert(crm_common.TestLeadConvertCommon):
         new_partner = self.lead_1.partner_id
         self.assertEqual(new_partner.email, "amy.wong@test.example.com")
         self.assertEqual(new_partner.lang, self.lang_fr.code)
-        self.assertEqual(new_partner.phone, "+1 202 555 9999")
+        self.assertEqual(new_partner._phone_get_number().number, "+1 202 555 9999")
         self.assertEqual(new_partner.name, "Amy Wong")
 
     @users("user_sales_manager")

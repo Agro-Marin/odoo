@@ -1,6 +1,6 @@
 from ast import literal_eval
 
-from odoo import exceptions
+from odoo import Command, exceptions
 from odoo.tests import tagged
 from odoo.tests.common import users
 from odoo.tools import mute_logger
@@ -81,35 +81,35 @@ class TestMassSMSInternals(TestMassSMSCommon):
             {
                 "name": "MassSMSTest_nr1",
                 "customer_id": self.partners[0].id,
-                "phone_nbr": "0456999999",
+                "phone_nbr_ids": [Command.create({"number": "0456999999"})],
             }
         )
         void_record = self.env["mail.test.sms"].create(
             {
                 "name": "MassSMSTest_void",
                 "customer_id": False,
-                "phone_nbr": "",
+                "phone_nbr_ids": False,
             }
         )
         falsy_record_1 = self.env["mail.test.sms"].create(
             {
                 "name": "MassSMSTest_falsy_1",
                 "customer_id": False,
-                "phone_nbr": "abcd",
+                "phone_nbr_ids": [Command.create({"number": "abcd"})],
             }
         )
         falsy_record_2 = self.env["mail.test.sms"].create(
             {
                 "name": "MassSMSTest_falsy_2",
                 "customer_id": False,
-                "phone_nbr": "04561122",
+                "phone_nbr_ids": [Command.create({"number": "04561122"})],
             }
         )
         bl_record_1 = self.env["mail.test.sms"].create(
             {
                 "name": "MassSMSTest_bl_1",
                 "customer_id": False,
-                "phone_nbr": "0456110011",
+                "phone_nbr_ids": [Command.create({"number": "0456110011"})],
             }
         )
         self.env["phone.blacklist"].sudo().create({"number": "0456110011"})
@@ -119,14 +119,18 @@ class TestMassSMSInternals(TestMassSMSCommon):
             {
                 "name": "Partner_nr2",
                 "country_id": country_be_id,
-                "phone": "0456449999",
+                "phone_ids": [
+                    Command.create({"number": "0456449999", "type": "landline"})
+                ],
             }
         )
         new_record_2 = self.env["mail.test.sms"].create(
             {
                 "name": "MassSMSTest_nr2",
                 "customer_id": nr2_partner.id,
-                "phone_nbr": self.records[0].phone_nbr,
+                "phone_nbr_ids": [
+                    Command.create({"number": self.records[0].phone_nbr_ids.number})
+                ],
             }
         )
         records_numbers = self.records_numbers + ["+32456999999"]
@@ -188,7 +192,10 @@ class TestMassSMSInternals(TestMassSMSCommon):
                 {
                     "partner": self.env["res.partner"],
                     "number": phone_validation.phone_format(
-                        bl_record_1.phone_nbr, "BE", "32", force_format="E164"
+                        bl_record_1.phone_nbr_ids.number,
+                        "BE",
+                        "32",
+                        force_format="E164",
                     ),
                     "content": "Dear %s this is a mass SMS" % bl_record_1.display_name,
                     "trace_status": "cancel",
@@ -217,7 +224,7 @@ class TestMassSMSInternals(TestMassSMSCommon):
             [
                 {
                     "partner": self.env["res.partner"],
-                    "number": record.phone_nbr,
+                    "number": record.phone_nbr_ids.number,
                     "content": "Dear %s this is a mass SMS" % record.display_name,
                     "trace_status": "cancel",
                     "failure_type": "sms_number_format",
@@ -241,7 +248,10 @@ class TestMassSMSInternals(TestMassSMSCommon):
                 {
                     "partner": bl_record_1.customer_id,
                     "number": phone_validation.phone_format(
-                        bl_record_1.phone_nbr, "BE", "32", force_format="E164"
+                        bl_record_1.phone_nbr_ids.number,
+                        "BE",
+                        "32",
+                        force_format="E164",
                     ),
                     "content": "Dear %s this is a mass SMS" % bl_record_1.display_name,
                 }
@@ -622,7 +632,7 @@ class TestMassSMS(TestMassSMSCommon):
         (recipients[0] | recipients[1]).write({"opt_out": True})
         # blacklist records 4
         # TDE FIXME: sudo should not be necessary
-        self.env["phone.blacklist"].sudo().create({"number": recipients[4].phone_nbr})
+        self.env["phone.blacklist"].sudo().create({"number": recipients[4].phone_nbr_ids.number})
 
         mailing.write(
             {
@@ -682,11 +692,11 @@ class TestMassSMSTwilio(TestMassSMSCommon, MockSmsTwilioApi):
             [
                 {
                     "name": "MassSMSTest- No Number",
-                    "phone_nbr": False,
+                    "phone_nbr_ids": False,
                 },
                 {
                     "name": "MassSMSTest- Invalid Number",
-                    "phone_nbr": "1234",
+                    "phone_nbr_ids": [Command.create({"number": "1234"})],
                 },
             ]
         )

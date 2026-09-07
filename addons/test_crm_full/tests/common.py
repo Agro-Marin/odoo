@@ -1,4 +1,5 @@
 from datetime import datetime
+from odoo import Command
 
 from odoo.addons.crm.tests.common import TestCrmCommon
 from odoo.addons.crm_iap_mine.tests.common import MockIAPReveal
@@ -25,7 +26,7 @@ class TestCrmFullCommon(TestCrmCommon, MockIAPReveal, MockVisitor):
                     "function": "Noisy Customer",
                     "lang": "fr_BE",
                     "name": "PartnerCustomer",
-                    "phone": "04560000%02d" % idx,
+                    "phone_ids": [Command.create({"number": "04560000%02d" % idx, "type": "landline"})],
                     "street": "Super Street, %092d" % idx,
                     "zip": "1400",
                 }

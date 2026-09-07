@@ -57,6 +57,9 @@ class ResPartner(models.Model):
         fiscal_positions = new_partners.fiscal_position_id
         return {
             "res.partner": self._load_pos_data_read(new_partners, config),
+            "phone.number": new_partners.phone_ids._load_pos_data_read(
+                new_partners.phone_ids, config
+            ),
             "account.fiscal.position": self.env[
                 "account.fiscal.position"
             ]._load_pos_data_read(fiscal_positions, config),
@@ -96,7 +99,7 @@ class ResPartner(models.Model):
             "country_id",
             "vat",
             "lang",
-            "phone",
+            "phone_ids",
             "zip",
             "email",
             "barcode",

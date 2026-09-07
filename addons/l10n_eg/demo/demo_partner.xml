@@ -14,7 +14,7 @@
             <field name="zip">95380</field>
             <field name="country_id" ref="base.eg" />
             <field name="email">egypt.furniture2126@example.com</field>
-            <field name="phone">022986151</field>
+            <field name="phone_ids" eval="[Command.create({'number': '022986151', 'type': 'landline'})]" />
             <field name="website">http://www.egypt-furniture-company.com</field>
             <field name="vat">987654321</field>
         </record>

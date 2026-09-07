@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="BKCHHUHBXXX" model="res.bank">
+            <field name="name">Bank of China (Hungária) Hitelintézet Rt.</field>
+            <field name="bic">BKCHHUHBXXX</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1051</field>
+            <field name="city">Budapest</field>
+            <field name="street">József Nádor tér 7.</field>
+            <field name="email">service_hu@bank-of-china.com</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3614299200', 'type': 'landline'})]" />
+        </record>
+        <record id="BNPAHUHX" model="res.bank">
+            <field name="name">BNP Paribas Hungária Bank Rt.</field>
+            <field name="bic">BNPAHUHX</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1051</field>
+            <field name="city">Budapest</field>
+            <field name="street">Teréz krt. 55-57.</field>
+            <field name="email">csd_hungary@bnpparibas.com</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3613746300', 'type': 'landline'})]" />
+        </record>
+        <record id="CIBHHUHB" model="res.bank">
+            <field name="name">CIB Közép-Európai Nemzetközi Bank Zrt.</field>
+            <field name="bic">CIBHHUHB</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1027</field>
+            <field name="city">Budapest</field>
+            <field name="street">Medve utca 4-14</field>
+            <field name="email">cib@cib.hu</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3614242242', 'type': 'landline'})]" />
+        </record>
+        <record id="CITIHUHX" model="res.bank">
+            <field name="name">Citibank Rt.</field>
+            <field name="bic">CITIHUHX</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1051</field>
+            <field name="city">Budapest</field>
+            <field name="street">Szabadság tér 7.</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3613745000', 'type': 'landline'})]" />
+        </record>
+        <record id="DEUTHU2B" model="res.bank">
+            <field name="name">Deutsche Bank Zártkörűen Működő Rt.</field>
+            <field name="bic">DEUTHU2B</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1054</field>
+            <field name="city">Budapest</field>
+            <field name="street">Hold utca 27.</field>
+            <field name="email">db.hungary@db.com</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3613013700', 'type': 'landline'})]" />
+        </record>
+        <record id="GIBAHUHB" model="res.bank">
+            <field name="name">ERSTE Bank Hungary Zrt.</field>
+            <field name="bic">GIBAHUHB</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1138</field>
+            <field name="city">Budapest</field>
+            <field name="street">Népfürdő u. 24-26.</field>
+            <field name="email">erste@erstebank.hu</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3612980222', 'type': 'landline'})]" />
+        </record>
+        <record id="GNBAHUHB" model="res.bank">
+            <field name="name">Gránit Bank Zrt.</field>
+            <field name="bic">GNBAHUHB</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1095</field>
+            <field name="city">Budapest</field>
+            <field name="street">Lechner Ödön fasor 8.</field>
+            <field name="email">info@granitbank.hu</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3615100527', 'type': 'landline'})]" />
+        </record>
+        <record id="INGBHUHB" model="res.bank">
+            <field name="name">ING Bank N.V. Magyarországi Fióktelepe</field>
+            <field name="bic">INGBHUHB</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1068</field>
+            <field name="city">Budapest</field>
+            <field name="street">Dózsa György út 84/b.</field>
+            <field name="email">communications.hu@ingbank.com</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3612358700', 'type': 'landline'})]" />
+        </record>
+        <record id="OKHBHUHB" model="res.bank">
+            <field name="name">K&amp;H Bank Zrt.</field>
+            <field name="bic">OKHBHUHB</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1095</field>
+            <field name="city">Budapest</field>
+            <field name="street">Lechner Ödön fasor 9.</field>
+            <field name="email">bank@kh.hu</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+36203353355', 'type': 'landline'})]" />
+        </record>
+        <record id="HBWEHUHB" model="res.bank">
+            <field name="name">MagNet Magyar Közösségi Bank Zrt.</field>
+            <field name="bic">HBWEHUHB</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1062</field>
+            <field name="city">Budapest</field>
+            <field name="street">Andrássy út 98.</field>
+            <field name="email">info@magnetbank.hu</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3614288888', 'type': 'landline'})]" />
+        </record>
+        <record id="MANEHUHB" model="res.bank">
+            <field name="name">Magyar Nemzeti Bank</field>
+            <field name="bic">MANEHUHB</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1054</field>
+            <field name="city">Budapest</field>
+            <field name="street">Szabadság tér 8-9.</field>
+            <field name="email">info@mnb.hu</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3614282600', 'type': 'landline'})]" />
+        </record>
+        <record id="MKKBHUHBXXX" model="res.bank">
+            <field name="name">MHB Bank Nyrt.</field>
+            <field name="bic">MKKBHUHBXXX</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1056</field>
+            <field name="city">Budapest</field>
+            <field name="street">Váci utca 38.</field>
+            <field name="email">+3612687173</field>
+            <field name="phone_ids" eval="[Command.create({'number': 'ugyfelszolgalat@mbhbank.hu', 'type': 'landline'})]" />
+        </record>
+        <record id="OTPVHUHB" model="res.bank">
+            <field name="name">OTP Bank Nyrt.</field>
+            <field name="bic">OTPVHUHB</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1051</field>
+            <field name="city">Budapest</field>
+            <field name="street">Nádor utca 16.</field>
+            <field name="email">otpbank@otpbank.hu</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3614735000', 'type': 'landline'})]" />
+        </record>
+        <record id="UBRTHUHB" model="res.bank">
+            <field name="name">RAIFFEISEN Bank Zrt.</field>
+            <field name="bic">UBRTHUHB</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1054</field>
+            <field name="city">Budapest</field>
+            <field name="street">Akadémia utca 6.</field>
+            <field name="email">info@raiffeisen.hu</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3680488588', 'type': 'landline'})]" />
+        </record>
+        <record id="BACXHUHB" model="res.bank">
+            <field name="name">UniCredit Bank Hungary Zrt.</field>
+            <field name="bic">BACXHUHB</field>
+            <field name="country" ref="base.hu" />
+            <field name="zip">1054</field>
+            <field name="city">Budapest</field>
+            <field name="street">Szabadság tér 5-6.</field>
+            <field name="email">info@unicreditgroup.hu</field>
+            <field name="phone_ids" eval="[Command.create({'number': '+3613253200', 'type': 'landline'})]" />
+        </record>
+    </data>
+</odoo>

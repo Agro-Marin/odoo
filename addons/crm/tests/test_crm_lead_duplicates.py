@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests.common import tagged, users
 
 from odoo.addons.crm.tests.common import TestCrmCommon
@@ -42,7 +43,11 @@ class TestCRMLead(TestCrmCommon):
                     "email": "dave@another.email.company.com",
                     "is_company": False,
                     "name": "Dave",
-                    "phone": "+1 202 000 0123",
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "+1 202 000 0123", "type": "landline"}
+                        )
+                    ],
                     "parent_id": cls.test_company.id,
                     "street": "Pearl street",
                     "zip": "12345",
@@ -54,7 +59,11 @@ class TestCRMLead(TestCrmCommon):
                     "is_company": False,
                     "name": "Eve",
                     "parent_id": cls.test_company.id,
-                    "phone": "+1 202 000 3210",
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "+1 202 000 3210", "type": "landline"}
+                        )
+                    ],
                     "street": "Wall street",
                     "zip": "12345",
                 },
@@ -67,7 +76,9 @@ class TestCRMLead(TestCrmCommon):
                 "email_from": "FP@odoo.com",
                 "name": "Generic 1",
                 "partner_id": cls.test_partners[0].id,
-                "phone": "+1 202 555 0123",
+                "phone_ids": [
+                    Command.create({"number": "+1 202 555 0123", "type": "landline"})
+                ],
                 "type": "lead",
             }
         )
@@ -77,7 +88,9 @@ class TestCRMLead(TestCrmCommon):
                 "email_from": "floppy@MYCOMPANY.com",
                 "partner_id": False,
                 "name": "CompanyMail 1",
-                "phone": "+1 202 666 4567",
+                "phone_ids": [
+                    Command.create({"number": "+1 202 666 4567", "type": "landline"})
+                ],
                 "type": "lead",
             }
         )
@@ -97,12 +110,20 @@ class TestCRMLead(TestCrmCommon):
                 {
                     "email_from": "not.fp@not.odoo.com",
                     "name": "Dupe3 of fp@odoo.com (same phone sanitized)",
-                    "phone": "+1 202 555 0123",
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "+1 202 555 0123", "type": "landline"}
+                        )
+                    ],
                     "type": "lead",
                 },
                 {
                     "email_from": "not.fp@not.odoo.com",
-                    "phone": "+1 202 555 0123",
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "+1 202 555 0123", "type": "landline"}
+                        )
+                    ],
                     "name": "Dupe4 of fp@odoo.com (same phone sanitized)",
                     "type": "lead",
                 },
@@ -140,12 +161,20 @@ class TestCRMLead(TestCrmCommon):
                 {
                     "email_from": "not.floppy@not.mycompany.com",
                     "name": "Dupe3 of fp@odoo.com (same phone sanitized)",
-                    "phone": "+1 202 666 4567",
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "+1 202 666 4567", "type": "landline"}
+                        )
+                    ],
                     "type": "lead",
                 },
                 {
                     "email_from": "not.floppy@not.mycompany.com",
-                    "phone": "+1 202 666 4567",
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "+1 202 666 4567", "type": "landline"}
+                        )
+                    ],
                     "name": "Dupe4 of fp@odoo.com (same phone sanitized)",
                     "type": "lead",
                 },

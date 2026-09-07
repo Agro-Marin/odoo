@@ -1,3 +1,5 @@
+from odoo import Command
+
 from odoo.addons.sms.tests.common import SMSCommon
 from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
 
@@ -17,8 +19,14 @@ class TestPhoneBlacklist(SMSCommon, TestSMSRecipients):
                 {
                     "name": "Test",
                     "customer_id": cls.partner_1.id,
-                    "mobile_nbr": cls.test_numbers[0],
-                    "phone_nbr": cls.test_numbers[1],
+                    "mobile_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": cls.test_numbers[0]}),
+                    ],
+                    "phone_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": cls.test_numbers[1]}),
+                    ],
                 }
             )
         )
@@ -140,17 +148,38 @@ class TestPhoneBlacklist(SMSCommon, TestSMSRecipients):
     def test_phone_sanitize_internals(self):
         with self.with_user("employee"):
             test_record = self.env["mail.test.sms.bl"].browse(self.test_record.id)
-            self.assertEqual(test_record.phone_nbr, self.test_numbers[1])
+            self.assertEqual(test_record.phone_nbr_ids.number, self.test_numbers[1])
             self.assertEqual(test_record.phone_sanitized, self.test_numbers_san[1])
 
-            test_record.write({"phone_nbr": "incorrect"})
-            self.assertEqual(test_record.phone_nbr, "incorrect")
-            self.assertEqual(test_record.phone_sanitized, self.test_numbers_san[0])
-
-            test_record.write({"mobile_nbr": "incorrect"})
-            self.assertEqual(test_record.mobile_nbr, "incorrect")
+            test_record.write(
+                {
+                    "phone_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": "incorrect"}),
+                    ]
+                }
+            )
+            self.assertEqual(test_record.phone_nbr_ids.number, "incorrect")
             self.assertEqual(test_record.phone_sanitized, False)
 
-            test_record.write({"phone_nbr": self.test_numbers[1]})
-            self.assertEqual(test_record.phone_nbr, self.test_numbers[1])
+            test_record.write(
+                {
+                    "mobile_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": "incorrect"}),
+                    ]
+                }
+            )
+            self.assertEqual(test_record.mobile_nbr_ids.number, "incorrect")
+            self.assertEqual(test_record.phone_sanitized, False)
+
+            test_record.write(
+                {
+                    "phone_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": self.test_numbers[1]}),
+                    ]
+                }
+            )
+            self.assertEqual(test_record.phone_nbr_ids.number, self.test_numbers[1])
             self.assertEqual(test_record.phone_sanitized, self.test_numbers_san[1])

@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from freezegun import freeze_time
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.tests.common import tagged, users
 
 from odoo.addons.website.models.website_visitor import WebsiteVisitor
@@ -127,7 +127,7 @@ class TestTrackData(TestEventOnlineCommon):
         self.assertEqual(new_track.partner_id, customer)
         self.assertEqual(new_track.partner_name, customer.name)
         self.assertEqual(new_track.partner_email, customer.email)
-        self.assertEqual(new_track.partner_phone, customer.phone)
+        self.assertEqual(new_track.phone_ids, customer._phone_get_number())
         self.assertEqual(new_track.partner_biography, customer.website_description)
         self.assertIn(
             customer.name,
@@ -157,8 +157,8 @@ class TestTrackData(TestEventOnlineCommon):
             "Track should take user input over computed partner value",
         )
         self.assertEqual(
-            new_track.partner_phone,
-            customer.phone,
+            new_track.phone_ids,
+            customer._phone_get_number(),
             "Track should take partner value if not user input",
         )
 
@@ -168,13 +168,13 @@ class TestTrackData(TestEventOnlineCommon):
                 "event_id": event.id,
                 "name": "Mega Track",
                 "partner_name": "Nibbler In Space",
-                "partner_phone": test_phone,
+                "phone_ids": [Command.create({"number": test_phone, "type": "landline"})],
                 "partner_biography": test_bio,
             }
         )
         self.assertEqual(new_track.partner_name, "Nibbler In Space")
         self.assertEqual(new_track.partner_email, False)
-        self.assertEqual(new_track.partner_phone, test_phone)
+        self.assertEqual(new_track._phone_get_number().number, test_phone)
         self.assertEqual(new_track.partner_biography, test_bio)
         new_track.write({"partner_id": customer.id})
         self.assertEqual(new_track.partner_id, customer)
@@ -189,7 +189,7 @@ class TestTrackData(TestEventOnlineCommon):
             "Track customer should take over empty value",
         )
         self.assertEqual(
-            new_track.partner_phone,
+            new_track._phone_get_number().number,
             test_phone,
             "Track customer should not take over existing value",
         )
@@ -199,11 +199,11 @@ class TestTrackData(TestEventOnlineCommon):
             {
                 "event_id": event.id,
                 "name": "Mega Track",
-                "contact_phone": test_phone,
+                "contact_phone_ids": [Command.create({"number": test_phone, "type": "landline"})],
             }
         )
         self.assertEqual(new_track.contact_email, False)
-        self.assertEqual(new_track.contact_phone, test_phone)
+        self.assertEqual(new_track.contact_phone_ids._primary().number, test_phone)
         new_track.write({"partner_id": customer.id})
         self.assertEqual(new_track.partner_id, customer)
         self.assertEqual(
@@ -212,8 +212,8 @@ class TestTrackData(TestEventOnlineCommon):
             "Track customer should take over empty contact email value",
         )
         self.assertEqual(
-            new_track.contact_phone,
-            customer.phone,
+            new_track.contact_phone_ids,
+            customer._phone_get_number(),
             "Track customer should take over existing contact phone value",
         )
 

@@ -48,7 +48,7 @@ class JoEdiCommon(AccountTestInvoicingCommon):
             'zip': '94538',
             'country_id': cls.env.ref('base.jo').id,
             'state_id': cls.env.ref('base.state_jo_az').id,
-            'phone': '+962 795-5585-949',
+            'phone_ids': [Command.create({"number": '+962 795-5585-949', "type": "landline"})],
             'is_company': True,
         })
 

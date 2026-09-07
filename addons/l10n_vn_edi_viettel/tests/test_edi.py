@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from freezegun import freeze_time
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests import tagged
 
@@ -40,7 +40,7 @@ class TestVNEDI(AccountTestInvoicingCommon):
             'city': 'Hà Nội',
             'country_id': cls.env.ref('base.vn').id,
             'vat': '0100109106-505',
-            'phone': '3825 7670',
+            'phone_ids': [Command.create({"number": '3825 7670', "type": "landline"})],
             'email': 'partner_a@gmail.com',
         })
 
@@ -49,7 +49,7 @@ class TestVNEDI(AccountTestInvoicingCommon):
             'state_id': cls.env.ref('base.state_vn_VN-HN').id,
             'country_id': cls.env.ref('base.vn').id,
             'vat': '0100109106-506',
-            'phone': '6266 1275',
+            'phone_ids': [Command.create({"number": '6266 1275', "type": "landline"})],
             'email': 'test_company@gmail.com',
             'website': 'test_company.com',
             'l10n_vn_edi_password': 'a',

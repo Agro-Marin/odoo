@@ -1,6 +1,6 @@
 {
     "name": "Advanced Events",
-    "version": "1.3",
+    "version": "1.4",
     "category": "Marketing",
     "summary": "Sponsors, Tracks, Agenda, Event News",
     "author": "Odoo S.A.",

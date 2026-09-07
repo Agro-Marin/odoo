@@ -49,16 +49,16 @@
                             <div t-if="record.email.value" class="col-6 text-center">
                                 <strong>Email:</strong>
                             </div>
-                            <div t-if="record.phone.value" class="col-6 text-center">
+                            <div t-if="record.phone_ids.raw_value.length" class="col-6 text-center">
                                 <strong>Phone</strong>
                             </div>
                             <div t-if="record.email.value" class="col-6 text-center">
                                 <field name="email" />
                             </div>
                             <div
-                                t-if="record.phone.value"
+                                t-if="record.phone_ids.raw_value.length"
                                 class="col-6 text-center o_force_ltr">
-                                <field name="phone" />
+                                <field name="phone_ids" widget="many2many_tags" />
                             </div>
                         </div>
                         <div t-else="">
@@ -66,9 +66,9 @@
                                 <strong>Email:</strong>
                                 <field name="email" />
                             </div>
-                            <div t-if="record.phone.value" class="o_force_ltr">
+                            <div t-if="record.phone_ids.raw_value.length" class="o_force_ltr">
                                 <strong>Phone:</strong>
-                                <field name="phone" />
+                                <field name="phone_ids" widget="many2many_tags" />
                             </div>
                         </div>
                     </t>
@@ -164,7 +164,7 @@
                                         context="{'active_test': False}" />
                                 </group>
                                 <group>
-                                    <field name="phone" class="o_force_ltr" />
+                                    <field name="phone_ids" widget="many2many_tags" />
                                     <field name="email" />
                                     <field
                                         name="website"

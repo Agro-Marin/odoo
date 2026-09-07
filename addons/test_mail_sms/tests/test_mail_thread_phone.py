@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import tagged, users
 
 from odoo.addons.sms.tests.common import SMSCommon
@@ -18,29 +19,50 @@ class TestSMSActionsCommon(SMSCommon, TestSMSRecipients):
         cls.test_phone_records += cls.env["mail.test.sms.bl"].create(
             [
                 {
-                    "phone_nbr": "+32475110505",
-                    "mobile_nbr": "+32475000505",
+                    "phone_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": "+32475110505"}),
+                    ],
+                    "mobile_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": "+32475000505"}),
+                    ],
                 },
                 {
-                    "phone_nbr": "0032475110606",
-                    "mobile_nbr": "0032475000606",
+                    "phone_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": "0032475110606"}),
+                    ],
+                    "mobile_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": "0032475000606"}),
+                    ],
                 },
                 {
-                    "phone_nbr": "0032475110707",
-                    "mobile_nbr": False,
+                    "phone_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": "0032475110707"}),
+                    ],
+                    "mobile_nbr_ids": False,
                 },
                 {
-                    "phone_nbr": False,
-                    "mobile_nbr": False,
+                    "phone_nbr_ids": False,
+                    "mobile_nbr_ids": False,
                 },
                 # duplicated of 0606
                 {
-                    "phone_nbr": "0475110606",
-                    "mobile_nbr": False,
+                    "phone_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": "0475110606"}),
+                    ],
+                    "mobile_nbr_ids": False,
                 },
                 {
-                    "phone_nbr": False,
-                    "mobile_nbr": "0475110606",
+                    "phone_nbr_ids": False,
+                    "mobile_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": "0475110606"}),
+                    ],
                 },
             ]
         )
@@ -50,7 +72,7 @@ class TestSMSActionsCommon(SMSCommon, TestSMSRecipients):
     def test_initial_data(self):
         """Test initial data for this class, allowing to be sure of I/O of tests."""
         self.assertEqual(
-            self.test_phone_records.mapped("mobile_nbr"),
+            [record.mobile_nbr_ids.number for record in self.test_phone_records],
             [
                 False,
                 False,
@@ -62,11 +84,11 @@ class TestSMSActionsCommon(SMSCommon, TestSMSRecipients):
                 False,
                 False,
                 False,
-                "0475110606",
+                "0032475110606",
             ],
         )
         self.assertEqual(
-            self.test_phone_records.mapped("phone_nbr"),
+            [record.phone_nbr_ids.number for record in self.test_phone_records],
             [
                 "0475000000",
                 "0475000101",
@@ -77,7 +99,7 @@ class TestSMSActionsCommon(SMSCommon, TestSMSRecipients):
                 "0032475110606",
                 "0032475110707",
                 False,
-                "0475110606",
+                "0032475110606",
                 False,
             ],
         )
@@ -158,9 +180,9 @@ class TestSMSActionsCommon(SMSCommon, TestSMSRecipients):
                 ("0475000000", test_phone_records[0]),
                 # various international numbers
                 # ('32475110606', test_phone_records[6]),  # currently not supported, returns nothing
-                ("0032475110606", test_phone_records[6]),
-                ("+32475110606", test_phone_records[6]),
-                ("+32 475 11 06 06", test_phone_records[6]),
+                ("0032475110606", test_phone_records[6] + self.dupes),
+                ("+32475110606", test_phone_records[6] + self.dupes),
+                ("+32 475 11 06 06", test_phone_records[6] + self.dupes),
             ]:
                 with self.subTest(source=source):
                     results = self.env["mail.test.sms.bl"].search(
@@ -177,8 +199,8 @@ class TestSMSActionsCommon(SMSCommon, TestSMSRecipients):
         for source, ilike_expected, notilike_expected in [
             (
                 "0475",
-                test_phone_records[:5] + self.dupes,
-                test_phone_records - test_phone_records[:5] - self.dupes,
+                test_phone_records[:5],
+                test_phone_records - test_phone_records[:5],
             ),
             ("101", test_phone_records[1], test_phone_records - test_phone_records[1]),
             # not ilike is not the inverse with formatting but hey, that's not easy to do

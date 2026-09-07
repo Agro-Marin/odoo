@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import tagged
 from odoo.tools.mail import formataddr
 
@@ -62,7 +63,9 @@ class TestMailFlow(MailCommon, TestRecipients):
             {
                 "email": cls.test_emails[4],
                 "name": "Robert Brutijus",
-                "phone": "+32455335577",
+                "phone_ids": [
+                    Command.create({"number": "+32455335577", "type": "landline"})
+                ],
             }
         )
         cls.user_portal_zboing = mail_new_test_user(
@@ -373,7 +376,9 @@ class TestMailFlow(MailCommon, TestRecipients):
         lead_as_emp.write(
             {
                 "customer_name": "Sylvie Lelitre (Zboing)",
-                "phone": "+32455001122",
+                "phone_ids": [
+                    Command.create({"number": "+32455001122", "type": "landline"})
+                ],
                 "lang_code": "fr_FR",
             }
         )

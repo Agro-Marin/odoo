@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import exceptions
+from odoo import Command, exceptions
 from odoo.tests import tagged, users, warmup
 from odoo.tools import formataddr, mute_logger
 
@@ -895,7 +895,7 @@ class TestMailSchedule(EventMailCommon):
                         "email": "test@email.com",
                         "event_id": self.test_event.id,
                         "name": "Mitchell Admin",
-                        "phone": "(255)-595-8393",
+                        "phone_ids": [Command.create({"number": "(255)-595-8393", "type": "landline"})],
                     }
                 )
             )

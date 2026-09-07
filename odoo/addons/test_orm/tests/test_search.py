@@ -17,7 +17,7 @@ class TestSubqueries(TransactionCase):
             ON ("test_orm_multi"."partner" = "test_orm_multi__partner"."id")
             WHERE ("test_orm_multi"."partner" IS NOT NULL AND (
                 "test_orm_multi__partner"."name" LIKE %s
-                AND "test_orm_multi__partner"."phone" LIKE %s
+                AND "test_orm_multi__partner"."email" LIKE %s
             ))
             ORDER BY "test_orm_multi"."id"
         """
@@ -26,7 +26,7 @@ class TestSubqueries(TransactionCase):
             self.env["test_orm.multi"].search(
                 [
                     ("partner.name", "like", "jack"),
-                    ("partner.phone", "like", "01234"),
+                    ("partner.email", "like", "01234"),
                 ]
             )
 
@@ -40,7 +40,7 @@ class TestSubqueries(TransactionCase):
             ON ("test_orm_multi"."partner" = "test_orm_multi__partner"."id")
             WHERE ("test_orm_multi"."partner" IS NOT NULL AND (
                 "test_orm_multi__partner"."name" LIKE %s
-                OR "test_orm_multi__partner"."phone" LIKE %s
+                OR "test_orm_multi__partner"."email" LIKE %s
             ))
             ORDER BY "test_orm_multi"."id"
         """
@@ -50,7 +50,7 @@ class TestSubqueries(TransactionCase):
                 [
                     "|",
                     ("partner.name", "like", "jack"),
-                    ("partner.phone", "like", "01234"),
+                    ("partner.email", "like", "01234"),
                 ]
             )
 
@@ -64,7 +64,7 @@ class TestSubqueries(TransactionCase):
                 SELECT "res_partner"."id"
                 FROM "res_partner"
                 WHERE ("res_partner"."name" LIKE %s
-                    AND "res_partner"."phone" LIKE %s
+                    AND "res_partner"."email" LIKE %s
                 )
             ))
             ORDER BY "test_orm_multi"."id"
@@ -76,7 +76,7 @@ class TestSubqueries(TransactionCase):
                     "!",
                     "&",
                     ("partner.name", "like", "jack"),
-                    ("partner.phone", "like", "01234"),
+                    ("partner.email", "like", "01234"),
                 ]
             )
 
@@ -90,7 +90,7 @@ class TestSubqueries(TransactionCase):
                 SELECT "res_partner"."id"
                 FROM "res_partner"
                 WHERE ("res_partner"."name" LIKE %s
-                    OR "res_partner"."phone" LIKE %s
+                    OR "res_partner"."email" LIKE %s
                 )
             ))
             ORDER BY "test_orm_multi"."id"
@@ -102,7 +102,7 @@ class TestSubqueries(TransactionCase):
                     "!",
                     "|",
                     ("partner.name", "like", "jack"),
-                    ("partner.phone", "like", "01234"),
+                    ("partner.email", "like", "01234"),
                 ]
             )
 
@@ -121,7 +121,7 @@ class TestSubqueries(TransactionCase):
                 ON ("test_orm_multi"."partner" = "test_orm_multi__partner"."id")
             WHERE ("test_orm_multi"."partner" IS NOT NULL AND (
                 "test_orm_multi__partner"."name" LIKE %s
-                OR "test_orm_multi__partner"."phone" LIKE %s
+                OR "test_orm_multi__partner"."email" LIKE %s
             ))
             ORDER BY "test_orm_multi"."id"
         """
@@ -131,7 +131,7 @@ class TestSubqueries(TransactionCase):
                 [
                     "|",
                     ("partner.name", "like", "jack"),
-                    ("partner.phone", "like", "01234"),
+                    ("partner.email", "like", "01234"),
                 ]
             )
 
@@ -149,7 +149,7 @@ class TestSubqueries(TransactionCase):
             WHERE ("test_orm_multi"."partner" IS NULL OR "test_orm_multi"."partner" NOT IN (
                 SELECT "res_partner"."id"
                 FROM "res_partner"
-                WHERE ("res_partner"."name" LIKE %s OR "res_partner"."phone" LIKE %s)
+                WHERE ("res_partner"."name" LIKE %s OR "res_partner"."email" LIKE %s)
             ))
             ORDER BY "test_orm_multi"."id"
         """
@@ -160,7 +160,7 @@ class TestSubqueries(TransactionCase):
                     "!",
                     "|",
                     ("partner.name", "like", "jack"),
-                    ("partner.phone", "like", "01234"),
+                    ("partner.email", "like", "01234"),
                 ]
             )
 
@@ -176,7 +176,7 @@ class TestSubqueries(TransactionCase):
                 "test_orm_multi__partner"."email" LIKE %s
                 AND (
                     "test_orm_multi__partner"."name" LIKE %s
-                    OR "test_orm_multi__partner"."phone" LIKE %s
+                    OR "test_orm_multi__partner"."email" LIKE %s
                 )
             ))
             ORDER BY "test_orm_multi"."id"
@@ -188,7 +188,7 @@ class TestSubqueries(TransactionCase):
                     ("partner.email", "like", "@sgc.us"),
                     "|",
                     ("partner.name", "like", "jack"),
-                    ("partner.phone", "like", "01234"),
+                    ("partner.email", "like", "01234"),
                 ]
             )
 
@@ -213,7 +213,7 @@ class TestSubqueries(TransactionCase):
                     ({many2one} IS NOT NULL AND "test_orm_multi__partner"."function" LIKE %s)
                     OR ({many2one} IS NULL OR {many2one} NOT IN (
                         {subselect}
-                        WHERE "res_partner"."phone" LIKE %s
+                        WHERE "res_partner"."email" LIKE %s
                     ))
                 )
             )
@@ -231,7 +231,7 @@ class TestSubqueries(TransactionCase):
                     "|",
                     ("partner.function", "like", "Colonel"),
                     "!",
-                    ("partner.phone", "like", "+01"),
+                    ("partner.email", "like", "+01"),
                     "!",
                     ("partner.website", "like", "sgc.us"),
                     "|",

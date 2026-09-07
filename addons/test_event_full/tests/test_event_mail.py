@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
+from odoo import Command
 from odoo.tests import tagged, users
 from odoo.tools import formataddr
 
@@ -91,28 +92,28 @@ class TestEventMailSchedule(TestEventMailCommon):
                     "event_id": test_event.id,
                     "name": "RegistrationUnconfirmed",
                     "email": "Registration@Unconfirmed.com",
-                    "phone": "1",
+                    "phone_ids": [Command.create({"number": "1", "type": "landline"})],
                     "state": "draft",
                 },
                 {
                     "event_id": test_event.id,
                     "name": "RegistrationCanceled",
                     "email": "Registration@Canceled.com",
-                    "phone": "2",
+                    "phone_ids": [Command.create({"number": "2", "type": "landline"})],
                     "state": "cancel",
                 },
                 {
                     "event_id": test_event.id,
                     "name": "RegistrationConfirmed",
                     "email": "Registration@Confirmed.com",
-                    "phone": "3",
+                    "phone_ids": [Command.create({"number": "3", "type": "landline"})],
                     "state": "open",
                 },
                 {
                     "event_id": test_event.id,
                     "name": "RegistrationDone",
                     "email": "Registration@Done.com",
-                    "phone": "4",
+                    "phone_ids": [Command.create({"number": "4", "type": "landline"})],
                     "state": "done",
                 },
             ]
@@ -134,7 +135,7 @@ class TestEventMailSchedule(TestEventMailCommon):
             with self.subTest(registration_state=registration.state, medium="sms"):
                 self.assertSMS(
                     self.env["res.partner"],
-                    registration.phone,
+                    registration._phone_get_number().number,
                     None,
                 )
         self.assertEqual(

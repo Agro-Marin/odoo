@@ -1,6 +1,6 @@
 import json
 
-from odoo import http
+from odoo import Command, http
 from odoo.tests import tagged
 from odoo.tools import mute_logger
 
@@ -17,7 +17,9 @@ class TestMessageController(MailControllerThreadCommon):
             {
                 "name": "Public Channel",
                 "email": "john@test.be",
-                "mobile": "+32455001122",
+                "phone_ids": [
+                    Command.create({"number": "+32455001122", "type": "mobile"})
+                ],
             }
         )
 
@@ -81,7 +83,10 @@ class TestMessageController(MailControllerThreadCommon):
         self.assertEqual(
             1,
             self.env["res.partner"].search_count(
-                [("email", "=", "john@test.be"), ("phone", "=", "+32455001122")]
+                [
+                    ("email", "=", "john@test.be"),
+                    ("phone_ids.number", "=", "+32455001122"),
+                ]
             ),
             "authenticated users can create a partner from an email",
         )
@@ -127,7 +132,10 @@ class TestMessageController(MailControllerThreadCommon):
         self.assertEqual(
             1,
             self.env["res.partner"].search_count(
-                [("email", "=", "john2@test.be"), ("phone", "=", "+32455001122")]
+                [
+                    ("email", "=", "john2@test.be"),
+                    ("phone_ids.number", "=", "+32455001122"),
+                ]
             ),
             "authenticated users can create a partner from an email from message_post",
         )

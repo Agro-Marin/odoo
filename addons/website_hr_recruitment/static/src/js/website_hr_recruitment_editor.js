@@ -22,7 +22,7 @@ registry.category("website.form_editor_actions").add("apply_job", {
             type: "char",
             required: true,
             fillWith: "phone",
-            name: "partner_phone",
+            name: "phone",
             string: _t("Phone Number"),
         },
         {

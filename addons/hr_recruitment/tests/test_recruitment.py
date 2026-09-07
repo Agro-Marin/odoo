@@ -73,30 +73,30 @@ class TestRecruitment(TransactionCase):
                     "active": False,
                     "partner_name": "Application A",
                     "email_from": "abc@odoo.com",
-                    "partner_phone": "123",
+                    "phone_ids": [Command.create({"number": "123", "type": "mobile"})],
                 },
                 {
                     "partner_name": "Application B",
-                    "partner_phone": "456",
+                    "phone_ids": [Command.create({"number": "456", "type": "mobile"})],
                 },
                 {
                     "partner_name": "Application C",
                     "email_from": "def@odoo.com",
-                    "partner_phone": "123",
+                    "phone_ids": [Command.create({"number": "123", "type": "mobile"})],
                 },
                 {
                     "partner_name": "Application D",
                     "email_from": "abc@odoo.com",
-                    "partner_phone": "456",
+                    "phone_ids": [Command.create({"number": "456", "type": "mobile"})],
                 },
                 {
                     "partner_name": "Application E",
-                    "partner_phone": "",
+                    "phone_ids": [Command.create({"number": "", "type": "mobile"})],
                 },
                 {
                     "partner_name": "Application F",
                     "email_from": "ghi@odoo.com",
-                    "partner_phone": "789",
+                    "phone_ids": [Command.create({"number": "789", "type": "mobile"})],
                 },
                 {
                     "partner_name": "Application G",
@@ -119,14 +119,14 @@ class TestRecruitment(TransactionCase):
                 {
                     "partner_name": "Talent A",
                     "email_from": "abc@example.com",
-                    "partner_phone": "1234",
+                    "phone_ids": [Command.create({"number": "1234", "type": "mobile"})],
                     "linkedin_profile": "linkedin/talent",
                     "talent_pool_ids": [tp_A.id, tp_B.id],
                 },
                 {
                     "partner_name": "Talent B",
                     "email_from": "talent_b@example.com",
-                    "partner_phone": "9999",
+                    "phone_ids": [Command.create({"number": "9999", "type": "mobile"})],
                     "talent_pool_ids": [tp_B.id],
                 },
             ]
@@ -140,7 +140,7 @@ class TestRecruitment(TransactionCase):
                 {
                     "partner_name": "B",
                     "email_from": "def@example.com",
-                    "partner_phone": "6789",
+                    "phone_ids": [Command.create({"number": "6789", "type": "mobile"})],
                     "linkedin_profile": "linkedin/b",
                     "pool_applicant_id": t_A.id,
                 },
@@ -150,7 +150,7 @@ class TestRecruitment(TransactionCase):
                 },
                 {
                     "partner_name": "D",
-                    "partner_phone": "6789",
+                    "phone_ids": [Command.create({"number": "6789", "type": "mobile"})],
                 },
                 {
                     "partner_name": "E",
@@ -159,7 +159,9 @@ class TestRecruitment(TransactionCase):
                 {
                     "partner_name": "F",
                     "email_from": "not_linked@example.com",
-                    "partner_phone": "00000",
+                    "phone_ids": [
+                        Command.create({"number": "00000", "type": "mobile"})
+                    ],
                     "linkedin_profile": "linkedin/not_linked",
                 },
                 {"partner_name": "G", "pool_applicant_id": t_B.id},
@@ -192,7 +194,7 @@ class TestRecruitment(TransactionCase):
                 {
                     "partner_name": "Applicant 1 B",
                     "email_from": "otherTalentEmail@example.com",
-                    "partner_phone": "1234",
+                    "phone_ids": [Command.create({"number": "1234", "type": "mobile"})],
                     "linkedin_profile": "linkedin.com/in/applicant",
                     "job_id": job.id,
                 },
@@ -203,7 +205,7 @@ class TestRecruitment(TransactionCase):
                 },
                 {
                     "partner_name": "Applicant 1 D",
-                    "partner_phone": "1234",
+                    "phone_ids": [Command.create({"number": "1234", "type": "mobile"})],
                     "job_id": job.id,
                 },
                 {
@@ -214,7 +216,7 @@ class TestRecruitment(TransactionCase):
                 {
                     "partner_name": "A different applicant F",
                     "email_from": "differentEmail@example.com",
-                    "partner_phone": "9876",
+                    "phone_ids": [Command.create({"number": "9876", "type": "mobile"})],
                     "linkedin_profile": "linkedin.com/in/NotAnApplicant",
                     "job_id": job.id,
                 },
@@ -305,7 +307,7 @@ class TestRecruitment(TransactionCase):
     def test_open_refuse_applicant_wizard_without_partner_name(self):
         applicant = self.env["hr.applicant"].create(
             {
-                "partner_phone": "123",
+                "phone_ids": [Command.create({"number": "123", "type": "mobile"})],
             }
         )
         wizard = Form(
@@ -479,7 +481,9 @@ class TestRecruitment(TransactionCase):
             {
                 "partner_name": "Mary Applicant",
                 "email_from": "applicant@example.com",
-                "partner_phone": "123456789",
+                "phone_ids": [
+                    Command.create({"number": "123456789", "type": "mobile"})
+                ],
             }
         )
         self.assertEqual(
@@ -488,7 +492,7 @@ class TestRecruitment(TransactionCase):
             "Email should have been set on the partner.",
         )
         self.assertEqual(
-            applicant.partner_id.phone,
+            applicant.partner_id.phone_ids._primary().number,
             "123456789",
             "Phone should have been set on the partner.",
         )
@@ -499,9 +503,9 @@ class TestRecruitment(TransactionCase):
             "applicant_diff@example.com",
             "Email should have been updated on the partner.",
         )
-        applicant.partner_phone = "987654321"
+        applicant._phone_replace_number("phone_ids", "987654321")
         self.assertEqual(
-            applicant.partner_id.phone,
+            applicant.partner_id.phone_ids._primary().number,
             "987654321",
             "Phone should have been updated on the partner.",
         )

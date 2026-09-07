@@ -8,7 +8,7 @@
         <field name="city" />
         <field name="country_id" ref="base.tg" />
         <field name="zip" />
-        <field name="phone">+228 9 020 5793</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+228 9 020 5793', 'type': 'landline'})]" />
         <field name="email">info@company.togoexample.com</field>
         <field name="website">www.togoexample.com</field>
         <field name="is_company" eval="True" />

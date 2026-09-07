@@ -185,7 +185,7 @@ class MixinMailThread(models.AbstractModel):
         partner_ids = [r['id'] for r in partners_data]
         if partner_ids:
             for partner in self.env['res.partner'].sudo().browse(partner_ids):
-                number = sms_pid_to_number.get(partner.id) or partner.phone
+                number = sms_pid_to_number.get(partner.id) or partner._phone_get_number('mobile', 'whatsapp').number
                 sms_create_vals.append(dict(
                     sms_base_vals,
                     partner_id=partner.id,

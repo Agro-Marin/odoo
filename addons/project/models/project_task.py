@@ -244,10 +244,14 @@ class ProjectTask(models.Model):
         index="btree_not_null",
         domain="['|', ('company_id', '=?', company_id), ('company_id', '=', False)]",
     )
-    partner_phone = fields.Char(
-        compute="_compute_partner_phone",
-        inverse="_inverse_partner_phone",
-        string="Contact Number",
+    phone_ids = fields.Many2many(
+        "phone.number",
+        "project_task_phone_number_rel",
+        "task_id",
+        "phone_number_id",
+        compute="_compute_phone_ids",
+        inverse="_inverse_phone_ids",
+        string="Contact Numbers",
         readonly=False,
         store=True,
         copy=False,
@@ -1598,15 +1602,15 @@ class ProjectTask(models.Model):
                 total_and_closed_subtask_count_per_parent_id.get(task.id, (0, 0))
             )
 
-    @api.depends("partner_id.phone")
-    def _compute_partner_phone(self) -> None:
+    @api.depends("partner_id.phone_ids")
+    def _compute_phone_ids(self) -> None:
         for task in self:
-            task.partner_phone = task.partner_id.phone or False
+            task.phone_ids = task.partner_id.phone_ids
 
-    def _inverse_partner_phone(self) -> None:
-        for task in self:
-            if task.partner_id and task.partner_phone != task.partner_id.phone:
-                task.partner_id.sudo().phone = task.partner_phone
+    def _inverse_phone_ids(self) -> None:
+        for task in self.filtered("partner_id"):
+            if task.phone_ids != task.partner_id.phone_ids:
+                task.partner_id.sudo().phone_ids = task.phone_ids
 
     @api.onchange("company_id")
     def _onchange_task_company(self) -> None:

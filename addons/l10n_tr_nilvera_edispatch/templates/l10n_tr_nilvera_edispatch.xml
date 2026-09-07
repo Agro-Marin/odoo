@@ -39,7 +39,7 @@
             </cac:Country>
         </cac:PostalAddress>
         <cac:Contact>
-            <cbc:Telephone t-out="partner.phone" />
+            <cbc:Telephone t-out="partner._phone_get_number().number" />
             <cbc:ElectronicMail t-out="partner.email" />
         </cac:Contact>
         <t t-if="not is_vkn">

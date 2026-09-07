@@ -60,8 +60,8 @@
         <div class="mb-1 align-items-baseline text-break" t-if="track.partner_email">
             <i class="fa-solid fa-envelope me-2" /><a t-att-mailto="track.partner_email"><span t-field="track.partner_email" /></a>
         </div>
-        <div class="mb-1 align-items-baseline text-break" t-if="track.partner_phone">
-            <i class="fa-solid fa-phone me-2" /><span t-field="track.partner_phone" />
+        <div class="mb-1 align-items-baseline text-break" t-if="track.phone_ids">
+            <i class="fa-solid fa-phone me-2" /><span t-out="track._phone_get_number().number" />
         </div>
     </template>
 
@@ -156,7 +156,7 @@
                 <!-- ABOUT AUTHOR -->
                 <t
                     t-set="track_fields"
-                    t-value="['image', 'partner_name', 'partner_function', 'partner_email', 'partner_phone']" />
+                    t-value="['image', 'partner_name', 'partner_function', 'partner_email', 'phone_ids']" />
                 <!-- Avoid rendering a section for track information if we don't have anything to display -->
                 <t
                     t-if="any(track[track_field] for track_field in track_fields) or track.partner_id.website or not is_html_empty(track.partner_biography)">

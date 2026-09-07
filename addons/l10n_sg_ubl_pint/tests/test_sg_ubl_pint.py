@@ -1,4 +1,5 @@
 from datetime import datetime
+from odoo import Command
 
 from freezegun import freeze_time
 
@@ -24,7 +25,7 @@ class TestSgUBLPint(AccountTestInvoicingCommon):
             'street': 'Tyersall Avenue',
             'zip': '248048',
             'city': 'Central Singapore',
-            'phone': '+65 9123 4567',
+            'phone_ids': [Command.create({"number": '+65 9123 4567', "type": "landline"})],
         })
         cls.partner_a.write({
             'vat': 'S16FC0121D',
@@ -32,7 +33,7 @@ class TestSgUBLPint(AccountTestInvoicingCommon):
             'street': 'that other street, 3',
             'zip': '248050',
             'city': 'East Singapore',
-            'phone': '+65 9123 4589',
+            'phone_ids': [Command.create({"number": '+65 9123 4589', "type": "landline"})],
         })
         cls.tax_9 = cls.env['account.tax'].create({
             'name': '9% GST',

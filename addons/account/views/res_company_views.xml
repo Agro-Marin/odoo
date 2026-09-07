@@ -100,7 +100,7 @@
                                 context="{'active_test': False}" />
                         </group>
                         <group>
-                            <field name="phone" class="o_force_ltr" />
+                            <field name="phone_ids" widget="many2many_tags" />
                             <field name="email" />
                             <field
                                 name="website"

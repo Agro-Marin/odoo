@@ -4,7 +4,7 @@ from unittest.mock import patch
 from freezegun import freeze_time
 from lxml import etree
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
 from odoo.tools import file_open, mute_logger
@@ -56,7 +56,7 @@ class TestMyInvoisPoS(TestPoSCommon):
             'street': '1 Wisma Dato Dagang',
             'street2': 'Jln Raja Alang Kampung Bahru Mala',
             'city': 'Kuala Lumpur',
-            'phone': '+60123456789',
+            'phone_ids': [Command.create({"number": '+60123456789', "type": "landline"})],
             'email': 'info@company.myexample.com',
         })
         cls.env.company.partner_id.l10n_my_edi_industrial_classification = cls.env['l10n_my_edi.industry_classification'].search([('code', '=', '01111')])
@@ -69,7 +69,7 @@ class TestMyInvoisPoS(TestPoSCommon):
             'state_id': cls.env.ref('base.state_my_jhr').id,
             'street': 'that other street, 3',
             'city': 'Main city',
-            'phone': '+60123456786',
+            'phone_ids': [Command.create({"number": '+60123456786', "type": "landline"})],
         })
 
         cls.proxy_user = cls.env['account_edi_proxy_client.user']._register_proxy_user(cls.env.company, 'l10n_my_edi', 'demo')

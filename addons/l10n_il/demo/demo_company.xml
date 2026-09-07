@@ -8,7 +8,7 @@
         <field name="city">תל אביב-יפו</field>
         <field name="country_id" ref="base.il" />
         <field name="zip">no</field>
-        <field name="phone">+972 50-234-5678</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+972 50-234-5678', 'type': 'landline'})]" />
         <field name="email">info@company.ilexample.com</field>
         <field name="website">www.ilexample.com</field>
         <field name="is_company" eval="True" />

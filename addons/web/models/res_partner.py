@@ -75,10 +75,10 @@ class ResPartner(models.Model):
             email = vcard.add("email")
             email.value = self.email
             email.type_param = "INTERNET"
-        if self.phone:
+        for phone in self.phone_ids:
             tel = vcard.add("tel")
-            tel.type_param = "work"
-            tel.value = self.phone
+            tel.type_param = "cell" if phone.type == "mobile" else "work"
+            tel.value = phone.number
         if self.website:
             url = vcard.add("url")
             url.value = self.website

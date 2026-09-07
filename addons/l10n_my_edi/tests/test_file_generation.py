@@ -42,7 +42,7 @@ class L10nMyEDITestFileGeneration(AccountTestInvoicingCommon):
             'state_id': cls.env.ref('base.state_my_jhr').id,
             'street': 'that one street, 5',
             'city': 'Main city',
-            'phone': '+60123456789',
+            'phone_ids': [Command.create({"number": '+60123456789', "type": "landline"})],
         })
         cls.partner_a.write({
             'vat': 'C2584563201',
@@ -52,7 +52,7 @@ class L10nMyEDITestFileGeneration(AccountTestInvoicingCommon):
             'state_id': cls.env.ref('base.state_my_jhr').id,
             'street': 'that other street, 3',
             'city': 'Main city',
-            'phone': '+60123456786',
+            'phone_ids': [Command.create({"number": '+60123456786', "type": "landline"})],
             'l10n_my_edi_industrial_classification': cls.env['l10n_my_edi.industry_classification'].search([('code', '=', '01111')]).id,
             'ref': "MY-REF",
         })
@@ -64,7 +64,7 @@ class L10nMyEDITestFileGeneration(AccountTestInvoicingCommon):
             'state_id': cls.env.ref('base.state_us_1'),
             'street': 'that other street, 3',
             'city': 'Main city',
-            'phone': '+60123456785',
+            'phone_ids': [Command.create({"number": '+60123456785', "type": "landline"})],
             'l10n_my_edi_industrial_classification': cls.env.ref('l10n_my_edi.class_00000', raise_if_not_found=False).id,
         })
         cls.product_a.l10n_my_edi_classification_code = "001"

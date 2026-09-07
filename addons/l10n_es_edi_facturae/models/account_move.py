@@ -549,8 +549,8 @@ class AccountMove(models.Model):
                 "name": ac.name,
                 "partner": ac,
                 "partner_country_code": COUNTRY_CODE_MAP[ac.country_code],
-                "partner_phone": ac.phone.translate(PHONE_CLEAN_TABLE)
-                if ac.phone
+                "partner_phone": ac_phone.translate(PHONE_CLEAN_TABLE)
+                if (ac_phone := ac._phone_get_number().number)
                 else False,
                 "physical_gln": ac.l10n_es_edi_facturae_ac_physical_gln,
                 "logical_operational_point": ac.l10n_es_edi_facturae_ac_logical_operational_point,
@@ -845,8 +845,8 @@ class AccountMove(models.Model):
             ),
             "other_party": partner,
             "other_party_country_code": COUNTRY_CODE_MAP[partner.country_id.code],
-            "other_party_phone": partner.phone.translate(PHONE_CLEAN_TABLE)
-            if partner.phone
+            "other_party_phone": partner_phone.translate(PHONE_CLEAN_TABLE)
+            if (partner_phone := partner._phone_get_number().number)
             else False,
             "other_party_name": extract_party_name(partner),
             "other_party_administrative_centers": self._l10n_es_edi_facturae_get_administrative_centers(
@@ -1010,7 +1010,13 @@ class AccountMove(models.Model):
         )
 
         if not partner and name:
-            partner_vals = {"name": name, "email": email, "phone": phone}
+            partner_vals = {
+                "name": name,
+                "email": email,
+                "phone_ids": [Command.create({"number": phone, "type": "landline"})]
+                if phone
+                else False,
+            }
             country_code = REVERSED_COUNTRY_CODE.get(country_code)
             country = (
                 self.env["res.country"].search([("code", "=", country_code)])

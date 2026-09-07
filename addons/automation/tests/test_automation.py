@@ -404,7 +404,7 @@ class TestAutomation(TransactionCaseWithUserDemo):
                 "name": "Set Phone",
                 "automation_rule_id": automation.id,
                 "state": "code",
-                "code": "record.write({'phone': '555-0000'})",
+                "code": "record.write({'ref': '555-0000'})",
                 "model_id": model.id,
             }
         )
@@ -413,15 +413,15 @@ class TestAutomation(TransactionCaseWithUserDemo):
         p1 = self.env["res.partner"].create(
             {"name": "Individual", "is_company": False, "email": "test@example.com"}
         )
-        self.assertFalse(p1.phone)
+        self.assertFalse(p1.ref)
 
         p2 = self.env["res.partner"].create({"name": "Company", "is_company": True})
-        self.assertFalse(p2.phone)
+        self.assertFalse(p2.ref)
 
         p3 = self.env["res.partner"].create(
             {"name": "Company", "is_company": True, "email": "company@example.com"}
         )
-        self.assertEqual(p3.phone, "555-0000")
+        self.assertEqual(p3.ref, "555-0000")
 
     def test_code_action_execution(self):
         model = self.env.ref("base.model_res_partner")
@@ -442,7 +442,7 @@ class TestAutomation(TransactionCaseWithUserDemo):
 partner_name = record.name.upper()
 record.write({
     'street': f'Created: {partner_name}',
-    'phone': '123-456-7890',
+    'ref': '123-456-7890',
 })
 """,
                 "model_id": model.id,
@@ -452,7 +452,7 @@ record.write({
 
         partner = self.env["res.partner"].create({"name": "Test Partner"})
         self.assertEqual(partner.street, "Created: TEST PARTNER")
-        self.assertEqual(partner.phone, "123-456-7890")
+        self.assertEqual(partner.ref, "123-456-7890")
 
     def test_object_write_action(self):
         model = self.env.ref("base.model_res_partner")
@@ -676,7 +676,7 @@ record.write({
 
         partner = self.env["res.partner"].create({"name": "Test"})
 
-        partner.write({"phone": "123-456"})
+        partner.write({"ref": "123-456"})
         self.assertFalse(partner.street)
 
         partner.write({"name": "New Name"})

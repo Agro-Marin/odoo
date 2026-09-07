@@ -76,8 +76,8 @@
                         <CodiceDestinatario t-out="buyer_info['pa_index']" />
                         <ContattiTrasmittente>
                             <Telefono
-                                t-if="sender.phone"
-                                t-out="format_phone(sender.phone)" />
+                                t-if="sender._phone_get_number().number"
+                                t-out="format_phone(sender._phone_get_number().number)" />
                             <Email
                                 t-if="sender.email"
                                 t-out="format_alphanumeric(sender.email, 256)" />

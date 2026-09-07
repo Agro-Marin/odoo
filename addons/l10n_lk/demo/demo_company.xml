@@ -8,7 +8,7 @@
         <field name="city">Colombo</field>
         <field name="country_id" ref="base.lk" />
         <field name="zip">00100</field>
-        <field name="phone">+94 11 234 5678</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+94 11 234 5678', 'type': 'landline'})]" />
         <field name="email">info@company.lkexample.com</field>
         <field name="website">www.lkexample.com</field>
     </record>

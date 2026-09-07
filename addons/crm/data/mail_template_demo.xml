@@ -63,7 +63,7 @@
                                             <t t-if="object.user_id">
                                                 <b><t t-out="object.user_id.name or ''">Marc Demo</t></b>
                                                 <br />Email: <t t-out="object.user_id.email or ''">mark.brown23@example.com</t>
-                                                <br />Phone: <t t-out="object.user_id.phone or ''">+1 650-123-4567</t>
+                                                <br />Phone: <t t-out="object.user_id._phone_get_number().number or ''">+1 650-123-4567</t>
                                             </t>
                                             <t t-else="">
                                                 <t t-out="object.company_id.name or ''">My Company (San Francisco)</t>
@@ -84,7 +84,7 @@
                                 style="background-color:rgb(204,204,204);border:medium none;clear:both;display:block;font-size:0px;min-height:1px;line-height:0; margin: 16px 0px 4px 0px;" />
                             <b t-out="object.company_id.name or ''">My Company (San Francisco)</b><br />
                             <div style="color: #999999;">
-                                <t t-out="object.company_id.phone or ''">+1 650-123-4567</t>
+                                <t t-out="object.company_id._phone_get_number().number or ''">+1 650-123-4567</t>
                                 <t t-if="object.company_id.email">
                                     | <a t-attf-href="'mailto:%s' % {{ object.company_id.email }}" style="text-decoration:none; color: #999999;" t-out="object.company_id.email or ''">info@yourcompany.com</a>
                                 </t>

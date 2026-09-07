@@ -8,7 +8,7 @@ from unittest.mock import DEFAULT, patch
 
 from markupsafe import Markup
 
-from odoo import exceptions
+from odoo import Command, exceptions
 from odoo.db import Cursor
 from odoo.tests import Form, RecordCapturer, tagged
 from odoo.tools import mute_logger
@@ -490,7 +490,9 @@ class TestMailgateway(MailGatewayCommon):
             {
                 "active": False,
                 "email": "archived.customer@text.example.com",
-                "phone": "0032455112233",
+                "phone_ids": [
+                    Command.create({"number": "0032455112233", "type": "landline"})
+                ],
                 "name": "Archived Customer",
                 "type": "contact",
             }

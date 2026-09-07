@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <list>
                 <field name="name" />
-                <field name="phone" class="o_force_ltr" />
+                <field name="phone_ids" widget="many2many_tags" />
                 <field name="email" />
             </list>
         </field>
@@ -32,7 +32,7 @@
                         <group>
                             <field
                                 name="partner_id"
-                                context="{'default_is_company': True, 'default_city': city, 'default_name': name, 'default_street': street, 'default_street2': street2, 'default_state_id': state_id, 'default_zip': zip_code, 'default_country_id': country_id, 'default_phone': phone}" />
+                                context="{'default_is_company': True, 'default_city': city, 'default_name': name, 'default_street': street, 'default_street2': street2, 'default_state_id': state_id, 'default_zip': zip_code, 'default_country_id': country_id}" />
                             <label for="street" string="Address" />
                             <div class="o_address_format">
                                 <field
@@ -68,8 +68,8 @@
                             <field name="active" invisible="1" />
                             <field name="email" required="send_by == 'mail'" />
                             <field
-                                name="phone"
-                                class="o_force_ltr"
+                                name="phone_ids"
+                                widget="many2many_tags"
                                 required="send_by == 'phone'" />
                             <field
                                 name="company_id"

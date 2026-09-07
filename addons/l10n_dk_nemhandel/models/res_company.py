@@ -120,14 +120,15 @@ class ResCompany(models.Model):
             if not company.nemhandel_contact_email:
                 company.nemhandel_contact_email = company.email
 
-    @api.depends('phone')
+    @api.depends('phone_ids')
     def _compute_nemhandel_phone_number(self):
         for company in self:
             if not company.nemhandel_phone_number:
+                company_phone = company.phone_ids._primary().number
                 try:
                     # precompute only if it's a valid phone number
-                    company._sanitize_nemhandel_phone_number(company.phone)
-                    company.nemhandel_phone_number = company.phone
+                    company._sanitize_nemhandel_phone_number(company_phone)
+                    company.nemhandel_phone_number = company_phone
                 except ValidationError:
                     continue
 

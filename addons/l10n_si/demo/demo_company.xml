@@ -8,7 +8,7 @@
         <field name="city">Ljubljana</field>
         <field name="country_id" ref="base.si" />
         <field name="zip">1102</field>
-        <field name="phone">+386 31 234 567</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+386 31 234 567', 'type': 'landline'})]" />
         <field name="email">info@company.siexample.com</field>
         <field name="website">www.siexample.com</field>
         <field name="is_company" eval="True" />
@@ -21,7 +21,7 @@
 
     <record id="base.demo_bank_si" model="res.partner.bank" forcecreate="1">
         <field name="acc_number">SI44835337197422325</field>
-        <field name="partner_id" ref="base.partner_demo_company_si" />
+        <field name="partner_ids" eval="[(4, ref('base.partner_demo_company_si'))]" />
         <field name="company_id" ref="base.demo_company_si" />
     </record>
 

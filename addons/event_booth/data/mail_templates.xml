@@ -33,7 +33,7 @@
                 <li t-if="contact_email">
                     <b>Renter Email</b>: <span t-out="contact_email" />
                 </li>
-                <t t-set="contact_phone" t-value="booth.contact_phone" />
+                <t t-set="contact_phone" t-value="booth._phone_get_number().number" />
                 <li t-if="contact_phone">
                     <b>Renter Phone</b>: <span t-out="contact_phone" />
                 </li>

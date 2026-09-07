@@ -44,7 +44,7 @@ class TestWebsiteHrRecruitmentForm(odoo.tests.HttpCase):
         guru_applicant = capt.records[0]
         self.assertEqual(guru_applicant.partner_name, "John Smith")
         self.assertEqual(guru_applicant.email_from, "john@smith.com")
-        self.assertEqual(guru_applicant.partner_phone, "118.218")
+        self.assertEqual(guru_applicant.phone_ids._primary().number, "118.218")
         self.assertTrue(
             "Other Information:\n___________\n\nShort introduction from applicant : ### [GURU] HR RECRUITMENT TEST DATA ###"
             in guru_applicant.message_ids.mapped(lambda m: html2plaintext(m.body))
@@ -54,7 +54,7 @@ class TestWebsiteHrRecruitmentForm(odoo.tests.HttpCase):
         internship_applicant = capt.records[1]
         self.assertEqual(internship_applicant.partner_name, "Jack Doe")
         self.assertEqual(internship_applicant.email_from, "jack@doe.com")
-        self.assertEqual(internship_applicant.partner_phone, "118.712")
+        self.assertEqual(internship_applicant.phone_ids._primary().number, "118.712")
         self.assertTrue(
             "Other Information:\n___________\n\nShort introduction from applicant : ### HR [INTERN] RECRUITMENT TEST DATA ###"
             in internship_applicant.message_ids.mapped(lambda m: html2plaintext(m.body))
@@ -112,7 +112,7 @@ class TestWebsiteHrRecruitmentForm(odoo.tests.HttpCase):
         applicant_data = {
             "partner_name": "Georges",
             "email_from": "georges@test.com",
-            "partner_phone": "12345678",
+            "phone": "12345678",
             "job_id": developer_job.id,
             "department_id": research_and_development_department.id,
             "description": "This is a short introduction",
@@ -126,7 +126,7 @@ class TestWebsiteHrRecruitmentForm(odoo.tests.HttpCase):
         self.assertEqual(applicant.department_id, research_and_development_department)
         self.assertEqual(applicant.partner_name, "Georges")
         self.assertEqual(applicant.email_from, "georges@test.com")
-        self.assertEqual(applicant.partner_phone, "12345678")
+        self.assertEqual(applicant.phone_ids._primary().number, "12345678")
         self.assertTrue(
             any(
                 html2plaintext(message.body)

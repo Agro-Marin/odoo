@@ -1,4 +1,4 @@
-from odoo import SUPERUSER_ID
+from odoo import SUPERUSER_ID, Command
 from odoo.exceptions import AccessDenied, AccessError, ValidationError
 from odoo.http import request
 from odoo.tests.common import TransactionCase, tagged
@@ -18,7 +18,7 @@ class TestWebsiteFormEditor(HttpCaseWithUserPortal):
         cls.env.ref("base.user_admin").write(
             {
                 "name": "Mitchell Admin",
-                "phone": "+1 555-555-5555",
+                "phone_ids": [Command.create({"number": "+1 555-555-5555", "type": "landline"})],
             }
         )
 

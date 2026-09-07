@@ -68,21 +68,10 @@
                             class="fa-solid fa-phone me-1 text-primary"
                             title="Work Phone" />
                         <field
-                            name="work_phone"
-                            widget="phone"
+                            name="phone_ids"
+                            widget="many2many_tags"
                             placeholder="Work Phone"
                             string="Work Phone"
-                            class="w-75" />
-                    </h5>
-                    <h5 class="d-flex align-items-baseline mb-0">
-                        <i
-                            class="fa-solid fa-mobile-screen-button me-1 text-primary"
-                            title="Work Mobile" />
-                        <field
-                            name="mobile_phone"
-                            widget="phone"
-                            placeholder="Work Mobile"
-                            string="Work Mobile"
                             class="w-75" />
                     </h5>
                 </xpath>
@@ -134,9 +123,9 @@
                                 </div>
                                 <field name="private_email" string="Private Email" />
                                 <field
-                                    name="private_phone"
-                                    string="Private Phone"
-                                    class="o_force_ltr" />
+                                    name="private_phone_ids"
+                                    widget="many2many_tags"
+                                    string="Private Phone" />
                             </group>
                             <group string="Emergency Contact">
                                 <field
@@ -144,9 +133,9 @@
                                     string="Contact Name"
                                     placeholder="e.g. John Doe" />
                                 <field
-                                    name="emergency_phone"
+                                    name="emergency_phone_ids"
                                     string="Contact Phone"
-                                    widget="phone" />
+                                    widget="many2many_tags" />
                             </group>
                         </group>
                     </page>
@@ -303,23 +292,10 @@
                             class="fa-solid fa-phone me-1 text-primary"
                             title="Work Phone" />
                         <field
-                            name="work_phone"
-                            widget="phone"
+                            name="phone_ids"
+                            widget="many2many_tags"
                             placeholder="Work Phone"
                             string="Work Phone"
-                            class="w-75" />
-                    </h5>
-                    <h5
-                        class="d-flex align-items-baseline mb-0"
-                        invisible="not employee_id">
-                        <i
-                            class="fa-solid fa-mobile-screen-button me-1 text-primary"
-                            title="Work Mobile" />
-                        <field
-                            name="mobile_phone"
-                            widget="phone"
-                            placeholder="Work Mobile"
-                            string="Work Mobile"
                             class="w-75" />
                     </h5>
                 </xpath>

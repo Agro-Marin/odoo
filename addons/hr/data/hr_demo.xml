@@ -182,7 +182,9 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="color" eval="8" />
         </record>
         <record id="employee_admin" model="hr.employee">
-            <field name="private_phone">+1 555-555-5555</field>
+            <field
+                name="private_phone_ids"
+                eval="[Command.create({'number': '+1 555-555-5555', 'type': 'landline'})]" />
             <field name="private_email">admin@yourcompany.example.com</field>
             <field
                 name="tag_ids"
@@ -211,7 +213,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_ngh" model="res.partner">
             <field name="name">Jeffrey Kelly</field>
             <field name="email">jeffrey.kelly72@example.com</field>
-            <field name="phone">(555)-264-7362</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-264-7362', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -272,7 +276,9 @@ If you have development competencies, we can propose you specific traineeships</
             <field name="private_zip">58521</field>
             <field name="private_city">Williston</field>
             <field name="private_country_id" ref="base.us" />
-            <field name="private_phone">+1 555-555-5757</field>
+            <field
+                name="private_phone_ids"
+                eval="[Command.create({'number': '+1 555-555-5757', 'type': 'landline'})]" />
             <field name="private_email">demo@yourcompany.example.com</field>
             <field name="work_location_id" ref="work_location_1" />
             <field name="hr_responsible_id" ref="base.user_admin" />
@@ -282,7 +288,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_al" model="res.partner">
             <field name="name">Ronnie Hart</field>
             <field name="email">ronnie.hart87@example.com</field>
-            <field name="phone">(555)-310-7863</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-310-7863', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -317,7 +325,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_vad" model="res.partner">
             <field name="name">Tina Williamson</field>
             <field name="email">tina.williamson98@example.com</field>
-            <field name="phone">(555)-694-7266</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-694-7266', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -353,7 +363,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_hne" model="res.partner">
             <field name="name">Abigail Peterson</field>
             <field name="email">abigail.peterson39@example.com</field>
-            <field name="phone">(555)-233-3393</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-233-3393', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -395,7 +407,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_fpi" model="res.partner">
             <field name="name">Audrey Peterson</field>
             <field name="email">audrey.peterson25@example.com</field>
-            <field name="phone">(555)-276-7903</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-276-7903', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -439,7 +453,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_lur" model="res.partner">
             <field name="name">Eli Lambert</field>
             <field name="email">eli.lambert22@example.com</field>
-            <field name="phone">(555)-169-1352</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-169-1352', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -466,7 +482,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_jod" model="res.partner">
             <field name="name">Rachel Perry</field>
             <field name="email">jod@odoo.com</field>
-            <field name="phone">(555)-267-3735</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-267-3735', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -493,7 +511,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_fme" model="res.partner">
             <field name="name">Keith Byrd</field>
             <field name="email">keith.byrd52@example.com</field>
-            <field name="phone">(555)-505-5146</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-505-5146', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -527,7 +547,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_jep" model="res.partner">
             <field name="name">Doris Cole</field>
             <field name="email">doris.cole31@example.com</field>
-            <field name="phone">(555)-331-5378</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-331-5378', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -557,7 +579,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_jgo" model="res.partner">
             <field name="name">Ernest Reed</field>
             <field name="email">ernest.reed47@example.com</field>
-            <field name="phone">(555)-518-8232</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-518-8232', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -584,7 +608,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_jth" model="res.partner">
             <field name="name">Toni Jimenez</field>
             <field name="email">toni.jimenez23@example.com</field>
-            <field name="phone">(555)-707-8451</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-707-8451', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -621,9 +647,13 @@ If you have development competencies, we can propose you specific traineeships</
         </record>
         <record id="work_contact_mit" model="res.partner">
             <field name="name">Anita Oliver</field>
-            <field name="phone">(555)-672-3185</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-672-3185', 'type': 'landline'})]" />
             <field name="email">anita.oliver32@example.com</field>
-            <field name="phone">(555)-497-4804</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-497-4804', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -650,7 +680,9 @@ If you have development competencies, we can propose you specific traineeships</
                 name="resource_calendar_id"
                 ref="resource.resource_calendar_std_38h" />
             <field name="private_country_id" ref="base.us" />
-            <field name="private_phone">(538)-672-3185</field>
+            <field
+                name="private_phone_ids"
+                eval="[Command.create({'number': '(538)-672-3185', 'type': 'landline'})]" />
             <field name="private_email">anita.oliver00@example.com</field>
             <field name="work_location_id" ref="work_location_1" />
             <field name="hr_responsible_id" ref="base.user_admin" />
@@ -659,7 +691,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_niv" model="res.partner">
             <field name="name">Sharlene Rhodes</field>
             <field name="email">sharlene.rhodes49@example.com</field>
-            <field name="phone">(555)-719-4182</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-719-4182', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -699,7 +733,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_stw" model="res.partner">
             <field name="name">Randall Lewis</field>
             <field name="email">randall.lewis74@example.com</field>
-            <field name="phone">(555)-775-6660</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-775-6660', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -733,7 +769,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_chs" model="res.partner">
             <field name="name">Jennie Fletcher</field>
             <field name="email">jennie.fletcher76@example.com</field>
-            <field name="phone">(555)-363-8229</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-363-8229', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -773,7 +811,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_jve" model="res.partner">
             <field name="name">Paul Williams</field>
             <field name="email">paul.williams59@example.com</field>
-            <field name="phone">(555)-262-1607</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-262-1607', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -810,7 +850,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_han" model="res.partner">
             <field name="name">Walter Horton</field>
             <field name="email">walter.horton80@example.com</field>
-            <field name="phone">(555)-912-1201</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-912-1201', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -842,7 +884,9 @@ If you have development competencies, we can propose you specific traineeships</
         <record id="work_contact_jog" model="res.partner">
             <field name="name">Beth Evans</field>
             <field name="email">beth.evans77@example.com</field>
-            <field name="phone">(555)-532-3841</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-532-3841', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"
@@ -871,7 +915,9 @@ If you have development competencies, we can propose you specific traineeships</
         </record>
         <record id="work_contact_barty_mcbly" model="res.partner">
             <field name="name">Barty McBly</field>
-            <field name="phone">(555)-234-3424</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-234-3424', 'type': 'landline'})]" />
             <field name="email">barty.mcbly@example.com</field>
         </record>
         <record id="employee_barty_mcbly" model="hr.employee">

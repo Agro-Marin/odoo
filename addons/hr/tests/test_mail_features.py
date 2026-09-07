@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests.common import tagged
 
 from odoo.addons.hr.tests.common import TestHrCommon
@@ -31,7 +32,9 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
                     "country_id": cls.env.ref("base.be").id,
                     "name": "QuickEmployee",
                     "work_email": "quick.employee@test.example.com",
-                    "work_phone": "+32455001122",
+                    "phone_ids": [
+                        Command.create({"number": "+32455001122", "type": "landline"})
+                    ],
                 },
             ]
         )
@@ -79,7 +82,9 @@ class TestHrEmployeeMail(TestHrCommon, MailCommon):
         self.assertFalse(self.test_employee.message_partner_ids)
         # The party's channels are the employee's work channels now.
         self.assertEqual(self.test_employee.email, self.test_employee.work_email)
-        self.assertEqual(self.test_employee.phone, self.test_employee.work_phone)
+        self.assertEqual(
+            self.test_employee.phone_ids, self.test_employee.partner_id.phone_ids
+        )
         self.assertFalse(self.test_employee.user_id)
 
     def test_employee_get_default_recipients(self):

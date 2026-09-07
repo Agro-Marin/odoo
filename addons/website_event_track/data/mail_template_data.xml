@@ -298,8 +298,8 @@
                                                     <li>Mail: <a t-attf-href="mailto:{{ event_organizer.email }}" style="text-decoration:none;color:#875A7B;" t-out="event_organizer.email or ''" /></li>
                                                 </t>
                                                 <t
-                                                    t-if="object.event_id.organizer_id.phone or object.event_id.company_id.phone">
-                                                    <li>Phone: <t t-out="object.event_id.organizer_id.phone or object.event_id.company_id.phone" /></li>
+                                                    t-if="object.event_id.organizer_id.phone_ids._primary() or object.event_id.company_id.phone_ids._primary()">
+                                                    <li>Phone: <t t-out="object.event_id.organizer_id.phone_ids._primary().number or object.event_id.company_id.phone_ids._primary().number" /></li>
                                                 </t>
                                             </ul>
                                         </div>

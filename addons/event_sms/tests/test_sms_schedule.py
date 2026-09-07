@@ -103,7 +103,7 @@ class TestSMSSchedule(EventCase, SMSCase):
         sanitized_numbers = []
         for registration in test_event.registration_ids:
             reg_sanitized_number = phone_validation.phone_format(
-                registration.phone, "BE", "32", force_format="E164"
+                registration._phone_get_number().number, "BE", "32", force_format="E164"
             )
             sanitized_numbers.append(reg_sanitized_number)
             self.assertSMSOutgoing(
@@ -140,7 +140,7 @@ class TestSMSSchedule(EventCase, SMSCase):
         # verify that subscription scheduler was auto-executed after each registration
         for registration in test_event.registration_ids:
             reg_sanitized_number = phone_validation.phone_format(
-                registration.phone, "BE", "32", force_format="E164"
+                registration._phone_get_number().number, "BE", "32", force_format="E164"
             )
             self.assertSMSOutgoing(
                 self.env["res.partner"],

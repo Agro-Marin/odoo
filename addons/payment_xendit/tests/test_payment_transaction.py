@@ -82,7 +82,7 @@ class TestPaymentTransaction(PaymentHttpCommon, XenditCommon):
             'customer': {
                 'given_names': tx.partner_name,
                 'email': tx.partner_email,
-                'mobile_number': tx.partner_id.phone,
+                'mobile_number': tx.partner_id._phone_get_number().number,
                 'addresses': [{
                     'city': tx.partner_city,
                     'country': tx.partner_country_id.name,

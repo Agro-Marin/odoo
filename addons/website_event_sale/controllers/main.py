@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from odoo import Command
 from odoo.http import request, route
 
 from odoo.addons.portal.controllers.portal import CustomerPortal
@@ -73,6 +74,15 @@ class WebsiteEventSaleController(WebsiteEventController):
             event, registration_data
         )
 
+    def _registration_address_values(self, registration_values):
+        values = dict(registration_values)
+        commands = values.pop("phone_ids", None)
+        for command in commands or ():
+            if command[0] == Command.CREATE and command[2].get("number"):
+                values["phone"] = command[2]["number"]
+                break
+        return values
+
     @route()
     def registration_confirm(self, event, **post):
         res = super().registration_confirm(event, **post)
@@ -92,7 +102,7 @@ class WebsiteEventSaleController(WebsiteEventController):
                             request.env["res.partner"].sudo(),
                             order_sudo=order_sudo,
                             verify_address_values=False,
-                            **registrations[0],
+                            **self._registration_address_values(registrations[0]),
                         )
                     )
                     if not feedback_dict.get("invalid_fields"):

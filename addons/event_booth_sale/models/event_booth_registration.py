@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 from markupsafe import Markup
-from odoo import api, fields, models, _
+
+from odoo import Command, _, api, fields, models
 
 
 class EventBoothRegistration(models.Model):
@@ -16,7 +16,9 @@ class EventBoothRegistration(models.Model):
         'res.partner', related='sale_order_line_id.partner_id', store=True)
     contact_name = fields.Char(string='Contact Name', compute='_compute_contact_name', readonly=False, store=True)
     contact_email = fields.Char(string='Contact Email', compute='_compute_contact_email', readonly=False, store=True)
-    contact_phone = fields.Char(string='Contact Phone', compute='_compute_contact_phone', readonly=False, store=True)
+    phone_ids = fields.Many2many(
+        'phone.number', 'event_booth_registration_phone_number_rel', 'registration_id', 'phone_number_id',
+        string='Contact Phone', compute='_compute_phone_ids', readonly=False, store=True)
 
     _unique_registration = models.Constraint(
         'unique(sale_order_line_id, event_booth_id)',
@@ -36,23 +38,31 @@ class EventBoothRegistration(models.Model):
                 registration.contact_email = registration.partner_id.email or False
 
     @api.depends('partner_id')
-    def _compute_contact_phone(self):
+    def _compute_phone_ids(self):
         for registration in self:
-            if not registration.contact_phone:
-                registration.contact_phone = registration.partner_id.phone or False
+            if not registration.phone_ids:
+                registration.phone_ids = registration.partner_id.phone_ids._primary()
 
     @api.model
     def _get_fields_for_booth_confirmation(self):
-        return ['sale_order_line_id', 'partner_id', 'contact_name', 'contact_email', 'contact_phone']
+        return ['sale_order_line_id', 'partner_id', 'contact_name', 'contact_email', 'phone_ids']
 
     def action_confirm(self):
         for registration in self:
             values = {
-                field: registration[field].id if isinstance(registration[field], models.BaseModel) else registration[field]
+                field: registration._booth_confirmation_value(field)
                 for field in self._get_fields_for_booth_confirmation()
             }
             registration.event_booth_id.action_confirm(values)
         self._cancel_pending_registrations()
+
+    def _booth_confirmation_value(self, field):
+        value = self[field]
+        if not isinstance(value, models.BaseModel):
+            return value
+        if self._fields[field].type == 'many2many':
+            return [Command.set(value.ids)]
+        return value.id
 
     def _cancel_pending_registrations(self):
         body = Markup('<p>%(message)s: <ul>%(booth_names)s</ul></p>') % {

@@ -649,7 +649,7 @@ class TestPartnerWriteContract(TransactionCase):
 
         self.patch(type(Partner), "_fields_sync", spy)
 
-        child.write({"comment": "<p>note</p>", "function": "CEO", "phone": "123"})
+        child.write({"comment": "<p>note</p>", "function": "CEO", "ref": "123"})
         self.assertEqual(seen, [], "a non-synced write must not run the parent sync")
 
         child.write({"vat": "BE0477472701"})
@@ -1081,7 +1081,10 @@ class TestPartnerSimilarNameDuplicates(TransactionCase):
             {"name": "Halloran Cooperage", "email": "halloran@example.test"}
         )
         twin = self.Partner.create(
-            {"name": "Halloran Cooperages", "phone": "+353 1 555 0111"}
+            {
+                "name": "Halloran Cooperages",
+                "phone_ids": [Command.create({"number": "+353 1 555 0111"})],
+            }
         )
         listed = self.Partner.search(keeper.action_view_duplicates()["domain"])
         self.assertEqual(listed, keeper | twin)
@@ -1100,7 +1103,7 @@ class TestPartnerSimilarNameDuplicates(TransactionCase):
         )
         self.assertEqual(len(survivors), 1, "the pair must end as one contact")
         self.assertEqual(survivors.email, "halloran@example.test")
-        self.assertEqual(survivors.phone, "+353 1 555 0111")
+        self.assertEqual(survivors.phone_ids.number, "+353 1 555 0111")
 
     def test_the_threshold_decides_what_counts_as_alike(self):
         first = self.Partner.create({"name": "Clonakilty Provisions"})
@@ -1267,7 +1270,7 @@ class TestPartnerAddressCompany(TransactionCase):
                 "industry_id": cls.test_industries[0].id,
                 "is_company": True,
                 "name": "GhostStep",
-                "phone": "+32455001122",
+                "phone_ids": [Command.create({"number": "+32455001122"})],
                 "vat": "BE0477472701",
                 "type": "contact",
                 **cls.test_address_values,
@@ -1351,7 +1354,7 @@ class TestPartnerAddressCompany(TransactionCase):
         ct1_phone = "+320455999999"
         ct1.write(
             {
-                "phone": ct1_phone,
+                "phone_ids": [Command.create({"number": ct1_phone})],
                 "parent_id": self.test_parent.id,
             }
         )
@@ -1367,7 +1370,9 @@ class TestPartnerAddressCompany(TransactionCase):
             "Email should be preserved after sync",
         )
         self.assertEqual(
-            ct1.phone, ct1_phone, "Phone should be preserved after address sync"
+            ct1.phone_ids.number,
+            ct1_phone,
+            "Phone should be preserved after address sync",
         )
         self.assertEqual(
             ct1.type, "contact", "Type should be preserved after address sync"
@@ -2357,7 +2362,7 @@ class TestPartnerAddressCompany(TransactionCase):
             "_commercial_sync_to_descendants",
             autospec=True,
         ) as sync_mock:
-            company.write({"phone": "123456"})
+            company.write({"ref": "123456"})
         self.assertFalse(
             sync_mock.called,
             "Writing a non-commercial field must not walk the descendant subtree",
@@ -2525,7 +2530,7 @@ class TestPartnerRecursion(TransactionCase):
 
     def test_110_res_partner_recursion_multi_update(self):
         ps = self.p1 + self.p2 + self.p3
-        self.assertTrue(ps.write({"phone": "123456"}))
+        self.assertTrue(ps.write({"ref": "123456"}))
 
     def test_111_res_partner_recursion_infinite_loop(self):
         self.p2.parent_id = False

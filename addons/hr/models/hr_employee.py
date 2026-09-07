@@ -7,7 +7,7 @@ from string import digits
 from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
-from odoo import api, fields, models, tools
+from odoo import Command, api, fields, models, tools
 from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import localize_standard, timezone
@@ -33,6 +33,8 @@ class HrEmployee(models.Model):
     _primary_email = "work_email"
     _mail_partner_fields = ("partner_id",)
     _inherits = {"hr.version": "version_id", "res.partner": "partner_id"}
+
+    _PUBLIC_PARTY_X2MANY_FIELDS = ("phone_ids",)
 
     _DIRTY_HACK_PRIVATE_FIELDS = (
         "activity_calendar_event_id",
@@ -190,17 +192,6 @@ class HrEmployee(models.Model):
         compute_sudo=True,
     )
 
-    work_phone = fields.Char(
-        "Work Phone",
-        related="partner_id.phone",
-        readonly=False,
-        tracking=True,
-    )
-    mobile_phone = fields.Char(
-        "Work Mobile",
-        related="partner_id.mobile",
-        readonly=False,
-    )
     work_email = fields.Char(
         "Work Email",
         related="partner_id.email",
@@ -226,9 +217,9 @@ class HrEmployee(models.Model):
         string="User's active",
         groups="hr.group_hr_user",
     )
-    private_phone = fields.Char(
+    private_phone_ids = fields.Many2many(
         string="Private Phone",
-        related="private_address_id.phone",
+        related="private_address_id.phone_ids",
         readonly=False,
         groups="hr.group_hr_user",
     )
@@ -423,9 +414,13 @@ class HrEmployee(models.Model):
         groups="hr.group_hr_user",
         tracking=True,
     )
-    emergency_phone = fields.Char(
+    emergency_phone_ids = fields.Many2many(
+        "phone.number",
+        "hr_employee_emergency_phone_number_rel",
+        "employee_id",
+        "phone_number_id",
+        string="Emergency Phone",
         groups="hr.group_hr_user",
-        tracking=True,
     )
 
     distance_home_work = fields.Integer(
@@ -469,7 +464,7 @@ class HrEmployee(models.Model):
         relation="employee_bank_account_rel",
         column1="employee_id",
         column2="bank_account_id",
-        domain="[('partner_id', '=', partner_id), '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
+        domain="[('partner_ids', 'in', partner_id), '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
         string="Bank Accounts",
         tracking=True,
         groups="hr.group_hr_user",
@@ -1291,21 +1286,6 @@ class HrEmployee(models.Model):
         if self.private_state_id:
             self.private_country_id = self.private_state_id.country_id
 
-    @api.onchange("work_phone", "mobile_phone", "company_country_id", "company_id")
-    def _onchange_phone_validation_employee(self):
-        if self.work_phone:
-            self.work_phone = (
-                self._phone_format(number=self.work_phone, force_format="INTERNATIONAL")
-                or self.work_phone
-            )
-        if self.mobile_phone:
-            self.mobile_phone = (
-                self._phone_format(
-                    number=self.mobile_phone, force_format="INTERNATIONAL"
-                )
-                or self.mobile_phone
-            )
-
     def _get_display_name_visible_ids(self) -> set[int]:
         if not self.env.user._is_internal():
             return super()._get_display_name_visible_ids()
@@ -1799,8 +1779,6 @@ class HrEmployee(models.Model):
                 **self.env.context,
                 "default_create_employee_id": self.id,
                 "default_name": self.name,
-                "default_phone": self.work_phone,
-                "default_mobile": self.mobile_phone,
                 "default_login": self.work_email,
                 "default_partner_id": self.partner_id.id,
             },
@@ -1872,7 +1850,6 @@ class HrEmployee(models.Model):
                 {
                     "create_employee_id": employee.id,
                     "name": employee.name,
-                    "phone": employee.work_phone,
                     "login": login,
                     "partner_id": employee.partner_id.id,
                 }
@@ -1947,11 +1924,13 @@ class HrEmployee(models.Model):
     def _is_public_party_field(self, fname):
         """A party field a public-profile reader may read through the employee:
         one the partner stores as a column, which the reader could read on the
-        partner itself. Computed and x2many party fields reach into other
-        models and stay behind the profile."""
+        partner itself, plus the work channels every internal user reads off a
+        colleague. Other computed and x2many party fields reach into models the
+        reader has no claim on and stay behind the profile."""
         field = self._fields[fname]
         return self._is_party_field(fname) and (
             fname.startswith(("image_", "avatar_"))
+            or fname in self._PUBLIC_PARTY_X2MANY_FIELDS
             or (
                 field.inherited_field.store
                 and field.inherited_field.type not in ("one2many", "many2many")
@@ -2406,7 +2385,7 @@ class HrEmployee(models.Model):
             Store.One("department_id", ["name"]),
             "work_email",
             Store.One("work_location_id", ["location_type", "name"]),
-            "work_phone",
+            Store.Attr("work_phone", lambda e: e.phone_ids._primary().number),
         ]
         user = target.get_user(self.env)
         if user.has_group("hr.group_hr_user"):
@@ -2574,10 +2553,12 @@ class HrEmployee(models.Model):
         )
 
     def get_avatar_card_data(self, field_names):
-        return self.read(field_names)
-
-    def _get_phone_number_fields(self):
-        return ["mobile_phone"]
+        stored = [fname for fname in field_names if fname != "work_phone"]
+        data = self.read(stored)
+        if "work_phone" in field_names:
+            for employee, values in zip(self, data, strict=True):
+                values["work_phone"] = employee.phone_ids._primary().number
+        return data
 
     def _remove_work_contact_id(self, user, employee_company=None):
         if not user:
@@ -2599,7 +2580,7 @@ class HrEmployee(models.Model):
                     {
                         "name": employee.name,
                         "email": employee.work_email,
-                        "phone": employee.work_phone,
+                        "phone_ids": [Command.set(employee.phone_ids.ids)],
                     }
                     for employee in squatters
                 ]
@@ -2807,7 +2788,7 @@ class HrEmployee(models.Model):
             self.env["res.partner.bank"].sudo().browse(self.bank_account_ids.ids)
         )
         to_move = accounts_sudo.filtered(
-            lambda account: account.partner_id.id != partner_id
+            lambda account: partner_id not in account.partner_ids.ids
         )
         if not to_move:
             return
@@ -2815,4 +2796,4 @@ class HrEmployee(models.Model):
         if trusted:
             trusted.allow_out_payment = False
         if partner_id:
-            to_move.partner_id = partner_id
+            to_move.partner_ids = [Command.set([partner_id])]

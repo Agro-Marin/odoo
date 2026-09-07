@@ -2,7 +2,7 @@ import random
 
 from markupsafe import Markup
 
-from odoo import _, api, fields, models
+from odoo import Command, _, api, fields, models
 from odoo.exceptions import AccessDenied, AccessError, UserError
 
 
@@ -340,6 +340,7 @@ class CrmLead(models.Model):
         fields = [
             "partner_name",
             "phone",
+            "phone_ids",
             "email_from",
             "street",
             "street2",
@@ -354,6 +355,13 @@ class CrmLead(models.Model):
                     "Not allowed to update the following field(s): %s.",
                     ", ".join([key for key in values if key not in fields]),
                 )
+            )
+        if "phone" in values:
+            number = values.pop("phone")
+            values["phone_ids"] = (
+                [Command.create({"number": number, "type": "landline"})]
+                if number
+                else [Command.clear()]
             )
         return self.sudo().write(values)
 

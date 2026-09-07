@@ -182,9 +182,10 @@ class AccountMove(models.Model):
             not re.match(r"^.{6,100}$", partner.email)
         ):
             message.append(_("- Email: invalid or longer than 100 characters."))
-        if partner.phone and not re.match(
+        partner_phone = partner._phone_get_number().number
+        if partner_phone and not re.match(
             r"^[0-9]{10,12}$",
-            partner.env['account.move']._l10n_in_extract_digits(partner.phone)
+            partner.env['account.move']._l10n_in_extract_digits(partner_phone)
         ):
             message.append(_("- Phone number: must be 10–12 digits."))
         if partner.street2 and not re.match(r"^.{3,100}$", partner.street2):
@@ -438,11 +439,12 @@ class AccountMove(models.Model):
                 and re.match(r"^.{6,100}$", partner.email)
             ):
                 partner_details['Em'] = partner.email
+            partner_phone = partner._phone_get_number().number
             if (
-                partner.phone
-                and re.match(r"^[0-9]{10,12}$", self._l10n_in_extract_digits(partner.phone))
+                partner_phone
+                and re.match(r"^[0-9]{10,12}$", self._l10n_in_extract_digits(partner_phone))
             ):
-                partner_details['Ph'] = self._l10n_in_extract_digits(partner.phone)
+                partner_details['Ph'] = self._l10n_in_extract_digits(partner_phone)
         if pos_state_id:
             partner_details['POS'] = pos_state_id.l10n_in_tin or ''
         if set_vat:

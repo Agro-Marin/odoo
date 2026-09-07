@@ -66,15 +66,24 @@ class EventSponsor(models.Model):
     )
     partner_name = fields.Char("Name", related="partner_id.name")
     partner_email = fields.Char("Email", related="partner_id.email")
-    partner_phone = fields.Char("Phone", related="partner_id.phone")
+    partner_phone_ids = fields.Many2many(
+        string="Phone", related="partner_id.phone_ids"
+    )
     name = fields.Char(
         "Sponsor Name", compute="_compute_name", readonly=False, store=True
     )
     email = fields.Char(
         "Sponsor Email", compute="_compute_email", readonly=False, store=True
     )
-    phone = fields.Char(
-        "Sponsor Phone", compute="_compute_phone", readonly=False, store=True
+    phone_ids = fields.Many2many(
+        "phone.number",
+        "event_sponsor_phone_number_rel",
+        "sponsor_id",
+        "phone_number_id",
+        string="Sponsor Phone",
+        compute="_compute_phone_ids",
+        readonly=False,
+        store=True,
     )
     # image
     image_512 = fields.Image(
@@ -129,8 +138,10 @@ class EventSponsor(models.Model):
         self._synchronize_with_partner("email")
 
     @api.depends("partner_id")
-    def _compute_phone(self):
-        self._synchronize_with_partner("phone")
+    def _compute_phone_ids(self):
+        for sponsor in self:
+            if not sponsor.phone_ids:
+                sponsor.phone_ids = sponsor.partner_id.phone_ids._primary()
 
     @api.depends("partner_id")
     def _compute_image_512(self):

@@ -1,6 +1,6 @@
 import json
-
-from urllib.parse import urlencode as url_encode, urlsplit as url_parse
+from urllib.parse import urlencode as url_encode
+from urllib.parse import urlsplit as url_parse
 
 from odoo import _, api, fields, models
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
@@ -12,7 +12,6 @@ from odoo.addons.payment_stripe import const
 from odoo.addons.payment_stripe import utils as stripe_utils
 from odoo.addons.payment_stripe.controllers.main import StripeController
 from odoo.addons.payment_stripe.controllers.onboarding import OnboardingController
-
 
 _logger = get_payment_logger(__name__, const.SENSITIVE_KEYS)
 
@@ -320,7 +319,7 @@ class PaymentProvider(models.Model):
             'billing_details': {
                 'name': partner.name or '',
                 'email': partner.email or '',
-                'phone': partner.phone or '',
+                'phone': partner._phone_get_number().number or '',
                 'address': {
                     'line1': partner.street or '',
                     'line2': partner.street2 or '',

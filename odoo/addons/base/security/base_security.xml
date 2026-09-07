@@ -274,6 +274,20 @@
         <field name="groups" eval="[Command.link(ref('base.group_user'))]" />
     </record>
 
+    <record id="phone_number_portal_public_rule" model="ir.rule">
+        <field
+            name="name">phone.number: portal/public: read a number my commercial partner holds</field>
+        <field name="model_id" ref="base.model_phone_number" />
+        <field
+            name="domain_force">[('partner_ids', 'child_of', user.commercial_partner_id.id)]</field>
+        <field
+            name="groups"
+            eval="[Command.link(ref('base.group_portal')), Command.link(ref('base.group_public'))]" />
+        <field name="perm_create" eval="False" />
+        <field name="perm_write" eval="False" />
+        <field name="perm_unlink" eval="False" />
+    </record>
+
     <record id="res_partner_private_address_rule" model="ir.rule">
         <field name="name">res.partner: a private address is its subject's</field>
         <field name="model_id" ref="base.model_res_partner" />

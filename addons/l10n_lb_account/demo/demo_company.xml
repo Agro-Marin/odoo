@@ -9,7 +9,7 @@
         <field name="city">Mazboud</field>
         <field name="country_id" ref="base.lb" />
         <field name="zip">5677</field>
-        <field name="phone">+961 76 88 99 95</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+961 76 88 99 95', 'type': 'landline'})]" />
         <field name="email">lebanoncompany@example.com</field>
         <field name="website">www.lbexample.com</field>
         <field name="is_company" eval="True" />
@@ -22,7 +22,7 @@
 
     <record id="base.demo_bank_lb" model="res.partner.bank" forcecreate="1">
         <field name="acc_number">LB76429468789995</field>
-        <field name="partner_id" ref="base.partner_demo_company_lb" />
+        <field name="partner_ids" eval="[(4, ref('base.partner_demo_company_lb'))]" />
         <field name="company_id" ref="base.demo_company_lb" />
     </record>
 

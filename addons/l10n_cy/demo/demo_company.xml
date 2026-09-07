@@ -8,7 +8,7 @@
         <field name="city">Nicosia</field>
         <field name="country_id" ref="base.cy" />
         <field name="zip">6013</field>
-        <field name="phone">+357 22123456</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+357 22123456', 'type': 'landline'})]" />
         <field name="email">info@company.cyexample.com</field>
         <field name="website">www.cyexample.com</field>
         <field name="is_company" eval="True" />
@@ -21,7 +21,7 @@
 
     <record id="partner_demo_company_bank_account" model="res.partner.bank">
         <field name="acc_number">CY05399527715561991181417425</field>
-        <field name="partner_id" ref="l10n_cy.partner_demo_company_cy" />
+        <field name="partner_ids" eval="[(4, ref('l10n_cy.partner_demo_company_cy'))]" />
         <field name="company_id" ref="l10n_cy.demo_company_cy" />
     </record>
 

@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import Command, api, fields, models
 
 
 class RegistrationEditor(models.TransientModel):
@@ -55,7 +55,7 @@ class RegistrationEditor(models.TransientModel):
                         "registration_id": reg.id,
                         "name": reg.name,
                         "email": reg.email,
-                        "phone": reg.phone,
+                        "phone_ids": [Command.link(phone.id) for phone in reg.phone_ids],
                         "sale_order_line_id": so_line.id,
                     },
                 ]
@@ -73,7 +73,10 @@ class RegistrationEditor(models.TransientModel):
                         "sale_order_line_id": so_line.id,
                         "name": so_line.partner_id.name,
                         "email": so_line.partner_id.email,
-                        "phone": so_line.partner_id.phone,
+                        "phone_ids": [
+                            Command.link(phone.id)
+                            for phone in so_line.partner_id.phone_ids._primary()
+                        ],
                     },
                 ]
                 for _count in range(
@@ -119,7 +122,7 @@ class RegistrationEditorLine(models.TransientModel):
     event_slot_id = fields.Many2one("event.slot", string="Event Slot")
     event_ticket_id = fields.Many2one("event.event.ticket", string="Event Ticket")
     email = fields.Char(string="Email")
-    phone = fields.Char(string="Phone")
+    phone_ids = fields.Many2many("phone.number", string="Phone")
     name = fields.Char(string="Name")
 
     def _prepare_registration_data(self, include_event_values=False):
@@ -127,7 +130,14 @@ class RegistrationEditorLine(models.TransientModel):
         registration_data = {
             "partner_id": self.editor_id.sale_order_id.partner_id.id,
             "name": self.name or self.editor_id.sale_order_id.partner_id.name,
-            "phone": self.phone or self.editor_id.sale_order_id.partner_id.phone,
+            "phone_ids": [
+                Command.set(
+                    (
+                        self.phone_ids
+                        or self.editor_id.sale_order_id.partner_id.phone_ids._primary()
+                    ).ids
+                )
+            ],
             "email": self.email or self.editor_id.sale_order_id.partner_id.email,
         }
         if include_event_values:

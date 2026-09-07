@@ -348,9 +348,9 @@
                 <span t-if="event.organizer_id">
                     <span class="fw-bold" t-field="event.organizer_id.name">Marc Demo</span>
                     <span
-                        t-if="event.organizer_id.phone"
+                        t-if="event.organizer_id.phone_ids._primary()"
                         class="ps-3 fa-solid fa-phone" />
-                    <span t-if="event.organizer_id.phone" t-field="event.organizer_id.phone">+123456789</span>
+                    <span t-if="event.organizer_id.phone_ids._primary()" t-out="event.organizer_id.phone_ids._primary().number">+123456789</span>
                     <span
                         t-if="event.organizer_id.email_normalized"
                         class="ps-3 fa-solid fa-envelope" />

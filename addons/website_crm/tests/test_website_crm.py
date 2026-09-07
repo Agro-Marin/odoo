@@ -54,7 +54,7 @@ class TestWebsiteCrm(odoo.tests.HttpCase, TestCrmCommon):
             self.env["res.users"].search([("login", "=", user_login)]).partner_id
         )
         partner_email = user_partner.email
-        partner_phone = user_partner.phone
+        partner_phone = user_partner.phone_ids
 
         self.start_tour(
             self.env["website"].get_client_action_url("/contactus"),
@@ -73,7 +73,7 @@ class TestWebsiteCrm(odoo.tests.HttpCase, TestCrmCommon):
         self.assertFalse(capt.records.partner_id)
 
         self.assertEqual(user_partner.email, partner_email)
-        self.assertEqual(user_partner.phone, partner_phone)
+        self.assertEqual(user_partner.phone_ids, partner_phone)
 
     def test_form_properties(self):
         self.lead_1.lead_properties = [

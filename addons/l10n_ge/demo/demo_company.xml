@@ -9,7 +9,7 @@
         <field name="city">Tbilisi</field>
         <field name="country_id" ref="base.ge" />
         <field name="zip">0108</field>
-        <field name="phone">+995 599 12 34 56</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+995 599 12 34 56', 'type': 'landline'})]" />
         <field name="email">info@company.geexample.com</field>
         <field name="website">https://www.geexample.com</field>
     </record>

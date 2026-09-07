@@ -78,7 +78,9 @@ class TestPhoneBlacklistDoesNotDeriveFromActingUser(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        self.env.user.write({"phone": "+32485001122", "mobile": False})
+        self.env.user.write(
+            {"phone_ids": [Command.clear(), Command.create({"number": "+32485001122"})]}
+        )
 
     def test_create_with_falsy_number_raises(self):
         with self.assertRaises(UserError):
@@ -114,7 +116,9 @@ class TestPortalUserBlacklistOnDeactivate(TransactionCase):
             {
                 "name": "Blacklist victim",
                 "login": "blacklist.victim@test.example.com",
-                "phone": "+33699887766",
+                "phone_ids": [
+                    Command.create({"number": "+33699887766", "type": "landline"})
+                ],
                 "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
             },
         )
@@ -128,7 +132,9 @@ class TestPortalUserBlacklistOnDeactivate(TransactionCase):
             {
                 "name": "Clean victim",
                 "login": "clean.victim@test.example.com",
-                "phone": "+33688776655",
+                "phone_ids": [
+                    Command.create({"number": "+33688776655", "type": "landline"})
+                ],
                 "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
             },
         )
@@ -144,7 +150,9 @@ class TestPortalUserBlacklistOnDeactivate(TransactionCase):
             {
                 "name": "Internal user",
                 "login": "internal.deactivate@test.example.com",
-                "phone": "+33611223344",
+                "phone_ids": [
+                    Command.create({"number": "+33611223344", "type": "landline"})
+                ],
             },
         )
 

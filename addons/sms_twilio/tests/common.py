@@ -1,4 +1,5 @@
 import re
+from odoo import Command
 
 from contextlib import contextmanager
 from requests import Response
@@ -241,9 +242,9 @@ class MockSmsTwilio(MockSmsTwilioApi, TransactionCase):
 
         cls.valid_partner = cls.env['res.partner'].create({
             'name': 'ValidPartner',
-            'phone': cls.twilio_valid_phone_number,
+            'phone_ids': [Command.create({"number": cls.twilio_valid_phone_number, "type": "landline"})],
         })
         cls.invalid_partner = cls.env['res.partner'].create({
             'name': 'InvalidPartner',
-            'phone': cls.twilio_invalid_phone_number,
+            'phone_ids': [Command.create({"number": cls.twilio_invalid_phone_number, "type": "landline"})],
         })

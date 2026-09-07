@@ -17,7 +17,9 @@ class EventBooth(models.Model):
     partner_id = fields.Many2one('res.partner', string='Renter', tracking=True, copy=False)
     contact_name = fields.Char('Renter Name', compute='_compute_contact_name', readonly=False, store=True, copy=False)
     contact_email = fields.Char('Renter Email', compute='_compute_contact_email', readonly=False, store=True, copy=False)
-    contact_phone = fields.Char('Renter Phone', compute='_compute_contact_phone', readonly=False, store=True, copy=False)
+    phone_ids = fields.Many2many(
+        'phone.number', 'event_booth_phone_number_rel', 'booth_id', 'phone_number_id',
+        string='Renter Phone', compute='_compute_phone_ids', readonly=False, store=True, copy=False)
     # state
     state = fields.Selection(
         [('available', 'Available'), ('unavailable', 'Unavailable')],
@@ -38,10 +40,10 @@ class EventBooth(models.Model):
                 booth.contact_email = booth.partner_id.email or False
 
     @api.depends('partner_id')
-    def _compute_contact_phone(self):
+    def _compute_phone_ids(self):
         for booth in self:
-            if not booth.contact_phone:
-                booth.contact_phone = booth.partner_id.phone or False
+            if not booth.phone_ids:
+                booth.phone_ids = booth.partner_id.phone_ids._primary()
 
     @api.depends('state')
     def _compute_is_available(self):
@@ -62,7 +64,7 @@ class EventBooth(models.Model):
 
     def write(self, vals):
         to_confirm = self.filtered(lambda booth: booth.state == 'available')
-        res = super(EventBooth, self).write(vals)
+        res = super().write(vals)
         if vals.get('state') == 'unavailable':
             to_confirm._action_post_confirm(vals)
         return res

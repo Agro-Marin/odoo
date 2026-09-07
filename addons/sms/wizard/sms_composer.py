@@ -370,7 +370,9 @@ class SmsComposer(models.TransientModel):
             self.recipient_single_number_itf
             and self.recipient_single_number_itf != self.recipient_single_number
         ):
-            records.write({self.number_field_name: self.recipient_single_number_itf})
+            records._phone_replace_number(
+                self.number_field_name, self.recipient_single_number_itf
+            )
         return self._action_send_sms_comment(records=records)
 
     def _action_send_sms_comment(self, records=None):

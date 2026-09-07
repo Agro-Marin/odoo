@@ -64,7 +64,7 @@ class TestTracking(AccountTestInvoicingCommon, MailCase):
                 "email": "test.admin@test.example.com",
                 "name": "Mitchell Admin",
                 "notification_type": "inbox",
-                "phone": "0455135790",
+                "phone_ids": [Command.create({"number": "0455135790"})],
             }
         )
         partner_admin = self.env.ref("base.partner_admin")

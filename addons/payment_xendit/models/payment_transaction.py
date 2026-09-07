@@ -10,7 +10,6 @@ from odoo.addons.payment.logging import get_payment_logger
 from odoo.addons.payment_xendit import const
 from odoo.addons.payment_xendit.controllers.main import XenditController
 
-
 _logger = get_payment_logger(__name__)
 
 
@@ -94,7 +93,7 @@ class PaymentTransaction(models.Model):
         # Extra payload values that must not be included if empty.
         if self.partner_email:
             payload['customer']['email'] = self.partner_email
-        if phone := self.partner_id.phone:
+        if phone := self.partner_id.phone_ids._primary().number:
             payload['customer']['mobile_number'] = phone
         address_details = {}
         if self.partner_city:

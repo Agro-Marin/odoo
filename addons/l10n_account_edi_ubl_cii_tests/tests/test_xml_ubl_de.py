@@ -20,7 +20,7 @@ class TestUBLDE(TestUBLCommon):
             'zip': "89312",
             'city': "Günzburg",
             'vat': 'DE257486969',
-            'phone': '+49 180 6 225789',
+            'phone_ids': [Command.create({"number": '+49 180 6 225789', "type": "landline"})],
             'email': 'info@legoland.de',
             'country_id': cls.env.ref('base.de').id,
             'bank_ids': [(0, 0, {'acc_number': 'DE48500105176424548921'})],
@@ -59,7 +59,7 @@ class TestUBLDE(TestUBLCommon):
     @classmethod
     def setup_independent_company(cls, **kwargs):
         return super().setup_independent_company(
-            phone="+49(0) 30 227-0",
+            phone_ids=[Command.create({"number": "+49(0) 30 227-0", "type": "landline"})],
             email="test@xrechnung@com",
             **kwargs,
         )
@@ -257,7 +257,7 @@ class TestUBLDE(TestUBLCommon):
         """
         acc_bank = self.env['res.partner.bank'].create({
             'acc_number': 'BE15001559627232',
-            'partner_id': self.company_data['company'].partner_id.id,
+            'partner_ids': [(4, self.company_data['company'].partner_id.id)],
         })
 
         invoice = self._generate_move(
@@ -307,7 +307,7 @@ class TestUBLDE(TestUBLCommon):
 
         acc_bank = self.env['res.partner.bank'].create({
             'acc_number': 'DE15001559627232',
-            'partner_id': partner.id,
+            'partner_ids': [(4, partner.id)],
         })
 
         invoice = self._generate_move(

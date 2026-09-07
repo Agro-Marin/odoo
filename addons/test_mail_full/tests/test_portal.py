@@ -1,5 +1,6 @@
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import tagged, users
 from odoo.tests.common import HttpCase
@@ -166,7 +167,9 @@ class TestPortalFlow(MailCommon, HttpCase):
                 "email": "mdelvaux34@example.com",
                 "lang": "en_US",
                 "name": "Mathias Delvaux",
-                "phone": "+33353011823",
+                "phone_ids": [
+                    Command.create({"number": "+33353011823", "type": "landline"})
+                ],
             }
         )
         # customer portal enabled

@@ -319,7 +319,7 @@ class TestViewSaving(TestViewSavingCommon):
                         h.SPAN(
                             "+00 00 000 00 0 000",
                             attrs(
-                                model="res.company", id=1, field="phone", type="char"
+                                model="res.company", id=1, field="website", type="char"
                             ),
                         )
                     ),
@@ -345,7 +345,7 @@ class TestViewSaving(TestViewSavingCommon):
             ),
             h.SPAN(
                 "+00 00 000 00 0 000",
-                attrs(model="res.company", id=1, field="phone", type="char"),
+                attrs(model="res.company", id=1, field="website", type="char"),
             ),
         ]
         for actual, expected in zip_longest(fields, expect):
@@ -354,13 +354,13 @@ class TestViewSaving(TestViewSavingCommon):
     def test_embedded_save(self):
         embedded = h.SPAN(
             "+00 00 000 00 0 000",
-            attrs(model="res.company", id=1, field="phone", type="char"),
+            attrs(model="res.company", id=1, field="website", type="char"),
         )
 
         self.env["ir.ui.view"].save_embedded_field(embedded)
 
         company = self.env["res.company"].browse(1)
-        self.assertEqual(company.phone, "+00 00 000 00 0 000")
+        self.assertEqual(company.website, "+00 00 000 00 0 000")
 
     @unittest.skip(
         "save conflict for embedded (saved by third party or previous version in page) not implemented"
@@ -437,7 +437,7 @@ class TestViewSaving(TestViewSavingCommon):
                                 attrs(
                                     model="res.company",
                                     id=1,
-                                    field="phone",
+                                    field="website",
                                     type="char",
                                 ),
                             )
@@ -481,7 +481,7 @@ class TestViewSaving(TestViewSavingCommon):
                             attrs(
                                 model="res.company",
                                 id=1,
-                                field="phone",
+                                field="website",
                                 expression="edmund",
                                 type="char",
                             ),
@@ -509,7 +509,7 @@ class TestViewSaving(TestViewSavingCommon):
 
         company = Company.browse(1)
         self.assertEqual(company.name, "Acme Corporation")
-        self.assertEqual(company.phone, "+12 3456789")
+        self.assertEqual(company.website, "+12 3456789")
         self.eq(
             ET.fromstring(self.view_id.arch),
             h.DIV(
@@ -609,7 +609,7 @@ class TestViewSaving(TestViewSavingCommon):
                         model="res.company",
                         id=1,
                         type="char",
-                        field="phone",
+                        field="website",
                         expression="edmund",
                     ),
                 ),

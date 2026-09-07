@@ -153,7 +153,7 @@
                                                     valign="middle"
                                                     align="left"
                                                     style="opacity: 0.7;">
-                                                    <t t-out="object.create_uid.company_id.phone or ''">+1
+                                                    <t t-out="object.create_uid.company_id.phone_ids._primary().number or ''">+1
                                                         650-123-4567</t>
                                                     <t t-if="object.create_uid.company_id.email"> | <a t-attf-href="mailto:{{ object.create_uid.company_id.email }}" style="text-decoration:none; color: #454748;" t-out="object.create_uid.company_id.email or ''">
                                                         info@yourcompany.com</a>
@@ -342,7 +342,7 @@
                                                     valign="middle"
                                                     align="left"
                                                     style="opacity: 0.7;">
-                                                    <t t-out="object.create_uid.company_id.phone or ''">+1
+                                                    <t t-out="object.create_uid.company_id.phone_ids._primary().number or ''">+1
                                                         650-123-4567</t>
                                                     <t t-if="object.create_uid.company_id.email"> | <a t-attf-href="mailto:{{ object.create_uid.company_id.email }}" style="text-decoration:none; color: #454748;" t-out="object.create_uid.company_id.email">
                                                         info@yourcompany.com</a>

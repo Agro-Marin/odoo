@@ -70,7 +70,7 @@ class ResourceResource(models.Model):
     avatar_128 = fields.Image(compute="_compute_avatar_128")
     share = fields.Boolean(related="user_id.share")
     email = fields.Char(related="partner_id.email")
-    phone = fields.Char(related="partner_id.phone")
+    phone_ids = fields.Many2many(related="partner_id.phone_ids")
 
     calendar_id = fields.Many2one(
         "resource.calendar",

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from markupsafe import Markup
 
-from odoo import _, api, models
+from odoo import Command, _, api, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.libs.documents import mimetype_for
 from odoo.libs.numbers import float_round
@@ -429,7 +429,7 @@ class AccountEdiCommon(models.AbstractModel):
         has_values = any((field_name in record and record[field_name]) for field_name in field_names)
         # field is present
         if has_values:
-            return
+            return None
 
         # field is not present
         if custom_warning_message or isinstance(record, dict):
@@ -472,7 +472,7 @@ class AccountEdiCommon(models.AbstractModel):
         # Not able to decode the move_type from the xml.
         move_type, qty_factor = self._get_import_document_amount_sign(tree)
         if not move_type:
-            return
+            return None
 
         # Check for inconsistent move_type.
         journal = invoice.journal_id
@@ -481,7 +481,7 @@ class AccountEdiCommon(models.AbstractModel):
         elif journal.type == 'purchase':
             move_type = 'in_' + move_type
         else:
-            return
+            return None
         if not new and invoice.move_type != move_type:
             # with an email alias to create account_move, first the move is created (using alias_defaults, which
             # contains move_type = 'out_invoice') then the attachment is decoded, if it represents a credit note,
@@ -490,7 +490,7 @@ class AccountEdiCommon(models.AbstractModel):
             if types == {'out_invoice', 'out_refund'} or types == {'in_invoice', 'in_refund'}:
                 invoice.move_type = move_type
             else:
-                return
+                return None
 
         # Update the invoice.
         invoice.move_type = move_type
@@ -576,7 +576,9 @@ class AccountEdiCommon(models.AbstractModel):
             limit=1,
         ) if state_code and country else self.env['res.country.state']
         if not partner and name and vat:
-            partner_vals = {'name': name, 'email': email, 'phone': phone, 'is_company': True}
+            partner_vals = {'name': name, 'email': email, 'is_company': True}
+            if phone:
+                partner_vals['phone_ids'] = [Command.create({'number': phone, 'type': 'landline'})]
             if peppol_eas and peppol_endpoint:
                 partner_vals.update({'peppol_eas': peppol_eas, 'peppol_endpoint': peppol_endpoint})
             partner = self.env['res.partner'].create(partner_vals)

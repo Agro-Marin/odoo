@@ -173,7 +173,7 @@ class HrEmployee(models.Model):
             default_res_model="hr.employee",
             default_res_ids=self.ids,
             default_composition_mode="mass",
-            default_number_field_name="mobile_phone",
+            default_number_field_name="phone_ids",
             default_mass_keep_log=True,
         )
 

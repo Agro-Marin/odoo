@@ -370,10 +370,7 @@
                                             title="email"
                                             invisible="not email" />
                                     </div>
-                                    <label for="mobile" />
-                                    <div class="o_row">
-                                        <field name="mobile" />
-                                    </div>
+                                    <field name="phone_ids" widget="many2many_tags" />
                                 </group>
                             </group>
                         </group>

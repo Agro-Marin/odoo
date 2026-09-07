@@ -99,7 +99,7 @@
                             readonly="payment_type == 'inbound'"
                             required="require_partner_bank_account and can_edit_wizard and (not can_group_payments or not group_payment)"
                             placeholder="Account Number"
-                            context="{'display_account_trust': True, 'default_partner_id': partner_id}" />
+                            context="{'display_account_trust': True, 'default_partner_ids': [partner_id]}" />
                         <field
                             name="group_payment"
                             invisible="not can_group_payments" />

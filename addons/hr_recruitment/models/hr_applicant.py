@@ -4,7 +4,7 @@ from datetime import datetime
 
 from markupsafe import Markup
 
-from odoo import api, fields, models, tools
+from odoo import Command, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import clean_context
@@ -58,20 +58,17 @@ class HrApplicant(models.Model):
         index="trigram",
     )
     email_normalized = fields.Char(index="trigram")
-    partner_phone = fields.Char(
+    phone_sanitized = fields.Char(index="btree_not_null")
+    phone_ids = fields.Many2many(
+        "phone.number",
+        "hr_applicant_phone_number_rel",
+        "applicant_id",
+        "phone_number_id",
         string="Phone",
-        size=32,
         compute="_compute_partner_phone_email",
         inverse="_inverse_partner_email",
         copy=True,
         store=True,
-        index="btree_not_null",
-    )
-    partner_phone_sanitized = fields.Char(
-        string="Sanitized Phone Number",
-        compute="_compute_partner_phone_sanitized",
-        store=True,
-        index="btree_not_null",
     )
     linkedin_profile = fields.Char("LinkedIn Profile", index="btree_not_null")
     degree_id = fields.Many2one("hr.recruitment.degree", "Degree")
@@ -280,7 +277,7 @@ class HrApplicant(models.Model):
 
     _DUPLICATE_KEY_FIELDS = (
         "email_normalized",
-        "partner_phone_sanitized",
+        "phone_sanitized",
         "linkedin_profile",
     )
 
@@ -309,7 +306,7 @@ class HrApplicant(models.Model):
         "talent_pool_ids",
         "pool_applicant_id.talent_pool_ids",
         "email_normalized",
-        "partner_phone_sanitized",
+        "phone_sanitized",
         "linkedin_profile",
     )
     def _compute_talent_pool(self):
@@ -349,13 +346,10 @@ class HrApplicant(models.Model):
             applicant.is_applicant_in_pool = bool(matches)
             applicant.talent_pool_count = matches[0] if matches else 0
 
-    @api.depends("partner_phone")
-    def _compute_partner_phone_sanitized(self):
+    @api.depends(lambda self: self._phone_get_sanitize_triggers())
+    def _compute_phone_sanitized(self):
         for applicant in self:
-            applicant.partner_phone_sanitized = (
-                applicant._phone_format(fname="partner_phone")
-                or applicant.partner_phone
-            )
+            applicant.phone_sanitized = applicant.phone_ids._primary().sanitized
 
     @api.depends("partner_id")
     def _compute_partner_phone_email(self):
@@ -363,8 +357,8 @@ class HrApplicant(models.Model):
             if not applicant.partner_id:
                 continue
             applicant.email_from = applicant.partner_id.email
-            if not applicant.partner_phone:
-                applicant.partner_phone = applicant.partner_id.phone
+            if not applicant.phone_ids:
+                applicant.phone_ids = applicant.partner_id.phone_ids
 
     def _inverse_partner_email(self):
         for applicant in self:
@@ -388,13 +382,12 @@ class HrApplicant(models.Model):
                 applicant.partner_id.name = applicant.partner_name
             if email_normalized and email_normalized != applicant.partner_id.email:
                 applicant.partner_id.email = applicant.email_from
-            if (
-                applicant.partner_phone
-                and applicant.partner_phone != applicant.partner_id.phone
+            if applicant.phone_ids and applicant.phone_ids != (
+                applicant.partner_id.phone_ids
             ):
-                applicant.partner_id.phone = applicant.partner_phone
+                applicant.partner_id.phone_ids = [Command.set(applicant.phone_ids.ids)]
 
-    @api.depends("email_normalized", "partner_phone_sanitized", "linkedin_profile")
+    @api.depends("email_normalized", "phone_sanitized", "linkedin_profile")
     def _compute_application_count(self):
         domain = self._get_similar_applicants_domain(ignore_talent=True)
         matching_applicants = (
@@ -408,8 +401,8 @@ class HrApplicant(models.Model):
         for app in matching_applicants:
             if app.email_normalized:
                 email_map[app.email_normalized].add(app.id)
-            if app.partner_phone_sanitized:
-                phone_map[app.partner_phone_sanitized].add(app.id)
+            if app.phone_sanitized:
+                phone_map[app.phone_sanitized].add(app.id)
             if app.linkedin_profile:
                 linkedin_map[app.linkedin_profile].add(app.id)
             if app.pool_applicant_id:
@@ -419,10 +412,8 @@ class HrApplicant(models.Model):
             related_ids = set()
             if applicant.email_normalized:
                 related_ids.update(email_map.get(applicant.email_normalized, set()))
-            if applicant.partner_phone_sanitized:
-                related_ids.update(
-                    phone_map.get(applicant.partner_phone_sanitized, set())
-                )
+            if applicant.phone_sanitized:
+                related_ids.update(phone_map.get(applicant.phone_sanitized, set()))
             if applicant.linkedin_profile:
                 related_ids.update(linkedin_map.get(applicant.linkedin_profile, set()))
             if applicant.pool_applicant_id:
@@ -597,9 +588,6 @@ class HrApplicant(models.Model):
         for applicant in self:
             applicant.user_id = applicant.job_id.user_id.id
 
-    def _get_phone_number_fields(self):
-        return ["partner_phone"]
-
     @api.depends("stage_id.hired_stage")
     def _compute_date_closed(self):
         now = fields.Datetime.now()
@@ -679,7 +667,7 @@ class HrApplicant(models.Model):
             fname: vals[fname]
             for fname in (
                 "email_from",
-                "partner_phone",
+                "phone_ids",
                 "linkedin_profile",
                 "degree_id",
             )
@@ -759,7 +747,7 @@ class HrApplicant(models.Model):
                 "is_company": False,
                 "name": self.partner_name,
                 "email": self.email_from,
-                "phone": self.partner_phone,
+                "phone_ids": [Command.set(self.phone_ids.ids)],
             }
         )
         return self.partner_id
@@ -958,7 +946,7 @@ class HrApplicant(models.Model):
                     "name": applicant.partner_name
                     or tools.parse_contact_from_email(applicant.email_from)[0]
                     or applicant.email_from,
-                    "phone": applicant.partner_phone,
+                    "phone_ids": [Command.set(applicant.phone_ids.ids)],
                 }
             )
         return email_keys_to_values
@@ -1072,15 +1060,13 @@ class HrApplicant(models.Model):
             "private_state_id": address_sudo.state_id.id,
             "private_zip": address_sudo.zip,
             "private_country_id": address_sudo.country_id.id,
-            "private_phone": address_sudo.phone,
+            "private_phone_ids": [Command.set(address_sudo.phone_ids.ids)],
             "private_email": address_sudo.email,
             "lang": address_sudo.lang,
             "department_id": self.department_id.id,
             "address_id": self.company_id.partner_id.id,
             "work_email": self.department_id.company_id.email or self.email_from,
-            "work_phone": self.department_id.company_id.phone,
             "applicant_ids": self.ids,
-            "phone": self.partner_phone,
         }
 
     def _check_interviewer_access(self):

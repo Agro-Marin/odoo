@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
@@ -10,7 +11,12 @@ class TestWebsiteSms(TransactionCase):
         Partner = cls.env["res.partner"]
         Visitor = cls.env["website.visitor"]
         cls.partner_phone = Partner.create(
-            {"name": "Reachable", "phone": "+52 55 1234 5678"}
+            {
+                "name": "Reachable",
+                "phone_ids": [
+                    Command.create({"number": "+52 55 1234 5678", "type": "landline"})
+                ],
+            }
         )
         cls.partner_no_phone = Partner.create({"name": "Unreachable"})
         # website.visitor.partner_id is computed from access_token: a non-32-char
@@ -36,7 +42,7 @@ class TestWebsiteSms(TransactionCase):
         self.assertEqual(action["res_model"], "sms.composer")
         self.assertEqual(action["target"], "new")
         self.assertEqual(action["context"]["default_res_id"], self.partner_phone.id)
-        self.assertEqual(action["context"]["default_number_field_name"], "phone")
+        self.assertEqual(action["context"]["default_number_field_name"], "phone_ids")
 
     def test_prepare_sms_composer_context(self):
         """The composer context points at the partner's phone in comment mode."""
@@ -44,4 +50,4 @@ class TestWebsiteSms(TransactionCase):
         self.assertEqual(ctx["default_res_model"], "res.partner")
         self.assertEqual(ctx["default_res_id"], self.partner_phone.id)
         self.assertEqual(ctx["default_composition_mode"], "comment")
-        self.assertEqual(ctx["default_number_field_name"], "phone")
+        self.assertEqual(ctx["default_number_field_name"], "phone_ids")

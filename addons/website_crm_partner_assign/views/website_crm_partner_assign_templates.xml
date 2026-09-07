@@ -601,7 +601,7 @@
                         </td>
                         <td><span t-field="lead.contact_name" /></td>
                         <td><span t-field="lead.email_from" /></td>
-                        <td><span t-field="lead.phone" /></td>
+                        <td><span t-out="lead._phone_get_number().number" /></td>
                     </tr>
                 </tbody>
             </t>
@@ -701,7 +701,7 @@
                         </td>
                         <td><span t-field="opp.contact_name" /></td>
                         <td><span t-field="opp.email_from" /></td>
-                        <td><span t-field="opp.phone" /></td>
+                        <td><span t-out="opp._phone_get_number().number" /></td>
                         <td>
                             <span
                                 t-if="opp.company_currency"
@@ -760,8 +760,8 @@
                                         itemprop="name"
                                         t-field="lead.contact_name" />
                                 </div>
-                                <div t-if="lead.phone">
-                                    <span class="fa-solid fa-phone" role="img" aria-label="Phone" title="Phone" /> <span itemprop="telephone" t-field="lead.phone" />
+                                <div t-if="lead.phone_ids">
+                                    <span class="fa-solid fa-phone" role="img" aria-label="Phone" title="Phone" /> <span itemprop="telephone" t-out="lead._phone_get_number().number" />
                                 </div>
                                 <div t-if="lead.email_from">
                                     <span class="fa-solid fa-envelope" role="img" aria-label="Email" title="Email" /> <span itemprop="email" t-field="lead.email_from" />
@@ -1342,7 +1342,7 @@
                                             type="text"
                                             name="phone"
                                             class="form-control phone"
-                                            t-att-value="opportunity.phone" />
+                                            t-att-value="opportunity._phone_get_number().number" />
                                     </div>
                                     <div class="mb-3">
                                         <label class="col-form-label" for="email_from">Email</label>

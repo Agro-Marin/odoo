@@ -49,7 +49,7 @@
                     <field name="event_id" />
                     <field name="name" />
                     <field name="email" />
-                    <field name="phone" />
+                    <field name="phone_ids" widget="many2many_tags" />
                     <filter
                         string="Published"
                         name="filter_published"
@@ -120,10 +120,9 @@
                                     string="Email"
                                     placeholder="e.g. : open.wood.decoration@example.com" />
                                 <field
-                                    name="phone"
-                                    widget="phone"
-                                    string="Phone"
-                                    options="{'enable_sms': True}" />
+                                    name="phone_ids"
+                                    widget="many2many_tags"
+                                    string="Phone" />
                                 <field
                                     name="url"
                                     widget="url"
@@ -195,7 +194,7 @@
                     <field name="partner_id" readonly="1" />
                     <field name="name" />
                     <field name="email" />
-                    <field name="phone" />
+                    <field name="phone_ids" widget="many2many_tags" />
                     <field name="url" string="Website" />
                     <field name="sponsor_type_id" />
                     <field name="is_published" optional="show" />

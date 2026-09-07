@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from odoo import Command
 
 from odoo.tests.common import HttpCase, tagged
 from odoo.exceptions import UserError
@@ -23,7 +24,7 @@ class TestUi(HttpCase):
             'l10n_tw_edi_ecpay_merchant_id': '1234',
             'l10n_tw_edi_ecpay_hashkey': 'aaBBccDDeeFFggHH',
             'l10n_tw_edi_ecpay_hashIV': 'bbCCDDeeFFggHHaa',
-            'phone': '+886 123 456 781',
+            'phone_ids': [Command.create({"number": '+886 123 456 781', "type": "landline"})],
         })
         website.company_id.account_fiscal_country_id = website.company_id.country_id = self.env.ref('base.tw')
         self.env.ref('l10n_tw_edi_ecpay_website_sale.checkout_step_invoicing').website_id = website

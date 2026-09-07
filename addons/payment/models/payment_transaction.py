@@ -167,7 +167,9 @@ class PaymentTransaction(models.Model):
     partner_city = fields.Char(string="City")
     partner_state_id = fields.Many2one(string="State", comodel_name="res.country.state")
     partner_country_id = fields.Many2one(string="Country", comodel_name="res.country")
-    partner_phone = fields.Char(string="Phone")
+    partner_phone = fields.Char(
+        string="Phone", compute="_compute_partner_phone", store=True, readonly=False
+    )
 
     _reference_uniq = models.Constraint(
         "unique(reference)",
@@ -175,6 +177,11 @@ class PaymentTransaction(models.Model):
     )
 
     # === COMPUTE METHODS === #
+
+    @api.depends("partner_id")
+    def _compute_partner_phone(self):
+        for tx in self:
+            tx.partner_phone = tx.partner_id.phone_ids._primary().number or False
 
     def _compute_primary_payment_method_id(self):
         for pm, txs in self.grouped("payment_method_id").items():
@@ -264,7 +271,6 @@ class PaymentTransaction(models.Model):
                     "partner_city": partner.city,
                     "partner_state_id": partner.state_id.id,
                     "partner_country_id": partner.country_id.id,
-                    "partner_phone": partner.phone,
                 }
             )
 

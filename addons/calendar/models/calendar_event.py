@@ -2802,9 +2802,9 @@ class CalendarEvent(models.Model):
                     partner.email
                     and Markup("<a href='mailto:%(email)s'>%(email)s</a>")
                     % {"email": partner.email},
-                    partner.phone
+                    partner._phone_get_number().number
                     and Markup("<a href='tel:%(phone)s'>%(phone)s</a>")
-                    % {"phone": partner.phone},
+                    % {"phone": partner._phone_get_number().number},
                 ],
             )
         )

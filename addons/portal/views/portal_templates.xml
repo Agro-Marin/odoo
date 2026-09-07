@@ -643,10 +643,10 @@
                     t-esc="sales_user.email" />
             </div>
             <div
-                t-if="sales_user.phone"
+                t-if="sales_user.phone_ids._primary().number"
                 class="d-flex flex-nowrap align-items-center mb-1">
                 <i class="fa-solid fa-phone me-1 text-600" />
-                <span t-esc="sales_user.phone" />
+                <span t-esc="sales_user.phone_ids._primary().number" />
             </div>
             <div
                 t-if="sales_user.city"

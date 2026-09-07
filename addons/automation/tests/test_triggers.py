@@ -76,7 +76,7 @@ class TestAutomationTriggers(TransactionCase):
         self.assertEqual(partner.street, "Triggered")
 
         partner.street = False
-        partner.write({"phone": "123-456"})
+        partner.write({"ref": "123-456"})
         self.assertEqual(partner.street, "Triggered")
 
     def test_on_unlink_trigger(self):
@@ -281,7 +281,7 @@ class TestAutomationTriggers(TransactionCase):
                 "name": "Action 2",
                 "model_id": self.model_partner.id,
                 "state": "code",
-                "code": "record.write({'phone': '999-999-9999'})",
+                "code": "record.write({'ref': '999-999-9999'})",
                 "automation_rule_id": automation2.id,
                 "usage": "automation",
             }
@@ -290,7 +290,7 @@ class TestAutomationTriggers(TransactionCase):
         partner = self.Partner.create({"name": "Multi Test"})
 
         self.assertEqual(partner.street, "Triggered")
-        self.assertEqual(partner.phone, "999-999-9999")
+        self.assertEqual(partner.ref, "999-999-9999")
 
     def test_inactive_automation_does_not_trigger(self):
         _logger.info("Testing inactive automation")
@@ -346,7 +346,7 @@ class TestAutomationTriggers(TransactionCase):
                 "name": "Action 2",
                 "model_id": self.model_partner.id,
                 "state": "code",
-                "code": "record.write({'phone': 'Action 2'})",
+                "code": "record.write({'ref': 'Action 2'})",
                 "automation_rule_id": automation.id,
                 "usage": "automation",
                 "sequence": 20,
@@ -356,7 +356,7 @@ class TestAutomationTriggers(TransactionCase):
         partner = self.Partner.create({"name": "Multi Action"})
 
         self.assertEqual(partner.street, "Action 1")
-        self.assertEqual(partner.phone, "Action 2")
+        self.assertEqual(partner.ref, "Action 2")
 
 
 @tagged("post_install", "-at_install")
@@ -840,7 +840,7 @@ class TestTimeBasedTriggers(TransactionCase):
                 "name": "Action 2",
                 "model_id": self.model_partner.id,
                 "state": "code",
-                "code": "record.write({'phone': 'Auto2'})",
+                "code": "record.write({'ref': 'Auto2'})",
                 "automation_rule_id": automation2.id,
                 "usage": "automation",
             }
@@ -856,7 +856,7 @@ class TestTimeBasedTriggers(TransactionCase):
         self._run_cron()
 
         self.assertEqual(partner.street, "Auto1")
-        self.assertEqual(partner.phone, "Auto2")
+        self.assertEqual(partner.ref, "Auto2")
 
     def test_cron_skips_inactive_automations(self):
         _logger.info("Testing cron skips inactive automations")
@@ -1074,7 +1074,7 @@ class TestTimeBasedTriggers(TransactionCase):
                 "name": "Day Action",
                 "model_id": self.model_partner.id,
                 "state": "code",
-                "code": "record.write({'phone': 'Day'})",
+                "code": "record.write({'ref': 'Day'})",
                 "automation_rule_id": auto_day.id,
                 "usage": "automation",
             }
@@ -1091,7 +1091,7 @@ class TestTimeBasedTriggers(TransactionCase):
         self._run_cron()
 
         self.assertEqual(partner.street, "Hour")
-        self.assertEqual(partner.phone, "Day")
+        self.assertEqual(partner.ref, "Day")
 
     def test_time_trigger_with_zero_range(self):
         _logger.info("Testing zero range")
@@ -1332,7 +1332,7 @@ class TestTriggerEdgeCases(TransactionCase):
         partner = self.Partner.create({"name": "Test"})
         partner.street = False
 
-        partner.write({"phone": "123"})
+        partner.write({"ref": "123"})
 
         self.assertEqual(partner.street, "Changed")
 

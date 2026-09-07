@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from odoo import _, fields, models
+from odoo import Command, _, fields, models
 from odoo.exceptions import UserError
 
 
@@ -47,7 +47,7 @@ class HrApplicant(models.Model):
                         "is_company": False,
                         "name": self.partner_name,
                         "email": self.email_from,
-                        "phone": self.partner_phone,
+                        "phone_ids": [Command.set(self.phone_ids.ids)],
                     }
                 )
             )

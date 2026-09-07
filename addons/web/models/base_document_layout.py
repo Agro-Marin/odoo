@@ -29,7 +29,7 @@ class BaseDocumentLayout(models.TransientModel):
         footer_fields = [
             field
             for field in [
-                company.phone,
+                company.phone_ids._primary().number,
                 company.email,
                 company.website,
                 company.vat,
@@ -110,7 +110,7 @@ class BaseDocumentLayout(models.TransientModel):
     )
     preview = fields.Html(compute="_compute_preview", sanitize=False)
     partner_id = fields.Many2one(related="company_id.partner_id", readonly=True)
-    phone = fields.Char(related="company_id.phone", readonly=True)
+    phone_ids = fields.Many2many(related="company_id.phone_ids", readonly=True)
     email = fields.Char(related="company_id.email", readonly=True)
     website = fields.Char(related="company_id.website", readonly=True)
     vat = fields.Char(related="company_id.vat", readonly=True)

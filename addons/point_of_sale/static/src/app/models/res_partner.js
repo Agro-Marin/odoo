@@ -5,6 +5,14 @@ import { Base } from "./related_models/index.js";
 export class ResPartner extends Base {
     static pythonModel = "res.partner";
 
+    get phone() {
+        return this.phone_ids?.[0]?.number || "";
+    }
+
+    get phoneNumbers() {
+        return (this.phone_ids || []).map((phone) => phone.number).join(", ");
+    }
+
     get searchString() {
         const fields = [
             "name",

@@ -1,17 +1,8 @@
-import re
-
 from odoo import _, api, fields, models
-from odoo.db.schema import create_index, index_exists
 from odoo.exceptions import AccessError, UserError
-from odoo.fields import Domain
-from odoo.tools import normalize_identifier, ormcache
-
-PHONE_REGEX_PATTERN = r"[\s\\./\(\)\-]"
 
 
 class MixinMailThreadPhone(models.AbstractModel):
-    """Compute a sanitized phone number and manage phone-blacklist state for records."""
-
     _name = "mixin.mail.thread.phone"
     _description = "Phone Blacklist Mixin"
     _inherit = ["mixin.mail.thread"]
@@ -22,7 +13,6 @@ class MixinMailThreadPhone(models.AbstractModel):
         compute="_compute_phone_sanitized",
         compute_sudo=True,
         store=True,
-        help="Field used to store sanitized phone number. Helps speeding up searches and comparisons.",
     )
     phone_sanitized_blacklisted = fields.Boolean(
         string="Phone Blacklisted",
@@ -31,7 +21,6 @@ class MixinMailThreadPhone(models.AbstractModel):
         store=False,
         search="_search_phone_sanitized_blacklisted",
         groups="base.group_user",
-        help="If the sanitized phone number is on the blacklist, the contact won't receive mass mailing sms anymore, from any list",
     )
     phone_blacklisted = fields.Boolean(
         string="Blacklisted Phone is Phone",
@@ -39,173 +28,25 @@ class MixinMailThreadPhone(models.AbstractModel):
         compute_sudo=True,
         store=False,
         groups="base.group_user",
-        help="Indicates if a blacklisted sanitized phone number is a phone number. Helps distinguish which number is blacklisted \
-            when there is both a mobile and phone field in a model.",
     )
     phone_mobile_search = fields.Char(
         "Phone Number", store=False, search="_search_phone_mobile_search"
     )
 
-    @api.model
-    @ormcache("self._table", cache="stable")
-    def _phone_sanitized_search_index_exists(self):
-        index_name = normalize_identifier(f"{self._table}_phone_sanitized_partial_tgm")
-        return index_exists(self.env.cr, index_name)
-
-    @api.model
-    def _phone_get_phone_mobile_search_fields(self):
-        """Return stored phone fields to include in phone_mobile_search lookups.
-
-        phone_sanitized (E164-normalized) is added alongside the raw
-        _get_phone_number_fields so that searching by a normalized number
-        (e.g. "+3212345678") also matches records whose raw numbers are
-        stored in a different format (e.g. "012345678", "003212345678")."""
-        phone_fields = [
-            fname
-            for fname in self._get_phone_number_fields()
-            if fname in self._fields and self._fields[fname].store
-        ]
-        phone_fields.append("phone_sanitized")
-        return phone_fields
-
-    def init(self):
-        super().init()
-        # Skip AbstractModel tables (no physical table to index).
-        if not self._auto:
-            return
-        phone_fields = self._phone_get_phone_mobile_search_fields()
-        # Add supporting indexes for searching on `phone_mobile_search`
-        for fname in phone_fields:
-            regex_expression = rf"regexp_replace(({fname}::text), '{PHONE_REGEX_PATTERN}'::text, ''::text, 'g'::text)"
-            # The btree index covers operators '=' and '=like' with a known prefix
-            create_index(
-                self.env.cr,
-                indexname=normalize_identifier(f"{self._table}_{fname}_partial_tgm"),
-                tablename=self._table,
-                expressions=[regex_expression],
-                where=f"{fname} IS NOT NULL",
-            )
-            if self.env.registry.has_trigram:
-                # The trigram index covers operators 'like', 'ilike' and '=like' starting with a wildcard
-                create_index(
-                    self.env.cr,
-                    indexname=normalize_identifier(
-                        f"{self._table}_{fname}_partial_gin_idx"
-                    ),
-                    tablename=self._table,
-                    method="gin",
-                    expressions=[regex_expression + " gin_trgm_ops"],
-                    where=f"{fname} IS NOT NULL",
-                )
-
     def _search_phone_mobile_search(self, operator, value):
-        if operator == "not in":
-            return Domain.AND(self._search_phone_mobile_search("!=", v) for v in value)
-        if operator == "in":
-            return Domain.OR(self._search_phone_mobile_search("=", v) for v in value)
-        value = value.strip() if isinstance(value, str) else value
-        phone_fields = self._phone_get_phone_mobile_search_fields()
-        # TODO: remove in master. On databases not upgraded since
-        # phone_sanitized got its index, searching on it would trigger a
-        # full table scan, so it is skipped when the index is missing.
-        if (
-            "phone_sanitized" in phone_fields
-            and not self._phone_sanitized_search_index_exists()
-        ):
-            phone_fields.remove("phone_sanitized")
-        if not phone_fields:
-            raise UserError(_("Missing definition of phone fields."))
-
-        # search if phone/mobile is set or not
-        if (value is True or not value) and operator in ("=", "!="):
-            if value:
-                # inverse the operator
-                operator = "=" if operator == "!=" else "!="
-            op = Domain.AND if operator == "=" else Domain.OR
-            return op(
-                Domain(phone_field, operator, False) for phone_field in phone_fields
-            )
-
-        if not value:
-            return Domain.TRUE
-        if self._phone_search_min_length and len(value) < self._phone_search_min_length:
-            raise UserError(
-                _("Please enter at least 3 characters when searching a Phone number.")
-            )
-
-        sql_operator = {"=like": "LIKE", "=ilike": "ILIKE"}.get(operator, operator)
-
-        if value.startswith(("+", "00")):
-            if operator in Domain.NEGATIVE_OPERATORS:
-                # searching on +32485112233 should also finds 0032485112233 (and vice versa)
-                # we therefore remove it from input value and search for both of them in db
-                where_str = " AND ".join(
-                    f"""model.{phone_field} IS NULL OR (
-                            REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s OR
-                            REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s
-                    )"""
-                    for phone_field in phone_fields
-                )
-            else:
-                # searching on +32485112233 should also finds 0032485112233 (and vice versa)
-                # we therefore remove it from input value and search for both of them in db
-                where_str = " OR ".join(
-                    f"""model.{phone_field} IS NOT NULL AND (
-                            REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s OR
-                            REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s
-                    )"""
-                    for phone_field in phone_fields
-                )
-            query = f"SELECT model.id FROM {self._table} model WHERE {where_str};"
-
-            term = re.sub(
-                PHONE_REGEX_PATTERN, "", value[1 if value.startswith("+") else 2 :]
-            )
-            if operator not in ("=", "!="):  # for like operators
-                term = f"{term}%"
-            self.env.cr.execute(
-                query,
-                (PHONE_REGEX_PATTERN, "00" + term, PHONE_REGEX_PATTERN, "+" + term)
-                * len(phone_fields),
-            )
-        else:
-            if operator in Domain.NEGATIVE_OPERATORS:
-                where_str = " AND ".join(
-                    f"(model.{phone_field} IS NULL OR REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s)"
-                    for phone_field in phone_fields
-                )
-            else:
-                where_str = " OR ".join(
-                    f"(model.{phone_field} IS NOT NULL AND REGEXP_REPLACE(model.{phone_field}, %s, '', 'g') {sql_operator} %s)"
-                    for phone_field in phone_fields
-                )
-            query = f"SELECT model.id FROM {self._table} model WHERE {where_str};"
-            term = re.sub(PHONE_REGEX_PATTERN, "", value)
-            if operator not in ("=", "!="):  # for like operators
-                term = f"%{term}%"
-            self.env.cr.execute(query, (PHONE_REGEX_PATTERN, term) * len(phone_fields))
-        res = self.env.cr.fetchall()
-        return Domain("id", "in", [r[0] for r in res])
+        return self.env["phone.number"]._search_phone_domain(
+            self._get_phone_number_fields(), operator, value
+        )
 
     @api.depends(lambda self: self._phone_get_sanitize_triggers())
     def _compute_phone_sanitized(self):
         self._assert_phone_field()
-        number_fields = self._get_phone_number_fields()
         for record in self:
-            for fname in number_fields:
-                sanitized = record._phone_format(fname=fname)
-                if sanitized:
-                    break
-            record.phone_sanitized = sanitized
+            phone = record._phone_get_number()
+            record.phone_sanitized = phone.sanitized if phone.valid else False
 
     @api.depends("phone_sanitized")
     def _compute_blacklisted(self):
-        # TODO : Should remove the sudo as compute_sudo defined on methods.
-        # But if user doesn't have access to mail.blacklist, doen't work without sudo().
-        # Only records that have a number: phone.blacklist._search_number rejects
-        # a falsy one, because Domain normalises `= ""` into `in [""]` and a falsy
-        # number would otherwise be derived from env.user. A record with none
-        # matches no entry anyway.
         numbers = [number for number in self.mapped("phone_sanitized") if number]
         blacklist = (
             set(
@@ -217,19 +58,9 @@ class MixinMailThreadPhone(models.AbstractModel):
             if numbers
             else set()
         )
-        number_fields = self._get_phone_number_fields()
         for record in self:
             record.phone_sanitized_blacklisted = record.phone_sanitized in blacklist
-            phone_blacklisted = False
-            # The limitation of only having 1 phone_sanitized value means that a phone/mobile number
-            # may not be calculated as blacklisted even though it is if both field values exist in a model.
-            for number_field in number_fields:
-                phone_blacklisted = (
-                    record.phone_sanitized_blacklisted
-                    and record._phone_format(fname=number_field)
-                    == record.phone_sanitized
-                )
-            record.phone_blacklisted = phone_blacklisted
+            record.phone_blacklisted = record.phone_sanitized_blacklisted
 
     @api.model
     def _search_phone_sanitized_blacklisted(self, operator, value):
@@ -257,31 +88,15 @@ class MixinMailThreadPhone(models.AbstractModel):
         return [("id", "in", [r[0] for r in res])]
 
     def _assert_phone_field(self):
-        if not hasattr(self, "_get_phone_number_fields"):
-            raise UserError(_("Invalid primary phone field on model %s", self._name))
-        if not any(
-            fname in self and self._fields[fname].type == "char"
-            for fname in self._get_phone_number_fields()
-        ):
+        if not self._get_phone_number_fields():
             raise UserError(_("Invalid primary phone field on model %s", self._name))
 
     def _phone_get_sanitize_triggers(self):
-        """Return the field names that should retrigger phone sanitization on change (number fields, country field, stored partner fields)."""
-        res = self._get_phone_number_fields()
-        # no phone field -> no number to format
-        if res:
-            res += (
-                [self._phone_get_country_field()]
-                if self._phone_get_country_field()
-                else []
-            )
-            # if partner changes, fallback country may change
-            res += [
-                fname
-                for fname in self._mail_get_partner_fields()
-                if self._fields[fname].store
-            ]
-        return res
+        return [
+            f"{fname}.{sub}"
+            for fname in self._get_phone_number_fields()
+            for sub in ("sanitized", "valid", "primary", "sequence", "type")
+        ]
 
     def _phone_set_blacklisted(self):
         return (
@@ -296,8 +111,6 @@ class MixinMailThreadPhone(models.AbstractModel):
         )
 
     def phone_action_blacklist_remove(self):
-        # wizard access rights currently not working as expected and allows users without access to
-        # open this wizard, therefore we check to make sure they have access before the wizard opens.
         can_access = self.env["phone.blacklist"].has_access("write")
         if can_access:
             return {

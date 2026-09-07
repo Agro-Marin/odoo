@@ -1,5 +1,6 @@
 from unittest.mock import Mock, patch
 
+from odoo import Command
 from odoo.http import root
 from odoo.libs.web import urls
 from odoo.tests import HttpCase, tagged
@@ -67,7 +68,7 @@ class TestWebsiteSaleExpressCheckoutFlows(WebsiteSaleCommon, HttpCase):
         cls.express_checkout_demo_shipping_values = {
             "name": cls.user_demo.partner_id.name,
             "email": cls.user_demo.partner_id.email,
-            "phone": cls.user_demo.partner_id.phone,
+            "phone": cls.user_demo.partner_id._phone_get_number().number,
             "street": cls.user_demo.partner_id.street,
             "street2": cls.user_demo.partner_id.street2,
             "city": cls.user_demo.partner_id.city,
@@ -102,6 +103,8 @@ class TestWebsiteSaleExpressCheckoutFlows(WebsiteSaleCommon, HttpCase):
         for key, expected in shipping_values.items():
             if key in ("state", "country"):
                 value = partner[f"{key}_id"].code
+            elif key == "phone":
+                value = partner._phone_get_number().number or ""
             else:
                 value = partner[key]
             self.assertEqual(value, expected, "Shipping value should match")
@@ -158,7 +161,7 @@ class TestWebsiteSaleExpressCheckoutFlows(WebsiteSaleCommon, HttpCase):
                 "billing_address": {
                     "name": self.user_demo.partner_id.name,
                     "email": self.user_demo.partner_id.email,
-                    "phone": self.user_demo.partner_id.phone,
+                    "phone": self.user_demo.partner_id._phone_get_number().number,
                     "street": self.user_demo.partner_id.street,
                     "street2": self.user_demo.partner_id.street2,
                     "city": self.user_demo.partner_id.city,
@@ -194,9 +197,13 @@ class TestWebsiteSaleExpressCheckoutFlows(WebsiteSaleCommon, HttpCase):
             ],
             limit=1,
         )
+        child_partner_phone = child_partner_address.pop("phone", False)
         child_partner = self.env["res.partner"].create(
             dict(
                 **child_partner_address,
+                phone_ids=[Command.create({"number": child_partner_phone, "type": "mobile"})]
+                if child_partner_phone
+                else [],
                 parent_id=self.user_demo.partner_id.id,
                 type="invoice",
                 country_id=child_partner_country.id,

@@ -14,24 +14,12 @@ class CrmFormRecord extends formView.Model.Record {
                 ? this.savedData.partner_email_update
                 : this.changes.partner_email_update;
 
-        const needsSynchronizationPhone =
-            this.changes.partner_phone_update === undefined
-                ? this.savedData.partner_phone_update
-                : this.changes.partner_phone_update;
-
         if (
             needsSynchronizationEmail &&
             this.changes.email_from === undefined &&
             this.savedData.email_from
         ) {
             this.changes.email_from = this.savedData.email_from;
-        }
-        if (
-            needsSynchronizationPhone &&
-            this.changes.phone === undefined &&
-            this.savedData.phone
-        ) {
-            this.changes.phone = this.savedData.phone;
         }
 
         if ("stage_id" in this.changes) {

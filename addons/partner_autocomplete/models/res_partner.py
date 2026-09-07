@@ -252,7 +252,7 @@ class ResPartner(models.Model):
         if not template:
             return
         company = {
-            "phone": self.phone,
+            "phone": self._phone_get_number().number,
             "name": self.name,
             "email": self.email,
             "company_type": data.get("entity_type", ""),

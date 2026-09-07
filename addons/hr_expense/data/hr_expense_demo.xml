@@ -14,7 +14,9 @@
         </record>
         <record id="hr.employee_mit" model="hr.employee">
             <field name="private_email">douglas.fletcher51@example.com</field>
-            <field name="private_phone">(132)-553-7242</field>
+            <field
+                name="private_phone_ids"
+                eval="[Command.create({'number': '(132)-553-7242', 'type': 'landline'})]" />
         </record>
         <record id="hr_expense_account_journal" model="account.journal">
             <field name="name">Expense</field>

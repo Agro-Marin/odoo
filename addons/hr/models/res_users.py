@@ -26,20 +26,18 @@ HR_WRITABLE_FIELDS = [
     "private_state_id",
     "private_zip",
     "private_country_id",
-    "private_phone",
+    "private_phone_ids",
     "private_email",
     "barcode",
     "tag_ids",
     "emergency_contact",
-    "emergency_phone",
+    "emergency_phone_ids",
     "job_title",
     "km_home_work",
-    "mobile_phone",
     "pin",
     "visa_expire",
     "work_email",
     "work_location_id",
-    "work_phone",
 ]
 
 
@@ -67,12 +65,6 @@ class ResUsers(models.Model):
     )
 
     job_title = fields.Char(related="employee_id.job_title")
-    work_phone = fields.Char(
-        related="employee_id.work_phone", readonly=False, related_sudo=False
-    )
-    mobile_phone = fields.Char(
-        related="employee_id.mobile_phone", readonly=False, related_sudo=False
-    )
     work_email = fields.Char(
         related="employee_id.work_email", readonly=False, related_sudo=False
     )
@@ -124,8 +116,10 @@ class ResUsers(models.Model):
         readonly=False,
         related_sudo=False,
     )
-    private_phone = fields.Char(
-        related="employee_id.private_phone", readonly=False, related_sudo=False
+    private_phone_ids = fields.Many2many(
+        related="employee_id.private_phone_ids",
+        readonly=False,
+        groups="hr.group_hr_user",
     )
     private_email = fields.Char(
         related="employee_id.private_email",
@@ -139,8 +133,10 @@ class ResUsers(models.Model):
     emergency_contact = fields.Char(
         related="employee_id.emergency_contact", readonly=False, related_sudo=False
     )
-    emergency_phone = fields.Char(
-        related="employee_id.emergency_phone", readonly=False, related_sudo=False
+    emergency_phone_ids = fields.Many2many(
+        related="employee_id.emergency_phone_ids",
+        readonly=False,
+        groups="hr.group_hr_user",
     )
     visa_expire = fields.Date(
         related="employee_id.visa_expire", readonly=False, related_sudo=False

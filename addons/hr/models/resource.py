@@ -31,15 +31,20 @@ class ResourceResource(models.Model):
     work_email = fields.Char(
         related="employee_id.work_email",
     )
-    work_phone = fields.Char(
-        related="employee_id.work_phone",
-    )
     show_hr_icon_display = fields.Boolean(
         related="employee_id.show_hr_icon_display",
     )
     hr_icon_display = fields.Selection(
         related="employee_id.hr_icon_display",
     )
+
+    def get_avatar_card_data(self, field_names):
+        stored = [fname for fname in field_names if fname != "work_phone"]
+        data = super().get_avatar_card_data(stored)
+        if "work_phone" in field_names:
+            for resource, values in zip(self, data, strict=True):
+                values["work_phone"] = resource.employee_id.phone_ids._primary().number
+        return data
 
     @api.depends("employee_id")
     def _compute_job_title(self):

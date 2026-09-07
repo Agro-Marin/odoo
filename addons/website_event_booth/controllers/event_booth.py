@@ -3,7 +3,7 @@ from urllib.parse import quote, urlencode
 
 from werkzeug.exceptions import Forbidden, NotFound
 
-from odoo import http, tools
+from odoo import Command, http, tools
 from odoo.http import request
 
 from odoo.addons.website_event.controllers.main import WebsiteEventController
@@ -87,7 +87,7 @@ class WebsiteEventBoothController(WebsiteEventController):
             default_contact = {
                 "name": request.env.user.partner_id.name,
                 "email": request.env.user.partner_id.email,
-                "phone": request.env.user.partner_id.phone,
+                "phone": request.env.user.partner_id.phone_ids._primary().number,
             }
         else:
             visitor = request.env["website.visitor"]._get_visitor_from_request()
@@ -95,7 +95,7 @@ class WebsiteEventBoothController(WebsiteEventController):
                 default_contact = {
                     "name": visitor.name,
                     "email": visitor.email,
-                    "mobile": visitor.mobile,
+                    "phone": visitor.mobile,
                 }
 
         return {
@@ -209,7 +209,9 @@ class WebsiteEventBoothController(WebsiteEventController):
                     [contact_email_normalized],
                     additional_values={
                         contact_email_normalized: {
-                            "phone": kwargs.get("contact_phone"),
+                            "phone_ids": self._phone_number_commands(
+                                kwargs.get("contact_phone")
+                            ),
                             "name": kwargs.get("contact_name"),
                         }
                     },
@@ -222,8 +224,22 @@ class WebsiteEventBoothController(WebsiteEventController):
             "partner_id": partner.id,
             "contact_name": kwargs.get("contact_name") or partner.name,
             "contact_email": kwargs.get("contact_email") or partner.email,
-            "contact_phone": kwargs.get("contact_phone") or partner.phone,
+            "phone_ids": self._phone_number_commands(kwargs.get("contact_phone"))
+            or [Command.set(partner.phone_ids._primary().ids)],
         }
+
+    def _phone_number_commands(self, number):
+        if not number:
+            return []
+        return [Command.create({"number": number, "type": "landline"})]
+
+    def _phone_number_from_commands(self, commands):
+        for command in commands or ():
+            if command[0] == Command.CREATE:
+                return command[2].get("number")
+            if command[0] == Command.SET:
+                return request.env["phone.number"].sudo().browse(command[2])[:1].number
+        return False
 
     def _prepare_booth_registration_success_values(self, event_name, booth_values):
         return json.dumps(
@@ -233,7 +249,9 @@ class WebsiteEventBoothController(WebsiteEventController):
                 "contact": {
                     "name": booth_values.get("contact_name"),
                     "email": booth_values.get("contact_email"),
-                    "phone": booth_values.get("contact_phone"),
+                    "phone": self._phone_number_from_commands(
+                        booth_values.get("phone_ids")
+                    ),
                 },
             }
         )

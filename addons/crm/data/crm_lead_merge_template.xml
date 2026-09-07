@@ -96,7 +96,7 @@
                     <div>
                         <div
                             class="mt-3"
-                            t-if="lead.contact_name or lead.partner_name or lead.phone or lead.email_from or lead.website">
+                            t-if="lead.contact_name or lead.partner_name or lead.phone_ids or lead.email_from or lead.website">
                             <div class="fw-bold">
                                 Contact Details:
                             </div>
@@ -106,8 +106,8 @@
                             <div t-if="lead.partner_name">
                                 Company Name: <span t-field="lead.partner_name" />
                             </div>
-                            <div t-if="lead.phone">
-                                Phone: <span t-field="lead.phone" />
+                            <div t-if="lead.phone_ids">
+                                Phone: <span t-out="', '.join(lead.phone_ids.mapped('number'))" />
                             </div>
                             <div t-if="lead.email_from">
                                 Email: <span t-field="lead.email_from" />

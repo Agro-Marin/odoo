@@ -279,7 +279,9 @@ class TestUBLBE(TestUBLCommon, TestAccountMoveSendCommon):
             invoice=invoice)
 
         # assert a new partner has been created
-        self.assertRecordValues(invoice.partner_id, [partner_vals])
+        expected_vals = {key: value for key, value in partner_vals.items() if key != 'phone'}
+        self.assertRecordValues(invoice.partner_id, [expected_vals])
+        self.assertEqual(invoice.partner_id._phone_get_number().number, partner_vals['phone'])
 
     def test_import_export_invoice_xml(self):
         """
@@ -288,7 +290,7 @@ class TestUBLBE(TestUBLCommon, TestAccountMoveSendCommon):
         """
         acc_bank = self.env['res.partner.bank'].create({
             'acc_number': 'BE15001559627231',
-            'partner_id': self.company_data['company'].partner_id.id,
+            'partner_ids': [(4, self.company_data['company'].partner_id.id)],
         })
 
         invoice = self._generate_move(

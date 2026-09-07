@@ -81,7 +81,9 @@
             <field name="country_id" ref="base.us" />
             <field name="tz">Europe/Brussels</field>
             <field name="function">Agile Consultant</field>
-            <field name="phone">(555)-768-6230</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-768-6230', 'type': 'landline'})]" />
         </record>
         <record id="work_contact_mw" model="res.partner" forcecreate="1">
             <field name="name">Michael Williams</field>
@@ -100,7 +102,9 @@
             <field name="country_id" ref="base.us" />
             <field name="tz">Europe/Brussels</field>
             <field name="function">Chief Executive Officer</field>
-            <field name="phone">(555)-768-6230</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-768-6230', 'type': 'landline'})]" />
         </record>
         <record id="work_contact_sj" model="res.partner" forcecreate="1">
             <field name="name">Simon Jones</field>
@@ -119,7 +123,9 @@
             <field name="country_id" ref="base.us" />
             <field name="tz">Europe/Brussels</field>
             <field name="function">Agile Consultant</field>
-            <field name="phone">(555)-768-6230</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-768-6230', 'type': 'landline'})]" />
         </record>
         <record id="employee_mw" model="hr.employee" forcecreate="1">
             <field name="active">True</field>
@@ -129,7 +135,9 @@
             <field name="private_zip">58198</field>
             <field name="private_city">Williston</field>
             <field name="private_country_id" ref="base.us" />
-            <field name="private_phone">+1 555-555-5757</field>
+            <field
+                name="private_phone_ids"
+                eval="[Command.create({'number': '+1 555-555-5757', 'type': 'landline'})]" />
             <field name="work_email">williams@mycompany.example.com</field>
             <field name="department_id" ref="hr.dep_administration" />
             <field name="job_id" ref="job_ceo" />
@@ -141,8 +149,9 @@
                 name="image_1920"
                 type="base64"
                 file="hr/static/img/partner_root-image.jpg" />
-            <field name="work_phone">(555)-768-6230</field>
-            <field name="mobile_phone">(555)-768-6235</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-768-6230', 'type': 'landline'}), Command.create({'number': '(555)-768-6235', 'type': 'mobile'})]" />
             <field name="partner_id" ref="work_contact_mw" />
         </record>
         <record id="employee_eg" model="hr.employee" forcecreate="1">
@@ -155,7 +164,9 @@
             <field name="private_zip">58521</field>
             <field name="private_city">Williston</field>
             <field name="private_country_id" ref="base.us" />
-            <field name="private_phone">+1 555-555-5757</field>
+            <field
+                name="private_phone_ids"
+                eval="[Command.create({'number': '+1 555-555-5757', 'type': 'landline'})]" />
             <field name="work_email">granger@mycompany.example.com</field>
             <field name="job_id" ref="job_consultant" />
             <field name="job_title">Consultant</field>
@@ -166,8 +177,9 @@
                 name="image_1920"
                 type="base64"
                 file="hr/static/img/employee_awa-image.jpg" />
-            <field name="work_phone">(555)-768-6230</field>
-            <field name="mobile_phone">(555)-768-6235</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-768-6230', 'type': 'landline'}), Command.create({'number': '(555)-768-6235', 'type': 'mobile'})]" />
             <field name="partner_id" ref="work_contact_eg" />
             <field name="coach_id" ref="employee_mw" />
             <field name="parent_id" ref="employee_mw" />
@@ -181,7 +193,9 @@
             <field name="private_zip">58198</field>
             <field name="private_city">Williston</field>
             <field name="private_country_id" ref="base.us" />
-            <field name="private_phone">+1 555-555-5757</field>
+            <field
+                name="private_phone_ids"
+                eval="[Command.create({'number': '+1 555-555-5757', 'type': 'landline'})]" />
             <field name="work_email">jones@mycompany.example.com</field>
             <field name="job_id" ref="job_developer" />
             <field name="job_title">Experienced Developer</field>
@@ -192,8 +206,9 @@
                 name="image_1920"
                 type="base64"
                 file="hr/static/img/employee_qdp-image.png" />
-            <field name="work_phone">(555)-768-6230</field>
-            <field name="mobile_phone">(555)-768-6235</field>
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(555)-768-6230', 'type': 'landline'}), Command.create({'number': '(555)-768-6235', 'type': 'mobile'})]" />
             <field name="partner_id" ref="work_contact_sj" />
             <field name="coach_id" ref="employee_mw" />
             <field name="parent_id" ref="employee_mw" />

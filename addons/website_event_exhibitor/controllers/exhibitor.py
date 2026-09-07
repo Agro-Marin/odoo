@@ -237,7 +237,6 @@ class ExhibitorController(WebsiteEventController):
                 "subtitle",
                 "url",
                 "email",
-                "phone",
                 "website_description",
                 "website_image_url",
                 "hour_from",
@@ -247,6 +246,7 @@ class ExhibitorController(WebsiteEventController):
                 "country_flag_url",
             ]
         )[0]
+        sponsor_data["phone"] = sponsor._phone_get_number().number
         if sponsor.country_id:
             sponsor_data["country_name"] = sponsor.country_id.name
             sponsor_data["country_id"] = sponsor.country_id.id

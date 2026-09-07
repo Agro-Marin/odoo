@@ -72,7 +72,7 @@
                             style="background-color:rgb(204,204,204);border:medium none;clear:both;display:block;font-size:0px;min-height:1px;line-height:0; margin: 16px 0px 4px 0px;" />
                         <b t-out="company.name" /><br />
                         <div style="color: #999999;">
-                            <t t-out="company.phone" />
+                            <t t-out="company.phone_ids._primary().number" />
                             <t t-if="company.email"> |
                                 <a t-att-href="'mailto:%s' % company.email" style="text-decoration:none; color: #999999;"><t t-out="company.email" /></a>
                             </t>

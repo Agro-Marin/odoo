@@ -5,7 +5,7 @@ import requests
 from markupsafe import Markup
 from werkzeug.exceptions import Forbidden
 
-from odoo import http, tools, _
+from odoo import Command, http, tools, _
 from odoo.addons.iap.tools import iap_tools
 from odoo.exceptions import AccessError
 from odoo.http import request
@@ -84,8 +84,8 @@ class MailPluginController(http.Controller):
 
         partner_values = {}
 
-        if not partner.phone and phone_numbers:
-            partner_values.update({'phone': phone_numbers[0]})
+        if not partner.phone_ids and phone_numbers:
+            partner_values.update({'phone_ids': [Command.create({'number': phone_numbers[0], 'type': 'landline'})]})
 
         if not partner.iap_enrich_info:
             partner_values.update({'iap_enrich_info': json.dumps(iap_data)})
@@ -302,9 +302,10 @@ class MailPluginController(http.Controller):
         except AccessError:
             return {'id': company.id, 'name': _('No Access')}
 
-        fields_list = ['id', 'name', 'phone', 'email', 'website']
+        fields_list = ['id', 'name', 'email', 'website']
 
         company_values = dict((fname, company[fname]) for fname in fields_list)
+        company_values['phone'] = company._phone_get_number().number
         company_values['address'] = {'street': company.street,
                                      'city': company.city,
                                      'zip': company.zip,
@@ -328,7 +329,7 @@ class MailPluginController(http.Controller):
             'street': iap_data.get("street_name"),
             'city': iap_data.get("city"),
             'zip': iap_data.get("postal_code"),
-            'phone': phone_numbers[0] if phone_numbers else None,
+            'phone_ids': [Command.create({'number': phone_numbers[0], 'type': 'landline'})] if phone_numbers else None,
             'website': iap_data.get("domain"),
             'email': emails[0] if emails else None
         }
@@ -371,9 +372,10 @@ class MailPluginController(http.Controller):
 
     def _get_partner_data(self, partner):
 
-        fields_list = ['id', 'name', 'email', 'phone', 'is_company']
+        fields_list = ['id', 'name', 'email', 'is_company']
 
         partner_values = dict((fname, partner[fname]) for fname in fields_list)
+        partner_values['phone'] = partner._phone_get_number().number
         partner_values['image'] = partner.image_128
         partner_values['title'] = partner.function
         partner_values['enrichment_info'] = None

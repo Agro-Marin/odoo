@@ -116,7 +116,7 @@
                                         <t t-name="card" class="flex-row fw-bold">
                                             <field name="name" />
                                             <div class="text-muted ms-auto">
-                                                <t t-if="record.phone.raw_value"><field name="phone" /><br /></t>
+                                                <t t-if="record.phone_ids.raw_value.length"><field name="phone_ids" widget="many2many_tags" /><br /></t>
                                                 <t t-if="record.email.raw_value"><field name="email" /></t>
                                             </div>
                                         </t>

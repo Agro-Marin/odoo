@@ -9,6 +9,7 @@ here directly, with ``request`` mocked.
 from contextlib import contextmanager
 from unittest.mock import patch
 
+from odoo import Command
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.website_project.controllers.main import WebsiteForm
@@ -79,7 +80,10 @@ class TestWebsiteFormExtractData(TransactionCase):
         self.assertNotIn("partner_id", data["record"])
         self.assertEqual(data["record"]["email_cc"], "wp.unknown@example.com")
         self.assertEqual(data["record"]["partner_name"], "New Person")
-        self.assertEqual(data["record"]["partner_phone"], "555-1111")
+        self.assertEqual(
+            data["record"]["phone_ids"],
+            [Command.create({"number": "555-1111", "type": "mobile"})],
+        )
         self.assertEqual(data["record"]["partner_company_name"], "New Co")
 
     def test_extract_data_without_email_is_untouched(self):

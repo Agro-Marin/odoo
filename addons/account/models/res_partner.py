@@ -62,9 +62,6 @@ class ResPartner(models.Model):
     partner_vat_placeholder = fields.Char(
         compute="_compute_partner_vat_placeholder",
     )
-    duplicate_bank_partner_ids = fields.Many2many(
-        related="bank_ids.duplicate_bank_partner_ids"
-    )
     name = fields.Char(tracking=True)
     credit = fields.Monetary(
         compute="_compute_credit_debit",
@@ -471,12 +468,8 @@ class ResPartner(models.Model):
             partner.currency_id = currency
 
     def _compute_bank_account_count(self):
-        bank_data = self.env["res.partner.bank"]._read_group(
-            [("partner_id", "in", self.ids)], ["partner_id"], ["__count"]
-        )
-        mapped_data = {partner.id: count for partner, count in bank_data}
         for partner in self:
-            partner.bank_account_count = mapped_data.get(partner.id, 0)
+            partner.bank_account_count = len(partner.bank_ids)
 
     def _aggregate_by_partner_hierarchy(self, comodel, domain, aggregate):
         all_partners = self.with_context(active_test=False).search_fetch(
@@ -961,7 +954,13 @@ class ResPartner(models.Model):
         return {
             "criteria": [
                 {
-                    "domain": [("phone", "=", phone)],
+                    "domain": [
+                        (
+                            "phone_ids.sanitized",
+                            "=",
+                            self.env["phone.number"]._sanitize_number(phone),
+                        )
+                    ],
                 }
             ],
         }

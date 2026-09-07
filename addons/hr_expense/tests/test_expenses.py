@@ -1382,9 +1382,7 @@ class TestExpenses(TestExpenseCommon):
 
         self.assertNotEqual(move.commercial_partner_id, self.env.company.partner_id)
         self.assertEqual(move.partner_id, self.expense_employee.partner_id)
-        self.assertEqual(
-            move.commercial_partner_id, self.expense_employee.partner_id
-        )
+        self.assertEqual(move.commercial_partner_id, self.expense_employee.partner_id)
 
     def test_expense_set_total_amount_to_0(self):
         expense = self.create_expenses(

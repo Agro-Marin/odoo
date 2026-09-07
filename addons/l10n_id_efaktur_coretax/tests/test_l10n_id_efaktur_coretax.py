@@ -19,7 +19,7 @@ class TestEfakturCoretax(AccountTestInvoicingCommon):
         super().setUpClass()
 
         cls.company_data['company'].street = "test"
-        cls.company_data['company'].phone = "12345"
+        cls.company_data['company'].phone_ids = [Command.create({"number": "12345", "type": "landline"})]
         cls.company_data['company'].vat = "1234567890123456"
 
         cls.company_data_2 = cls.setup_other_company()

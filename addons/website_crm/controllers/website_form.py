@@ -1,4 +1,4 @@
-from odoo import tools
+from odoo import Command, tools
 from odoo.http import request
 
 from odoo.addons.phone_validation.tools import phone_validation
@@ -40,9 +40,11 @@ class WebsiteForm(form.WebsiteForm):
                 country = request.env["res.country"].browse(record.get("country_id"))
                 contact_country = country if country.exists() else self._get_country()
                 for phone_field in phone_fields:
-                    if not record.get(phone_field):
+                    number = request.params.pop(
+                        self._phone_param_name(phone_field), None
+                    )
+                    if not number:
                         continue
-                    number = record[phone_field]
                     fmt_number = phone_validation.phone_format(
                         number,
                         contact_country.code if contact_country else None,
@@ -50,7 +52,9 @@ class WebsiteForm(form.WebsiteForm):
                         force_format="INTERNATIONAL",
                         raise_exception=False,
                     )
-                    request.params.update({phone_field: fmt_number})
+                    request.update_context(
+                        **{f"website_form_{phone_field}": fmt_number or number}
+                    )
 
         if model_name == "crm.lead" and not request.params.get("state_id"):
             geoip_country_code = request.geoip.country_code
@@ -70,9 +74,19 @@ class WebsiteForm(form.WebsiteForm):
                     request.params["state_id"] = state.id
         return super()._handle_website_form(model_name, **kwargs)
 
+    @staticmethod
+    def _phone_param_name(phone_field):
+        return phone_field.removesuffix("_ids")
+
     def insert_record(self, request, model_sudo, values, custom, meta=None):
         is_lead_model = model_sudo.model == "crm.lead"
         if is_lead_model:
+            for phone_field in model_sudo._get_phone_number_fields():
+                number = request.env.context.get(f"website_form_{phone_field}")
+                if number:
+                    values[phone_field] = [
+                        Command.create({"number": number, "type": "landline"})
+                    ]
             values_email_normalized = tools.email_normalize(values.get("email_from"))
             visitor_sudo = request.env["website.visitor"]._get_visitor_from_request(
                 force_create=True
@@ -83,16 +97,12 @@ class WebsiteForm(form.WebsiteForm):
                 and visitor_partner
                 and visitor_partner.email_normalized == values_email_normalized
             ):
-                values_phone = values.get("phone")
-                if values_phone and visitor_partner.phone:
-                    if (
-                        values_phone == visitor_partner.phone
-                        or (
-                            visitor_partner._phone_format("phone")
-                            or visitor_partner.phone
-                        )
-                        == values_phone
-                    ):
+                values_phone = request.env.context.get("website_form_phone_ids")
+                if values_phone and visitor_partner.phone_ids:
+                    sanitized = request.env["phone.number"]._sanitize_number(
+                        values_phone, visitor_partner.country_id
+                    )
+                    if sanitized in visitor_partner.phone_ids.mapped("sanitized"):
                         values["partner_id"] = visitor_partner.id
                 else:
                     values["partner_id"] = visitor_partner.id

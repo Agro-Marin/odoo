@@ -268,10 +268,11 @@
                                 <group>
                                     <field
                                         name="partner_id"
-                                        context="{'default_phone': contact_phone, 'default_email': contact_email}" />
+                                        context="{'default_email': contact_email}" />
                                     <field name="contact_email" readonly="partner_id" />
                                     <field
-                                        name="contact_phone"
+                                        name="contact_phone_ids"
+                                        widget="many2many_tags"
                                         class="o_force_ltr"
                                         readonly="partner_id" />
                                 </group>
@@ -282,7 +283,7 @@
                                 <group>
                                     <field name="partner_name" />
                                     <field name="partner_email" />
-                                    <field name="partner_phone" class="o_force_ltr" />
+                                    <field name="phone_ids" widget="many2many_tags" class="o_force_ltr" />
                                     <field name="partner_function" />
                                     <field name="partner_company_name" />
                                 </group>
@@ -346,7 +347,7 @@
                 <field name="partner_name" string="Speaker Name" />
                 <field name="partner_id" optional="hide" />
                 <field name="partner_email" optional="hide" />
-                <field name="partner_phone" optional="hide" />
+                <field name="phone_ids" widget="many2many_tags" optional="hide" />
                 <field
                     name="event_id"
                     column_invisible="context.get('default_event_id')" />

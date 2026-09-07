@@ -1,6 +1,6 @@
 {
     "name": "Event Exhibitors",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Marketing/Events",
     "sequence": 1004,
     "summary": "Event: manage sponsors and exhibitors",

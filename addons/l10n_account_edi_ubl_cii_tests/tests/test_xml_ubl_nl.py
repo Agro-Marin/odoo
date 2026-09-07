@@ -20,7 +20,7 @@ class TestUBLNL(TestUBLCommon):
             'zip': "1000",
             'city': "Amsterdam",
             'vat': 'NL000099998B57',
-            'phone': '+31 180 6 225789',
+            'phone_ids': [Command.create({"number": '+31 180 6 225789', "type": "landline"})],
             'email': 'info@outlook.nl',
             'country_id': cls.env.ref('base.nl').id,
             'bank_ids': [(0, 0, {'acc_number': 'NL000099998B57'})],

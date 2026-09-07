@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import Form, tagged, users
 
 from odoo.addons.sms.tests.common import SMSCommon
@@ -27,8 +28,14 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
                 {
                     "name": "Test",
                     "customer_id": cls.partner_1.id,
-                    "mobile_nbr": cls.test_numbers[0],
-                    "phone_nbr": cls.test_numbers[1],
+                    "mobile_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": cls.test_numbers[0]}),
+                    ],
+                    "phone_nbr_ids": [
+                        Command.clear(),
+                        Command.create({"number": cls.test_numbers[1]}),
+                    ],
                 }
             )
         )
@@ -103,31 +110,45 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
     @users("employee")
     def test_composer_comment_field(self):
         """Check that setting a field correctly uses it, even if invalid."""
-        record_values_all = [
-            {"mobile_nbr": self.test_numbers[0], "phone_nbr": self.test_numbers[1]},
-            {"mobile_nbr": self.test_numbers[0], "phone_nbr": self.test_numbers[1]},
-            {"mobile_nbr": "invalid_phone_nbr", "phone_nbr": self.test_numbers[1]},
+        record_numbers_all = [
+            {
+                "mobile_nbr_ids": self.test_numbers[0],
+                "phone_nbr_ids": self.test_numbers[1],
+            },
+            {
+                "mobile_nbr_ids": self.test_numbers[0],
+                "phone_nbr_ids": self.test_numbers[1],
+            },
+            {
+                "mobile_nbr_ids": "invalid_phone_nbr",
+                "phone_nbr_ids": self.test_numbers[1],
+            },
         ]
-        phone_fields = ["mobile_nbr", "phone_nbr", "mobile_nbr"]
+        phone_fields = ["mobile_nbr_ids", "phone_nbr_ids", "mobile_nbr_ids"]
         expected_form_numbers = ["+32456010203", "+32456040506", "invalid_phone_nbr"]
         expected_sent_numbers = ["+32456010203", "+32456040506", "+32456001122"]
 
         for (
-            record_values,
+            record_numbers,
             phone_field,
             expected_form_number,
             expected_sent_number,
         ) in zip(
-            record_values_all,
+            record_numbers_all,
             phone_fields,
             expected_form_numbers,
             expected_sent_numbers,
             strict=True,
         ):
             with self.subTest(
-                phone_field=phone_field, record_number=record_values[phone_field]
+                phone_field=phone_field, record_number=record_numbers[phone_field]
             ):
-                self.test_record.write(record_values)
+                self.test_record.write(
+                    {
+                        fname: [Command.clear(), Command.create({"number": number})]
+                        for fname, number in record_numbers.items()
+                    }
+                )
                 composer_form = Form(
                     self.env["sms.composer"].with_context(
                         active_model="mail.test.sms",
@@ -162,7 +183,7 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
                 .with_context(
                     active_model="mail.test.sms",
                     active_id=self.test_record.id,
-                    default_number_field_name="mobile_nbr",
+                    default_number_field_name="mobile_nbr_ids",
                 )
                 .create(
                     {
@@ -179,7 +200,7 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
             [
                 {
                     "partner": self.test_record.customer_id,
-                    "number": self.test_record.mobile_nbr,
+                    "number": self.test_record.mobile_nbr_ids.number,
                 },
                 {"number": self.random_numbers_san[0]},
                 {"number": self.random_numbers_san[1]},
@@ -196,7 +217,7 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
                     active_model="mail.test.sms",
                     active_id=self.test_record.id,
                     default_template_id=self.sms_template.id,
-                    default_number_field_name="mobile_nbr",
+                    default_number_field_name="mobile_nbr_ids",
                 )
                 .create({})
             )
@@ -208,7 +229,7 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
             [
                 {
                     "partner": self.test_record.customer_id,
-                    "number": self.test_record.mobile_nbr,
+                    "number": self.test_record.mobile_nbr_ids.number,
                 }
             ],
             "Dear %s this is an SMS." % self.test_record.display_name,
@@ -226,14 +247,14 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
         sms_composer = self.env["sms.composer"].create(
             {
                 "body": self._test_body,
-                "number_field_name": "phone_nbr",
+                "number_field_name": "phone_nbr_ids",
                 "recipient_single_number_itf": self.random_numbers_san[0],
                 "res_id": test_record.id,
                 "res_model": "mail.test.sms.partner",
             }
         )
 
-        self.assertNotIn(",".join(test_record._fields), "phone_nbr")
+        self.assertNotIn(",".join(test_record._fields), "phone_nbr_ids")
         with self.mockSMSGateway():
             sms_composer._action_send_sms()
         self.assertSMSNotification(
@@ -261,7 +282,10 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
         """Test default description of SMS composer must be partner name"""
         self.test_record.write(
             {
-                "phone_nbr": "0123456789",
+                "phone_nbr_ids": [
+                    Command.clear(),
+                    Command.create({"number": "0123456789"}),
+                ],
             }
         )
         with self.with_user("employee"):
@@ -274,7 +298,7 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
                 .create(
                     {
                         "body": self._test_body,
-                        "number_field_name": "phone_nbr",
+                        "number_field_name": "phone_nbr_ids",
                     }
                 )
             )
@@ -322,14 +346,14 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
                 .create(
                     {
                         "body": self._test_body,
-                        "number_field_name": "phone_nbr",
+                        "number_field_name": "phone_nbr_ids",
                     }
                 )
             )
 
         self.assertEqual(composer.res_model, self.test_record._name)
         self.assertEqual(composer.res_id, self.test_record.id)
-        self.assertEqual(composer.number_field_name, "phone_nbr")
+        self.assertEqual(composer.number_field_name, "phone_nbr_ids")
         self.assertTrue(composer.comment_single_recipient)
         self.assertEqual(
             composer.recipient_single_description,
@@ -356,15 +380,15 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
                 composer.action_send_sms()
 
         self.test_record.flush_recordset()
-        self.assertEqual(self.test_record.phone_nbr, self.random_numbers[0])
+        self.assertEqual(self.test_record.phone_nbr_ids.number, self.random_numbers[0])
 
     def test_composer_comment_wo_partner_wo_value_update(self):
         """Test record without partner and without phone values: should allow updating first found phone field"""
         self.test_record.write(
             {
                 "customer_id": False,
-                "phone_nbr": False,
-                "mobile_nbr": False,
+                "phone_nbr_ids": False,
+                "mobile_nbr_ids": False,
             }
         )
         default_field_name = self.env["mail.test.sms"]._get_phone_number_fields()[0]
@@ -401,7 +425,7 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
                 messages = composer._action_send_sms()
 
         self.assertEqual(
-            self.test_record[default_field_name], self.random_numbers_san[0]
+            self.test_record[default_field_name].number, self.random_numbers_san[0]
         )
         self.assertSMSNotification(
             [
@@ -694,7 +718,7 @@ class TestSMSComposerMass(SMSCommon):
             ]
         )
         for p in self.partners[5:8]:
-            p.phone = self.partners[5].phone
+            p.phone_ids = self.partners[5].phone_ids
             self.assertEqual(p.phone_sanitized, self.partners[5].phone_sanitized)
 
         with self.with_user("employee"):

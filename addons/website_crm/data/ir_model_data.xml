@@ -13,7 +13,7 @@
         <function model="ir.model.fields" name="formbuilder_whitelist">
             <value>crm.lead</value>
             <value
-                eval="[                 'contact_name',                 'description',                 'email_from',                 'name',                 'partner_name',                 'phone',                 'team_id',                 'user_id',                 'lead_properties',             ]" />
+                eval="[                 'contact_name',                 'description',                 'email_from',                 'name',                 'partner_name',                 'phone_ids',                 'team_id',                 'user_id',                 'lead_properties',             ]" />
         </function>
     </data>
 

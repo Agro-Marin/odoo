@@ -1,16 +1,16 @@
-import uuid
 import base64
+import uuid
 import zipfile
+from io import BytesIO
+from itertools import batched
+from typing import Dict, List, Optional
+from urllib.parse import unquote
+
 import qrcode
 import qrcode.image.svg
-from io import BytesIO
-from typing import Optional, List, Dict
-from urllib.parse import unquote
-from odoo.exceptions import UserError, ValidationError, AccessError
 
-from odoo import api, fields, models, _, service
-from itertools import batched
-
+from odoo import _, api, fields, models, service
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tools import file_open
 
 
@@ -238,12 +238,12 @@ class PosConfig(models.Model):
                 'tables': [{
                     'id': i,
                     'url': self._get_self_order_url(),
-                } for i in range(0, 6)]
+                } for i in range(6)]
             }])
 
         return table_qr_code
 
-    def _get_self_order_route(self, table_id: Optional[int] = None) -> str:
+    def _get_self_order_route(self, table_id: int | None = None) -> str:
         self.check_singleton()
         base_route = f"/pos-self/{self.id}"
         table_route = ""
@@ -261,7 +261,7 @@ class PosConfig(models.Model):
 
         return f"{base_route}?access_token={self.access_token}{table_route}"
 
-    def _get_self_order_url(self, table_id: Optional[int] = None) -> str:
+    def _get_self_order_url(self, table_id: int | None = None) -> str:
         self.check_singleton()
         long_url = self.get_base_url() + self._get_self_order_route(table_id)
         return self.env['link.tracker'].search_or_create([{
@@ -287,7 +287,7 @@ class PosConfig(models.Model):
         return encoded_images
 
     def _load_self_data_models(self):
-        return ['pos.session', 'pos.preset', 'resource.calendar.attendance', 'pos.order', 'pos.order.line', 'pos.payment', 'pos.payment.method', 'res.partner',
+        return ['pos.session', 'pos.preset', 'resource.calendar.attendance', 'pos.order', 'pos.order.line', 'pos.payment', 'pos.payment.method', 'res.partner', 'phone.number',
             'res.currency', 'pos.category', 'product.template', 'product.product', 'product.combo', 'product.combo.item', 'res.company', 'account.tax',
             'account.tax.group', 'pos.printer', 'res.country', 'product.category', 'product.pricelist', 'product.pricelist.item', 'account.fiscal.position',
             'res.lang', 'product.attribute', 'product.attribute.custom.value', 'product.template.attribute.line', 'product.template.attribute.value', 'product.tag',
@@ -343,7 +343,7 @@ class PosConfig(models.Model):
 
         return response
 
-    def _split_qr_codes_list(self, floors: List[Dict], cols: int) -> List[Dict]:
+    def _split_qr_codes_list(self, floors: list[dict], cols: int) -> list[dict]:
         """
         :param floors: the list of floors
         :param cols: the number of qr codes per row
@@ -435,7 +435,7 @@ class PosConfig(models.Model):
             'self_ordering_pay_after': 'each',
         })
 
-    def _generate_single_qr_code__(self, url):  # noqa: PLW3201
+    def _generate_single_qr_code__(self, url):
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,

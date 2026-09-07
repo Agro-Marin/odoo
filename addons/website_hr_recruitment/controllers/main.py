@@ -299,7 +299,7 @@ class WebsiteHrRecruitment(WebsiteForm):
         field_domain = {
             "name": [("partner_name", "=ilike", escape_psql(value))],
             "email": [("email_normalized", "=", email_normalize(value))],
-            "phone": [("partner_phone", "=", value)],
+            "phone": [("phone_ids.number", "=", value)],
             "linkedin": [("linkedin_profile", "=ilike", escape_psql(value))],
         }.get(field, [])
 

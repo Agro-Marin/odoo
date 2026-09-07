@@ -14,7 +14,7 @@
                     domain="[('is_company', '=', True)]"
                     operator="child_of" />
                 <field name="email" filter_domain="[('email', 'ilike', self)]" />
-                <field name="phone" />
+                <field name="phone_ids" />
                 <field name="tag_ids" string="Tag" operator="child_of" />
                 <field name="user_id" />
                 <separator />
@@ -39,7 +39,7 @@
                 <filter
                     name="without_phone"
                     string="Without Phone"
-                    domain="[('phone', '=', False), ('mobile', '=', False)]" />
+                    domain="[('phone_ids', '=', False)]" />
                 <filter
                     name="without_address"
                     string="Without Address"
@@ -100,7 +100,7 @@
                 <field name="complete_name" string="Name" />
                 <field name="vat" optional="hide" readonly="1" />
                 <field name="email" optional="show" />
-                <field name="phone" class="o_force_ltr" optional="show" />
+                <field name="phone_ids" widget="many2many_tags" optional="show" />
                 <field name="street" optional="hide" />
                 <field name="city" optional="hide" />
                 <field name="state_id" optional="hide" readonly="1" />
@@ -188,11 +188,11 @@
                                     title="Email" />
                                 <field name="email" />
                             </div>
-                            <div t-if="record.phone.raw_value">
+                            <div t-if="record.phone_ids.raw_value.length">
                                 <i
                                     class="fa-solid fa-phone me-1 text-primary"
                                     title="Phone" />
-                                <field name="phone" />
+                                <field name="phone_ids" widget="many2many_tags" />
                             </div>
                             <div
                                 t-if="record.city.raw_value or record.country_id.raw_value">
@@ -256,10 +256,7 @@
                         placeholder="e.g. Sales Director"
                         invisible="is_company" />
                     <field name="email" widget="email" required="True" />
-                    <field
-                        name="phone"
-                        widget="phone"
-                        options="{'enable_sms': false}" />
+                    <field name="phone_ids" widget="many2many_tags" />
                 </group>
             </form>
         </field>
@@ -423,9 +420,9 @@
                                         class="fa-solid fa-phone me-1 text-primary"
                                         title="Phone" />
                                     <field
-                                        name="phone"
+                                        name="phone_ids"
                                         placeholder="Phone"
-                                        widget="phone"
+                                        widget="many2many_tags"
                                         class="w-100" />
                                 </div>
                             </div>
@@ -564,11 +561,11 @@
                                                         title="Email" />
                                                     <field name="email" />
                                                 </div>
-                                                <div t-if="record.phone.raw_value">
+                                                <div t-if="record.phone_ids.raw_value.length">
                                                     <i
                                                         class="fa-solid fa-phone me-1 text-primary"
                                                         title="Phone" />
-                                                    <field name="phone" />
+                                                    <field name="phone_ids" widget="many2many_tags" />
                                                 </div>
                                                 <div
                                                     invisible="not function or is_company">
@@ -635,8 +632,8 @@
                                                             class="fa-solid fa-phone me-1 text-primary"
                                                             title="Phone" />
                                                         <field
-                                                            name="phone"
-                                                            widget="phone"
+                                                            name="phone_ids"
+                                                            widget="many2many_tags"
                                                             class="w-100"
                                                             placeholder="Phone" />
                                                     </div>

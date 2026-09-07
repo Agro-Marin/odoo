@@ -41,9 +41,6 @@
                     icon="fa-mobile"
                     invisible="not user_can_edit" />
             </xpath>
-            <xpath expr="//field[@name='phone']" position="attributes">
-                <attribute name="options">{'enable_sms': false}</attribute>
-            </xpath>
         </field>
     </record>
 

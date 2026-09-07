@@ -19,8 +19,11 @@ class MailTestRecipients(models.Model):
     customer_email = fields.Char(
         "Customer Email", compute="_compute_customer_email", readonly=False, store=True
     )
-    customer_phone = fields.Char(
-        "Customer Phone", compute="_compute_customer_phone", readonly=False, store=True
+    phone_ids = fields.Many2many(
+        "phone.number",
+        compute="_compute_phone_ids",
+        readonly=False,
+        store=True,
     )
     name = fields.Char()
 
@@ -30,9 +33,9 @@ class MailTestRecipients(models.Model):
             source.customer_email = source.customer_id.email_formatted
 
     @api.depends("customer_id")
-    def _compute_customer_phone(self):
-        for source in self.filtered(lambda r: r.customer_id and not r.customer_phone):
-            source.customer_phone = source.customer_id.phone
+    def _compute_phone_ids(self):
+        for source in self.filtered(lambda r: r.customer_id and not r.phone_ids):
+            source.phone_ids = source.customer_id.phone_ids
 
 
 class MailTestThreadCustomer(models.Model):

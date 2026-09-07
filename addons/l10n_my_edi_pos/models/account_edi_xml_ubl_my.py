@@ -313,7 +313,7 @@ class AccountEdiXmlUBLMyInvoisMY(models.AbstractModel):
                 "cbc:ID": {"_text": partner.id},
                 "cbc:Name": {"_text": partner.name},
                 "cbc:Telephone": {
-                    "_text": self._l10n_my_edi_get_formatted_phone_number(partner.phone)
+                    "_text": self._l10n_my_edi_get_formatted_phone_number(partner._phone_get_number().number)
                 },
                 "cbc:ElectronicMail": {"_text": partner.email},
             },

@@ -1,7 +1,7 @@
 import base64
 from lxml import etree
 
-from odoo import tools
+from odoo import Command, tools
 from odoo.tests import tagged
 from odoo.tools.misc import file_open
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -41,7 +41,7 @@ class TestItEdi(AccountTestInvoicingCommon):
         cls.company_data_2 = cls.setup_other_company(
             name='company_2_data',
             vat='IT01234560157',
-            phone='0266766700',
+            phone_ids=[Command.create({'number': '0266766700', 'type': 'landline'})],
             email='test@test.it',
             street="1234 Test Street",
             zip="12345",
@@ -55,7 +55,7 @@ class TestItEdi(AccountTestInvoicingCommon):
         })
 
         cls.test_bank = cls.env['res.partner.bank'].create({
-            'partner_id': cls.company.partner_id.id,
+            'partner_ids': [(4, cls.company.partner_id.id)],
             'acc_number': 'IT1212341234123412341234123',
             'bank_name': 'BIG BANK',
             'bank_bic': 'BIGGBANQ',

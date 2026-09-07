@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.tests import Form, tagged, users
 from odoo.tools import mute_logger
 
@@ -706,7 +706,9 @@ class TestTrackingInternals(MailCommon):
                 "country_id": cls.env.ref("base.be").id,
                 "email": "test.partner@test.example.com",
                 "name": "Test Partner",
-                "phone": "0456001122",
+                "phone_ids": [
+                    Command.create({"number": "0456001122", "type": "landline"})
+                ],
             }
         )
 
@@ -984,7 +986,9 @@ class TestTrackingInternals(MailCommon):
                 {
                     "name": "Foo",
                     "email": "foo@example.com",
-                    "phone": "1234567890",
+                    "phone_ids": [
+                        Command.create({"number": "1234567890", "type": "landline"})
+                    ],
                 }
             )
         )
@@ -1001,7 +1005,7 @@ class TestTrackingInternals(MailCommon):
                 ("partner_id", "many2one", False, partner_su),
                 ("partner_name", "char", False, "Foo"),
                 ("partner_email", "char", False, "foo@example.com"),
-                ("partner_phone", "char", False, "1234567890"),
+                ("phone_ids", "many2many", "", "1234567890"),
             ],
         )
 
@@ -1025,12 +1029,15 @@ class TestTrackingInternals(MailCommon):
             {
                 "name": "Bar",
                 "email": "bar@example.com",
-                "phone": "0987654321",
+                "phone_ids": [
+                    Command.clear(),
+                    Command.create({"number": "0987654321", "type": "landline"}),
+                ],
             }
         )
-        # force recomputation of 'partner_phone' to make sure it does not
+        # force recomputation of 'phone_ids' to make sure it does not
         # generate tracking values
-        self.assertEqual(compute_record.partner_phone, "0987654321")
+        self.assertEqual(compute_record.phone_ids.number, "0987654321")
         self.flush_tracking()
         self.assertEqual(len(compute_record.message_ids), 4)
         self.assertEqual(

@@ -11,13 +11,13 @@
         <field name="country_id" ref="us" />
         <field name="tz">Europe/Brussels</field>
         <field name="email">mark.brown23@example.com</field>
-        <field name="phone">(441)-695-2334</field>
+        <field name="phone_ids" eval="[Command.create({'number': '(441)-695-2334', 'type': 'landline'})]" />
     </record>
 
     <function model="res.partner" name="write">
         <value eval="[ref('base.main_partner')]" />
         <value
-            eval="{                 'name': 'YourCompany',                 'street': '8000 Marina Blvd, Suite 300',                 'city': 'Brisbane',                 'zip': '94005',                 'country_id': ref('base.us'),                 'state_id': ref('base.state_us_5'),                 'phone': '+1 555-555-5556',                 'website': 'www.example.com',                 'email': 'info@yourcompany.com',             } if obj(ref('base.main_partner')).name == 'My Company' else {}"
+            eval="{                 'name': 'YourCompany',                 'street': '8000 Marina Blvd, Suite 300',                 'city': 'Brisbane',                 'zip': '94005',                 'country_id': ref('base.us'),                 'state_id': ref('base.state_us_5'),                 'phone_ids': [Command.create({'number': '+1 555-555-5556', 'type': 'landline'})],                 'website': 'www.example.com',                 'email': 'info@yourcompany.com',             } if obj(ref('base.main_partner')).name == 'My Company' else {}"
             model="res.partner" />
     </function>
 
@@ -53,7 +53,7 @@
         <field name="zip">18503</field>
         <field name="country_id" ref="base.us" />
         <field name="state_id" ref="state_us_39" />
-        <field name="phone">+1 555-555-5555</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+1 555-555-5555', 'type': 'landline'})]" />
         <field name="email">admin@yourcompany.example.com</field>
         <field name="tz">Europe/Brussels</field>
         <field name="user_id" ref="base.user_admin" />
@@ -84,7 +84,7 @@
             name="image_1920"
             type="base64"
             file="base/static/img/partner_demo_portal.png" />
-        <field name="phone">(683)-556-5104</field>
+        <field name="phone_ids" eval="[Command.create({'number': '(683)-556-5104', 'type': 'landline'})]" />
     </record>
 
     <record id="demo_user0" model="res.users" context="{'no_reset_password': True}">

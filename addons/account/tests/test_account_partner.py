@@ -235,7 +235,7 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         account = self.env["res.partner.bank"].create(
             {
                 "acc_number": "123456789",
-                "partner_id": partner.id,
+                "partner_ids": [(4, partner.id)],
             }
         )
         account.allow_out_payment = True
@@ -247,9 +247,14 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         with self.assertRaisesRegex(UserError, "has been trusted"), self.cr.savepoint():
             account.write(
                 {
-                    "partner_id": self.env["res.partner"]
-                    .create({"name": "MyCustomer 2"})
-                    .id
+                    "partner_ids": [
+                        (
+                            4,
+                            self.env["res.partner"]
+                            .create({"name": "MyCustomer 2"})
+                            .id,
+                        )
+                    ]
                 }
             )
 

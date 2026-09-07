@@ -61,7 +61,11 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
                             {
                                 "acc_number": "BE68539007547034",
                                 "allow_out_payment": True,
-                                "partner_id": cls.expense_user_employee.partner_id.id,
+                                "partner_ids": [
+                                    Command.link(
+                                        cls.expense_user_employee.partner_id.id
+                                    )
+                                ],
                             }
                         )
                     ],
@@ -177,8 +181,8 @@ class TestExpenseCommon(AccountTestInvoicingCommon):
                     }
                 )
             )
-            self.assertEqual(
-                payment_register.partner_bank_id.partner_id,
+            self.assertIn(
                 expenses.employee_id.partner_id,
+                payment_register.partner_bank_id.partner_ids,
             )
             return payment_register._create_payments()

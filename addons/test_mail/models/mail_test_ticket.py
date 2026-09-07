@@ -14,7 +14,9 @@ class MailTestTicket(models.Model):
 
     name = fields.Char()
     email_from = fields.Char(tracking=True)
-    phone_number = fields.Char()
+    phone_ids = fields.Many2many(
+        "phone.number",
+    )
     count = fields.Integer(default=1)
     datetime = fields.Datetime(default=fields.Datetime.now)
     mail_template = fields.Many2one("mail.template", "Template")
@@ -88,7 +90,7 @@ class MailTestTicket(models.Model):
                 continue
             values = email_keys_to_values.setdefault(email_key, {})
             if not values.get("phone"):
-                values["phone"] = ticket.phone_number
+                values["phone"] = ticket.phone_ids[:1].number
         return email_keys_to_values
 
 

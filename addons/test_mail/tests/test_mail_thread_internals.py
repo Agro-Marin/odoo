@@ -3,7 +3,7 @@ from unittest.mock import DEFAULT, patch
 
 from markupsafe import Markup
 
-from odoo import exceptions, tools
+from odoo import Command, exceptions, tools
 from odoo.tests import Form, tagged, users, warmup
 from odoo.tools import mute_logger
 
@@ -22,13 +22,17 @@ class ThreadRecipients(MailCommon, TestRecipients):
             [
                 {
                     "email": '"Test External" <test.external@example.com>',
-                    "phone": "+32455001122",
+                    "phone_ids": [
+                        Command.create({"number": "+32455001122", "type": "landline"})
+                    ],
                     "name": "Name External",
                 },
                 {
                     "active": False,
                     "email": '"Test Archived" <test.archived@example.com>',
-                    "phone": "+32455221100",
+                    "phone_ids": [
+                        Command.create({"number": "+32455221100", "type": "landline"})
+                    ],
                     "name": "Name Archived",
                 },
             ]
@@ -105,7 +109,9 @@ class TestAPI(ThreadRecipients):
             {
                 "company_id": cls.user_employee.company_id.id,
                 "email_from": '"Paulette Vachette" <paulette@test.example.com>',
-                "phone_number": "+32455998877",
+                "phone_ids": [
+                    Command.create({"number": "+32455998877", "type": "landline"})
+                ],
                 "name": "Test",
                 "user_id": cls.user_employee.id,
             }
@@ -122,7 +128,9 @@ class TestAPI(ThreadRecipients):
                 },
                 {
                     "email_from": "wrong",
-                    "phone_number": "+32455000001",
+                    "phone_ids": [
+                        Command.create({"number": "+32455000001", "type": "landline"})
+                    ],
                     "name": "Wrong email",
                 },
                 {
@@ -372,7 +380,12 @@ class TestAPI(ThreadRecipients):
                 )
                 for partner, exp_values in zip(partners, exp_values_list, strict=True):
                     for fname, fvalue in exp_values.items():
-                        self.assertEqual(partner[fname], fvalue)
+                        value = (
+                            partner._phone_get_number().number
+                            if fname == "phone"
+                            else partner[fname]
+                        )
+                        self.assertEqual(value, fvalue)
 
     @users("employee")
     def test_mail_partner_find_from_emails_ordering(self):
@@ -517,7 +530,7 @@ class TestAPI(ThreadRecipients):
         self.assertEqual(customer.company_id, self.user_employee.company_id)
         self.assertEqual(customer.email, "paulette@test.example.com")
         self.assertEqual(
-            customer.phone,
+            customer._phone_get_number().number,
             "+32455998877",
             "Should come from record, see '_mail_get_customer_information'",
         )
@@ -542,7 +555,7 @@ class TestAPI(ThreadRecipients):
         self.assertFalse(partner.company_id, "Forced by additional values")
         self.assertEqual(partner.email, "paulette@test.example.com")
         self.assertEqual(partner.name, "Forced Name", "Forced by additional values")
-        self.assertEqual(partner.phone, "+32455998877")
+        self.assertEqual(partner._phone_get_number().number, "+32455998877")
 
     @users("employee")
     @warmup
@@ -816,7 +829,9 @@ class TestAPI(ThreadRecipients):
                 "customer_id": False,
                 "email_from": self.test_partner.email_formatted,
                 "name": "Partner email",
-                "phone_number": "+33199001015",
+                "phone_ids": [
+                    Command.create({"number": "+33199001015", "type": "landline"})
+                ],
                 "user_id": self.env.user.id,  # should not be proposed, already follower
             }
         )

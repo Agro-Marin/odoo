@@ -1,4 +1,4 @@
-from odoo import _
+from odoo import Command, _
 from odoo.http import request
 from odoo.libs.text import nl2br, nl2br_enclose
 from odoo.tools import html2plaintext
@@ -60,18 +60,18 @@ class WebsiteForm(form.WebsiteForm):
             if partner:
                 data["record"]["partner_id"] = partner.id
                 custom = [
-                    ("partner_name", data["record"].pop("partner_name", False)),
-                    ("partner_phone", data["record"].pop("partner_phone", False)),
-                    (
-                        "partner_company_name",
-                        data["record"].pop("partner_company_name", False),
-                    ),
+                    (fname, data["record"].pop(fname, False))
+                    for fname in ("partner_name", "partner_company_name")
                 ]
                 data["custom"] += "\n" + "\n".join(["%s : %s" % c for c in custom])
             else:
                 data["record"]["email_cc"] = values["email_from"]
                 if values.get("partner_phone"):
-                    data["record"]["partner_phone"] = values["partner_phone"]
+                    data["record"]["phone_ids"] = [
+                        Command.create(
+                            {"number": values["partner_phone"], "type": "mobile"}
+                        )
+                    ]
                 if values.get("partner_name"):
                     data["record"]["partner_name"] = values["partner_name"]
                 if values.get("partner_company_name"):

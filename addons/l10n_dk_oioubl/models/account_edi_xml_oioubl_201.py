@@ -320,7 +320,7 @@ class AccountEdiXmlOioubl_201(models.AbstractModel):
             'cac:Contact': {
                 'cbc:ID': {'_text': partner.id},
                 'cbc:Name': {'_text': partner.name},
-                'cbc:Telephone': {'_text': partner.phone},
+                'cbc:Telephone': {'_text': partner._phone_get_number().number},
                 'cbc:ElectronicMail': {'_text': partner.email},
             }
         }

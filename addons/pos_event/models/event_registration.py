@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import Command, api, fields, models
 from odoo.tools import float_is_zero
 
 
@@ -8,6 +8,19 @@ class EventRegistration(models.Model):
 
     pos_order_id = fields.Many2one(related='pos_order_line_id.order_id', string='PoS Order')
     pos_order_line_id = fields.Many2one('pos.order.line', string='PoS Order Line', ondelete='cascade', copy=False, index='btree_not_null')
+    phone = fields.Char(string='Phone Number', compute='_compute_phone', inverse='_inverse_phone')
+
+    @api.depends('phone_ids')
+    def _compute_phone(self):
+        for registration in self:
+            registration.phone = registration._phone_get_number().number
+
+    def _inverse_phone(self):
+        for registration in self:
+            if registration.phone:
+                registration._phone_replace_number('phone_ids', registration.phone)
+            else:
+                registration.phone_ids = [Command.clear()]
 
     def _has_order(self):
         return super()._has_order() or self.pos_order_id

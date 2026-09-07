@@ -1,4 +1,4 @@
-from odoo import models
+from odoo import Command, models
 
 
 class PosOrder(models.Model):
@@ -17,5 +17,5 @@ class PosOrder(models.Model):
                 'res_model': 'pos.order'
             }
         )
-        self.mobile = phone
+        self.phone_ids = [Command.create({'number': phone, 'type': 'mobile'})]
         sms_composer.action_send_sms()

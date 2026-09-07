@@ -8,20 +8,20 @@
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="priority">10</field>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='phone']" position="after">
+            <xpath expr="//field[@name='phone_ids']" position="after">
                 <field
                     name="phone_sanitized"
                     groups="base.group_no_one"
                     invisible="1" />
             </xpath>
-            <xpath expr="//field[@name='phone']" position="before">
+            <xpath expr="//field[@name='phone_ids']" position="before">
                 <field name="phone_blacklisted" invisible="1" />
                 <button
                     name="phone_action_blacklist_remove"
                     class="fa-solid fa-ban text-danger"
                     title="This phone number is blacklisted for SMS Marketing. Click to unblacklist."
                     type="object"
-                    context="{'default_phone': phone}"
+                    context="{'default_phone': phone_sanitized}"
                     groups="base.group_user"
                     invisible="not phone_blacklisted" />
             </xpath>

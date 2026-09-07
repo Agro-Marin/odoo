@@ -19,12 +19,12 @@ class TestUBLDK(TestUBLCommon, TestAccountMoveSendCommon):
             'city': 'Aalborg',
             'zip': '9430',
             'vat': 'DK12345674',
-            'phone': '+45 32 12 34 56',
+            'phone_ids': [Command.create({"number": '+45 32 12 34 56', "type": "landline"})],
             'street': 'Paradisæblevej, 10',
         })
         cls.env['res.partner.bank'].create({
             'acc_type': 'iban',
-            'partner_id': cls.company_data['company'].partner_id.id,
+            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
             'acc_number': 'DK5000400440116243',
         })
 
@@ -37,7 +37,7 @@ class TestUBLDK(TestUBLCommon, TestAccountMoveSendCommon):
             'city': 'Aalborg',
             'zip': '9430',
             'vat': 'DK12345674',
-            'phone': '+45 32 12 35 56',
+            'phone_ids': [Command.create({"number": '+45 32 12 35 56', "type": "landline"})],
             'street': 'Paradisæblevej, 11',
             'country_id': cls.env.ref('base.dk').id,
             'invoice_edi_format': 'oioubl_201',
@@ -49,7 +49,7 @@ class TestUBLDK(TestUBLCommon, TestAccountMoveSendCommon):
             'zip': '6870',
             'city': 'Eghezee',
             'country_id': cls.env.ref('base.be').id,
-            'phone': '061928374',
+            'phone_ids': [Command.create({"number": '061928374', "type": "landline"})],
             'vat': 'BE0897223670',
             'invoice_edi_format': 'oioubl_201',
             'peppol_endpoint': False,
@@ -60,7 +60,7 @@ class TestUBLDK(TestUBLCommon, TestAccountMoveSendCommon):
             'zip': '59000',
             'city': 'Lille',
             'country_id': cls.env.ref('base.fr').id,
-            'phone': '+33 1 23 45 67 89',
+            'phone_ids': [Command.create({"number": '+33 1 23 45 67 89', "type": "landline"})],
             'vat': 'FR23334175221',
             'company_registry': '123 568 941 00056',
             'invoice_edi_format': 'oioubl_201',

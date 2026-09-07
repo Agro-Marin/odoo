@@ -1,9 +1,10 @@
-# -*- coding: utf-8 -*-
 from datetime import datetime, timedelta
 
-from odoo.addons.event_booth.tests.common import TestEventBoothCommon
+from odoo import Command
 from odoo.fields import Datetime as FieldsDatetime
-from odoo.tests.common import users, tagged
+from odoo.tests.common import tagged, users
+
+from odoo.addons.event_booth.tests.common import TestEventBoothCommon
 
 
 @tagged('post_install', '-at_install', 'event_booth')
@@ -16,7 +17,7 @@ class TestEventData(TestEventBoothCommon):
         category = self.env['event.booth.category'].browse(self.event_booth_category_1.ids)
         self.assertTrue(all(
             bool(customer[fname])
-            for fname in ['name', 'email', 'country_id', 'phone']
+            for fname in ['name', 'email', 'country_id', 'phone_ids']
             )
         )
         customer_email = customer.email
@@ -37,18 +38,18 @@ class TestEventData(TestEventBoothCommon):
         })
         self.assertEqual(booth.contact_name, customer.name)
         self.assertEqual(booth.contact_email, customer_email)
-        self.assertEqual(booth.contact_phone, customer.phone)
+        self.assertEqual(booth.phone_ids, customer._phone_get_number())
 
         booth.write({
             'contact_email': '"New Emails" <new.email@test.example.com',
-            'contact_phone': False,
+            'phone_ids': [Command.clear()],
         })
         self.assertEqual(booth.contact_email, '"New Emails" <new.email@test.example.com')
-        self.assertEqual(booth.contact_phone, False)
+        self.assertFalse(booth.phone_ids)
         self.assertEqual(customer.email, customer_email, 'No sync from booth to partner')
 
         # partial update of contact fields: we may end up with mixed contact information, is it a good idea ?
         booth.write({'partner_id': self.event_customer2.id})
         self.assertEqual(booth.contact_name, customer.name)
         self.assertEqual(booth.contact_email, '"New Emails" <new.email@test.example.com')
-        self.assertEqual(booth.contact_phone, self.event_customer2.phone)
+        self.assertEqual(booth.phone_ids, self.event_customer2._phone_get_number())

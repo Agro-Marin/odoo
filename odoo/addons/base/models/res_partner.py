@@ -331,8 +331,13 @@ class ResPartner(models.Model):
         compute="_compute_email_formatted",
         help='Format email address "Name <email@domain>"',
     )
-    phone = fields.Char()
-    mobile = fields.Char()
+    phone_ids = fields.Many2many(
+        "phone.number",
+        "res_partner_phone_number_rel",
+        "partner_id",
+        "phone_number_id",
+        string="Phone Numbers",
+    )
     gender = fields.Selection(
         selection=[
             ("male", "Male"),
@@ -372,9 +377,11 @@ class ResPartner(models.Model):
         inverse_name="partner_id",
         string="Identifiers",
     )
-    bank_ids = fields.One2many(
+    bank_ids = fields.Many2many(
         "res.partner.bank",
+        "res_partner_res_partner_bank_rel",
         "partner_id",
+        "bank_account_id",
         string="Banks",
     )
     is_company = fields.Boolean(
@@ -884,6 +891,13 @@ class ResPartner(models.Model):
             else:
                 partner.type_address_label = _("Address")
 
+    def _phone_get_numbers(self, fname=False):
+        self.check_singleton()
+        return self[fname] if fname else self.phone_ids
+
+    def _phone_get_number(self, *types: str, fname=False):
+        return self._phone_get_numbers(fname=fname)._primary(*types)
+
     @api.depends(
         lambda self: [*self._display_address_depends(), "commercial_company_name"]
     )
@@ -1301,7 +1315,7 @@ class ResPartner(models.Model):
             vals["website"] = self._clean_website(vals["website"])
         if vals.get("name"):
             banks_to_sync = self.with_context(active_test=False).bank_ids.filtered(
-                lambda bank: bank.acc_holder_name == bank.partner_id.name
+                lambda bank: bank.acc_holder_name == bank.partner_ids[:1].name
             )
             if banks_to_sync:
                 banks_to_sync.acc_holder_name = vals["name"]

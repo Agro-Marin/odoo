@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from odoo import Command
 from odoo.tests import tagged
 from odoo.tests.common import users
 
@@ -26,7 +27,7 @@ class TestEventCrmFlow(TestEventCrmCommon, CronMixinCase):
         self.assertEqual(
             self.event_customer.email_normalized, "constantin@test.example.com"
         )
-        self.assertEqual(self.event_customer.phone, "0485112233")
+        self.assertEqual(self.event_customer._phone_get_number().number, "0485112233")
 
     @users("user_eventmanager")
     @patch(
@@ -155,7 +156,11 @@ class TestEventCrmFlow(TestEventCrmCommon, CronMixinCase):
                         "name": name,
                         "partner_id": False,
                         "email": email,
-                        "phone": phone,
+                        "phone_ids": [
+                            Command.create({"number": phone, "type": "landline"})
+                        ]
+                        if phone
+                        else False,
                         "event_id": self.event_0.id,
                     }
                 )
@@ -167,7 +172,9 @@ class TestEventCrmFlow(TestEventCrmCommon, CronMixinCase):
             {
                 "partner_id": self.event_customer.id,
                 "email": "other.email@test.example.com",
-                "phone": "0456112233",
+                "phone_ids": [
+                    Command.create({"number": "0456112233", "type": "landline"})
+                ],
                 "event_id": self.event_0.id,
             }
         )
@@ -178,7 +185,7 @@ class TestEventCrmFlow(TestEventCrmCommon, CronMixinCase):
         self.event_customer2.write(
             {
                 "email": False,
-                "phone": False,
+                "phone_ids": [Command.clear()],
             }
         )
         self.test_rule_attendee.write(
@@ -214,7 +221,11 @@ class TestEventCrmFlow(TestEventCrmCommon, CronMixinCase):
                     {
                         "partner_id": base_partner.id,
                         "email": email,
-                        "phone": phone,
+                        "phone_ids": [
+                            Command.create({"number": phone, "type": "landline"})
+                        ]
+                        if phone
+                        else False,
                         "event_id": self.event_0.id,
                     }
                 )
@@ -228,7 +239,9 @@ class TestEventCrmFlow(TestEventCrmCommon, CronMixinCase):
             {
                 "partner_id": self.event_customer.id,
                 "email": "trigger.test@not.test.example.com",
-                "phone": "0456112233",
+                "phone_ids": [
+                    Command.create({"number": "0456112233", "type": "landline"})
+                ],
                 "event_id": self.event_0.id,
             }
         )
@@ -262,7 +275,7 @@ class TestEventCrmFlow(TestEventCrmCommon, CronMixinCase):
                 "name": "My Registration",
                 "partner_id": False,
                 "email": "super.email@test.example.com",
-                "phone": False,
+                "phone_ids": [Command.clear()],
                 "event_id": self.event_0.id,
             }
         )

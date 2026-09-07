@@ -304,7 +304,7 @@ class AccountEdiXmlUbl_21Zatca(models.AbstractModel):
                 'cbc:ID': {'_text': partner.id},
                 'cbc:Name': {'_text': partner.name},
                 'cbc:Telephone': {
-                    '_text': re.sub(r"[^+\d]", '', partner.phone) if partner.phone else None
+                    '_text': re.sub(r"[^+\d]", '', partner_phone) if (partner_phone := partner._phone_get_number().number) else None
                 },
                 'cbc:ElectronicMail': {'_text': partner.email},
             }

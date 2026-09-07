@@ -1577,7 +1577,7 @@ class TestSearchFilteredDomainParity(TransactionCase):
     ITERATIONS = 300
     SEED = 20260724
 
-    CHAR_FIELDS = ("name", "ref", "city", "email", "phone", "street", "function")
+    CHAR_FIELDS = ("name", "ref", "city", "email", "street", "function")
     NUM_FIELDS = ("color", "id")
     BOOL_FIELDS = ("active", "is_company")
     M2O_FIELDS = ("country_id", "parent_id", "company_id")
@@ -1606,7 +1606,6 @@ class TestSearchFilteredDomainParity(TransactionCase):
             "name": lambda: rng.choice(["", "Alpha", "beta", "Gamma Ltd", "délta"]),
             "city": lambda: rng.choice([False, "", "Paris", "london", "Ávila"]),
             "email": lambda: rng.choice([False, "", "a@b.com", "X@Y.COM"]),
-            "phone": lambda: rng.choice([False, "", "+33 1"]),
             "street": lambda: rng.choice([False, "", "1 rue A", "_under"]),
             "function": lambda: rng.choice([False, "", "CEO"]),
             "color": lambda: rng.choice([0, 1, 2, 7]),

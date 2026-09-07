@@ -108,7 +108,6 @@ class TestRecordCache(TransactionCaseWithUserDemo):
             "display_name",
             "email",
             "website",
-            "phone",
             "street",
             "street2",
             "city",

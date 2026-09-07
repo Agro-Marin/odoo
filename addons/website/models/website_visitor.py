@@ -156,25 +156,12 @@ class WebsiteVisitor(models.Model):
             partner_id = int(token) if len(token) != 32 and token.isdigit() else False
             visitor.partner_id = self.env["res.partner"].browse(partner_id)
 
-    @api.depends("partner_id.email_normalized", "partner_id.phone")
+    @api.depends("partner_id.email_normalized", "partner_id.phone_ids")
     def _compute_email_phone(self):
-        results = self.env["res.partner"].search_read(
-            [("id", "in", self.partner_id.ids)],
-            ["id", "email_normalized", "phone"],
-        )
-        mapped_data = {
-            result["id"]: {
-                "email_normalized": result["email_normalized"],
-                "phone": result["phone"],
-            }
-            for result in results
-        }
-
         for visitor in self:
-            visitor.email = mapped_data.get(visitor.partner_id.id, {}).get(
-                "email_normalized"
-            )
-            visitor.mobile = mapped_data.get(visitor.partner_id.id, {}).get("phone")
+            partner = visitor.partner_id
+            visitor.email = partner.email_normalized
+            visitor.mobile = partner._phone_get_number().number if partner else False
 
     @api.depends("website_track_ids")
     def _compute_page_statistics(self):

@@ -334,7 +334,7 @@
                                                         id="recruitment3"
                                                         type="tel"
                                                         class="form-control s_website_form_input"
-                                                        name="partner_phone"
+                                                        name="phone"
                                                         required=""
                                                         data-fill-with="phone" />
                                                 </div>
@@ -894,7 +894,7 @@
                                                         <div class="row">
                                                             <ul
                                                                 class="list-unstyled mb-0">
-                                                                <li t-if="job_sudo.user_id.work_phone"><i class="fa-solid fa-phone me-2" /><span class="o_force_ltr" t-field="job_sudo.user_id.work_phone" /></li>
+                                                                <li t-if="job_sudo.user_id.phone_ids"><i class="fa-solid fa-phone me-2" /><span class="o_force_ltr" t-out="job_sudo.user_id.phone_ids._primary().number" /></li>
                                                                 <li class="d-inline-flex align-items-baseline"><i class="fa-solid fa-envelope me-2" /><span><a class="text-break" t-attf-href="mailto:#{job_sudo.user_id.email}" t-field="job_sudo.user_id.email" /></span></li>
                                                             </ul>
                                                         </div>

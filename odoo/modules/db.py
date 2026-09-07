@@ -276,7 +276,9 @@ def initialize_db(
                         users.write({"tz": tz_mapping[normalized_country][0]})
 
             if phone:
-                env["res.company"].browse(1).write({"phone": phone})
+                env["res.company"].browse(1).write(
+                    {"phone_ids": [(0, 0, {"number": phone})]}
+                )
 
             if login and "@" in login:
                 env["res.company"].browse(1).write({"email": login})

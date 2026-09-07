@@ -85,7 +85,7 @@ class TestAddToCartSnippet(HttpCase):
                 "city": "Ramillies",
                 "zip": 1367,
                 "country_id": self.env.ref("base.be").id,
-                "phone": "+32 123456789",
+                "phone_ids": [Command.create({"number": "+32 123456789", "type": "landline"})],
             }
         )
         self.env.ref("base.user_admin").country_id = self.env.ref("base.be")

@@ -36,7 +36,7 @@ class L10nMyEDITestNewSubmission(TestAccountMoveSendCommon):
             'state_id': cls.env.ref('base.state_my_jhr').id,
             'street': 'that one street, 5',
             'city': 'Main city',
-            'phone': '+60123456789',
+            'phone_ids': [Command.create({"number": '+60123456789', "type": "landline"})],
         })
         cls.partner_a.write({
             'vat': 'C2584563201',
@@ -46,7 +46,7 @@ class L10nMyEDITestNewSubmission(TestAccountMoveSendCommon):
             'state_id': cls.env.ref('base.state_my_jhr').id,
             'street': 'that other street, 3',
             'city': 'Main city',
-            'phone': '+60123456786',
+            'phone_ids': [Command.create({"number": '+60123456786', "type": "landline"})],
             'ref': "MY-REF",
         })
         cls.product_a.l10n_my_edi_classification_code = "001"

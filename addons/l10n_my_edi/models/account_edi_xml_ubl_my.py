@@ -311,7 +311,7 @@ class AccountEdiXmlUBLMyInvoisMY(models.AbstractModel):
             'cac:Contact': {
                 'cbc:ID': {'_text': partner.id},
                 'cbc:Name': {'_text': partner.name},
-                'cbc:Telephone': {'_text': self._l10n_my_edi_get_formatted_phone_number(partner.phone)},
+                'cbc:Telephone': {'_text': self._l10n_my_edi_get_formatted_phone_number(partner._phone_get_number().number)},
                 'cbc:ElectronicMail': {'_text': partner.email},
             } if role != 'delivery' else None,
         }
@@ -554,7 +554,7 @@ class AccountEdiXmlUBLMyInvoisMY(models.AbstractModel):
 
         for partner_type in ('supplier', 'customer'):
             partner = vals[partner_type]
-            phone_number = partner.phone
+            phone_number = partner._phone_get_number().number
             # 'NA' is a valid value in some cases, e.g. consolidated invoices.
             if phone_number != 'NA':
                 phone = self._l10n_my_edi_get_formatted_phone_number(phone_number)

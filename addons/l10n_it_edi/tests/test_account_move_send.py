@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from odoo import Command
 
 from odoo.tests import tagged
 from odoo.addons.account.tests.test_account_move_send import TestAccountMoveSendCommon
@@ -132,7 +133,7 @@ class TestItAccountMoveSend(TestItEdi, TestAccountMoveSendCommon):
         second_company = self.company_data['company']
         second_company.write({
             'vat': 'IT12345670017',
-            'phone': '0266766700',
+            'phone_ids': [Command.create({"number": '0266766700', "type": "landline"})],
             'email': 'test@test.it',
             'street': '1234 Test Street',
             'zip': '12345',

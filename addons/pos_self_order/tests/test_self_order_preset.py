@@ -1,4 +1,5 @@
 import odoo.tests
+
 from odoo.addons.pos_self_order.tests.self_order_common_test import SelfOrderCommonTest
 
 
@@ -65,7 +66,7 @@ class TestSelfOrderPreset(SelfOrderCommonTest):
         self.assertEqual(last_order.partner_id.street, 'Rue du Bronx 90')
         self.assertEqual(last_order.partner_id.zip, '9999')
         self.assertEqual(last_order.partner_id.city, 'New York')
-        self.assertEqual(last_order.partner_id.phone, '+32490904390')
+        self.assertEqual(last_order.partner_id._phone_get_number().number, '+32490904390')
 
     def test_preset_with_slot_tour(self):
         resource_calendar = self.env['resource.calendar'].create({
@@ -76,7 +77,7 @@ class TestSelfOrderPreset(SelfOrderCommonTest):
                 'hour_from': 0,
                 'hour_to': 24,
                 'day_period': 'morning',
-            }) for day in range(0, 6)],
+            }) for day in range(6)],
         })
         self.preset_takeaway.write({
             'use_timing': True,
@@ -103,7 +104,7 @@ class TestSelfOrderPreset(SelfOrderCommonTest):
                 'hour_from': 0,
                 'hour_to': 24,
                 'day_period': 'morning',
-            }) for day in range(0, 6)],
+            }) for day in range(6)],
         })
         self.preset_takeaway.write({
             'use_timing': True,

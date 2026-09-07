@@ -1,4 +1,5 @@
 from odoo.tests import RecordCapturer, tagged, users
+from odoo import Command
 
 from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.mail.tools.mime import (
@@ -60,7 +61,7 @@ class TestMailTools(MailCommon):
                 "country_id": cls.env.ref("base.be").id,
                 "email": cls._test_email,
                 "name": "Alfred Astaire",
-                "phone": "0456334455",
+                "phone_ids": [Command.create({"number": "0456334455", "type": "landline"})],
             }
         )
 

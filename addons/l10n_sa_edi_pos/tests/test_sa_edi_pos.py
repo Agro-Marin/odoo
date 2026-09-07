@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from odoo import Command
 from odoo.tests import tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
@@ -21,7 +22,7 @@ class TestGenericSAEdi(TestGenericLocalization):
         cls.company.write({
             'name': 'Generic SA EDI',
             'email': 'info@company.saexample.com',
-            'phone': '+966 51 234 5678',
+            'phone_ids': [Command.create({"number": '+966 51 234 5678', "type": "landline"})],
             'street2': 'Testomania',
             'vat': '311111111111113',
             'state_id': cls.env['res.country.state'].create({

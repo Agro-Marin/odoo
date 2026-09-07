@@ -21,7 +21,7 @@ class TestSmsController(TestMassSMSCommon):
             [
                 {
                     "partner": record.customer_id,
-                    "number": "+32" + record.phone_nbr[1:],
+                    "number": "+32" + record.phone_nbr_ids.number[1:],
                     "trace_status": "process" if moderated else "pending",
                 }
                 for i, record in enumerate(self.recipients)

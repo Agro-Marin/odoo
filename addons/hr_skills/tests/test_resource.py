@@ -2,6 +2,7 @@ from datetime import date
 
 from dateutil.relativedelta import relativedelta
 
+from odoo import Command
 from odoo.tests import Form
 from odoo.tests.common import TransactionCase
 
@@ -14,7 +15,9 @@ class TestResourceSkills(TransactionCase):
                     "name": "Test user",
                     "login": "test",
                     "email": "test@odoo.perso",
-                    "phone": "+32488990011",
+                    "phone_ids": [
+                        Command.create({"number": "+32488990011", "type": "landline"})
+                    ],
                 }
             ]
         )

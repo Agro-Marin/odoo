@@ -68,7 +68,7 @@
                             </div>
                         </group>
                         <group name="communication_details">
-                            <field name="bank_phone" class="o_force_ltr" />
+                            <field name="bank_phone_ids" widget="many2many_tags" />
                             <field name="bank_email" widget="email" />
                         </group>
                     </group>

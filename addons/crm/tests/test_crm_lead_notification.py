@@ -1,3 +1,4 @@
+from odoo import Command
 from odoo.tests import tagged, users
 from odoo.tools import email_normalize, mute_logger
 
@@ -203,7 +204,9 @@ class NewLeadNotification(TestCrmCommon):
             "country_id": self.env.ref("base.us").id,
             "state_id": self.env.ref("base.state_us_39").id,
             "website": "https://www.arlington123.com/3f3c",
-            "phone": "678-728-0949",
+            "phone_ids": [
+                Command.create({"number": "678-728-0949", "type": "landline"})
+            ],
             "function": "Delivery Boy",
             "user_id": self.user_sales_manager.id,
         }
@@ -263,6 +266,8 @@ class NewLeadNotification(TestCrmCommon):
                 customer_information.pop("name", False)
                 self.assertEqual(create_values, customer_information)
                 for field, value in lead_details_for_contact.items():
+                    if field == "phone_ids":
+                        value = [Command.set(lead1.phone_ids.ids)]
                     self.assertEqual(create_values.get(field), value)
                 self.assertEqual(create_values["comment"], description)
                 self.assertFalse(create_values.get("parent_id"))
@@ -295,7 +300,9 @@ class NewLeadNotification(TestCrmCommon):
                     "name": "Some subject",
                     "partner_name": "Some company",
                     "team_id": sales_team_1.id,
-                    "phone": "+0000000000",
+                    "phone_ids": [
+                        Command.create({"number": "+0000000000", "type": "landline"})
+                    ],
                 }
             )
         )

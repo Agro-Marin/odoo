@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Events Booths Sales",
-    "version": "1.2",
+    "version": "1.3",
     "category": "Marketing/Events",
     "summary": "Manage event booths sale",
     "description": """

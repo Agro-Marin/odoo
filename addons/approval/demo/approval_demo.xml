@@ -64,19 +64,19 @@
     <record id="partner_acme_corp" model="res.partner">
         <field name="name">Acme Corporation</field>
         <field name="email">contact@acmecorp.com</field>
-        <field name="phone">+1-555-0123</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+1-555-0123', 'type': 'landline'})]" />
     </record>
 
     <record id="partner_tech_solutions" model="res.partner">
         <field name="name">Tech Solutions Inc.</field>
         <field name="email">info@techsolutions.com</field>
-        <field name="phone">+1-555-0456</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+1-555-0456', 'type': 'landline'})]" />
     </record>
 
     <record id="partner_john_doe" model="res.partner">
         <field name="name">John Doe</field>
         <field name="email">john.doe@example.com</field>
-        <field name="phone">+1-555-0789</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+1-555-0789', 'type': 'landline'})]" />
     </record>
 
     <record id="approval_request_business_trip_london" model="approval.request">

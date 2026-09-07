@@ -406,10 +406,12 @@ class AccountMove(models.Model):
             errors.append(_('Sinvoice credentials are missing on company %s.', company.display_name))
         if not company.vat:
             errors.append(_('VAT number is missing on company %s.', company.display_name))
-        company_phone = company.phone and self._l10n_vn_edi_format_phone_number(company.phone)
+        company_phone = company.phone_ids._primary().number
+        company_phone = company_phone and self._l10n_vn_edi_format_phone_number(company_phone)
         if company_phone and not company_phone.isdecimal():
             errors.append(_('Phone number for company %s must only contain digits or +.', company.display_name))
-        commercial_partner_phone = commercial_partner.phone and self._l10n_vn_edi_format_phone_number(commercial_partner.phone)
+        commercial_partner_phone = commercial_partner._phone_get_number().number
+        commercial_partner_phone = commercial_partner_phone and self._l10n_vn_edi_format_phone_number(commercial_partner_phone)
         if commercial_partner_phone and not commercial_partner_phone.isdecimal():
             errors.append(_('Phone number for partner %s must only contain digits or +.', commercial_partner.display_name))
         if not self.l10n_vn_edi_invoice_symbol:
@@ -620,7 +622,8 @@ class AccountMove(models.Model):
         """ Create and return the buyer information for the current invoice. """
         self.check_singleton()
 
-        commercial_partner_phone = self.commercial_partner_id.phone and self._l10n_vn_edi_format_phone_number(self.commercial_partner_id.phone)
+        commercial_partner_phone = self.commercial_partner_id.phone_ids._primary().number
+        commercial_partner_phone = commercial_partner_phone and self._l10n_vn_edi_format_phone_number(commercial_partner_phone)
         buyer_information = {
             'buyerName': self.partner_id.name,
             'buyerLegalName': self.commercial_partner_id.name,
@@ -644,7 +647,8 @@ class AccountMove(models.Model):
     def _l10n_vn_edi_add_seller_information(self, json_values):
         """ Create and return the seller information for the current invoice. """
         self.check_singleton()
-        company_phone = self.company_id.phone and self._l10n_vn_edi_format_phone_number(self.company_id.phone)
+        company_phone = self.company_id.phone_ids._primary().number
+        company_phone = company_phone and self._l10n_vn_edi_format_phone_number(company_phone)
         seller_information = {
             'sellerLegalName': self.company_id.name,
             'sellerTaxCode': self.company_id.vat,

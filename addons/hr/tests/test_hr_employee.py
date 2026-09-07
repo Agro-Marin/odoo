@@ -410,7 +410,9 @@ class TestHrEmployee(TestHrCommon):
                     "name": "Test user",
                     "login": "test",
                     "email": "test@odoo.perso",
-                    "phone": "+32488990011",
+                    "phone_ids": [
+                        Command.create({"number": "+32488990011", "type": "landline"})
+                    ],
                 }
             ]
         )
@@ -422,7 +424,7 @@ class TestHrEmployee(TestHrCommon):
                 }
             ]
         )
-        user_fields = ["email", "phone", "im_status"]
+        user_fields = ["email", "phone_ids", "im_status"]
         for field in user_fields:
             self.assertEqual(employee[field], user[field])
 
@@ -505,7 +507,7 @@ class TestHrEmployee(TestHrCommon):
         bank_account = self.env["res.partner.bank"].create(
             {
                 "acc_number": "1234567",
-                "partner_id": test_user.partner_id.id,
+                "partner_ids": [Command.link(test_user.partner_id.id)],
             }
         )
         test_employee = self.env["hr.employee"].create(
@@ -876,12 +878,20 @@ class TestHrEmployee(TestHrCommon):
             }
         )
         first_employee.write(
-            {"work_phone": "12345", "work_email": "first_employee@test.com"}
+            {
+                "phone_ids": [Command.create({"number": "12345", "type": "landline"})],
+                "work_email": "first_employee@test.com",
+            }
         )
-        self.assertEqual(first_employee.work_phone, partner.phone)
+        self.assertEqual(first_employee.phone_ids, partner.phone_ids)
         self.assertEqual(first_employee.work_email, partner.email)
-        partner.write({"phone": "67890", "email": "partner@test.com"})
-        self.assertEqual(partner.phone, first_employee.work_phone)
+        partner.write(
+            {
+                "phone_ids": [Command.create({"number": "67890", "type": "landline"})],
+                "email": "partner@test.com",
+            }
+        )
+        self.assertEqual(partner.phone_ids, first_employee.phone_ids)
         self.assertEqual(partner.email, first_employee.work_email)
 
         second_company = self.env["res.company"].create({"name": "Second Company"})
@@ -893,17 +903,25 @@ class TestHrEmployee(TestHrCommon):
             }
         )
         second_employee.write(
-            {"work_phone": "112233", "work_email": "second_employee@test.com"}
+            {
+                "phone_ids": [Command.create({"number": "112233", "type": "landline"})],
+                "work_email": "second_employee@test.com",
+            }
         )
         # One person, one set of work channels: a second employment reads and
         # writes the same party as the first.
-        self.assertEqual(second_employee.work_phone, partner.phone)
-        self.assertEqual(second_employee.work_phone, first_employee.work_phone)
+        self.assertEqual(second_employee.phone_ids, partner.phone_ids)
+        self.assertEqual(second_employee.phone_ids, first_employee.phone_ids)
         self.assertEqual(second_employee.work_email, partner.email)
         self.assertEqual(second_employee.work_email, first_employee.work_email)
-        partner.write({"phone": "445566", "email": "partner_updated@test.com"})
-        self.assertEqual(partner.phone, second_employee.work_phone)
-        self.assertEqual(partner.phone, first_employee.work_phone)
+        partner.write(
+            {
+                "phone_ids": [Command.create({"number": "445566", "type": "landline"})],
+                "email": "partner_updated@test.com",
+            }
+        )
+        self.assertEqual(partner.phone_ids, second_employee.phone_ids)
+        self.assertEqual(partner.phone_ids, first_employee.phone_ids)
         self.assertEqual(partner.email, second_employee.work_email)
         self.assertEqual(partner.email, first_employee.work_email)
 
@@ -1003,14 +1021,21 @@ class TestVersionCron(TransactionCase):
         super().setUpClass()
 
         cls.env.user.company_id = cls.env["res.company"].create(
-            {"name": "Pokémon Center", "phone": "+32404040404"}
+            {
+                "name": "Pokémon Center",
+                "phone_ids": [
+                    Command.create({"number": "+32404040404", "type": "landline"})
+                ],
+            }
         )
 
         with freeze_time("2020-10-07"):
             cls.employee = cls.env["hr.employee"].create(
                 {
                     "name": "Charizard",
-                    "work_phone": "+32404040404",
+                    "phone_ids": [
+                        Command.create({"number": "+32404040404", "type": "landline"})
+                    ],
                     "distance_home_work": 32,
                     "distance_home_work_unit": "miles",
                 }

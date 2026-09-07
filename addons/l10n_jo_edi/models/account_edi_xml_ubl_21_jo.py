@@ -171,7 +171,7 @@ class AccountEdiXmlUBL21JO(models.AbstractModel):
             # For non-refund invoices, use the standard party node
             document_node['cac:AccountingCustomerParty']['cac:AccountingContact'] = {
                 'cbc:Telephone': {
-                    '_text': self._sanitize_phone(invoice.partner_id.phone)
+                    '_text': self._sanitize_phone(invoice.partner_id.phone_ids._primary().number)
                 }
             }
 

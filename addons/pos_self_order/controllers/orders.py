@@ -1,8 +1,9 @@
-from odoo import http, fields
+from werkzeug.exceptions import BadRequest, NotFound, Unauthorized
+
+from odoo import Command, fields, http
+from odoo.exceptions import MissingError
 from odoo.fields import Domain
 from odoo.http import request
-from werkzeug.exceptions import NotFound, BadRequest, Unauthorized
-from odoo.exceptions import MissingError
 from odoo.tools import consteq
 
 
@@ -172,16 +173,14 @@ class PosSelfOrderController(http.Controller):
             # and includes accounting fields (pos_settle_due adds credit_limit)
             # that a POS service user cannot read. Do not widen this back into a
             # sudo() lookup -- that is what disclosed other companies' partners.
-            return {
-                'res.partner': self.env['res.partner']._load_pos_self_data_read(existing_partner.sudo(), pos_config),
-            }
+            return self._partner_self_data(existing_partner.sudo(), pos_config)
 
         state_id = pos_config.env['res.country.state'].browse(int(state_id)) if state_id else False
         country_id = pos_config.env['res.country'].browse(int(country_id))
         partner_sudo = request.env['res.partner'].sudo().create({
             'name': name,
             'email': email,
-            'phone': phone,
+            'phone_ids': [Command.create({'number': phone, 'type': 'mobile'})] if phone else [],
             'street': street,
             'zip': zip,
             'city': city,
@@ -190,8 +189,12 @@ class PosSelfOrderController(http.Controller):
             'company_id': pos_config.company_id.id,
         })
 
+        return self._partner_self_data(partner_sudo, pos_config)
+
+    def _partner_self_data(self, partner_sudo, pos_config):
         return {
             'res.partner': self.env['res.partner']._load_pos_self_data_read(partner_sudo, pos_config),
+            'phone.number': self.env['phone.number']._load_pos_self_data_read(partner_sudo.phone_ids, pos_config),
         }
 
     @http.route('/pos-self-order/remove-order', auth='public', type='jsonrpc', website=True)

@@ -8,7 +8,7 @@
         <field name="city" />
         <field name="country_id" ref="base.cf" />
         <field name="zip" />
-        <field name="phone">+236 20 96 89 21</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+236 20 96 89 21', 'type': 'landline'})]" />
         <field name="email">info@company.centralafricanrepublicexample.com</field>
         <field name="website">www.centralafricanrepublicexample.com</field>
         <field name="is_company" eval="True" />

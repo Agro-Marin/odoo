@@ -39,7 +39,7 @@
                             -- <br />
                             <strong t-out="object.user_id.name or ''">Mitchell Admin</strong><br />
                             Email: <t t-out="object.user_id.email or ''">admin@yourcompany.example.com</t><br />
-                            Phone: <t t-out="object.user_id.phone or ''">+1 650-123-4567</t>
+                            Phone: <t t-out="object.user_id.phone_ids._primary().number or ''">+1 650-123-4567</t>
                         </t>
                         <t t-else="">
                             -- <br />
@@ -82,7 +82,7 @@
                             You will soon be contacted by:<br />
                             <strong t-out="object.user_id.name or ''">Mitchell Admin</strong><br />
                             <span>Email: <t t-out="object.user_id.email or ''">admin@yourcompany.example.com</t></span><br />
-                            <span>Phone: <t t-out="object.user_id.phone or ''">+1 650-123-4567</t></span>
+                            <span>Phone: <t t-out="object.user_id.phone_ids._primary().number or ''">+1 650-123-4567</t></span>
                             <br /><br />
                         </t>
                         See you soon,
@@ -192,7 +192,7 @@
                         <p>
                             <strong t-out="object.user_id.name or ''">Mitchell Admin</strong><br />
                             <span>Email: <t t-out="object.user_id.email or ''">admin@yourcompany.example.com</t></span><br />
-                            <span>Phone: <t t-out="object.user_id.phone or ''">+1 650-123-4567</t></span>
+                            <span>Phone: <t t-out="object.user_id.phone_ids._primary().number or ''">+1 650-123-4567</t></span>
                         </p>
                         <hr
                             width="97%"
@@ -274,7 +274,7 @@
                                 -- <br />
                                 <strong t-out="object.user_id.name or ''">Marc Demo</strong><br />
                                 Email: <t t-out="object.user_id.email or ''">mark.brown23@example.com</t><br />
-                                Phone: <t t-out="object.user_id.phone or ''">+1 650-123-4567</t>
+                                Phone: <t t-out="object.user_id.phone_ids._primary().number or ''">+1 650-123-4567</t>
                             </t>
                             <t t-else="">
                                 -- <br />

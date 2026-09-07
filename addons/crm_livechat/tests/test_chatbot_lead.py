@@ -12,7 +12,7 @@ class CrmChatbotCase(chatbot_common.CrmChatbotCase):
         created_lead = self.env["crm.lead"].sudo().search([], limit=1, order="id desc")
         self.assertEqual(created_lead.name, "Testing Bot's New Lead")
         self.assertEqual(created_lead.email_from, "test2@example.com")
-        self.assertEqual(created_lead.phone, "123456")
+        self.assertEqual(created_lead._phone_get_number().number, "123456")
 
         self.assertEqual(created_lead.team_id, self.sale_team)
         self.assertEqual(created_lead.type, "opportunity")
@@ -25,7 +25,7 @@ class CrmChatbotCase(chatbot_common.CrmChatbotCase):
         )
         self.assertEqual(not_available_lead.name, "Testing Bot's New Lead")
         self.assertEqual(not_available_lead.email_from, "test2@example.com")
-        self.assertEqual(not_available_lead.phone, "123456")
+        self.assertEqual(not_available_lead._phone_get_number().number, "123456")
         self.assertEqual(not_available_lead.team_id, self.sale_team)
         self.assertEqual(not_available_lead.type, "opportunity")
         chatbot_partner = self.chatbot_script.operator_partner_id
@@ -97,7 +97,9 @@ class CrmChatbotCase(chatbot_common.CrmChatbotCase):
             "User's email should'nt have been overridden",
         )
         self.assertEqual(
-            created_lead.phone, "123456", "User's phone should have been updated"
+            created_lead._phone_get_number().number,
+            "123456",
+            "User's phone should have been updated",
         )
 
         self.assertEqual(created_lead.team_id, self.sale_team_with_lead)

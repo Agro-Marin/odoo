@@ -48,7 +48,7 @@ class TestBaseIdSpaces(MailCommon):
                 )
                 self.assertTrue(partner)
                 self.assertEqual(partner.company_id, record.company_id)
-                self.assertEqual(partner.phone, "+32 470 12 34 56")
+                self.assertEqual(partner._phone_get_number().number, "+32 470 12 34 56")
 
     @users("employee")
     def test_suggested_recipients_on_a_draft_of_a_stored_record(self):

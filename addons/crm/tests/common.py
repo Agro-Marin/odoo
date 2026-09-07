@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 from unittest.mock import patch
 
-from odoo import models, tools
+from odoo import Command, models, tools
 from odoo.fields import Datetime
 
 from odoo.addons.crm.models.crm_lead import PARTNER_ADDRESS_FIELDS_TO_SYNC
@@ -60,7 +60,7 @@ class TestCrmCommon(TestSalesCommon, MailCase):
         "city",
         "contact_name",
         "partner_name",
-        "phone",
+        "phone_ids",
         "probability",
         "expected_revenue",
         "street",
@@ -73,6 +73,9 @@ class TestCrmCommon(TestSalesCommon, MailCase):
         "website",
     ]
     merge_fields = ["description", "type", "priority"]
+
+    def _phone_number(self, number, **values):
+        return self.env["phone.number"].create({"number": number, **values})
 
     @classmethod
     def setUpClass(cls):
@@ -159,7 +162,9 @@ class TestCrmCommon(TestSalesCommon, MailCase):
                 "contact_name": "Amy Wong",
                 "email_from": "amy.wong@test.example.com",
                 "lang_id": cls.lang_fr.id,
-                "phone": "+1 202 555 9999",
+                "phone_ids": [
+                    Command.create({"number": "+1 202 555 9999", "type": "landline"})
+                ],
                 "country_id": cls.env.ref("base.us").id,
                 "probability": 20,
             }
@@ -231,7 +236,7 @@ class TestCrmCommon(TestSalesCommon, MailCase):
                 "email": cls.test_email_data[1],
                 "function": "Delivery Boy",
                 "lang": cls.lang_en.code,
-                "phone": False,
+                "phone_ids": [Command.clear()],
                 "parent_id": cls.contact_company_1.id,
                 "is_company": False,
                 "street": "Actually the sewers",
@@ -245,7 +250,11 @@ class TestCrmCommon(TestSalesCommon, MailCase):
                 "name": "Turanga Leela",
                 "email": cls.test_email_data[2],
                 "lang": cls.lang_en.code,
-                "phone": cls.test_phone_data[2],
+                "phone_ids": [
+                    Command.create(
+                        {"number": cls.test_phone_data[2], "type": "landline"}
+                    )
+                ],
                 "parent_id": False,
                 "is_company": False,
                 "street": "Cookieville Minimum-Security Orphanarium",
@@ -350,7 +359,9 @@ class TestCrmCommon(TestSalesCommon, MailCase):
                 "company_id": cls.company_2.id,
                 "email": '"Partner C2" <partner_c2@multicompany.example.com>',
                 "name": "Customer for C2",
-                "phone": "+32455001122",
+                "phone_ids": [
+                    Command.create({"number": "+32455001122", "type": "landline"})
+                ],
             }
         )
 
@@ -423,14 +434,17 @@ class TestCrmCommon(TestSalesCommon, MailCase):
                 country = cid_to_country.get(country_id, self.env["res.country"])
                 lead_data["country_id"] = country.id
                 if lead_data["country_id"]:
-                    lead_data["phone"] = phone_validation.phone_format(
+                    number = phone_validation.phone_format(
                         "0456%04d99" % (idx),
                         country.code,
                         country.phone_code,
                         force_format="E164",
                     )
                 else:
-                    lead_data["phone"] = "+32456%04d99" % (idx)
+                    number = "+32456%04d99" % (idx)
+                lead_data["phone_ids"] = [
+                    Command.create({"number": number, "type": "mobile"})
+                ]
 
         if user_ids:
             for idx, lead_data in enumerate(leads_data):

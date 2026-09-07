@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-from odoo import _, api, fields, models, modules, tools
+from odoo import Command, _, api, fields, models, modules, tools
 from odoo.tools import OrderedSet
 
 from odoo.addons.iap.tools import iap_tools
@@ -199,8 +199,12 @@ class CrmLead(models.Model):
                 if not lead[lead_field] and iap_data.get(iap_field):
                     values[lead_field] = iap_data[iap_field]
 
-            if not lead.phone and iap_data.get("phone_numbers"):
-                values["phone"] = iap_data["phone_numbers"][0]
+            if not lead.phone_ids and iap_data.get("phone_numbers"):
+                values["phone_ids"] = [
+                    Command.create(
+                        {"number": iap_data["phone_numbers"][0], "type": "landline"}
+                    )
+                ]
             if not lead.country_id and iap_data.get("country_code"):
                 country = self.env["res.country"].search(
                     [("code", "=", iap_data["country_code"].upper())]

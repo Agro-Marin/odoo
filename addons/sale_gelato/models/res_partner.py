@@ -23,5 +23,5 @@ class ResPartner(models.Model):
             "postCode": self.zip,
             "country": self.country_id.code,
             "email": self.email,
-            "phone": self.phone or "",
+            "phone": self.phone_ids._primary().number or "",
         }

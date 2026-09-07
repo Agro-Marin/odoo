@@ -45,7 +45,7 @@ class TestSaEdiCommon(AccountEdiTestCommon):
         return {
             'name': 'SA Company Test',
             'email': 'info@company.saexample.com',
-            'phone': '+966 51 234 5678',
+            'phone_ids': [Command.create({"number": '+966 51 234 5678', "type": "landline"})],
             'vat': '311111111111113',
             # Address fields
             'street': 'Al Amir Mohammed Bin Abdul Aziz Street',
@@ -91,7 +91,7 @@ class TestSaEdiCommon(AccountEdiTestCommon):
             'lang': 'en_US',
             # Contact info
             'email': 'saudi.aramco@example.com',
-            'phone': '+966556666666',
+            'phone_ids': [Command.create({"number": '+966556666666', "type": "landline"})],
             # Tax info
             'vat': '311111111111113',
             'l10n_sa_edi_additional_identification_scheme': 'CRN',

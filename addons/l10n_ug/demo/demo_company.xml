@@ -8,7 +8,7 @@
         <field name="city">Kampala</field>
         <field name="country_id" ref="base.ug" />
         <field name="zip">10101</field>
-        <field name="phone">+256 77 403614</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+256 77 403614', 'type': 'landline'})]" />
         <field name="email">info@company.ugexample.com</field>
         <field name="website">www.ugexample.com</field>
         <field name="is_company" eval="True" />

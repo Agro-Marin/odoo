@@ -2,9 +2,7 @@ from collections import defaultdict
 
 from markupsafe import Markup
 
-from odoo import _, api, fields, models, tools
-
-from odoo.addons.phone_validation.tools import phone_validation
+from odoo import Command, _, api, fields, models, tools
 
 
 class EventRegistration(models.Model):
@@ -212,36 +210,32 @@ class EventRegistration(models.Model):
                 ):
                     valid_partner = self.env["res.partner"]
 
-            if valid_partner and self.phone and valid_partner.phone:
-                phone_formatted = self._phone_format(
-                    fname="phone", country=valid_partner.country_id
-                )
-                partner_phone_formatted = valid_partner._phone_format(fname="phone")
-                if (
-                    phone_formatted
-                    and partner_phone_formatted
-                    and phone_formatted != partner_phone_formatted
-                ):
-                    valid_partner = self.env["res.partner"]
-                if (
-                    not phone_formatted or not partner_phone_formatted
-                ) and self.phone != valid_partner.phone:
-                    valid_partner = self.env["res.partner"]
+            if (
+                valid_partner
+                and self.phone_ids
+                and valid_partner.phone_ids
+                and not set(self.phone_ids.mapped("sanitized"))
+                & set(valid_partner.phone_ids.mapped("sanitized"))
+            ):
+                valid_partner = self.env["res.partner"]
 
-        registration_phone = sorted_self._find_first_notnull("phone")
+        registration_phone_ids = sorted_self._find_first_notnull("phone_ids")
+        registration_phone_command = (
+            [Command.set(registration_phone_ids)] if registration_phone_ids else False
+        )
         if valid_partner:
             contact_vals = self.env["crm.lead"]._prepare_values_from_partner(
                 valid_partner
             )
             if not valid_partner.email:
                 contact_vals["email_from"] = sorted_self._find_first_notnull("email")
-            if not valid_partner.phone:
-                contact_vals["phone"] = registration_phone
+            if not valid_partner.phone_ids:
+                contact_vals["phone_ids"] = registration_phone_command
         else:
             contact_vals = {
                 "contact_name": sorted_self._find_first_notnull("name"),
                 "email_from": sorted_self._find_first_notnull("email"),
-                "phone": registration_phone,
+                "phone_ids": registration_phone_command,
                 "lang_id": False,
             }
         contact_name = (
@@ -277,7 +271,11 @@ class EventRegistration(models.Model):
             + "%s (%s)%s"
             % (
                 self.name or self.partner_id.name or self.email,
-                " - ".join(self[field] for field in ("email", "phone") if self[field]),
+                " - ".join(
+                    value
+                    for value in (self.email, self._phone_get_number().number)
+                    if value
+                ),
                 f" {line_suffix}" if line_suffix else "",
             )
             + Markup("</li>")
@@ -321,11 +319,11 @@ class EventRegistration(models.Model):
 
     @api.model
     def _get_fields_lead_contact(self):
-        return ["name", "email", "phone", "partner_id"]
+        return ["name", "email", "phone_ids", "partner_id"]
 
     @api.model
     def _get_fields_lead_description(self):
-        return ["name", "email", "phone"]
+        return ["name", "email", "phone_ids"]
 
     def _find_first_notnull(self, field_name):
         value = next((reg[field_name] for reg in self if reg[field_name]), False)

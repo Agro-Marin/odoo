@@ -459,14 +459,14 @@
                                 <field
                                     name="partner_bank_id"
                                     string="Customer Bank Account"
-                                    context="{'default_partner_id': partner_id, 'display_account_trust': True}"
+                                    context="{'default_partner_ids': [partner_id], 'display_account_trust': True}"
                                     invisible="not show_partner_bank_account or partner_type != 'customer' or payment_type == 'inbound'"
                                     required="require_partner_bank_account" />
 
                                 <field
                                     name="partner_bank_id"
                                     string="Vendor Bank Account"
-                                    context="{'default_partner_id': partner_id, 'display_account_trust': True}"
+                                    context="{'default_partner_ids': [partner_id], 'display_account_trust': True}"
                                     invisible="not show_partner_bank_account or partner_type != 'supplier' or payment_type == 'inbound'"
                                     required="require_partner_bank_account" />
 
@@ -476,7 +476,7 @@
                                 <field
                                     name="partner_bank_id"
                                     string="Company Bank Account"
-                                    context="{'default_partner_id': partner_id, 'display_account_trust': True}"
+                                    context="{'default_partner_ids': [partner_id], 'display_account_trust': True}"
                                     invisible="not show_partner_bank_account or payment_type == 'outbound'"
                                     required="require_partner_bank_account" />
                             </group>

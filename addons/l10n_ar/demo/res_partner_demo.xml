@@ -14,7 +14,7 @@
         <field name="country_id" ref="base.ar" />
         <field name="street">Ovidio Lagos 41 bis</field>
         <field name="email">contacto@adhoc.ar</field>
-        <field name="phone">(+54) (341) 208 0203</field>
+        <field name="phone_ids" eval="[Command.create({'number': '(+54) (341) 208 0203', 'type': 'landline'})]" />
         <field name="website">https://www.adhoc.ar/</field>
         <field name="l10n_latam_identification_type_id" ref="l10n_ar.it_cuit" />
         <field name="vat">30714295698</field>
@@ -35,7 +35,7 @@
         <field name="country_id" ref="base.ar" />
         <field name="street">Calle Falsa 123</field>
         <field name="email">info@example.com.ar</field>
-        <field name="phone">(+54) (341) 111 2222</field>
+        <field name="phone_ids" eval="[Command.create({'number': '(+54) (341) 111 2222', 'type': 'landline'})]" />
         <field name="website">http://www.grittiagrimensura.com</field>
         <field name="l10n_latam_identification_type_id" ref="l10n_ar.it_cuit" />
         <field name="vat">27320732811</field>
@@ -53,7 +53,7 @@
         <field name="country_id" ref="base.ar" />
         <field name="street">Bv. Oroño 789</field>
         <field name="email">contacto@serviciosglobales.com.ar</field>
-        <field name="phone">(+54) (341) 333 4444</field>
+        <field name="phone_ids" eval="[Command.create({'number': '(+54) (341) 333 4444', 'type': 'landline'})]" />
         <field name="website">http://www.serviciosglobales.com.ar/</field>
         <field name="l10n_latam_identification_type_id" ref="l10n_ar.it_cuit" />
         <field name="vat">30684679372</field>
@@ -69,7 +69,7 @@
         <field name="country_id" ref="base.us" />
         <field name="street">51 Federal Street, Suite 401</field>
         <field name="email">info@odoo.com</field>
-        <field name="phone">(+00) (11) 222 3333</field>
+        <field name="phone_ids" eval="[Command.create({'number': '(+00) (11) 222 3333', 'type': 'landline'})]" />
         <field name="website">https://www.odoo.com/</field>
         <field name="l10n_latam_identification_type_id" ref="l10n_latam_base.it_fid" />
         <field name="vat">111222333444</field>
@@ -95,7 +95,7 @@
         <field name="country_id" ref="base.es" />
         <field name="street">La gran avenida 123</field>
         <field name="email">info@barcelonafoods.com</field>
-        <field name="phone">(+00) (11) 222 3333</field>
+        <field name="phone_ids" eval="[Command.create({'number': '(+00) (11) 222 3333', 'type': 'landline'})]" />
         <field name="website">http://www.barcelonafoods.com/</field>
         <field name="l10n_latam_identification_type_id" ref="l10n_latam_base.it_fid" />
         <field name="vat">2222333344445555</field>
@@ -111,7 +111,7 @@
         <field name="country_id" ref="base.ar" />
         <field name="street">Av. de los Arrayanes 500</field>
         <field name="email">contacto@montanasur.com.ar</field>
-        <field name="phone">(+54) (297) 4876 123</field>
+        <field name="phone_ids" eval="[Command.create({'number': '(+54) (297) 4876 123', 'type': 'landline'})]" />
         <field name="website">http://www.montanasur.com.ar/</field>
         <field name="l10n_latam_identification_type_id" ref="l10n_ar.it_cuit" />
         <field name="vat">27333333339</field>
@@ -131,7 +131,7 @@
         <field name="zip">95380</field>
         <field name="country_id" ref="base.us" />
         <field name="email">foreing@example.com</field>
-        <field name="phone">(123)-456-7890</field>
+        <field name="phone_ids" eval="[Command.create({'number': '(123)-456-7890', 'type': 'landline'})]" />
         <field name="website">http://www.foreign-inc.com</field>
         <field name="l10n_latam_identification_type_id" ref="l10n_ar.it_cuit" />
         <field name="vat">30222222229</field>
@@ -151,7 +151,7 @@
         <field name="zip">1524</field>
         <field name="country_id" ref="base.ar" />
         <field name="email">mipyme@example.com</field>
-        <field name="phone">(123)-754-3876</field>
+        <field name="phone_ids" eval="[Command.create({'number': '(123)-754-3876', 'type': 'landline'})]" />
         <field name="website">http://www.mypime-inc.com</field>
         <field name="l10n_latam_identification_type_id" ref="l10n_ar.it_cuit" />
         <field name="vat">30714101443</field>

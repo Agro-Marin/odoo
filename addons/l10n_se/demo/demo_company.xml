@@ -8,7 +8,7 @@
         <field name="city">Ängelholms kommun</field>
         <field name="country_id" ref="base.se" />
         <field name="zip">262 64</field>
-        <field name="phone">+46 70 123 45 67</field>
+        <field name="phone_ids" eval="[Command.create({'number': '+46 70 123 45 67', 'type': 'landline'})]" />
         <field name="email">info@company.seexample.com</field>
         <field name="website">www.seexample.com</field>
         <field name="is_company" eval="True" />
@@ -22,7 +22,7 @@
 
     <record id="base.demo_bank_se" model="res.partner.bank" forcecreate="1">
         <field name="acc_number">SE5850000000014938684140</field>
-        <field name="partner_id" ref="base.partner_demo_company_se" />
+        <field name="partner_ids" eval="[(4, ref('base.partner_demo_company_se'))]" />
         <field name="company_id" ref="base.demo_company_se" />
     </record>
 

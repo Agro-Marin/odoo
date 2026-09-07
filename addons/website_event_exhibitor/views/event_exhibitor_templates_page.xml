@@ -136,9 +136,9 @@
                             <i class="fa-solid fa-envelope me-2" /><a t-att-mailto="sponsor.email"><span t-field="sponsor.email" /></a>
                         </div>
                         <div
-                            t-if="sponsor.phone"
+                            t-if="sponsor.phone_ids"
                             class="d-flex text-break align-items-baseline">
-                            <i class="fa-solid fa-phone me-2" /><span t-field="sponsor.phone" />
+                            <i class="fa-solid fa-phone me-2" /><span t-out="sponsor._phone_get_number().number" />
                         </div>
                     </div>
                     <a

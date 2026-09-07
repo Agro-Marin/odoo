@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 from io import BytesIO
 from zipfile import ZipFile
 
 from lxml import etree
-from odoo import fields, Command
+
+from odoo import Command, fields
 from odoo.tests import HttpCase, tagged
 from odoo.tools import file_open, misc
 from odoo.tools.safe_eval import datetime
@@ -129,11 +129,11 @@ class TestAccountEdiUblCii(TestUblCiiCommon, HttpCase):
         company.country_id = self.env['res.country'].search([('code', '=', 'FR')])
         company.vat = 'FR23334175221'
         company.email = 'company@site.ext'
-        company.phone = '+33499999999'
+        company.phone_ids = [Command.create({'number': '+33499999999', 'type': 'landline'})]
         company.zip = '78440'
         company.partner_id.bank_ids = [Command.create({
             'acc_number': '999999',
-            'partner_id': company.partner_id.id,
+            'partner_ids': [(4, company.partner_id.id)],
             'acc_holder_name': 'The Chosen One',
             'allow_out_payment': True,
         })]
@@ -356,7 +356,7 @@ class TestAccountEdiUblCii(TestUblCiiCommon, HttpCase):
 
     def test_get_invoice_legal_documents_fallback(self):
         company = self.company_data['company']
-        company.phone = '11111111111'
+        company.phone_ids = [Command.create({'number': '11111111111', 'type': 'landline'})]
         company.email = 'test@test.odoo.com'
         german_partner = self.env['res.partner'].create({
             'name': 'German partner',
@@ -493,7 +493,7 @@ class TestAccountEdiUblCii(TestUblCiiCommon, HttpCase):
 
         self.assertRecordValues(bill.partner_id, [{
             'name': "ALD Automotive LU",
-            'phone': False,
+            'phone_ids': [],
             'email': 'adl@test.com',
             'vat': 'LU12977109',
             'street': '270 rte d\'Arlon',
@@ -594,7 +594,7 @@ comment-->1000.0</TaxExclusiveAmount></xpath>"""
         bank_ing = self.env['res.bank'].create({'name': 'ING', 'bic': 'BBRUBEBB'})
         partner_bank = self.env['res.partner.bank'].create({
                 'acc_number': 'BE15001559627230',
-                'partner_id': self.partner_a.id,
+                'partner_ids': [(4, self.partner_a.id)],
                 'bank_id': bank_ing.id,
                 'company_id': self.env.company.id,
                 'allow_out_payment': True,
@@ -720,11 +720,11 @@ comment-->1000.0</TaxExclusiveAmount></xpath>"""
             'city': 'Paris',
             'country_id': self.env.ref('base.fr').id,
             'email': 'info@company.example',
-            'phone': '+33123456789',
+            'phone_ids': [Command.create({'number': '+33123456789', 'type': 'landline'})],
         })
         company_bank = self.env['res.partner.bank'].create({
             'acc_number': 'FR7630006000011234567890189',
-            'partner_id': company.partner_id.id,
+            'partner_ids': [(4, company.partner_id.id)],
             'allow_out_payment': True,
         })
         partner = self.partner_be  # fully configured: VAT, address, country

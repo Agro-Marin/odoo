@@ -1,12 +1,12 @@
 from lxml import etree
 
-from odoo import _, models, Command
-from odoo.tools import html2plaintext
+from odoo import Command, _, models
 from odoo.libs.numbers import float_is_zero, float_round
+from odoo.tools import html2plaintext
 from odoo.tools.xml_utils import dict_to_xml
-from odoo.addons.account_edi_ubl_cii.models.account_edi_common import FloatFmt
-from odoo.addons.account_edi_ubl_cii.tools import Invoice, CreditNote, DebitNote
 
+from odoo.addons.account_edi_ubl_cii.models.account_edi_common import FloatFmt
+from odoo.addons.account_edi_ubl_cii.tools import CreditNote, DebitNote, Invoice
 
 UBL_NAMESPACES = {
     'cbc': "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
@@ -205,7 +205,7 @@ class AccountEdiXmlUBL20(models.AbstractModel):
         # To distinguish them from emptying taxes, we know that one is taxed and not the other.
         def is_recycling_contribution(tax_data):
             if not tax_data:
-                return
+                return None
 
             tax = tax_data['tax']
             return tax.amount_type == 'fixed' and tax.include_base_amount
@@ -602,7 +602,7 @@ class AccountEdiXmlUBL20(models.AbstractModel):
             'cac:Contact': {
                 'cbc:ID': {'_text': partner.id},
                 'cbc:Name': {'_text': partner.name},
-                'cbc:Telephone': {'_text': partner.phone},
+                'cbc:Telephone': {'_text': partner.phone_ids._primary().number},
                 'cbc:ElectronicMail': {'_text': partner.email},
             },
         }
@@ -1193,7 +1193,7 @@ class AccountEdiXmlUBL20(models.AbstractModel):
 
         if document_type == 'order':
             results['delivered_qty'] = './{*}Quantity'
-        elif document_type and document_type in ('in_invoice', 'out_invoice') or qty_factor == -1:
+        elif (document_type and document_type in ('in_invoice', 'out_invoice')) or qty_factor == -1:
             results['delivered_qty'] = './{*}InvoicedQuantity'
         else:
             results['delivered_qty'] = './{*}CreditedQuantity'

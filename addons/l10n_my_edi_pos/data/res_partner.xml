@@ -8,7 +8,7 @@
             <field name="vat">EI00000000010</field>
             <field name="country_id" ref="base.my" />
             <field name="state_id" ref="base.state_my_jhr" />
-            <field name="phone">NA</field>
+            <field name="phone_ids" eval="[Command.create({'number': 'NA', 'type': 'landline'})]" />
             <field name="street">NA</field>
             <field name="city">NA</field>
             <field name="l10n_my_identification_type">BRN</field>

@@ -51,7 +51,7 @@ class TestSMSNoThread(SMSCommon, TestSMSRecipients):
             self.assertEqual(composer.recipient_single_number, "+32456001122")
             self.assertEqual(composer.recipient_single_number_itf, "+32456001122")
             self.assertTrue(composer.recipient_single_valid)
-            self.assertEqual(composer.number_field_name, "phone")
+            self.assertEqual(composer.number_field_name, "phone_ids")
             self.assertFalse(composer.numbers)
             self.assertFalse(composer.sanitized_numbers)
 
@@ -119,7 +119,7 @@ class TestSMSNoThread(SMSCommon, TestSMSRecipients):
                     self.assertTrue(composer.recipient_single_valid)
                     self.assertEqual(
                         composer.number_field_name,
-                        ctx.get("default_number_field_name", "phone"),
+                        ctx.get("default_number_field_name", "phone_ids"),
                     )
                     self.assertFalse(composer.numbers)
                     self.assertFalse(composer.sanitized_numbers)

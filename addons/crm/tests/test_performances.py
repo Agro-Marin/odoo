@@ -39,7 +39,7 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
 
         with self.with_user("user_sales_manager"):
             self.env.user._is_internal()
-            with self.assertQueryCount(user_sales_manager=491):
+            with self.assertQueryCount(user_sales_manager=501):
                 self.env["crm.team"].browse(self.sales_teams.ids)._action_assign_leads()
 
         leads = self.env["crm.lead"].search([("id", "in", leads.ids)])
@@ -168,7 +168,7 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
         leads.flush_recordset()
 
         with self.with_user("user_sales_manager"):
-            with self.assertQueryCount(user_sales_manager=2421):
+            with self.assertQueryCount(user_sales_manager=2439):
                 self.env["crm.team"].browse(sales_teams.ids)._action_assign_leads()
 
         leads = self.env["crm.lead"].search([("id", "in", leads.ids)])
