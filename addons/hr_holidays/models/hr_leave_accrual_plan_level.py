@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools.date_utils import get_timedelta
 
 
 def _get_selection_days(self):
@@ -524,13 +525,7 @@ class HrLeaveAccrualLevel(models.Model):
         )
 
     def _get_level_transition_date(self, allocation_start):
-        if self.start_type == "day":
-            return allocation_start + relativedelta(days=self.start_count)
-        if self.start_type == "month":
-            return allocation_start + relativedelta(months=self.start_count)
-        if self.start_type == "year":
-            return allocation_start + relativedelta(years=self.start_count)
-        return None
+        return allocation_start + get_timedelta(self.start_count, self.start_type)
 
     def action_save_new(self):
         return self.accrual_plan_id.action_create_accrual_plan_level()
