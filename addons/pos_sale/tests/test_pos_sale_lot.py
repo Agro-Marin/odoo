@@ -135,3 +135,55 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
         self.assertEqual(order.sudo().sale_order_count, 1)
         self.assertEqual(sale_order.sudo().pos_order_count, 1)
+
+    def test_amount_taxinc_to_invoice_excludes_pos_settled_amount(self):
+        # Regression test: SaleOrder._compute_amounts_invoice used to be
+        # defined twice in the same class body, so this correction
+        # (subtracting amounts already settled through POS, invoiced or not,
+        # from the "still to invoice" balance) was silently dead code -- the
+        # class body kept only the second definition.
+        sale_order = (
+            self.env["sale.order"]
+            .sudo()
+            .create(
+                {
+                    "partner_id": self.partner_stva.id,
+                    "line_ids": [
+                        (
+                            0,
+                            0,
+                            {
+                                "product_id": self.twenty_dollars_no_tax.product_variant_id.id,
+                                "name": self.twenty_dollars_no_tax.product_variant_id.name,
+                                "price_unit": self.twenty_dollars_no_tax.product_variant_id.lst_price,
+                                "product_qty": 1,
+                            },
+                        )
+                    ],
+                }
+            )
+        )
+        sale_order.action_confirm()
+        self.assertEqual(sale_order.sudo().amount_taxinc_to_invoice, 20.0)
+
+        self.create_backend_pos_order(
+            {
+                "order_data": {
+                    "partner_id": self.partner_stva.id,
+                },
+                "line_data": [
+                    {
+                        "product_id": self.twenty_dollars_no_tax.product_variant_id.id,
+                        "tax_ids": [(6, 0, [])],
+                        "sale_order_line_id": sale_order.line_ids[0].id,
+                        "sale_order_origin_id": sale_order.id,
+                    }
+                ],
+                "payment_data": [
+                    {"payment_method_id": self.pos_config_usd.payment_method_ids[0].id}
+                ],
+            }
+        )
+        # Settled in full through POS, with no invoice -- must no longer read
+        # as still-to-invoice.
+        self.assertEqual(sale_order.sudo().amount_taxinc_to_invoice, 0.0)
