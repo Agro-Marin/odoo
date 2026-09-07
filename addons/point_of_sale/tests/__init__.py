@@ -51,3 +51,4 @@ from . import test_esm_registration
 
 from . import test_pos_data_integrity
 from . import test_pos_ticket_validation
+from . import test_pos_config_audit

@@ -506,6 +506,41 @@ class PosConfig(models.Model):
     def _load_pos_data_domain(self, data, config):
         return [("id", "=", config.id)]
 
+    def get_pos_ui_product_pricelist_item_by_product(
+        self, product_tmpl_ids, product_ids
+    ):
+        self.check_singleton()
+        today = fields.Date.today()
+        items = self.env["product.pricelist.item"].search(
+            [
+                "&",
+                ("pricelist_id", "in", self._get_available_pricelists().ids),
+                *self.env["product.pricelist.item"]._check_company_domain(
+                    self.company_id
+                ),
+                "|",
+                "&",
+                ("product_id", "=", False),
+                ("product_tmpl_id", "in", product_tmpl_ids),
+                ("product_id", "in", product_ids),
+                "|",
+                ("date_start", "=", False),
+                ("date_start", "<=", today),
+                "|",
+                ("date_end", "=", False),
+                ("date_end", ">=", today),
+            ]
+        )
+        return {
+            "product.pricelist.item": items.read(
+                self.env["product.pricelist.item"]._load_pos_data_fields(self),
+                load=False,
+            ),
+            "product.pricelist": items.pricelist_id.read(
+                self.env["product.pricelist"]._load_pos_data_fields(self), load=False
+            ),
+        }
+
     @api.model
     def _get_pos_client_computed_fields(self):
         return {"cash_control", "current_session_id", "display_name"}
@@ -721,11 +756,18 @@ class PosConfig(models.Model):
         return statistics
 
     def _prepare_order_statistics(self, currency, amount, count):
-        label = _("order") if count == 1 else _("orders")
+        # One msgid per plural form, each a whole string: a bare "order"/"orders" gives
+        # a translator no way to tell the noun from the verb, and no room for languages
+        # whose plural does not agree with English's.
+        formatted = currency.format(amount)
         return {
             "amount": amount,
             "count": count,
-            "display": f"{currency.format(amount)} ({count} {label})",
+            "display": (
+                _("%(amount)s (%(count)s order)", amount=formatted, count=count)
+                if count == 1
+                else _("%(amount)s (%(count)s orders)", amount=formatted, count=count)
+            ),
         }
 
     @api.depends("session_ids")
@@ -1024,12 +1066,22 @@ class PosConfig(models.Model):
         ("device_seq_id", "pos.device", 0),
     )
 
+    def _get_sequence_name(self, field_name):
+        # One msgid per sequence rather than one parameterised by the technical model
+        # code: "POS pos.order.line from config #3" is not a translatable sentence, and
+        # a translator receiving %(code)s cannot know what will land in it.
+        self.check_singleton()
+        return {
+            "order_seq_id": _("POS order from config #%s", self.id),
+            "order_backend_seq_id": _("POS order backend from config #%s", self.id),
+            "order_line_seq_id": _("POS order line from config #%s", self.id),
+            "device_seq_id": _("POS device from config #%s", self.id),
+        }[field_name]
+
     def _prepare_sequence_vals(self, field_name, code, padding):
         self.check_singleton()
         return {
-            "name": _(
-                "POS %(code)s from config #%(config)s", code=code, config=self.id
-            ),
+            "name": self._get_sequence_name(field_name),
             "code": code,
             "padding": padding,
             "company_id": self.company_id.id,
