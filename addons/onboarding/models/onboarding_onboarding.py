@@ -114,6 +114,10 @@ class OnboardingOnboarding(models.Model):
             )
         )
         if changed:
+            # Split progress into per-company records if `step_ids` made `changed` become
+            # per-company (mirrors the same repair triggered from the step side in
+            # `onboarding.onboarding.step.write()`).
+            changed.action_refresh_progress_ids()
             changed.progress_ids._recompute_progress_step_ids()
         return res
 

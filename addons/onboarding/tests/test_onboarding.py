@@ -333,6 +333,35 @@ class TestOnboarding(TestOnboardingCommon):
         # shared step after the batch write.
         self.assert_onboarding_is_done(self.onboarding_1)
 
+    def test_onboarding_write_step_ids_splits_progress_per_company(self):
+        """Linking an is_per_company step to an onboarding from the onboarding
+        side (writing step_ids) must split that onboarding's progress into
+        per-company records, exactly like linking it from the step side
+        (writing onboarding_ids) already does.
+        """
+        self.onboarding_1._search_or_create_progress()
+        self.assertFalse(self.onboarding_1.progress_ids.company_id)
+
+        per_company_step = self.env["onboarding.onboarding.step"].create(
+            {
+                "title": "Per-company step",
+                "is_per_company": True,
+                "panel_step_open_action_name": "action_fake_open_onboarding_step",
+            }
+        )
+        self.onboarding_1.write(
+            {
+                "step_ids": [Command.link(per_company_step.id)],
+            }
+        )
+
+        self.assertTrue(self.onboarding_1.is_per_company)
+        self.assertTrue(
+            self.onboarding_1.progress_ids.company_id,
+            "Progress must be split per company once the onboarding becomes "
+            "per-company, regardless of which side of the relation triggered it.",
+        )
+
     @unittest.skip(
         "Company deletion can fail because of other foreign key constraints."
     )
