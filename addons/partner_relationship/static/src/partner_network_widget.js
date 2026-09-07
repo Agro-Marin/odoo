@@ -14,7 +14,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
-import { loadJoint } from "./joint_lib.js";
+import { loadJoint } from "./lib/joint.js";
 import {
     CANVAS_PADDING,
     edgeClass,

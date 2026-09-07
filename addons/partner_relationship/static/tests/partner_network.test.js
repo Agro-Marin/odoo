@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "@odoo/hoot";
-import { loadJoint } from "@partner_relationship/joint_lib";
+import { loadJoint } from "@partner_relationship/lib/joint";
 import {
     CATEGORY_ORDER,
     edgeClass,
