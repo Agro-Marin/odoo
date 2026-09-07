@@ -307,6 +307,32 @@ class TestOnboarding(TestOnboardingCommon):
         # shared step after the batch write.
         self.assert_onboarding_is_done(self.onboarding_1)
 
+    def test_onboarding_step_multi_record_write_recomputes_progress(self):
+        """Linking a step to an onboarding it's not yet part of, together with
+        another step whose own onboarding_ids also changes, must still
+        recompute progress per record even though the aggregate onboarding_ids
+        across the whole batch of steps being written is unchanged.
+        """
+        self.onboarding_1_step_1.action_set_just_done()
+        self.onboarding_1_step_2.action_set_just_done()
+        self.onboarding_2_step_2.action_set_just_done()
+        self.assert_onboarding_is_done(self.onboarding_1)
+
+        # onboarding_1_step_2 already holds onboarding_1, so this batch write
+        # leaves the aggregate onboarding_ids across
+        # (onboarding_2_step_2 + onboarding_1_step_2) unchanged, even though
+        # onboarding_2_step_2's own onboarding_ids does change.
+        (self.onboarding_2_step_2 + self.onboarding_1_step_2).write(
+            {
+                "onboarding_ids": [Command.link(self.onboarding_1.id)],
+            }
+        )
+
+        self.assertIn(self.onboarding_2_step_2, self.onboarding_1.step_ids)
+        # onboarding_1's progress must reflect the newly-linked, already-done
+        # shared step after the batch write.
+        self.assert_onboarding_is_done(self.onboarding_1)
+
     @unittest.skip(
         "Company deletion can fail because of other foreign key constraints."
     )
