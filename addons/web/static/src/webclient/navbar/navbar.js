@@ -53,9 +53,6 @@ export class NavBar extends Component {
     static props = {};
 
     /**
-     * Assigned in setup() and refilled by adapt(), a sequence TypeScript
-     * cannot follow, so the field is declared.
-     *
      * @type {any[]}
      */
     currentAppSectionsExtra;
@@ -100,7 +97,8 @@ export class NavBar extends Component {
         this.appSubMenus = useRef("appSubMenus");
         this._busToggledCallback = () => {
             // The home menu is the launcher in full; a popover of it has no
-            // place over it, nor once the user is somewhere else.
+            // place over it, nor once the user is somewhere else. What the bar
+            // itself shows follows from `hm`, which it is subscribed to.
             this._clearQuickLauncherTimer();
             this.quickLauncher.close();
             this._updateMenuAppsIcon();
@@ -185,9 +183,6 @@ export class NavBar extends Component {
             .filter(([key]) => !this.failedSystrayKeys.has(key))
             .map(([key, value]) => ({ key, ...value }))
             .filter((item) => {
-                // Callable, not merely present: an entry carrying a
-                // non-function `isDisplayed` would throw here rather than be
-                // treated as always displayed.
                 if (typeof item.isDisplayed !== "function") {
                     return true;
                 }
@@ -296,8 +291,6 @@ export class NavBar extends Component {
             this.state.isAppMenuSidebarOpened = true;
         }
     }
-    // Hover intent on the home toggle opens the quick launcher; a click still
-    // goes to the full home menu, so the timer is cleared on the way there.
     _onMenuToggleEnter() {
         if (this.env.isSmall || this.hm.hasHomeMenu || this.quickLauncher.isOpen) {
             return;
@@ -328,6 +321,13 @@ export class NavBar extends Component {
             this.hm.toggle();
         }
     }
+    /**
+     * The bar is half the app's and half the client's, and the home menu is
+     * not in an app. Written straight onto the elements rather than bound in
+     * the template because it has to land in the same paint as the home menu
+     * arriving: a scheduled render lands in the next one, and the brand of the
+     * app you just left is then visible over the launcher for a frame.
+     */
     _updateMenuAppsIcon() {
         const menuAppsEl = this.menuAppsRef.el;
         if (!menuAppsEl) {
@@ -342,6 +342,7 @@ export class NavBar extends Component {
             !this.isInApp && this.hasBackgroundAction,
         );
         if (!this.isScopedApp) {
+            // Not always the home menu: with a view behind it, it goes back.
             const title =
                 !this.isInApp && this.hasBackgroundAction
                     ? _t("Previous view")
@@ -349,17 +350,19 @@ export class NavBar extends Component {
             menuAppsEl.title = title;
             menuAppsEl.ariaLabel = title;
         }
-        for (const selector of [
-            ".o_menu_brand",
-            ".o_menu_brand_icon",
-            ".o_breadcrumb",
+        for (const el of [
+            this.navRef.el?.querySelector(".o_menu_brand"),
+            this.navRef.el?.querySelector(".o_menu_brand_icon"),
+            // The slot, not what is in it: the control panel portals its own
+            // breadcrumb in here, and that element is not this component's to
+            // reach into. The slot is.
+            this.navRef.el?.querySelector(".o_navbar_breadcrumbs"),
+            this.appSubMenus.el,
         ]) {
-            this.navRef.el
-                ?.querySelector(selector)
-                ?.classList.toggle("o_hidden", !this.isInApp);
+            el?.classList.toggle("o_hidden", !this.isInApp);
         }
-        this.appSubMenus.el?.classList.toggle("o_hidden", !this.isInApp);
     }
+
     onAllAppsBtnClick() {
         this.hm.toggle(true);
         this._closeAppMenuSidebar();

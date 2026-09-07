@@ -1,7 +1,13 @@
 // @ts-check
 
 import { beforeEach, destroy, expect, test } from "@odoo/hoot";
-import { queryAll, queryAllAttributes, queryAllTexts, resize } from "@odoo/hoot-dom";
+import {
+    queryAll,
+    queryAllAttributes,
+    queryAllTexts,
+    queryOne,
+    resize,
+} from "@odoo/hoot-dom";
 import { advanceTime, animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, onRendered, xml } from "@odoo/owl";
 import {
@@ -703,4 +709,49 @@ test("a getter-only patch keeps the setter, so patch order cannot break assignme
     } finally {
         unpatch();
     }
+});
+
+test.tags("mobile");
+test("the toggle follows the home menu opening", async () => {
+    // The template branches on `hm.hasHomeMenu` -- a hamburger that opens the
+    // app sidebar while in an app, the grid icon while the launcher is up.
+    // That it re-renders at all is `useService` wrapping a reactive service in
+    // `useState` for its caller, which is easy to mistake for a plain read and
+    // was untested here.
+    await mountWithCleanup(NavBar);
+    const homeMenu = getService("home_menu");
+    expect(".o_menu_toggle .fa-bars").toHaveCount(1, {
+        message: "in an app: the hamburger",
+    });
+
+    homeMenu.hasHomeMenu = true;
+    await animationFrame();
+    expect(".o_menu_toggle .fa-bars").toHaveCount(0);
+    expect(".o_menu_toggle svg.o_menu_toggle_icon").toHaveCount(1, {
+        message: "the launcher is up: the grid icon",
+    });
+
+    homeMenu.hasHomeMenu = false;
+    await animationFrame();
+    expect(".o_menu_toggle .fa-bars").toHaveCount(1);
+});
+
+test.tags("desktop");
+test("the navbar hides the breadcrumb's slot, not the breadcrumb another component put in it", async () => {
+    // The control panel portals its own `.o_breadcrumb` into this slot. That
+    // element belongs to it; the slot belongs to the navbar.
+    await mountWithCleanup(NavBar);
+    const homeMenu = getService("home_menu");
+    const slot = queryOne(".o_navbar_breadcrumbs");
+    expect(slot).not.toHaveClass("o_hidden");
+
+    homeMenu.hasHomeMenu = true;
+    await animationFrame();
+    expect(".o_navbar_breadcrumbs").toHaveClass("o_hidden", {
+        message: "the home menu is not in an app, so the app's parts go",
+    });
+
+    homeMenu.hasHomeMenu = false;
+    await animationFrame();
+    expect(".o_navbar_breadcrumbs").not.toHaveClass("o_hidden");
 });
