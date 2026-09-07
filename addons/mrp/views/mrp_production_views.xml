@@ -253,6 +253,7 @@
                     <field name="show_produce_all" invisible="1" />
                     <button
                         name="button_mark_done"
+                        groups="mrp.group_mrp_user"
                         invisible="not move_raw_ids or not show_produce"
                         string="Produce"
                         type="object"
@@ -260,6 +261,7 @@
                         data-hotkey="g" />
                     <button
                         name="button_mark_done"
+                        groups="mrp.group_mrp_user"
                         invisible="not move_raw_ids or not show_produce_all"
                         string="Produce All"
                         type="object"
@@ -267,6 +269,7 @@
                         data-hotkey="g" />
                     <button
                         name="button_mark_done"
+                        groups="mrp.group_mrp_user"
                         invisible="move_raw_ids or not show_produce"
                         string="Produce"
                         type="object"
@@ -275,6 +278,7 @@
                         confirm="There are no components to consume. Are you still sure you want to continue?" />
                     <button
                         name="button_mark_done"
+                        groups="mrp.group_mrp_user"
                         invisible="move_raw_ids or not show_produce_all"
                         string="Produce All"
                         type="object"
@@ -283,6 +287,7 @@
                         confirm="There are no components to consume. Are you still sure you want to continue?" />
                     <button
                         name="action_confirm"
+                        groups="mrp.group_mrp_user"
                         invisible="state != 'draft'"
                         string="Confirm"
                         type="object"
@@ -290,6 +295,7 @@
                         data-hotkey="q" />
                     <button
                         name="button_plan"
+                        groups="mrp.group_mrp_user"
                         invisible="state not in ('confirmed', 'progress', 'to_close') or not workorder_ids or is_planned"
                         type="object"
                         string="Plan"
@@ -297,23 +303,27 @@
                         data-hotkey="z" />
                     <button
                         name="button_unplan"
+                        groups="mrp.group_mrp_user"
                         type="object"
                         string="Unplan"
                         invisible="not is_planned or state in ['cancel', 'done']"
                         data-hotkey="z" />
                     <button
                         name="action_start"
+                        groups="mrp.group_mrp_user"
                         type="object"
                         string="Start"
                         invisible="state != 'confirmed'" />
                     <button
                         name="action_assign"
+                        groups="mrp.group_mrp_user"
                         invisible="state in ('draft', 'done', 'cancel') or not reserve_visible"
                         string="Check availability"
                         type="object"
                         data-hotkey="c" />
                     <button
                         name="action_unreserve"
+                        groups="mrp.group_mrp_user"
                         type="object"
                         string="Unreserve"
                         invisible="not unreserve_visible"
@@ -324,6 +334,7 @@
                         statusbar_visible="draft,confirmed,done" />
                     <button
                         name="action_cancel"
+                        groups="mrp.group_mrp_user"
                         type="object"
                         string="Cancel"
                         data-hotkey="x"
@@ -333,6 +344,7 @@
                         cancel-label="Discard" />
                     <button
                         name="button_unbuild"
+                        groups="mrp.group_mrp_user"
                         type="object"
                         string="Unbuild"
                         invisible="state != 'done'"

@@ -533,6 +533,7 @@
                     <!-- 1. Send RFQ (draft) -->
                     <button
                         name="action_send_rfq"
+                        groups="purchase.group_purchase_user"
                         string="Send RFQ"
                         type="object"
                         class="btn-primary"
@@ -543,6 +544,7 @@
                     <button
                         id="confirm_button"
                         name="action_confirm"
+                        groups="purchase.group_purchase_user"
                         string="Confirm"
                         type="object"
                         class="btn-primary"
@@ -554,6 +556,7 @@
                     <!-- 4. Send PO (post-confirmation) -->
                     <button
                         name="action_send_rfq"
+                        groups="purchase.group_purchase_user"
                         string="Send PO"
                         invisible="state != 'done'"
                         type="object"
@@ -562,6 +565,7 @@
                     <!-- 5. Acknowledge -->
                     <button
                         name="action_acknowledge"
+                        groups="purchase.group_purchase_user"
                         string="Acknowledge"
                         type="object"
                         invisible="acknowledged or state != 'done'" />
@@ -598,6 +602,7 @@
                     <!-- 8. Cancel -->
                     <button
                         name="action_cancel"
+                        groups="purchase.group_purchase_user"
                         string="Cancel"
                         confirm="Are you sure you want to cancel this order?"
                         type="object"
@@ -606,6 +611,7 @@
                     <!-- 9. Reset to draft -->
                     <button
                         name="action_draft"
+                        groups="purchase.group_purchase_user"
                         string="Set to Draft"
                         type="object"
                         invisible="state != 'cancel'"

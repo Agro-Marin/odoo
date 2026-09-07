@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo.exceptions import AccessError
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase, tagged
@@ -34,13 +36,29 @@ class TestPurchaseReadonlyGroup(TransactionCase):
         "mrp.production",
     )
 
+    BRIDGE_OF = {
+        "vendor.delay.report": "purchase_stock",
+        "stock.picking": "purchase_stock",
+        "stock.move": "purchase_stock",
+        "mrp.production": "purchase_mrp",
+    }
+
     def test_acl_configuration(self) -> None:
         acls = self.env["ir.model.access"].search(
             [("group_id", "=", self.group_readonly.id)]
         )
 
         granted = set(acls.mapped("model_id.model"))
+        installed = set(
+            self.env["ir.module.module"]
+            .search([("state", "=", "installed")])
+            .mapped("name")
+        )
         for model in self.REQUIRED_MODELS:
+            # The rows on stock and mrp models live in the bridge that joins
+            # purchase to that app; without the bridge there is no row to find.
+            if self.BRIDGE_OF.get(model, "purchase") not in installed:
+                continue
             with self.subTest(model=model):
                 self.assertIn(
                     model,
@@ -155,6 +173,46 @@ class TestPurchaseReadonlyPermissions(TransactionCase):
 
         with self.assertRaises(AccessError):
             order.unlink()
+
+    def _assert_write_buttons_gated(
+        self, view_xmlid, model, rung, buttons, user, feature_flags=()
+    ):
+        """The gate is asserted where it is declared, and the tier where it lands.
+
+        Each write button is gated POSITIVELY on the transacting rung, which the
+        tier does not carry, and the rendered form for the tier drops it.
+        """
+        view = self.env.ref(view_xmlid)
+        arch = etree.fromstring(view.arch)
+        for button in buttons:
+            nodes = arch.xpath(f"//header/button[@name='{button}']")
+            self.assertTrue(nodes, f"{button} is not in {view_xmlid}")
+            for node in nodes:
+                # A feature-flag gate stays as it is: `groups` is an OR, so
+                # adding the rung would show the button to every salesperson
+                # with the flag off.
+                if node.get("groups") in feature_flags:
+                    continue
+                self.assertEqual(node.get("groups"), rung, button)
+        views = self.env[model].with_user(user).get_views([(view.id, "form")])
+        rendered = views["views"]["form"]["arch"]
+        for button in buttons:
+            self.assertNotIn(f'name="{button}"', rendered, button)
+
+    def test_order_write_buttons_are_hidden_from_readonly(self) -> None:
+        self._assert_write_buttons_gated(
+            "purchase.view_purchase_order_form",
+            "purchase.order",
+            "purchase.group_purchase_user",
+            (
+                "action_send_rfq",
+                "action_confirm",
+                "action_acknowledge",
+                "action_cancel",
+                "action_draft",
+            ),
+            self.readonly_user,
+        )
 
 
 @tagged("post_install", "-at_install", "fast")

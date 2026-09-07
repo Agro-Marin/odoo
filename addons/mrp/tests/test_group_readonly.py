@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, tagged
@@ -238,3 +240,47 @@ class TestMrpGroupReadonly(TransactionCase):
                 if record:
                     with self.assertRaises(AccessError):
                         record.write({"name": "Hacked"})
+
+    def _assert_write_buttons_gated(
+        self, view_xmlid, model, rung, buttons, user, feature_flags=()
+    ):
+        """The gate is asserted where it is declared, and the tier where it lands.
+
+        Each write button is gated POSITIVELY on the transacting rung, which the
+        tier does not carry, and the rendered form for the tier drops it.
+        """
+        view = self.env.ref(view_xmlid)
+        arch = etree.fromstring(view.arch)
+        for button in buttons:
+            nodes = arch.xpath(f"//header/button[@name='{button}']")
+            self.assertTrue(nodes, f"{button} is not in {view_xmlid}")
+            for node in nodes:
+                # A feature-flag gate stays as it is: `groups` is an OR, so
+                # adding the rung would show the button to every salesperson
+                # with the flag off.
+                if node.get("groups") in feature_flags:
+                    continue
+                self.assertEqual(node.get("groups"), rung, button)
+        views = self.env[model].with_user(user).get_views([(view.id, "form")])
+        rendered = views["views"]["form"]["arch"]
+        for button in buttons:
+            self.assertNotIn(f'name="{button}"', rendered, button)
+
+    def test_production_write_buttons_are_hidden_from_readonly(self):
+        self._assert_write_buttons_gated(
+            "mrp.mrp_production_form_view",
+            "mrp.production",
+            "mrp.group_mrp_user",
+            (
+                "button_mark_done",
+                "action_confirm",
+                "button_plan",
+                "button_unplan",
+                "action_start",
+                "action_assign",
+                "action_unreserve",
+                "action_cancel",
+                "button_unbuild",
+            ),
+            self.user_readonly,
+        )

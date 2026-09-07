@@ -412,6 +412,7 @@
                     <button
                         id="quotation_send_primary"
                         name="action_send_quotation"
+                        groups="sales_team.group_sale_salesman"
                         string="Send"
                         type="object"
                         context="{'validate_analytic': True, 'check_document_layout': True}"
@@ -431,6 +432,7 @@
                     <button
                         id="action_confirm"
                         name="action_confirm"
+                        groups="sales_team.group_sale_salesman"
                         string="Confirm"
                         type="object"
                         context="{'validate_analytic': True}"
@@ -439,6 +441,7 @@
                         invisible="state != 'draft' or not sent" />
                     <button
                         name="action_confirm"
+                        groups="sales_team.group_sale_salesman"
                         string="Confirm"
                         type="object"
                         context="{'validate_analytic': True}"
@@ -448,6 +451,7 @@
                     <button
                         id="create_invoice"
                         name="%(sale.action_view_sale_advance_payment_inv)d"
+                        groups="sales_team.group_sale_salesman"
                         string="Create Invoice"
                         type="action"
                         class="btn-primary"
@@ -456,6 +460,7 @@
                     <button
                         id="create_invoice_percentage"
                         name="%(sale.action_view_sale_advance_payment_inv)d"
+                        groups="sales_team.group_sale_salesman"
                         string="Create Invoice"
                         type="action"
                         context="{'default_advance_payment_method': 'percentage'}"
@@ -466,6 +471,7 @@
                         string="Send"
                         id="quotation_send"
                         name="action_send_quotation"
+                        groups="sales_team.group_sale_salesman"
                         type="object"
                         context="{'validate_analytic': True, 'check_document_layout': True}"
                         data-hotkey="g"
@@ -481,6 +487,7 @@
                     <!-- 5. Payment transaction actions -->
                     <button
                         name="payment_action_capture"
+                        groups="sales_team.group_sale_salesman"
                         string="Capture Transaction"
                         type="object"
                         data-hotkey="shift+g"
@@ -488,6 +495,7 @@
                         invisible="not has_authorized_transaction_ids" />
                     <button
                         name="payment_action_void"
+                        groups="sales_team.group_sale_salesman"
                         string="Void Transaction"
                         type="object"
                         data-hotkey="shift+v"
@@ -526,6 +534,7 @@
                     <button
                         string="Cancel"
                         name="action_cancel"
+                        groups="sales_team.group_sale_salesman"
                         type="object"
                         confirm="Are you sure you want to cancel this order?"
                         data-hotkey="x"
@@ -534,6 +543,7 @@
                     <button
                         string="Set to Quotation"
                         name="action_draft"
+                        groups="sales_team.group_sale_salesman"
                         type="object"
                         data-hotkey="w"
                         invisible="state != 'cancel'" />
