@@ -24,12 +24,14 @@ export class DialogPlugin extends Plugin {
      */
     addDialog(DialogClass, props, options = {}) {
         return new Promise((resolve) => {
+            const { onClose, ...otherOptions } = options;
             this.services.dialog.add(DialogClass, props, {
+                ...otherOptions,
                 onClose: () => {
                     this.dependencies.selection.focusEditable();
+                    onClose?.();
                     resolve();
                 },
-                ...options,
             });
         });
     }
