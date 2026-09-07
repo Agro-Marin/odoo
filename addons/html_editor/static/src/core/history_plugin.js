@@ -601,11 +601,12 @@ export class HistoryPlugin extends Plugin {
         /** @type {(childListAfter: Node[], record: MutationRecord) => Node[]} */
         const reconstructChildList = (childListAfter, record) => {
             const { removedNodes, previousSibling, nextSibling } = record;
+            const indexOfNode = new Map(childListAfter.map((node, index) => [node, index]));
             const previousSiblingNodes = previousSibling
-                ? childListAfter.slice(0, childListAfter.indexOf(previousSibling) + 1)
+                ? childListAfter.slice(0, indexOfNode.get(previousSibling) + 1)
                 : [];
             const nextSiblingNodes = nextSibling
-                ? childListAfter.slice(childListAfter.indexOf(nextSibling))
+                ? childListAfter.slice(indexOfNode.get(nextSibling))
                 : [];
             return [...previousSiblingNodes, ...removedNodes, ...nextSiblingNodes];
         };
