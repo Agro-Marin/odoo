@@ -94,7 +94,7 @@ export class Img extends Component {
     }
 
     async handleImgLoad(src) {
-        const prom = this.isSvg(src) ? this.getSvg() : this.loadImage(src);
+        const prom = this.isSvg(src) ? this.getSvg(src) : this.loadImage(src);
         if (this.isSvg(src)) {
             prom.then((svg) => {
                 this.svg = svg;
@@ -111,12 +111,12 @@ export class Img extends Component {
         }
     }
 
-    loadImage() {
+    loadImage(src) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => resolve({ status: "loaded" });
             img.onerror = () => resolve({ status: "error" });
-            img.src = this.props.src;
+            img.src = src;
         });
     }
 
@@ -124,8 +124,8 @@ export class Img extends Component {
         return this.props.svgCheck && src.split(".").pop() === "svg";
     }
 
-    async getSvg() {
-        const svgEl = (await svgCache.read(this.props.src)).cloneNode(true);
+    async getSvg(src) {
+        const svgEl = (await svgCache.read(src)).cloneNode(true);
         return {
             viewBox: svgEl.getAttribute("viewBox"),
             width: svgEl.getAttribute("width") || "",
