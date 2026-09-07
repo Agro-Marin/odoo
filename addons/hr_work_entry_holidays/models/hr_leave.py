@@ -184,7 +184,7 @@ class HrLeave(models.Model):
                 datetime.combine(work_entry.date, time.max),
             )
         vals_list = self.env["hr.version"]._generate_work_entries_postprocess(vals_list)
-        self.env["hr.work.entry"].create(vals_list)
+        self.env["hr.work.entry"].sudo().create(vals_list)
 
     def _compute_can_cancel(self):
         super()._compute_can_cancel()
