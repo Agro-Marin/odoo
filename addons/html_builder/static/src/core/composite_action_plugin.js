@@ -53,7 +53,7 @@ export class CompositeAction extends BuilderAction {
             }
         }
         // TODO: should this be the max or a sum?
-        return Math.max(...results);
+        return Math.max(0, ...results);
     }
     // We arbitrarily keep the result of the 1st action, as we
     // obviously cannot return more than one value.
