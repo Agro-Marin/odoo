@@ -1,5 +1,5 @@
 from odoo.tests.common import TransactionCase, tagged
-from odoo.tools.assets.esm_registry import esm_registry, check_esm_config
+from odoo.tools.assets.esm_registry import check_esm_config, esm_registry
 
 
 @tagged("post_install", "-at_install")

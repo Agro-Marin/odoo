@@ -84,9 +84,7 @@ class TestPosOrderCosting(TestAngloSaxonCommon):
         self.assertTrue(moves, "the ship-later rule should have created a move")
         self.assertFalse(any(moves.mapped("is_valued")))
         self.assertEqual(
-            order.sudo()._get_pos_anglo_saxon_price_unit(
-                self.product, self.partner.id, 1.0
-            ),
+            order.sudo()._get_pos_anglo_saxon_price_unit(self.product, 1.0),
             0,
         )
 

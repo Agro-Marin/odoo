@@ -65,9 +65,17 @@ class PosOrder(models.Model):
         return amount if self._check_next_online_payment_amount(amount) else False
 
     @api.model
+    def _load_pos_data_fields(self, config):
+        # EXTENDS point_of_sale
+        return super()._load_pos_data_fields(config) + [
+            'next_online_payment_amount',
+            'online_payment_method_id',
+        ]
+
+    @api.model
     def _process_order(self, order, existing_order):
         draft = order.get('state') == 'draft'
-        pos_session = self.env['pos.session'].browse(order['session_id'])
+        pos_session = self.env['pos.session'].browse(order.get('session_id'))
         online_payment_methods = pos_session.config_id.payment_method_ids.filtered('is_online_payment')
         if draft and online_payment_methods:
             # online payment lines should not be created in draft orders

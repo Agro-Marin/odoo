@@ -527,7 +527,7 @@ class TestPosMrpAngloSaxonPriceUnit(CommonPosMrpTest):
         order = self._make_delivered_order(self.product_product_kit_one)
 
         price_unit = order._get_pos_anglo_saxon_price_unit(
-            self.product_product_kit_one, self.partner_moda.id, 1
+            self.product_product_kit_one, 1
         )
 
         self.assertEqual(price_unit, self.product_product_comp_one.standard_price)
@@ -537,7 +537,7 @@ class TestPosMrpAngloSaxonPriceUnit(CommonPosMrpTest):
         order = self._make_delivered_order(self.product_product_comp_one)
 
         price_unit = order._get_pos_anglo_saxon_price_unit(
-            self.product_product_comp_one, self.partner_moda.id, 1
+            self.product_product_comp_one, 1
         )
 
         self.assertEqual(price_unit, self.product_product_comp_one.standard_price)
@@ -560,7 +560,7 @@ class TestPosMrpAngloSaxonPriceUnit(CommonPosMrpTest):
         self.pos_config_usd.current_session_id.action_pos_session_closing_control()
 
         price_unit = order._get_pos_anglo_saxon_price_unit(
-            self.product_product_kit_one, self.partner_moda.id, 1
+            self.product_product_kit_one, 1
         )
 
         self.assertEqual(price_unit, 0.0)

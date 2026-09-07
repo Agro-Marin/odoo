@@ -168,7 +168,7 @@ class AccountMoveLine(models.Model):
         sudo_order = self.move_id.sudo().pos_order_ids
         if sudo_order:
             pos_price_unit = sudo_order._get_pos_anglo_saxon_price_unit(
-                self.product_id, self.move_id.partner_id.id, self.quantity
+                self.product_id, self.quantity
             )
             if not self.product_id.sudo().cost_currency_id.is_zero(pos_price_unit):
                 price_unit = pos_price_unit

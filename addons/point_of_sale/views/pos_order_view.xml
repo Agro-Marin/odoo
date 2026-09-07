@@ -192,7 +192,8 @@
                                 <field
                                     name="tax_ids"
                                     widget="many2many_tax_tags"
-                                    column_invisible="True" />
+                                    column_invisible="True"
+                                    force_save="1" />
                                 <field
                                     name="price_subtotal"
                                     widget="monetary"
@@ -227,7 +228,8 @@
                                     <field
                                         name="tax_ids"
                                         widget="many2many_tax_tags"
-                                        invisible="1" />
+                                        invisible="1"
+                                        force_save="1" />
                                     <field
                                         name="pack_lot_ids"
                                         widget="many2many_tags"

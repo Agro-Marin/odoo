@@ -211,10 +211,9 @@ class PosOrder(models.Model):
             "domain": [("id", "in", linked_orders.ids)],
         }
 
-    def _prepare_invoice_line_vals(self, line_values, pos_line, move_type):
-        inv_line_vals = super()._prepare_invoice_line_vals(
-            line_values, pos_line, move_type
-        )
+    def _prepare_invoice_line_vals(self, line_values, move_type):
+        inv_line_vals = super()._prepare_invoice_line_vals(line_values, move_type)
+        pos_line = line_values["record"]
 
         if pos_line.sale_order_origin_id:
             origin_line = pos_line.sale_order_line_id

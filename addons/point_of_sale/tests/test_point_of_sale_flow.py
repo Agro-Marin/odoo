@@ -1652,14 +1652,14 @@ class TestPointOfSaleFlow(CommonPosTest):
                     0,
                     0,
                     {
-                        "amount": 20,
+                        "amount": 40,
                         "name": fields.Datetime.now(),
                         "payment_method_id": self.cash_payment_method.id,
                     },
                 )
             ],
-            "amount_paid": 20.0,
-            "amount_total": 20.0,
+            "amount_paid": 40.0,
+            "amount_total": 40.0,
             "amount_tax": 0.0,
             "amount_return": 0.0,
             "to_invoice": True,
@@ -1674,10 +1674,10 @@ class TestPointOfSaleFlow(CommonPosTest):
                 "user_id": self.env.user.id,
                 "session_id": current_session.id,
                 "partner_id": self.partner.id,
-                "amount_paid": -10,
+                "amount_paid": -40,
                 "amount_tax": 0,
                 "amount_return": 0,
-                "amount_total": -10,
+                "amount_total": -40,
                 "fiscal_position_id": False,
                 "lines": [
                     [
@@ -1721,7 +1721,7 @@ class TestPointOfSaleFlow(CommonPosTest):
                         0,
                         0,
                         {
-                            "amount": -10,
+                            "amount": -40,
                             "name": fields.Datetime.now(),
                             "payment_method_id": self.cash_payment_method.id,
                         },
