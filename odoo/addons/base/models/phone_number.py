@@ -2,7 +2,7 @@ import re
 from collections import defaultdict
 from typing import Self
 
-from odoo import api, fields, models
+from odoo import Command, api, fields, models
 from odoo.api import ValuesType
 
 PHONE_NOISE_PATTERN = re.compile(r"[\s\\./\(\)\-]")
@@ -76,14 +76,13 @@ class PhoneNumber(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        wanted = []
-        for vals in vals_list:
-            country = (
-                self.env["res.country"].browse(vals["country_id"])
-                if vals.get("country_id")
-                else None
-            )
-            wanted.append(self._sanitize_number(vals.get("number"), country))
+        # key each row the way the stored `sanitized` will be computed: the
+        # explicit country, else the first linked contact's -- a row keyed
+        # without it missed its own stored twin and tripped the unique index
+        wanted = [
+            self._sanitize_number(vals.get("number"), self._country_from_vals(vals))
+            for vals in vals_list
+        ]
         existing = {
             phone.sanitized: phone
             for phone in self.with_context(active_test=False).search(
@@ -91,25 +90,60 @@ class PhoneNumber(models.Model):
             )
         }
         to_create, by_position = [], {}
+        # the same number twice in one batch (a seed CSV listing it once per
+        # contact, say) is one record too: the later rows link onto the first
+        first_position, deferred = {}, []
         for position, (vals, sanitized) in enumerate(
             zip(vals_list, wanted, strict=True)
         ):
             if phone := existing.get(sanitized):
                 phone._link_existing(vals)
                 by_position[position] = phone
+            elif sanitized and sanitized in first_position:
+                deferred.append((position, first_position[sanitized], vals))
             else:
                 to_create.append((position, vals))
-                existing[sanitized] = None
+                first_position[sanitized] = position
         created = super().create([vals for _, vals in to_create])
         for (position, _), phone in zip(to_create, created, strict=True):
             by_position[position] = phone
+        for position, first, vals in deferred:
+            phone = by_position[first]
+            phone._link_existing(vals)
+            by_position[position] = phone
         return self.browse(by_position[i].id for i in range(len(vals_list)))
 
+    @api.model
+    def _country_from_vals(self, vals: ValuesType):
+        if vals.get("country_id"):
+            return self.env["res.country"].browse(vals["country_id"])
+        partner_ids = [
+            id_
+            for command in (vals.get("partner_ids") or [])
+            if isinstance(command, (list, tuple))
+            for id_ in (
+                command[2]
+                if command[0] == Command.SET
+                else [command[1]]
+                if command[0] == Command.LINK
+                else []
+            )
+        ]
+        return self.env["res.partner"].browse(partner_ids[:1]).country_id
+
     def _link_existing(self, vals: ValuesType) -> None:
+        # a shared number gains the new row's contacts; a SET from that row
+        # (what the CSV loader emits) must not drop the ones already linked
         relational = {
-            fname: value
+            fname: [
+                Command.link(id_)
+                for command in value
+                if command[0] == Command.SET
+                for id_ in command[2]
+            ]
+            + [command for command in value if command[0] != Command.SET]
             for fname, value in vals.items()
-            if self._fields[fname].type == "many2many"
+            if self._fields[fname].type == "many2many" and isinstance(value, list)
         }
         if not self.active:
             relational["active"] = True
