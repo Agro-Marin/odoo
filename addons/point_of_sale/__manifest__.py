@@ -1,6 +1,6 @@
 {
     "name": "Point of Sale",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "category": "Sales/Point of Sale",
     "sequence": 40,
     "summary": "Handle checkouts and payments for shops and restaurants.",
