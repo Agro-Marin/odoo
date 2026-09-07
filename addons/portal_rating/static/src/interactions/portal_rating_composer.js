@@ -128,7 +128,10 @@ export class RatingPopupComposer extends Interaction {
      */
     updateOptions(data) {
         const message = data["mail.message"][0];
-        if (!message.author_id || message.author_id !== this.options.partner_id) {
+        if (
+            !message.author_id ||
+            message.author_id.id !== Number(this.options.partner_id)
+        ) {
             return;
         }
         const body = message.body[1]?.replace(/<[^>]+>/g, "");
