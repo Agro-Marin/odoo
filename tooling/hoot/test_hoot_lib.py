@@ -1361,3 +1361,36 @@ class TestWatcherWarning:
             "both the plain reuse branch and the cannot-re-verify branch must "
             "check, not just one"
         )
+
+
+class TestSelfTestPage:
+    """Hoot's own suites are driven through their own page, not /web/tests.
+
+    They are in no asset bundle and must not be: each declares itself as
+    `describe(parseUrl(import.meta.url))`, and in a bundle `import.meta.url` is
+    the bundle's url for every file, so all thirteen collapse into one suite and
+    registration dies on the first duplicate name. No `@web/...` id reaches
+    them, which is why they went unrun -- and why a comment a fork-wide strip
+    removed from one of their fixtures in 800b13166a3 sat red and unreported.
+    """
+
+    def test_the_page_the_runner_drives_exists(self):
+        assert H.SELF_TEST_PAGE == "/web/static/lib/hoot/tests/index.html"
+        page = H.ODOO_ROOT / "addons/web/static/lib/hoot/tests/index.html"
+        assert page.is_file(), "--self drives a page that must exist in the tree"
+
+    def test_the_page_loads_every_test_file_beside_it(self):
+        tests_dir = H.ODOO_ROOT / "addons/web/static/lib/hoot/tests"
+        barrel = (tests_dir / "index.js").read_text(encoding="utf8")
+        on_disk = {
+            p.relative_to(tests_dir).as_posix() for p in tests_dir.rglob("*.test.js")
+        }
+        imported = {
+            line.split('"./', 1)[1].rstrip('";')
+            for line in barrel.splitlines()
+            if line.startswith('import "./') and ".test.js" in line
+        }
+        assert imported == on_disk, (
+            "index.js and the directory disagree: a test file nobody imports "
+            "runs nowhere, and --self would report green over it"
+        )

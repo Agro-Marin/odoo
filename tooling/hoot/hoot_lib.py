@@ -119,6 +119,7 @@ ALWAYS_MODULES = ("web",)
 DEV_FLAGS = "--dev=assets,qweb"
 
 SUCCESS_SIGNAL = "[HOOT] Test suite succeeded"
+SELF_TEST_PAGE = "/web/static/lib/hoot/tests/index.html"
 RE_FAILED_TEST = re.compile(r'Test "(.+?)" failed')
 RE_PASSED_TEST = re.compile(r'Test "(.+?)" passed')
 RE_FAILED_SUMMARY = re.compile(r"Failed (\d+) tests \((\d+) passed")
@@ -909,6 +910,7 @@ def run_suites(
     touch_enabled: bool = False,
     extra: str = "",
     verbose: bool = False,
+    self_tests: bool = False,
 ) -> RunResult:
     _bootstrap_odoo()
     from odoo.tools import config
@@ -926,12 +928,25 @@ def run_suites(
     capture = _ConsoleCapture()
     browser_logger.addHandler(capture)
 
-    id_filters = "".join(f"&id={generate_hash(s)}" for s in suites)
-    url = (
-        f"http://{HOST}:{port}/web/tests?headless&loglevel=2"
-        f"&preset={preset}&timeout={hoot_timeout_ms}"
-        f"{id_filters}{module_scope_param(suites)}{extra}"
-    )
+    if self_tests:
+        # Hoot's own suites are not in any asset bundle and must not be: each
+        # declares itself as `describe(parseUrl(import.meta.url))`, and in a
+        # bundle `import.meta.url` is the BUNDLE's url for every file, so all
+        # thirteen collapse into one suite and registration dies on the first
+        # duplicate name. They ship their own page instead, with its own import
+        # map, which is what this drives. No preset, tag or module scope: that
+        # page has none.
+        url = (
+            f"http://{HOST}:{port}{SELF_TEST_PAGE}"
+            f"?headless&loglevel=2&timeout={hoot_timeout_ms}{extra}"
+        )
+    else:
+        id_filters = "".join(f"&id={generate_hash(s)}" for s in suites)
+        url = (
+            f"http://{HOST}:{port}/web/tests?headless&loglevel=2"
+            f"&preset={preset}&timeout={hoot_timeout_ms}"
+            f"{id_filters}{module_scope_param(suites)}{extra}"
+        )
 
     def unit_test_error_checker(message: str) -> bool:
         return "[HOOT]" not in message

@@ -193,7 +193,8 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
     browser_size = args.browser_size or env["size"]
     touch = env["touch"] if args.touch is None else args.touch
     tag = env["tag"] if args.tag is None else args.tag
-    extra = f"&tag={tag}" if tag else ""
+    # Hoot's own page carries no presets and no tags; sending one selects nothing.
+    extra = "" if getattr(args, "self_tests", False) else (f"&tag={tag}" if tag else "")
     if args.filter:
         extra += f"&filter={args.filter}"
     if args.hook_timeout is not None:
@@ -209,6 +210,7 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
         touch_enabled=touch,
         extra=extra,
         verbose=args.verbose,
+        self_tests=getattr(args, "self_tests", False),
     )
     after = H.read_state(state["db"]) or {}
     if after.get("pid") != state.get("pid") or not H.server_is_warm(after):
@@ -294,6 +296,14 @@ def main() -> int:
     )
     ap.add_argument(
         "--watch", action="store_true", help="Re-run on JS file changes (mtime poll)."
+    )
+    ap.add_argument(
+        "--self",
+        dest="self_tests",
+        action="store_true",
+        help="Run HOOT's OWN suites (lib/hoot/tests) instead of an addon's. "
+        "They live on their own page and are in no asset bundle, so no "
+        "@web/... id reaches them.",
     )
     ap.add_argument(
         "--preset",
@@ -416,14 +426,20 @@ def main() -> int:
                 print(reaped)
         return 0
 
-    suites = _resolve_suites(args)
+    if args.self_tests:
+        # A label, not a selector: the page runs all of Hoot's own suites and
+        # takes no id filter. `web` is what the server must have installed.
+        suites = ["@hoot"]
+        args.suites = ["@web/hoot"]
+    else:
+        suites = _resolve_suites(args)
     if not suites:
         if args.restart:
             db = args.db or H.db_for_modules(H.modules_for_suites([]))
             print(H.stop_server(db=db, clean=False))
         return 0
 
-    modules = H.modules_for_suites(suites)
+    modules = H.modules_for_suites(["@web/hoot"] if args.self_tests else suites)
     db = args.db or H.db_for_modules(modules)
     if args.restart:
         H.stop_server(db=db, clean=False)
