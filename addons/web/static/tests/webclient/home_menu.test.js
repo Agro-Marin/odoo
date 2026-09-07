@@ -928,3 +928,64 @@ test("Enter in the search box opens the first matching app, or the first menu", 
     await press("enter");
     expect.verifySteps(["selectMenu 31"]);
 });
+
+test("with a query on, the arrows walk the tiles and then the matching menus", async () => {
+    mockService("menu", {
+        getMenuAsTree: () => ({
+            id: "root",
+            name: "root",
+            appID: "root",
+            childrenTree: [
+                {
+                    id: 2,
+                    name: "Calendar",
+                    appID: 2,
+                    actionID: 121,
+                    childrenTree: [
+                        {
+                            id: 21,
+                            name: "Calls",
+                            appID: 2,
+                            actionID: 123,
+                            childrenTree: [],
+                        },
+                        {
+                            id: 22,
+                            name: "Calc",
+                            appID: 2,
+                            actionID: 124,
+                            childrenTree: [],
+                        },
+                    ],
+                },
+            ],
+        }),
+        async selectMenu(menu) {
+            expect.step(`selectMenu ${/** @type {any} */ (menu).id}`);
+        },
+    });
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    await searchFor("cal");
+    expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual(["Calendar"]);
+    expect(".o_menu_result").toHaveCount(2);
+
+    await press("ArrowDown");
+    await animationFrame();
+    expect(".o_app:eq(0)").toBeFocused();
+    await press("ArrowDown");
+    await animationFrame();
+    expect(".o_menu_result:eq(0)").toBeFocused();
+    expect(".o_menu_result:eq(0)").toHaveClass("o_focused");
+    await press("ArrowDown");
+    await animationFrame();
+    expect(".o_menu_result:eq(1)").toBeFocused();
+    await press("ArrowDown");
+    await animationFrame();
+    expect(".o_app:eq(0)").toBeFocused({ message: "wraps back to the first tile" });
+    await press("ArrowUp");
+    await animationFrame();
+    expect(".o_menu_result:eq(1)").toBeFocused();
+
+    await press("enter");
+    expect.verifySteps(["selectMenu 22"]);
+});

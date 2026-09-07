@@ -70,8 +70,13 @@
             );
 
             &:hover,
-            &:focus-visible {
+            &:focus-visible,
+            &.o_focused {
                 background: $component-active-bg;
+            }
+
+            &.o_focused {
+                outline: 1px solid var(--o-action);
             }
         }
     }

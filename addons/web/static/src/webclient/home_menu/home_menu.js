@@ -471,11 +471,39 @@ export class HomeMenu extends Component {
     }
 
     /** Enter in the search box: the selected tile, else the first match. */
+    /**
+     * The item the keyboard selection points at: a tile, or past the tiles a
+     * matching menu.
+     *
+     * @param {number} index
+     */
+    keyboardItem(index) {
+        const apps = this.visibleApps;
+        return index < apps.length
+            ? apps[index]
+            : this.menuMatches[index - apps.length];
+    }
+
+    /** @param {number} index */
+    isMenuResultFocused(index) {
+        return this.state.focusedIndex === this.visibleApps.length + index;
+    }
+
+    /** @param {number} index */
+    _onMenuResultFocus(index) {
+        this.state.focusedIndex = this.visibleApps.length + index;
+    }
+
     _onEnter() {
         const focusedIndex = this.state.focusedIndex;
         if (focusedIndex !== null) {
-            const app = this.visibleApps[focusedIndex];
-            return app && this._openMenu(app);
+            const item = this.keyboardItem(focusedIndex);
+            if (!item) {
+                return;
+            }
+            return focusedIndex < this.visibleApps.length
+                ? this._openMenu(/** @type {HomeMenuApp} */ (item))
+                : this.menus.selectMenu(item);
         }
         if (!this.state.query) {
             return;
@@ -521,6 +549,10 @@ export class HomeMenu extends Component {
                 }
                 rows.push(row);
             }
+        }
+        // Each matching menu is a row of its own under the tiles.
+        for (let i = 0; i < this.menuMatches.length; i++) {
+            rows.push([index++]);
         }
         return rows;
     }
