@@ -178,6 +178,93 @@ class TestProgramWithCodeOperations(TestSaleCouponCommon):
         # reward line removed automatically
         self.assertEqual(len(sale_order_a.line_ids.ids), 1)
 
+    def test_reapply_code_claims_the_coupon_remaining_reward(self):
+        # Test case:
+        # - a coupons program with two rewards the customer can afford at once
+        # - a coupon carrying enough points for both
+        # - claim the first reward, then hand the same code to the Coupon Code wizard again
+        # The coupon still holds a point and the second reward is still claimable, so the
+        # code has to offer that reward instead of refusing the program as a whole.
+        program = self.env["loyalty.program"].create(
+            {
+                "name": "Coupons with two affordable rewards",
+                "program_type": "coupons",
+                "reward_ids": [
+                    Command.create(
+                        {
+                            "reward_type": "discount",
+                            "discount_mode": "percent",
+                            "discount": 10,
+                            "required_points": 1,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "reward_type": "product",
+                            "reward_product_id": self.product_B.id,
+                            "reward_product_qty": 1,
+                            "required_points": 1,
+                        }
+                    ),
+                ],
+                "coupon_ids": [Command.create({"points": 2})],
+            }
+        )
+        coupon = program.coupon_ids
+        discount_reward = program.reward_ids.filtered(
+            lambda reward: reward.reward_type == "discount"
+        )
+        product_reward = program.reward_ids.filtered(
+            lambda reward: reward.reward_type == "product"
+        )
+
+        order = self.empty_order.copy()
+        order.write(
+            {
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_A.id,
+                            "name": "1 Product A",
+                            "product_qty": 1.0,
+                        }
+                    )
+                ]
+            }
+        )
+
+        # The first pass offers both rewards; take the discount and leave one point.
+        self.assertEqual(
+            order._try_apply_code(coupon.code),
+            {coupon: discount_reward + product_reward},
+        )
+        order._apply_program_reward(discount_reward, coupon)
+        order._update_programs_and_rewards()
+        self.assertEqual(order.line_ids.reward_id, discount_reward)
+        self.assertEqual(order._get_real_points_for_coupon(coupon), 1)
+
+        # Handing the same code in again must claim what is left, not raise.
+        wizard = self.env["sale.loyalty.coupon.wizard"].create(
+            {
+                "order_id": order.id,
+                "coupon_code": coupon.code,
+            }
+        )
+        action = wizard.action_apply()
+        self.assertEqual(
+            self.env["loyalty.reward"].browse(action["context"]["default_reward_ids"]),
+            product_reward,
+            "The reward the coupon can still pay for should be offered",
+        )
+
+        order._apply_program_reward(product_reward, coupon)
+        order._update_programs_and_rewards()
+        self.assertEqual(
+            order.line_ids.reward_id,
+            discount_reward + product_reward,
+            "Both rewards of the same coupon should end up on the order",
+        )
+
     def test_coupon_code_with_pricelist(self):
         # Test case: Generate a coupon (10% discount) and apply it on an order with a specific pricelist (10% discount)
 
