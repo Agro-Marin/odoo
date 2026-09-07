@@ -1028,6 +1028,18 @@ class CrmLead(models.Model):
             for command in commands
         ]
 
+    def _normalize_written_vals(self, vals):
+        if vals.get("website"):
+            vals["website"] = self.env["res.partner"]._clean_website(vals["website"])
+        if not vals.get("phone_ids"):
+            return
+        country_id = vals.get("country_id")
+        if not country_id and len(self.country_id) == 1:
+            country_id = self.country_id.id
+        vals["phone_ids"] = self._phone_commands_with_country(
+            vals["phone_ids"], country_id
+        )
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
@@ -1093,15 +1105,7 @@ class CrmLead(models.Model):
         return result
 
     def write(self, vals):
-        if vals.get("website"):
-            vals["website"] = self.env["res.partner"]._clean_website(vals["website"])
-        if vals.get("phone_ids"):
-            country_id = vals.get("country_id")
-            if not country_id and len(self.country_id) == 1:
-                country_id = self.country_id.id
-            vals["phone_ids"] = self._phone_commands_with_country(
-                vals["phone_ids"], country_id
-            )
+        self._normalize_written_vals(vals)
 
         now = self.env.cr.now()
         stage_is_won = False
