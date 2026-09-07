@@ -593,7 +593,7 @@ export class ClipboardPlugin extends Plugin {
             selectionToRestore.restore();
         }
 
-        const dataTransfer = (ev.originalEvent || ev).dataTransfer;
+        const dataTransfer = ev.dataTransfer;
         const odooEditorHtml = ev.dataTransfer.getData(
             "application/vnd.odoo.odoo-editor",
         );
