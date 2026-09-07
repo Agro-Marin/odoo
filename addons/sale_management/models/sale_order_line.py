@@ -66,3 +66,30 @@ class SaleOrderLine(models.Model):
 
     def _can_be_edited_on_portal(self):
         return super()._can_be_edited_on_portal() and self._is_line_optional()
+
+    def _prepare_template_line_values(self):
+        """Give the values to create the corresponding quotation template line.
+
+        The mirror of `sale.order.template.line._prepare_order_line_values`.
+
+        :return: `sale.order.template.line` create values
+        :rtype: dict
+        """
+        self.check_singleton()
+        return {
+            "display_type": self.display_type,
+            "is_optional": self.is_optional,
+            "name": self.name,
+            "product_id": self.product_id.id,
+            # The quantity has to cross the same asymmetry
+            # `_prepare_order_line_values` crosses in the other direction
+            # (t21897), the other way round: here `product_qty` is the quantity
+            # the user edits, in this line's own UoM, while `product_uom_qty` is
+            # its read-only projection into the product's reference UoM. The
+            # template owns a plain `product_uom_qty`, so it is the editable one
+            # that has to travel -- copying the projection would store 24 for a
+            # line of 2 dozen.
+            "product_uom_qty": self.product_qty,
+            "product_uom_id": self.product_uom_id.id,
+            "sequence": self.sequence,
+        }
