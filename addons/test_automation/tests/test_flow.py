@@ -1741,36 +1741,6 @@ class TestCompute(common.TransactionCase):
         subtasks = task.create([{"parent_id": task.id} for _ in range(10)])
         subtasks.flush_model()
 
-        # This test checks what happens when a stored recursive computed field
-        # is marked to compute on many records, and automation rules are
-        # triggered depending on that field.  In this case, we trigger the
-        # recomputation of 'project_id' on 'subtasks' by deleting their parent
-        # task.
-        #
-        # An issue occurs when the domain of automation rules is evaluated by
-        # method search(), because the latter flushes the fields to search on,
-        # which are also the ones being recomputed.  Combined with the fact
-        # that recursive fields are not computed in batch, this leads to a huge
-        # amount of recursive calls between the automation rule and flush().
-        #
-        # The execution of task.unlink() looks like this:
-        # - mark 'project_id' to compute on subtasks
-        # - delete task
-        # - flush()
-        #   - recompute 'project_id' on subtask1
-        #     - call compute on subtask1
-        #     - in action, search([('id', 'in', subtask1.ids), ('project_id', '=', pid)])
-        #       - flush(['id', 'project_id'])
-        #         - recompute 'project_id' on subtask2
-        #           - call compute on subtask2
-        #           - in action search([('id', 'in', subtask2.ids), ('project_id', '=', pid)])
-        #             - flush(['id', 'project_id'])
-        #               - recompute 'project_id' on subtask3
-        #                 - call compute on subtask3
-        #                 - in action, search([('id', 'in', subtask3.ids), ('project_id', '=', pid)])
-        #                   - flush(['id', 'project_id'])
-        #                     - recompute 'project_id' on subtask4
-        #                       ...
         limit = sys.getrecursionlimit()
         try:
             sys.setrecursionlimit(100)
@@ -1932,18 +1902,12 @@ class TestCompute(common.TransactionCase):
             filter_domain=repr([("stage_id", "=", new_stage.id)]),
         )
 
-        # Tricky case: the record is created with 'stage_id' being false, and
-        # the field is marked for recomputation.  The field is then recomputed
-        # while evaluating 'filter_domain', which causes the execution of the
-        # automation.  And as the domain is satisfied, the automation is
-        # processed again, but it must detect that it has just been run!
         self.env["automation.lead.test"].create(
             {
                 "name": "Test Lead",
             }
         )
 
-        # check that the automation has been run once
         partner_count = self.env["res.partner"].search_count(
             [("name", "=", "Test Partner Automation")]
         )
@@ -2292,10 +2256,6 @@ class TestHttp(common.HttpCase):
         model = self.env["ir.model"]._get("automation.linked.test")
         obj = self.env[model.model].create({"name": "some name"})
 
-        # This fork ships no default record_getter on purpose (a default assumes
-        # a payload shape and silently breaks record-less receivers), so the
-        # Odoo-to-Odoo getter is set explicitly. `model.env` — there is no bare
-        # `env` in this eval context.
         automation_receiver = create_automation(
             self,
             trigger="on_webhook",
@@ -2321,28 +2281,16 @@ class TestHttp(common.HttpCase):
             },
         )
 
-        # The outbound webhook action refuses non-globally-routable targets, and
-        # this round trip necessarily points at the loopback test server. Patch
-        # the check for the duration rather than carving a test-mode exception
-        # into the security control itself; test_webhook_refuses_loopback_target
-        # below pins the control's real behaviour.
-        # The URL is validated when the action *runs*, which happens
-        # synchronously inside the write below; only the HTTP call itself is
-        # deferred to postcommit. So the patch has to span both.
         with patch(
             "odoo.addons.base.models.ir_actions_server._get_webhook_blocked_reason",
             return_value=None,
         ):
-            # Changing the name will make an http request, post-commitedly
             obj.name = "new_name"
             self.cr.flush()
             with self.allow_requests(all_requests=True):
                 self.cr.postcommit.run()  # webhooks run in postcommit
         self.cr.clear()
-        self._wait_remaining_requests()  # just in case the request timeouts
-        # `id` alongside `_id`: `_get_webhook_payload` sends both, so a receiver
-        # written against the vanilla payload shape can still find the record
-        # even though this fork ships no default record_getter.
+        self._wait_remaining_requests(strict=False)
         self.assertEqual(
             json.loads(obj.another_field),
             {

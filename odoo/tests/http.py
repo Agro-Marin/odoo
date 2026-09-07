@@ -217,7 +217,9 @@ class HttpCase(TransactionCase):
             allow_redirects=allow_redirects,
         )
 
-    def _wait_remaining_requests(self, timeout: int = 10) -> None:
+    def _wait_remaining_requests(
+        self, timeout: int = 10, *, strict: bool = True
+    ) -> None:
 
         def get_http_request_threads() -> list[threading.Thread]:
             return [
@@ -237,16 +239,30 @@ class HttpCase(TransactionCase):
             thread.join(timeout - (time.monotonic() - start_time))
 
         request_threads = get_http_request_threads()
-        for thread in request_threads:
-            self._logger.info(
-                "Stop waiting for thread %s handling request for url %s",
-                thread.name,
-                getattr(thread, "url", "<UNKNOWN>"),
-            )
+        if not request_threads:
+            return
 
-        if request_threads:
-            self._logger.info("remaining requests")
-            odoo.tools.misc.dumpstacks()
+        odoo.tools.misc.dumpstacks()
+        leaked = ", ".join(
+            f"{thread.name} ({getattr(thread, 'url', '<UNKNOWN>')})"
+            for thread in request_threads
+        )
+        message = (
+            f"{len(request_threads)} request thread(s) still running {timeout}s "
+            f"after {self.canonical_tag}: {leaked}. A request that outlives its "
+            f"test can still hold the registry lock through its TestCursor, "
+            f"which costs every later test the full re-acquisition timeout."
+        )
+        if strict:
+            raise AssertionError(message)
+        self._logger.warning("%s", message)
+
+    def _wait_for_requests_unless_already_failing(
+        self, exc_type: type[BaseException] | None, exc: object, tb: object
+    ) -> None:
+        # A leaked request is a real defect and says so, but raising it over a
+        # test that is already failing would replace the message that matters.
+        self._wait_remaining_requests(strict=exc_type is None)
 
     def logout(self, keep_db: bool = True) -> None:
         self.session.logout(keep_db=keep_db)
@@ -430,7 +446,7 @@ class HttpCase(TransactionCase):
         with contextlib.ExitStack() as atexit:
             atexit.callback(browser.stop)
             atexit.enter_context(self.allow_requests(browser=browser))
-            atexit.callback(self._wait_remaining_requests)
+            atexit.push(self._wait_for_requests_unless_already_failing)
             atexit.callback(browser.stop)
             self._browser_js_patch_bus(atexit)
 

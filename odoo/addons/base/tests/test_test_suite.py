@@ -1000,6 +1000,42 @@ class TestAStrandedCursorIsRecoverableAcrossThreads(BaseCase):
         )
 
 
+class TestALeakedRequestThreadIsLoud(HttpCase):
+    @contextmanager
+    def _a_leaked_request_thread(self):
+        stop = threading.Event()
+        thread = threading.Thread(
+            target=stop.wait, name="odoo.service.http.request.leaked"
+        )
+        thread.start()
+        try:
+            yield
+        finally:
+            stop.set()
+            thread.join(5)
+
+    def test_a_request_that_outlives_its_test_raises(self):
+        with self._a_leaked_request_thread():
+            with self.assertRaises(AssertionError) as caught:
+                self._wait_remaining_requests(timeout=1)
+        self.assertIn(
+            "still running",
+            str(caught.exception),
+            "a leaked request used to be logged at INFO and the run carried on; "
+            "it can still hold the registry lock through its TestCursor",
+        )
+
+    def test_it_only_warns_when_the_test_is_already_failing(self):
+        with self._a_leaked_request_thread():
+            with self.assertLogs(self._logger, "WARNING") as logged:
+                self._wait_remaining_requests(timeout=1, strict=False)
+        self.assertIn("still running", "\n".join(logged.output))
+
+    def test_it_says_nothing_when_no_request_is_left(self):
+        with self.assertNoLogs(self._logger, "WARNING"):
+            self._wait_remaining_requests(timeout=1)
+
+
 class TestReleaseTestLockIsSymmetric(TransactionCase):
     def test_a_thread_that_does_not_hold_it_touches_nothing(self):
         raised = []
@@ -1060,7 +1096,7 @@ class TestBrowserIsStoppedBeforeTheLockIsTakenBack(BaseCase):
         drain = next(
             i
             for i, line in enumerate(lines)
-            if "atexit.callback(self._wait_remaining_requests)" in line
+            if "self._wait_for_requests_unless_already_failing" in line
         )
         self.assertEqual(
             len(stops),
