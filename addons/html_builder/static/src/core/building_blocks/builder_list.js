@@ -196,7 +196,7 @@ export class BuilderList extends Component {
         }
         const item = items.find((item) => item._id === id);
         item[propertyName] = value;
-        if (!isCheckbox) {
+        if (!isCheckbox && propertyName === "id") {
             item.id = isSmallInteger(value) ? parseInt(value) : value;
         }
 
