@@ -118,7 +118,6 @@ class TestLoyaltyProgramTypeChildren(TransactionCase):
                     "reward_ids": [Command.clear()],
                 }
             )
-            self.env.flush_all()
 
     def test_the_defaults_split_answers_per_type(self):
         """`_program_type_default_values` is assembled from one method per type."""
