@@ -134,7 +134,7 @@ happen, and it needed no schema knowledge to detect.
 than an error, because an addon may legitimately keep a helper module beside its
 scripts. Measured across this repository's two addon trees — the scope a checkout of
 this repository alone reproduces, a workspace reading being whatever checkouts happened to be on
-disk: **316** scripts in `migrations/` and **7** in `upgrades/`, all correctly
+disk: **317** scripts in `migrations/` and **7** in `upgrades/`, all correctly
 prefixed, **0** dropped.
 
 A risk stated at the level of its hardest half hides the half that is cheap to
@@ -472,7 +472,7 @@ register held it, so the deletion left most gates stating their reason nowhere
 — the removal commit records that cost against itself. `44abc16805b` replaced
 every dangling `ADR-NNNN` token with the decision text the record had carried,
 and wrote a docstring for each gate module that had cited a record and had none.
-Today **53** of the **80** gate modules under `tooling/architecture/` carry no
+Today **53** of the **81** gate modules under `tooling/architecture/` carry no
 module docstring — a gate module being every `.py` there that is neither a test
 nor a private helper.
 
