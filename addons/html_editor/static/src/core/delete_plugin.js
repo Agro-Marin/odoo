@@ -611,10 +611,15 @@ export class DeletePlugin extends Plugin {
         let allNodesRemoved = true;
         for (const node of nodesToRemove) {
             const parent = node.parentNode;
+            const childCountBefore = parent.childNodes.length;
             const didRemove = this.removeNode(node);
             allNodesRemoved &&= didRemove;
-            if (didRemove && endContainer === parent) {
-                endOffset -= 1;
+            if (endContainer === parent) {
+                // `removeNode` can also "unwrap" a node (remove it but splice
+                // its own children in its place), which changes the parent's
+                // child count without `didRemove` being true. Measuring the
+                // actual delta keeps `endOffset` correct in every case.
+                endOffset -= childCountBefore - parent.childNodes.length;
             }
         }
 
