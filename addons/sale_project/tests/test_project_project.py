@@ -49,3 +49,26 @@ class TestProjectProject(TransactionCase):
         )[0]
         projects_to_make_billable += non_billable_projects
         self.assertEqual(projects_to_make_billable, project1 + project2)
+
+    def test_sale_order_actions_are_named_after_the_menu(self):
+        """The two sales entries of the dashboard name the menu, like their siblings."""
+        project = self.env["project.project"].create(
+            {"name": "Mur en beton", "allow_billable": True}
+        )
+        self.assertEqual(
+            project.action_view_project_invoices()["name"],
+            "Invoices",
+            "Reference point: the sibling entries have always named the menu only.",
+        )
+        self.assertEqual(
+            project.action_view_sols()["name"],
+            "Sales Order Items",
+            "The Sales Order Items entry must not prefix the project name.",
+        )
+        # `_get_action_dict_by_xml_id` already carries the action's own
+        # display_name, so the entry is right when it is left alone.
+        self.assertEqual(
+            project.action_view_sos()["display_name"],
+            "Sales Orders",
+            "The Sales Orders entry must not override its own name with the project's.",
+        )
