@@ -437,6 +437,8 @@ export class HistoryPlugin extends Plugin {
                     (record.previousSibling !== undefined ||
                         record.nextSibling !== undefined)
                 );
+            default:
+                return false;
         }
     }
 
