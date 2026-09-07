@@ -857,40 +857,54 @@ class InMemoryBackend:
             return model.browse()
 
         fetched = model.browse(result_ids)
-        column_fields = list(column_fields)
-        if column_fields:
-            env = model.env
-            _fdc = env._field_depends_context
-            field_caches: dict = {}
-            for field in column_fields:
-                if field not in _fdc:
-                    field_caches[field] = env._core.get_field_data(field)
-                else:
-                    try:
-                        field_caches[field] = field._get_cache(env)
-                    except (KeyError, AttributeError, TypeError) as e:
-                        _logger.debug(
-                            "DictBackend cache load skipped %s.%s: %s",
-                            model._name,
-                            field.name,
-                            e,
-                        )
-                        field_caches[field] = env._core.get_field_data(field)
-            for record_id in result_ids:
-                row = self.storage.get_row(model._table, record_id)
-                if row is not None:
-                    for field in column_fields:
-                        value = _column_read_value(field, row.get(field.name), env)
-                        fc = field_caches[field]
-                        fc.setdefault(
-                            record_id,
-                            field.convert_to_cache(value, fetched),
-                        )
+        self._load_column_cache(model, result_ids, list(column_fields), fetched)
 
         if fetched:
             for field in other_fields:
                 field.read(fetched)
         return fetched
+
+    def _load_column_cache(
+        self,
+        model: BaseModel,
+        record_ids: typing.Sequence[int],
+        column_fields: list[Field],
+        records: BaseModel,
+    ) -> None:
+        """Seed the cache from storage, leaving values already in it alone.
+
+        `setdefault` is what makes this safe to call outside a read: a deferred
+        write lives in the cache and must win over the row it has not reached.
+        """
+        if not column_fields:
+            return
+        env = model.env
+        _fdc = env._field_depends_context
+        field_caches: dict = {}
+        for field in column_fields:
+            if field not in _fdc:
+                field_caches[field] = env._core.get_field_data(field)
+            else:
+                try:
+                    field_caches[field] = field._get_cache(env)
+                except (KeyError, AttributeError, TypeError) as e:
+                    _logger.debug(
+                        "DictBackend cache load skipped %s.%s: %s",
+                        model._name,
+                        field.name,
+                        e,
+                    )
+                    field_caches[field] = env._core.get_field_data(field)
+        for record_id in record_ids:
+            row = self.storage.get_row(model._table, record_id)
+            if row is not None:
+                for field in column_fields:
+                    value = _column_read_value(field, row.get(field.name), env)
+                    fc = field_caches[field]
+                    fc.setdefault(
+                        record_id,
+                        field.convert_to_cache(value, records),
+                    )
 
     def search(
         self,
@@ -903,11 +917,26 @@ class InMemoryBackend:
         check_access: bool = True,
         prof: typing.Any = None,
     ) -> Query:
-        flush_search_dependencies(model, domain, order)
-        # Descriptors preserve dirty values and fetch only what is read.
-        # Bulk-loading stored rows here would overwrite deferred writes.
+        searched_fnames = flush_search_dependencies(model, domain, order)
         all_ids = self.storage.table_ids(model._table)
         all_records = model.browse(all_ids)
+
+        # `filtered_domain` and `sorted` read through the descriptors, and a
+        # cache miss there re-enters `fetch` -- which models may override, and
+        # `test_orm.category` overrides with a `search_count`. Seeding the
+        # columns the domain and the order name breaks that cycle at its only
+        # entry point; `_load_column_cache` leaves deferred writes in place.
+        fields = model._fields
+        self._load_column_cache(
+            model,
+            all_ids,
+            [
+                field
+                for fname in searched_fnames.get(model._name, ())
+                if (field := fields[fname]).column_type
+            ],
+            all_records,
+        )
 
         if not domain.is_true():
             matching = all_records.filtered_domain(domain)

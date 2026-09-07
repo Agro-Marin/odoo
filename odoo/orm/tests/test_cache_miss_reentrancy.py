@@ -42,6 +42,19 @@ class CacheMissReal(models.Model):
             rec.shadow = (rec.tick or 0) + 1
 
 
+class CacheMissGuarded(models.Model):
+    _name = "cache.miss.guarded"
+    _module = _MOD
+    _description = "model whose fetch searches, the way a record rule would"
+
+    name = fields.Char()
+
+    def _fetch_query(self, query, fields):
+        if self.search_count([("id", "in", self._ids), ("name", "=", "NOACCESS")]):
+            raise ValueError(self._name)
+        return super()._fetch_query(query, fields)
+
+
 def test_default_branch_survives_invalidation_in_default_get():
     with model_test_env(CacheMissThing, CacheMissReal) as env:
         rec = env["cache.miss.thing"].with_context(boom_default=True).new({})
@@ -75,6 +88,22 @@ def test_store_branch_realistic_pending_compute_invalidates():
         rec.invalidate_recordset(["name"])
         rec2 = env["cache.miss.real"].browse(rec_id).with_context(boom_compute=True)
         assert rec2.name == "hello"
+
+
+def test_a_fetch_that_searches_terminates():
+    with model_test_env(CacheMissGuarded) as env:
+        rec = env["cache.miss.guarded"].create({"name": "visible"})
+        rec_id = rec.id
+        env.invalidate_all(flush=True)
+        assert env["cache.miss.guarded"].browse(rec_id).name == "visible"
+
+
+def test_a_fetch_that_searches_still_sees_an_unflushed_write():
+    with model_test_env(CacheMissGuarded) as env:
+        rec = env["cache.miss.guarded"].create({"name": "visible"})
+        env.cr.flush()
+        rec.write({"name": "renamed"})
+        assert rec.search([("name", "=", "renamed")]) == rec
 
 
 if __name__ == "__main__":

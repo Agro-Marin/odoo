@@ -11,6 +11,10 @@ def flush_search_dependencies(model, domain, order):
 
     Python custom predicates are opaque: retain the historical full flush for
     those domains. Their SQL implementation belongs to the PostgreSQL adapter.
+
+    Returns the stored field names the domain and the order read, per model, so
+    that a backend evaluating them in Python can seed its cache from storage
+    instead of reaching them through the read path.
     """
     fields_by_model = defaultdict(set)
     seen = set()
@@ -82,3 +86,4 @@ def flush_search_dependencies(model, domain, order):
     else:
         for name, fields in fields_by_model.items():
             model.env[name].flush_model(fields)
+    return fields_by_model
