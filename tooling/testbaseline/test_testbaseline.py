@@ -41,11 +41,17 @@ def start(module: str, description: str) -> str:
     )
 
 
-def summary(failed: int, errors: int, total: int) -> str:
+def summary(failed: int, errors: int, total: int, skipped: int = 0) -> str:
+    tail = (
+        f" ({skipped} skipped because the environment could not run them)"
+        if skipped
+        else ""
+    )
     return record(
         "ERROR",
         "odoo.tests.result",
-        f"{failed} failed, {errors} error(s) of {total} tests when loading database 'x'",
+        f"{failed} failed, {errors} error(s) of {total} tests{tail}"
+        " when loading database 'x'",
     )
 
 
@@ -170,6 +176,16 @@ class ScanLogTests(unittest.TestCase):
     def test_a_parse_disagreeing_with_the_server_is_unsound(self):
         text = failure("qc", "TestA.test_b") + summary(3, 0, 41)
         self.assertFalse(self.scan(text).sound)
+
+    def test_environment_skips_do_not_count_as_failures(self):
+        text = failure("qc", "TestA.test_b") + summary(1, 10, 41, skipped=10)
+        self.assertTrue(
+            self.scan(text).sound,
+            "INFRASTRUCTURE UNAVAILABLE classes are counted as errors by the "
+            "server and carry no failure name, so a --no-http run of any suite "
+            "holding HttpCase classes parses as unsound unless they are "
+            "discounted -- which refused a verdict for /web and /point_of_sale",
+        )
 
     def test_errors_and_failures_are_both_counted_against_the_summary(self):
         text = (

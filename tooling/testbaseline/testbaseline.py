@@ -28,6 +28,7 @@ STARTING = re.compile(
 )
 SUMMARY = re.compile(
     r"(?P<failed>\d+) failed, (?P<errors>\d+) error\(s\) of (?P<total>\d+) tests"
+    r"(?: \((?P<skipped>\d+) skipped because the environment could not run them\))?"
 )
 ADDON = re.compile(r"^odoo\.addons\.(?P<module>[^.]+)\.tests\.")
 ADDRESS = re.compile(r"0x[0-9a-fA-F]{4,}")
@@ -90,6 +91,7 @@ def scan_log(path: Path) -> Scan:
                     (reported_failed or 0)
                     + int(summary["failed"])
                     + int(summary["errors"])
+                    - int(summary["skipped"] or 0)
                 )
                 reported_total = (reported_total or 0) + int(summary["total"])
     return Scan(failures, frozenset(started), reported_failed, reported_total)
