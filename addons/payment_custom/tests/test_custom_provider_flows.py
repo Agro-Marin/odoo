@@ -97,6 +97,35 @@ class TestCustomProviderFlows(PaymentCustomCommon):
         # observable contract here is "selected and delegated without error".
         self.assertFalse(self.provider.pending_msg)
 
+    def test_qr_code_degrades_without_account(self):
+        """QR-code generation no-ops instead of crashing when `account` isn't
+        installed, regardless of whether a bank account is configured."""
+        if self.env["ir.module.module"]._get("account").state == "installed":
+            self.skipTest("account installed: build_qr_code_base64 would be available")
+        self.provider.qr_code = True
+        tx = self._create_transaction(flow="direct", reference="QR-REF")
+
+        self.assertFalse(self.company.partner_id.bank_ids)
+        self.assertIsNone(tx._get_custom_qr_code())
+
+        self.env["res.partner.bank"].create(
+            {
+                "acc_number": "FR1420041010050500013M02606",
+                "partner_ids": [(4, self.company.partner_id.id)],
+            }
+        )
+        self.company.partner_id.invalidate_recordset(["bank_ids"])
+
+        self.assertTrue(self.company.partner_id.bank_ids)
+        self.assertIsNone(tx._get_custom_qr_code())
+
+    def test_qr_code_none_when_disabled(self):
+        """QR-code generation is skipped entirely when the provider disables it."""
+        self.provider.qr_code = False
+        tx = self._create_transaction(flow="direct", reference="QR-DISABLED-REF")
+
+        self.assertIsNone(tx._get_custom_qr_code())
+
     def test_create_wire_transfer_clears_pending_msg(self):
         """Creating a wire-transfer provider starts without a pending message."""
         provider = self.env["payment.provider"].create(
