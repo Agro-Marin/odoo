@@ -350,8 +350,11 @@ class HrLeaveType(models.Model):
         "employee_id",
     )
     def _compute_has_valid_allocation(self):
-        date_from = self.env.context.get("default_date_from", fields.Datetime.today())
-        date_to = self.env.context.get("default_date_to", fields.Datetime.today())
+        current_year = fields.Date.today().year
+        default_date_from = date(current_year, 1, 1)
+        default_date_to = date(current_year, 12, 31)
+        date_from = self.env.context.get("default_date_from", default_date_from)
+        date_to = self.env.context.get("default_date_to", default_date_to)
         employee_id = self.env.context.get(
             "default_employee_id",
             self.env.context.get("employee_id", self.env.user.employee_id.id),
