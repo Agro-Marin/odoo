@@ -6,6 +6,10 @@ from odoo.tools.translate import _
 class ResCompany(models.Model):
     _inherit = "res.company"
 
+    display_product_images_on_so = fields.Boolean(
+        string="Display Product Images",
+        help="Print the product image next to its description on order reports.",
+    )
     order_lock_so = fields.Selection(
         selection=[
             ("edit", "Allow to edit sale orders"),

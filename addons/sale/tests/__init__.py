@@ -40,3 +40,4 @@ from . import test_invoice_line_match
 from . import test_account_move_create_sale
 from . import test_sale_price_history
 from . import test_res_config_settings
+from . import test_report_product_image

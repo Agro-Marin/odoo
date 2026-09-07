@@ -247,7 +247,15 @@
                                     <td
                                         name="td_product_name"
                                         t-att-class="padding_class">
-                                        <span t-field="line.name">Bacon Burger</span>
+                                        <img
+                                            t-if="doc.company_id.display_product_images_on_so and line.product_id.image_128"
+                                            t-att-src="image_data_uri(line.product_id.image_128)"
+                                            t-att-alt="line.product_id.display_name"
+                                            class="o_sale_report_product_image me-2 rounded object-fit-cover align-top" />
+                                        <div
+                                            class="o_product_name_cell d-inline-block align-top">
+                                            <span t-field="line.name">Bacon Burger</span>
+                                        </div>
                                     </td>
                                     <td
                                         name="td_product_quantity"

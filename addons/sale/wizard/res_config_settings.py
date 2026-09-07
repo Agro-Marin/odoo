@@ -74,6 +74,10 @@ class ResConfigSettings(models.TransientModel):
     prepayment_percent = fields.Float(
         related="company_id.prepayment_percent", readonly=False
     )
+    display_product_images_on_so = fields.Boolean(
+        related="company_id.display_product_images_on_so",
+        readonly=False,
+    )
     downpayment_account_id = fields.Many2one(
         related="company_id.downpayment_account_id",
         readonly=False,

@@ -229,6 +229,13 @@
                                 invisible="not module_sale_pdf_quote_builder" />
                         </setting>
                         <setting
+                            id="display_product_images_on_so"
+                            company_dependent="1"
+                            string="Display Product Images"
+                            help="Print the product image next to its description on order reports.">
+                            <field name="display_product_images_on_so" />
+                        </setting>
+                        <setting
                             id="lock_confirmed_orders"
                             company_dependent="1"
                             help="Automatically lock sale orders once confirmed to prevent modifications">
