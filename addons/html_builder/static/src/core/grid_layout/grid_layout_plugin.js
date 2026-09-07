@@ -309,7 +309,7 @@ export class GridLayoutPlugin extends Plugin {
         const { marginTop } = getComputedStyle(snippetEl);
         dragState.marginToAdd = parseInt(marginTop) ? ["mt-0"] : [];
         snippetEl.remove();
-        snippetEl.classList.add(...paddingClasses, ...paddingClasses);
+        snippetEl.classList.add(...paddingClasses, ...marginClasses);
     }
 
     /**
