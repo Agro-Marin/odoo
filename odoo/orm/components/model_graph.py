@@ -186,6 +186,7 @@ class _TriggerState:
         "index",
         "merged",
         "modifying_relations",
+        "path_fields",
         "recompute_order",
         "trees",
         "triggers",
@@ -197,6 +198,7 @@ class _TriggerState:
         self.trees: dict[Any, TriggerTree] = {}
         self.merged: dict[tuple, TriggerTree] = {}
         self.modifying_relations: dict[Any, bool] = {}
+        self.path_fields: frozenset | None = None
         self.recompute_order: dict[Any, int] | None = None
 
     def get_index(self) -> _TriggerIndex:
@@ -204,6 +206,17 @@ class _TriggerState:
         if index is None:
             index = self.index = _TriggerIndex(self.triggers)
         return index
+
+    def get_path_fields(self) -> frozenset:
+        path_fields = self.path_fields
+        if path_fields is None:
+            path_fields = self.path_fields = frozenset(
+                field
+                for paths in self.triggers.values()
+                for path in paths
+                for field in path
+            )
+        return path_fields
 
 
 _MERGED_CACHE_MAX = 512
@@ -261,7 +274,8 @@ class ModelGraph:
             state.index = None
             state.trees.pop(dep_field, None)
             state.merged.clear()
-            state.modifying_relations.pop(dep_field, None)
+            state.modifying_relations.clear()
+            state.path_fields = None
             state.recompute_order = None
 
     def reset_triggers(self) -> None:
@@ -387,16 +401,16 @@ class ModelGraph:
         except KeyError:
             pass
 
-        result = bool(
-            _is_relational(field)
-            or self._inverses.get(field, ())
-            or any(
-                _is_relational(dep) or self._inverses.get(dep, ())
-                for dep in self._get_dependent_fields(state, field)
-            )
+        path_fields = state.get_path_fields()
+        result = self._modifies_relations(field, path_fields) or any(
+            self._modifies_relations(dep, path_fields)
+            for dep in self._get_dependent_fields(state, field)
         )
         state.modifying_relations[field] = result
         return result
+
+    def _modifies_relations(self, field: Any, path_fields: frozenset) -> bool:
+        return bool(self._inverses.get(field, ())) or field in path_fields
 
     @property
     def recompute_order(self) -> dict[Any, int]:
@@ -519,7 +533,3 @@ def _strongly_connected_components(
                 components.append(component)
 
     return components
-
-
-def _is_relational(field: FieldLike) -> bool:
-    return field.relational

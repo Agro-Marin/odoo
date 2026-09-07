@@ -419,11 +419,19 @@ class TestModelGraphQueries(unittest.TestCase):
 
 
 class TestIsModifyingRelations(unittest.TestCase):
-    def test_relational_field_with_triggers(self) -> None:
+    def test_relational_field_no_path_traverses_it(self) -> None:
         g = ModelGraph()
         m2o = _field("partner_id", type_="many2one", relational=True)
         dep = _field("partner_name", is_stored_computed=True)
         g.add_trigger(m2o, (), [dep])
+        self.assertFalse(g.is_modifying_relations(m2o))
+
+    def test_relational_field_a_path_traverses(self) -> None:
+        g = ModelGraph()
+        m2o = _field("partner_id", type_="many2one", relational=True)
+        dep = _field("partner_name", is_stored_computed=True)
+        g.add_trigger(m2o, (), [dep])
+        g.add_trigger(_field("name"), (m2o,), [dep])
         self.assertTrue(g.is_modifying_relations(m2o))
 
     def test_scalar_field_no_relational_deps(self) -> None:
@@ -433,11 +441,19 @@ class TestIsModifyingRelations(unittest.TestCase):
         g.add_trigger(scalar, (), [dep])
         self.assertFalse(g.is_modifying_relations(scalar))
 
-    def test_scalar_with_relational_dependent(self) -> None:
+    def test_scalar_with_untraversed_relational_dependent(self) -> None:
         g = ModelGraph()
         scalar = _field("code")
         dep = _field("ref_id", relational=True)
         g.add_trigger(scalar, (), [dep])
+        self.assertFalse(g.is_modifying_relations(scalar))
+
+    def test_scalar_with_traversed_relational_dependent(self) -> None:
+        g = ModelGraph()
+        scalar = _field("code")
+        dep = _field("ref_id", relational=True)
+        g.add_trigger(scalar, (), [dep])
+        g.add_trigger(_field("label"), (dep,), [_field("ref_label")])
         self.assertTrue(g.is_modifying_relations(scalar))
 
     def test_field_with_inverses(self) -> None:
@@ -449,9 +465,34 @@ class TestIsModifyingRelations(unittest.TestCase):
         g._inverses[m2o] = (o2m,)
         self.assertTrue(g.is_modifying_relations(m2o))
 
+    def test_scalar_field_with_inverses(self) -> None:
+        g = ModelGraph()
+        res_id = _field("res_id", type_="many2one_reference")
+        o2m = _field("attachment_ids", type_="one2many", relational=True)
+        g.add_trigger(res_id, (), [_field("name", is_stored_computed=True)])
+        g._inverses[res_id] = (o2m,)
+        self.assertTrue(g.is_modifying_relations(res_id))
+
+    def test_dependent_with_inverses(self) -> None:
+        g = ModelGraph()
+        scalar = _field("code")
+        dep = _field("line_ids", type_="one2many", relational=True)
+        g.add_trigger(scalar, (), [dep])
+        g._inverses[dep] = (_field("parent_id", type_="many2one", relational=True),)
+        self.assertTrue(g.is_modifying_relations(scalar))
+
     def test_no_triggers_is_false(self) -> None:
         g = ModelGraph()
         self.assertFalse(g.is_modifying_relations(_field("x")))
+
+    def test_a_new_path_reopens_a_cached_false(self) -> None:
+        g = ModelGraph()
+        m2o = _field("partner_id", type_="many2one", relational=True)
+        dep = _field("partner_name", is_stored_computed=True)
+        g.add_trigger(m2o, (), [dep])
+        self.assertFalse(g.is_modifying_relations(m2o))
+        g.add_trigger(_field("name"), (m2o,), [dep])
+        self.assertTrue(g.is_modifying_relations(m2o))
 
     def test_caches_result(self) -> None:
         g = ModelGraph()
