@@ -1,4 +1,6 @@
+from odoo.exceptions import UserError
 from odoo.fields import Command
+from odoo.tests import Form
 
 from odoo.addons.sale.tests.common import SaleCommon
 
@@ -219,3 +221,184 @@ class TestSaleMargin(SaleCommon):
             5.0,
             "The combo item line still costs off its own product as usual",
         )
+
+
+DISCOUNT = 50
+
+# A line of one unit whose cost is 50: for each margin the salesperson types,
+# the unit price the line must end up with, and the resulting margin percent.
+NO_TAX_MARGINS = [
+    {"margin": 16.67, "margin_percent": 0.25, "price_unit": 66.67},
+    {"margin": 25.0, "margin_percent": 1 / 3, "price_unit": 75.0},
+    {"margin": 50.0, "margin_percent": 0.5, "price_unit": 100.0},
+    {"margin": 75.0, "margin_percent": 0.6, "price_unit": 125.0},
+    {"margin": 150.0, "margin_percent": 0.75, "price_unit": 200.0},
+]
+# The margin is computed off the subtotal, so a discount leaves it untouched
+# and only scales the unit price the target margin needs.
+NO_TAX_MARGINS_DISCOUNTED = [
+    {**values, "price_unit": values["price_unit"] / (1 - DISCOUNT / 100)}
+    for values in NO_TAX_MARGINS
+]
+
+# Same line, but its 50% tax is included in the price: the unit price now has
+# to carry the tax on top of the price that yields the margin.
+TAX_INCL_MARGINS = [
+    {"margin": -16.67, "margin_percent": -0.5, "price_unit": 50.0},
+    {"margin": 16.67, "margin_percent": 0.25, "price_unit": 100.0},
+    {"margin": 33.33, "margin_percent": 0.4, "price_unit": 125.0},
+    {"margin": 50.0, "margin_percent": 0.5, "price_unit": 150.0},
+    {"margin": 83.33, "margin_percent": 0.625, "price_unit": 200.0},
+    {"margin": 283.33, "margin_percent": 0.85, "price_unit": 500.0},
+]
+TAX_INCL_MARGINS_DISCOUNTED = [
+    {**values, "price_unit": values["price_unit"] / (1 - DISCOUNT / 100)}
+    for values in TAX_INCL_MARGINS
+]
+
+
+class TestSaleMarginEditable(SaleCommon):
+    """The salesperson types the margin they want and the unit price follows."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._enable_discounts()
+
+        cls.product_50_margin = cls._create_product(
+            list_price=100.0, standard_price=50.0, taxes_id=[Command.set([])]
+        )
+        tax_group = cls.env["account.tax.group"].create({"name": "Tax Group A"})
+        cls.tax_included, cls.tax_excluded = cls.env["account.tax"].create(
+            [
+                {
+                    "name": "Tax with price include",
+                    "amount": 50,
+                    "price_include_override": "tax_included",
+                    "tax_group_id": tax_group.id,
+                },
+                {
+                    "name": "Tax with price exclude",
+                    "amount": 50,
+                    "price_include_override": "tax_excluded",
+                    "tax_group_id": tax_group.id,
+                },
+            ]
+        )
+
+        cls.so = cls.env["sale.order"].create(
+            {
+                "partner_id": cls.partner.id,
+                "line_ids": [Command.create({"product_id": cls.product_50_margin.id})],
+            }
+        )
+        cls.sol = cls.so.line_ids
+
+    def _assert_margin_drives_price(self, fname, vals_list):
+        """Type `fname` in the line form and check where the whole line lands."""
+        with Form(self.so) as so_form, so_form.line_ids.edit(0) as sol_form:
+            for values in vals_list:
+                sol_form[fname] = values[fname]
+                for key, expected in values.items():
+                    self.assertAlmostEqual(
+                        sol_form[key],
+                        expected,
+                        msg=f"{key} doesn't match ({fname}: {values[fname]})",
+                        delta=0.01 if key == "margin_percent" else 0.02,
+                    )
+
+    def test_margin_drives_price_without_tax(self):
+        self.assertRecordValues(
+            self.sol,
+            [
+                {
+                    "price_unit": 100.0,
+                    "purchase_price": 50.0,
+                    "margin": 50.0,
+                    "margin_percent": 0.5,
+                    "tax_ids": [],
+                }
+            ],
+        )
+        self._assert_margin_drives_price("margin", NO_TAX_MARGINS)
+        self._assert_margin_drives_price("margin_percent", NO_TAX_MARGINS)
+
+        self.sol.discount = DISCOUNT
+        self._assert_margin_drives_price("margin", NO_TAX_MARGINS_DISCOUNTED)
+        self._assert_margin_drives_price("margin_percent", NO_TAX_MARGINS_DISCOUNTED)
+
+    def test_margin_drives_price_with_excluded_tax(self):
+        self.product_50_margin.taxes_id = [Command.link(self.tax_excluded.id)]
+        self.so._recompute_taxes()
+        self.assertRecordValues(
+            self.sol,
+            [
+                {
+                    "price_unit": 100.0,
+                    "purchase_price": 50.0,
+                    "margin": 50.0,
+                    "margin_percent": 0.5,
+                    "tax_ids": [self.tax_excluded.id],
+                }
+            ],
+        )
+        # A tax excluded from the price cannot move the unit price the margin needs.
+        self._assert_margin_drives_price("margin", NO_TAX_MARGINS)
+        self._assert_margin_drives_price("margin_percent", NO_TAX_MARGINS)
+
+        self.sol.discount = DISCOUNT
+        self._assert_margin_drives_price("margin", NO_TAX_MARGINS_DISCOUNTED)
+        self._assert_margin_drives_price("margin_percent", NO_TAX_MARGINS_DISCOUNTED)
+
+    def test_margin_drives_price_with_included_tax(self):
+        self.product_50_margin.taxes_id = [Command.link(self.tax_included.id)]
+        self.so._recompute_taxes()
+        self.assertRecordValues(
+            self.sol,
+            [
+                {
+                    "price_unit": 100.0,
+                    "purchase_price": 50.0,
+                    "margin": 16.67,
+                    "margin_percent": 0.25,
+                    "price_tax": 33.33,
+                    "tax_ids": [self.tax_included.id],
+                }
+            ],
+        )
+        self._assert_margin_drives_price("margin", TAX_INCL_MARGINS)
+        self._assert_margin_drives_price("margin_percent", TAX_INCL_MARGINS)
+
+        self.sol.discount = DISCOUNT
+        self._assert_margin_drives_price("margin", TAX_INCL_MARGINS_DISCOUNTED)
+        self._assert_margin_drives_price("margin_percent", TAX_INCL_MARGINS_DISCOUNTED)
+
+    def test_margin_percent_of_100_needs_a_free_line(self):
+        """A line that costs something cannot be sold at a 100% margin."""
+        with Form(self.so) as so_form, so_form.line_ids.edit(0) as sol_form:
+            with self.assertRaises(UserError):
+                sol_form["margin_percent"] = 1.0
+
+    def test_margin_on_a_fully_discounted_line_is_refused(self):
+        """A 100% discount leaves no unit price that could yield a margin.
+
+        Production carries 434 such lines, so this is the path a salesperson
+        actually reaches -- upstream divides by `1 - discount / 100` here and
+        raises `ZeroDivisionError`.
+        """
+        self.sol.discount = 100.0
+        with Form(self.so) as so_form, so_form.line_ids.edit(0) as sol_form:
+            with self.assertRaises(UserError):
+                sol_form["margin"] = 50.0
+
+    def test_margin_on_a_zero_quantity_line_is_refused(self):
+        """Nothing sold, nothing delivered: no unit price yields a margin.
+
+        Production carries 550 accountable lines with `product_qty = 0`, some
+        with `qty_transferred = 0` too -- upstream divides by the quantity here
+        and raises `ZeroDivisionError`.
+        """
+        self.sol.product_qty = 0.0
+        with Form(self.so) as so_form, so_form.line_ids.edit(0) as sol_form:
+            with self.assertRaises(UserError):
+                sol_form["margin"] = 50.0
