@@ -1082,9 +1082,9 @@ export class PosStore extends WithLazyGetterTrap {
     tryMergeOrderline(order, line, merge, selectedOrderline) {
         selectedOrderline = selectedOrderline || order.getSelectedOrderline();
         let to_merge_orderline;
-        for (const curLine of order.lines) {
-            if (curLine.id !== line.id) {
-                if (curLine.canBeMergedWith(line) && merge !== false) {
+        if (merge !== false) {
+            for (const curLine of order.lines) {
+                if (curLine.id !== line.id && curLine.canBeMergedWith(line)) {
                     to_merge_orderline = curLine;
                 }
             }

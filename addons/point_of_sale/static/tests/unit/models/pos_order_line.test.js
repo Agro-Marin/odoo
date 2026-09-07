@@ -1,4 +1,7 @@
 import { describe, expect, test } from "@odoo/hoot";
+import { ProductTemplateAccounting } from "@point_of_sale/app/models/accounting/product_template_accounting";
+import { PosOrderline } from "@point_of_sale/app/models/pos_order_line";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 
 import { definePosModels } from "../data/generate_model_definitions.js";
 import { getFilledOrder, setupPosEnv } from "../utils.js";
@@ -245,6 +248,76 @@ test("[canBeMergedWith]: Base test", async () => {
     expect(line1.canBeMergedWith(line2)).toBe(false);
     line1.merge(line2);
     expect(line1.qty).toBe(5);
+});
+
+describe("[canBeMergedWith]: what it costs to ask", () => {
+    function countPriceResolutions() {
+        const counter = { n: 0 };
+        patchWithCleanup(ProductTemplateAccounting.prototype, {
+            getPrice() {
+                counter.n++;
+                return super.getPrice(...arguments);
+            },
+        });
+        return counter;
+    }
+
+    test("a line that fails a cheap test never resolves the pricelist", async () => {
+        const store = await setupPosEnv();
+        const order = await getFilledOrder(store);
+        const [line1, line2] = order.lines;
+        const counter = countPriceResolutions();
+
+        counter.n = 0;
+        expect(line1.canBeMergedWith(line2)).toBe(false);
+        expect(counter.n).toBe(0);
+
+        line2.product_id = line1.product_id;
+        line2.setFullProductName();
+        counter.n = 0;
+        expect(line1.canBeMergedWith(line2)).toBe(true);
+        expect(counter.n).toBe(1);
+    });
+
+    test("the merge scan is linear in the order, not quadratic", async () => {
+        const store = await setupPosEnv();
+        const order = store.addNewOrder();
+        const productTemplate = store.models["product.template"].get(5);
+        const counter = countPriceResolutions();
+
+        counter.n = 0;
+        for (let i = 0; i < 12; i++) {
+            const line = await store.addLineToOrder(
+                { product_tmpl_id: productTemplate, qty: 1 },
+                order,
+            );
+            line.setNote(`[{"text":"note ${i}","colorIndex":0}]`);
+        }
+
+        expect(order.lines.length).toBe(12);
+        // One resolution per added line (handlePriceUnit). The merge scan adds
+        // none, because a differing note answers before the pricelist is read.
+        expect(counter.n).toBe(12);
+    });
+
+    test("a caller that opted out of merging pays for no comparison", async () => {
+        const store = await setupPosEnv();
+        const order = await getFilledOrder(store);
+        const line = order.lines[0];
+        let comparisons = 0;
+        patchWithCleanup(PosOrderline.prototype, {
+            canBeMergedWith() {
+                comparisons++;
+                return super.canBeMergedWith(...arguments);
+            },
+        });
+
+        store.tryMergeOrderline(order, line, false);
+        expect(comparisons).toBe(0);
+
+        store.tryMergeOrderline(order, line, true);
+        expect(comparisons).toBe(1);
+    });
 });
 
 describe("Test taxes after fiscal position", () => {

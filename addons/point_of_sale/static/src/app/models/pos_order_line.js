@@ -341,11 +341,29 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     canBeMergedWith(orderline) {
+        const product = orderline.getProduct();
+        if (
+            this.getProduct().id !== product.id ||
+            this.full_product_name !== orderline.full_product_name ||
+            this.price_type !== orderline.price_type ||
+            this.getDiscount() !== orderline.getDiscount() ||
+            this.getNote() !== orderline.getNote() ||
+            this.getCustomerNote() !== orderline.getCustomerNote() ||
+            this.refunded_orderline_id ||
+            orderline.isPartOfCombo() ||
+            !this.isPosGroupable() ||
+            this.isLotTracked()
+        ) {
+            return false;
+        }
+
+        // Resolving the pricelist is the expensive half of this predicate and
+        // the only one that survives every cheap discriminator above, so it is
+        // reached once per genuine candidate instead of once per order line.
         const ProductPrice = this.models["decimal.precision"].find(
             (dp) => dp.name === "Product Price",
         );
         const price = ProductPrice.round(this.price_unit || 0);
-        const product = orderline.getProduct();
         const order_line_price = product.getPrice(
             orderline.order_id.pricelist_id,
             this.getQuantity(),
@@ -353,28 +371,10 @@ export class PosOrderline extends PosOrderlineAccounting {
             false,
             product,
         );
-
-        const isSameCustomerNote =
-            (Boolean(orderline.getCustomerNote()) === false &&
-                Boolean(this.getCustomerNote()) === false) ||
-            orderline.getCustomerNote() === this.getCustomerNote();
-
-        return (
-            orderline.getNote() === this.getNote() &&
-            this.getProduct().id === orderline.getProduct().id &&
-            this.isPosGroupable() &&
-            this.getDiscount() === orderline.getDiscount() &&
-            this.price_type === orderline.price_type &&
-            this.currency.isZero(
-                this.currency.round(price) -
-                    this.currency.round(order_line_price) -
-                    orderline.getPriceExtra(),
-            ) &&
-            !this.isLotTracked() &&
-            this.full_product_name === orderline.full_product_name &&
-            isSameCustomerNote &&
-            !this.refunded_orderline_id &&
-            !orderline.isPartOfCombo()
+        return this.currency.isZero(
+            this.currency.round(price) -
+                this.currency.round(order_line_price) -
+                orderline.getPriceExtra(),
         );
     }
 
