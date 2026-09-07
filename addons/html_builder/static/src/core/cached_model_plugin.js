@@ -81,6 +81,6 @@ export class CachedModelPlugin extends Plugin {
                 }
             }
         }
-        return !!inventory.length;
+        return !!Object.keys(inventory).length;
     }
 }
