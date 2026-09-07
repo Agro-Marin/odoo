@@ -7,7 +7,7 @@
             <div class="o_home_menu_header position-relative mt-4">
               <div class="o_home_menu_search_wrapper position-relative mx-auto">
                 <i class="oi oi-search o_home_menu_search_icon position-absolute top-50 translate-middle-y" aria-hidden="true"/>
-                <input t-ref="input" type="search" class="o_home_menu_search form-control form-control-lg" data-allow-hotkeys="true" t-on-input="_onInputSearch" t-on-blur="_onInputBlur" t-on-compositionstart="_onCompositionStart"
+                <input t-ref="input" type="search" class="o_home_menu_search form-control form-control-lg" data-allow-hotkeys="true" t-on-input="() => this.search.onInput()" t-on-blur="() => this.search.onBlur()" t-on-compositionstart="() => this.search.onCompositionStart()"
                     aria-label="Search apps and menus"
                     placeholder="Search apps and menus..."
                     autocomplete="off"
@@ -30,7 +30,7 @@
             <ExpirationPanel t-if="subscription.warningType and !subscription.isWarningHidden and subscription.daysLeft &lt;= 30 and subscription.daysLeft > 0 and !subscription.sysadmin.replace"/>
             <SysAdminPanel t-if="subscription.daysLeft > 0 and subscription.sysadmin.message"/>
             <t t-set="recents" t-value="recentApps"/>
-            <nav t-if="recents.length and !state.query" class="o_home_menu_recent mt-4 mx-0" aria-label="Recent apps">
+            <nav t-if="recents.length and !search.query" class="o_home_menu_recent mt-4 mx-0" aria-label="Recent apps">
                 <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Recent</div>
                 <div class="o_recent_apps row user-select-none mx-0" role="list">
                     <div t-foreach="recents" t-as="app" t-key="app.id" class="col-3 col-md-2 mb-3 px-0" role="listitem">
@@ -67,7 +67,7 @@
                     </div>
                 </div>
             </div>
-            <div t-elif="!state.query" class="o_no_result">
+            <div t-elif="!search.query" class="o_no_result">
                 No apps available
             </div>
             <div t-elif="!menuResults.length" class="o_no_result text-center text-muted mt-5">
