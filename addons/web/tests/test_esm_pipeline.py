@@ -19,7 +19,7 @@ from odoo.fields import Domain
 from odoo.libs.asset_log import ASSET_ROOT, get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
 from odoo.tests.common import HttpCase, TransactionCase, tagged
-from odoo.tools.assets import esm_bridges
+from odoo.tools.assets import esbuild_process, esm_bridges
 from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
 from odoo.tools.assets.esm_graph import (
     _IMPORT_ANY_RE,
@@ -879,7 +879,6 @@ class TestEsbuildHelpers(TransactionCase):
         self.assertIn("--external:@lazy/child", external_flags)
 
     def test_postprocess_rewrites_directive_and_captures_sidecars(self):
-        c = self._compiler("web.assets_emoji")
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             out = tmp / "x.out.js"
@@ -891,34 +890,41 @@ class TestEsbuildHelpers(TransactionCase):
             )
             meta.write_text('{"inputs":{}}', encoding="utf-8")
             smap.write_text('{"version":3,"mappings":""}', encoding="utf-8")
-            result = c._postprocess_esbuild_output(
-                out, meta, smap, "linked", entry_bytes=10, _t0=time.monotonic()
+            result, metafile, sourcemap = esbuild_process.postprocess_output(
+                "web.assets_emoji",
+                0,
+                out,
+                meta,
+                smap,
+                "linked",
+                entry_bytes=10,
+                _t0=time.monotonic(),
             )
         self.assertIn("//# sourceMappingURL=web.assets_emoji.esm.js.map", result)
         self.assertNotIn("tmpXYZ", result)
-        self.assertEqual(c._last_metafile, '{"inputs":{}}')
-        self.assertEqual(c._last_sourcemap, '{"version":3,"mappings":""}')
+        self.assertEqual(metafile, '{"inputs":{}}')
+        self.assertEqual(sourcemap, '{"version":3,"mappings":""}')
 
     def test_postprocess_no_sourcemap_leaves_last_none(self):
-        c = self._compiler()
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             out = tmp / "x.out.js"
             meta = tmp / "x.meta.json"
             out.write_text("console.log(2);", encoding="utf-8")
             meta.write_text("{}", encoding="utf-8")
-            result = c._postprocess_esbuild_output(
-                out, meta, tmp / "x.map", "", 5, time.monotonic()
+            result, _metafile, sourcemap = esbuild_process.postprocess_output(
+                "web.assets_emoji", 0, out, meta, tmp / "x.map", "", 5, time.monotonic()
             )
         self.assertEqual(result, "console.log(2);")
-        self.assertIsNone(c._last_sourcemap)
+        self.assertIsNone(sourcemap)
 
     def test_postprocess_missing_output_raises(self):
-        c = self._compiler()
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             with self.assertRaises(RuntimeError) as ctx:
-                c._postprocess_esbuild_output(
+                esbuild_process.postprocess_output(
+                    "web.assets_emoji",
+                    0,
                     tmp / "nope.js",
                     tmp / "nope.meta",
                     tmp / "nope.map",
@@ -1785,10 +1791,13 @@ class TestImportMapMergeHelpers(TransactionCase):
         )
 
     def _patch_registry(self, reg):
-        return patch(
-            "odoo.addons.base.models.ir_qweb_assets.esm_registry",
-            return_value=reg,
-        )
+        stack = contextlib.ExitStack()
+        for module in (
+            "odoo.addons.base.models.ir_qweb_assets",
+            "odoo.addons.base.models.ir_qweb_assets_import_map",
+        ):
+            stack.enter_context(patch(f"{module}.esm_registry", return_value=reg))
+        return stack
 
     def test_dynamic_child_construction_policy(self):
         reg = self._fake_registry(

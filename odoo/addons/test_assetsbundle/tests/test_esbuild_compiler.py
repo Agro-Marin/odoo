@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from odoo import tools
 from odoo.tests.common import BaseCase, TransactionCase
+from odoo.tools.assets import esbuild_process
 from odoo.tools.assets.esbuild import EsbuildCompiler, _get_esbuild_path
 from odoo.tools.json import scriptsafe as json
 
@@ -188,16 +189,14 @@ class TestMinifyJsFailureModes(BaseCase):
 
 
 class TestRunEsbuildFailureReporting(BaseCase):
-    def _compiler(self, name="test.failrep"):
-        return EsbuildCompiler(name, [], [])
-
     def test_a_nonzero_exit_dumps_the_entry_and_names_the_file(self):
-        compiler = self._compiler()
-        self.addCleanup(compiler._remove_stale_fail_dumps, compiler.name)
+        name = "test.failrep"
+        self.addCleanup(esbuild_process.remove_stale_fail_dumps, name)
 
         with self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged:
             with self.assertRaises(RuntimeError) as caught:
-                compiler._run_esbuild(
+                esbuild_process.run_esbuild(
+                    name,
                     ["sh", "-c", "echo 'boom' >&2; exit 3"],
                     30,
                     "// the entry that failed\n",
@@ -217,13 +216,15 @@ class TestRunEsbuildFailureReporting(BaseCase):
         )
 
     def test_each_failure_purges_the_previous_dump_for_that_bundle(self):
-        compiler = self._compiler("test.purge")
-        self.addCleanup(compiler._remove_stale_fail_dumps, compiler.name)
+        name = "test.purge"
+        self.addCleanup(esbuild_process.remove_stale_fail_dumps, name)
 
         def fail_once(text):
             with self.assertLogs("odoo.assets.esbuild", level="WARNING") as logged:
                 with self.assertRaises(RuntimeError):
-                    compiler._run_esbuild(["sh", "-c", "exit 1"], 30, text, 0.0)
+                    esbuild_process.run_esbuild(
+                        name, ["sh", "-c", "exit 1"], 30, text, 0.0
+                    )
             return re.search(r"entry=(\S+\.js)", "\n".join(logged.output)).group(1)
 
         first = fail_once("// first\n")
@@ -234,18 +235,19 @@ class TestRunEsbuildFailureReporting(BaseCase):
         self.assertTrue(Path(second).exists())
 
     def test_a_timeout_is_reported_as_a_timeout(self):
-        compiler = self._compiler()
         with self.assertLogs("odoo.assets.esbuild", level="ERROR") as logged:
             with self.assertRaises(RuntimeError) as caught:
-                compiler._run_esbuild(["sleep", "5"], 1, "// slow\n", 0.0)
+                esbuild_process.run_esbuild(
+                    "test.failrep", ["sleep", "5"], 1, "// slow\n", 0.0
+                )
         self.assertIn("timed out after 1s", str(caught.exception))
         self.assertIn("event=timeout", "\n".join(logged.output))
 
     def test_a_clean_exit_says_nothing_and_writes_nothing(self):
-        compiler = self._compiler("test.quiet")
-        compiler._remove_stale_fail_dumps(compiler.name)
+        name = "test.quiet"
+        esbuild_process.remove_stale_fail_dumps(name)
         with self.assertNoLogs("odoo.assets.esbuild", level="WARNING"):
-            compiler._run_esbuild(["true"], 30, "// fine\n", 0.0)
+            esbuild_process.run_esbuild(name, ["true"], 30, "// fine\n", 0.0)
         self.assertEqual(
             list(Path(tempfile.gettempdir()).glob("esbuild_fail_test.quiet_*.js")), []
         )

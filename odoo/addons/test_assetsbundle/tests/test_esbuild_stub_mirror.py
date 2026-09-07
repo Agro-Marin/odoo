@@ -5,7 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from odoo.tests.common import BaseCase
-from odoo.tools.assets.esbuild import EsbuildCompiler, _get_esbuild_path
+from odoo.tools.assets import esbuild_stubs
+from odoo.tools.assets.esbuild import _get_esbuild_path
 
 from odoo.addons.base.models.assetsbundle import AssetsBundle
 
@@ -33,7 +34,7 @@ def _build_probe_stub_mirror(tmp, files, stubs):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
     stub_root = odoo_root / "stubs"
-    flags = EsbuildCompiler._write_stub_mirror(
+    flags = esbuild_stubs.write_stub_mirror(
         stub_root, stubs, ["--alias:@probe=./addons/probe/static/src"], odoo_root
     )
     return stub_root, src_root, {f.split("=")[0]: f.split("=", 1)[1] for f in flags}
@@ -188,7 +189,7 @@ class TestDeepStubMirror(BaseCase):
             (stub_root / "leaked").symlink_to(outside, target_is_directory=True)
 
             with self.assertRaises(RuntimeError) as caught:
-                EsbuildCompiler._check_inside_mirror(
+                esbuild_stubs.check_inside_mirror(
                     stub_root / "leaked" / "module.js", stub_root
                 )
             self.assertIn("outside the stub mirror", str(caught.exception))
@@ -287,4 +288,3 @@ class TestBarePackageStubMirror(BaseCase):
             self.assertIn("SHIM_INDEX", proc.stdout)
             self.assertNotIn("REAL_INDEX", proc.stdout)
             self.assertIn("REAL_NET", proc.stdout)
-

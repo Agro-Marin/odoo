@@ -154,7 +154,7 @@ non-ESM bundle" stub and neither raises when it is the wrong one:
 - `secondary_import_map_includes` — the child **is** compiled, and this is the only
   key that populates `secondary_parents`, the mapping that makes esbuild `--alias`
   the child's shared specifiers onto `odoo.loader.modules` shims
-  (`EsbuildCompiler._esbuild_stub_aliases`).
+  (`esbuild_stubs.stub_aliases`).
   Required whenever the satellite must drive the parent's *live* instances, e.g. a
   tour calling `patchWithCleanup(browser, …)` against an already-running app.
 
@@ -201,7 +201,7 @@ The server compiles every child declared under that page **together**
    to feed the debug import map, and they must never be evaluated twice — and
    so is every member whose URL is a declared `esm.external_libs` file, which
    the browser resolves through the import map and dedups by URL;
-2. each addon a child touches is mirrored into a temp tree (`_esbuild_mirror_aliases`,
+2. each addon a child touches is mirrored into a temp tree (`esbuild_stubs.mirror_aliases`,
    one symlink per real file) where every parent-owned module any child reaches
    — by bare specifier or by relative import — is replaced by a **strict stub**
    (`_strict_stub_source`: `odoo.loader.modules.get(spec)` or throw; a child

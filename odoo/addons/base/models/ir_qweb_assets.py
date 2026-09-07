@@ -1,4 +1,3 @@
-import functools
 import hashlib
 import logging
 import time
@@ -11,20 +10,17 @@ from psycopg.errors import ReadOnlySqlTransaction
 from rjsmin import jsmin as _rjsmin
 
 from odoo import SUPERUSER_ID, api, models, tools
-from odoo.fields import Domain
 from odoo.http import request
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
-from odoo.tools.assets.esbuild import EsbuildResult, minify_js
+from odoo.tools.assets.esbuild import EsbuildResult
 from odoo.tools.assets.esm_graph import (
     addon_specifier_to_url,
-    discover_transitive_import_specifiers,
     resolve_specifier_url,
 )
 from odoo.tools.assets.esm_libs import (
     served_external_libs,
-    served_lib_content,
     served_lib_files,
 )
 from odoo.tools.assets.esm_registry import (
@@ -326,74 +322,6 @@ class IrQweb(models.AbstractModel):
     _external_libs = staticmethod(external_libs)
     _served_external_libs_table = staticmethod(served_external_libs)
     _served_lib_files = staticmethod(served_lib_files)
-
-    def _served_external_libs(self, *, debug_assets: bool) -> dict[str, str]:
-        if debug_assets:
-            return dict(self._external_libs())
-        self._create_served_libs()
-        return dict(self._served_external_libs_table())
-
-    @staticmethod
-    def _minify_served_lib(path: Path, declared_url: str) -> bytes:
-        source = path.read_text(encoding="utf-8")
-        minified = minify_js(source, label=declared_url, keep_names=True)
-        return (minified if minified is not None else source).encode("utf-8")
-
-    def _create_served_libs(self) -> None:
-        files = self._served_lib_files()
-        if not files:
-            return
-        IrAttachment = self.env["ir.attachment"].sudo()
-        present = set(
-            IrAttachment.search_fetch(
-                IrAttachment._generated_asset_domain()
-                & Domain("url", "in", list(files)),
-                ["url"],
-            ).mapped("url")
-        )
-        vals_list = []
-        for served_url, (_lib, declared_url) in files.items():
-            if served_url in present:
-                continue
-            path = _lib.files[declared_url]
-            vals_list.append(
-                {
-                    "name": declared_url.lstrip("/"),
-                    "mimetype": "text/javascript",
-                    "res_model": "ir.ui.view",
-                    "res_id": False,
-                    "type": "binary",
-                    "public": True,
-                    "raw": served_lib_content(
-                        served_url,
-                        functools.partial(self._minify_served_lib, path, declared_url),
-                    ),
-                    "url": served_url,
-                }
-            )
-        if not vals_list:
-            return
-        try:
-            self._save_esm_attachment_rows(vals_list, bundle="esm.libs")
-        except ReadOnlySqlTransaction:
-            if not self.env.cr.readonly:
-                raise
-            log_event(
-                _attach_log,
-                logging.WARNING,
-                "libs_save_declined",
-                files=len(vals_list),
-                reused=len(present),
-                readonly=True,
-            )
-            raise _EsmReadonlyDeclined from None
-        log_event(
-            _attach_log,
-            logging.INFO,
-            "libs_save",
-            files=len(vals_list),
-            reused=len(present),
-        )
 
     _specifier_to_static_url = staticmethod(addon_specifier_to_url)
 
@@ -979,56 +907,6 @@ class IrQweb(models.AbstractModel):
     _get_import_map_specs = staticmethod(import_map_specs)
     _narrow_import_map_node = staticmethod(narrow_import_map_node)
 
-    def _dedup_request_page_scripts(
-        self,
-        bundle: str,
-        pre_nodes: list[AssetNode],
-    ) -> list[AssetNode]:
-        if not request:
-            return pre_nodes
-        first = not getattr(request, "_esm_import_map_rendered", False)
-        if first:
-            if not any(self._is_import_map_node(node) for node in pre_nodes):
-                return pre_nodes
-            request._esm_import_map_rendered = True
-            request._esm_import_map_specs = self._get_import_map_specs(pre_nodes)
-            return pre_nodes
-        rendered = getattr(request, "_esm_import_map_specs", frozenset())
-        nodes, added = self._narrow_import_map_nodes(pre_nodes, rendered)
-        if added:
-            request._esm_import_map_specs = rendered | added
-        self._log_narrowed_import_map(bundle, added)
-        return nodes
-
-    def _narrow_import_map_nodes(
-        self, pre_nodes: list[AssetNode], rendered: frozenset[str]
-    ) -> tuple[list[AssetNode], frozenset[str]]:
-        nodes: list[AssetNode] = []
-        mapped = set(rendered)
-        for node in pre_nodes:
-            if self._is_loader_shim_node(node):
-                continue
-            if not self._is_import_map_node(node):
-                nodes.append(node)
-                continue
-            narrowed = self._narrow_import_map_node(node, mapped)
-            if narrowed is None:
-                continue
-            mapped |= self._get_import_map_specs([narrowed])
-            nodes.append(narrowed)
-        return nodes, frozenset(mapped) - rendered
-
-    def _log_narrowed_import_map(self, bundle: str, added: frozenset[str]) -> None:
-        log_event(
-            _esm_log,
-            logging.DEBUG,
-            "importmap_narrowed",
-            bundle=bundle,
-            reason="specs_already_rendered",
-            added=len(added),
-            specs=",".join(sorted(added)[:5]),
-        )
-
     def _get_native_module_nodes_uncached(
         self,
         bundle: str,
@@ -1134,238 +1012,6 @@ class IrQweb(models.AbstractModel):
             )
             for child_name in child_names
         ]
-
-    @staticmethod
-    def _merge_child_import_maps(
-        import_map: dict[str, str],
-        child_bundles: list[AssetsBundle],
-        *,
-        map_specifiers: bool = True,
-    ) -> tuple[list[AssetsBundle], set[str]]:
-        dynamic_names = esm_registry().dynamic_bundle_names
-        dynamic_bundles = []
-        child_specifiers: set[str] = set()
-        for child_ab in child_bundles:
-            child_data = child_ab.get_native_module_data(with_bridges=False)
-            child_specifiers.update(child_data["import_map"])
-            if map_specifiers:
-                import_map.update(child_data["import_map"])
-            if child_ab.name in dynamic_names:
-                dynamic_bundles.append(child_ab)
-        return dynamic_bundles, child_specifiers
-
-    def _merge_include_import_maps(
-        self,
-        bundle: str,
-        import_map: dict[str, str],
-        assets_params: dict[str, Any] | None,
-        *,
-        debug_assets: bool,
-        resolve_bridges: bool,
-    ) -> tuple[str, ...]:
-        include_names = tuple(esm_registry().import_map_includes.get(bundle, ()))
-        for include_name in include_names:
-            if not resolve_bridges:
-                include_data = self._get_native_module_data_cached(
-                    include_name,
-                    assets_params=assets_params,
-                )
-                import_map.update(include_data["import_map"])
-                for spec, shim_url in include_data.get("bridge_import_map", {}).items():
-                    import_map.setdefault(spec, shim_url)
-                continue
-            include_ab = self._get_asset_bundle(
-                include_name,
-                js=True,
-                css=False,
-                debug_assets=debug_assets,
-                assets_params=assets_params,
-            )
-            include_data = include_ab.get_native_module_data(with_bridges=False)
-            import_map.update(include_data["import_map"])
-            discovered, _ext_seen = include_ab._bridges._discover_bridge_specifiers(
-                set(include_data["import_map"]),
-                set(self._external_libs()),
-            )
-            self._add_import_map_bridge_urls(
-                import_map,
-                discovered,
-                drop_unresolved=True,
-                bundle=include_name,
-            )
-        return include_names
-
-    def _get_esm_page_scope(self, bundle: str) -> tuple[str, ...]:
-        registry = esm_registry()
-        if not request or bundle not in registry.secondary_bundle_names:
-            return ()
-        rendered = set(getattr(request, "_esm_page_bundles", ()))
-        return tuple(
-            parent
-            for parent in registry.secondary_parents.get(bundle, ())
-            if parent in rendered
-        )
-
-    @staticmethod
-    def _record_esm_page_bundle(bundle: str) -> None:
-        if not request:
-            return
-        rendered = tuple(getattr(request, "_esm_page_bundles", ()))
-        if bundle not in rendered:
-            request._esm_page_bundles = (*rendered, bundle)
-
-    def _get_secondary_provider_specs(
-        self,
-        bundle: str,
-        assets_params: dict[str, Any] | None,
-        page_scope: tuple[str, ...],
-    ) -> set[str]:
-        providers = page_scope or esm_registry().secondary_parents.get(bundle) or ()
-        installed = self.env["ir.asset"]._get_addons_installed()
-        spec_sets = []
-        for provider in providers:
-            specs = set(
-                self._get_asset_bundle(
-                    provider,
-                    js=True,
-                    css=False,
-                    debug_assets=False,
-                    assets_params=assets_params,
-                ).get_native_module_data(with_bridges=False)["import_map"]
-            )
-            if specs or provider.partition(".")[0] in installed:
-                spec_sets.append(specs)
-        if not spec_sets:
-            return set()
-        return (set.union if page_scope else set.intersection)(*spec_sets)
-
-    def _get_secondary_shared_specs(
-        self,
-        bundle: str,
-        assets_params: dict[str, Any] | None,
-        page_scope: tuple[str, ...] = (),
-        sec_ab: AssetsBundle | None = None,
-    ) -> frozenset[str]:
-        if not esm_registry().secondary_parents.get(bundle):
-            return frozenset()
-        shared = self._get_secondary_provider_specs(bundle, assets_params, page_scope)
-        if not shared:
-            return frozenset()
-        if sec_ab is None:
-            sec_ab = self._get_asset_bundle(
-                bundle,
-                js=True,
-                css=False,
-                debug_assets=False,
-                assets_params=assets_params,
-            )
-        own_specs = set(sec_ab.get_native_module_data(with_bridges=False)["import_map"])
-        discovered, _ext = sec_ab._bridges._discover_bridge_specifiers(
-            own_specs,
-            set(self._external_libs()),
-        )
-        stubbed = frozenset(set(discovered) & shared)
-        if page_scope:
-            self._warn_on_late_secondary_providers(
-                bundle, assets_params, discovered, stubbed
-            )
-        return stubbed
-
-    def _warn_on_late_secondary_providers(
-        self,
-        bundle: str,
-        assets_params: dict[str, Any] | None,
-        discovered: Iterable[str],
-        stubbed: frozenset[str],
-    ) -> None:
-        declared = self._get_secondary_provider_specs(bundle, assets_params, ())
-        late = sorted((set(discovered) & declared) - stubbed)
-        if not late:
-            return
-        log_event(
-            _esm_log,
-            logging.WARNING,
-            "secondary_provider_renders_late",
-            bundle=bundle,
-            page=",".join(self._get_esm_page_scope(bundle)),
-            count=len(late),
-            specs=",".join(late[:5]),
-        )
-
-    def _get_secondary_parent_stubs(
-        self,
-        bundle: str,
-        assets_params: dict[str, Any] | None,
-        page_scope: tuple[str, ...] = (),
-    ) -> dict[str, str]:
-        sec_ab = self._get_asset_bundle(
-            bundle,
-            js=True,
-            css=False,
-            debug_assets=False,
-            assets_params=assets_params,
-        )
-        shared = self._get_secondary_shared_specs(
-            bundle, assets_params, page_scope, sec_ab=sec_ab
-        )
-        if not shared:
-            return {}
-        return sec_ab._bridges.prepare_shim_sources(set(shared))
-
-    def _merge_secondary_import_maps(
-        self,
-        bundle: str,
-        import_map: dict[str, str],
-        assets_params: dict[str, Any] | None,
-        *,
-        debug_assets: bool,
-    ) -> None:
-        for sec_name in esm_registry().secondary_import_map_includes.get(bundle, ()):
-            sec_ab = self._get_asset_bundle(
-                sec_name,
-                js=True,
-                css=False,
-                debug_assets=debug_assets,
-                assets_params=assets_params,
-            )
-            sec_data = sec_ab.get_native_module_data(with_bridges=False)
-            for spec, url in sec_data["import_map"].items():
-                import_map.setdefault(spec, url)
-
-    def _add_import_map_bridge_urls(
-        self,
-        import_map: dict[str, str],
-        discovered: Iterable[str],
-        *,
-        drop_unresolved: bool,
-        bundle: str = "",
-    ) -> dict[str, str]:
-        resolved_map = {}
-        for spec in discovered:
-            current = import_map.get(spec)
-            if current and not current.startswith(
-                ("/web/assets/esm/bridges/", "data:")
-            ):
-                continue
-            resolved = self._resolve_specifier_url(spec)
-            if resolved:
-                import_map[spec] = resolved
-                resolved_map[spec] = resolved
-            elif current and drop_unresolved:
-                del import_map[spec]
-        if resolved_map:
-            extra = discover_transitive_import_specifiers(
-                resolved_map,
-                known_specifiers=set(import_map),
-                ext_libs=self._external_libs(),
-                bundle_name=bundle,
-            )
-            for spec in sorted(extra):
-                resolved = self._resolve_specifier_url(spec)
-                if resolved:
-                    import_map[spec] = resolved
-                    resolved_map[spec] = resolved
-        return resolved_map
 
     def _prepare_esm_script_node(
         self,
@@ -2093,3 +1739,43 @@ class IrQweb(models.AbstractModel):
                 if css:
                     css_bundles.add(asset)
         return (js_bundles, css_bundles)
+
+    def _dedup_request_page_scripts(
+        self,
+        bundle: str,
+        pre_nodes: list[AssetNode],
+    ) -> list[AssetNode]:
+        if not request:
+            return pre_nodes
+        first = not getattr(request, "_esm_import_map_rendered", False)
+        if first:
+            if not any(self._is_import_map_node(node) for node in pre_nodes):
+                return pre_nodes
+            request._esm_import_map_rendered = True
+            request._esm_import_map_specs = self._get_import_map_specs(pre_nodes)
+            return pre_nodes
+        rendered = getattr(request, "_esm_import_map_specs", frozenset())
+        nodes, added = self._narrow_import_map_nodes(pre_nodes, rendered)
+        if added:
+            request._esm_import_map_specs = rendered | added
+        self._log_narrowed_import_map(bundle, added)
+        return nodes
+
+    def _get_esm_page_scope(self, bundle: str) -> tuple[str, ...]:
+        registry = esm_registry()
+        if not request or bundle not in registry.secondary_bundle_names:
+            return ()
+        rendered = set(getattr(request, "_esm_page_bundles", ()))
+        return tuple(
+            parent
+            for parent in registry.secondary_parents.get(bundle, ())
+            if parent in rendered
+        )
+
+    @staticmethod
+    def _record_esm_page_bundle(bundle: str) -> None:
+        if not request:
+            return
+        rendered = tuple(getattr(request, "_esm_page_bundles", ()))
+        if bundle not in rendered:
+            request._esm_page_bundles = (*rendered, bundle)

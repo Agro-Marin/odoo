@@ -52,7 +52,10 @@ from . import ir_fields
 
 from . import ir_qweb
 from . import ir_qweb_assets
+from . import ir_qweb_assets_import_map
+from . import ir_qweb_assets_served_libs
 from . import ir_qweb_assets_esbuild
+from . import ir_qweb_assets_esbuild_circuit
 from . import ir_qweb_fields
 
 from . import ir_http

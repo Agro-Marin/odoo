@@ -77,6 +77,12 @@ class TestSecondaryBundlePageScope(TransactionCase):
                     secondary_parents={self.BUNDLE: ("a.backend", "b.frontend")},
                 ),
             ),
+            patch(
+                "odoo.addons.base.models.ir_qweb_assets_import_map.esm_registry",
+                return_value=SimpleNamespace(
+                    secondary_parents={self.BUNDLE: ("a.backend", "b.frontend")},
+                ),
+            ),
         ):
             page = IrQweb._get_secondary_provider_specs(
                 self.BUNDLE, None, ("a.backend", "b.frontend")

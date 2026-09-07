@@ -1,0 +1,87 @@
+import functools
+import logging
+from pathlib import Path
+
+from psycopg.errors import ReadOnlySqlTransaction
+
+from odoo import models
+from odoo.fields import Domain
+from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.tools.assets.esbuild import minify_js
+from odoo.tools.assets.esm_libs import served_lib_content
+
+from odoo.addons.base.models.ir_qweb_assets import _EsmReadonlyDeclined
+
+_attach_log = get_asset_logger("attach")
+
+
+class IrQweb(models.AbstractModel):
+    _inherit = "ir.qweb"
+
+    def _served_external_libs(self, *, debug_assets: bool) -> dict[str, str]:
+        if debug_assets:
+            return dict(self._external_libs())
+        self._create_served_libs()
+        return dict(self._served_external_libs_table())
+
+    @staticmethod
+    def _minify_served_lib(path: Path, declared_url: str) -> bytes:
+        source = path.read_text(encoding="utf-8")
+        minified = minify_js(source, label=declared_url, keep_names=True)
+        return (minified if minified is not None else source).encode("utf-8")
+
+    def _create_served_libs(self) -> None:
+        files = self._served_lib_files()
+        if not files:
+            return
+        IrAttachment = self.env["ir.attachment"].sudo()
+        present = set(
+            IrAttachment.search_fetch(
+                IrAttachment._generated_asset_domain()
+                & Domain("url", "in", list(files)),
+                ["url"],
+            ).mapped("url")
+        )
+        vals_list = []
+        for served_url, (_lib, declared_url) in files.items():
+            if served_url in present:
+                continue
+            path = _lib.files[declared_url]
+            vals_list.append(
+                {
+                    "name": declared_url.lstrip("/"),
+                    "mimetype": "text/javascript",
+                    "res_model": "ir.ui.view",
+                    "res_id": False,
+                    "type": "binary",
+                    "public": True,
+                    "raw": served_lib_content(
+                        served_url,
+                        functools.partial(self._minify_served_lib, path, declared_url),
+                    ),
+                    "url": served_url,
+                }
+            )
+        if not vals_list:
+            return
+        try:
+            self._save_esm_attachment_rows(vals_list, bundle="esm.libs")
+        except ReadOnlySqlTransaction:
+            if not self.env.cr.readonly:
+                raise
+            log_event(
+                _attach_log,
+                logging.WARNING,
+                "libs_save_declined",
+                files=len(vals_list),
+                reused=len(present),
+                readonly=True,
+            )
+            raise _EsmReadonlyDeclined from None
+        log_event(
+            _attach_log,
+            logging.INFO,
+            "libs_save",
+            files=len(vals_list),
+            reused=len(present),
+        )
