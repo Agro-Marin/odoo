@@ -7,3 +7,4 @@ from . import test_ir_model_sms_capability
 from . import test_sms_template_dynamic_fields
 from . import test_sms_account_wizards
 from . import test_sms_failure_type
+from . import test_sms_credit_notification
