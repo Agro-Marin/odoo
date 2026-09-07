@@ -76,7 +76,7 @@ def loader(tmp_path):
         kind="data",
         written=(),
     ):
-        converted, recorded_xmlids = [], {"base.a", "base.b"}
+        converted, recorded_xmlids = [], {"mymod.a", "mymod.b"}
 
         def fake_convert(env, name, fname, idref, cmode, noupdate=False):
             converted.append(fname)
@@ -123,11 +123,11 @@ def loader(tmp_path):
     return _run
 
 
-UNCHANGED = {"sha": None, "xmlids": ["base.a"], "dyn": False}
+UNCHANGED = {"sha": None, "xmlids": ["mymod.a"], "dyn": False}
 
 
 def _entry(digest, **over):
-    return {"sha": digest, "xmlids": ["base.a"], "dyn": False, **over}
+    return {"sha": digest, "xmlids": ["mymod.a"], "dyn": False, **over}
 
 
 def _digest(content=b"<odoo/>", name="data/x.xml"):
@@ -143,7 +143,7 @@ class TestSkipDecision:
             stored=self._stored({"data/x.xml": _entry(_digest())})
         )
         assert converted == [], "the file did not change; re-applying it is waste"
-        assert xmlids == {"base.a"}, (
+        assert xmlids == {"mymod.a"}, (
             "the recorded xmlids must be replayed into loaded_xmlids — without "
             "them the ORM sees records nothing claims and deletes them as "
             "orphans on the next update"
@@ -221,7 +221,7 @@ class TestWhatGetsRecorded:
         _, _, written = loader(stored=self._stored({}))
         entry = written["files"]["data/x.xml"]
         assert entry["sha"] == _digest()
-        assert entry["xmlids"] == ["base.a", "base.b"], "sorted, so it is stable"
+        assert entry["xmlids"] == ["mymod.a", "mymod.b"], "sorted, so it is stable"
         assert entry["dyn"] is False
 
     def test_a_dynamic_file_records_that_it_was_dynamic(self, loader):
@@ -261,17 +261,17 @@ class TestAFileWhoseRecordsWereAlreadyRewritten:
     def test_it_is_re_applied_rather_than_skipped(self, loader):
         converted, _, _ = loader(
             stored=self._stored({"data/x.xml": _entry(_digest())}),
-            written={"base.a"},
+            written={"mymod.a"},
         )
         assert converted == ["data/x.xml"], (
-            "the file owns base.a, which this run already rewrote, so its own "
+            "the file owns mymod.a, which this run already rewrote, so its own "
             "bytes being unchanged does not make it redundant"
         )
 
     def test_a_file_nothing_contends_for_is_still_skipped(self, loader):
         converted, _, _ = loader(
             stored=self._stored({"data/x.xml": _entry(_digest())}),
-            written={"base.unrelated"},
+            written={"mymod.unrelated"},
         )
         assert converted == [], (
             "an unrelated write must not cost the optimisation its skip"
@@ -279,7 +279,7 @@ class TestAFileWhoseRecordsWereAlreadyRewritten:
 
     def test_applying_a_file_publishes_what_it_wrote(self, loader):
         loader(stored=self._stored({}))
-        assert {"base.a", "base.b"} <= loader.registry._xmlids_written, (
+        assert {"mymod.a", "mymod.b"} <= loader.registry._xmlids_written, (
             "a later file can only detect contention if earlier writes are "
             "recorded as they happen"
         )
@@ -287,16 +287,16 @@ class TestAFileWhoseRecordsWereAlreadyRewritten:
     def test_a_skipped_file_publishes_nothing(self, loader):
         loader(
             stored=self._stored({"data/x.xml": _entry(_digest())}),
-            written={"base.unrelated"},
+            written={"mymod.unrelated"},
         )
-        assert loader.registry._xmlids_written == {"base.unrelated"}, (
+        assert loader.registry._xmlids_written == {"mymod.unrelated"}, (
             "a file that never ran wrote nothing, so it must not make a later "
             "file look contended"
         )
 
     def test_the_untracked_path_records_too(self, loader):
         loader(stored=self._stored({}), track=False)
-        assert {"base.a", "base.b"} <= loader.registry._xmlids_written, (
+        assert {"mymod.a", "mymod.b"} <= loader.registry._xmlids_written, (
             "tracking off for one module does not make its writes invisible to "
             "a module that is tracked"
         )
@@ -304,11 +304,71 @@ class TestAFileWhoseRecordsWereAlreadyRewritten:
     def test_re_application_refreshes_the_stored_entry(self, loader):
         _, _, stored_json = loader(
             stored=self._stored({"data/x.xml": _entry(_digest())}),
-            written={"base.a"},
+            written={"mymod.a"},
         )
         entry = stored_json["files"]["data/x.xml"]
         assert entry["sha"] == _digest()
-        assert entry["xmlids"] == ["base.a", "base.b"], (
+        assert entry["xmlids"] == ["mymod.a", "mymod.b"], (
             "a re-applied file records what it actually wrote, so the next run "
             "starts from the truth"
         )
+
+
+class TestAFileThatOverridesAnotherModule:
+    """A file writing another module's records is never skipped.
+
+    `approval_hr` re-points `approval.approvals_menu_root` at its own
+    department dashboard. On 2026-09-07 `approval` reloaded and reset the menu
+    to its own action; `approval_hr`'s bytes had not moved, so its file was
+    skipped and the override was lost. The contention check above catches that
+    within one run, but not across runs: once the clobber has happened, both
+    files are unchanged forever and no later upgrade repairs the record. An
+    override's meaning is its position in the load order, and the stored digest
+    describes only the bytes, so it can never witness that position.
+    """
+
+    def _stored(self, files):
+        return {"v": loading._DATA_FILE_CHECKSUM_VERSION, "files": files}
+
+    def test_it_is_re_applied_even_when_nothing_contends_for_it(self, loader):
+        converted, _, _ = loader(
+            stored=self._stored(
+                {"data/x.xml": _entry(_digest(), xmlids=["other.menu_root"])}
+            ),
+        )
+        assert converted == ["data/x.xml"], (
+            "the definer may have reset the record in an earlier run, which "
+            "this run has no way to see"
+        )
+
+    def test_a_file_writing_only_its_own_records_is_still_skipped(self, loader):
+        converted, _, _ = loader(
+            stored=self._stored(
+                {"data/x.xml": _entry(_digest(), xmlids=["mymod.a", "mymod.b"])}
+            ),
+        )
+        assert converted == [], (
+            "a file nothing outside the module can rewrite keeps its skip"
+        )
+
+    def test_one_foreign_record_among_many_is_enough(self, loader):
+        converted, _, _ = loader(
+            stored=self._stored(
+                {
+                    "data/x.xml": _entry(
+                        _digest(), xmlids=["mymod.a", "mymod.b", "other.c"]
+                    )
+                }
+            ),
+        )
+        assert converted == ["data/x.xml"]
+
+    def test_re_application_refreshes_the_stored_entry(self, loader):
+        _, _, stored_json = loader(
+            stored=self._stored(
+                {"data/x.xml": _entry(_digest(), xmlids=["other.menu_root"])}
+            ),
+        )
+        entry = stored_json["files"]["data/x.xml"]
+        assert entry["sha"] == _digest()
+        assert entry["xmlids"] == ["mymod.a", "mymod.b"]

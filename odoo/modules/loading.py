@@ -106,6 +106,17 @@ def _is_reusable_checksum_entry(entry: object, digest: str) -> typing.TypeGuard[
     )
 
 
+def _overrides_another_module(entry: dict, module: str) -> bool:
+    """Does this file write records another module declares?
+
+    Such a file is an override, and an override says nothing on its own: its
+    answer is that it runs *after* the file it overrides. The stored digest
+    witnesses the bytes, never the position, so it cannot tell an override that
+    is still standing from one a later run of the definer has since undone.
+    """
+    return any(xmlid.split(".", 1)[0] != module for xmlid in entry["xmlids"])
+
+
 def _convert_and_record(
     env: Environment,
     package: ModuleNode,
@@ -161,18 +172,27 @@ def _load_tracked_file(
         # so the record settles in a state neither file asks for. Only a file
         # whose records nothing has rewritten this run is safe to skip.
         contended = registry._xmlids_written.intersection(entry["xmlids"])
-        if not contended:
+        if _overrides_another_module(entry, package.name):
+            _logger.info(
+                "re-applying unchanged %s/%s: it writes records another "
+                "module declares, so its effect is its place in the load "
+                "order, which the digest cannot witness",
+                package.name,
+                filename,
+            )
+        elif not contended:
             registry.loaded_xmlids.update(entry["xmlids"])
             _logger.info("skipping unchanged %s/%s", package.name, filename)
             return entry
-        _logger.info(
-            "re-applying unchanged %s/%s: it owns %d record(s) already "
-            "rewritten in this run (%s)",
-            package.name,
-            filename,
-            len(contended),
-            ", ".join(sorted(contended)[:5]),
-        )
+        else:
+            _logger.info(
+                "re-applying unchanged %s/%s: it owns %d record(s) already "
+                "rewritten in this run (%s)",
+                package.name,
+                filename,
+                len(contended),
+                ", ".join(sorted(contended)[:5]),
+            )
 
     _logger.info("loading %s/%s", package.name, filename)
     recorder = _convert_and_record(env, package, filename, idref, mode, kind)
