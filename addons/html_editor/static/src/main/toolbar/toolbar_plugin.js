@@ -139,7 +139,7 @@ export class ToolbarPlugin extends Plugin {
             groupIds.add(group.id);
         }
         this.buttonGroups = this.getButtonGroups();
-        this.buttonsByNamespace = { DISABLED_NAMESPACE: [] };
+        this.buttonsByNamespace = { [DISABLED_NAMESPACE]: [] };
 
         this.isMobileToolbar = hasTouch() && window.visualViewport;
 
