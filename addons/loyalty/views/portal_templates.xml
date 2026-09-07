@@ -9,7 +9,7 @@
                     class="portal-loyalty-buttons cursor-pointer">
                     <div
                         t-att-data-card_id="card.id"
-                        t-foreach="cards_per_programs[program]"
+                        t-foreach="program_value"
                         t-as="card"
                         class="o_loyalty_card d-flex my-2">
                         <span
