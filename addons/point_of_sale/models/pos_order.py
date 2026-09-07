@@ -97,11 +97,9 @@ class PosOrder(models.Model):
         string="Is Refund",
         readonly=True,
         default=False,
-        help="Provenance only: this order was created by refunding another. It "
-        "does NOT carry the sign of any amount -- `price_subtotal`, `total_cost` "
-        "and `amount_total` each carry their own -- and it is not the same "
-        "question as whether the order credits the customer, which is what "
-        "`_is_credit_document` tests.",
+        help="Provenance: this order was created by refunding another. It "
+        "carries no amount's sign -- `price_subtotal`, `total_cost` and "
+        "`amount_total` each carry their own.",
     )
     state = fields.Selection(
         [
@@ -2256,14 +2254,13 @@ class PosOrderLine(models.Model):
         string="Tax Excl.",
         readonly=True,
         required=True,
-        help="Carries the sign of `qty`: negative on a refund or a deduction "
-        "line, exactly as `total_cost` and `pos.order.amount_total` do.",
+        help="Signed like `qty`, as `total_cost` and `amount_total` are.",
     )
     price_subtotal_incl = fields.Monetary(
         string="Tax Incl.",
         readonly=True,
         required=True,
-        help="Carries the sign of `qty`, as `price_subtotal` does.",
+        help="Signed like `qty`, as `price_subtotal` is.",
     )
     price_extra = fields.Float(string="Price extra")
     price_type = fields.Selection(
