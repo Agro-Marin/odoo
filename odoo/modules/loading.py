@@ -106,6 +106,38 @@ def _is_reusable_checksum_entry(entry: object, digest: str) -> typing.TypeGuard[
     )
 
 
+def _convert_and_record(
+    env: Environment,
+    package: ModuleNode,
+    filename: str,
+    idref: IdRef,
+    mode: LoadMode,
+    kind: LoadKind,
+) -> set[str]:
+    """Apply one data file and remember every record it wrote.
+
+    Used by both load paths, tracked and not: the skip decision below is only
+    sound if every write in the run is visible to it, whatever mode produced it.
+    """
+    registry = env.registry
+    recorder: set[str] = set()
+    previous_recorder = registry._xmlid_recorder
+    registry._xmlid_recorder = recorder
+    try:
+        convert_file(
+            env,
+            package.name,
+            filename,
+            idref,
+            mode,
+            noupdate=kind == "demo",
+        )
+    finally:
+        registry._xmlid_recorder = previous_recorder
+    registry._xmlids_written.update(recorder)
+    return recorder
+
+
 def _load_tracked_file(
     env: Environment,
     package: ModuleNode,
@@ -121,25 +153,29 @@ def _load_tracked_file(
     registry = env.registry
     entry = stored_files.get(filename)
     if not dynamic and _is_reusable_checksum_entry(entry, digest):
-        registry.loaded_xmlids.update(entry["xmlids"])
-        _logger.info("skipping unchanged %s/%s", package.name, filename)
-        return entry
-
-    _logger.info("loading %s/%s", package.name, filename)
-    recorder: set[str] = set()
-    previous_recorder = registry._xmlid_recorder
-    registry._xmlid_recorder = recorder
-    try:
-        convert_file(
-            env,
+        # Unchanged is not the same as redundant. Two files may declare the
+        # same record -- one module ships a menu `active="0"` and a dependent
+        # one re-activates it -- and then the load order is the whole meaning:
+        # the later file wins. Skipping it because its own bytes did not move
+        # leaves the earlier write standing and reverses that order silently,
+        # so the record settles in a state neither file asks for. Only a file
+        # whose records nothing has rewritten this run is safe to skip.
+        contended = registry._xmlids_written.intersection(entry["xmlids"])
+        if not contended:
+            registry.loaded_xmlids.update(entry["xmlids"])
+            _logger.info("skipping unchanged %s/%s", package.name, filename)
+            return entry
+        _logger.info(
+            "re-applying unchanged %s/%s: it owns %d record(s) already "
+            "rewritten in this run (%s)",
             package.name,
             filename,
-            idref,
-            mode,
-            noupdate=kind == "demo",
+            len(contended),
+            ", ".join(sorted(contended)[:5]),
         )
-    finally:
-        registry._xmlid_recorder = previous_recorder
+
+    _logger.info("loading %s/%s", package.name, filename)
+    recorder = _convert_and_record(env, package, filename, idref, mode, kind)
     return {"sha": digest, "xmlids": sorted(recorder), "dyn": dynamic}
 
 
@@ -178,14 +214,7 @@ def load_data(
 
             if not track:
                 _logger.info("loading %s/%s", package.name, filename)
-                convert_file(
-                    env,
-                    package.name,
-                    filename,
-                    idref,
-                    mode,
-                    noupdate=kind == "demo",
-                )
+                _convert_and_record(env, package, filename, idref, mode, kind)
                 continue
 
             new_files[filename] = _load_tracked_file(

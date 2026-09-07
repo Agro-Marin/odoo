@@ -74,6 +74,7 @@ def loader(tmp_path):
         track=True,
         mode="update",
         kind="data",
+        written=(),
     ):
         converted, recorded_xmlids = [], {"base.a", "base.b"}
 
@@ -86,6 +87,7 @@ def loader(tmp_path):
         env.cr.fetchone.return_value = (stored,)
         registry = env.registry
         registry.loaded_xmlids = set()
+        registry._xmlids_written = set(written)
         registry._xmlid_recorder = None
 
         package = MagicMock()
@@ -111,11 +113,12 @@ def loader(tmp_path):
         ):
             loading.load_data(env, {}, mode, kind, package)
 
-        written = None
+        stored_json = None
         for call in env.cr.execute.call_args_list:
             if "UPDATE ir_module_module" in call.args[0]:
-                written = json.loads(call.args[1][0])
-        return converted, registry.loaded_xmlids, written
+                stored_json = json.loads(call.args[1][0])
+        _run.registry = registry
+        return converted, registry.loaded_xmlids, stored_json
 
     return _run
 
@@ -238,4 +241,74 @@ class TestWhatGetsRecorded:
         assert written["files"]["data/x.xml"] == entry, (
             "dropping a skipped file's entry means the next run cannot skip it "
             "either, and the optimisation decays to nothing over time"
+        )
+
+
+class TestAFileWhoseRecordsWereAlreadyRewritten:
+    """The skip is only sound while two files do not contend for one record.
+
+    A module can ship a menu `active="0"` and a dependent module re-activate
+    it. Both files declare the same xmlid and the later one is meant to win.
+    If only the first file's bytes change, skipping the second because it is
+    "unchanged" leaves the first write standing and reverses the intended
+    order -- the failure that archived `hr.menu_view_hr_contract_type` on
+    2026-09-07, with both modules upgraded, in order, in one run.
+    """
+
+    def _stored(self, files):
+        return {"v": loading._DATA_FILE_CHECKSUM_VERSION, "files": files}
+
+    def test_it_is_re_applied_rather_than_skipped(self, loader):
+        converted, _, _ = loader(
+            stored=self._stored({"data/x.xml": _entry(_digest())}),
+            written={"base.a"},
+        )
+        assert converted == ["data/x.xml"], (
+            "the file owns base.a, which this run already rewrote, so its own "
+            "bytes being unchanged does not make it redundant"
+        )
+
+    def test_a_file_nothing_contends_for_is_still_skipped(self, loader):
+        converted, _, _ = loader(
+            stored=self._stored({"data/x.xml": _entry(_digest())}),
+            written={"base.unrelated"},
+        )
+        assert converted == [], (
+            "an unrelated write must not cost the optimisation its skip"
+        )
+
+    def test_applying_a_file_publishes_what_it_wrote(self, loader):
+        loader(stored=self._stored({}))
+        assert {"base.a", "base.b"} <= loader.registry._xmlids_written, (
+            "a later file can only detect contention if earlier writes are "
+            "recorded as they happen"
+        )
+
+    def test_a_skipped_file_publishes_nothing(self, loader):
+        loader(
+            stored=self._stored({"data/x.xml": _entry(_digest())}),
+            written={"base.unrelated"},
+        )
+        assert loader.registry._xmlids_written == {"base.unrelated"}, (
+            "a file that never ran wrote nothing, so it must not make a later "
+            "file look contended"
+        )
+
+    def test_the_untracked_path_records_too(self, loader):
+        loader(stored=self._stored({}), track=False)
+        assert {"base.a", "base.b"} <= loader.registry._xmlids_written, (
+            "tracking off for one module does not make its writes invisible to "
+            "a module that is tracked"
+        )
+
+    def test_re_application_refreshes_the_stored_entry(self, loader):
+        _, _, stored_json = loader(
+            stored=self._stored({"data/x.xml": _entry(_digest())}),
+            written={"base.a"},
+        )
+        entry = stored_json["files"]["data/x.xml"]
+        assert entry["sha"] == _digest()
+        assert entry["xmlids"] == ["base.a", "base.b"], (
+            "a re-applied file records what it actually wrote, so the next run "
+            "starts from the truth"
         )

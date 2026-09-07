@@ -551,6 +551,7 @@ class IrModelData(models.Model):
         self.env["ir.ui.view"]._create_all_specific_views(modules)
 
         loaded_xmlids.clear()
+        self.pool._xmlids_written.clear()
 
     @api.model
     def toggle_noupdate(self, model: str, res_id: int) -> None:

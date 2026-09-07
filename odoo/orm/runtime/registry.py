@@ -211,6 +211,11 @@ class Registry(
         self.loaded_modules: set[str] = set()
         self.updated_modules: list[str] = []
         self.loaded_xmlids: set[str] = set()
+        # Records this run actually *wrote*, as opposed to `loaded_xmlids`,
+        # which also holds the ones a skipped file would have written. The
+        # data-file skip compares against this to spot a file whose records
+        # something earlier in the same run has already rewritten.
+        self._xmlids_written: set[str] = set()
         self._xmlid_recorder: set[str] | None = None
         self._load_language_done: bool = False
 
