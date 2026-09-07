@@ -377,7 +377,7 @@ export class ToolbarPlugin extends Plugin {
         }
         const anchor = selectionData?.documentSelectionIsInEditable
             ? selectionData.editableSelection?.anchorNode
-            : document.getSelection()?.anchorNode;
+            : this.document.getSelection()?.anchorNode;
         const shouldPreventClosing =
             anchor?.closest?.("[data-prevent-closing-overlay]")?.dataset
                 ?.preventClosingOverlay === "true";
