@@ -120,11 +120,13 @@ class HrLeaveAllocationGenerateMultiWizard(models.TransientModel):
 
     def _prepare_allocation_values(self, employees):
         self.check_singleton()
+        sudo_employees = employees.sudo()
+        sudo_employees.mapped("resource_calendar_id.hours_per_day")
         hours_per_day = {
             e.id: e.resource_calendar_id.hours_per_day
             or self.company_id.resource_calendar_id.hours_per_day
             or HOURS_PER_DAY
-            for e in employees.sudo()
+            for e in sudo_employees
         }
         return [
             {
