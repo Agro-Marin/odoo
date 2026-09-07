@@ -318,9 +318,9 @@ export class HistoryPlugin extends Plugin {
     makeSnapshotStep() {
         return {
             selection: {
-                anchorNode: undefined,
+                anchorNodeId: undefined,
                 anchorOffset: undefined,
-                focusNode: undefined,
+                focusNodeId: undefined,
                 focusOffset: undefined,
             },
             mutations: childNodes(this.editable)
