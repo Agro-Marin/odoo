@@ -243,7 +243,7 @@ export class PosStore extends WithLazyGetterTrap {
         return navigateToOrderScreen(this, order);
     }
 
-    get defaultPage() {
+    getDefaultPage() {
         return computeDefaultPage(this);
     }
 
@@ -733,7 +733,7 @@ export class PosStore extends WithLazyGetterTrap {
         if (loadedOrder) {
             this.setOrder(loadedOrder);
         } else {
-            const next = this.defaultPage;
+            const next = this.getDefaultPage();
             this.router.navigate(next.page, next.params);
         }
     }
@@ -1407,7 +1407,7 @@ export class PosStore extends WithLazyGetterTrap {
             return this.addNewOrder();
         }
     }
-    get openOrder() {
+    getOrCreateOpenOrder() {
         return (
             this.models["pos.order"].find((o) => o.state === "draft") ||
             this.addNewOrder()
@@ -2644,7 +2644,7 @@ export class PosStore extends WithLazyGetterTrap {
         this.numberBuffer.capture();
         if (this.router.state.current === "TicketScreen") {
             if (this.ticket_screen_mobile_pane === "left") {
-                const next = this.defaultPage;
+                const next = this.getDefaultPage();
                 this.navigate(next.page, next.params);
             } else {
                 this.ticket_screen_mobile_pane = "left";
@@ -2773,7 +2773,7 @@ export class PosStore extends WithLazyGetterTrap {
     orderDone(order) {
         order.setScreenData({ name: "" });
         this.searchProductWord = "";
-        const { page, params } = this.defaultPage;
+        const { page, params } = this.getDefaultPage();
         this.navigate(
             page,
             page === "ProductScreen"

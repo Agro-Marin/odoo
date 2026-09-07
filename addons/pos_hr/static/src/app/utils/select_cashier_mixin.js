@@ -126,7 +126,7 @@ export function useCashierSelector(
 
         const currentScreen = pos.router.state.current;
         if (currentScreen === "LoginScreen" && login && employee) {
-            const selectedScreen = pos.defaultPage;
+            const selectedScreen = pos.getDefaultPage();
             const props = {
                 ...selectedScreen.params,
                 orderUuid: pos.selectedOrderUuid,

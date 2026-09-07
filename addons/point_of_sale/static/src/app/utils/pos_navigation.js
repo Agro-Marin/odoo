@@ -36,7 +36,7 @@ export function computeDefaultPage(pos) {
     return {
         page: "ProductScreen",
         params: {
-            orderUuid: pos.openOrder.uuid,
+            orderUuid: pos.getOrCreateOpenOrder().uuid,
         },
     };
 }
@@ -56,7 +56,7 @@ export function consumeBootFlags(pos) {
 }
 
 export function computeFirstPage(pos) {
-    return !pos.cashier ? { page: "LoginScreen", params: {} } : pos.defaultPage;
+    return !pos.cashier ? { page: "LoginScreen", params: {} } : pos.getDefaultPage();
 }
 
 export function switchPane(pos) {

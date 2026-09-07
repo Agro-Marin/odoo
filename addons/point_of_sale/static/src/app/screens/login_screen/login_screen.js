@@ -24,7 +24,7 @@ export class LoginScreen extends Component {
         this.selectOneCashier(this.pos.user);
     }
     cashierLogIn() {
-        const selectedScreen = this.pos.defaultPage;
+        const selectedScreen = this.pos.getDefaultPage();
         const order = this.pos.getOrder();
         if (!order && selectedScreen.page === "ProductScreen") {
             this.pos.addNewOrder();

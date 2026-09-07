@@ -27,9 +27,9 @@ patch(PosStore.prototype, {
 
         return screen.page === "LoginScreen"
             ? { page: "LoginScreen", params: {} }
-            : this.defaultPage;
+            : this.getDefaultPage();
     },
-    get openOrder() {
+    getOrCreateOpenOrder() {
         if (this.config.module_pos_restaurant) {
             return (
                 this.models["pos.order"].find(
@@ -37,9 +37,9 @@ patch(PosStore.prototype, {
                 ) || this.addNewOrder()
             );
         }
-        return super.openOrder;
+        return super.getOrCreateOpenOrder();
     },
-    get defaultPage() {
+    getDefaultPage() {
         if (
             this.config.module_pos_restaurant &&
             this.config.default_screen === "tables"
@@ -49,7 +49,7 @@ patch(PosStore.prototype, {
                 params: {},
             };
         }
-        return super.defaultPage;
+        return super.getDefaultPage();
     },
     get idleTimeout() {
         return [
@@ -513,7 +513,7 @@ patch(PosStore.prototype, {
         return this.getOrder()?.table_id;
     },
     showDefault() {
-        const page = this.defaultPage;
+        const page = this.getDefaultPage();
         this.navigate(page.page, page.params);
     },
     async handleUrlParams(event) {

@@ -455,7 +455,7 @@ describe("restaurant pos_store.js", () => {
 
         store.setCashier(store.user);
         expect(store.firstPage.page).not.toBe("LoginScreen");
-        expect(store.firstPage).toEqual(store.defaultPage);
+        expect(store.firstPage).toEqual(store.getDefaultPage());
     });
 
     describe("addCourse", () => {
