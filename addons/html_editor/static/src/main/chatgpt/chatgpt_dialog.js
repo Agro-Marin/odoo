@@ -12,7 +12,6 @@ const POSTPROCESS_GENERATED_CONTENT = (content, baseContainer) => {
     }
     const fragment = document.createDocumentFragment();
     let parentUl, parentOl;
-    let lineIndex = 0;
     for (const line of lines) {
         if (line.trim().startsWith("- ")) {
             parentUl = parentUl || document.createElement("ul");
@@ -20,14 +19,14 @@ const POSTPROCESS_GENERATED_CONTENT = (content, baseContainer) => {
             li.innerText = line.trim().slice(2);
             parentUl.appendChild(li);
         } else if (
-            (parentOl && line.startsWith(`${parentOl.children.length + 1}. `)) ||
-            (!parentOl &&
-                line.startsWith("1. ") &&
-                lines[lineIndex + 1]?.startsWith("2. "))
+            (parentOl &&
+                line.trim().startsWith(`${parentOl.children.length + 1}. `)) ||
+            (!parentOl && line.trim().startsWith("1. "))
         ) {
             parentOl = parentOl || document.createElement("ol");
             const li = document.createElement("li");
-            li.innerText = line.slice(line.indexOf(".") + 2);
+            const trimmedLine = line.trim();
+            li.innerText = trimmedLine.slice(trimmedLine.indexOf(".") + 2);
             parentOl.appendChild(li);
         } else if (line.trim().length === 0) {
             const emptyLine = document.createElement("DIV");
@@ -42,7 +41,6 @@ const POSTPROCESS_GENERATED_CONTENT = (content, baseContainer) => {
             block.innerText = line;
             fragment.appendChild(block);
         }
-        lineIndex += 1;
     }
     [parentUl, parentOl].forEach((list) => list && fragment.appendChild(list));
     return fragment;
