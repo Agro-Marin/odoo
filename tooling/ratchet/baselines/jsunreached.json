@@ -1,0 +1,6 @@
+{
+  "count": 66,
+  "measured_at": "c3242455308dfc30d34771695f72244b79b5cef4",
+  "measured_root": "",
+  "note": "New gate, first floor. 66 masked assertion sites in addons/web/static/tests: an assertion inside a deferred function (a handler, a callback, a class method) that runs only if something invokes it, in a test that ALSO asserts in its own straight-line flow. That second condition is the gate -- Hoot already fails a test running no assertion at all, so an unmasked dead handler is caught today and reporting it would be debt the tree does not have; without the masking condition the count is 112. Guards recognised and not reported: expect.assertions(n)/verifySteps, a sentinel the function sets and the test asserts outside it, and the asserted result of the call the function was handed to. Validated against the defect it was built for: reports plop() on t_custom_click.test.js at 9e26c220cdf~1, silent on the fixed file. The class-method form -- the one 800c9912f02's defect hid behind -- is at zero; the 66 are inline callbacks, a smaller risk each and a test-by-test judgement to drive down, not a sweep. Measured in a clean detached worktree of the commit that adds the gate, node_modules symlinked."
+}
