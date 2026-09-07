@@ -318,7 +318,9 @@ export function getColorClass(el, colorNames, prefix) {
  * BACKGROUND_IMAGE_ATTRIBUTES set.
  */
 export function addBackgroundImageAttributes(...newAttributes) {
-    BACKGROUND_IMAGE_ATTRIBUTES.add(...newAttributes);
+    for (const attribute of newAttributes) {
+        BACKGROUND_IMAGE_ATTRIBUTES.add(attribute);
+    }
 }
 /**
  * Check if an attribute is in the BACKGROUND_IMAGE_ATTRIBUTES set.
