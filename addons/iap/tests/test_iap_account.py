@@ -80,6 +80,38 @@ class TestIapAccount(TransactionCase):
                 }
             )
 
+    def test_warning_recipients_no_email_message_scoped_to_own_account(self):
+        """When two accounts, each with a DIFFERENT recipient lacking an
+        email, are created together in one batch, the message raised while
+        validating the first account names only its own bad recipient --
+        not its sibling's, which reading self.warning_user_ids (the whole
+        batch's union) instead of account.warning_user_ids would pull in."""
+        no_mail_a = self.env["res.users"].create(
+            {"name": "No mail account A", "login": "nomail_iap_a"}
+        )
+        no_mail_a.email = False
+        no_mail_b = self.env["res.users"].create(
+            {"name": "No mail account B", "login": "nomail_iap_b"}
+        )
+        no_mail_b.email = False
+        with self.assertRaises(UserError) as capture:
+            self.env["iap.account"].create(
+                [
+                    {
+                        "service_id": self.service.id,
+                        "warning_threshold": 1,
+                        "warning_user_ids": [Command.set(no_mail_a.ids)],
+                    },
+                    {
+                        "service_id": self.service.id,
+                        "warning_threshold": 1,
+                        "warning_user_ids": [Command.set(no_mail_b.ids)],
+                    },
+                ]
+            )
+        self.assertIn(no_mail_a.name, str(capture.exception))
+        self.assertNotIn(no_mail_b.name, str(capture.exception))
+
     def test_write_warning_fields_notifies_iap(self):
         """Changing alert settings pushes the config to the IAP endpoint."""
         account = self.env["iap.account"].create({"service_id": self.service.id})
