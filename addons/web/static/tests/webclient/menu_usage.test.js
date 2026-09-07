@@ -1,4 +1,6 @@
 import { beforeEach, expect, mockDate, test } from "@odoo/hoot";
+import { browser } from "@web/core/browser/browser";
+import { user } from "@web/core/user";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 
 const apps = [
@@ -43,4 +45,19 @@ test("the table is bounded, dropping the least valuable entries", () => {
     expect(kept).toHaveLength(50);
     expect(kept).not.toInclude("app.0");
     expect(kept).toInclude("app.59");
+});
+
+test("a corrupt or foreign table reads as empty, a malformed entry as unused", () => {
+    const key = `webclient_menu_usage:${user.userId}`;
+    for (const raw of ["[1,2]", "{", "null", '{"app.sale":"x"}']) {
+        browser.localStorage.setItem(key, raw);
+        expect(menuUsage.rank(apps)).toEqual([], { message: `table ${raw}` });
+    }
+    browser.localStorage.setItem(
+        key,
+        '{"app.sale":{"n":"oops","t":null},"app.crm":{"n":2,"t":0}}',
+    );
+    expect(menuUsage.rank(apps).map((a) => a.xmlid)).toEqual(["app.crm"], {
+        message: "an entry without a positive count was never a use",
+    });
 });

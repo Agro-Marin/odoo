@@ -43,6 +43,12 @@ test("the inbox counter lands on Discuss, activities due on their module's app",
                 today_count: 5,
                 overdue_count: 0,
             },
+            {
+                model: "mail.activity",
+                icon: "/mail/static/description/icon.png",
+                today_count: 7,
+                overdue_count: 0,
+            },
         ],
     };
     expect(provideMailBadges(envWith(store), apps)).toEqual({

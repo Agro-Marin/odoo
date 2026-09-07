@@ -22,7 +22,9 @@ function read() {
     try {
         const raw = browser.localStorage.getItem(storageKey());
         const parsed = raw ? JSON.parse(raw) : null;
-        return parsed && typeof parsed === "object" ? parsed : {};
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? parsed
+            : {};
     } catch {
         return {};
     }
@@ -40,8 +42,19 @@ function write(table) {
  * @param {number} now
  * @returns {number}
  */
+/** @param {unknown} entry */
+function isUsed(entry) {
+    return (
+        typeof entry === "object" &&
+        entry !== null &&
+        Number(/** @type {UsageEntry} */ (entry).n) > 0
+    );
+}
+
 function frecency(entry, now) {
-    return entry.n * Math.pow(0.5, Math.max(0, now - entry.t) / HALF_LIFE_MS);
+    const count = Number(entry?.n) || 0;
+    const last = Number(entry?.t) || 0;
+    return count * Math.pow(0.5, Math.max(0, now - last) / HALF_LIFE_MS);
 }
 
 /**
@@ -91,7 +104,7 @@ export const menuUsage = {
         const table = read();
         const now = Date.now();
         return items
-            .filter((item) => item.xmlid !== undefined && item.xmlid in table)
+            .filter((item) => item.xmlid !== undefined && isUsed(table[item.xmlid]))
             .map((item) => ({
                 item,
                 score: frecency(table[/** @type {string} */ (item.xmlid)], now),
