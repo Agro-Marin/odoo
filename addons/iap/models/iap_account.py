@@ -61,7 +61,7 @@ class IapAccount(models.Model):
             ):
                 raise UserError(_("Please set at least one email alert recipient."))
             users_with_no_email = [
-                user.name for user in self.warning_user_ids if not user.email
+                user.name for user in account.warning_user_ids if not user.email
             ]
             if users_with_no_email:
                 raise UserError(
