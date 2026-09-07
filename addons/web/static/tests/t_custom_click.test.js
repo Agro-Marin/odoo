@@ -147,6 +147,7 @@ test(`"stop" and "prevent" modifiers`, async () => {
 });
 
 test(`"synthetic" modifier`, async () => {
+    expect.assertions(2);
     class MyComponent extends Component {
         static template = xml`<div t-custom-click.synthetic="plop" class="clickMe"><t t-esc="props.text"/></div>`;
         static props = ["*"];
