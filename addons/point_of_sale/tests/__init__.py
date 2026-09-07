@@ -36,6 +36,7 @@ from . import test_pos_invoice_guards
 from . import test_pos_session_concurrency
 from . import test_pos_order_costing
 from . import test_pos_order_unit_cost
+from . import test_pos_picking
 from . import test_pos_sale_details
 from . import test_zzz_audit
 from . import test_zzz_audit2
