@@ -462,6 +462,9 @@ export class ImageShapeOptionPlugin extends Plugin {
     replaceSvgColors(shapeSvgText, colors) {
         const svgColors = this.getSvgColors(shapeSvgText);
         for (const [i, color] of colors.entries()) {
+            if (svgColors[i] === null) {
+                continue;
+            }
             shapeSvgText = shapeSvgText.replace(
                 new RegExp(svgColors[i], "g"),
                 this.dependencies.imageToolOption.getCSSColorValue(color),
