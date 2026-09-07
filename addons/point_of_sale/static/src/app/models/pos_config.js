@@ -25,6 +25,10 @@ export class PosConfig extends Base {
         return Boolean(this.raw.invoice_journal_id);
     }
 
+    get orderedPaymentMethods() {
+        return this.payment_method_ids.slice().sort((a, b) => a.sequence - b.sequence);
+    }
+
     get useProxy() {
         return (
             this.is_posbox &&

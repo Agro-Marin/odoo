@@ -288,18 +288,11 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     getOrderline(id) {
-        const orderlines = this.lines;
-        for (let i = 0; i < orderlines.length; i++) {
-            if (orderlines[i].id === id) {
-                return orderlines[i];
-            }
-        }
-        return null;
+        return this.lines.find((line) => line.id === id) ?? null;
     }
 
     getLastOrderline() {
-        const orderlines = this.lines;
-        return this.lines.at(orderlines.length - 1);
+        return this.lines.at(-1);
     }
 
     getTip() {

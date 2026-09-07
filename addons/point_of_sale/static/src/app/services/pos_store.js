@@ -2307,7 +2307,9 @@ export class PosStore extends WithLazyGetterTrap {
                     { type: "danger" },
                 );
             }
-            // Never fall through: the generic close path below would sync and
+            // Never fall through: the generic close path below syncs and then
+            // redirects on success, which would carry the cashier away from the
+            // failure notification raised just above.
             return;
         }
 

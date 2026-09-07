@@ -209,7 +209,7 @@ export class ProductScreen extends Component {
     }
     get items() {
         return this.env.utils.formatProductQty(
-            this.currentOrder.lines?.reduce((items, line) => items + line.qty, 0) ?? 0,
+            this.currentOrder?.totalQuantity ?? 0,
             false,
         );
     }
@@ -309,9 +309,7 @@ export class ProductScreen extends Component {
 
         if (!product) {
             this.sound.play("scan-error");
-            this.barcodeReader.showNotFoundNotification(
-                parsed_results.find((element) => element.type === "product"),
-            );
+            this.barcodeReader.showNotFoundNotification(productBarcode);
             return;
         }
         this.sound.play("beep");
