@@ -136,6 +136,7 @@ test("one cache, invalidate all tables", async () => {
 });
 
 test("invalidate all tables, empty cache", async () => {
+    expect.assertions(6);
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
@@ -216,6 +217,7 @@ test("two caches, invalidate", async () => {
 });
 
 test("two caches, new DB version", async () => {
+    expect.assertions(8);
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
