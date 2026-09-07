@@ -321,7 +321,7 @@ class HrApplicant(models.Model):
             return
 
         key_domain = indirect._get_duplicate_key_domain()
-        pool_count_by_key = {}
+        pool_ids_by_key = {}
         if not key_domain.is_false():
             in_pool = self.env["hr.applicant"].search(
                 Domain.OR(
@@ -333,18 +333,21 @@ class HrApplicant(models.Model):
                 & key_domain
             )
             for applicant in in_pool:
-                count = len(applicant.pool_applicant_id.talent_pool_ids)
+                pool_ids = applicant.pool_applicant_id.talent_pool_ids.ids
                 for fname in self._DUPLICATE_KEY_FIELDS:
                     if applicant[fname]:
-                        pool_count_by_key[fname, applicant[fname]] = count
+                        key = (fname, applicant[fname])
+                        pool_ids_by_key[key] = pool_ids_by_key.get(key, set()) | set(
+                            pool_ids
+                        )
         for applicant in indirect:
             matches = [
-                pool_count_by_key[fname, applicant[fname]]
+                pool_ids_by_key[fname, applicant[fname]]
                 for fname in self._DUPLICATE_KEY_FIELDS
-                if applicant[fname] and (fname, applicant[fname]) in pool_count_by_key
+                if applicant[fname] and (fname, applicant[fname]) in pool_ids_by_key
             ]
             applicant.is_applicant_in_pool = bool(matches)
-            applicant.talent_pool_count = matches[0] if matches else 0
+            applicant.talent_pool_count = len(matches[0]) if matches else 0
 
     @api.depends(lambda self: self._phone_get_sanitize_triggers())
     def _compute_phone_sanitized(self):
@@ -849,7 +852,9 @@ class HrApplicant(models.Model):
 
     def link_applicant_to_talent(self):
         talent = self.env["hr.applicant"].search(
-            domain=self._get_similar_applicants_domain(only_talent=True)
+            domain=self._get_similar_applicants_domain(only_talent=True),
+            order="id",
+            limit=1,
         )
         self.pool_applicant_id = talent
 
