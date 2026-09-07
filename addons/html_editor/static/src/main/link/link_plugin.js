@@ -497,7 +497,7 @@ export class LinkPlugin extends Plugin {
             (!linkElement.contains(selection.anchorNode) ||
                 !linkElement.contains(selection.focusNode))
         ) {
-            this.extendLinkToSelection(linkElement, selection);
+            this.extendLinkToSelection(linkElement);
             linkElement = findInSelection(selection, "a");
             this.dependencies.history.addStep();
             cursorsToRestore = this.dependencies.selection.preserveSelection();
