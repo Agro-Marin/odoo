@@ -167,13 +167,21 @@ export class ColorUIPlugin extends Plugin {
         this.selectedColors.color = this.dependencies.color.getElementColors(el).color;
     }
 
+    /**
+     * The active tab's button carries a `${tab.id}-tab` class (see
+     * `web.ColorPicker`'s template), which is stable across locales — unlike
+     * its rendered label, which is translated.
+     * @returns {HTMLElement|null}
+     */
+    getActiveColorTabButton() {
+        return document.querySelector(".o_font_color_selector button.active");
+    }
+
     getBackgroundColorProcessor(backgroundColor) {
-        const activeTab = document
-            .querySelector(".o_font_color_selector button.active")
-            ?.innerHTML.trim();
+        const activeButton = this.getActiveColorTabButton();
         if (
             backgroundColor.startsWith("rgba") &&
-            (!activeTab || activeTab === "Solid")
+            (!activeButton || activeButton.classList.contains("solid-tab"))
         ) {
             const values = backgroundColor.match(RGBA_REGEX) || [];
             const alpha = parseFloat(values.pop());
@@ -184,13 +192,14 @@ export class ColorUIPlugin extends Plugin {
         return backgroundColor;
     }
 
-    applyBackgroundColorProcessor(brackgroundColor) {
-        const activeTab = document
-            .querySelector(".o_font_color_selector button.active")
-            ?.innerHTML.trim();
-        if (activeTab === "Solid" && brackgroundColor.startsWith("#")) {
-            brackgroundColor += HEX_OPACITY;
+    applyBackgroundColorProcessor(backgroundColor) {
+        const activeButton = this.getActiveColorTabButton();
+        if (
+            activeButton?.classList.contains("solid-tab") &&
+            backgroundColor.startsWith("#")
+        ) {
+            backgroundColor += HEX_OPACITY;
         }
-        return brackgroundColor;
+        return backgroundColor;
     }
 }
