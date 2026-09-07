@@ -9,6 +9,25 @@ _logger = logging.getLogger(__name__)
 
 COMPANY_AC_TIMEOUT = 5
 
+# `res.partner` fields `_enrich()` is willing to write from an IAP enrichment
+# response. Anything else matching a field name by coincidence is dropped,
+# rather than trusting every key the configured IAP endpoint happens to send.
+ENRICH_ALLOWED_FIELDS = {
+    "name",
+    "website",
+    "email",
+    "phone",
+    "street",
+    "street2",
+    "city",
+    "zip",
+    "state_id",
+    "country_id",
+    "industry_id",
+    "lang",
+    "image_1920",
+}
+
 
 class ResCompany(models.Model):
     _inherit = "res.company"
@@ -67,7 +86,10 @@ class ResCompany(models.Model):
         company_data = {
             field: value
             for field, value in company_data.items()
-            if field in self.partner_id._fields and value and not self.partner_id[field]
+            if field in ENRICH_ALLOWED_FIELDS
+            and field in self.partner_id._fields
+            and value
+            and not self.partner_id[field]
         }
 
         # for company: from state_id / country_id display_name like to IDs

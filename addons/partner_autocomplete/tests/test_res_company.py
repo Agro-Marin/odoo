@@ -42,6 +42,25 @@ class TestResCompany(common.TransactionCase, MockIAPPartnerAutocomplete):
 
         self.assertEqual(company.partner_id.image_1920, manual_logo_processed)
 
+    def test_enrich_ignores_fields_outside_allowlist(self):
+        """`_enrich()` must not write partner fields outside its enrichment
+        allowlist, even when the IAP response happens to include a key that
+        matches a real `res.partner` field name.
+        """
+        company = self.env["res.company"].create({"name": "Test Company 3"})
+        company.write({"email": "friedrich@heinrich.de"})
+        with self.mockPartnerAutocomplete(
+            default_data={
+                "function": "Chief Duck Herder",
+                "comment": "should not land on the partner",
+            }
+        ):
+            res = company._enrich()
+            self.assertTrue(res)
+
+        self.assertFalse(company.partner_id.function)
+        self.assertFalse(company.partner_id.comment)
+
     def test_extract_company_domain(self):
         company_1 = self.env["res.company"].create({"name": "Test Company 1"})
 
