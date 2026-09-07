@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from odoo import fields
-from odoo.tests import tagged
+from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.sale_stock.tests.common import TestSaleStockCommon
 from odoo.addons.stock_account.tests.test_anglo_saxon_valuation_reconciliation_common import (
@@ -273,3 +273,48 @@ class TestSaleStockLeadTime(TestSaleStockCommon, ValuationReconciliationTestComm
             abs(min_date - out_date) <= timedelta(seconds=1),
             "Schedule date of picking should be equal to: order date + Customer Lead Time - Sales Safety Days.",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestSecurityLeadIsWholeDays(TransactionCase):
+    """Sales Safety Days is a count of days, so it is a whole number.
+
+    Its only consumer is the `timedelta(days=...)` in
+    `_prepare_procurement_vals`, which happily shifts a procurement date by a
+    fraction of a day nobody can act on, and the settings page rendered the
+    margin as a two-decimal "0.00 days".
+    """
+
+    def test_the_margin_is_declared_as_whole_days(self):
+        for model in ("res.company", "res.config.settings"):
+            with self.subTest(model=model):
+                self.assertEqual(
+                    self.env[model]._fields["security_lead"].type,
+                    "integer",
+                    "A margin in days has no fractional part",
+                )
+
+    def test_a_fractional_margin_does_not_survive_a_write(self):
+        company = self.env.company
+        company.security_lead = 2.7
+        self.assertEqual(
+            company.security_lead,
+            2,
+            "The ORM truncates to whole days rather than keeping 2.7",
+        )
+
+    def test_the_column_really_became_an_integer(self):
+        """An `-u` has to convert the existing column, not just the field.
+
+        A field declared Integer over a surviving float8 column would read
+        correctly in Python and still store fractions.
+        """
+        self.env.cr.execute(
+            """
+            SELECT data_type
+              FROM information_schema.columns
+             WHERE table_name = 'res_company'
+               AND column_name = 'security_lead'
+            """
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], "integer")

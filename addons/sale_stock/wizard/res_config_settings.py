@@ -4,7 +4,7 @@ from odoo import api, fields, models
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    security_lead = fields.Float(
+    security_lead = fields.Integer(
         related="company_id.security_lead",
         string="Security Lead Time",
         readonly=False,
@@ -28,4 +28,4 @@ class ResConfigSettings(models.TransientModel):
     @api.onchange("use_security_lead")
     def _onchange_use_security_lead(self):
         if not self.use_security_lead:
-            self.security_lead = 0.0
+            self.security_lead = 0
