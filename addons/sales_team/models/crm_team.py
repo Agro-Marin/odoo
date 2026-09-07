@@ -10,6 +10,7 @@ class CrmTeam(models.Model):
     _inherit = ["mixin.mail.thread", "mixin.user.favorite"]
     _description = "Sales Team"
     _order = "sequence ASC, create_date DESC, id DESC"
+    _mail_post_access = "read"
     _check_company_auto = True
 
     def _default_color(self):

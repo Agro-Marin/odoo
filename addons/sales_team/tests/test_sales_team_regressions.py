@@ -411,7 +411,9 @@ class TestFavorite(TestSalesCommon):
             self.env.invalidate_all()
             expected_first = first == self.user_sales_manager
             self.assertEqual(team.with_user(first).is_user_favorite, expected_first)
-            self.assertEqual(team.with_user(second).is_user_favorite, not expected_first)
+            self.assertEqual(
+                team.with_user(second).is_user_favorite, not expected_first
+            )
 
     def test_is_user_favorite_follows_favorite_user_ids(self):
         team = self.env["crm.team"].create({"name": "Favorite 2", "company_id": False})
@@ -1735,3 +1737,99 @@ class TestDefaultTeamIgnoresArchived(TestSalesCommon):
                     ._get_default_team_id(),
                     live,
                 )
+
+
+class TestTeamChatterPosting(TestSalesCommon):
+    """The team form carries a `<chatter />` (`crm_team_views.xml`), but writing a
+    team is `group_sale_manager`'s by ACL, and `mail` gates posting on the write
+    right by default (`_mail_post_access = "write"`). A salesperson could
+    therefore read the conversation on their own team and not answer it.
+
+    Posting is communication, not record modification: it is gated on `read`
+    here. These tests pin both halves -- the chatter opens up, the record does
+    not.
+    """
+
+    PROFILES = {
+        "plain internal": "base.group_user",
+        "salesman own": "sales_team.group_sale_salesman",
+        "salesman all": "sales_team.group_sale_salesman_all_leads",
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.readers = {
+            label: mail_new_test_user(
+                cls.env,
+                login=f"chat_{group.rsplit('.', 1)[-1]}",
+                name=label,
+                groups=group,
+            )
+            for label, group in cls.PROFILES.items()
+        }
+        cls.env.flush_all()
+
+    def test_a_reader_can_answer_the_team_chatter(self):
+        for label, reader in self.readers.items():
+            with self.subTest(profile=label):
+                team = self.sales_team_1.with_user(reader)
+                team.read(["name"])
+                message = team.message_post(
+                    body=f"posted by {label}",
+                    message_type="comment",
+                    subtype_xmlid="mail.mt_comment",
+                )
+                self.assertTrue(
+                    message,
+                    "whoever can read the team must be able to answer its chatter",
+                )
+                self.assertEqual(message.body, f"<p>posted by {label}</p>")
+
+    def test_posting_does_not_hand_out_write_on_the_team(self):
+        """The widening is the chatter's only. `group_sale_manager` keeps the
+        record, which is what `sales_team_security.xml` documents.
+        """
+        for label, reader in self.readers.items():
+            with self.subTest(profile=label):
+                team = self.sales_team_1.with_user(reader)
+                with self.assertRaises(exceptions.AccessError):
+                    team.check_access("write")
+                with self.assertRaises(exceptions.AccessError):
+                    team.write({"name": "renamed by a reader"})
+
+    def test_the_composer_is_offered_to_a_reader(self):
+        """What the chatter actually gates on: `mixin.mail.thread` ships
+        `canPostOnReadonly` to the client from this operation, and
+        `thread_model.js` opens the composer on read access when it is set.
+        Asserting the resolved operation ties the model to the screen.
+        """
+        for label, reader in self.readers.items():
+            with self.subTest(profile=label):
+                team = self.sales_team_1.with_user(reader)
+                operations = team._mail_get_operation_for_mail_message_operation(
+                    "create"
+                )
+                self.assertEqual(
+                    list(operations.values()),
+                    ["read"],
+                    "posting must resolve to a read check, not a write one",
+                )
+
+    def test_a_portal_user_still_cannot_post(self):
+        """`read` is a real gate, not an open door: a team is unreadable to a
+        share user, so the chatter stays shut for them.
+        """
+        portal = mail_new_test_user(
+            self.env,
+            login="chat_portal",
+            name="Chat Portal",
+            groups="base.group_portal",
+        )
+        team = self.sales_team_1.with_user(portal)
+        with self.assertRaises(exceptions.AccessError):
+            team.read(["name"])
+        with self.assertRaises(exceptions.AccessError):
+            team.message_post(
+                body="portal", message_type="comment", subtype_xmlid="mail.mt_comment"
+            )
