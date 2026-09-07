@@ -329,7 +329,7 @@ export class SnippetModel extends SignalStore {
         }
         snippet.title = newName;
         for (const snippetEl of this.snippetsDocument.body.querySelectorAll(
-            `snippets#snippet_custom > [data-oe-snippet-key = ${snippet.key}]`,
+            `snippets#snippet_custom > [data-oe-snippet-key="${snippet.key}"]`,
         )) {
             snippetEl.setAttribute("name", newName);
             snippetEl.children[0].dataset["name"] = newName;
