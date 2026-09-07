@@ -362,6 +362,14 @@ class TestOnboarding(TestOnboardingCommon):
             "per-company, regardless of which side of the relation triggered it.",
         )
 
+    def test_check_step_action_required_on_clear(self):
+        """Clearing panel_step_open_action_name on a step already linked to an
+        onboarding must re-trigger the same validation that fires when linking
+        happens the other way around.
+        """
+        with self.assertRaises(ValidationError):
+            self.onboarding_1_step_1.write({"panel_step_open_action_name": False})
+
     @unittest.skip(
         "Company deletion can fail because of other foreign key constraints."
     )

@@ -87,7 +87,7 @@ class OnboardingOnboardingStep(models.Model):
                 step.current_progress_step_id = False
                 step.current_step_state = "not_done"
 
-    @api.constrains("onboarding_ids")
+    @api.constrains("onboarding_ids", "panel_step_open_action_name")
     def check_step_on_onboarding_has_action(self):
         if steps_without_action := self.filtered(
             lambda step: step.onboarding_ids and not step.panel_step_open_action_name
