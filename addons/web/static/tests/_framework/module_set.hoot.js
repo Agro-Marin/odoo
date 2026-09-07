@@ -167,7 +167,7 @@ export function setupTestEnvironment() {
             },
         };
         try {
-            listener({ target, type });
+            listener(/** @type {any} */ ({ target, type }));
         } catch {
             return false;
         }
