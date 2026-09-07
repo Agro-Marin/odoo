@@ -8,6 +8,7 @@ from ..models.bus import (
     MAX_NOTIFICATIONS_PER_POLL,
     NOTIFICATION_HOLD_BACK_SECONDS,
     channel_with_db,
+    dispatch,
     json_dump,
 )
 from ..websocket import ConnectionState, NotificationDispatchState, Websocket
@@ -177,3 +178,89 @@ class TestDispatchRearm(BaseCase):
         send, rearm = self._dispatch(ws)
         send.assert_not_called()
         rearm.assert_not_called()
+
+
+@tagged("-at_install", "post_install")
+class TestDispatchRoundSharesOnePoll(BaseCase):
+    NOTIFICATIONS = [{"id": 7, "message": {}}]
+
+    def setUp(self):
+        super().setUp()
+        dispatch.open_poll_round()
+        self.addCleanup(dispatch.open_poll_round)
+
+    def _make_ws(self):
+        ws = Websocket.__new__(Websocket)
+        ws._clock = time.monotonic
+        ws.state = ConnectionState.OPEN
+        ws._db = "somedb"
+        ws._channels = {("somedb", "chan")}
+        ws._waiting_for_dispatch = False
+        ws._dispatch_state = NotificationDispatchState(NOTIFICATION_HOLD_BACK_SECONDS)
+        session = MagicMock()
+        session.db = "somedb"
+        session.sid = "sid"
+        session.uid = None
+        ws._session = session
+        ws._session_validated_until = float("inf")
+        ws._validated_session_sid = "sid"
+        return ws
+
+    def _wake(self, sockets, poll_round=None):
+        with patch.object(Websocket, "_send_control_command"):
+            for ws in sockets:
+                ws.trigger_notification_dispatching(poll_round)
+
+    def _dispatch_all(self, sockets):
+        env = MagicMock()
+        poll = env.__getitem__.return_value._poll_batch
+        poll.return_value = (self.NOTIFICATIONS, False)
+        cursor = MagicMock()
+        cursor.__enter__.return_value = MagicMock()
+        with (
+            patch("odoo.addons.bus.websocket.acquire_cursor", return_value=cursor),
+            patch.object(Websocket, "new_env", return_value=env),
+            patch.object(Websocket, "_send") as send,
+        ):
+            for ws in sockets:
+                ws._dispatch_bus_notifications()
+        return poll, send
+
+    def test_one_round_polls_once_for_identical_subscribers(self):
+        sockets = [self._make_ws() for _ in range(5)]
+        poll_round = dispatch.open_poll_round()
+        self._wake(sockets, poll_round)
+
+        poll, send = self._dispatch_all(sockets)
+
+        poll.assert_called_once()
+        self.assertEqual(send.call_count, 5, "every subscriber must still be served")
+
+    def test_a_wake_carrying_no_round_shares_nothing(self):
+        sockets = [self._make_ws() for _ in range(5)]
+        self._wake(sockets)
+
+        poll, _send = self._dispatch_all(sockets)
+
+        self.assertEqual(poll.call_count, 5)
+
+    def test_a_stale_round_shares_nothing(self):
+        sockets = [self._make_ws() for _ in range(5)]
+        stale = dispatch.open_poll_round()
+        self._wake(sockets, stale)
+        dispatch.open_poll_round()
+
+        poll, _send = self._dispatch_all(sockets)
+
+        self.assertEqual(poll.call_count, 5)
+
+    def test_each_wake_authorises_only_one_shared_answer(self):
+        ws = self._make_ws()
+        poll_round = dispatch.open_poll_round()
+        self._wake([ws], poll_round)
+
+        poll, _send = self._dispatch_all([ws, ws])
+
+        self.assertEqual(
+            poll.call_count, 2, "a second dispatch on one wake must poll for itself"
+        )

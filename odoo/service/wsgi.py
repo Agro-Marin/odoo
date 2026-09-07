@@ -215,8 +215,19 @@ class RequestHandler(CommonRequestHandler):
     def end_headers(self, *a: Any, **kw: Any) -> None:
         super().end_headers(*a, **kw)
         if self._is_websocket_upgrade():
+            # Swap first, then close what was swapped out. rfile is a
+            # makefile() over the connection, and an outstanding one keeps
+            # socket.close() from reaching the descriptor, so the fd outlives
+            # the websocket by however long a cyclic GC pass takes to free this
+            # handler. Closing it here only decrements the socket's io
+            # refcount; the websocket's own close() then frees the fd. The
+            # websocket reads the raw socket out of the environ, never these.
+            orphans = (self.rfile, self.wfile)
             self.rfile = BytesIO()
             self.wfile = BytesIO()
+            for orphan in orphans:
+                with suppress(OSError):
+                    orphan.close()
 
     def send_response(self, code: int, message: str | None = None) -> None:
         super().send_response(code, message)

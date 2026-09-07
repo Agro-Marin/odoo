@@ -210,13 +210,6 @@ class BusBus(models.Model):
         timeout_ago = fields.Datetime.now() - datetime.timedelta(
             seconds=gc_retention_seconds
         )
-        # Batched, like the other autovacuum methods (ir_cron._gc_cron_progress,
-        # ir_attachment._gc_rehash_legacy_keys, mail_activity, ...): an
-        # unbounded single DELETE on a large backlog (long retention window,
-        # heavy traffic) would be one long transaction with a large WAL burst
-        # instead of a bounded one. Returning (done, remaining) lets
-        # ir.autovacuum._run_vacuum_cleaner re-queue this method within its
-        # MAX_VACUUM_RUNTIME budget until the backlog is drained.
         self.env.cr.execute(
             "DELETE FROM bus_bus WHERE id IN "
             "(SELECT id FROM bus_bus WHERE create_date < %s LIMIT %s)",
@@ -351,12 +344,36 @@ def _keep_session_alive_while_idle(conn):
 
 
 class ImDispatch(threading.Thread):
+    MAX_POLL_MEMO_KEYS = 512
+
     def __init__(self):
         super().__init__(daemon=True, name=f"{__name__}.Bus")
         self._channels_to_ws = {}
         self._lock = threading.Lock()
         self._first_listen = True
         self._ever_started = False
+        self._poll_round = 0
+        self._poll_memo = {}
+        self._poll_memo_lock = threading.Lock()
+
+    def open_poll_round(self):
+        with self._poll_memo_lock:
+            self._poll_round += 1
+            self._poll_memo.clear()
+            return self._poll_round
+
+    def poll_memo_get(self, round_id, key):
+        with self._poll_memo_lock:
+            if round_id != self._poll_round:
+                return None
+            return self._poll_memo.get(key)
+
+    def poll_memo_set(self, round_id, key, value):
+        with self._poll_memo_lock:
+            if round_id != self._poll_round:
+                return
+            if len(self._poll_memo) < self.MAX_POLL_MEMO_KEYS:
+                self._poll_memo[key] = value
 
     @property
     def is_healthy(self):
@@ -411,8 +428,9 @@ class ImDispatch(threading.Thread):
                     channels = []
                     for notif in conn.notifies(timeout=0):
                         channels.extend(self._parse_imbus_payload(notif.payload))
+                    poll_round = self.open_poll_round()
                     for websocket in self._collect_websockets(channels):
-                        websocket.trigger_notification_dispatching()
+                        websocket.trigger_notification_dispatching(poll_round)
 
     @staticmethod
     def _parse_imbus_payload(payload):
@@ -437,13 +455,14 @@ class ImDispatch(threading.Thread):
         return websockets
 
     def _dispatch_to_all(self):
+        poll_round = self.open_poll_round()
         with self._lock:
             websockets = set().union(*self._channels_to_ws.values())
         for count, websocket in enumerate(websockets):
             if count and count % DISPATCH_CATCHUP_CHUNK_SIZE == 0:
                 if stop_event.wait(DISPATCH_CATCHUP_CHUNK_DELAY):
                     return
-            websocket.trigger_notification_dispatching()
+            websocket.trigger_notification_dispatching(poll_round)
 
     def run(self):
         retry_delay = 1

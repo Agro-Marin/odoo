@@ -54,27 +54,23 @@ JITTER_ON_POOL_ERROR = 0.3
 @contextmanager
 def acquire_cursor(db):
     delay = DELAY_ON_POOL_ERROR
-    try:
-        for attempt in range(1, MAX_TRY_ON_POOL_ERROR + 1):
-            time.sleep(0)
+    for attempt in range(1, MAX_TRY_ON_POOL_ERROR + 1):
+        try:
+            cm = db_connect(db).cursor()
+            cr = cm.__enter__()
+        except PoolError:
+            if attempt == MAX_TRY_ON_POOL_ERROR:
+                raise PoolError(
+                    f"Failed to acquire cursor after {MAX_TRY_ON_POOL_ERROR} retries"
+                ) from None
+        else:
             try:
-                cm = db_connect(db).cursor()
-                cr = cm.__enter__()
-            except PoolError:
-                if attempt == MAX_TRY_ON_POOL_ERROR:
-                    raise PoolError(
-                        f"Failed to acquire cursor after {MAX_TRY_ON_POOL_ERROR} retries"
-                    ) from None
-            else:
-                try:
-                    yield cr
-                    return
-                finally:
-                    cm.__exit__(*sys.exc_info())
-            time.sleep(delay + random.uniform(0, JITTER_ON_POOL_ERROR))
-            delay *= 1.5
-    finally:
-        time.sleep(0)
+                yield cr
+                return
+            finally:
+                cm.__exit__(*sys.exc_info())
+        time.sleep(delay + random.uniform(0, JITTER_ON_POOL_ERROR))
+        delay *= 1.5
 
 
 class UpgradeRequired(HTTPException):
@@ -306,6 +302,11 @@ class Websocket:
     SESSION_VALIDITY_TTL = 60
     FRAME_RECEIVE_TIMEOUT = 15
 
+    # The dispatch round a batched wake authorised this connection to share an
+    # answer in, None otherwise. Declared on the class so a connection that
+    # never went through a wake reads None rather than raising.
+    _poll_round = None
+
     def __init__(self, sock, session, cookies, *, clock=None):
         self._clock = clock if clock is not None else time.monotonic
         self._session = session
@@ -389,10 +390,14 @@ class Websocket:
         self._dispatch_state.initialize_last_id(last)
         self.trigger_notification_dispatching()
 
-    def trigger_notification_dispatching(self):
+    def trigger_notification_dispatching(self, poll_round=None):
         if self.state is not ConnectionState.OPEN or self._waiting_for_dispatch:
             return
         self._waiting_for_dispatch = True
+        # Only a caller that woke a BATCH passes a round, and only that round
+        # lets this connection share another's answer. A lone trigger -- a
+        # re-arm, a test, anything outside the dispatcher -- shares nothing.
+        self._poll_round = poll_round
         with suppress(OSError):
             self._send_control_command(ControlCommand.DISPATCH)
 
@@ -704,18 +709,42 @@ class Websocket:
             self._session = _follow_session_chain(self._session)
         session = self._session
         self._waiting_for_dispatch = False
-        with acquire_cursor(session.db) as cr:
-            env = self.new_env(cr, session)
-            if must_validate:
-                if session.uid is not None and not is_session_valid(session, env):
-                    raise SessionExpiredException
-                self._session_validated_until = now + self.SESSION_VALIDITY_TTL
-                self._validated_session_sid = session.sid
-            notifications, truncated = env["bus.bus"]._poll_batch(
-                self._channels,
-                self._dispatch_state.last_id,
-                self._dispatch_state.ignore_ids,
-            )
+        # Subscribers to a busy channel converge on one cursor, so a dispatch
+        # round asks the same question once per connection. Each wake
+        # authorises at most one shared answer, in the round that wake belongs
+        # to: a dispatch nobody woke, or a second dispatch inside one round,
+        # queries for itself. That keeps a hit to rows committed before the
+        # notification that opened the round; anything later wakes the
+        # connection again, because _waiting_for_dispatch is cleared above.
+        # The result is read-only downstream -- _send only serialises it.
+        poll_round = self._poll_round
+        self._poll_round = None
+        memo_key = (
+            session.db,
+            frozenset(self._channels),
+            self._dispatch_state.last_id,
+            tuple(self._dispatch_state.ignore_ids),
+        )
+        cached = None
+        if poll_round is not None and not must_validate:
+            cached = dispatch.poll_memo_get(poll_round, memo_key)
+        if cached is not None:
+            notifications, truncated = cached
+        else:
+            with acquire_cursor(session.db) as cr:
+                env = self.new_env(cr, session)
+                if must_validate:
+                    if session.uid is not None and not is_session_valid(session, env):
+                        raise SessionExpiredException
+                    self._session_validated_until = now + self.SESSION_VALIDITY_TTL
+                    self._validated_session_sid = session.sid
+                notifications, truncated = env["bus.bus"]._poll_batch(
+                    self._channels,
+                    self._dispatch_state.last_id,
+                    self._dispatch_state.ignore_ids,
+                )
+            if poll_round is not None:
+                dispatch.poll_memo_set(poll_round, memo_key, (notifications, truncated))
         if not notifications:
             return
         self._dispatch_state.record_dispatched([notif["id"] for notif in notifications])
