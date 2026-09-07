@@ -41,6 +41,7 @@ from odoo.tests.transaction_case import (
     _DELEGATING_STATEMENTS,
     _STATEMENT_RECORDERS,
     RegistryRLock,
+    _release_foreign_acquisition,
 )
 from odoo.tests.utils import (
     InfrastructureUnavailable,
@@ -942,6 +943,147 @@ class TestStrandedTestCursorReleasesItsLock(TransactionCase):
         before = _registry_test_lock.count
         self.assertEqual(release_stranded_test_cursors(), 0)
         self.assertEqual(_registry_test_lock.count, before)
+
+
+class TestAStrandedCursorIsRecoverableAcrossThreads(BaseCase):
+    def test_an_acquisition_made_by_another_thread_can_be_released(self):
+        lock = RegistryRLock()
+        taken = threading.Event()
+
+        def worker():
+            lock.acquire()
+            taken.set()
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        self.assertTrue(taken.wait(5), "the worker never took the lock")
+        thread.join(5)
+
+        _release_foreign_acquisition(lock)
+
+        self.assertTrue(
+            lock.acquire(timeout=5),
+            "a TestCursor stranded by an HTTP worker holds an acquisition that "
+            "thread will never return, and RLock.release() refuses from any "
+            "other thread -- so the recovery path has to adopt it first, or it "
+            "raises in exactly the case it exists for",
+        )
+        lock.release()
+
+    def test_it_still_releases_normally_when_this_thread_owns_it(self):
+        lock = RegistryRLock()
+        lock.acquire()
+        _release_foreign_acquisition(lock)
+        self.assertTrue(lock.acquire(timeout=5))
+        lock.release()
+
+    def test_a_lock_it_cannot_adopt_is_reported_not_raised(self):
+        lock = threading.RLock()
+        taken = threading.Event()
+
+        def worker():
+            lock.acquire()
+            taken.set()
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        self.assertTrue(taken.wait(5))
+        thread.join(5)
+
+        with self.assertLogs("odoo.tests.transaction_case", "WARNING") as logged:
+            _release_foreign_acquisition(lock)
+        self.assertIn(
+            "exposes no owner to adopt",
+            "\n".join(logged.output),
+            "the C _thread.RLock cannot be adopted, and re-raising there would "
+            "reproduce the very message this path exists to avoid",
+        )
+
+
+class TestReleaseTestLockIsSymmetric(TransactionCase):
+    def test_a_thread_that_does_not_hold_it_touches_nothing(self):
+        raised = []
+        counts = []
+
+        def worker():
+            try:
+                with release_test_lock():
+                    counts.append(_registry_test_lock.count)
+            except BaseException as exc:
+                raised.append(exc)
+
+        before = _registry_test_lock.count
+        thread = threading.Thread(target=worker)
+        with mute_logger("odoo.tests.transaction_case"):
+            thread.start()
+            thread.join(10)
+
+        self.assertEqual(
+            raised,
+            [],
+            "release_test_lock released a lock the calling thread does not "
+            "own; RLock.release() raises for a non-owner, and that RuntimeError "
+            "surfaces as a failure of whatever test was making the request",
+        )
+        self.assertEqual(
+            counts,
+            [before],
+            "a thread that never held the lock must not hand it over",
+        )
+        self.assertEqual(
+            _registry_test_lock.count,
+            before,
+            "and it must not acquire one on the way out either -- an "
+            "unbalanced re-acquisition is what leaves count > 1",
+        )
+
+    def test_the_owner_still_hands_it_over_and_takes_it_back(self):
+        before = _registry_test_lock.count
+        with release_test_lock():
+            self.assertEqual(
+                _registry_test_lock.count, before - 1, "the hand-over must release"
+            )
+        self.assertEqual(_registry_test_lock.count, before)
+
+
+class TestBrowserIsStoppedBeforeTheLockIsTakenBack(BaseCase):
+    def test_the_last_registered_stop_runs_before_the_drain(self):
+        lines = inspect.getsource(HttpCase.browser_js).splitlines()
+        stops = [
+            i for i, line in enumerate(lines) if "atexit.callback(browser.stop)" in line
+        ]
+        allow = next(
+            i
+            for i, line in enumerate(lines)
+            if "self.allow_requests(browser=browser)" in line
+        )
+        drain = next(
+            i
+            for i, line in enumerate(lines)
+            if "atexit.callback(self._wait_remaining_requests)" in line
+        )
+        self.assertEqual(
+            len(stops),
+            2,
+            "browser.stop is registered twice on purpose: once before "
+            "allow_requests as the safety net, once after the drain so it "
+            "actually runs first",
+        )
+        self.assertLess(
+            stops[0],
+            allow,
+            "the safety-net registration must precede allow_requests, or a "
+            "failure entering it leaks the chrome process",
+        )
+        self.assertGreater(
+            stops[-1],
+            drain,
+            "an ExitStack unwinds last-registered-first, so stopping the "
+            "browser must be registered AFTER the drain to run BEFORE it -- "
+            "otherwise the browser is still live while allow_requests waits "
+            "60s to take the registry lock back, and a late request holding a "
+            "TestCursor makes that wait time out",
+        )
 
 
 class TestSetUpIsRerunPerAttempt(BaseCase):

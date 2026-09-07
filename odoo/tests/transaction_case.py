@@ -66,6 +66,10 @@ class RegistryRLock(threading._RLock):  # type: ignore[misc]  # only the private
     def count(self) -> int:
         return self._count
 
+    @property
+    def held_by_this_thread(self) -> bool:
+        return self._owner == threading.get_ident()
+
 
 _registry_test_lock = RegistryRLock()
 
@@ -76,8 +80,18 @@ def current_test_tag() -> str:
 
 @contextmanager
 def release_test_lock() -> Generator[None]:
+    if not _registry_test_lock.held_by_this_thread:
+        _logger.warning(
+            "The registry test lock was not held on entering %s, so this "
+            "hand-over releases nothing and re-acquires nothing. An earlier "
+            "test lost it -- look for the first 'Could not re-acquire' above.",
+            current_test_tag(),
+        )
+        yield
+        return
+
+    _registry_test_lock.release()
     try:
-        _registry_test_lock.release()
         yield
     finally:
         if not _registry_test_lock.acquire(timeout=60):
@@ -106,6 +120,23 @@ def gc_test_filestore() -> None:
         _logger.warning("Could not sweep the filestore after the suite", exc_info=True)
 
 
+def _release_foreign_acquisition(lock: Any) -> None:
+    if hasattr(lock, "_owner"):
+        if lock._owner not in (None, threading.get_ident()):
+            lock._owner = threading.get_ident()
+            lock._count = 1
+        lock.release()
+        return
+    try:
+        lock.release()
+    except RuntimeError:
+        _logger.warning(
+            "Could not release the lock of a stranded test cursor: another "
+            "thread holds it and this lock exposes no owner to adopt, so every "
+            "later test cursor will stall for test_cursor_lock_timeout",
+        )
+
+
 def release_stranded_test_cursors(owner: str = "") -> int:
     stranded = TestCursor._cursors_stack
     for cursor in reversed(stranded):
@@ -123,7 +154,7 @@ def release_stranded_test_cursors(owner: str = "") -> int:
                 exc_info=True,
             )
         cursor._closed = True
-        cursor._lock.release()
+        _release_foreign_acquisition(cursor._lock)
     count = len(stranded)
     TestCursor._cursors_stack = []
     return count

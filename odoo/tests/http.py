@@ -431,6 +431,7 @@ class HttpCase(TransactionCase):
             atexit.callback(browser.stop)
             atexit.enter_context(self.allow_requests(browser=browser))
             atexit.callback(self._wait_remaining_requests)
+            atexit.callback(browser.stop)
             self._browser_js_patch_bus(atexit)
 
             self.authenticate(login, login, browser=browser)
