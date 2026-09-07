@@ -213,6 +213,11 @@ export class IoTLongpolling {
                         this._onSuccess(iot_ip, result.result);
                     }
                 }
+                if (!this._listeners[iot_ip]) {
+                    // The listener's own callback removed it (e.g. the last device for
+                    // this iot_ip unregistered itself) while handling _onSuccess above.
+                    return;
+                }
                 const remainingDevices = Object.keys(
                     this._listeners[iot_ip].devices || {},
                 );
