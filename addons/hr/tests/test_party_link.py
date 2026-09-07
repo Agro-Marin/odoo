@@ -46,6 +46,21 @@ class TestPartyLink(TransactionCase):
         self.assertFalse(former.active)
         self.assertTrue(former.exists())
 
+    def test_a_user_link_leaves_the_former_partys_history_on_the_shell(self):
+        employee, _tag, _bank = self._badged_employee()
+        former = employee.partner_id
+        former.message_post(body="Logged before the login existed")
+        logged = former.message_ids
+        self.assertTrue(logged)
+        user = self.env["res.users"].create({"name": "Link Login", "login": "link"})
+        employee.user_id = user
+        self.assertNotEqual(employee.partner_id, former)
+        # The shell is archived rather than deleted precisely so that what was
+        # said about the person before they had a login is still readable.
+        self.assertTrue(former.exists())
+        self.assertFalse(former.active)
+        self.assertEqual(former.message_ids, logged)
+
     def test_a_former_party_that_is_a_real_contact_is_not_archived(self):
         employee, _tag, _bank = self._badged_employee()
         former = employee.partner_id
