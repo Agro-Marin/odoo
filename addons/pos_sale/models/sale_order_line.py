@@ -218,15 +218,14 @@ class SaleOrderLine(models.Model):
 
     @api.depends("product_id", "pos_order_line_ids")
     def _compute_name(self):
-        for sol in self:
-            if sol.sudo().pos_order_line_ids:
-                downpayment_sols = sol.pos_order_line_ids.mapped(
-                    "refunded_orderline_id.sale_order_line_id"
+        lines_without_pos = self.filtered(lambda sol: not sol.sudo().pos_order_line_ids)
+        super(SaleOrderLine, lines_without_pos)._compute_name()
+        for sol in self - lines_without_pos:
+            downpayment_sols = sol.pos_order_line_ids.mapped(
+                "refunded_orderline_id.sale_order_line_id"
+            )
+            for downpayment_sol in downpayment_sols:
+                downpayment_sol.name = _(
+                    "%(line_description)s (Cancelled)",
+                    line_description=downpayment_sol.name,
                 )
-                for downpayment_sol in downpayment_sols:
-                    downpayment_sol.name = _(
-                        "%(line_description)s (Cancelled)",
-                        line_description=downpayment_sol.name,
-                    )
-            else:
-                super()._compute_name()
