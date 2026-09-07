@@ -153,6 +153,7 @@ msgid "Apply specific routes"
 msgstr "Belirli rotaları uygulama"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__direct
 msgid "As soon as possible"
 msgstr "Mümkün olduğunca kısa sürede"
@@ -563,11 +564,6 @@ msgid "Partially Delivered"
 msgstr "Kısmen Teslim Edildi"
 
 #. module: sale_stock
-#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
-msgid "Picking Policy"
-msgstr "Toplama Politikası"
-
-#. module: sale_stock
 #: model:ir.model,name:sale_stock.model_product_template
 msgid "Product"
 msgstr "Ürün"
@@ -732,16 +728,7 @@ msgid "Selectable on Sales Order Line"
 msgstr "Satış Sipariş Satır'dan Seçilebilir"
 
 #. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
-msgid "Ship all products at once"
-msgstr "Tüm ürünleri tek seferde gönder"
-
-#. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
-msgid "Ship products as soon as available, with back orders"
-msgstr "Hazır olan ürünleri teslimatı bölerek hemen gönder"
-
-#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
 #: model:ir.model.fields,field_description:sale_stock.field_sale_order__picking_policy
 msgid "Shipping Policy"
 msgstr "Ürün Teslimat Politikası"
@@ -887,6 +874,7 @@ msgid "Warning!"
 msgstr "Uyarı!"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__one
 msgid "When all products are ready"
 msgstr "Tüm ürünler hazır olduğunda"

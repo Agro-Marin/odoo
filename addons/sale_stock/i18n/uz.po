@@ -147,6 +147,7 @@ msgid "Apply specific routes"
 msgstr "Maxsus yo‘nalishlarni qo‘llash"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__direct
 #, fuzzy
 msgid "As soon as possible"
@@ -627,12 +628,6 @@ msgid "Partially Delivered"
 msgstr "Qisman yetkazib berilgan"
 
 #. module: sale_stock
-#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
-#, fuzzy
-msgid "Picking Policy"
-msgstr "Terish siyosati"
-
-#. module: sale_stock
 #: model:ir.model,name:sale_stock.model_product_template
 #, fuzzy
 msgid "Product"
@@ -828,18 +823,7 @@ msgid "Selectable on Sales Order Line"
 msgstr "Savdo buyurtmasi qatorida tanlash mumkin"
 
 #. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
-#, fuzzy
-msgid "Ship all products at once"
-msgstr "Barcha mahsulotlarni bir vaqtda jo‘natish"
-
-#. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
-#, fuzzy
-msgid "Ship products as soon as available, with back orders"
-msgstr "Mahsulotlarni mavjud bo‘lishi bilanoq, qolganlarini keyinroq jo‘natish"
-
-#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
 #: model:ir.model.fields,field_description:sale_stock.field_sale_order__picking_policy
 #, fuzzy
 msgid "Shipping Policy"
@@ -1007,6 +991,7 @@ msgid "Warning!"
 msgstr "Ogohlantirish!"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__one
 #, fuzzy
 msgid "When all products are ready"

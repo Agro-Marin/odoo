@@ -16,10 +16,10 @@ class ResConfigSettings(models.TransientModel):
     )
     default_picking_policy = fields.Selection(
         selection=[
-            ("direct", "Ship products as soon as available, with back orders"),
-            ("one", "Ship all products at once"),
+            ("direct", "As soon as possible"),
+            ("one", "When all products are ready"),
         ],
-        string="Picking Policy",
+        string="Shipping Policy",
         required=True,
         default="direct",
         default_model="sale.order",
