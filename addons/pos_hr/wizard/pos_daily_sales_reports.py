@@ -20,7 +20,7 @@ class PosDailySalesReportsWizard(models.TransientModel):
     @api.depends("pos_session_id")
     def _compute_employee_ids(self):
         for wizard in self:
-            domain = [("session_id", "=", self.pos_session_id.id)]
+            domain = [("session_id", "=", wizard.pos_session_id.id)]
             orders = self.env["pos.order"].search(domain)
             wizard.employee_ids = orders.mapped("employee_id")
 
