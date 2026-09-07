@@ -419,6 +419,26 @@ class TestApiKeyHeader(EncryptionKeyCase, TransactionCase):
         self.assertEqual(headers.get("Authorization"), "Bearer probe-key")
         self.assertEqual(headers.get("X-API-Key"), "probe-key")
 
+    def test_a_scheme_replaces_bearer_in_the_generic_pair(self):
+        headers = self._credential_for(api_key_scheme="Token").get_auth_headers()
+        self.assertEqual(headers.get("Authorization"), "Token probe-key")
+        self.assertEqual(headers.get("X-API-Key"), "probe-key")
+
+    def test_a_named_header_ignores_the_scheme(self):
+        headers = self._credential_for(
+            api_key_header="x-api-key", api_key_scheme="Token"
+        ).get_auth_headers()
+        self.assertEqual(headers.get("x-api-key"), "probe-key")
+        self.assertNotIn("Authorization", headers)
+
+    def test_deepgram_is_seeded_with_the_token_scheme(self):
+        service = self.env["api.endpoint.outbound"].search(
+            [("code", "=", "deepgram")], limit=1
+        )
+        if not service:
+            self.skipTest("api_ai not installed")
+        self.assertEqual(service.api_key_scheme, "Token")
+
     def test_a_named_header_replaces_the_generic_pair(self):
         headers = self._credential_for(api_key_header="x-api-key").get_auth_headers()
         self.assertEqual(headers.get("x-api-key"), "probe-key")

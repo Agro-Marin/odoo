@@ -324,6 +324,7 @@ API Documentation: https://developers.deepgram.com/docs</field>
         <field name="endpoint_url">https://api.deepgram.com/v1</field>
         <field name="api_version">v1</field>
         <field name="auth_type">api_key</field>
+        <field name="api_key_scheme">Token</field>
         <field name="rate_limit_enabled" eval="True" />
         <field name="rate_limit_requests" eval="100" />
         <field name="rate_limit_period">minute</field>

@@ -106,6 +106,12 @@ class ApiEndpointOutbound(models.Model):
         "Leave empty for the generic 'Authorization: Bearer' and 'X-API-Key' "
         "pair, which most vendors accept.",
     )
+    api_key_scheme = fields.Char(
+        string="API Key Scheme",
+        help="Word in front of the key in the Authorization header when the "
+        "vendor does not use 'Bearer' — 'Token' for Deepgram. Ignored when an "
+        "API Key Header names a header of its own.",
+    )
     api_version_header = fields.Char(
         string="API Version Header",
         help="Header carrying the API Version for a vendor that names its own "
@@ -120,9 +126,10 @@ class ApiEndpointOutbound(models.Model):
             return {}
         if self.api_key_header:
             return {self.api_key_header: api_key}
+        scheme = self.api_key_scheme or "Bearer"
         if self.auth_type == "bearer":
-            return {"Authorization": f"Bearer {api_key}"}
-        return {"Authorization": f"Bearer {api_key}", "X-API-Key": api_key}
+            return {"Authorization": f"{scheme} {api_key}"}
+        return {"Authorization": f"{scheme} {api_key}", "X-API-Key": api_key}
 
     verify_tls = fields.Boolean(
         string="Verify TLS certificate",

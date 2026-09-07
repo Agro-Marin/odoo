@@ -1,6 +1,5 @@
 import logging
 
-from ..vendor_catalog import SYNTHESIZE_TIMEOUT
 from .base import BaseAIClient
 from odoo.addons.api_transport.tools.exceptions import CommError
 
@@ -376,7 +375,6 @@ class DeepgramClient(BaseAIClient):
             "Deepgram text_to_speech is not supported through OutboundAPIClient yet; "
             "binary response bodies are not exposed. See t20851 follow-up.",
         )
-        return self._read_cues(result)
 
     @staticmethod
     def _read_cues(result):

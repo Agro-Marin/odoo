@@ -145,6 +145,9 @@
                                     <field
                                         name="api_key_header"
                                         invisible="auth_type != 'api_key'" />
+                                    <field
+                                        name="api_key_scheme"
+                                        invisible="auth_type != 'api_key' or api_key_header" />
                                 </group>
                                 <group string="Timeouts">
                                     <field name="timeout_connect" />
