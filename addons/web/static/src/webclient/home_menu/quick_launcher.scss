@@ -1,0 +1,29 @@
+.o_quick_launcher {
+    width: 21rem;
+
+    .o_app {
+        width: 25%;
+        color: inherit;
+
+        &:hover,
+        &:focus-visible {
+            background: $component-active-bg;
+        }
+
+        .o_app_icon {
+            width: 2.75rem;
+            height: 2.75rem;
+            object-fit: cover;
+
+            .fa {
+                font-size: 1.375rem;
+            }
+        }
+
+        .o_app_badge {
+            top: 0;
+            right: 0.25rem;
+            font-size: $font-size-sm * 0.8;
+        }
+    }
+}

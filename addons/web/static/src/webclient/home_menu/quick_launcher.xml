@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+<t t-name="web.QuickLauncher">
+    <div class="o_quick_launcher p-2" role="dialog" aria-label="App launcher">
+        <input type="search" class="o_quick_launcher_search form-control form-control-sm mb-2" placeholder="Search apps and menus..." aria-label="Search apps and menus" autocomplete="off" t-on-input="onSearchInput"/>
+        <div class="o_quick_launcher_apps d-flex flex-wrap" role="list">
+            <a t-foreach="apps" t-as="app" t-key="app.id" role="listitem" class="o_app position-relative d-flex flex-column align-items-center text-decoration-none p-1 rounded-2" t-att-href="app.href" t-att-data-menu-xmlid="app.xmlid" t-on-click.prevent="() => this.onAppClick(app)">
+                <img t-if="app.webIconData" class="o_app_icon rounded-2" alt="" t-attf-src="{{app.webIconData}}"/>
+                <div t-else="" class="o_app_icon d-flex justify-content-center align-items-center rounded-2" t-attf-style="background-color: {{app.webIcon.backgroundColor}};">
+                    <i t-attf-class="{{app.webIcon.iconClass}}" t-attf-style="color: {{app.webIcon.color}};"/>
+                </div>
+                <div class="o_caption w-100 text-center text-truncate small mt-1" t-esc="app.label"/>
+                <t t-set="badge" t-value="badgeFor(app)"/>
+                <span t-if="badge" class="o_app_badge badge rounded-pill text-bg-danger position-absolute" t-att-aria-label="badge + ' pending'" t-esc="badge > 99 ? '99+' : badge"/>
+            </a>
+        </div>
+        <button type="button" class="o_quick_launcher_all btn btn-link btn-sm w-100 mt-1" t-on-click="onAllAppsClick">All apps</button>
+    </div>
+</t>
+
+</templates>

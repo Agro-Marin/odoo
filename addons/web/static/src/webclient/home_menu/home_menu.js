@@ -25,15 +25,13 @@ import {
     serializeHomeMenuConfig,
 } from "@web/webclient/menus/menu_utils";
 
+import { loadHomeMenuBadges } from "./badges.js";
 import { ExpirationPanel } from "./expiration_panel.js";
 import { SysAdminPanel } from "./sysadmin_panel.js";
 
 const APPS_PER_ROW = 6;
 const RECENT_APPS = 6;
 const DIRECT_JUMP_HOTKEYS = 9;
-
-// A provider answers `provide(env, apps)` with counts by app xmlid, sync or not.
-registry.category("home_menu_badges").addValidation({ provide: Function });
 
 class FooterComponent extends Component {
     static template = "web.HomeMenu.CommandPalette.Footer";
@@ -328,33 +326,13 @@ export class HomeMenu extends Component {
         return this.state.editing || !this.isHidden(app);
     }
 
-    /**
-     * Every `home_menu_badges` provider answers with counts by app xmlid; the
-     * tile shows their sum. A provider that fails costs its own counts only.
-     */
     async _loadBadges() {
-        const providers = registry.category("home_menu_badges").getAll();
-        if (!providers.length) {
-            return;
-        }
-        const apps = this.displayedApps;
-        const settled = await Promise.allSettled(
-            providers.map((provider) => provider.provide(this.env, apps)),
+        this.state.badges = await loadHomeMenuBadges(
+            /** @type {import("@web/env").OdooEnv} */ (
+                /** @type {unknown} */ (this.env)
+            ),
+            this.displayedApps,
         );
-        /** @type {Record<string, number>} */
-        const badges = {};
-        for (const result of settled) {
-            if (result.status === "rejected") {
-                console.warn("Home menu badge provider failed", result.reason);
-                continue;
-            }
-            for (const [xmlid, count] of Object.entries(result.value || {})) {
-                if (count > 0) {
-                    badges[xmlid] = (badges[xmlid] || 0) + count;
-                }
-            }
-        }
-        this.state.badges = badges;
     }
 
     _persistConfig() {

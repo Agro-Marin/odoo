@@ -12,6 +12,7 @@ import {
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { browser } from "@web/core/browser/browser";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -20,6 +21,8 @@ import { _t } from "@web/core/translation";
 import { ErrorHandler } from "@web/core/utils/components";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
+import { usePopover } from "@web/ui/popover/popover_hook";
+import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
 
 import { menuHref } from "../menus/menu_utils.js";
 import { SWIPE_LEFT, SwipeTracker } from "../swipe.js";
@@ -35,6 +38,8 @@ systrayRegistry.addValidation({
 const getBoundingClientRect = Element.prototype.getBoundingClientRect;
 
 const MORE_MENU_FALLBACK_WIDTH = 46;
+
+const QUICK_LAUNCHER_DELAY = 400;
 
 export class NavBar extends Component {
     static template = "web.NavBar";
@@ -85,6 +90,9 @@ export class NavBar extends Component {
         this.actionService = useService("action");
         this.menuService = useService("menu");
         this.hm = useService("home_menu");
+        this.quickLauncher = usePopover(QuickLauncher, { position: "bottom-start" });
+        /** @type {number | null} */
+        this.quickLauncherTimer = null;
         this.pwa = useService(/** @type {any} */ ("pwa"));
         this.root = useRef("root");
         this.navRef = useRef("nav");
@@ -282,7 +290,32 @@ export class NavBar extends Component {
             this.state.isAppMenuSidebarOpened = true;
         }
     }
+    // Hover intent on the home toggle opens the quick launcher; a click still
+    // goes to the full home menu, so the timer is cleared on the way there.
+    _onMenuToggleEnter() {
+        if (this.env.isSmall || this.hm.hasHomeMenu || this.quickLauncher.isOpen) {
+            return;
+        }
+        this._clearQuickLauncherTimer();
+        this.quickLauncherTimer = browser.setTimeout(() => {
+            this.quickLauncherTimer = null;
+            if (!this.hm.hasHomeMenu && this.menuAppsRef.el) {
+                this.quickLauncher.open(this.menuAppsRef.el, {});
+            }
+        }, QUICK_LAUNCHER_DELAY);
+    }
+    _onMenuToggleLeave() {
+        this._clearQuickLauncherTimer();
+    }
+    _clearQuickLauncherTimer() {
+        if (this.quickLauncherTimer !== null) {
+            browser.clearTimeout(this.quickLauncherTimer);
+            this.quickLauncherTimer = null;
+        }
+    }
     _onMenuToggleClick() {
+        this._clearQuickLauncherTimer();
+        this.quickLauncher.close();
         if (this.env.isSmall) {
             this._openAppMenuSidebar();
         } else {

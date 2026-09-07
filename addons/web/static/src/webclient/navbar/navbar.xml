@@ -8,7 +8,7 @@
         data-command-category="disabled"
         t-ref="nav"
       >
-        <a t-if="!isScopedApp" href="/odoo" class="o_menu_toggle border-0" t-att-class="{'hasImage': currentApp?.webIconData}" accesskey="h" t-ref="menuApps" t-on-click.prevent="_onMenuToggleClick">
+        <a t-if="!isScopedApp" href="/odoo" class="o_menu_toggle border-0" t-att-class="{'hasImage': currentApp?.webIconData}" accesskey="h" t-ref="menuApps" t-on-click.prevent="_onMenuToggleClick" t-on-mouseenter="_onMenuToggleEnter" t-on-mouseleave="_onMenuToggleLeave">
             <t t-if="env.isSmall and !hm.hasHomeMenu">
                 <t t-call="web.NavBar.AppsMenu.Sidebar"/>
             </t>
