@@ -173,7 +173,7 @@ export class ClipboardPlugin extends Plugin {
         });
     }
 
-    onPaste(ev) {
+    async onPaste(ev) {
         let selection = this.dependencies.selection.getEditableSelection();
         if (
             !selection.anchorNode.isConnected ||
@@ -189,10 +189,17 @@ export class ClipboardPlugin extends Plugin {
         selection = this.dependencies.selection.getEditableSelection();
 
         if (!this.delegateTo("paste_overrides", selection, ev.clipboardData)) {
-            this.handlePasteUnsupportedHtml(selection, ev.clipboardData) ||
+            const result =
+                this.handlePasteUnsupportedHtml(selection, ev.clipboardData) ||
                 this.handlePasteOdooEditorHtml(ev.clipboardData) ||
                 this.handlePasteHtml(selection, ev.clipboardData) ||
                 this.handlePasteText(selection, ev.clipboardData);
+            // Only the image-paste branch of `handlePasteHtml` returns a
+            // promise; awaiting only then keeps every other (synchronous)
+            // paste path resolved within the same tick, as callers expect.
+            if (result instanceof Promise) {
+                await result;
+            }
         }
 
         this.dispatchTo("after_paste_handlers", selection);
