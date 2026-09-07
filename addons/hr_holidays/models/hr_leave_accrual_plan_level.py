@@ -330,7 +330,10 @@ class HrLeaveAccrualLevel(models.Model):
 
     def _inverse_added_value_type(self):
         for level in self:
-            if level.accrual_plan_id.level_ids[0] == level:
+            if (
+                level.accrual_plan_id.level_ids
+                and level.accrual_plan_id.level_ids[0] == level
+            ):
                 level.accrual_plan_id.added_value_type = level.added_value_type
 
     @api.depends(
