@@ -28,7 +28,7 @@
                 <t t-call="pos_hr.single_employee_sales_report">
                     <t
                         t-set="data"
-                        t-value="env['report.pos_hr.single_employee_sales_report'].get_sale_details(date_start, date_stop, config_ids, session_ids, employee_id)" />
+                        t-value="env['report.pos_hr.single_employee_sales_report'].get_sale_details(date_start, date_stop, config_ids, session_ids, employee_id=employee_id)" />
                     <t t-set="opening_note" t-value="data['opening_note']" />
                     <t t-set="closing_note" t-value="data['closing_note']" />
                     <t t-set="state" t-value="data['state']" />
@@ -49,8 +49,8 @@
                     <t t-set="refund_products" t-value="data['refund_products']" />
                     <t t-set="discount_number" t-value="data['discount_number']" />
                     <t t-set="discount_amount" t-value="data['discount_amount']" />
-                    <t t-set="invoiceList" t-value="data['invoiceList']" />
-                    <t t-set="invoiceTotal" t-value="data['invoiceTotal']" />
+                    <t t-set="invoice_list" t-value="data['invoice_list']" />
+                    <t t-set="invoice_total" t-value="data['invoice_total']" />
                 </t>
             </t>
         </xpath>

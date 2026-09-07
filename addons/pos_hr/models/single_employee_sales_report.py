@@ -13,12 +13,16 @@ class ReportPos_HrSingle_Employee_Sales_Report(models.AbstractModel):
         date_stop=False,
         config_ids=False,
         session_ids=False,
+        *,
         employee_id=False,
+        **kwargs,
     ):
-        domain = super()._get_domain(config_ids=config_ids, session_ids=session_ids)
+        domain = super()._get_domain(
+            date_start, date_stop, config_ids, session_ids, **kwargs
+        )
 
         if employee_id:
-            domain = Domain.AND([domain, [("employee_id", "=", employee_id)]])
+            domain &= Domain("employee_id", "=", employee_id)
 
         return domain
 
@@ -34,14 +38,21 @@ class ReportPos_HrSingle_Employee_Sales_Report(models.AbstractModel):
         date_stop=False,
         config_ids=False,
         session_ids=False,
+        *,
         employee_id=False,
+        **kwargs,
     ):
         data = super().get_sale_details(
-            config_ids=config_ids, session_ids=session_ids, employee_id=employee_id
+            date_start,
+            date_stop,
+            config_ids,
+            session_ids,
+            employee_id=employee_id,
+            **kwargs,
         )
 
         if employee_id:
-            employee = self.env["hr.employee"].search([("id", "=", employee_id)])
+            employee = self.env["hr.employee"].browse(employee_id).exists()
             data["employee_name"] = employee.name if employee else _("Unknown Employee")
 
         return data

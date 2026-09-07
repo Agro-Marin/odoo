@@ -3,13 +3,13 @@ from datetime import timedelta
 import odoo
 from odoo import fields
 from odoo.exceptions import UserError, ValidationError
+from odoo.fields import Domain
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosSaleDetails(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
         self.config = self.basic_config
@@ -219,3 +219,275 @@ class TestPosCategoryGuards(TestPoSCommon):
 
         category.with_context(allowed_company_ids=other_company.ids).unlink()
         self.assertFalse(category.exists())
+
+
+@odoo.tests.tagged("post_install", "-at_install")
+class TestPosSaleDetailsCoherence(TestPoSCommon):
+    """One report, one set of numbers.
+
+    Every figure the report prints for a block must be derivable from the other
+    figures in that block: a tax total is the total of the tax rows above it, a
+    refund block reads in one direction, and a scope either covers a session or
+    says it does not.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.config = self.basic_config
+        self.report = self.env["report.point_of_sale.report_saledetails"]
+
+    def _order(self, session, product, price, qty=1, taxes=None):
+        return self.env["pos.order"].create(
+            {
+                "company_id": self.env.company.id,
+                "session_id": session.id,
+                "partner_id": self.partner_a.id,
+                "lines": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "OL/0001",
+                            "product_id": product.id,
+                            "price_unit": price,
+                            "discount": 0,
+                            "qty": qty,
+                            "tax_ids": [(6, 0, taxes or [])],
+                            "price_subtotal": price * qty,
+                            "price_subtotal_incl": price * qty,
+                        },
+                    )
+                ],
+                "pricelist_id": self.config.pricelist_id.id,
+                "amount_paid": price * qty,
+                "amount_total": price * qty,
+                "amount_tax": 0.0,
+                "amount_return": 0.0,
+                "last_order_preparation_change": "{}",
+                "to_invoice": False,
+            }
+        )
+
+    def _open_session(self):
+        self.config.open_ui()
+        session = self.config.current_session_id
+        session.set_opening_control(0, None)
+        return session
+
+    def test_every_base_in_the_report_is_computed_from_the_line(self):
+        """A base the report reads off ``price_subtotal`` while computing the
+        base beside it from ``compute_all`` can disagree with itself, and the
+        page gives the reader no way to tell which half is right."""
+        tax = self.env["account.tax"].create({"name": "Coherence 10%", "amount": 10})
+        product = self.create_product("Taxed", self.categ_basic, 100, tax_ids=tax.ids)
+        session = self._open_session()
+        order = self._order(session, product, 100, taxes=tax.ids)
+        self.make_payment(order, self.bank_pm1, order.amount_total)
+        order.lines.sudo().price_subtotal = 1.0
+
+        report = self.report.get_sale_details(session_ids=[session.id])
+        self.assertEqual(
+            report["taxes"],
+            [{"name": tax.name, "tax_amount": 10.0, "base_amount": 100.0}],
+        )
+        self.assertEqual(
+            report["taxes_info"],
+            {"tax_amount": 10.0, "base_amount": 100.0},
+            "the tax total must be computed the way the tax rows above it are",
+        )
+        self.assertEqual(
+            report["products_info"]["total"],
+            report["taxes_info"]["base_amount"],
+            "the products block and the tax block report one untaxed total",
+        )
+
+    def test_refund_block_reads_in_one_direction(self):
+        tax = self.env["account.tax"].create({"name": "Refund 10%", "amount": 10})
+        product = self.create_product(
+            "Returned", self.categ_basic, 100, tax_ids=tax.ids
+        )
+        session = self._open_session()
+        order = self._order(session, product, 100, taxes=tax.ids)
+        self.make_payment(order, self.bank_pm1, 110)
+        refund = order._refund()
+        self.make_payment(refund, self.bank_pm1, -110)
+
+        report = self.report.get_sale_details(session_ids=[session.id])
+        rows = [
+            row
+            for category in report["refund_products"]
+            for row in category["products"]
+        ]
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["quantity"], 1.0)
+        self.assertEqual(row["total_paid"], 100.0)
+        self.assertEqual(row["base_amount"], 100.0)
+        self.assertEqual(report["refund_info"]["total"], 100.0)
+        self.assertEqual(report["refund_taxes_info"]["base_amount"], 100.0)
+        self.assertEqual(report["refund_taxes_info"]["tax_amount"], 10.0)
+        self.assertEqual(
+            report["refund_taxes_info"]["base_amount"],
+            sum(r["base_amount"] for r in report["refund_taxes"]),
+        )
+
+    def test_scope_without_config_or_session_covers_the_window(self):
+        product = self.create_product("Scoped", self.categ_basic, 100)
+        session = self._open_session()
+        order = self._order(session, product, 100)
+        self.make_payment(order, self.cash_pm1, 100)
+
+        report = self.report.get_sale_details()
+        self.assertEqual(report["nbr_orders"], 1)
+        self.assertIn(
+            self.config.name,
+            report["config_names"],
+            "a report that found the order must name the config that took it",
+        )
+        self.assertTrue(
+            all(payment["count"] for payment in report["payments"]),
+            "an in-scope session's payments must be counted, not left unclosed",
+        )
+        self.assertEqual(report["total_paid"], 100.0)
+
+    def test_config_is_named_once_per_config_not_once_per_session(self):
+        product = self.create_product("Repeated", self.categ_basic, 100)
+        session_ids = []
+        for _index in range(3):
+            session = self._open_session()
+            order = self._order(session, product, 100)
+            self.make_payment(order, self.cash_pm1, 100)
+            session.update_closing_cash_details(100)
+            session.close_session_from_ui()
+            session_ids.append(session.id)
+
+        report = self.report.get_sale_details(session_ids=session_ids)
+        self.assertEqual(report["config_names"], [self.config.name])
+
+    def test_total_paid_covers_the_same_window_as_the_orders(self):
+        product = self.create_product("Windowed", self.categ_basic, 100)
+        session = self._open_session()
+        inside = self._order(session, product, 100)
+        self.make_payment(inside, self.cash_pm1, 100)
+        outside = self._order(session, product, 250)
+        self.make_payment(outside, self.bank_pm1, 250)
+        outside.sudo().date_order = fields.Datetime.now() - timedelta(days=5)
+
+        now = fields.Datetime.now()
+        report = self.report.get_sale_details(
+            fields.Datetime.to_string(now - timedelta(hours=1)),
+            fields.Datetime.to_string(now + timedelta(hours=1)),
+            self.config.ids,
+        )
+        self.assertEqual(report["nbr_orders"], 1)
+        self.assertEqual(
+            report["total_paid"],
+            report["currency"]["total_paid"],
+            "payments and order totals must be read over the same window",
+        )
+
+    def test_combo_label_does_not_travel_to_a_plain_line(self):
+        combo_part = self.create_product("Side", self.categ_basic, 0)
+        product = self.create_product("Meal", self.categ_basic, 100)
+        session = self._open_session()
+        plain = self._order(session, product, 100)
+        self.make_payment(plain, self.cash_pm1, 100)
+        with_combo = self._order(session, product, 100)
+        self.env["pos.order.line"].create(
+            {
+                "order_id": with_combo.id,
+                "product_id": combo_part.id,
+                "qty": 1,
+                "price_unit": 0,
+                "price_subtotal": 0,
+                "price_subtotal_incl": 0,
+                "name": "combo child",
+                "combo_parent_id": with_combo.lines[0].id,
+            }
+        )
+        self.make_payment(with_combo, self.cash_pm1, 100)
+
+        report = self.report.get_sale_details(session_ids=[session.id])
+        rows = [
+            row
+            for category in report["products"]
+            for row in category["products"]
+            if row["product_name"] == "Meal"
+        ]
+        labelled = [row for row in rows if row["combo_products_label"]]
+        self.assertEqual(
+            [row["quantity"] for row in labelled],
+            [1.0],
+            "only the unit actually sold as a combo may carry the combo label",
+        )
+        self.assertEqual(sum(row["quantity"] for row in rows), 2.0)
+
+    def test_extra_arguments_reach_the_domain_hook(self):
+        seen = []
+
+        def _get_domain(model, *args, **kwargs):
+            seen.append(kwargs)
+            return Domain("id", "=", 0)
+
+        self.patch(type(self.report), "_get_domain", _get_domain)
+        self.report.get_sale_details(session_ids=[1], employee_id=7)
+        self.assertEqual(
+            seen,
+            [{"employee_id": 7}],
+            "get_sale_details advertises **kwargs, so _get_domain must receive them",
+        )
+
+    def test_window_covers_the_last_second_of_the_day(self):
+        date_start, date_stop = self.report._get_date_start_and_date_stop(False, False)
+        self.assertEqual(
+            date_stop - date_start,
+            timedelta(days=1, microseconds=-1),
+            "an order timed at 23:59:59.5 belongs to the day it was taken",
+        )
+
+    def test_unrelated_move_with_a_matching_ref_is_not_a_difference(self):
+        product = self.create_product("Unrelated", self.categ_basic, 100)
+        session = self._open_session()
+        order = self._order(session, product, 100)
+        self.make_payment(order, self.bank_pm1, 100)
+        session.action_pos_session_closing_control()
+
+        ref = session._get_diff_account_move_ref(self.bank_pm1)
+        self.env["account.move"].search([("ref", "=", ref)]).unlink()
+        self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "ref": ref,
+                "line_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "account_id": self.company_data[
+                                "default_account_receivable"
+                            ].id,
+                            "debit": 40.0,
+                        },
+                    ),
+                    (
+                        0,
+                        0,
+                        {
+                            "account_id": self.company_data[
+                                "default_account_payable"
+                            ].id,
+                            "credit": 40.0,
+                        },
+                    ),
+                ],
+            }
+        )
+
+        report = self.report.get_sale_details(session_ids=[session.id])
+        row = next(p for p in report["payments"] if p.get("id") == self.bank_pm1.id)
+        self.assertNotEqual(
+            row.get("money_difference"),
+            40.0,
+            "a move sharing the ref but touching neither difference account "
+            "says nothing about what was counted",
+        )

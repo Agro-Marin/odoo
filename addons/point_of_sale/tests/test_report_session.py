@@ -431,7 +431,7 @@ class TestReportSession(TestPoSCommon):
             {
                 "name": "Tax 1",
                 "amount": 10,
-                "price_include": True,
+                "price_include_override": "tax_included",
             }
         )
 
@@ -439,7 +439,7 @@ class TestReportSession(TestPoSCommon):
             {
                 "name": "Tax 2",
                 "amount": 15,
-                "price_include": True,
+                "price_include_override": "tax_included",
             }
         )
         self.product1 = self.create_product(
@@ -470,14 +470,14 @@ class TestReportSession(TestPoSCommon):
             ],
             "pricelist_id": self.config.pricelist_id.id,
             "amount_paid": 125.0,
-            "amount_total": 156.25,
+            "amount_total": 125.0,
             "amount_tax": 25.0,
             "amount_return": 0.0,
             "last_order_preparation_change": "{}",
             "to_invoice": False,
         }
         order = self.env["pos.order"].create(order_info)
-        self.make_payment(order, self.bank_pm1, 156.25)
+        self.make_payment(order, self.bank_pm1, 125.0)
         self.config.current_session_id.action_pos_session_closing_control()
         report = self.env["report.point_of_sale.report_saledetails"].get_sale_details()
         self.assertEqual(

@@ -1683,6 +1683,12 @@ msgid "Cash drawer opened (%s)"
 msgstr ""
 
 #. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/report_sale_details.py:0
+msgid "Cash in %(number)s"
+msgstr ""
+
+#. module: point_of_sale
 #. odoo-javascript
 #: code:addons/point_of_sale/static/src/app/services/pos_store.js:0
 msgid "Cash in / out"
@@ -1704,6 +1710,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/point_of_sale/static/src/app/components/popups/cash_move_popup/cash_move_list_popup/cash_move_list_popup.xml:0
 msgid "Cash move details"
+msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/report_sale_details.py:0
+msgid "Cash out %(number)s"
 msgstr ""
 
 #. module: point_of_sale
@@ -2913,6 +2925,18 @@ msgstr ""
 msgid ""
 "Difference between the theoretical closing balance and the real closing "
 "balance."
+msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/report_sale_details.py:0
+msgid "Difference observed during the counting (Loss)"
+msgstr ""
+
+#. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/report_sale_details.py:0
+msgid "Difference observed during the counting (Profit)"
 msgstr ""
 
 #. module: point_of_sale

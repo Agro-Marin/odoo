@@ -388,13 +388,13 @@
                 <div class="oe_structure" />
 
 
-                <div t-if="invoiceTotal" id="invoices">
+                <div t-if="invoice_total" id="invoices">
                     <br />
                     <h6 class="bg-secondary p-1 fw-bold">Invoices</h6>
                     <table class="table table-sm table-borderless">
                         <tbody>
                         <t
-                            t-foreach="invoiceList"
+                            t-foreach="invoice_list"
                             t-as="invoiceSession"
                             class="border-bottom border-secondary">
                             <t t-if="invoiceSession['invoices']">
@@ -419,10 +419,10 @@
                             <td />
                             <td class="text-end"><strong>
                                 <span t-if="currency['position']">
-                                    <span t-out="invoiceTotal" t-options="{'widget': 'float', 'precision': currency['precision']}">123.45</span><span t-out="currency[&quot;symbol&quot;]">$</span>
+                                    <span t-out="invoice_total" t-options="{'widget': 'float', 'precision': currency['precision']}">123.45</span><span t-out="currency[&quot;symbol&quot;]">$</span>
                                 </span>
                                 <span t-else="">
-                                    <span t-out="currency[&quot;symbol&quot;]">$</span><span t-out="invoiceTotal" t-options="{'widget': 'float', 'precision': currency['precision']}">123.45</span>
+                                    <span t-out="currency[&quot;symbol&quot;]">$</span><span t-out="invoice_total" t-options="{'widget': 'float', 'precision': currency['precision']}">123.45</span>
                                 </span>
                             </strong></td>
                         </tr>
