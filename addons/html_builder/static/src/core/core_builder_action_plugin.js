@@ -276,7 +276,7 @@ export class StyleAction extends BuilderAction {
                 .replace("inset", "")
                 .trim()
                 .split(/\s+/g);
-            const color = values.find((s) => !s.match(/^\d/));
+            const color = values.find((s) => !s.match(/^-?[\d.]+(px|%|em|rem)?$/));
             values = values.join(" ").replace(color, "").trim();
             return `${color} ${values}${inset ? " inset" : ""}`;
         } else if (
