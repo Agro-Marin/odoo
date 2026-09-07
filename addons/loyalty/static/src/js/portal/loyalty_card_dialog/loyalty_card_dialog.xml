@@ -27,6 +27,18 @@
             </div>
             <hr/>
             <div class="mt-0 pt-0" t-on-click.stop="">
+                <div name="rewards" t-if="props.rewards.length">
+                    <strong>Available Rewards</strong>
+                    <div
+                        t-foreach="props.rewards"
+                        t-as="reward"
+                        t-key="reward_index"
+                        class="row px-2"
+                    >
+                        <div class="col-7 text-truncate"><t t-out="reward.description"/></div>
+                        <div t-out="reward.points" class="text-end col-5"/>
+                    </div>
+                </div>
                 <div name="history_lines">
                     <t t-if="props.history_lines.length">
                         <strong>Last Transactions</strong>
