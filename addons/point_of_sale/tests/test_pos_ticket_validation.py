@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from odoo.fields import Command
 from odoo.tests import tagged
 
 from odoo.addons.point_of_sale.controllers import main
@@ -28,7 +29,8 @@ class TestPosTicketValidation(TestPoSCommon):
                 "zip": "10001",
                 "country_id": self.env.ref("base.us").id,
                 "state_id": self.env.ref("base.state_us_1").id,
-                "phone": "5555555555",
+                "function": "Buyer",
+                "phone_ids": [Command.create({"number": "5555555555"})],
             }
         )
         self.order = self._make_order("draft")
@@ -51,7 +53,9 @@ class TestPosTicketValidation(TestPoSCommon):
         invoice_fields = self.env["ir.model.fields"]._get(
             "account.move", "invoice_source_email"
         )
-        partner_fields = self.env["ir.model.fields"]._get("res.partner", "phone")
+        # Any Char a localisation could mark required will do; `phone` stopped
+        # being one when a phone number became a record of its own.
+        partner_fields = self.env["ir.model.fields"]._get("res.partner", "function")
         endpoint = main.PosController.show_ticket_validation_screen
         while hasattr(endpoint, "__wrapped__"):
             endpoint = endpoint.__wrapped__
@@ -79,18 +83,18 @@ class TestPosTicketValidation(TestPoSCommon):
         self.assertFalse(self.order.account_move)
 
     def test_missing_extra_field_does_not_invoice_or_mutate_partner(self):
-        response = self._submit_ticket(partner_phone="1234567890")
+        response = self._submit_ticket(partner_function="Purchasing")
         self.assertEqual(response[0], "render")
         self.assertIn("invoice_source_email", response[2]["invalid_fields"])
         self.assertEqual(
-            response[2]["extra_field_values"]["partner_phone"], "1234567890"
+            response[2]["extra_field_values"]["partner_function"], "Purchasing"
         )
-        self.assertEqual(self.partner.phone, "5555555555")
+        self.assertEqual(self.partner.function, "Buyer")
         self.assertFalse(self.order.account_move)
 
     def test_connected_post_accepts_extra_fields_without_address_inputs(self):
         response = self._submit_ticket(
-            partner_phone=self.partner.phone,
+            partner_function=self.partner.function,
             invoice_invoice_source_email="customer@example.test",
         )
         self.assertEqual(response[0], "redirect")
@@ -101,7 +105,7 @@ class TestPosTicketValidation(TestPoSCommon):
 
     def test_invalid_address_retains_invoice_input(self):
         response = self._submit_ticket(
-            partner_phone=self.partner.phone,
+            partner_function=self.partner.function,
             invoice_invoice_source_email="customer@example.test",
             email="invalid",
         )
