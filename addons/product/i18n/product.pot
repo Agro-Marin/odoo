@@ -4644,7 +4644,7 @@ msgstr ""
 #. module: product
 #. odoo-python
 #: code:addons/product/models/product_pricelist_item.py:0
-msgid "%(rule)s: the price rounding must be strictly positive."
+msgid "%(rule)s: the price rounding cannot be negative."
 msgstr ""
 
 #. module: product

@@ -314,7 +314,7 @@ class ProductPricelistItem(models.Model):
             if item.price_round and item.price_round < 0:
                 raise ValidationError(
                     _(
-                        "%(rule)s: the price rounding must be strictly positive.",
+                        "%(rule)s: the price rounding cannot be negative.",
                         rule=item.display_name,
                     ),
                 )
