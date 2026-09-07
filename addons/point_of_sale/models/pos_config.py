@@ -467,7 +467,7 @@ class PosConfig(models.Model):
 
     def read_config_open_orders(self, domain, record_ids=None):
         if record_ids is None:
-            record_ids = []
+            record_ids = {}
         delete_record_ids = {}
         dynamic_records = {}
 
@@ -507,6 +507,32 @@ class PosConfig(models.Model):
         return [("id", "=", config.id)]
 
     @api.model
+    def _get_pos_client_computed_fields(self):
+        return {"cash_control", "current_session_id", "display_name"}
+
+    @api.model
+    def _get_pos_client_excluded_fields(self):
+        return {"session_ids"}
+
+    @api.model
+    def _load_pos_data_fields(self, config):
+        # Without this the mixin falls back to [], and read([]) means *every* field:
+        # the backend dashboard's computes (each one a query), the whole session
+        # history and the customer-display image all ship on every POS boot.
+        # Deriving the list rather than spelling it out keeps a sibling module's own
+        # stored fields working with no override, while a new non-stored dashboard
+        # compute stays out of the payload by construction.
+        computed = self._get_pos_client_computed_fields()
+        excluded = self._get_pos_client_excluded_fields()
+        return [
+            name
+            for name, field in self._fields.items()
+            if name not in excluded
+            and field.type != "binary"
+            and (field.store or name in computed)
+        ]
+
+    @api.model
     def _load_pos_data_read(self, records, config):
         read_records = super()._load_pos_data_read(records, config)
         if not read_records:
@@ -525,9 +551,7 @@ class PosConfig(models.Model):
         record["_has_cash_delete_perm"] = self.env.user.has_group(
             "account.group_account_basic"
         )
-        record["_pos_special_products_ids"] = (
-            self.env["pos.config"]._get_special_products().ids
-        )
+        record["_pos_special_products_ids"] = config._get_special_products().ids
 
         taxes = self.env["account.tax"].search(
             self.env["account.tax"]._load_pos_data_domain({}, config)
@@ -551,8 +575,24 @@ class PosConfig(models.Model):
             config.fast_payment_method_ids = config.fast_payment_method_ids.filtered(
                 lambda pm, config=config: pm.id in config.payment_method_ids.ids
             )
-            if not config.fast_payment_method_ids:
-                config.use_fast_payment = False
+
+    @api.constrains("use_fast_payment")
+    def _check_fast_payment_methods(self):
+        # Asking for fast payment with nothing to pay with is a contradiction, and is
+        # refused rather than silently turned back off. Constrained on the flag alone:
+        # listing fast_payment_method_ids here would re-enter this check from inside
+        # its own recompute, where the pair is transiently inconsistent by design.
+        # Removing the last fast method without naming the flag is not a
+        # contradiction -- write() turns it off below.
+        for config in self:
+            if config.use_fast_payment and not config.fast_payment_method_ids:
+                raise ValidationError(
+                    _(
+                        "Fast payment validation on the point of sale %s needs at "
+                        "least one fast payment method.",
+                        config.name,
+                    )
+                )
 
     @api.depends("payment_method_ids")
     def _compute_cash_control(self):
@@ -596,33 +636,30 @@ class PosConfig(models.Model):
             else:
                 pos_config.currency_id = pos_config.company_id.sudo().currency_id.id
 
+    def _get_open_sessions(self):
+        self.check_singleton()
+        return self.session_ids.filtered(lambda s: s.state != "closed")
+
+    def _get_current_session(self):
+        return self._get_open_sessions().filtered(lambda s: not s.rescue)[:1]
+
     @api.depends("session_ids", "session_ids.state")
     def _compute_current_session(self):
         self.session_ids.fetch(["state"])
         for pos_config in self:
-            opened_sessions = pos_config.session_ids.filtered(
-                lambda s: s.state != "closed"
-            )
-            rescue_sessions = opened_sessions.filtered("rescue")
-            session = pos_config.session_ids.filtered(
-                lambda s: s.state != "closed" and not s.rescue
-            )
-            pos_config.has_active_session = (opened_sessions and True) or False
-            pos_config.current_session_id = (session and session[0].id) or False
-            pos_config.current_session_state = (session and session[0].state) or False
-            pos_config.number_of_rescue_session = len(rescue_sessions)
+            open_sessions = pos_config._get_open_sessions()
+            session = open_sessions.filtered(lambda s: not s.rescue)[:1]
+            pos_config.has_active_session = bool(open_sessions)
+            pos_config.current_session_id = session.id or False
+            pos_config.current_session_state = session.state or False
+            pos_config.number_of_rescue_session = len(open_sessions.filtered("rescue"))
 
+    @api.depends("session_ids", "session_ids.state")
     def _compute_statistics_for_current_session(self):
         for config in self:
-            session = config.session_ids.filtered(
-                lambda s: s.state != "closed" and not s.rescue
-            )
-            session_record = session[0] if session else None
-            if not session_record or not session_record.exists():
-                config.statistics_for_current_session = False
-                continue
-            config.statistics_for_current_session = config._get_statistics_for_session(
-                session_record
+            session = config._get_current_session()
+            config.statistics_for_current_session = (
+                config._get_statistics_for_session(session) if session else False
             )
 
     def _get_statistics_for_session(self, session):
@@ -658,76 +695,91 @@ class PosConfig(models.Model):
             if refund.refunded_order_id:
                 refund_totals[refund.refunded_order_id.id] += abs(refund.amount_total)
 
+        # Both comparisons go through the currency: summing partial refunds accumulates
+        # binary error, so a fully refunded 0.10 order reads 0.01 + 0.09 == 0.30000000004
+        # and counts as still paid.
         paid_order_count = sum(
             1
             for order in non_refund_orders
-            if refund_totals.get(order.id, 0.0) != order.amount_total
+            if currency.compare_amounts(
+                refund_totals.get(order.id, 0.0), order.amount_total
+            )
         )
 
         if paid_order_count:
-            total_paid = sum(all_paid_orders.mapped("amount_total"))
-            statistics["orders"]["paid"] = {
-                "amount": total_paid,
-                "count": paid_order_count,
-                "display": f"{currency.format(total_paid)} ({paid_order_count} {'order' if paid_order_count == 1 else 'orders'})",
-            }
+            total_paid = currency.round(sum(all_paid_orders.mapped("amount_total")))
+            statistics["orders"]["paid"] = self._prepare_order_statistics(
+                currency, total_paid, paid_order_count
+            )
 
         if draft_orders:
-            total_draft = sum(draft_orders.mapped("amount_total"))
-            count_draft = len(draft_orders)
-            statistics["orders"]["draft"] = {
-                "amount": total_draft,
-                "count": count_draft,
-                "display": f"{currency.format(total_draft)} ({count_draft} {'order' if count_draft == 1 else 'orders'})",
-            }
+            total_draft = currency.round(sum(draft_orders.mapped("amount_total")))
+            statistics["orders"]["draft"] = self._prepare_order_statistics(
+                currency, total_draft, len(draft_orders)
+            )
 
         return statistics
 
-    @api.depends("session_ids")
-    def _compute_last_session(self):
-        PosSession = self.env["pos.session"]
-        for pos_config in self:
-            session = PosSession.search_read(
-                [("config_id", "=", pos_config.id), ("state", "=", "closed")],
-                ["cash_register_balance_end_real", "stop_at"],
-                order="stop_at desc",
-                limit=1,
-            )
-            if session:
-                tz = self.env.tz
-                pos_config.last_session_closing_date = (
-                    session[0]["stop_at"].astimezone(tz).date()
-                )
-                pos_config.last_session_closing_cash = session[0][
-                    "cash_register_balance_end_real"
-                ]
-            else:
-                pos_config.last_session_closing_cash = 0
-                pos_config.last_session_closing_date = False
+    def _prepare_order_statistics(self, currency, amount, count):
+        label = _("order") if count == 1 else _("orders")
+        return {
+            "amount": amount,
+            "count": count,
+            "display": f"{currency.format(amount)} ({count} {label})",
+        }
 
     @api.depends("session_ids")
-    def _compute_current_session_user(self):
+    def _compute_last_session(self):
+        # `stop_at` is nullable even on a closed session: action_pos_session_close
+        # reaches state 'closed' without passing closing_control. Excluding it in the
+        # domain is what makes the ordering meaningful -- DESC sorts NULLs first, so a
+        # single such row would otherwise be picked as "the last session" forever.
+        tz = self.env.tz
+        last_by_config = {}
+        for group in self.env["pos.session"]._read_group(
+            [
+                ("config_id", "in", self.ids),
+                ("state", "=", "closed"),
+                ("stop_at", "!=", False),
+            ],
+            groupby=["config_id"],
+            aggregates=["stop_at:max"],
+        ):
+            last_by_config[group[0].id] = group[1]
+
+        sessions = self.env["pos.session"].search(
+            [
+                ("config_id", "in", list(last_by_config)),
+                ("stop_at", "in", list(last_by_config.values())),
+                ("state", "=", "closed"),
+            ]
+        )
+        balance_by_config = {
+            session.config_id.id: session.cash_register_balance_end_real
+            for session in sessions.sorted("stop_at")
+            if session.stop_at == last_by_config.get(session.config_id.id)
+        }
+
         for pos_config in self:
-            session = pos_config.session_ids.filtered(
-                lambda s: (
-                    s.state in ["opening_control", "opened", "closing_control"]
-                    and not s.rescue
-                )
+            stop_at = last_by_config.get(pos_config.id)
+            pos_config.last_session_closing_date = (
+                stop_at.astimezone(tz).date() if stop_at else False
             )
-            if session:
-                pos_config.pos_session_username = session[0].user_id.sudo().name
-                pos_config.pos_session_state = session[0].state
-                pos_config.pos_session_duration = (
-                    (datetime.now() - session[0].start_at).days
-                    if session[0].start_at
-                    else 0
-                )
-                pos_config.current_user_id = session[0].user_id
-            else:
-                pos_config.pos_session_username = False
-                pos_config.pos_session_state = False
-                pos_config.pos_session_duration = 0
-                pos_config.current_user_id = False
+            pos_config.last_session_closing_cash = balance_by_config.get(
+                pos_config.id, 0
+            )
+
+    @api.depends("session_ids", "session_ids.state")
+    def _compute_current_session_user(self):
+        now = fields.Datetime.now()
+        for pos_config in self:
+            session = pos_config._get_current_session()
+            pos_config.pos_session_username = session.user_id.sudo().name or False
+            pos_config.pos_session_state = session.state or False
+            pos_config.pos_session_duration = str(
+                (now - session.start_at).days if session.start_at else 0
+            )
+            pos_config.current_user_id = session.user_id
 
     @api.constrains("rounding_method", "cash_rounding")
     def _check_rounding_method_strategy(self):
@@ -851,17 +903,20 @@ class PosConfig(models.Model):
 
     @api.constrains("pricelist_id", "available_pricelist_ids")
     def _check_pricelists(self):
-        self._check_companies()
-        self = self.sudo()
-        if (
-            self.pricelist_id.company_id
-            and self.pricelist_id.company_id != self.company_id
-        ):
-            raise ValidationError(
-                _(
-                    "The default pricelist must belong to no company or the company of the point of sale."
+        # Per record: on a multi-record set the relational reads return the union of
+        # every record's value, and comparing two unions rejects sets whose members
+        # are each valid -- a company-less pricelist on one config and a own-company
+        # one on another.
+        for config in self.sudo():
+            if (
+                config.pricelist_id.company_id
+                and config.pricelist_id.company_id != config.company_id
+            ):
+                raise ValidationError(
+                    _(
+                        "The default pricelist must belong to no company or the company of the point of sale."
+                    )
                 )
-            )
 
     @api.constrains("company_id", "available_pricelist_ids")
     def _check_companies(self):
@@ -959,49 +1014,41 @@ class PosConfig(models.Model):
                 )
         pos_configs._create_sequences()
         pos_configs.sudo()._check_modules_to_install()
-        pos_configs.sudo()._check_groups_implied()
         pos_configs._update_preparation_printers_menuitem_visibility()
         return pos_configs
 
+    _SEQUENCE_SPECS = (
+        ("order_seq_id", "pos.order", 6),
+        ("order_backend_seq_id", "pos.order.backend", 6),
+        ("order_line_seq_id", "pos.order.line", 6),
+        ("device_seq_id", "pos.device", 0),
+    )
+
+    def _prepare_sequence_vals(self, field_name, code, padding):
+        self.check_singleton()
+        return {
+            "name": _(
+                "POS %(code)s from config #%(config)s", code=code, config=self.id
+            ),
+            "code": code,
+            "padding": padding,
+            "company_id": self.company_id.id,
+            "implementation": "no_gap",
+        }
+
     def _create_sequences(self):
-        IrSequence = self.env["ir.sequence"].sudo()
-        for pos_config in self:
-            specs = (
-                (
-                    "order_seq_id",
-                    "pos.order",
-                    6,
-                    _("POS order from config #%s", pos_config.id),
-                ),
-                (
-                    "order_backend_seq_id",
-                    "pos.order.backend",
-                    6,
-                    _("POS order backend from config #%s", pos_config.id),
-                ),
-                (
-                    "order_line_seq_id",
-                    "pos.order.line",
-                    6,
-                    _("POS order line from config #%s", pos_config.id),
-                ),
-                (
-                    "device_seq_id",
-                    "pos.device",
-                    0,
-                    _("POS device from config #%s", pos_config.id),
-                ),
-            )
-            for field_name, code, padding, name in specs:
-                pos_config[field_name] = IrSequence.create(
-                    {
-                        "name": name,
-                        "code": code,
-                        "padding": padding,
-                        "company_id": pos_config.company_id.id,
-                        "implementation": "no_gap",
-                    }
-                )
+        vals_list = [
+            pos_config._prepare_sequence_vals(field_name, code, padding)
+            for pos_config in self
+            for field_name, code, padding in self._SEQUENCE_SPECS
+        ]
+        sequences = self.env["ir.sequence"].sudo().create(vals_list)
+        for index, pos_config in enumerate(self):
+            offset = index * len(self._SEQUENCE_SPECS)
+            for position, (field_name, _code, _padding) in enumerate(
+                self._SEQUENCE_SPECS
+            ):
+                pos_config[field_name] = sequences[offset + position]
 
     def _get_next_session_name(self):
         self.check_singleton()
@@ -1123,10 +1170,15 @@ class PosConfig(models.Model):
             ):
                 config.available_preset_ids |= config.default_preset_id
 
-        self.sudo()._update_fiscal_position_ids()
+        if "use_fast_payment" not in vals:
+            self.filtered(
+                lambda config: (
+                    config.use_fast_payment and not config.fast_payment_method_ids
+                )
+            ).use_fast_payment = False
+        self.sudo()._update_fiscal_position_ids(vals)
         if any(k.startswith(("module_", "group_")) for k in vals):
             self.sudo()._check_modules_to_install()
-            self.sudo()._check_groups_implied()
         if "is_order_printer" in vals:
             self._update_preparation_printers_menuitem_visibility()
         return result
@@ -1177,22 +1229,26 @@ class PosConfig(models.Model):
             | self.device_seq_id
         )
         res = super().unlink()
-        sequences_to_delete.unlink()
+        sequences_to_delete.sudo().unlink()
         return res
 
-    def _update_fiscal_position_ids(self):
+    def _update_fiscal_position_ids(self, vals):
+        # Driven by what the caller asked for, not by the stored state. Re-deriving
+        # from the stored state on every write made setting fiscal_position_ids while
+        # the regime was off a silent no-op: the assignment is itself a write, and the
+        # reset ran after it and discarded the value with no error.
+        if "tax_regime_selection" in vals and not vals["tax_regime_selection"]:
+            self.filtered("fiscal_position_ids").fiscal_position_ids = [Command.clear()]
+            return
         for config in self:
             if (
                 config.tax_regime_selection
                 and config.default_fiscal_position_id
-                and (
-                    config.default_fiscal_position_id.id
-                    not in config.fiscal_position_ids.ids
-                )
+                and config.default_fiscal_position_id not in config.fiscal_position_ids
             ):
-                config.fiscal_position_ids = [(4, config.default_fiscal_position_id.id)]
-            elif not config.tax_regime_selection and config.fiscal_position_ids.ids:
-                config.fiscal_position_ids = [(5, 0, 0)]
+                config.fiscal_position_ids = [
+                    Command.link(config.default_fiscal_position_id.id)
+                ]
 
     def _check_modules_to_install(self):
         expected = [
@@ -1211,29 +1267,6 @@ class PosConfig(models.Model):
                 modules.button_immediate_install()
                 return True
         return False
-
-    def _check_groups_implied(self):
-        for pos_config in self:
-            for field_name in [f for f in pos_config._fields if f.startswith("group_")]:
-                field = pos_config._fields[field_name]
-                if field.type in ("boolean", "selection") and hasattr(
-                    field, "implied_group"
-                ):
-                    field_group_xmlids = getattr(
-                        field, "group", "base.group_user"
-                    ).split(",")
-                    field_groups = self.env["res.groups"].concat(
-                        *(self.env.ref(it) for it in field_group_xmlids)
-                    )
-                    field_groups.write(
-                        {"implied_ids": [(4, self.env.ref(field.implied_group).id)]}
-                    )
-
-    def execute(self):
-        return {
-            "type": "ir.actions.client",
-            "tag": "reload",
-        }
 
     def _prepare_action_open_ui(self):
         if not self.current_session_id:
@@ -1264,6 +1297,7 @@ class PosConfig(models.Model):
 
     def _check_before_creating_new_session(self):
         self._check_company_has_template()
+        self._check_companies()
         self._check_pricelists()
         self._check_company_payment()
         self._check_currencies()
@@ -1280,9 +1314,7 @@ class PosConfig(models.Model):
             )
 
         if not self.current_session_id:
-            res = self._check_before_creating_new_session()
-            if res:
-                return res
+            self._check_before_creating_new_session()
         self._check_fields(self._fields)
 
         self._check_company_has_fiscal_country()
@@ -1296,6 +1328,7 @@ class PosConfig(models.Model):
         return self._prepare_action_view_session(self.current_session_id.id)
 
     def _prepare_action_view_session(self, session_id):
+        self._check_companies()
         self._check_pricelists()
         return {
             "name": _("Session"),
@@ -1327,56 +1360,6 @@ class PosConfig(models.Model):
                 "type": "ir.actions.act_window",
             }
 
-    def _link_same_non_cash_payment_methods(self, source_config):
-        pms = source_config.payment_method_ids.filtered(lambda pm: not pm.is_cash_count)
-        if pms:
-            self.payment_method_ids = [Command.link(pm.id) for pm in pms]
-
-    def _get_or_create_journal_id(self, journal_code, name, company_id):
-        account_journal = self.env["account.journal"]
-        existing_journal = account_journal.search(
-            [
-                ("name", "=", name),
-                ("code", "=", journal_code),
-                ("company_id", "=", company_id),
-            ],
-            limit=1,
-        )
-
-        return (
-            existing_journal.id
-            or account_journal.create(
-                {
-                    "name": name,
-                    "code": journal_code,
-                    "type": "cash",
-                    "company_id": company_id,
-                }
-            ).id
-        )
-
-    def _get_or_create_payment_method_id(self, name, journal_id, company_id):
-        pos_payment = self.env["pos.payment.method"]
-        existing_pos_cash_pm = pos_payment.search(
-            [
-                ("name", "=", name),
-                ("journal_id", "=", journal_id),
-                ("company_id", "=", company_id),
-            ],
-            limit=1,
-        )
-
-        return (
-            existing_pos_cash_pm.id
-            or pos_payment.create(
-                {
-                    "name": name,
-                    "journal_id": journal_id,
-                    "company_id": company_id,
-                }
-            ).id
-        )
-
     def get_limited_product_count(self):
         config_param = (
             self.env["ir.config_parameter"]
@@ -1404,29 +1387,33 @@ class PosConfig(models.Model):
             return DEFAULT_LIMIT_LOAD_PARTNER
 
     def get_limited_partners_loading(self, offset=0):
+        # partner.id breaks the ties: order_count is 0 for most partners and names
+        # repeat, so without it LIMIT/OFFSET paging returns some partners twice and
+        # never returns others. The active filter belongs here rather than in the
+        # caller's search() -- applied afterwards, archived partners still consume
+        # the limit and the POS silently loads fewer partners than configured.
+        self.env["res.partner"].flush_model(["active", "name", "company_id"])
+        self.env["pos.order"].flush_model(["partner_id", "company_id"])
         return self.env.execute_query(
             SQL(
                 """
-            WITH pm AS
-            (
-                     SELECT   partner_id,
-                              Count(partner_id) order_count
-                     FROM     pos_order
-                     GROUP BY partner_id)
-            SELECT    id
-            FROM      res_partner AS partner
-            LEFT JOIN pm
-            ON        (
-                                partner.id = pm.partner_id)
-            WHERE (
-                partner.company_id=%s OR partner.company_id IS NULL
+            WITH pm AS (
+                SELECT partner_id, count(partner_id) AS order_count
+                  FROM pos_order
+                 WHERE company_id = %(company)s
+              GROUP BY partner_id
             )
-            ORDER BY  COALESCE(pm.order_count, 0) DESC,
-                      NAME limit %s offset %s;
-        """,
-                self.company_id.id,
-                self._get_limited_partner_count(),
-                offset,
+                SELECT partner.id
+                  FROM res_partner AS partner
+             LEFT JOIN pm ON partner.id = pm.partner_id
+                 WHERE (partner.company_id = %(company)s OR partner.company_id IS NULL)
+                   AND partner.active
+              ORDER BY COALESCE(pm.order_count, 0) DESC, partner.name, partner.id
+                 LIMIT %(limit)s OFFSET %(offset)s
+                """,
+                company=self.company_id.id,
+                limit=self._get_limited_partner_count(),
+                offset=offset,
             )
         )
 
@@ -1453,6 +1440,12 @@ class PosConfig(models.Model):
         return False
 
     def _get_special_products(self):
+        # Called both on a config and on an empty recordset. A config's special
+        # products are its own -- tip_product_id is per-config, so returning the
+        # global tip ref for a config that uses a custom one both names a product it
+        # never sells and omits the one it does.
+        if self:
+            return self.tip_product_id
         return (
             self.env.ref("point_of_sale.product_product_tip", raise_if_not_found=False)
             or self.env["product.product"]
@@ -1613,7 +1606,6 @@ class PosConfig(models.Model):
         ]
 
     def load_demo_data(self):
-        self = self.with_context(bypass_categories_forbidden_change=True)
         xml_id = (
             self.get_external_id().get(self.id) or self._get_default_demo_data_xml_id()
         )
