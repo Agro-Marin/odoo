@@ -184,15 +184,26 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
 
     def _prepare_sales_accumulator(self):
         # Sales and refunds are accumulated into two of these and rendered as two
-        # blocks, so every figure in a block is a magnitude: the block says which
-        # direction it is. Amounts are therefore derived from the quantity the
-        # report itself signs (abs), never read off pos.order.line, whose own
-        # refund sign convention is not the report's to depend on.
+        # blocks, so a refund reads as a magnitude and the block says which
+        # direction it is. Every figure is derived from _get_line_quantity, never
+        # read off pos.order.line, whose refund sign convention is not the
+        # report's to depend on.
         return {"products": {}, "base_amount": 0.0, "taxes": {}}
+
+    def _get_line_quantity(self, line):
+        # pos.order.line prices a refund with `qty * sign` (_compute_amount_line_all),
+        # so a refund line holds a negative qty and positive subtotals and the sign
+        # lives on the order. Applying the order's sign here reproduces that: a refund
+        # reads as a magnitude, while a negative line on an ordinary order — which is
+        # a deduction, not a refund — keeps the sign it was entered with.
+        return line.qty * (-1 if line.order_id.is_refund else 1)
 
     def _get_product_total_amount(self, line):
         return line.currency_id.round(
-            line.price_unit * abs(line.qty) * (100 - line.discount) / 100.0
+            line.price_unit
+            * self._get_line_quantity(line)
+            * (100 - line.discount)
+            / 100.0
         )
 
     def _update_products_and_taxes(self, line, accumulator, currency, precision):
@@ -208,13 +219,14 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         )
         key = (line.product_id, line.price_unit, line.discount, combo_products_label)
 
+        quantity = self._get_line_quantity(line)
         total_amount = self._get_product_total_amount(line)
         taxes = accumulator["taxes"]
         if line.tax_ids_after_fiscal_position:
             line_taxes = line.tax_ids_after_fiscal_position.sudo().compute_all(
                 line.price_unit * (1 - (line.discount or 0.0) / 100.0),
                 currency,
-                abs(line.qty),
+                quantity,
                 product=line.product_id,
                 partner=line.order_id.partner_id or False,
             )
@@ -241,7 +253,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
 
         products = accumulator["products"].setdefault(category, {})
         row = products.setdefault(key, [0.0, 0.0, 0.0])
-        row[0] = round(row[0] + abs(line.qty), precision)
+        row[0] = round(row[0] + quantity, precision)
         row[1] += total_amount
         row[2] += base_amount
         accumulator["base_amount"] += base_amount

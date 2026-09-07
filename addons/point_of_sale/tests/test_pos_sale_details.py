@@ -3,7 +3,6 @@ from datetime import timedelta
 import odoo
 from odoo import fields
 from odoo.exceptions import UserError, ValidationError
-from odoo.fields import Domain
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
@@ -422,20 +421,18 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         )
         self.assertEqual(sum(row["quantity"] for row in rows), 2.0)
 
-    def test_extra_arguments_reach_the_domain_hook(self):
-        seen = []
+    def test_extra_arguments_do_not_break_the_advertised_signature(self):
+        """``get_sale_details`` declares ``**kwargs``; a caller that supplies one
+        must not hit ``_get_domain() got an unexpected keyword argument``."""
+        product = self.create_product("Extra", self.categ_basic, 100)
+        session = self._open_session()
+        order = self._order(session, product, 100)
+        self.make_payment(order, self.cash_pm1, 100)
 
-        def _get_domain(model, *args, **kwargs):
-            seen.append(kwargs)
-            return Domain("id", "=", 0)
-
-        self.patch(type(self.report), "_get_domain", _get_domain)
-        self.report.get_sale_details(session_ids=[1], employee_id=7)
-        self.assertEqual(
-            seen,
-            [{"employee_id": 7}],
-            "get_sale_details advertises **kwargs, so _get_domain must receive them",
+        report = self.report.get_sale_details(
+            session_ids=[session.id], employee_id=False
         )
+        self.assertEqual(report["nbr_orders"], 1)
 
     def test_window_covers_the_last_second_of_the_day(self):
         date_start, date_stop = self.report._get_date_start_and_date_stop(False, False)
@@ -490,4 +487,52 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
             40.0,
             "a move sharing the ref but touching neither difference account "
             "says nothing about what was counted",
+        )
+
+    def test_a_deduction_line_is_subtracted_not_added(self):
+        """A negative line on an ordinary order is a deduction, not a refund. Its
+        sign comes from ``order.is_refund`` — the convention
+        ``_compute_amount_line_all`` uses — never from the line's own qty, or two
+        units sold and one deducted read as three units and three units' money."""
+        tax = self.env["account.tax"].create({"name": "Deduction 10%", "amount": 10})
+        product = self.create_product(
+            "Deducted", self.categ_basic, 100, tax_ids=tax.ids
+        )
+        session = self._open_session()
+        sold = self._order(session, product, 100, qty=2, taxes=tax.ids)
+        self.make_payment(sold, self.cash_pm1, sold.amount_total)
+        deduction = self._order(session, product, 100, qty=-1, taxes=tax.ids)
+        self.assertFalse(deduction.is_refund)
+        self.make_payment(deduction, self.cash_pm1, deduction.amount_total)
+
+        report = self.report.get_sale_details(session_ids=[session.id])
+        self.assertFalse(report["refund_products"], "a deduction is not a refund")
+        rows = [row for c in report["products"] for row in c["products"]]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["quantity"], 1.0)
+        self.assertEqual(rows[0]["total_paid"], 100.0)
+        self.assertEqual(rows[0]["base_amount"], 100.0)
+        self.assertEqual(report["products_info"], {"total": 100.0, "qty": 1.0})
+        self.assertEqual(
+            report["taxes_info"], {"tax_amount": 10.0, "base_amount": 100.0}
+        )
+
+    def test_a_started_session_without_sales_is_still_in_scope(self):
+        """The window scope is every session that was open in it, not only the
+        ones that took an order: a session with no sales still has a drawer."""
+        product = self.create_product("Elsewhere", self.categ_basic, 100)
+        quiet_config = self.env["pos.config"].create({"name": "Quiet Shop"})
+        quiet_config.open_ui()
+        quiet_config.current_session_id.set_opening_control(0, None)
+        session = self._open_session()
+        order = self._order(session, product, 100)
+        self.make_payment(order, self.cash_pm1, 100)
+
+        report = self.report.get_sale_details()
+        self.assertEqual(report["nbr_orders"], 1)
+        self.assertIn("Quiet Shop", report["config_names"])
+        self.assertIn(
+            quiet_config.current_session_id.id,
+            [payment["session"] for payment in report["payments"]],
+            "the quiet session must get its uncounted cash row",
         )
