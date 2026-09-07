@@ -22,6 +22,7 @@ from . import product_attribute
 from . import product_category
 from . import product_product
 from . import product_template
+from . import product_template_pos_load
 from . import uom
 from . import product_combo
 from . import product_combo_item
