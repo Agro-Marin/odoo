@@ -186,3 +186,34 @@ def postprocess_output(
         elapsed=f"{elapsed:.3f}",
     )
     return bundle_text, metafile, sourcemap
+
+
+def collect_group_output(
+    name: str,
+    out_dir: Path,
+    metafile_path: str,
+    entry_count: int,
+    module_count: int,
+    _t0: float,
+) -> tuple[dict[str, str], str | None]:
+    files = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted(out_dir.iterdir())
+        if path.is_file()
+    }
+    try:
+        metafile = Path(metafile_path).read_text(encoding="utf-8")
+    except OSError:
+        metafile = None
+    log_event(
+        _esbuild_log,
+        logging.INFO,
+        "bundled_group",
+        bundle=name,
+        entries=entry_count,
+        modules=module_count,
+        files=len(files),
+        output_bytes=sum(len(code) for code in files.values()),
+        elapsed=f"{time.monotonic() - _t0:.3f}",
+    )
+    return files, metafile

@@ -499,25 +499,13 @@ class EsbuildCompiler:
             esbuild_process.run_esbuild(
                 self.name, argv, timeout_s, "", _t0, node_path=node_path
             )
-            files = {
-                path.name: path.read_text(encoding="utf-8")
-                for path in sorted(out_dir.iterdir())
-                if path.is_file()
-            }
-            try:
-                metafile = Path(metafile_path).read_text(encoding="utf-8")
-            except OSError:
-                metafile = None
-            log_event(
-                _esbuild_log,
-                logging.INFO,
-                "bundled_group",
-                bundle=self.name,
-                entries=len(entry_points),
-                modules=sum(len(m) for m in entries.values()),
-                files=len(files),
-                output_bytes=sum(len(code) for code in files.values()),
-                elapsed=f"{time.monotonic() - _t0:.3f}",
+            files, metafile = esbuild_process.collect_group_output(
+                self.name,
+                out_dir,
+                metafile_path,
+                len(entry_points),
+                sum(len(m) for m in entries.values()),
+                _t0,
             )
             return EsbuildGroupResult(files, metafile)
         finally:
