@@ -17,7 +17,6 @@ class DocumentType(models.Model):
     )
     code = fields.Char(
         required=True,
-        index=True,
         help="Short code for this document type (e.g., 'PASSPORT', 'DL', 'WP')",
     )
     active = fields.Boolean(
