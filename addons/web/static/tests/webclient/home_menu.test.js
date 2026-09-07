@@ -1256,3 +1256,37 @@ test("a menu reload that changes the apps re-counts their badges", async () => {
     await animationFrame();
     expect(counted).toEqual([], { message: "same apps, no second count" });
 });
+
+test("a re-render that leaves the grid alone keeps the keyboard selection", async () => {
+    // MENUS_APP_CHANGED fires for a plain navigation too, and HomeMenuAction
+    // answers it by recomputing props -- a fresh array and a fresh layout
+    // holding exactly the same apps. That used to drop the user's selection.
+    const base = getDefaultHomeMenuProps();
+    class Parent extends Component {
+        static components = { HomeMenu };
+        static props = {};
+        static template = xml`<HomeMenu t-props="state.props"/>`;
+        setup() {
+            this.state = useState({ props: base });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await press("ArrowDown");
+    await animationFrame();
+    expect(".o_menuitem:eq(0)").toHaveClass("o_focused");
+
+    // Same apps, new array: what a navigation hands down.
+    parent.state.props = { ...base, apps: [...base.apps] };
+    await animationFrame();
+    expect(".o_menuitem:eq(0)").toHaveClass("o_focused", {
+        message: "nothing about the grid changed, so the selection stands",
+    });
+
+    // A different app list is a different grid, and the index no longer means
+    // what it meant.
+    parent.state.props = { ...base, apps: base.apps.slice(0, 2) };
+    await animationFrame();
+    expect(".o_menuitem.o_focused").toHaveCount(0, {
+        message: "the grid changed shape, so the selection is dropped",
+    });
+});

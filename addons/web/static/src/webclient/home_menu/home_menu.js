@@ -159,8 +159,6 @@ export class HomeMenu extends Component {
     subscription;
     /** @type {import("services").ServiceFactories["ui"]} */
     ui;
-    /** @type {import("services").ServiceFactories["orm"]} */
-    orm;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     inputRef;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
@@ -172,7 +170,6 @@ export class HomeMenu extends Component {
         this.homeMenuService = useService("home_menu");
         this.subscription = useService("enterprise_subscription");
         this.ui = useService("ui");
-        this.orm = useService("orm");
         this.state = useState({
             focusedIndex: null,
             isIosApp: isIosApp(),
@@ -183,7 +180,7 @@ export class HomeMenu extends Component {
         this.layout = new HomeMenuLayout({
             config: useState(this.props.config ?? reactive(parseHomeMenuConfig(null))),
             defaultConfig: this.props.defaultConfig ?? parseHomeMenuConfig(null),
-            orm: this.orm,
+            orm: useService("orm"),
         });
         this.inputRef = useRef("input");
         this.rootRef = useRef("root");
@@ -202,27 +199,35 @@ export class HomeMenu extends Component {
             onDrop: (params) => this._sortAppDrop(params),
         });
 
+        this.appsKey = homeMenuAppsKey(this.props.apps);
+
         onWillUpdateProps((nextProps) => {
-            // State is reset on each remount
-            this.state.focusedIndex = null;
-            if (nextProps.config && nextProps.config !== this.props.config) {
+            // Keyed on which apps there are, not on the array's identity:
+            // `MENUS_APP_CHANGED` fires for a plain navigation too, and mints
+            // a fresh array and a fresh layout every time it does.
+            const appsKey = homeMenuAppsKey(nextProps.apps);
+            const appsChanged = appsKey !== this.appsKey;
+            const configChanged =
+                Boolean(nextProps.config) && nextProps.config !== this.props.config;
+            if (appsChanged) {
+                this.appsKey = appsKey;
+                // A menu reload can install or remove an app, and its counts
+                // are not the ones fetched at mount.
+                this._loadBadges(nextProps.apps);
+            }
+            if (configChanged) {
                 this.layout.setConfig(reactive(nextProps.config, () => this.render()));
             }
             if (nextProps.defaultConfig) {
                 this.layout.defaultConfig = nextProps.defaultConfig;
             }
-            // A menu reload can install or remove an app; its counts are not
-            // the ones fetched at mount. Keyed on which apps there are, not on
-            // the array's identity, because `MENUS_APP_CHANGED` also fires for
-            // a plain navigation and mints a fresh array every time.
-            const appsKey = homeMenuAppsKey(nextProps.apps);
-            if (appsKey !== this.appsKey) {
-                this.appsKey = appsKey;
-                this._loadBadges(nextProps.apps);
+            // The keyboard selection is an index into a grid that just changed
+            // shape, so it no longer points at what the user was looking at.
+            // A re-render that leaves the grid alone keeps it.
+            if (appsChanged || configChanged) {
+                this.state.focusedIndex = null;
             }
         });
-
-        this.appsKey = homeMenuAppsKey(this.props.apps);
 
         onMounted(() => {
             if (!hasTouch()) {
@@ -372,11 +377,6 @@ export class HomeMenu extends Component {
         return /** @type {HTMLInputElement | null} */ (this.inputRef.el);
     }
 
-    /** @returns {number} */
-    get maxIconNumber() {
-        return APPS_PER_ROW;
-    }
-
     //--------------------------------------------------------------------------
     // Private
     //--------------------------------------------------------------------------
@@ -501,7 +501,7 @@ export class HomeMenu extends Component {
     get keyboardRows() {
         return gridRows(
             [this.pinnedApps.length, this.unpinnedApps.length],
-            this.maxIconNumber,
+            APPS_PER_ROW,
             this.menuMatches.length,
         );
     }
