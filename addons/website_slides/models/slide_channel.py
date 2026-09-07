@@ -850,14 +850,14 @@ class SlideChannel(models.Model):
     # ORM Overrides
     # ---------------------------------------------------------
 
-    def _init_column(self, column_name):
+    def _init_column(self, column_name, *, new_column=False):
         """Initialize the value of the given column for existing rows.
         Overridden here because we need to generate different access tokens
         and by default _init_column calls the default method once and applies
         it for every record.
         """
         if column_name != "access_token":
-            super()._init_column(column_name)
+            super()._init_column(column_name, new_column=new_column)
         else:
             query = """
                 UPDATE %(table_name)s

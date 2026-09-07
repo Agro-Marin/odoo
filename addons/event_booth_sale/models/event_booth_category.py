@@ -120,11 +120,11 @@ class EventBoothCategory(models.Model):
             )
             category.price_reduce_taxinc = taxes["total_included"] or 0
 
-    def _init_column(self, column_name):
+    def _init_column(self, column_name, *, new_column=False):
         """Initialize product_id for existing columns when installing sale
         bridge, to ensure required attribute is fulfilled."""
         if column_name != "product_id":
-            return super()._init_column(column_name)
+            return super()._init_column(column_name, new_column=new_column)
 
         # fetch void columns
         self.env.cr.execute("SELECT id FROM %s WHERE product_id IS NULL" % self._table)

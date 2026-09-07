@@ -72,9 +72,9 @@ class ResCompany(models.Model):
                 "/hr_attendance/%s" % company.attendance_kiosk_key,
             )
 
-    def _init_column(self, column_name):
+    def _init_column(self, column_name, *, new_column=False):
         if column_name != "attendance_kiosk_key":
-            super()._init_column(column_name)
+            super()._init_column(column_name, new_column=new_column)
         else:
             self.env.cr.execute(
                 "SELECT id FROM %s WHERE attendance_kiosk_key IS NULL" % self._table

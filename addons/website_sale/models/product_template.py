@@ -887,7 +887,7 @@ class ProductTemplate(models.Model):
             return "image_512"
         return "image_1024"
 
-    def _init_column(self, column_name):
+    def _init_column(self, column_name, *, new_column=False):
         # to avoid generating a single default website_sequence when installing the module,
         # we need to set the default row by row for this column
         if column_name == "website_sequence":
@@ -913,7 +913,7 @@ class ProductTemplate(models.Model):
             ]
             self.env.cr.execute_values(query, values_args)
         else:
-            super()._init_column(column_name)
+            super()._init_column(column_name, new_column=new_column)
 
     def set_sequence_top(self):
         min_sequence = self.sudo().search([], order="website_sequence ASC", limit=1)

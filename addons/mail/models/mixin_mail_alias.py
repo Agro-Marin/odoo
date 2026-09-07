@@ -22,8 +22,8 @@ class MixinMailAlias(models.AbstractModel):
     def _require_new_alias(self, record_vals: dict) -> bool:
         return not record_vals.get("alias_id")
 
-    def _init_column(self, name: str) -> None:
-        super()._init_column(name)
+    def _init_column(self, name: str, *, new_column: bool = False) -> None:
+        super()._init_column(name, new_column=new_column)
         if name == "alias_id":
             self.pool.post_init(self._init_column_alias_id)
 

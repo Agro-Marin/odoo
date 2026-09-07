@@ -82,9 +82,9 @@ class SaleOrder(models.Model):
         compute="_compute_json_popover",
     )
 
-    def _init_column(self, column_name):
+    def _init_column(self, column_name, *, new_column=False):
         if column_name != "warehouse_id":
-            return super()._init_column(column_name)
+            return super()._init_column(column_name, new_column=new_column)
 
         default_warehouse = self.env["stock.warehouse"].search([], limit=1)
 

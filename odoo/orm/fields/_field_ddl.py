@@ -111,7 +111,7 @@ def update_db_notnull(
 
     if not column or (field.required and not has_notnull):
         if model._table_has_rows():
-            model._init_column(field.name)
+            model._init_column(field.name, new_column=not column)
 
     if field.required and not has_notnull:
 

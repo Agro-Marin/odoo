@@ -57,7 +57,7 @@ class SchemaMixin(_ModelStubs):
             if col_data["is_nullable"] == "NO":
                 sql.drop_not_null(cr, self._table, col_name)
 
-    def _init_column(self, column_name: str) -> None:
+    def _init_column(self, column_name: str, *, new_column: bool = False) -> None:
         field = self._fields[column_name]
         if field.default:
             value = field.default(self)
@@ -75,8 +75,20 @@ class SchemaMixin(_ModelStubs):
                 column_name,
                 value,
             )
+            # A column that did not exist has no row-level data to protect: every
+            # row takes the field default, including the DDL `DEFAULT false` a
+            # boolean column is born with (res_company.active on a fresh install
+            # was left false, so no company was allowed for any user). Adding
+            # NOT NULL to an existing column keeps the values it already holds.
             self.env.cr.execute(
                 SQL(
+                    "UPDATE %(table)s SET %(field)s = %(value)s",
+                    table=SQL.identifier(self._table),
+                    field=SQL.identifier(column_name),
+                    value=value,
+                )
+                if new_column
+                else SQL(
                     "UPDATE %(table)s SET %(field)s = %(value)s WHERE %(field)s IS NULL",
                     table=SQL.identifier(self._table),
                     field=SQL.identifier(column_name),

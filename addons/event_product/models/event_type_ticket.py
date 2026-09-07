@@ -94,9 +94,9 @@ class EventTypeTicket(models.Model):
             contextual_discount = ticket.product_id._get_contextual_discount()
             ticket.price_reduce = (1.0 - contextual_discount) * ticket.price
 
-    def _init_column(self, column_name):
+    def _init_column(self, column_name, *, new_column=False):
         if column_name != "product_id":
-            return super()._init_column(column_name)
+            return super()._init_column(column_name, new_column=new_column)
 
         # fetch void columns
         self.env.cr.execute("SELECT id FROM %s WHERE product_id IS NULL" % self._table)
