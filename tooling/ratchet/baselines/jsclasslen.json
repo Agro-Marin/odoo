@@ -1,0 +1,6 @@
+{
+  "count": 7209,
+  "measured_at": "fff4eb9a9f4b22cd400b811169d7b1773218200e",
+  "measured_root": "",
+  "note": "New gate, first floor. addons/web/static/src holds 33 classes over the 400-line budget for 7209 excess code lines, and no existing gate can see any of them: jsfunclen holds every JS function under 90 lines, and a class of short methods is invisible to a per-function budget -- the argument py_class_length.py was added for on the Python side, which had no client-side counterpart. Largest: FlowEditor 1267 over 63 methods (core/flow_editor/flow_editor.js), StaticList 1041, ListRenderer 963, CalendarModel 918, RelationalRecord 871. Unit is excess lines rather than offender count, so splitting one huge class into two large ones lowers the number rather than raising it. Comment-only lines are excluded, matching jsfunclen's eslint skipComments:true, so the two figures stay comparable -- which also means a comment sweep moves this floor and the drop is not an improvement. Measured in a clean detached worktree of fff4eb9a9f4, the commit that adds the gate, node_modules symlinked."
+}
