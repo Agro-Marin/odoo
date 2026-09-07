@@ -20,7 +20,7 @@ const anchorExclude =
  * when not using semantic <h*> tags.
  */
 const TITLE_SELECTOR =
-    "h1, h2, h3, h4, h5, h6, .h1-fs, .h2-fs, .h3-fs, .h4-fs, .h5-fs, .h6-fs, .display-1-fs, .display-2-fs, .display-3-fs, display-4-fs, .base-fs, .o_small-fs";
+    "h1, h2, h3, h4, h5, h6, .h1-fs, .h2-fs, .h3-fs, .h4-fs, .h5-fs, .h6-fs, .display-1-fs, .display-2-fs, .display-3-fs, .display-4-fs, .base-fs, .o_small-fs";
 
 export function canHaveAnchor(element) {
     return element.matches(anchorSelector) && !element.matches(anchorExclude);
