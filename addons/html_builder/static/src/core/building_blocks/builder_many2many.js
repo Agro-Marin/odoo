@@ -39,7 +39,7 @@ export class BuilderMany2Many extends Component {
         this.domState = useDomState((el) => {
             const getAction = this.env.editor.shared.builderActions.getAction;
             const actionWithGetValue = getAllActions().find(
-                ({ actionId }) => getAction(actionId).getValue,
+                ({ actionId }) => getAction(actionId).has("getValue"),
             );
             const { actionId, actionParam } = actionWithGetValue;
             const actionValue = getAction(actionId).getValue({

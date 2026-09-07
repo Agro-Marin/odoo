@@ -50,7 +50,7 @@ export function useColorPickerBuilderComponent() {
         //     return {};
         // }
         const actionWithGetValue = getAllActions().find(
-            ({ actionId }) => getAction(actionId).getValue,
+            ({ actionId }) => getAction(actionId).has("getValue"),
         );
         const { actionId, actionParam } = actionWithGetValue;
         const actionValue = getAction(actionId).getValue({
