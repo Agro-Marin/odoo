@@ -86,6 +86,7 @@ import {
 import {
     computeDefaultPage,
     computeFirstPage,
+    consumeBootFlags,
     navigate,
     navigateToFirstPage,
     navigateToOrderScreen,
@@ -250,6 +251,11 @@ export class PosStore extends WithLazyGetterTrap {
         return computeFirstPage(this);
     }
 
+    bootPage() {
+        consumeBootFlags(this);
+        return this.firstPage;
+    }
+
     get idleTimeout() {
         return [
             {
@@ -341,7 +347,7 @@ export class PosStore extends WithLazyGetterTrap {
 
         const page =
             this.router.state.current === "LoginScreen"
-                ? this.firstPage
+                ? this.bootPage()
                 : {
                       page: this.router.state.current,
                       params: this.router.state.params,

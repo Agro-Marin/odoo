@@ -444,9 +444,18 @@ describe("restaurant pos_store.js", () => {
         expect(count).toBe(9);
     });
 
-    test("firstPage", async () => {
+    test("firstPage is LoginScreen only when there is no cashier", async () => {
+        // It used to read LoginScreen unconditionally, because reading the getter
+        // reset the cashier on its way past. The getter is a description now, so
+        // the state has to be arranged rather than caused by the assertion.
         const store = await setupPosEnv();
+        store.resetCashier();
         expect(store.firstPage.page).toBe("LoginScreen");
+        expect(store.firstPage.params).toEqual({});
+
+        store.setCashier(store.user);
+        expect(store.firstPage.page).not.toBe("LoginScreen");
+        expect(store.firstPage).toEqual(store.defaultPage);
     });
 
     describe("addCourse", () => {

@@ -41,7 +41,7 @@ export function computeDefaultPage(pos) {
     };
 }
 
-export function computeFirstPage(pos) {
+export function consumeBootFlags(pos) {
     if (odoo.from_backend) {
         const url = new URL(window.location.href);
         url.searchParams.delete("from_backend");
@@ -53,7 +53,9 @@ export function computeFirstPage(pos) {
     } else {
         pos.resetCashier();
     }
+}
 
+export function computeFirstPage(pos) {
     return !pos.cashier ? { page: "LoginScreen", params: {} } : pos.defaultPage;
 }
 
