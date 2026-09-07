@@ -47,6 +47,23 @@ class MixinPosLoad(models.AbstractModel):
 
         return domain
 
+    def _with_pos_company(self, config):
+        """The config's company first, so company-dependent fields (standard_price,
+        cost_currency_id) read as the company the payload is for rather than as
+        whichever company the requester happens to have selected. Every company the
+        caller already had stays allowed, so no record rule narrows; and a user who
+        is not in the config's company cannot read that config in the first place."""
+        company_id = config.company_id.id
+        if not company_id:
+            return self
+        allowed = self.env.companies.ids
+        if allowed[:1] == [company_id]:
+            return self
+        return self.with_context(
+            allowed_company_ids=[company_id]
+            + [other for other in allowed if other != company_id]
+        )
+
     @api.model
     def _load_pos_data_read(self, records, config):
         if not config:

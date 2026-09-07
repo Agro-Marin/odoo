@@ -2453,21 +2453,21 @@ class TestPoSBasicConfig(TestPoSCommon):
         special_product = self.env.ref("point_of_sale.product_product_tip")
         with self.assertRaisesRegex(
             UserError,
-            "You cannot archive a product that is set as a special product in a Point of Sale configuration. Please change the configuration first.",
+            "You cannot archive or delete .*: it is set as a special product in a Point of Sale configuration. Please change the configuration first.",
         ):
             special_product.action_archive()
         with self.assertRaisesRegex(
             UserError,
-            "You cannot archive a product that is set as a special product in a Point of Sale configuration. Please change the configuration first.",
+            "You cannot archive or delete .*: it is set as a special product in a Point of Sale configuration. Please change the configuration first.",
         ):
             special_product.product_variant_ids[0].action_archive()
         with self.assertRaisesRegex(
             UserError,
-            "You cannot archive a product that is set as a special product in a Point of Sale configuration. Please change the configuration first.",
+            "You cannot archive or delete .*: it is set as a special product in a Point of Sale configuration. Please change the configuration first.",
         ):
             special_product.unlink()
         with self.assertRaisesRegex(
             UserError,
-            "You cannot archive a product that is set as a special product in a Point of Sale configuration. Please change the configuration first.",
+            "You cannot archive or delete .*: it is set as a special product in a Point of Sale configuration. Please change the configuration first.",
         ):
             special_product.product_variant_ids[0].unlink()

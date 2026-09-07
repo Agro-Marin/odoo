@@ -1024,13 +1024,8 @@ class ProductTemplate(models.Model):
                     continue
             yield combination
 
-    def _get_attribute_exclusions(
-        self, parent_combination=None, parent_name=None, combination_ids=None
-    ):
+    def _get_archived_combinations(self, combination_ids=None):
         self.check_singleton()
-        parent_combination = (
-            parent_combination or self.env["product.template.attribute.value"]
-        )
         archived_products = self.with_context(
             active_test=False
         ).product_variant_ids.filtered(lambda l: not l.active)
@@ -1038,22 +1033,32 @@ class ProductTemplate(models.Model):
             tuple(product.product_template_attribute_value_ids.ids)
             for product in self.product_variant_ids
         }
+        return list(
+            {
+                tuple(product.product_template_attribute_value_ids.ids)
+                for product in archived_products
+                if product.product_template_attribute_value_ids
+                and all(
+                    ptav.ptav_active or (combination_ids and ptav.id in combination_ids)
+                    for ptav in product.product_template_attribute_value_ids
+                )
+            }
+            - active_combinations
+        )
+
+    def _get_attribute_exclusions(
+        self, parent_combination=None, parent_name=None, combination_ids=None
+    ):
+        self.check_singleton()
+        parent_combination = (
+            parent_combination or self.env["product.template.attribute.value"]
+        )
         return {
             "exclusions": self._complete_inverse_exclusions(
                 self._get_own_attribute_exclusions(combination_ids=combination_ids)
             ),
-            "archived_combinations": list(
-                {
-                    tuple(product.product_template_attribute_value_ids.ids)
-                    for product in archived_products
-                    if product.product_template_attribute_value_ids
-                    and all(
-                        ptav.ptav_active
-                        or (combination_ids and ptav.id in combination_ids)
-                        for ptav in product.product_template_attribute_value_ids
-                    )
-                }
-                - active_combinations
+            "archived_combinations": self._get_archived_combinations(
+                combination_ids=combination_ids
             ),
             "parent_exclusions": self._get_parent_attribute_exclusions(
                 parent_combination

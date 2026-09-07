@@ -110,7 +110,7 @@ class ProductProduct(models.Model):
         config_self = self.env['pos.config'].sudo().search([('self_ordering_mode', '!=', 'nothing')])
         for config in config_self:
             if config.current_session_id and config.access_token:
-                records = self.env["product.template"].load_product_from_pos(config.id, [('id', '=', self.product_tmpl_id.id)])
+                records = self.env["product.template"].sudo().load_product_from_pos(config.id, [('id', '=', self.product_tmpl_id.id)])
                 payload = {}
                 self_models = self.env["pos.config"]._load_self_data_models()
                 for model in records:

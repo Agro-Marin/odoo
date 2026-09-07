@@ -30,6 +30,7 @@ from . import test_report_pos_order
 from . import test_report_session
 from . import test_res_config_settings
 from . import test_pos_product_variants
+from . import test_pos_product_template
 from . import test_generic_localization
 from . import test_pos_accounting_units
 from . import test_pos_closing_rounding

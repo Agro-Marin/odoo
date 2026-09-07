@@ -106,9 +106,9 @@ class TestPosRobustness(CommonPosTest):
         self.assertEqual(result["pos.order"], [order_id])
 
     def test_filter_local_data_reports_archived_records(self):
-        template = self.env["product.template"].create(
-            {"name": "Archived probe", "available_in_pos": True}
-        )
+        # not available_in_pos: archiving one of those is refused outright while
+        # a session is open, and what this asserts is filter_local_data, not the guard
+        template = self.env["product.template"].create({"name": "Archived probe"})
         template.active = False
         result = self.session.filter_local_data({"product.template": [template.id]})
         self.assertEqual(result["product.template"], [template.id])

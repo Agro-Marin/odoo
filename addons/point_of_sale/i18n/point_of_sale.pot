@@ -109,6 +109,12 @@ msgid "%s almost runs out of paper."
 msgstr ""
 
 #. module: point_of_sale
+#. odoo-python
+#: code:addons/point_of_sale/models/product_template.py:0
+msgid "%s cannot be suggested as an optional product for itself."
+msgstr ""
+
+#. module: point_of_sale
 #. odoo-javascript
 #: code:addons/point_of_sale/static/src/app/screens/partner_list/partner_list.js:0
 msgid "%s customer(s) found for \"%s\"."
@@ -10814,8 +10820,8 @@ msgstr ""
 #. odoo-python
 #: code:addons/point_of_sale/models/product_template.py:0
 msgid ""
-"You cannot archive a product that is set as a special product in a Point of "
-"Sale configuration. Please change the configuration first."
+"You cannot archive or delete %s: it is set as a special product in a Point "
+"of Sale configuration. Please change the configuration first."
 msgstr ""
 
 #. module: point_of_sale

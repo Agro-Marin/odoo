@@ -15,9 +15,13 @@ class ProductTemplate(models.Model):
         already_loaded_product_tmpl_ids = {template['id'] for template in read_data}
 
         missing_product_tmpl_ids = list(loyalty_product_tmpl_ids - already_loaded_product_tmpl_ids)
-        fields = self.env['product.template']._load_pos_data_fields(config)
 
-        missing_product_templates = self.env['product.template'].browse(missing_product_tmpl_ids).read(fields=fields, load=False)
+        # through _load_pos_data_read, not a bare read: the rows super() returned
+        # have had their image flagged, their prices converted and their archived
+        # combinations attached, and rows appended after it must match
+        missing_product_templates = self.env['product.template']._load_pos_data_read(
+            self.env['product.template'].browse(missing_product_tmpl_ids), config
+        )
         product_ids_to_hide = reward_products.product_tmpl_id - self.env['product.template'].browse(already_loaded_product_tmpl_ids)
 
         if self.env.context.get('pos_limited_loading', True):
