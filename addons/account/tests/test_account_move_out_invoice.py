@@ -2070,7 +2070,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         bank1 = self.env["res.partner.bank"].create(
             {
                 "acc_number": "BE43798822936101",
-                "partner_ids": [(4, self.partner_a.id)],
+                "partner_id": self.partner_a.id,
                 "allow_out_payment": True,
             }
         )
@@ -3152,7 +3152,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
             {
                 "bank_name": "FAKE",
                 "acc_number": "1234567890",
-                "partner_ids": [(4, self.partner_a.id)],
+                "partner_id": self.partner_a.id,
                 "allow_out_payment": True,
             }
         )
@@ -5911,15 +5911,15 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
             {
                 "bank_name": "FAKE",
                 "acc_number": "1234567890",
-                "partner_ids": [(4, company_1.partner_id.id)],
+                "partner_id": company_1.partner_id.id,
                 "allow_out_payment": True,
             }
         )
         bank_2 = self.env["res.partner.bank"].create(
             {
                 "bank_name": "FAKE 2",
-                "acc_number": "1234567891",
-                "partner_ids": [(4, company_2.partner_id.id)],
+                "acc_number": "1234567890",
+                "partner_id": company_2.partner_id.id,
                 "allow_out_payment": True,
             }
         )

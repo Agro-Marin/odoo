@@ -478,7 +478,7 @@ class HrEmployee(models.Model):
         relation="employee_bank_account_rel",
         column1="employee_id",
         column2="bank_account_id",
-        domain="[('partner_ids', 'in', partner_id), '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
+        domain="[('partner_id', '=', partner_id), '|', ('company_id', '=', False), ('company_id', '=', company_id)]",
         string="Bank Accounts",
         tracking=True,
         groups="hr.group_hr_user",
@@ -2850,7 +2850,7 @@ class HrEmployee(models.Model):
             self.env["res.partner.bank"].sudo().browse(self.bank_account_ids.ids)
         )
         to_move = accounts_sudo.filtered(
-            lambda account: partner_id not in account.partner_ids.ids
+            lambda account: account.partner_id.id != partner_id
         )
         if not to_move:
             return
@@ -2858,4 +2858,4 @@ class HrEmployee(models.Model):
         if trusted:
             trusted.allow_out_payment = False
         if partner_id:
-            to_move.partner_ids = [Command.set([partner_id])]
+            to_move.partner_id = partner_id

@@ -6,6 +6,7 @@ import werkzeug.exceptions
 
 from odoo import SUPERUSER_ID, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import SQL
 from odoo.tools.image import image_data_uri
 
 from odoo.addons.base.models.res_bank import sanitize_account_number
@@ -35,15 +36,15 @@ class ResPartnerBank(models.Model):
         help="Technical field used to display a warning if the IBAN country is different than the holder country.",
         store=True,
     )
-    partner_country_name = fields.Char(related="partner_ids.country_id.name")
+    partner_country_name = fields.Char(related="partner_id.country_id.name")
     has_money_transfer_warning = fields.Boolean(
         compute="_compute_display_account_warning",
         help="Technical field used to display a warning if the account is a transfer service account.",
         store=True,
     )
     money_transfer_service = fields.Char(compute="_compute_money_transfer_service")
-    partner_supplier_rank = fields.Integer(related="partner_ids.supplier_rank")
-    partner_customer_rank = fields.Integer(related="partner_ids.customer_rank")
+    partner_supplier_rank = fields.Integer(related="partner_id.supplier_rank")
+    partner_customer_rank = fields.Integer(related="partner_id.customer_rank")
     related_moves = fields.One2many("account.move", inverse_name="partner_bank_id")
 
     bank_id = fields.Many2one(tracking=True)
@@ -51,7 +52,7 @@ class ResPartnerBank(models.Model):
     acc_number = fields.Char(tracking=True)
     acc_holder_name = fields.Char(tracking=True)
     clearing_number = fields.Char(tracking=True)
-    partner_ids = fields.Many2many(tracking=True)
+    partner_id = fields.Many2one(tracking=True)
     user_has_group_validate_bank_account = fields.Boolean(
         compute="_compute_user_has_group_validate_bank_account"
     )
@@ -63,6 +64,9 @@ class ResPartnerBank(models.Model):
     )
     currency_id = fields.Many2one(tracking=True)
     lock_trust_fields = fields.Boolean(compute="_compute_lock_trust_fields")
+    duplicate_bank_partner_ids = fields.Many2many(
+        "res.partner", compute="_compute_duplicate_bank_partner_ids"
+    )
 
     @api.constrains("journal_id")
     def _check_journal_id(self):
@@ -81,8 +85,42 @@ class ResPartnerBank(models.Model):
                     )
                 )
 
+    @api.depends("acc_number")
+    def _compute_duplicate_bank_partner_ids(self):
+        id2duplicates = dict(
+            self.env.execute_query(
+                SQL(
+                    """
+                SELECT this.id,
+                       ARRAY_AGG(other.partner_id)
+                  FROM res_partner_bank this
+             LEFT JOIN res_partner_bank other ON this.acc_number = other.acc_number
+                                             AND this.id != other.id
+                                             AND other.active = TRUE
+                 WHERE this.id = ANY(%(ids)s)
+                 AND other.partner_id IS NOT NULL
+                   AND this.active = TRUE
+                   AND (
+                        ((this.company_id = other.company_id) OR (this.company_id IS NULL AND other.company_id IS NULL))
+                        OR
+                        other.company_id IS NULL
+                        )
+              GROUP BY this.id
+            """,
+                    ids=self.ids,
+                )
+            )
+        )
+        for bank in self:
+            duplicate_record = id2duplicates.get(bank._origin.id) or []
+            bank.duplicate_bank_partner_ids = (
+                self.env["res.partner"].browse(duplicate_record)
+                if duplicate_record
+                else False
+            )
+
     @api.depends(
-        "partner_ids.country_id", "sanitized_acc_number", "allow_out_payment", "acc_type"
+        "partner_id.country_id", "sanitized_acc_number", "allow_out_payment", "acc_type"
     )
     def _compute_display_account_warning(self):
         for bank in self:
@@ -95,9 +133,9 @@ class ResPartnerBank(models.Model):
                 bank.has_money_transfer_warning = False
                 continue
             bank_country = bank.sanitized_acc_number[:2]
-            holder_country = bank.partner_ids[:1].country_id
-            bank.has_iban_warning = bool(
-                holder_country and bank_country != holder_country.code
+            bank.has_iban_warning = (
+                bank.partner_id.country_id
+                and bank_country != bank.partner_id.country_id.code
             )
             bank.has_money_transfer_warning = bool(bank._get_money_transfer_service())
 
@@ -361,20 +399,31 @@ class ResPartnerBank(models.Model):
                 "Bank Account %s created",
                 account._get_html_link(title=f"#{account.id}"),
             )
-            for partner in account.partner_ids:
-                partner._message_log(body=msg)
+            account.partner_id._message_log(body=msg)
         return accounts
 
     def _raise_if_archived_account_exists(self, vals_list):
-        numbers = {vals["acc_number"] for vals in vals_list if vals.get("acc_number")}
-        if not numbers:
+        pairs = [
+            (vals["partner_id"], vals["acc_number"])
+            for vals in vals_list
+            if vals.get("partner_id") and vals.get("acc_number")
+        ]
+        if not pairs:
             return
         archived = self.env["res.partner.bank"].search(
-            [("active", "=", False), ("acc_number", "in", list(numbers))]
+            [
+                ("active", "=", False),
+                ("partner_id", "in", [partner_id for partner_id, _acc in pairs]),
+                ("acc_number", "in", [acc for _partner_id, acc in pairs]),
+            ]
         )
-        archived_by_number = {bank.sanitized_acc_number: bank for bank in archived}
-        for acc_number in numbers:
-            existing = archived_by_number.get(sanitize_account_number(acc_number))
+        archived_by_key = {
+            (bank.partner_id.id, bank.sanitized_acc_number): bank for bank in archived
+        }
+        for partner_id, acc_number in pairs:
+            existing = archived_by_key.get(
+                (partner_id, sanitize_account_number(acc_number))
+            )
             if existing:
                 raise UserError(
                     self.env._(
@@ -382,7 +431,7 @@ class ResPartnerBank(models.Model):
                         " for Partner %(partner)s, but is archived. Please unarchive"
                         " it instead.",
                         number=acc_number,
-                        partner=existing.partner_ids[:1].name,
+                        partner=existing.partner_id.name,
                     )
                 )
 
@@ -408,7 +457,7 @@ class ResPartnerBank(models.Model):
                 "allow_out_payment" in vals and vals["allow_out_payment"] is False
             )
 
-        lock_fields = {"acc_number", "sanitized_acc_number", "partner_ids", "acc_type"}
+        lock_fields = {"acc_number", "sanitized_acc_number", "partner_id", "acc_type"}
         if not should_allow_changes and any(
             account[fname]
             != account._fields[fname].convert_to_record(
@@ -445,11 +494,11 @@ class ResPartnerBank(models.Model):
                     "Bank Account %s updated",
                     account._get_html_link(title=f"#{account.id}"),
                 )
-                holders = account.partner_ids | initial_values.get(
-                    "partner_ids", account.partner_ids.browse()
+                account.partner_id._message_log(
+                    body=msg, tracking_value_ids=tracking_value_ids
                 )
-                for partner in holders:
-                    partner._message_log(
+                if "partner_id" in initial_values:
+                    initial_values["partner_id"]._message_log(
                         body=msg, tracking_value_ids=tracking_value_ids
                     )
         return res
@@ -461,8 +510,7 @@ class ResPartnerBank(models.Model):
                 link=account._get_html_link(title=f"#{account.id}"),
                 number=account.acc_number,
             )
-            for partner in account.partner_ids:
-                partner._message_log(body=msg)
+            account.partner_id._message_log(body=msg)
         return super().unlink()
 
     @api.model

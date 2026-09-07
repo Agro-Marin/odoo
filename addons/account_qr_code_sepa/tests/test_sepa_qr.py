@@ -17,13 +17,13 @@ class TestSEPAQRCode(AccountTestInvoicingCommon):
         cls.company_data['company'].qr_code = True
         cls.acc_sepa_iban = cls.env['res.partner.bank'].create({
             'acc_number': 'BE15001559627230',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
             'allow_out_payment': True,
         })
 
         cls.acc_non_sepa_iban = cls.env['res.partner.bank'].create({
             'acc_number': 'SA4420000001234567891234',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
         })
 
         cls.env.ref('base.EUR').active = True

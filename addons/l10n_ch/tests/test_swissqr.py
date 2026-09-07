@@ -87,7 +87,7 @@ class TestSwissQR(AccountTestInvoicingCommon):
         return self.env['res.partner.bank'].create(
             {
                 'acc_number': number,
-                'partner_ids': [(4, self.env.user.company_id.partner_id.id)],
+                'partner_id': self.env.user.company_id.partner_id.id,
                 # The account is the company's own, printed on an outbound
                 # invoice for the customer to pay into. account's
                 # `_check_post_invoices` refuses to post an inbound invoice

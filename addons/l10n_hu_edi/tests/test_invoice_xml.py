@@ -27,11 +27,11 @@ class L10nHuEdiTestInvoiceXml(L10nHuEdiTestCommon):
             })
             cls.bank_company = cls.env['res.partner.bank'].create({
                 'acc_number': 'HU7357735773',
-                'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+                'partner_id': cls.company_data['company'].partner_id.id,
             })
             cls.bank_partner = cls.env['res.partner.bank'].create({
                 'acc_number': 'HU9487189480',
-                'partner_ids': [(4, cls.partner_company.id)],
+                'partner_id': cls.partner_company.id,
             })
 
     def test_invoice_and_credit_note(self):

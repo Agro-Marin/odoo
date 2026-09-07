@@ -68,8 +68,7 @@
             <field
                 name="name">HR: Prevent non HR officers from accessing employee bank accounts</field>
             <field name="model_id" ref="base.model_res_partner_bank" />
-            <field
-                name="domain_force">[('partner_ids.employee_ids', '=', False)]</field>
+            <field name="domain_force">[('partner_id.employee_ids', '=', False)]</field>
             <field name="groups" eval="[(4, ref('base.group_user'))]" />
         </record>
         <record id="ir_rule_res_partner_bank_employees" model="ir.rule">

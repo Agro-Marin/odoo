@@ -1,10 +1,12 @@
+from unittest.mock import patch
+
+from freezegun import freeze_time
 from markupsafe import Markup
 
 from odoo.fields import Command
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests import tagged
-from unittest.mock import patch
-from freezegun import freeze_time
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged('post_install_l10n', 'post_install', '-at_install')
@@ -23,9 +25,14 @@ class TestQris(AccountTestInvoicingCommon):
 
         cls.acc_qris_id = cls.env['res.partner.bank'].create({
             'acc_number': '123456789012345678',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
             'l10n_id_qris_api_key': 'apikey',
             'l10n_id_qris_mid': 'mid',
+            # Posting an inbound invoice that names the company's own account
+            # refuses an untrusted one, because the customer is being told to
+            # pay into it. The sibling QR fixtures never post, so only this one
+            # meets the check.
+            'allow_out_payment': True,
         })
         cls.qris_qr_invoice = cls.env['account.move'].create({
             'move_type': 'out_invoice',

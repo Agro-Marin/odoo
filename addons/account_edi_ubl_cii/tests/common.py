@@ -29,14 +29,6 @@ class TestUblCiiCommon(AccountTestInvoicingCommon):
         }
 
     @classmethod
-    def _get_partner_be_bank(cls):
-        Bank = cls.env['res.partner.bank']
-        return Bank.search([('acc_number', '=', 'BE90735788866632')], limit=1) or Bank.create({
-            'acc_number': 'BE90735788866632',
-            'allow_out_payment': True,
-        })
-
-    @classmethod
     def _create_partner_be(cls, **kwargs):
         return cls.env['res.partner'].create({
             **cls._create_partner_default_values(),
@@ -46,7 +38,7 @@ class TestUblCiiCommon(AccountTestInvoicingCommon):
             'city': "Ramillies",
             'vat': 'BE0477472701',
             'company_registry': '0477472701',
-            'bank_ids': [Command.link(cls._get_partner_be_bank().id)],
+            'bank_ids': [Command.create({'acc_number': 'BE90735788866632', 'allow_out_payment': True})],
             'country_id': cls.env.ref('base.be').id,
             **kwargs,
         })

@@ -62,9 +62,8 @@ class ResPartnerBank(models.Model):
             amount = amount.is_integer() and int(amount) or amount
         else:
             amount = None
-        holder = self.partner_ids[:1]
-        merchant_name = (holder.name and self._remove_accents(holder.name)[:25]) or 'NA'
-        merchant_city = (holder.city and self._remove_accents(holder.city)[:15]) or ''
+        merchant_name = (self.partner_id.name and self._remove_accents(self.partner_id.name)[:25]) or 'NA'
+        merchant_city = (self.partner_id.city and self._remove_accents(self.partner_id.city)[:15]) or ''
         comment = structured_communication or free_communication or ''
         comment = re.sub(r'[^ A-Za-z0-9_@.\\/#&+-]+', '', self._remove_accents(comment))
         additional_data_field = self._get_additional_data_field(comment) if self.include_reference else None
@@ -109,7 +108,7 @@ class ResPartnerBank(models.Model):
         if qr_method == 'emv_qr':
             if not self._get_merchant_account_info():
                 return _("Missing Merchant Account Information.")
-            if not self.partner_ids[:1].city:
+            if not self.partner_id.city:
                 return _("Missing Merchant City.")
             if not self.proxy_type:
                 return _("Missing Proxy Type.")

@@ -63,8 +63,7 @@ class ResPartnerBank(models.Model):
     def _get_qr_code_vals_list(self, qr_method, amount, currency, debtor_partner, free_communication, structured_communication):
         res = super()._get_qr_code_vals_list(qr_method, amount, currency, debtor_partner, free_communication, structured_communication)
         if self.country_code == 'VN':
-            holder = self.partner_ids[:1]
-            merchant_city = (holder.city and self._remove_accents(holder.city)[:15]) or (holder.state_id and self._remove_accents(holder.state_id.name)[:15]) or ''
+            merchant_city = (self.partner_id.city and self._remove_accents(self.partner_id.city)[:15]) or (self.partner_id.state_id and self._remove_accents(self.partner_id.state_id.name)[:15]) or ''
             res[8] = (60, merchant_city)
         return res
 
@@ -83,7 +82,7 @@ class ResPartnerBank(models.Model):
         if qr_method != 'emv_qr' or self.country_code != 'VN':
             return super()._check_for_qr_code_errors(qr_method, amount, currency, debtor_partner, free_communication, structured_communication)
 
-        if not (self.partner_ids[:1].city or self.partner_ids[:1].state_id):
+        if not (self.partner_id.city or self.partner_id.state_id):
             return _("Missing Merchant City or State.")
         if not self.proxy_type:
             return _("Missing Proxy Type.")

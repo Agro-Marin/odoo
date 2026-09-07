@@ -30,9 +30,7 @@
             <field name="acc_type">iban</field>
             <field name="acc_number">BE71096123456769</field>
             <field name="bank_id" ref="base.bank_bnp" />
-            <field
-                name="partner_ids"
-                eval="[(4, ref('base.partner_demo_company_it'))]" />
+            <field name="partner_id" ref="base.partner_demo_company_it" />
             <field name="company_id" ref="base.demo_company_it" />
         </record>
         <record id="demo_l10n_it_edi_partner_a" model="res.partner">

@@ -49,7 +49,7 @@ class TestEdiFacturaeXmls(AccountTestInvoicingCommon):
 
         cls.env['res.partner.bank'].create({
             'acc_number': 'ES9121000418450200051332',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
             'bank_id': cls.caixabank.id,
             'acc_type': 'iban',
             'allow_out_payment': True,

@@ -150,17 +150,17 @@ class BankAccountVerification(models.Model):
             # account that was not requested, we can know if we need to create a verification
             verifications |= self.search([
                 ('partner_bank_account_number', 'in', all_partner_banks.mapped('sanitized_acc_number')),
-                ('partner_vat', 'in', all_partner_banks.partner_ids.mapped('vat')),
+                ('partner_vat', 'in', all_partner_banks.partner_id.mapped('vat')),
                 ('verification_date', '=', date),
             ])
 
             partner_bank2verification = verifications.grouped(lambda verif: verif.partner_bank_account_number)
             for partner_bank in partner_banks:
                 partner_bank_verif = partner_bank2verification.get(partner_bank.sanitized_acc_number)
-                vat = partner_bank.partner_ids[:1].vat
+                vat = partner_bank.partner_id.vat
                 if not vat or vat in ['/', 'na', 'NA']:  # void vat
                     if not partner_bank_verif or not partner_bank_verif.filtered(lambda verif:
-                        verif.partner_id in partner_bank.partner_ids
+                        verif.partner_id == partner_bank.partner_id
                         and (not verif.partner_vat or verif.partner_vat in ['/', 'na', 'NA'])
                     ):
                         create_vals += self._get_creation_vals('incomplete_partner', partner_banks=partner_bank)
@@ -181,7 +181,7 @@ class BankAccountVerification(models.Model):
 
         # Create endpoints to call, API supports 30 vat numbers per request
         endpoints = {}  # {endpoint: recordset(res.partner)}
-        partners_to_check = partner_banks_to_check.partner_ids
+        partners_to_check = partner_banks_to_check.partner_id
         for i in range(0, len(partners_to_check), 30):
             partners = partners_to_check[i:i + 30]
             sanitized_vats = ",".join(partners.mapped(lambda partner: partner.vat.removeprefix('pl').removeprefix('PL')))
@@ -315,8 +315,8 @@ class BankAccountVerification(models.Model):
             vals.update({
                 'partner_bank_id': partner_bank.id,
                 'partner_bank_account_number': partner_bank.sanitized_acc_number,
-                'partner_id': partner_bank.partner_ids[:1].id,
-                'partner_vat': partner_bank.partner_ids[:1].vat,
+                'partner_id': partner_bank.partner_id.id,
+                'partner_vat': partner_bank.partner_id.vat,
             })
             create_vals.append(vals)
 

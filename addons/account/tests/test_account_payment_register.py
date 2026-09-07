@@ -76,21 +76,21 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         cls.partner_bank_account1 = cls.env["res.partner.bank"].create(
             {
                 "acc_number": "0123456789",
-                "partner_ids": [(4, cls.partner_a.id)],
+                "partner_id": cls.partner_a.id,
                 "acc_type": "bank",
             }
         )
         cls.partner_bank_account2 = cls.env["res.partner.bank"].create(
             {
                 "acc_number": "9876543210",
-                "partner_ids": [(4, cls.partner_a.id)],
+                "partner_id": cls.partner_a.id,
                 "acc_type": "bank",
             }
         )
         cls.comp_bank_account1 = cls.env["res.partner.bank"].create(
             {
                 "acc_number": "985632147",
-                "partner_ids": [(4, cls.env.company.partner_id.id)],
+                "partner_id": cls.env.company.partner_id.id,
                 "acc_type": "bank",
                 "allow_out_payment": True,
             }
@@ -98,7 +98,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         cls.comp_bank_account2 = cls.env["res.partner.bank"].create(
             {
                 "acc_number": "741258963",
-                "partner_ids": [(4, cls.env.company.partner_id.id)],
+                "partner_id": cls.env.company.partner_id.id,
                 "acc_type": "bank",
                 "allow_out_payment": True,
             }
@@ -844,14 +844,14 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         bank1 = self.env["res.partner.bank"].create(
             {
                 "acc_number": "BE43798822936101",
-                "partner_ids": [(4, self.partner_a.id)],
+                "partner_id": self.partner_a.id,
                 "allow_out_payment": True,
             }
         )
         bank2 = self.env["res.partner.bank"].create(
             {
                 "acc_number": "BE85812541345906",
-                "partner_ids": [(4, self.partner_a.id)],
+                "partner_id": self.partner_a.id,
                 "allow_out_payment": True,
             }
         )
@@ -1004,7 +1004,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
         self.env["res.partner.bank"].create(
             {
                 "acc_number": "123454321",
-                "partner_ids": [(4, partner_b.id)],
+                "partner_id": partner_b.id,
                 "acc_type": "bank",
             }
         )

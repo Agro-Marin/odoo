@@ -14,9 +14,9 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
         partner_bank = partner_bank_model.create(
             {
                 "acc_number": acc_number,
-                "partner_ids": [
-                    (4, self.env["res.partner"].create({"name": "Pepper Test"}).id)
-                ],
+                "partner_id": self.env["res.partner"]
+                .create({"name": "Pepper Test"})
+                .id,
                 "acc_type": "bank",
             }
         )
@@ -52,7 +52,7 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
     def test_acc_holder_name_follows_partner_rename_when_not_customized(self):
         partner = self.env["res.partner"].create({"name": "Old Name"})
         bank = self.env["res.partner.bank"].create(
-            {"acc_number": "BE001 2518823 03", "partner_ids": [(4, partner.id)]}
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
         )
         self.assertEqual(bank.acc_holder_name, "Old Name")
         partner.write({"name": "New Name"})
@@ -61,7 +61,7 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
     def test_acc_holder_name_customization_survives_partner_rename(self):
         partner = self.env["res.partner"].create({"name": "Old Name"})
         bank = self.env["res.partner.bank"].create(
-            {"acc_number": "BE001 2518823 03", "partner_ids": [(4, partner.id)]}
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
         )
         bank.acc_holder_name = "Custom Holder"
         partner.write({"name": "New Name"})
@@ -71,9 +71,9 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
         partner_a = self.env["res.partner"].create({"name": "Holder A"})
         partner_b = self.env["res.partner"].create({"name": "Holder B"})
         bank = self.env["res.partner.bank"].create(
-            {"acc_number": "BE001 2518823 03", "partner_ids": [(4, partner_a.id)]}
+            {"acc_number": "BE001 2518823 03", "partner_id": partner_a.id}
         )
-        bank.partner_ids = partner_b
+        bank.partner_id = partner_b
         self.assertEqual(bank.acc_holder_name, "Holder B")
 
     def test_bank_bic_uppercased_on_create_and_write(self):
@@ -91,7 +91,7 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
     def test_unlink_archives_instead_of_deleting(self):
         partner = self.env["res.partner"].create({"name": "Pepper Test"})
         partner_bank = self.env["res.partner.bank"].create(
-            {"acc_number": "BE001 2518823 03", "partner_ids": [(4, partner.id)]}
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
         )
         partner_bank.unlink()
         self.assertTrue(partner_bank.exists())
@@ -99,22 +99,27 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
 
     @mute_logger("odoo.db")
     def test_unique_constraint_counts_archived_rows(self):
-        partner = self.env["res.partner"].create({"name": "Pepper Test"})
+        # The number is unique per company, and SQL compares two null
+        # companies as unknown rather than equal, so the holder needs one for
+        # the constraint this pins to be the one under test.
+        partner = self.env["res.partner"].create(
+            {"name": "Pepper Test", "company_id": self.env.company.id}
+        )
         partner_bank = self.env["res.partner.bank"].create(
-            {"acc_number": "BE001 2518823 03", "partner_ids": [(4, partner.id)]}
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
         )
         partner_bank.unlink()
         self.assertFalse(partner_bank.active)
         with self.assertRaises(IntegrityError), self.cr.savepoint():
             self.env["res.partner.bank"].create(
-                {"acc_number": "BE0012518823 03", "partner_ids": [(4, partner.id)]}
+                {"acc_number": "BE0012518823 03", "partner_id": partner.id}
             )
             self.env["res.partner.bank"].flush_model()
 
     def test_acc_holder_name_follows_partner_rename_on_archived_accounts(self):
         partner = self.env["res.partner"].create({"name": "Old Name"})
         bank = self.env["res.partner.bank"].create(
-            {"acc_number": "BE001 2518823 03", "partner_ids": [(4, partner.id)]}
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
         )
         bank.unlink()
         self.assertFalse(bank.active)
@@ -129,7 +134,7 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
     def test_get_or_create_revives_an_archived_exact_match(self):
         partner = self.env["res.partner"].create({"name": "Pepper Test"})
         bank = self.env["res.partner.bank"].create(
-            {"acc_number": "BE001 2518823 03", "partner_ids": [(4, partner.id)]}
+            {"acc_number": "BE001 2518823 03", "partner_id": partner.id}
         )
         bank.unlink()
         self.assertFalse(bank.active)
@@ -149,7 +154,7 @@ class TestResPartnerBank(SavepointCaseWithUserDemo):
             {"name": "Holder Child", "parent_id": company.id}
         )
         bank = self.env["res.partner.bank"].create(
-            {"acc_number": "BE001 2518823 03", "partner_ids": [(4, child.id)]}
+            {"acc_number": "BE001 2518823 03", "partner_id": child.id}
         )
         bank.unlink()
 

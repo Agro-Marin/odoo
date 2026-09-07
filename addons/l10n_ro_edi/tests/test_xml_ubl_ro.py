@@ -182,10 +182,10 @@ class TestUBLROCommon(TestUBLCommon):
             }
         )
 
-        cls.company_bank = cls.env["res.partner.bank"].create(
+        cls.env["res.partner.bank"].create(
             {
                 "acc_type": "iban",
-                "partner_ids": [(4, cls.company_data["company"].partner_id.id)],
+                "partner_id": cls.company_data["company"].partner_id.id,
                 "acc_number": "RO98RNCB1234567890123456",
                 "bank_id": cls.bank.id,
                 "allow_out_payment": True,
@@ -202,7 +202,7 @@ class TestUBLROCommon(TestUBLCommon):
                 "vat": "RO1234567897",
                 "phone_ids": [Command.create({"number": "+40 123 456 780", "type": "landline"})],
                 "street": "Rolling Roast, 88",
-                "bank_ids": [(4, cls.company_bank.id)],
+                "bank_ids": [(0, 0, {"acc_number": "RO98RNCB1234567890123456"})],
                 "ref": "ref_partner_a",
                 "invoice_edi_format": "ciusro",
             }

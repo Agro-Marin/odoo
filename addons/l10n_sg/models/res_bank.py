@@ -8,7 +8,7 @@ class ResPartnerBank(models.Model):
     proxy_type = fields.Selection(selection_add=[('mobile', 'Mobile Number'), ('uen', 'UEN')],
                                   ondelete={'mobile': 'set default', 'uen': 'set default'})
 
-    @api.constrains('proxy_type', 'proxy_value', 'partner_ids')
+    @api.constrains('proxy_type', 'proxy_value', 'partner_id')
     def _check_sg_proxy(self):
         for bank in self.filtered(lambda b: b.country_code == 'SG'):
             if bank.proxy_type not in ['mobile', 'uen', 'none', False]:

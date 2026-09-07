@@ -290,7 +290,7 @@ class TestUBLBE(TestUBLCommon, TestAccountMoveSendCommon):
         """
         acc_bank = self.env['res.partner.bank'].create({
             'acc_number': 'BE15001559627231',
-            'partner_ids': [(4, self.company_data['company'].partner_id.id)],
+            'partner_id': self.company_data['company'].partner_id.id,
         })
 
         invoice = self._generate_move(

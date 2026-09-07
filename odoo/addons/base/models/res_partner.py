@@ -338,6 +338,24 @@ class ResPartner(models.Model):
         "phone_number_id",
         string="Phone Numbers",
     )
+    main_phone_id = fields.Many2one(
+        "phone.number",
+        string="Main Phone",
+        compute="_compute_main_phone_ids",
+        store=True,
+        help="The landline this contact is reached on when a single number is "
+        "needed. The first active number typed Landline, by the order phone "
+        "numbers carry.",
+    )
+    main_mobile_id = fields.Many2one(
+        "phone.number",
+        string="Main Mobile",
+        compute="_compute_main_phone_ids",
+        store=True,
+        help="The mobile this contact is reached on when a single number is "
+        "needed. The first active number typed Mobile, by the order phone "
+        "numbers carry.",
+    )
     gender = fields.Selection(
         selection=[
             ("male", "Male"),
@@ -377,12 +395,18 @@ class ResPartner(models.Model):
         inverse_name="partner_id",
         string="Identifiers",
     )
-    bank_ids = fields.Many2many(
+    bank_ids = fields.One2many(
         "res.partner.bank",
-        "res_partner_res_partner_bank_rel",
         "partner_id",
-        "bank_account_id",
         string="Banks",
+    )
+    main_bank_id = fields.Many2one(
+        "res.partner.bank",
+        string="Main Bank Account",
+        compute="_compute_main_bank_id",
+        store=True,
+        help="The account this contact is paid on when a single one is needed. "
+        "The first active account, by the order bank accounts carry.",
     )
     is_company = fields.Boolean(
         string="Is a Company",
@@ -589,6 +613,33 @@ class ResPartner(models.Model):
                 partner.main_user_id = root_user
             else:
                 partner.main_user_id = False
+
+    @api.depends(
+        "phone_ids",
+        "phone_ids.type",
+        "phone_ids.primary",
+        "phone_ids.sequence",
+        "phone_ids.active",
+    )
+    def _compute_main_phone_ids(self) -> None:
+        sources = self.with_context(active_test=False)
+        for partner, source in zip(self, sources, strict=True):
+            numbers = source.phone_ids.filtered("active").sorted(
+                lambda number: (not number.primary, number.sequence)
+            )
+            partner.main_phone_id = numbers.filtered(
+                lambda number: number.type == "landline"
+            )[:1]
+            partner.main_mobile_id = numbers.filtered(
+                lambda number: number.type == "mobile"
+            )[:1]
+
+    @api.depends("bank_ids", "bank_ids.sequence", "bank_ids.active")
+    def _compute_main_bank_id(self) -> None:
+        sources = self.with_context(active_test=False)
+        for partner, source in zip(self, sources, strict=True):
+            accounts = source.bank_ids.filtered("active")
+            partner.main_bank_id = accounts.sorted("sequence")[:1]
 
     @api.depends("user_ids.share", "user_ids.active")
     def _compute_partner_share(self) -> None:
@@ -1316,7 +1367,7 @@ class ResPartner(models.Model):
             vals["website"] = self._clean_website(vals["website"])
         if vals.get("name"):
             banks_to_sync = self.with_context(active_test=False).bank_ids.filtered(
-                lambda bank: bank.acc_holder_name == bank.partner_ids[:1].name
+                lambda bank: bank.acc_holder_name == bank.partner_id.name
             )
             if banks_to_sync:
                 banks_to_sync.acc_holder_name = vals["name"]

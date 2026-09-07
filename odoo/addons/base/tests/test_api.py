@@ -326,7 +326,7 @@ class TestAPI(SavepointCaseWithUserDemo):
         same_prefetch(partners, partners[:10].with_prefetch(partners._prefetch_ids))
 
         self.assertEqual(type(partners).country_id.type, "many2one")
-        self.assertEqual(type(partners).bank_ids.type, "many2many")
+        self.assertEqual(type(partners).bank_ids.type, "one2many")
         self.assertEqual(type(partners).tag_ids.type, "many2many")
 
         vals0 = {

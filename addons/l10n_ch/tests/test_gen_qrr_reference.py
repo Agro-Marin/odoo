@@ -29,12 +29,12 @@ class TestGenQRRReference(AccountTestInvoicingCommon):
             {
                 "acc_number": QR_IBAN,
                 "bank_id": cls.bank.id,
-                "partner_ids": [(4, cls.partner.id)],
+                "partner_id": cls.partner.id,
             }
         )
         cls.qr_bank_account = cls.env['res.partner.bank'].create({
             'acc_number': "CH4431999123000889012",
-            'partner_ids': [(4, cls.partner.id)],
+            'partner_id': cls.partner.id,
         })
 
         cls.invoice = cls.init_invoice("out_invoice", products=cls.product_a+cls.product_b)

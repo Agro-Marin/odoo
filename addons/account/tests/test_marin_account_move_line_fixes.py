@@ -353,12 +353,21 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             and not self.env.registry.field_depends.get(field)
             and not self.env.registry.field_depends_context.get(field)
         }
-        self.assertEqual(
-            undeclared,
-            deliberately_undeclared,
+        self.assertFalse(
+            undeclared - deliberately_undeclared,
             "a computed field with no @api.depends and no @api.depends_context is "
             "never invalidated; add the dependency, or add the field here with the "
             "reason it does not need one",
+        )
+        # The two halves are asserted separately because half the exemptions name
+        # fields another module adds. Comparing the sets whole made the verdict a
+        # function of the addons path: with enterprise absent, analytic_coverage and
+        # move_attachment_ids are in no registry, and the gate failed for naming
+        # fields it could not see rather than for anything about this module.
+        self.assertFalse(
+            (deliberately_undeclared & set(model._fields)) - undeclared,
+            "this exemption is no longer needed: the field declares a dependency "
+            "now, so drop it from the list rather than leave a stale licence",
         )
 
     def test_discount_allocation_follows_a_discount_change(self):
@@ -630,7 +639,9 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
                 if field.compute == compute
             ]
             self.assertGreater(len(written), 1, "expected a multi-field compute")
-            resolved = [f for f in written if AML._is_readable_by_default(AML._fields[f])]
+            resolved = [
+                f for f in written if AML._is_readable_by_default(AML._fields[f])
+            ]
             self.assertFalse(
                 resolved,
                 "%s is skipped by default, but %s would still trigger it"

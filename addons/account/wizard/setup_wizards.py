@@ -177,7 +177,7 @@ class AccountSetupBankManualConfig(models.TransientModel):
             bank_by_bic[bic] = self.env["res.bank"].create({"name": bic, "bic": bic})
 
         for vals in vals_list:
-            vals["partner_ids"] = [(4, self.env.company.partner_id.id)]
+            vals["partner_id"] = self.env.company.partner_id.id
             vals["new_journal_name"] = vals["acc_number"]
 
             if not vals.get("bank_id") and vals.get("bank_bic"):

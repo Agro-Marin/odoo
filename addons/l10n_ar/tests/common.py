@@ -66,7 +66,7 @@ class TestAr(AccountTestInvoicingCommon):
         # ==== Bank Account ====
         cls.bank_account_ri = cls.env['res.partner.bank'].create({
             'acc_number': '7982898111100056688080',
-            'partner_ids': [(4, cls.company_ri.partner_id.id)],
+            'partner_id': cls.company_ri.partner_id.id,
             'company_id': cls.company_ri.id,
             # Every test here posts customer invoices carrying this account, and
             # account._check_post_invoices refuses an inbound move whose

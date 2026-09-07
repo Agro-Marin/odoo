@@ -75,6 +75,7 @@ if TYPE_CHECKING:
             delay: float,
             count: int = 1,
             *,
+            statement: bool = True,
             query: Any = None,
             params: Any = None,
             start: float = 0.0,

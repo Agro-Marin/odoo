@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from freezegun import freeze_time
 from lxml import etree
 
-from odoo import Command, fields
+from odoo import fields
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tests import tagged
@@ -238,14 +238,11 @@ class TestHrAuditRound3(TestHrCommon):
     def test_bank_account_search_by_absent_employee(self):
         partner = self.env["res.partner"].create({"name": "R3 Plain"})
         plain = self.env["res.partner.bank"].create(
-            {"acc_number": "R3PLAIN0001", "partner_ids": [Command.link(partner.id)]}
+            {"acc_number": "R3PLAIN0001", "partner_id": partner.id}
         )
         employee = self.Employee.create({"name": "R3 Banked"})
         banked = self.env["res.partner.bank"].create(
-            {
-                "acc_number": "R3EMP00001",
-                "partner_ids": [Command.link(employee.partner_id.id)],
-            }
+            {"acc_number": "R3EMP00001", "partner_id": employee.partner_id.id}
         )
         employee.bank_account_ids = [(6, 0, banked.ids)]
         self.env.flush_all()
@@ -263,14 +260,11 @@ class TestHrAuditRound3(TestHrCommon):
     def test_bank_account_search_is_usable_by_a_non_hr_user(self):
         partner = self.env["res.partner"].create({"name": "R3 NonHR Plain"})
         plain = self.env["res.partner.bank"].create(
-            {"acc_number": "R3NHR0001", "partner_ids": [Command.link(partner.id)]}
+            {"acc_number": "R3NHR0001", "partner_id": partner.id}
         )
         employee = self.Employee.create({"name": "R3 NonHR Banked"})
         banked = self.env["res.partner.bank"].create(
-            {
-                "acc_number": "R3NHR0002",
-                "partner_ids": [Command.link(employee.partner_id.id)],
-            }
+            {"acc_number": "R3NHR0002", "partner_id": employee.partner_id.id}
         )
         employee.bank_account_ids = [(6, 0, banked.ids)]
         plain_user = self.env["res.users"].create(
@@ -291,16 +285,10 @@ class TestHrAuditRound3(TestHrCommon):
     def test_bank_account_search_matches_its_own_compute(self):
         employee = self.Employee.create({"name": "R3 Two Accounts"})
         listed = self.env["res.partner.bank"].create(
-            {
-                "acc_number": "R3TWO0001",
-                "partner_ids": [Command.link(employee.partner_id.id)],
-            }
+            {"acc_number": "R3TWO0001", "partner_id": employee.partner_id.id}
         )
         unlisted = self.env["res.partner.bank"].create(
-            {
-                "acc_number": "R3TWO0002",
-                "partner_ids": [Command.link(employee.partner_id.id)],
-            }
+            {"acc_number": "R3TWO0002", "partner_id": employee.partner_id.id}
         )
         employee.bank_account_ids = [(6, 0, listed.ids)]
         self.env.flush_all()

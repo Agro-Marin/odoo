@@ -12,7 +12,7 @@ class ResPartnerBank(models.Model):
                                                  ('mobile', "Mobile Number")],
                                   ondelete={'ewallet_id': 'set default', 'merchant_tax_id': 'set default', 'mobile': 'set default'})
 
-    @api.constrains('proxy_type', 'proxy_value', 'partner_ids')
+    @api.constrains('proxy_type', 'proxy_value', 'partner_id')
     def _check_th_proxy(self):
         tax_id_re = re.compile(r'^[0-9]{13}$')
         mobile_re = re.compile(r'^[0-9]{10}$')

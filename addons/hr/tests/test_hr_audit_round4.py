@@ -183,7 +183,7 @@ class TestBankAccountEmployeeComputeAgreesWithSearch(TestHrCommon):
         cls.account = cls.env["res.partner.bank"].create(
             {
                 "acc_number": "BE68539007547034",
-                "partner_ids": [Command.link(cls.staffer.partner_id.id)],
+                "partner_id": cls.staffer.partner_id.id,
             }
         )
         cls.env.flush_all()
@@ -298,14 +298,8 @@ class TestMultipleBankAccountsFlag(TestHrCommon):
         self.assertFalse(employee.has_multiple_bank_accounts)
         first, second = self.env["res.partner.bank"].create(
             [
-                {
-                    "acc_number": "BE68539007547035",
-                    "partner_ids": [Command.link(partner.id)],
-                },
-                {
-                    "acc_number": "BE68539007547036",
-                    "partner_ids": [Command.link(partner.id)],
-                },
+                {"acc_number": "BE68539007547035", "partner_id": partner.id},
+                {"acc_number": "BE68539007547036", "partner_id": partner.id},
             ]
         )
         employee.bank_account_ids = [Command.link(first.id)]
@@ -582,7 +576,7 @@ class TestSalaryDistributionStaysCurrencyRounded(TestHrCommon):
             [
                 {
                     "acc_number": f"DIST{tag}{index:04d}",
-                    "partner_ids": [Command.link(employee.partner_id.id)],
+                    "partner_id": employee.partner_id.id,
                 }
                 for index in range(count)
             ]
@@ -634,7 +628,7 @@ class TestSalaryDistributionStaysCurrencyRounded(TestHrCommon):
                 extra = self.env["res.partner.bank"].create(
                     {
                         "acc_number": f"DISTX{count}9999",
-                        "partner_ids": [Command.link(employee.partner_id.id)],
+                        "partner_id": employee.partner_id.id,
                     }
                 )
                 employee.bank_account_ids = [Command.link(extra.id)]

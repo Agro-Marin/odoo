@@ -71,7 +71,7 @@ class ResCompany(models.Model):
         default=lambda self: self._default_logo(),
         readonly=False,
     )
-    bank_ids = fields.Many2many(
+    bank_ids = fields.One2many(
         related="partner_id.bank_ids",
         readonly=False,
     )

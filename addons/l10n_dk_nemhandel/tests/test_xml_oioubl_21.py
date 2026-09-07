@@ -26,7 +26,7 @@ class TestUBLDKOIOUBL21(TestUBLCommon, TestAccountMoveSendCommon):
         })
         cls.env['res.partner.bank'].create({
             'acc_type': 'iban',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
             'acc_number': 'DK5000400440116243',
         })
 

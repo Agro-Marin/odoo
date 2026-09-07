@@ -198,6 +198,7 @@ class _MetricsCursor(metrics._MetricsMixin):
         self.sql_from_log = {}
         self.sql_into_log = {}
         self.sql_log_count = 0
+        self.sql_statement_count = 0
 
 
 class TestMetricsMixin(unittest.TestCase):
@@ -212,6 +213,17 @@ class TestMetricsMixin(unittest.TestCase):
         self.cur._record_metrics(0.01, count=5)
         self.assertEqual(self.cur.sql_log_count, 6)
         self.assertEqual(metrics.sql_counter, 6)
+
+    def test_statements_are_counted_apart_from_the_rows_they_moved(self):
+        self.cur._record_metrics(0.01)
+        self.cur._record_metrics(0.01, count=40)
+        self.assertEqual(self.cur.sql_log_count, 41)
+        self.assertEqual(
+            self.cur.sql_statement_count,
+            2,
+            "a bulk statement moving 40 rows is one round trip, and that is the "
+            "number assertQueryCount has to read",
+        )
 
     def test_record_metrics_runs_query_hooks_with_the_call_context(self):
         seen = []

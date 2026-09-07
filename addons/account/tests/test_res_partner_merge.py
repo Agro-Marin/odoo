@@ -24,13 +24,14 @@ class TestMergePartner(AccountTestInvoicingCommon):
         )
 
         cls.bank1 = cls.Bank.create(
-            {"acc_number": "12345", "partner_ids": [(4, cls.partner1.id)]}
+            {"acc_number": "12345", "partner_id": cls.partner1.id}
         )
         cls.bank2 = cls.Bank.create(
-            {"acc_number": "67890", "partner_ids": [(4, cls.partner2.id)]}
+            {"acc_number": "67890", "partner_id": cls.partner2.id}
         )
-        cls.bank1.partner_ids = [(4, cls.partner3.id)]
-        cls.bank3 = cls.bank1
+        cls.bank3 = cls.Bank.create(
+            {"acc_number": "12345", "partner_id": cls.partner3.id}
+        )
 
         cls.payment1 = cls.Payment.create(
             {
@@ -89,14 +90,14 @@ class TestMergePartner(AccountTestInvoicingCommon):
             self.partner1,
             "Payment should be linked to the destination partner",
         )
-        self.assertIn(
+        self.assertEqual(
+            self.payment1.partner_bank_id.partner_id,
             self.partner1,
-            self.payment1.partner_bank_id.partner_ids,
             "Payment's bank account should belong to the destination partner",
         )
-        self.assertIn(
+        self.assertEqual(
+            self.payment2.partner_bank_id.partner_id,
             self.partner1,
-            self.payment2.partner_bank_id.partner_ids,
             "Payment's bank account should belong to the destination partner",
         )
 
@@ -120,13 +121,13 @@ class TestMergePartner(AccountTestInvoicingCommon):
             self.partner1,
             "Payment should be linked to the destination partner",
         )
-        self.assertIn(
+        self.assertEqual(
+            self.payment1.partner_bank_id.partner_id,
             self.partner1,
-            self.payment1.partner_bank_id.partner_ids,
             "Payment's bank account should belong to the destination partner",
         )
-        self.assertIn(
+        self.assertEqual(
+            self.payment3.partner_bank_id.partner_id,
             self.partner1,
-            self.payment3.partner_bank_id.partner_ids,
             "Payment's bank account should belong to the destination partner",
         )

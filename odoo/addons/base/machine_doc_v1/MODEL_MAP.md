@@ -1183,7 +1183,9 @@ Inherits: `mixin.format.address`, `mixin.format.vat.label`, `mixin.avatar`, `mix
 - `type` (Selection) — `contact`, `invoice`, `delivery`, `other`
 - Address fields: `street`, `street2`, `zip`, `city`, `state_id`, `country_id`
 - `partner_latitude`, `partner_longitude` (Float)
-- `email`, `email_formatted` (Char), `phone` (Char)
+- `email`, `email_formatted` (Char), `phone_ids` (Many2many → phone.number)
+- `main_phone_id`, `main_mobile_id` (Many2one → phone.number, computed, stored)
+- `main_bank_id` (Many2one → res.partner.bank, computed, stored)
 - `is_company` (Boolean)
 - `company_id` (Many2one → res.company)
 - `commercial_partner_id` (Many2one, computed, stored, recursive, indexed)

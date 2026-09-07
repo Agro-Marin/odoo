@@ -507,7 +507,7 @@ class TestHrEmployee(TestHrCommon):
         bank_account = self.env["res.partner.bank"].create(
             {
                 "acc_number": "1234567",
-                "partner_ids": [Command.link(test_user.partner_id.id)],
+                "partner_id": test_user.partner_id.id,
             }
         )
         test_employee = self.env["hr.employee"].create(

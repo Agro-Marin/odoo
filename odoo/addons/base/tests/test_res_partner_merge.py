@@ -3,7 +3,6 @@ import unittest
 from odoo import Command
 from odoo.exceptions import AccessError, UserError
 from odoo.tests.common import TransactionCase, tagged
-from odoo.tools import mute_logger
 
 
 class TestMergePartner(TransactionCase):
@@ -23,13 +22,14 @@ class TestMergePartner(TransactionCase):
         )
 
         self.bank1 = self.Bank.create(
-            {"acc_number": "12345", "partner_ids": [(4, self.partner1.id)]}
+            {"acc_number": "12345", "partner_id": self.partner1.id}
         )
         self.bank2 = self.Bank.create(
-            {"acc_number": "54321", "partner_ids": [(4, self.partner2.id)]}
+            {"acc_number": "54321", "partner_id": self.partner2.id}
         )
-        self.bank1.write({"partner_ids": [(4, self.partner3.id)]})
-        self.bank3 = self.bank1
+        self.bank3 = self.Bank.create(
+            {"acc_number": "12345", "partner_id": self.partner3.id}
+        )
 
         self.attachment1 = self.env["ir.attachment"].create(
             {
@@ -109,13 +109,13 @@ class TestMergePartner(TransactionCase):
             self.partner1.exists(),
             "Destination partner should exist after merge",
         )
-        self.assertIn(
+        self.assertEqual(
+            self.bank1.partner_id,
             self.partner1,
-            self.bank1.partner_ids,
             "Bank account should belong to destination partner",
         )
         self.assertEqual(
-            self.bank2.partner_ids,
+            self.bank2.partner_id,
             self.partner1,
             "Bank account should be reassigned to destination partner",
         )
@@ -173,10 +173,9 @@ class TestMergePartner(TransactionCase):
             self.partner1.bank_ids,
             "The original bank account of the destination partner should remain",
         )
-        self.assertEqual(
-            self.bank1.partner_ids,
-            self.partner1,
-            "The shared account keeps only the destination as holder",
+        self.assertFalse(
+            self.bank3.exists(),
+            "The duplicate bank account should have been deleted.",
         )
 
     def test_merge_partners_with_references(self):
@@ -241,7 +240,7 @@ class TestMergePartner(TransactionCase):
         )
 
         with self.assertRaises(AccessError):
-            self.bank1.with_user(user_peon).partner_ids = self.partner2
+            self.bank1.with_user(user_peon).partner_id = self.partner2
 
         wizard = (
             self.env["base.partner.merge.automatic.wizard"]
@@ -307,62 +306,45 @@ class TestMergePartner(TransactionCase):
         self.assertIn(company_b, user.company_ids)
 
 
-class SidecarTableCase(TransactionCase):
-    def _rows_of(self, ids):
-        self.env.cr.execute(
-            "SELECT code, partner_id FROM test_merge_sidecar WHERE id = ANY(%s)"
-            " ORDER BY id",
-            (list(ids),),
-        )
-        return self.env.cr.fetchall()
-
-    def _sidecar(self, partner, code):
-        self.env.cr.execute(
-            "INSERT INTO test_merge_sidecar (partner_id, code, note)"
-            " VALUES (%s, %s, %s) RETURNING id",
-            (partner.id, code, "note"),
-        )
-        return self.env.cr.fetchone()[0]
-
-    def _make_sidecar_table(self):
-        self.env.cr.execute(
-            """
-            CREATE TABLE test_merge_sidecar (
-                id serial PRIMARY KEY,
-                partner_id integer REFERENCES res_partner (id),
-                code varchar,
-                note varchar,
-                UNIQUE (partner_id, code)
-            )
-            """
-        )
-
-
 @tagged("post_install", "-at_install")
-class TestMergePartnerForeignKeyClash(SidecarTableCase):
-    @mute_logger("odoo.addons.base.merge")
-    def test_clashing_row_dropped_non_clashing_repointed(self):
+class TestMergePartnerForeignKeyClash(TransactionCase):
+    """What a merge does with two sources, one of which repeats an account.
+
+    This asserts the outcome rather than the mechanism on purpose. It used to
+    call `_update_foreign_keys_generic` directly and rely on that pass dropping
+    the redundant row, which worked only while `partner_id` sat in the account
+    number's unique key. It no longer does -- the number is unique per company
+    -- so `_merge_bank_accounts` is what resolves a repeat, and the merge is
+    what has to be exercised for the answer to mean anything.
+    """
+
+    def test_a_repeated_account_is_dropped_and_the_others_are_carried_over(self):
         Partner = self.env["res.partner"]
+        Bank = self.env["res.partner.bank"]
         dst = Partner.create({"name": "fk dst", "email": "fk@example.com"})
         src_clash = Partner.create({"name": "fk src clash", "email": "fk@example.com"})
         src_keep = Partner.create({"name": "fk src keep", "email": "fk@example.com"})
-        self._make_sidecar_table()
 
-        self._sidecar(dst, "CLASH")
-        row_clash = self._sidecar(src_clash, "CLASH")
-        row_keep = self._sidecar(src_keep, "UNIQUE-B")
+        Bank.create({"acc_number": "CLASH", "partner_id": dst.id})
+        bank_clash = Bank.create({"acc_number": "CLASH", "partner_id": src_clash.id})
+        bank_keep = Bank.create({"acc_number": "UNIQUE-B", "partner_id": src_keep.id})
 
         wizard = self.env["base.partner.merge.automatic.wizard"].create({})
-        wizard._update_foreign_keys_generic("res.partner", src_clash + src_keep, dst)
+        wizard._merge((dst + src_clash + src_keep).ids, dst)
+        self.env.invalidate_all()
 
+        self.assertTrue(
+            bank_keep.exists(),
+            "the account the destination does not hold must survive the merge",
+        )
         self.assertEqual(
-            self._rows_of([row_keep]),
-            [("UNIQUE-B", dst.id)],
-            "the non-clashing source row must be repointed to dst, not deleted",
+            bank_keep.partner_id,
+            dst,
+            "the account the destination does not hold must be carried over to it",
         )
         self.assertFalse(
-            self._rows_of([row_clash]),
-            "only the clashing source row must be dropped",
+            bank_clash.exists(),
+            "only the account the destination already holds is dropped",
         )
 
 
@@ -427,7 +409,7 @@ class TestMergePartnerAbsorbSourceValues(TransactionCase):
             }
         )
         self.env["res.partner.bank"].create(
-            {"acc_number": "BE55001234567890", "partner_ids": [Command.link(src.id)]}
+            {"acc_number": "BE55001234567890", "partner_id": src.id}
         )
         attachment = self.env["ir.attachment"].create(
             {"name": "Doc", "res_model": "res.partner", "res_id": src.id}
@@ -480,14 +462,9 @@ class TestMergePartnerAbsorbSourceValues(TransactionCase):
         wizard._merge([dst.id, src.id], dst, extra_checks=False)
         self.env.invalidate_all()
 
-        self.assertTrue(
+        self.assertFalse(
             bank.exists(),
-            "the account outlives the merged-away partner, being a shared record",
-        )
-        self.assertNotIn(
-            dst,
-            bank.partner_ids,
-            "an excluded bank account is not handed to the destination",
+            "an excluded bank account dies with its partner rather than moving",
         )
 
 
@@ -803,28 +780,28 @@ class TestMergePartnerIdentifiers(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
-class TestMergePartnerSingleSourceClash(SidecarTableCase):
-    @mute_logger("odoo.addons.base.merge")
-    def test_one_clashing_row_does_not_delete_the_sources_other_rows(self):
+class TestMergePartnerSingleSourceClash(TransactionCase):
+    def test_one_repeated_account_does_not_take_the_sources_others_with_it(self):
         Partner = self.env["res.partner"]
+        Bank = self.env["res.partner.bank"]
         dst = Partner.create({"name": "clash dst", "email": "sc@example.com"})
         src = Partner.create({"name": "clash src", "email": "sc@example.com"})
-        self._make_sidecar_table()
 
-        self._sidecar(dst, "SHARED")
-        row_clash = self._sidecar(src, "SHARED")
-        row_keep = self._sidecar(src, "SRC-ONLY")
+        Bank.create({"acc_number": "SHARED-ACC", "partner_id": dst.id})
+        bank_clash = Bank.create({"acc_number": "SHARED-ACC", "partner_id": src.id})
+        bank_keep = Bank.create({"acc_number": "SRC-ONLY-ACC", "partner_id": src.id})
 
-        self.env["base.partner.merge.automatic.wizard"].create(
-            {}
-        )._update_foreign_keys_generic("res.partner", src, dst)
+        self.env["base.partner.merge.automatic.wizard"].create({})._merge(
+            (dst + src).ids, dst
+        )
+        self.env.invalidate_all()
 
         self.assertFalse(
-            self._rows_of([row_clash]),
-            "the row clashing with the destination is dropped",
+            bank_clash.exists(),
+            "the account the destination already holds is dropped",
         )
-        self.assertEqual(
-            self._rows_of([row_keep]),
-            [("SRC-ONLY", dst.id)],
-            "the source's other, non-clashing row must not be deleted with it",
+        self.assertTrue(
+            bank_keep.exists(),
+            "the source's other account must not be dropped with it",
         )
+        self.assertEqual(bank_keep.partner_id, dst)

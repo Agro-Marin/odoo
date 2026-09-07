@@ -2022,9 +2022,9 @@ class AccountMove(models.Model):
                             [
                                 ("acc_number", "=", acc_number),
                                 (
-                                    "partner_ids",
-                                    "in",
-                                    self.partner_id.commercial_partner_id.ids,
+                                    "partner_id",
+                                    "=",
+                                    self.partner_id.commercial_partner_id.id,
                                 ),
                                 ("company_id", "in", [self.company_id.id, False]),
                             ],

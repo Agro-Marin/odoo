@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 BASELINES_DIR = HERE / "baselines"
+REPO_ROOT = HERE.parent.parent
 
 EXIT_OK = 0
 EXIT_DRIFT = 1
@@ -225,6 +227,12 @@ def evaluate(suite: str, scan: Scan, baseline: Baseline | None) -> Verdict:
         )
     if not new and not fixed:
         lines.append("  GREEN nothing here is attributable to your change")
+    if baseline.verified_at and not stamp_resolves(baseline.verified_at):
+        lines.append(
+            f"  STALE the reading above was verified at {baseline.verified_at}, "
+            f"which is in no branch's history any more, so it names a tree "
+            f"nobody can check out; re-verify and --update before trusting it"
+        )
     code = EXIT_DRIFT if (new or fixed) else EXIT_OK
     return Verdict(suite, new, fixed, held, scan.total, drift, code, tuple(lines))
 
@@ -261,6 +269,27 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def stamp_resolves(verified_at: str) -> bool:
+    """Whether the commit a baseline names is still in the object store.
+
+    A rebase rewrites the commit a baseline was verified at, and the file keeps
+    naming the old one. Nothing can then be checked out to reproduce the reading,
+    so "expected" is a claim rather than a measurement -- the state ratchet.py
+    reports as UNCHECKED for a floor, and which this reported as nothing at all.
+    """
+    if not verified_at:
+        return False
+    return (
+        subprocess.run(
+            ["git", "cat-file", "-e", f"{verified_at}^{{commit}}"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
 def render_list() -> int:
     paths = sorted(BASELINES_DIR.glob("*.json"))
     if not paths:
@@ -270,9 +299,15 @@ def render_list() -> int:
         base = Baseline.load(path.stem)
         if base is None:
             continue
+        if not base.verified_at:
+            stamp = "UNSTAMPED"
+        elif stamp_resolves(base.verified_at):
+            stamp = base.verified_at
+        else:
+            stamp = f"{base.verified_at} UNRESOLVABLE"
         print(
             f"{base.suite:24} {len(base.expected):>3} expected of "
-            f"{base.tests_total:<6} {base.verified_at}"
+            f"{base.tests_total:<6} {stamp}"
         )
     return EXIT_OK
 

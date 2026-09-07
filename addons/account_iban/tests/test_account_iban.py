@@ -70,7 +70,7 @@ class TestAccountIban(TransactionCase):
     def test_create_does_not_mutate_caller_vals(self):
         """create() must not rewrite acc_number in the caller's own vals dict."""
         partner = self.env["res.partner"].create({"name": "IBAN mutation probe"})
-        vals = {"partner_ids": [(4, partner.id)], "acc_number": "BE68 5390-0754_7034"}
+        vals = {"partner_id": partner.id, "acc_number": "BE68 5390-0754_7034"}
         original = dict(vals)
         bank = self.env["res.partner.bank"].create(vals)
         self.assertEqual(vals, original)
@@ -80,7 +80,7 @@ class TestAccountIban(TransactionCase):
         """write() must not rewrite acc_number in the caller's own vals dict."""
         partner = self.env["res.partner"].create({"name": "IBAN mutation probe"})
         bank = self.env["res.partner.bank"].create(
-            {"partner_ids": [(4, partner.id)], "acc_number": VALID_IBAN}
+            {"partner_id": partner.id, "acc_number": VALID_IBAN}
         )
         vals = {"acc_number": "BE68 5390-0754_7034"}
         original = dict(vals)
@@ -106,7 +106,7 @@ class TestAccountIban(TransactionCase):
         """get_bban() returns the BBAN for an account whose acc_type is iban."""
         partner = self.env["res.partner"].create({"name": "IBAN mutation probe"})
         bank = self.env["res.partner.bank"].create(
-            {"partner_ids": [(4, partner.id)], "acc_number": VALID_IBAN}
+            {"partner_id": partner.id, "acc_number": VALID_IBAN}
         )
         self.assertEqual(bank.acc_type, "iban")
         self.assertEqual(bank.get_bban(), "539007547034")
@@ -115,7 +115,7 @@ class TestAccountIban(TransactionCase):
         """get_bban() raises UserError when acc_type is not iban."""
         partner = self.env["res.partner"].create({"name": "IBAN mutation probe"})
         bank = self.env["res.partner.bank"].create(
-            {"partner_ids": [(4, partner.id)], "acc_number": "not-an-iban"}
+            {"partner_id": partner.id, "acc_number": "not-an-iban"}
         )
         self.assertNotEqual(bank.acc_type, "iban")
         with self.assertRaises(UserError):

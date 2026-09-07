@@ -12,28 +12,6 @@ from .errors import CURSOR_LOGGER_NAME
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
 
 sql_counter: int = 0
-"""Process-wide statements-on-the-wire count, deliberately without a lock.
-
-It is the one counter in this package that does not own one, and that is a
-decision rather than an oversight -- `PoolStats` owns its lock because
-`x += 1` is a read-modify-write, and the same argument would put one here.
-Both halves were measured before declining:
-
-- **It loses nothing on this interpreter.** 12 threads x 80 000 increments at
-  `setswitchinterval(1e-9)` lost 0. The method is not blind: the same harness
-  run against a deliberately non-atomic `read; call; write` lost 774 303 of
-  960 000. `LOAD_GLOBAL / BINARY_OP / STORE_GLOBAL` carries no eval-breaker
-  check, so CPython 3.14's GIL does not preempt inside it.
-- **The lock costs 68.6 ns per statement**, against 157.1 ns for the whole of
-  `_record_metrics` -- +44% on the hottest path in the framework, for a race
-  that cannot fire.
-
-What makes it wrong is a **free-threaded build**: there the sequence is a real
-race and this counter is what `modules/loading.py`, `service/lifecycle.py` and
-`tests/result.py` report as "queries". Re-measure here before enabling one; the
-fix at that point is not necessarily a lock, since per-thread accumulation
-summed on read would keep the write path free.
-"""
 
 
 if TYPE_CHECKING:
@@ -44,17 +22,20 @@ if TYPE_CHECKING:
         _thread: threading.Thread
 
         sql_log_count: int
+        sql_statement_count: int
 
 
 class _MetricsMixin:
     sql_from_log: dict[str, tuple[int, float]]
     sql_into_log: dict[str, tuple[int, float]]
     sql_log_count: int
+    sql_statement_count: int
 
     def _init_metrics_state(self) -> None:
         self.sql_from_log = {}
         self.sql_into_log = {}
         self.sql_log_count = 0
+        self.sql_statement_count = 0
 
     def _format_statement(self, query: Any, params: Any = None) -> str:
         if isinstance(query, SQL):
@@ -73,6 +54,7 @@ class _MetricsMixin:
         delay: float,
         count: int = 1,
         *,
+        statement: bool = True,
         query: Any = None,
         params: Any = None,
         start: float = 0.0,
@@ -80,6 +62,8 @@ class _MetricsMixin:
     ) -> None:
         global sql_counter  # noqa: PLW0603  process-wide SQL counter; the module IS the accumulator
         self.sql_log_count += count
+        if statement:
+            self.sql_statement_count += 1
         sql_counter += count
         t = self._thread
         if hasattr(t, "query_count"):

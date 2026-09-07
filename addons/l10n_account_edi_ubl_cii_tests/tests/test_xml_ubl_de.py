@@ -257,7 +257,7 @@ class TestUBLDE(TestUBLCommon):
         """
         acc_bank = self.env['res.partner.bank'].create({
             'acc_number': 'BE15001559627232',
-            'partner_ids': [(4, self.company_data['company'].partner_id.id)],
+            'partner_id': self.company_data['company'].partner_id.id,
         })
 
         invoice = self._generate_move(
@@ -307,7 +307,7 @@ class TestUBLDE(TestUBLCommon):
 
         acc_bank = self.env['res.partner.bank'].create({
             'acc_number': 'DE15001559627232',
-            'partner_ids': [(4, partner.id)],
+            'partner_id': partner.id,
         })
 
         invoice = self._generate_move(

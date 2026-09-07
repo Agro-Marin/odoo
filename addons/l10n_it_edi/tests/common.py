@@ -55,7 +55,7 @@ class TestItEdi(AccountTestInvoicingCommon):
         })
 
         cls.test_bank = cls.env['res.partner.bank'].create({
-            'partner_ids': [(4, cls.company.partner_id.id)],
+            'partner_id': cls.company.partner_id.id,
             'acc_number': 'IT1212341234123412341234123',
             'bank_name': 'BIG BANK',
             'bank_bic': 'BIGGBANQ',

@@ -662,12 +662,12 @@ class BaseCase(TestCase):
                 if flush:
                     self.env.flush_all()
                     self.env.cr.flush()
-                count0 = self.cr.sql_log_count
+                count0 = self.cr.sql_statement_count
                 yield
                 if flush:
                     self.env.flush_all()
                     self.env.cr.flush()
-                count = self.cr.sql_log_count - count0
+                count = self.cr.sql_statement_count - count0
                 if count != expected:
                     caller = inspect.stack(0)[2]
                     filename, linenum, funcname = (

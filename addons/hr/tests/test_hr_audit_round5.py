@@ -218,10 +218,7 @@ class TestFixedSalaryAllocationIsValidated(TestHrCommon):
     def _employee_with_account(self):
         employee = self.env["hr.employee"].create({"name": "Paid"})
         account = self.env["res.partner.bank"].create(
-            {
-                "acc_number": "R5-0001",
-                "partner_ids": [Command.link(employee.partner_id.id)],
-            }
+            {"acc_number": "R5-0001", "partner_id": employee.partner_id.id}
         )
         employee.bank_account_ids = [Command.link(account.id)]
         return employee, account

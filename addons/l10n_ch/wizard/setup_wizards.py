@@ -16,7 +16,7 @@ class AccountSetupBankManualConfig(models.TransientModel):
 
     l10n_ch_display_qr_bank_options = fields.Boolean(compute='_compute_l10n_ch_display_qr_bank_options')
 
-    @api.depends('partner_ids', 'company_id')
+    @api.depends('partner_id', 'company_id')
     def _compute_l10n_ch_display_qr_bank_options(self):
         for wizard in self:
             wizard.l10n_ch_display_qr_bank_options = wizard.res_partner_bank_id.l10n_ch_display_qr_bank_options

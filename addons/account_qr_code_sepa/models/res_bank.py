@@ -25,7 +25,7 @@ class ResPartnerBank(models.Model):
                 '1',                                                    # Character Set
                 'SCT',                                                  # Identification Code
                 self.bank_bic or '',                                    # BIC of the Beneficiary Bank
-                (self.acc_holder_name or self.partner_ids[:1].name)[:71],    # Name of the Beneficiary
+                (self.acc_holder_name or self.partner_id.name)[:71],    # Name of the Beneficiary
                 self.sanitized_acc_number,                              # Account Number of the Beneficiary
                 currency.name + str(amount),                            # Currency + Amount of the Transfer in EUR
                 '',                                                     # Purpose of the Transfer
@@ -68,7 +68,7 @@ class ResPartnerBank(models.Model):
 
     def _check_for_qr_code_errors(self, qr_method, amount, currency, debtor_partner, free_communication, structured_communication):
         if qr_method == 'sct_qr':
-            if not self.acc_holder_name and not self.partner_ids[:1].name:
+            if not self.acc_holder_name and not self.partner_id.name:
                 return _("The account receiving the payment must have an account holder name or partner name set.")
 
         return super()._check_for_qr_code_errors(qr_method, amount, currency, debtor_partner, free_communication, structured_communication)

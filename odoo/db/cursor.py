@@ -675,7 +675,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         finally:
             sync_cost = monotonic() - t0 - self._pipeline_statement_time
             if sync_cost > 0:
-                self._record_metrics(sync_cost, count=0)
+                self._record_metrics(sync_cost, count=0, statement=False)
             self._pipeline_stack = None
             self._pipeline_depth = 0
             self._pipeline_entered = False

@@ -97,10 +97,8 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         tables = super()._get_merge_tables_excluded(model)
         if model == "res.partner":
             tables.add("res_partner_identifier")
-            tables.add("res_partner_res_partner_bank_rel")
             tables.add("res_partner_phone_number_rel")
-            if not self._is_source_absorbed_on_merge():
-                tables.add("res_partner_bank")
+            tables.add("res_partner_bank")
         return tables
 
     @api.model
@@ -156,17 +154,24 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     def _merge_bank_accounts(
         self, src_partners: models.BaseModel, dst_partner: models.BaseModel
     ) -> None:
-        src_partners = src_partners.with_context(active_test=False)
-        accounts = src_partners.bank_ids.sudo()
-        if accounts:
-            accounts.write(
-                {
-                    "partner_ids": [
-                        *(Command.unlink(p.id) for p in src_partners),
-                        Command.link(dst_partner.id),
-                    ]
-                }
+        all_src_accounts = src_partners.bank_ids
+
+        for src_account in all_src_accounts:
+            duplicate_account = dst_partner.bank_ids.filtered(
+                lambda a, src_account=src_account: (
+                    a.sanitized_acc_number == src_account.sanitized_acc_number
+                )
             )
+            if duplicate_account:
+                self._update_foreign_keys_generic(
+                    "res.partner.bank", src_account, duplicate_account
+                )
+                self._update_reference_fields_generic(
+                    "res.partner.bank", src_account, duplicate_account
+                )
+                src_account.sudo().unlink()
+            else:
+                src_account.sudo().write({"partner_id": dst_partner.id})
 
     @api.model
     def _merge_phone_numbers(

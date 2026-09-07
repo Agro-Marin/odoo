@@ -22,7 +22,7 @@ class QRPrintTest(AccountTestInvoicingCommon):
         # The bank account must be QR-compatible
         cls.qr_bank_account = cls.env['res.partner.bank'].create({
             'acc_number': "CH4431999123000889012",
-            'partner_ids': [(4, cls.env.company.partner_id.id)],
+            'partner_id': cls.env.company.partner_id.id,
             # The account is the company's own, printed on an outbound
             # invoice for the customer to pay into. account's
             # `_check_post_invoices` refuses to post an inbound invoice

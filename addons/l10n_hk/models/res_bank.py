@@ -11,7 +11,7 @@ class ResPartnerBank(models.Model):
     proxy_type = fields.Selection(selection_add=[('id', "FPS ID"), ('mobile', "Mobile Number"), ('email', "Email Address")],
                                   ondelete={'id': 'set default', 'mobile': 'set default', 'email': 'set default'})
 
-    @api.constrains('proxy_type', 'proxy_value', 'partner_ids')
+    @api.constrains('proxy_type', 'proxy_value', 'partner_id')
     def _check_hk_proxy(self):
         auto_mobn_re = re.compile(r"^[+]\d{1,3}-\d{6,12}$")
         for bank in self.filtered(lambda b: b.country_code == 'HK'):

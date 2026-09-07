@@ -63,20 +63,20 @@ class ResPartnerBank(models.Model):
             partners = Employee.search(
                 in_companies & Domain("id", "in", wanted_ids)
             ).partner_id
-            matched |= Domain("partner_ids", "in", partners.ids)
+            matched |= Domain("partner_id", "in", partners.ids)
         if any(not record_id for record_id in value):
             employee_partners = Employee.search(in_companies).partner_id
-            matched |= Domain("partner_ids", "not in", employee_partners.ids)
+            matched |= Domain("partner_id", "not in", employee_partners.ids)
         return matched if operator == "in" else ~matched
 
     def action_view_allocation_wizard(self):
         self.check_singleton()
         return self.employee_id.action_view_allocation_wizard()
 
-    @api.depends("partner_ids", "partner_ids.employee_ids")
+    @api.depends("partner_id", "partner_id.employee_ids")
     def _compute_employee_id(self):
         for bank in self:
-            bank.employee_id = bank.partner_ids.sudo().employee_ids.filtered(
+            bank.employee_id = bank.partner_id.sudo().employee_ids.filtered(
                 lambda employee: employee.company_id in self.env.companies
             )[:1]
 
@@ -94,7 +94,7 @@ class ResPartnerBank(models.Model):
     def _compute_display_name(self):
         account_employee = self.browse()
         if not self.env.user.has_group("hr.group_hr_user"):
-            for account in self.sudo().filtered("partner_ids.employee_ids"):
+            for account in self.sudo().filtered("partner_id.employee_ids"):
                 acc_number = account.acc_number
                 if not acc_number:
                     continue

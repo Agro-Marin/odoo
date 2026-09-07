@@ -62,13 +62,12 @@ class ResPartnerBank(models.Model):
         compute="_compute_l10n_ch_display_qr_bank_options"
     )
 
-    @api.depends("partner_ids", "company_id")
+    @api.depends("partner_id", "company_id")
     def _compute_l10n_ch_display_qr_bank_options(self):
         for bank in self:
-            if bank.partner_ids:
+            if bank.partner_id:
                 bank.l10n_ch_display_qr_bank_options = (
-                    bank.partner_ids[:1].ref_company_ids.country_id.code
-                    in ("CH", "LI")
+                    bank.partner_id.ref_company_ids.country_id.code in ("CH", "LI")
                 )
             elif bank.company_id:
                 bank.l10n_ch_display_qr_bank_options = (
@@ -127,7 +126,7 @@ class ResPartnerBank(models.Model):
             )
 
         cred_street, cred_street_number, cred_zip, cred_city = (
-            self._get_partner_address_lines(self.partner_ids[:1])
+            self._get_partner_address_lines(self.partner_id)
         )
         debt_street, debt_street_number, debt_zip, debt_city = (
             self._get_partner_address_lines(debtor_partner)
@@ -156,12 +155,12 @@ class ResPartnerBank(models.Model):
             "1",  # Coding Type
             acc_number,  # IBAN / QR-IBAN
             "S",  # Creditor Address Type
-            (self.acc_holder_name or self.partner_ids[:1].name)[:70],  # Creditor Name
+            (self.acc_holder_name or self.partner_id.name)[:70],  # Creditor Name
             cred_street,  # Creditor Street Name
             cred_street_number,  # Creditor Building Number
             cred_zip,  # Creditor Postal Code
             cred_city,  # Creditor Town
-            self.partner_ids[:1].country_id.code,  # Creditor Country
+            self.partner_id.country_id.code,  # Creditor Country
             "",  # Ultimate Creditor Address Type
             "",  # Name
             "",  # Ultimate Creditor Address Line 1
@@ -365,7 +364,7 @@ class ResPartnerBank(models.Model):
             )
 
         if qr_method == "ch_qr":
-            if not _partner_fields_set(self.partner_ids[:1]):
+            if not _partner_fields_set(self.partner_id):
                 return _(
                     "The partner set on the bank account meant to receive the payment (%s) must have a complete postal address (street, zip, city and country).",
                     self.acc_number,

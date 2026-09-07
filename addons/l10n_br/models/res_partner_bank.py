@@ -24,7 +24,7 @@ class ResPartnerBank(models.Model):
         },
     )
 
-    @api.constrains("proxy_type", "proxy_value", "partner_ids")
+    @api.constrains("proxy_type", "proxy_value", "partner_id")
     def _check_br_proxy(self):
         for bank in self.filtered(lambda bank: bank.country_code == "BR" and bank.proxy_type != "none"):
             if bank.proxy_type not in ("email", "mobile", "br_cpf_cnpj", "br_random"):
@@ -39,7 +39,7 @@ class ResPartnerBank(models.Model):
                 raise ValidationError(_("%s is not a valid email.", value))
 
             if bank.proxy_type == "br_cpf_cnpj" and (
-                not self.partner_ids[:1].check_vat_br(value) or any(not char.isdecimal() for char in value)
+                not self.partner_id.check_vat_br(value) or any(not char.isdecimal() for char in value)
             ):
                 raise ValidationError(_("%s is not a valid CPF or CNPJ (don't include periods or dashes).", value))
 

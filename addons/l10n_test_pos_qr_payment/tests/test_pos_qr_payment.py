@@ -14,7 +14,7 @@ class TestUiSEPA(TestPosQrCommon):
         # Set Bank Account on journal
         cls.bank_account = cls.env['res.partner.bank'].create({
             'acc_number': 'BE15001559627230',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
         })
         cls.company_data['default_journal_bank'].write({'bank_account_id': cls.bank_account.id})
 
@@ -74,7 +74,7 @@ class TestUiCH(TestPosQrCommon):
         # Set Bank Account on journal
         cls.bank_account = cls.env['res.partner.bank'].create({
             'acc_number': 'CH15 3881 5158 3845 3843 7',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
         })
         cls.company_data['default_journal_bank'].write({'bank_account_id': cls.bank_account.id})
 
@@ -134,7 +134,7 @@ class TestUiHK(TestPosQrCommon):
         # Set Bank Account on journal
         cls.bank_account = cls.env['res.partner.bank'].create({
             'acc_number': '123-123456-123',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
         })
         cls.company_data['default_journal_bank'].write({'bank_account_id': cls.bank_account.id})
 
@@ -189,7 +189,7 @@ class TestUIBR(TestPosQrCommon):
         # Set Bank Account on journal
         cls.bank_account = cls.env["res.partner.bank"].create({
             "acc_number": "123456789012345678",
-            "partner_ids": [(4, cls.company_data["company"].partner_id.id)],
+            "partner_id": cls.company_data["company"].partner_id.id,
         })
         cls.company_data['default_journal_bank'].write({'bank_account_id': cls.bank_account.id})
 

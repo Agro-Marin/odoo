@@ -133,7 +133,7 @@ class TestAccountEdiUblCii(TestUblCiiCommon, HttpCase):
         company.zip = '78440'
         company.partner_id.bank_ids = [Command.create({
             'acc_number': '999999',
-            'partner_ids': [(4, company.partner_id.id)],
+            'partner_id': company.partner_id.id,
             'acc_holder_name': 'The Chosen One',
             'allow_out_payment': True,
         })]
@@ -594,7 +594,7 @@ comment-->1000.0</TaxExclusiveAmount></xpath>"""
         bank_ing = self.env['res.bank'].create({'name': 'ING', 'bic': 'BBRUBEBB'})
         partner_bank = self.env['res.partner.bank'].create({
                 'acc_number': 'BE15001559627230',
-                'partner_ids': [(4, self.partner_a.id)],
+                'partner_id': self.partner_a.id,
                 'bank_id': bank_ing.id,
                 'company_id': self.env.company.id,
                 'allow_out_payment': True,
@@ -724,7 +724,7 @@ comment-->1000.0</TaxExclusiveAmount></xpath>"""
         })
         company_bank = self.env['res.partner.bank'].create({
             'acc_number': 'FR7630006000011234567890189',
-            'partner_ids': [(4, company.partner_id.id)],
+            'partner_id': company.partner_id.id,
             'allow_out_payment': True,
         })
         partner = self.partner_be  # fully configured: VAT, address, country

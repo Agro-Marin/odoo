@@ -19,12 +19,12 @@ class TestSwissQRCode(AccountTestInvoicingCommon):
 
         cls.swiss_iban = cls.env['res.partner.bank'].create({
             'acc_number': 'CH15 3881 5158 3845 3843 7',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
         })
 
         cls.swiss_qr_iban = cls.env['res.partner.bank'].create({
             'acc_number': 'CH21 3080 8001 2345 6782 7',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
         })
 
         cls.ch_qr_invoice = cls.env['account.move'].create({

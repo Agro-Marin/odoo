@@ -592,7 +592,7 @@ class AccountBankStatementLine(models.Model):
             return self.env["res.partner.bank"].search(
                 [
                     ("acc_number", "=", self.account_number),
-                    ("partner_ids", "in", self.partner_id.ids),
+                    ("partner_id", "=", self.partner_id.id),
                     ("company_id", "in", [False, self.company_id.id]),
                 ],
                 limit=1,

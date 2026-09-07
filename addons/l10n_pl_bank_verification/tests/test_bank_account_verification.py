@@ -72,7 +72,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         if account_number:
             bank_account = self.env['res.partner.bank'].create({
                 'acc_number': account_number,
-                'partner_ids': [(4, supplier.id)],
+                'partner_id': supplier.id,
             })
         move = self.env['account.move'].create({
             'partner_id': supplier.id,
@@ -176,7 +176,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         # assign a bank account number
         bank_account = self.pl_supplier_bank_account = self.env['res.partner.bank'].create({
             'acc_number': '61109010140000071219812870',
-            'partner_ids': [(4, supplier.id)],
+            'partner_id': supplier.id,
         })
         self._check_form_fields(move, not_found_partners=supplier)
 
@@ -459,7 +459,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         # Partner has 2 bank accounts: 1 valid and 1 invalid
         self.env['res.partner.bank'].create({
             'acc_number': 'PL61109010140000071219812000',  # invalid
-            'partner_ids': [(4, self.pl_supplier.id)],
+            'partner_id': self.pl_supplier.id,
         })
         # A verification will be created for both bank account, but the payment register wizard should not display
         # information about the 2nd account as the payment is done with the 1st bank account
@@ -475,7 +475,7 @@ class TestL10nPlBankAccountVerification(AccountTestInvoicingCommon):
         # Create a second bank account and trigger the verification creation
         second_bank_account = self.env['res.partner.bank'].create({
             'acc_number': 'PL61109010140000071219812000',  # invalid
-            'partner_ids': [(4, self.pl_supplier.id)],
+            'partner_id': self.pl_supplier.id,
         })
         move = self.env['account.move'].create({
             'partner_id': self.pl_supplier.id,

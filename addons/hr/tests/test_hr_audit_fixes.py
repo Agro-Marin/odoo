@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime, time, timedelta
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import Command, fields
+from odoo import fields
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.libs.datetime import timezone
 from odoo.tests import tagged
@@ -21,10 +21,7 @@ class TestHrAuditFixes(TestHrCommon):
 
     def _add_bank_account(self, employee, acc_number):
         return self.env["res.partner.bank"].create(
-            {
-                "acc_number": acc_number,
-                "partner_ids": [Command.link(employee.partner_id.id)],
-            }
+            {"acc_number": acc_number, "partner_id": employee.partner_id.id}
         )
 
     def test_version_id_context_is_per_record(self):
@@ -257,7 +254,7 @@ class TestHrAuditRound2(TestHrCommon):
                             0,
                             0,
                             {
-                                "partner_ids": [Command.link(vendor.id)],
+                                "partner_id": vendor.id,
                                 "acc_number": "ATTACKER-0001",
                                 "allow_out_payment": True,
                             },
@@ -287,7 +284,7 @@ class TestHrAuditRound2(TestHrCommon):
     def test_bank_account_masking_end_to_end_non_hr(self):
         emp = self._new_employee("Masked Guy")
         ba = self.env["res.partner.bank"].create(
-            {"acc_number": "123456", "partner_ids": [Command.link(emp.partner_id.id)]}
+            {"acc_number": "123456", "partner_id": emp.partner_id.id}
         )
         emp.bank_account_ids = [(4, ba.id)]
         plain = mail_new_test_user(

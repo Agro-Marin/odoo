@@ -27,7 +27,7 @@
                 <t t-set="o" t-value="o.with_context(lang=lang)" />
                 <t
                     t-set="company"
-                    t-value="o.partner_bank_id.partner_ids[:1] or o.company_id" />
+                    t-value="o.partner_bank_id.partner_id or o.company_id" />
                 <t
                     t-set="formated_amount"
                     t-value="'{:,.2f}'.format(o.amount_residual).replace(',','\xa0')" />

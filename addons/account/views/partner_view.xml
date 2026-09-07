@@ -244,6 +244,19 @@
                 position="after">
                 <field name="fiscal_country_codes" invisible="1" />
             </xpath>
+            <xpath expr="//sheet" position="before">
+                <div
+                    groups="account.group_account_invoice,account.group_account_readonly"
+                    class="alert alert-warning"
+                    role="alert"
+                    invisible="not duplicate_bank_partner_ids">
+                    <span>One or more Bank Accounts set on this partner are also used by others:</span>
+                    <field
+                        name="duplicate_bank_partner_ids"
+                        widget="x2many_buttons"
+                        string="Partners with same bank" />
+                </div>
+            </xpath>
             <page name="sales_purchases" position="after">
                 <page
                     string="Invoicing"
@@ -258,7 +271,8 @@
                             <field
                                 name="bank_ids"
                                 string="Bank accounts"
-                                context="{'default_partner_ids': [id]}"
+                                context="{'default_partner_id': id}"
+                                domain="[('partner_id','=', id)]"
                                 widget="many2many_tags_banks"
                                 options="{'color_field': 'color', 'allow_out_payment_field': 'allow_out_payment', 'edit_tags': True}" />
                             <field

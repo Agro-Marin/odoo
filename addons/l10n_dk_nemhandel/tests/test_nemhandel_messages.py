@@ -69,7 +69,7 @@ class TestNemhandelMessage(TestAccountMoveSendCommon):
 
         cls.env['res.partner.bank'].create({
             'acc_number': '0144748555',
-            'partner_ids': [(4, cls.env.company.partner_id.id)],
+            'partner_id': cls.env.company.partner_id.id,
         })
 
     def create_move(self, partner, company=None):

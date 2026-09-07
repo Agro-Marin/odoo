@@ -107,7 +107,7 @@ class TestPrivacyWizard(TransactionCase):
         # Don't retrieve ondelete cascade records
         self.env["res.partner.bank"].create({
             'acc_number': '0123-%s' % self.partner.id,
-            'partner_ids': [(4, self.partner.id)],
+            'partner_id': self.partner.id,
             'company_id': self.env.company.id
         })
 

@@ -21,7 +21,7 @@ class TestPosQris(AccountTestInvoicingHttpCommon):
 
         cls.acc_qris_id = cls.env['res.partner.bank'].create({
             'acc_number': '123456789012345678',
-            'partner_ids': [(4, cls.company_data['company'].partner_id.id)],
+            'partner_id': cls.company_data['company'].partner_id.id,
             'l10n_id_qris_api_key': 'apikey',
             'l10n_id_qris_mid': 'mid',
         })

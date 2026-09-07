@@ -97,6 +97,7 @@ from . import test_res_country
 from . import test_res_partner
 from . import test_res_partner_sync
 from . import test_res_partner_bank
+from . import test_res_partner_main_channels
 from . import test_res_partner_identifier
 from . import test_partner_identifier_confidentiality
 from . import test_partner_private_address_access
