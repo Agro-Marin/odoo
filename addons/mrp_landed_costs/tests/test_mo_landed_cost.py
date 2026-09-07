@@ -28,7 +28,13 @@ class TestMoLandedCost(TransactionCase):
         )
 
     def test_onchange_clears_mo_when_not_manufacturing(self):
-        cost = self._landed_cost(target_model="picking")
+        mrp_product = self.env["product.product"].create(
+            {"name": "MRP LC finished good", "type": "consu"}
+        )
+        production = self.env["mrp.production"].create({"product_id": mrp_product.id})
+        cost = self._landed_cost(target_model="manufacturing")
+        cost.mrp_production_ids = [Command.set(production.ids)]
+        cost.target_model = "picking"
         cost._onchange_target_model()
         self.assertFalse(cost.mrp_production_ids)
 
