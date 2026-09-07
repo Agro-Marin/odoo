@@ -285,3 +285,45 @@ class TestPosConfigAudit(TestPoSCommon):
                 hasattr(self.env["pos.config"], gone),
                 f"{gone} was removed as dead code; reintroducing it needs a caller",
             )
+
+    def test_a_config_can_be_created_for_a_company_other_than_the_active_one(self):
+        company = self.env["res.company"].create({"name": "Audit Second Co"})
+        self.env["account.chart.template"].try_loading(
+            "generic_coa", company=company, install_demo=False
+        )
+        self.env.invalidate_all()
+        # The `default=` callables read env.company, which cannot see this company_id.
+        config = self.env["pos.config"].create(
+            {"name": "other-company-shop", "company_id": company.id}
+        )
+        self.assertEqual(config.company_id, company)
+        self.assertEqual(config.picking_type_id.company_id, company)
+        self.assertTrue(config.payment_method_ids)
+        for method in config.payment_method_ids:
+            self.assertEqual(method.company_id, company)
+
+    def test_each_company_in_a_batch_gets_its_own_warehouse(self):
+        company = self.env["res.company"].create({"name": "Audit Third Co"})
+        self.env["account.chart.template"].try_loading(
+            "generic_coa", company=company, install_demo=False
+        )
+        self.env["stock.warehouse"].search([("company_id", "=", company.id)]).unlink()
+        self.env.invalidate_all()
+        self.env["pos.config"].with_context(
+            allowed_company_ids=[self.env.company.id, company.id]
+        ).create([{"name": "Alpha"}, {"name": "Bravo", "company_id": company.id}])
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", company.id)]
+        )
+        self.assertTrue(warehouse, "the second company got no warehouse")
+        # named from its own vals, not the batch's first
+        self.assertEqual(warehouse.code.upper(), "BRA")
+
+    def test_order_refs_survive_a_prefixed_sequence(self):
+        # A localisation may give the backend sequence a prefix; int() over the whole
+        # rendered string used to raise.
+        self.config.order_backend_seq_id.sudo().prefix = "/AA"
+        self.env.invalidate_all()
+        reference, tracking_number = self.config._get_next_order_refs()
+        self.assertTrue(reference)
+        self.assertTrue(tracking_number.isdigit())

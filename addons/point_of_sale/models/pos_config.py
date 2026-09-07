@@ -1,5 +1,4 @@
 from collections import defaultdict
-from datetime import datetime
 from uuid import uuid4
 
 from odoo import SUPERUSER_ID, Command, _, api, fields, models, tools
@@ -427,8 +426,15 @@ class PosConfig(models.Model):
 
     def _get_next_order_refs(self, device_identifier="0"):
         next_number = self.order_backend_seq_id._next()
-        year_2_digits = str(datetime.now().year)[-2:]
-        tracking_number = f"{int(next_number) % 1000}"
+        # The business year, not the server's: datetime.now() is the machine's naive
+        # local clock, so around New Year the year in an order reference depended on
+        # where the server was racked rather than on where the shop is.
+        year_2_digits = fields.Datetime.now().astimezone(self.env.tz).strftime("%y")
+        # A localisation is free to give this sequence a prefix or suffix, and
+        # int() on the whole rendered string raises; the tracking number is the
+        # numeric tail.
+        digits = "".join(c for c in next_number if c.isdigit()) or "0"
+        tracking_number = f"{int(digits) % 1000}"
         return (
             f"{year_2_digits}{device_identifier}-{self.id}-{next_number}",
             tracking_number,
@@ -1035,22 +1041,61 @@ class PosConfig(models.Model):
         if not self.company_id.account_fiscal_country_id:
             raise ValidationError(_("The company must have a fiscal country set."))
 
+    _COMPANY_DEPENDENT_DEFAULTS = (
+        "picking_type_id",
+        "warehouse_id",
+        "journal_id",
+        "invoice_journal_id",
+        "payment_method_ids",
+        "tip_product_id",
+    )
+
+    def _add_company_defaults(self, vals):
+        # Every `default=` on this model reads env.company, which cannot see a
+        # company_id in the same vals dict. Creating a config for any company but the
+        # active one therefore filled each relational default from the wrong company
+        # and died in _check_company_auto -- the path imports, data files and API
+        # callers take, never the company switcher.
+        company = self.env["res.company"].browse(vals["company_id"])
+        defaults = self.with_company(company).default_get(
+            list(self._COMPANY_DEPENDENT_DEFAULTS)
+        )
+        for field_name in self._COMPANY_DEPENDENT_DEFAULTS:
+            if field_name not in vals and field_name in defaults:
+                vals[field_name] = defaults[field_name]
+
+    def _ensure_company_warehouse(self, company, name):
+        # Keyed off the company being created for, not env.company, and off that
+        # record's own name rather than the batch's first: a two-company create used
+        # to get one warehouse, in whichever company happened to be active.
+        Warehouse = self.env["stock.warehouse"]
+        if Warehouse.search(Warehouse._check_company_domain(company), limit=1):
+            return
+        Warehouse.create({"code": (name or "POS")[:3], "company_id": company.id})
+
     @api.model_create_multi
     def create(self, vals_list):
-        if not self._get_default_warehouse():
-            self.env["stock.warehouse"].create(
-                {
-                    "code": (vals_list[0].get("name") or "POS")[:3],
-                    "company_id": self.env.company.id,
-                }
+        for vals in vals_list:
+            company = (
+                self.env["res.company"].browse(vals["company_id"])
+                if vals.get("company_id")
+                else self.env.company
             )
+            self._ensure_company_warehouse(company, vals.get("name"))
+            if vals.get("company_id") and vals["company_id"] != self.env.company.id:
+                self._add_company_defaults(vals)
         for vals in vals_list:
             self._check_header_footer(vals)
 
         pos_configs = super().create(vals_list)
         for config in pos_configs:
             if not config.payment_method_ids:
-                _dummy, payment_methods = config._create_journal_and_payment_methods()
+                # with_company, because this bootstrap searches and creates journals
+                # and payment methods against env.company -- for a config created in
+                # another company it built that company's methods out of this one's.
+                _dummy, payment_methods = config.with_company(
+                    config.company_id
+                )._create_journal_and_payment_methods()
                 config.payment_method_ids = self.env["pos.payment.method"].browse(
                     payment_methods
                 )
