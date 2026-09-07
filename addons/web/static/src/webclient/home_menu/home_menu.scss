@@ -50,6 +50,19 @@
         max-width: $o-home-menu-search-max-width;
     }
 
+    .o_home_menu_customize {
+        color: var(
+            --homeMenuCaption-color,
+            #{o-token(--o-text, $o-home-menu-caption-color)}
+        );
+        opacity: 0.6;
+
+        &:hover,
+        &:focus-visible {
+            opacity: 1;
+        }
+    }
+
     .o_home_menu_search_icon {
         left: map-get($spacers, 3);
         color: var(--o-text-muted, #{$text-muted});

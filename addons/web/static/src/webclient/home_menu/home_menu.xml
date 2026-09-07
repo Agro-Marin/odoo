@@ -4,19 +4,22 @@
 <t t-name="web.HomeMenu">
     <div t-ref="root" class="o_home_menu h-100 overflow-auto" t-att-class="{ o_ios_app: state.isIosApp }">
         <div class="container">
-            <div class="o_home_menu_search_wrapper position-relative mx-auto mt-4">
+            <div class="o_home_menu_header position-relative mt-4">
+              <div class="o_home_menu_search_wrapper position-relative mx-auto">
                 <i class="oi oi-search o_home_menu_search_icon position-absolute top-50 translate-middle-y" aria-hidden="true"/>
                 <input t-ref="input" type="search" class="o_home_menu_search form-control form-control-lg" data-allow-hotkeys="true" t-on-input="_onInputSearch" t-on-blur="_onInputBlur" t-on-compositionstart="_onCompositionStart"
                     aria-label="Search apps and menus"
                     placeholder="Search apps and menus..."
                     autocomplete="off"
                 />
+              </div>
+              <!-- The one page-level action sits in the corner of the surface, as a launcher's edit affordance does; it says its name on hover and to the reader. -->
+              <button t-if="canEditLayout and !state.editing" type="button" class="o_home_menu_customize btn btn-link position-absolute top-0 end-0 h-100 px-3" title="Customize" aria-label="Customize" t-on-click="_toggleEditing">
+                  <i class="oi oi-settings-adjust fa-lg" aria-hidden="true"/>
+              </button>
             </div>
-            <div t-if="canEditLayout" class="o_home_menu_toolbar d-flex justify-content-center align-items-center gap-2 mt-2">
-                <button t-if="!state.editing" type="button" class="o_home_menu_customize btn btn-link btn-sm" t-on-click="_toggleEditing">
-                    <i class="fa fa-pencil me-1" aria-hidden="true"/>Customize
-                </button>
-                <t t-else="">
+            <div t-if="canEditLayout and state.editing" class="o_home_menu_toolbar d-flex justify-content-center align-items-center gap-2 mt-2">
+                <t>
                     <span class="o_home_menu_edit_hint text-muted small me-2">Drag a tile to reorder</span>
                     <button t-if="hasCustomLayout" type="button" class="o_home_menu_reset btn btn-link btn-sm" t-on-click="_resetLayout">Reset layout</button>
                     <button t-if="canSetCompanyDefault and hasCustomLayout" type="button" class="o_home_menu_company_default btn btn-link btn-sm" title="Every user of the company without a layout of their own will see this one" t-on-click="_setCompanyDefault">Set as company default</button>
