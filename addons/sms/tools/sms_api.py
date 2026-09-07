@@ -73,6 +73,7 @@ class SmsApi(
     PROVIDER_TO_SMS_FAILURE_TYPE = SmsApiBase.PROVIDER_TO_SMS_FAILURE_TYPE | {
         "country_not_supported": "sms_country_not_supported",
         "insufficient_credit": "sms_credit",
+        "not_active_db": "sms_database_non_active",
         "unregistered": "sms_acc",
     }
 
@@ -123,6 +124,7 @@ class SmsApi(
                   state: ONE of: {
                       'success', 'processing', 'server_error', 'unregistered', 'insufficient_credit',
                       'wrong_number_format', 'duplicate_message', 'country_not_supported', 'registration_needed',
+                      'not_active_db',
                   },
                   credit: Optional: Credits spent to send SMS (provided if the actual price is known)
               }, ...
