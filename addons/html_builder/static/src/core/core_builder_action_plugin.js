@@ -238,7 +238,9 @@ class SetClassRangeAction extends BuilderAction {
                 editingElement.classList.remove(className);
             }
         }
-        editingElement.classList.add(classNames[index]);
+        if (index !== undefined) {
+            editingElement.classList.add(classNames[index]);
+        }
     }
 }
 
