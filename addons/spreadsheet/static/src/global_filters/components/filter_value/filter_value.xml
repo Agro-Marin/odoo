@@ -8,6 +8,7 @@
                     value="filterValue?.strings"
                     options="textAllowedValues"
                     onValueChanged="(value) => this.onTextInput(filter.id, value)"
+                    placeholder="placeholder"
                 />
             </div>
             <div t-elif="filter.type === 'selection'" class="w-100">
@@ -16,6 +17,7 @@
                     field="filter.selectionField"
                     value="filterValue?.selectionValues ?? []"
                     onValueChanged="(value) => this.onSelectionInput(filter.id, value)"
+                    placeholder="placeholder"
                 />
             </div>
             <div t-elif="filter.type === 'date'" class="w-100">
@@ -28,17 +30,20 @@
                     <NumericFilterValue
                         value="filterValue.minimumValue"
                         onValueChanged="(value) => this.onMinimumValueNumericInput(filter.id, value)"
+                        placeholder="placeholder"
                     />
                     <i class="fa-solid fa-right-long mx-2"/>
                     <NumericFilterValue
                         value="filterValue.maximumValue"
                         onValueChanged="(value) => this.onMaximumValueNumericInput(filter.id, value)"
+                        placeholder="placeholder"
                     />
                 </t>
                 <t t-else="">
                     <NumericFilterValue
                         value="filterValue.targetValue"
                         onValueChanged="(value) => this.onTargetValueNumericInput(filter.id, value)"
+                        placeholder="placeholder"
                     />
                 </t>
             </div>
@@ -48,7 +53,8 @@
                     resModel="filter.modelName"
                     resIds="filterValue?.ids ?? []"
                     domain="relationalAllowedDomain"
-                    update="(resIds) => this.onTagSelected(filter.id, resIds)" />
+                    update="(resIds) => this.onTagSelected(filter.id, resIds)"
+                    placeholder="placeholder" />
                 <ValidationMessages t-else="1"
                                     messages="[invalidModel]"
                                     msgType="'error'"/>

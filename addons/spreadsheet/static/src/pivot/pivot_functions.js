@@ -36,12 +36,10 @@ const ODOO_FILTER_VALUE = /** @satisfies {CustomFunctionDescription} */ ({
     },
 });
 
-// ODOO.FILTER.VALUE.V18
+// ODOO.FILTER.LABEL / ODOO.FILTER.VALUE.V18
 
-const ODOO_FILTER_VALUE_V18 = /** @satisfies {CustomFunctionDescription} */ ({
-    description: _t(
-        "Compatibility version of ODOO.FILTER.VALUE for v18 spreadsheets. Required for date filters. Optional for others.",
-    ),
+const ODOO_FILTER_LABEL = /** @satisfies {CustomFunctionDescription} */ ({
+    description: _t("Return the label of the current value of a spreadsheet filter."),
     args: [
         arg(
             "filter_name (string)",
@@ -49,7 +47,6 @@ const ODOO_FILTER_VALUE_V18 = /** @satisfies {CustomFunctionDescription} */ ({
         ),
     ],
     category: "Odoo",
-    hidden: true,
     compute: function (filterName) {
         const filter = this.getters.getGlobalFilterByName(
             toString(filterName, this.locale),
@@ -97,6 +94,17 @@ const ODOO_FILTER_VALUE_V18 = /** @satisfies {CustomFunctionDescription} */ ({
     },
 });
 
+// kept registered, and kept out of the function list, for sheets that already
+// spell the old name
+const ODOO_FILTER_VALUE_V18 = /** @satisfies {CustomFunctionDescription} */ ({
+    ...ODOO_FILTER_LABEL,
+    description: _t(
+        "Compatibility version of ODOO.FILTER.VALUE for v18 spreadsheets. Required for date filters. Optional for others.",
+    ),
+    hidden: true,
+});
+
 functionRegistry
     .add("ODOO.FILTER.VALUE", ODOO_FILTER_VALUE)
+    .add("ODOO.FILTER.LABEL", ODOO_FILTER_LABEL)
     .add("ODOO.FILTER.VALUE.V18", ODOO_FILTER_VALUE_V18);

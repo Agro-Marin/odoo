@@ -166,11 +166,18 @@ const SET_OPERATORS_BEHAVIORS = {
     },
 };
 
+const PLACEHOLDER_BY_INPUT = {
+    writeInput: _t("Enter one or several values"),
+    selectInput: _t("Select one or several criteria"),
+    numericInput: _t("Enter a value"),
+};
+
 const FILTERS_BEHAVIORS = {
     text: [
         {
             operators: ["ilike", "not ilike"],
             defaultValue: { strings: [] },
+            placeholder: PLACEHOLDER_BY_INPUT.writeInput,
             validateValue: (filterValue) => isArrayOfStrings(filterValue.strings),
             validateDefaultValue: (filterValue) =>
                 isArrayOfStrings(filterValue.strings),
@@ -189,6 +196,7 @@ const FILTERS_BEHAVIORS = {
         {
             operators: ["in", "not in"],
             defaultValue: { strings: [] },
+            placeholder: PLACEHOLDER_BY_INPUT.writeInput,
             validateValue: (filterValue) => isArrayOfStrings(filterValue.strings),
             validateDefaultValue: (filterValue) =>
                 isArrayOfStrings(filterValue.strings),
@@ -205,6 +213,7 @@ const FILTERS_BEHAVIORS = {
         {
             operators: ["starts with"],
             defaultValue: { strings: [] },
+            placeholder: PLACEHOLDER_BY_INPUT.writeInput,
             validateValue: (filterValue) => isArrayOfStrings(filterValue.strings),
             validateDefaultValue: (filterValue) =>
                 isArrayOfStrings(filterValue.strings),
@@ -226,6 +235,7 @@ const FILTERS_BEHAVIORS = {
         {
             operators: ["in", "not in", "child_of"],
             defaultValue: { ids: [] },
+            placeholder: PLACEHOLDER_BY_INPUT.selectInput,
             validateValue: (filterValue) => isArrayOfIds(filterValue.ids),
             validateDefaultValue: isCurrentUserOrArrayOfIds,
             async getSearchBarFacetValues(env, filter, filterValue) {
@@ -249,6 +259,7 @@ const FILTERS_BEHAVIORS = {
         {
             operators: ["ilike", "not ilike"],
             defaultValue: { strings: [] },
+            placeholder: PLACEHOLDER_BY_INPUT.writeInput,
             validateValue: (filterValue) => isArrayOfStrings(filterValue.strings),
             validateDefaultValue: (filterValue) =>
                 isArrayOfStrings(filterValue.strings),
@@ -270,6 +281,7 @@ const FILTERS_BEHAVIORS = {
         {
             operators: ["in", "not in"],
             defaultValue: { selectionValues: [] },
+            placeholder: PLACEHOLDER_BY_INPUT.selectInput,
             validateValue: (filterValue) =>
                 isArrayOfStrings(filterValue.selectionValues),
             validateDefaultValue: (filterValue) =>
@@ -304,6 +316,7 @@ const FILTERS_BEHAVIORS = {
         {
             operators: ["=", "!=", ">", "<"],
             defaultValue: { targetValue: undefined },
+            placeholder: PLACEHOLDER_BY_INPUT.numericInput,
             validateValue: (filterValue) =>
                 isNumericFilterValueValid(filterValue.targetValue),
             validateDefaultValue: (filterValue) =>
@@ -330,6 +343,7 @@ const FILTERS_BEHAVIORS = {
         {
             operators: ["between"],
             defaultValue: { minimumValue: undefined, maximumValue: undefined },
+            placeholder: PLACEHOLDER_BY_INPUT.numericInput,
             validateValue: (filterValue) =>
                 isNumericFilterValueValid(filterValue.minimumValue) &&
                 isNumericFilterValueValid(filterValue.maximumValue),
@@ -905,6 +919,13 @@ export function getEmptyFilterValue(filter, operator) {
         return undefined;
     }
     return getFilterBehavior(filter, operator).defaultValue;
+}
+
+export function getFilterValuePlaceholder(filter, operator) {
+    if (!operator || filter.type === "date") {
+        return undefined;
+    }
+    return getFilterBehavior(filter, operator).placeholder;
 }
 
 export function isEmptyFilterValue(filter, filterValue) {

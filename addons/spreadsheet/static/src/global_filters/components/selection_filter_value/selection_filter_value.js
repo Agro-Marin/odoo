@@ -17,6 +17,7 @@ export class SelectionFilterValue extends Component {
         field: String,
         value: { type: Array, optional: true },
         onValueChanged: Function,
+        placeholder: { type: String, optional: true },
     };
     static defaultProps = {
         value: [],
@@ -38,6 +39,10 @@ export class SelectionFilterValue extends Component {
         this.fields = useService("field");
         onWillStart(() => this._computeTagsAndSources(this.props));
         onWillUpdateProps((nextProps) => this._computeTagsAndSources(nextProps));
+    }
+
+    get placeholder() {
+        return this.tags.length ? "" : this.props.placeholder;
     }
 
     async _computeTagsAndSources(props) {

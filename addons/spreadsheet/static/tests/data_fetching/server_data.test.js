@@ -112,7 +112,10 @@ test("batch get with multiple items", async () => {
     expect.verifySteps([]);
 });
 
-test("batch get with one error", async () => {
+test("a batch the server could not answer at all fails as a whole", async () => {
+    // The client no longer retries request by request: a batch that fails
+    // outright is a server or development error, and every request in it gets
+    // the same explanatory message instead of N further round trips.
     const orm = {
         call: async (model, method, args) => {
             expect.step(`${model}/${method}`);
@@ -125,32 +128,61 @@ test("batch get with one error", async () => {
     const serverData = new ServerData(orm, {
         whenDataStartLoading: () => expect.step("data-fetching-notification"),
     });
-    expect(() => serverData.batch.get("partner", "get_something_in_batch", 4)).toThrow(
-        LoadingDataError,
-        { message: "it should throw when it's not loaded" },
-    );
-    expect(() => serverData.batch.get("partner", "get_something_in_batch", 5)).toThrow(
-        LoadingDataError,
-        { message: "it should throw when it's not loaded" },
-    );
-    expect(() => serverData.batch.get("partner", "get_something_in_batch", 6)).toThrow(
-        LoadingDataError,
-        { message: "it should throw when it's not loaded" },
-    );
+    for (const id of [4, 5, 6]) {
+        expect(() => serverData.batch.get("partner", "get_something_in_batch", id)).toThrow(
+            LoadingDataError,
+            { message: "it should throw when it's not loaded" },
+        );
+    }
     await animationFrame();
     expect.verifySteps([
-        // one call for the batch
+        // a single call for the batch, and no retry one by one
         "partner/get_something_in_batch",
         "data-fetching-notification",
-        // retries one by one
+    ]);
+    for (const id of [4, 5, 6]) {
+        expect(() => serverData.batch.get("partner", "get_something_in_batch", id)).toThrow(
+            Error,
+        );
+    }
+    expect.verifySteps([]);
+});
+
+test("a request the server marks as failed does not sink its batch", async () => {
+    // The server isolates a per-request UserError and answers the batch with
+    // an `__error__` entry in its place, so the healthy requests keep their
+    // values and the whole thing still costs one call.
+    const orm = {
+        call: async (model, method, args) => {
+            expect.step(`${model}/${method}`);
+            return args[0].map((id) =>
+                id === 5 ? { __error__: "no such thing" } : id,
+            );
+        },
+    };
+    const serverData = new ServerData(orm, {
+        whenDataStartLoading: () => expect.step("data-fetching-notification"),
+    });
+    for (const id of [4, 5, 6]) {
+        expect(() => serverData.batch.get("partner", "get_something_in_batch", id)).toThrow(
+            LoadingDataError,
+        );
+    }
+    await animationFrame();
+    expect.verifySteps([
         "partner/get_something_in_batch",
-        "partner/get_something_in_batch",
-        "partner/get_something_in_batch",
+        "data-fetching-notification",
     ]);
     expect(serverData.batch.get("partner", "get_something_in_batch", 4)).toBe(4);
-    expect(() => serverData.batch.get("partner", "get_something_in_batch", 5)).toThrow(
-        Error,
-    );
+    // the failing entry surfaces as an evaluation error carrying the server's
+    // own message, not as a plain Error
+    let thrown;
+    try {
+        serverData.batch.get("partner", "get_something_in_batch", 5);
+    } catch (error) {
+        thrown = error;
+    }
+    expect(thrown?.message).toBe("no such thing");
     expect(serverData.batch.get("partner", "get_something_in_batch", 6)).toBe(6);
     expect.verifySteps([]);
 });
@@ -181,12 +213,10 @@ test("concurrently get and batch get the same request", async () => {
 
 test("Call the correct callback after a batch result", async () => {
     const orm = {
-        call: async (model, method, args) => {
-            if (args[0].includes(5)) {
-                throw new Error("error while fetching data");
-            }
-            return args[0];
-        },
+        call: async (model, method, args) =>
+            args[0].map((arg) =>
+                arg === 5 ? { __error__: "invalid value 5" } : arg,
+            ),
     };
     const batchEndpoint = new BatchEndpoint(orm, "partner", "get_something", {
         whenDataStartLoading: () => {},
