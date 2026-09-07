@@ -18,7 +18,9 @@
         <field name="country_id" ref="base.sa" />
         <field name="state_id" ref="base.state_sa_70" />
         <field name="zip">42318</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+966 55 777 8888', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+966 55 777 8888', 'type': 'landline'})]" />
         <field name="email">info@company.saexample.com</field>
         <field name="website">www.saexample.com</field>
         <field name="l10n_sa_edi_additional_identification_number">123456789</field>
@@ -34,7 +36,9 @@
         <field name="zip">42317</field>
         <field name="vat">311112111111113</field>
         <field name="is_company" eval="True" />
-        <field name="phone_ids" eval="[Command.create({'number': '+966 55 999 1010', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+966 55 999 1010', 'type': 'landline'})]" />
         <field name="email">info@company.saexample.com</field>
         <field name="website">www.saexample.com</field>
         <field name="l10n_sa_edi_building_number">1234</field>

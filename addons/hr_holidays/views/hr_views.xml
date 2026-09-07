@@ -114,7 +114,6 @@
         </field>
     </record>
 
-
     <record id="hr_kanban_view_employees_kanban" model="ir.ui.view">
         <field name="name">hr.employee.kanban.leaves.status</field>
         <field name="model">hr.employee</field>
@@ -201,6 +200,5 @@
             </xpath>
         </field>
     </record>
-
 
 </odoo>

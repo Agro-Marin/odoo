@@ -14,7 +14,9 @@
         <field name="street">Alkotmány utca 11.</field>
         <field name="city">Debrecen</field>
         <field name="zip">4000</field>
-        <field name="phone_ids" eval="[Command.create({'number': '06 1 577 9330', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '06 1 577 9330', 'type': 'landline'})]" />
         <field name="country_id" ref="base.hu" />
         <field name="email">magyar.vevo@example.com</field>
         <field name="website">https://www.odootech.hu</field>
@@ -30,7 +32,9 @@
         <field name="function">Ügyvezető</field>
         <field name="parent_id" ref="res_partner_hu_01" />
         <field name="email">gipsz.jakab@example.com</field>
-        <field name="phone_ids" eval="[Command.create({'number': '06 1 577 9331', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '06 1 577 9331', 'type': 'landline'})]" />
         <field
             name="image_1920"
             type="base64"

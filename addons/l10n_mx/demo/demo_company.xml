@@ -9,7 +9,9 @@
         <field name="city">Centro Histórico</field>
         <field name="state_id" ref="base.state_mx_mich" />
         <field name="country_id" ref="base.mx" />
-        <field name="phone_ids" eval="[Command.create({'number': '+52 222 123 4567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+52 222 123 4567', 'type': 'landline'})]" />
         <field name="email">info@company.mxexample.com</field>
         <field name="website">www.mxexample.com</field>
         <field name="is_company" eval="True" />

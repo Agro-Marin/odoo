@@ -8,7 +8,9 @@
             <field name="street">Falastin St. Al Anbari 123</field>
             <field name="city">Baghdad</field>
             <field name="vat">123456789</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+964 1 234 5678', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+964 1 234 5678', 'type': 'landline'})]" />
             <field name="email">info@company.iq</field>
             <field name="website">www.iq-example.com</field>
             <field name="is_company" eval="True" />

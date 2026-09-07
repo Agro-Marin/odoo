@@ -9,7 +9,9 @@
         <field name="country_id" ref="base.jp" />
         <field name="state_id" ref="base.state_jp_jp-19" />
         <field name="zip">140-0004</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+81 90-1234-5678', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+81 90-1234-5678', 'type': 'landline'})]" />
         <field name="email">info@company.jpexample.com</field>
         <field name="website">www.jpexample.com</field>
         <field name="is_company" eval="True" />

@@ -37,7 +37,9 @@
                         t-out="jst_subordinate.street2" />
                 </Adres>
                 </t>
-                <t t-set="jst_phone" t-value="jst_subordinate._phone_get_number().number" />
+                <t
+                    t-set="jst_phone"
+                    t-value="jst_subordinate._phone_get_number().number" />
                 <t t-if="jst_subordinate.email or jst_phone">
                 <DaneKontaktowe>
                     <Email t-out="jst_subordinate.email" />

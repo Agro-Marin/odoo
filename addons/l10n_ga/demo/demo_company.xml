@@ -8,7 +8,9 @@
         <field name="city" />
         <field name="country_id" ref="base.ga" />
         <field name="zip" />
-        <field name="phone_ids" eval="[Command.create({'number': '+241 83 75 75', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+241 83 75 75', 'type': 'landline'})]" />
         <field name="email">info@company.gabonexample.com</field>
         <field name="website">www.gabonexample.com</field>
         <field name="is_company" eval="True" />

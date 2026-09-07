@@ -28,7 +28,6 @@
         </field>
     </record>
 
-
     <record id="hr_employee_resume_view_form_inherit" model="ir.ui.view">
         <field name="name">hr.employee.view.form.inherit.resume.slides</field>
         <field name="model">hr.employee</field>

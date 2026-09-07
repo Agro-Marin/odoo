@@ -8,7 +8,9 @@
         <field name="city">San Miguelito</field>
         <field name="country_id" ref="base.pa" />
         <field name="zip">84365</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+507 655-5911-9', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+507 655-5911-9', 'type': 'landline'})]" />
         <field name="email">info@company.paexample.com</field>
         <field name="website">www.paexample.com</field>
         <field name="is_company" eval="True" />

@@ -12,7 +12,9 @@
         <field name="country_id" ref="base.ch" />
         <field name="street">Rte de Prilly 18</field>
         <field name="email">info@easycleanlausanne.ch</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+41 21 796 73 24', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+41 21 796 73 24', 'type': 'landline'})]" />
         <field name="website">http://www.easycleanlausanne.ch</field>
         <field name="vat">CHE-123.456.788 TVA</field>
     </record>

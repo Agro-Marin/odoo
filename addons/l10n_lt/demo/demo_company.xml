@@ -8,7 +8,9 @@
         <field name="city">Vilnius</field>
         <field name="country_id" ref="base.lt" />
         <field name="zip">02188</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+370 612 34567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+370 612 34567', 'type': 'landline'})]" />
         <field name="email">info@company.ltexample.com</field>
         <field name="website">www.ltexample.com</field>
         <field name="is_company" eval="True" />

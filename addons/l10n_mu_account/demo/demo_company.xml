@@ -8,7 +8,9 @@
         <field name="city">Port Louis</field>
         <field name="country_id" ref="base.mu" />
         <field name="zip">11201</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+230 01 234 5678', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+230 01 234 5678', 'type': 'landline'})]" />
         <field name="email">info@company.muexample.com</field>
         <field name="website">www.muexample.com</field>
         <field name="is_company" eval="True" />

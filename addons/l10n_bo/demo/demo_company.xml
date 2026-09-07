@@ -8,7 +8,9 @@
         <field name="city">Municipio Santa Cruz de la Sierra</field>
         <field name="country_id" ref="base.bo" />
         <field name="zip">6495</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+591 71234567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+591 71234567', 'type': 'landline'})]" />
         <field name="email">info@company.boexample.com</field>
         <field name="website">www.boexample.com</field>
         <field name="is_company" eval="True" />

@@ -184,7 +184,9 @@
             <field name="zip">60610</field>
             <field name="city">Chicago</field>
             <field name="email">chicago@yourcompany.com</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+1 312 349 3030', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+1 312 349 3030', 'type': 'landline'})]" />
             <field name="website">www.example.com</field>
             <field name="company_id" eval="False" />
         </record>
@@ -192,7 +194,9 @@
             <field name="name">Jeff Lawson</field>
             <field name="parent_id" ref="res_partner_company_1" />
             <field name="email">jeff.lawson52@example.com</field>
-            <field name="phone_ids" eval="[Command.create({'number': '(461)-417-6587', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(461)-417-6587', 'type': 'landline'})]" />
             <field
                 name="image_1920"
                 type="base64"

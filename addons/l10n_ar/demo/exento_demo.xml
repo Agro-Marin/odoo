@@ -11,7 +11,9 @@
         <field name="country_id" ref="base.ar" />
         <field name="state_id" ref="base.state_ar_s" />
         <field name="zip">2000</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+1 555 123 8069', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+1 555 123 8069', 'type': 'landline'})]" />
         <field name="email">info@exento.example.com</field>
         <field name="website">www.exento.com</field>
     </record>

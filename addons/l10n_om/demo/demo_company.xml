@@ -8,7 +8,9 @@
         <field name="city">Muscat</field>
         <field name="country_id" ref="base.om" />
         <field name="zip">84365</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+507 655-5911-9', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+507 655-5911-9', 'type': 'landline'})]" />
         <field name="email">info@company.omexample.com</field>
         <field name="website">www.omexample.com</field>
     </record>

@@ -7,7 +7,9 @@
         <field name="city">Budapest</field>
         <field name="zip">1022</field>
         <field name="country_id" ref="base.hu" />
-        <field name="phone_ids" eval="[Command.create({'number': '+36 20 123 4567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+36 20 123 4567', 'type': 'landline'})]" />
         <field name="email">info@company.huexample.com</field>
         <field name="website">www.huexample.com</field>
         <field name="vat">HU12345676</field>

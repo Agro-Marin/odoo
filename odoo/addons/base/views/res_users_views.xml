@@ -252,7 +252,11 @@
                                 <i
                                     class="fa-solid fa-phone me-1 text-primary"
                                     title="Phone" />
-                                <field name="phone_ids" widget="many2many_tags" placeholder="Phone" class="w-75" />
+                                <field
+                                    name="phone_ids"
+                                    widget="many2many_tags"
+                                    placeholder="Phone"
+                                    class="w-75" />
                             </h5>
                         </div>
                     </div>
@@ -660,7 +664,11 @@
                                 <i
                                     class="fa-solid fa-phone text-primary"
                                     title="Phone" />
-                                <field name="phone_ids" widget="many2many_tags" placeholder="Phone" class="w-75" />
+                                <field
+                                    name="phone_ids"
+                                    widget="many2many_tags"
+                                    placeholder="Phone"
+                                    class="w-75" />
                             </h5>
                         </div>
                     </div>

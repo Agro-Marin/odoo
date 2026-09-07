@@ -8,7 +8,9 @@
         <field name="city">Maracaibo</field>
         <field name="country_id" ref="base.ve" />
         <field name="zip">4032</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+58 412-1234567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+58 412-1234567', 'type': 'landline'})]" />
         <field name="email">info@company.veexample.com</field>
         <field name="website">www.veexample.com</field>
         <field name="is_company" eval="True" />

@@ -15,7 +15,9 @@
             <field name="city">Paris</field>
             <field name="zip">93190</field>
             <field name="street">Rue Léon Dierx 73</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+33 1 25 54 45 69', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+33 1 25 54 45 69', 'type': 'landline'})]" />
             <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor6')])]" />
             <field name="priority">1</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
@@ -53,7 +55,9 @@
             <field name="city">Bordeaux</field>
             <field name="zip">33000</field>
             <field name="street">Rue Ignasse Blanchoux 214/32</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+33 1 25 54 45 69', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+33 1 25 54 45 69', 'type': 'landline'})]" />
             <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor2')])]" />
             <field name="priority">1</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
@@ -88,7 +92,9 @@
             <field name="city">New York</field>
             <field name="zip">10001</field>
             <field name="street">Lafayette Ave 450/12</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+1 555 754 3010', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+1 555 754 3010', 'type': 'landline'})]" />
             <field
                 name="tag_ids"
                 eval="[(6, 0, [ref('sales_team.categ_oppor4'), ref('sales_team.categ_oppor5')])]" />
@@ -138,7 +144,9 @@
             <field name="city">Philadelphia</field>
             <field name="zip">1909</field>
             <field name="street">West Allegheny Ave 800</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+1 813 494 5005', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+1 813 494 5005', 'type': 'landline'})]" />
             <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
             <field name="priority">2</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
@@ -206,7 +214,9 @@ Contact: +1 813 494 5005&lt;/p&gt;</field>
             <field name="city">Rio de Janeiro</field>
             <field name="zip">29000</field>
             <field name="street">R. Sen. Pompeu</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+11 55 21 5555 5555', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+11 55 21 5555 5555', 'type': 'landline'})]" />
             <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor4')])]" />
             <field name="priority">0</field>
             <field name="team_id" ref="sales_team.team_sales_department" />
@@ -550,7 +560,9 @@ Andrew&lt;/p&gt;</field>
             <field name="partner_name">BalmerInc S.A.</field>
             <field name="contact_name">Oliver Passot</field>
             <field name="email_from">olivier.passo@balmer.inc.sa</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+32 469 12 45 78', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+32 469 12 45 78', 'type': 'landline'})]" />
             <field name="country_id" ref="base.be" />
             <field name="city">Brussels</field>
             <field name="zip">1100</field>
@@ -653,7 +665,9 @@ Andrew&lt;/p&gt;</field>
             <field name="street">3rd Floor, Room 3-C,</field>
             <field
                 name="street2">Carretera Panamericana, Km 1, Urb. Delgado Chalbaud</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+58 212 681 0538', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+58 212 681 0538', 'type': 'landline'})]" />
             <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor1')])]" />
             <field name="priority">1</field>
             <field
@@ -681,7 +695,9 @@ Andrew&lt;/p&gt;</field>
             <field name="country_id" ref="base.us" />
             <field name="zip">60610</field>
             <field name="city">Chicago</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+1 312 349 2324', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+1 312 349 2324', 'type': 'landline'})]" />
             <field
                 name="tag_ids"
                 eval="[(6, 0, [ref('sales_team.categ_oppor4'),ref('sales_team.categ_oppor8')])]" />
@@ -888,7 +904,9 @@ Andrew&lt;/p&gt;</field>
             <field name="city">Paris</field>
             <field name="zip">93190</field>
             <field name="street">Rue Léon Dierx 73</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+33 1 25 54 45 69', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+33 1 25 54 45 69', 'type': 'landline'})]" />
             <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor6')])]" />
             <field name="priority">1</field>
             <field name="date_open" eval="False" />
@@ -911,7 +929,9 @@ Andrew&lt;/p&gt;</field>
             <field name="city">Brussels</field>
             <field name="zip">1080</field>
             <field name="street">Rue du Commerce 93</field>
-            <field name="phone_ids" eval="[Command.create({'number': '+32 22 33 54 07', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+32 22 33 54 07', 'type': 'landline'})]" />
             <field name="tag_ids" eval="[(6, 0, [ref('sales_team.categ_oppor6')])]" />
             <field name="priority">1</field>
             <field name="date_open" eval="False" />

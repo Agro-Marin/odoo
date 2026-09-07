@@ -10,7 +10,9 @@
         <field name="state_id" ref="base.state_pk_sd" />
         <field name="country_id" ref="base.pk" />
         <field name="zip" />
-        <field name="phone_ids" eval="[Command.create({'number': '+92215684711', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+92215684711', 'type': 'landline'})]" />
         <field name="email">hih3l5npkwl@temporary-mail.net</field>
         <field name="website">www.pkexample.com</field>
         <field name="is_company" eval="True" />

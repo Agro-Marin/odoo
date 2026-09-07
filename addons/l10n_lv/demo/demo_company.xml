@@ -7,7 +7,9 @@
         <field name="city">Rīga</field>
         <field name="country_id" ref="base.lv" />
         <field name="zip">LV-1010</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+371 20 00 00 00', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+371 20 00 00 00', 'type': 'landline'})]" />
         <field name="email">info@uznemums.lv</field>
         <field name="website">www.uznemums.lv</field>
         <field name="is_company" eval="True" />

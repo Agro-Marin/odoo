@@ -9,7 +9,9 @@
         <field name="city">Central Singapore</field>
         <field name="country_id" ref="base.sg" />
         <field name="zip">248048</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+65 9123 4567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+65 9123 4567', 'type': 'landline'})]" />
         <field name="email">info@company.sg.example.com</field>
         <field name="website">www.sg.example.com</field>
         <field name="is_company" eval="True" />

@@ -9,7 +9,9 @@
         <field name="city">Lagos</field>
         <field name="country_id" ref="base.ng" />
         <field name="zip">106104</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+2342011234567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+2342011234567', 'type': 'landline'})]" />
         <field name="email">info@demo-company.ng</field>
         <field name="website">www.demo-company.ng</field>
         <field name="is_company" eval="True" />

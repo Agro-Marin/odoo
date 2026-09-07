@@ -164,7 +164,10 @@
                                     <i
                                         class="fa-solid fa-phone me-1 text-primary"
                                         title="Phone" />
-                                    <field name="phone_ids" nolabel="1" widget="many2many_tags" />
+                                    <field
+                                        name="phone_ids"
+                                        nolabel="1"
+                                        widget="many2many_tags" />
                                 </div>
                                 <div
                                     colspan="2"

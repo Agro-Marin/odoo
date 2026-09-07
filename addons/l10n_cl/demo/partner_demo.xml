@@ -9,7 +9,9 @@
         <field name="country_id" ref="base.cl" />
         <field name="street">Apoquindo 6410</field>
         <field name="street2">Oficina 212, Santiago (RM)</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+56 2 28400990', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+56 2 28400990', 'type': 'landline'})]" />
         <field name="website">http://www.bmya.cl</field>
         <field name="l10n_latam_identification_type_id" ref="it_RUT" />
         <field name="l10n_cl_sii_taxpayer_type">1</field>
@@ -33,7 +35,9 @@
         <field name="country_id" ref="base.cl" />
         <field name="street">Apoquindo 6988</field>
         <field name="street2">Santiago</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+511 1111 1111', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+511 1111 1111', 'type': 'landline'})]" />
         <field name="website">http://www.andesinnovacion.cl</field>
         <field name="l10n_latam_identification_type_id" ref="it_RUT" />
         <field name="l10n_cl_sii_taxpayer_type">1</field>

@@ -8,7 +8,9 @@
         <field name="city">Dodoma</field>
         <field name="country_id" ref="base.tz" />
         <field name="zip">00000</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+250 534 567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+250 534 567', 'type': 'landline'})]" />
         <field name="email">info@company.tzexample.com</field>
         <field name="website">www.tzexample.com</field>
         <field name="is_company" eval="True" />

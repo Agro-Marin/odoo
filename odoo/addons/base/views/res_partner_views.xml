@@ -561,11 +561,14 @@
                                                         title="Email" />
                                                     <field name="email" />
                                                 </div>
-                                                <div t-if="record.phone_ids.raw_value.length">
+                                                <div
+                                                    t-if="record.phone_ids.raw_value.length">
                                                     <i
                                                         class="fa-solid fa-phone me-1 text-primary"
                                                         title="Phone" />
-                                                    <field name="phone_ids" widget="many2many_tags" />
+                                                    <field
+                                                        name="phone_ids"
+                                                        widget="many2many_tags" />
                                                 </div>
                                                 <div
                                                     invisible="not function or is_company">

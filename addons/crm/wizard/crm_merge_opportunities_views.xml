@@ -25,7 +25,10 @@
                         <field name="type" optional="hide" />
                         <field name="contact_name" optional="show" />
                         <field name="email_from" optional="show" />
-                        <field name="phone_ids" widget="many2many_tags" optional="hide" />
+                        <field
+                            name="phone_ids"
+                            widget="many2many_tags"
+                            optional="hide" />
                         <field name="stage_id" />
                         <field name="user_id" widget="many2one_avatar_user" />
                         <field name="team_id" optional="hide" />

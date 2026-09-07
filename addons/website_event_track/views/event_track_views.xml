@@ -283,7 +283,10 @@
                                 <group>
                                     <field name="partner_name" />
                                     <field name="partner_email" />
-                                    <field name="phone_ids" widget="many2many_tags" class="o_force_ltr" />
+                                    <field
+                                        name="phone_ids"
+                                        widget="many2many_tags"
+                                        class="o_force_ltr" />
                                     <field name="partner_function" />
                                     <field name="partner_company_name" />
                                 </group>

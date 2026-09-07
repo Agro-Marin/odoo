@@ -8,7 +8,9 @@
         <field name="city">Ljubljana</field>
         <field name="country_id" ref="base.si" />
         <field name="zip">1102</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+386 31 234 567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+386 31 234 567', 'type': 'landline'})]" />
         <field name="email">info@company.siexample.com</field>
         <field name="website">www.siexample.com</field>
         <field name="is_company" eval="True" />

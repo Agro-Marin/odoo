@@ -8,7 +8,9 @@
         <field name="city">Sofia</field>
         <field name="zip">1000</field>
         <field name="country_id" ref="base.bg" />
-        <field name="phone_ids" eval="[Command.create({'number': '+852 5123 4567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+852 5123 4567', 'type': 'landline'})]" />
         <field name="email">info@company.bgexample.com</field>
         <field name="website">www.bgexample.com</field>
         <field name="vat">123123123</field>

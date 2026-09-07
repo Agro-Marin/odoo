@@ -9,7 +9,9 @@
         <field name="country_id" ref="base.vn" />
         <field name="state_id" ref="base.state_vn_VN-HP" />
         <field name="zip">76463</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+84 91 234 56 78', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+84 91 234 56 78', 'type': 'landline'})]" />
         <field name="email">info@company.vnexample.com</field>
         <field name="website">www.vnexample.com</field>
         <field name="is_company" eval="True" />

@@ -11,7 +11,9 @@
         <field name="country_id" ref="us" />
         <field name="tz">Europe/Brussels</field>
         <field name="email">mark.brown23@example.com</field>
-        <field name="phone_ids" eval="[Command.create({'number': '(441)-695-2334', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '(441)-695-2334', 'type': 'landline'})]" />
     </record>
 
     <function model="res.partner" name="write">
@@ -53,7 +55,9 @@
         <field name="zip">18503</field>
         <field name="country_id" ref="base.us" />
         <field name="state_id" ref="state_us_39" />
-        <field name="phone_ids" eval="[Command.create({'number': '+1 555-555-5555', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+1 555-555-5555', 'type': 'landline'})]" />
         <field name="email">admin@yourcompany.example.com</field>
         <field name="tz">Europe/Brussels</field>
         <field name="user_id" ref="base.user_admin" />
@@ -84,7 +88,9 @@
             name="image_1920"
             type="base64"
             file="base/static/img/partner_demo_portal.png" />
-        <field name="phone_ids" eval="[Command.create({'number': '(683)-556-5104', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '(683)-556-5104', 'type': 'landline'})]" />
     </record>
 
     <record id="demo_user0" model="res.users" context="{'no_reset_password': True}">

@@ -8,7 +8,9 @@
         <field name="city">Ängelholms kommun</field>
         <field name="country_id" ref="base.se" />
         <field name="zip">262 64</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+46 70 123 45 67', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+46 70 123 45 67', 'type': 'landline'})]" />
         <field name="email">info@company.seexample.com</field>
         <field name="website">www.seexample.com</field>
         <field name="is_company" eval="True" />

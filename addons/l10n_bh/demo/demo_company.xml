@@ -7,7 +7,9 @@
         <field name="city">Manama</field>
         <field name="zip">973</field>
         <field name="country_id" ref="base.bh" />
-        <field name="phone_ids" eval="[Command.create({'number': '+973 1 722 1701', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+973 1 722 1701', 'type': 'landline'})]" />
         <field name="email">info@company.bhexample.com</field>
         <field name="website">www.bhexample.com</field>
         <field name="vat">123456789012345</field>

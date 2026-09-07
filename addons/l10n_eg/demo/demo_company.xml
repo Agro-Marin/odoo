@@ -8,7 +8,9 @@
         <field name="street">112 26th July St.</field>
         <field name="city">Zamalek</field>
         <field name="vat">123456789</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+20 27 370 423', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+20 27 370 423', 'type': 'landline'})]" />
         <field name="email">info@company.egexample.com</field>
         <field name="website">www.egexample.com</field>
         <field name="is_company" eval="True" />

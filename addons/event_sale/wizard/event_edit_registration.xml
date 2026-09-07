@@ -29,7 +29,10 @@
                                 force_save="1" />
                             <field name="name" />
                             <field name="email" />
-                            <field name="phone_ids" widget="many2many_tags" class="o_force_ltr" />
+                            <field
+                                name="phone_ids"
+                                widget="many2many_tags"
+                                class="o_force_ltr" />
                             <field
                                 name="company_id"
                                 groups="base.group_multi_company"

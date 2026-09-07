@@ -9,7 +9,9 @@
         <field name="city">Quito</field>
         <field name="country_id" ref="base.ec" />
         <field name="zip">170112</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+593 99 123 4567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+593 99 123 4567', 'type': 'landline'})]" />
         <field name="email">info@company.ecexample.com</field>
         <field name="website">www.ecexample.com</field>
         <field name="is_company" eval="True" />

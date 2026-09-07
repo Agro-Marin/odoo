@@ -8,7 +8,9 @@
         <field name="city">Kigali</field>
         <field name="country_id" ref="base.rw" />
         <field name="zip">00000</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+250 534 567', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+250 534 567', 'type': 'landline'})]" />
         <field name="email">info@company.rwexample.com</field>
         <field name="website">www.rwexample.com</field>
         <field name="is_company" eval="True" />

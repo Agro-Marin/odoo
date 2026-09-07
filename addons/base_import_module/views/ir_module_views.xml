@@ -19,9 +19,7 @@
                 <attribute name="invisible">state != 'uninstalled' or (module_type and module_type
                     != 'official')</attribute>
             </xpath>
-            <xpath
-                expr="//a[@name='button_immediate_upgrade']"
-                position="attributes">
+            <xpath expr="//a[@name='button_immediate_upgrade']" position="attributes">
                 <attribute name="invisible">state != 'installed' or imported</attribute>
             </xpath>
             <xpath expr="//t[@t-name='menu']/a[@type='open']" position="attributes">

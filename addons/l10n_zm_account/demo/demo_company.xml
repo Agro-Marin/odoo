@@ -9,7 +9,9 @@
         <field name="country_id" ref="base.zm" />
         <field name="state_id" />
         <field name="zip" />
-        <field name="phone_ids" eval="[Command.create({'number': '+260 96 123456', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+260 96 123456', 'type': 'landline'})]" />
         <field name="email">info@company.zmexample.com</field>
         <field name="website">www.zmexample.com</field>
         <field name="is_company" eval="True" />

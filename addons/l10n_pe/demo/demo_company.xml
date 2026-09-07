@@ -9,7 +9,9 @@
         <field name="country_id" ref="base.pe" />
         <field name="state_id" ref="base.state_pe_25" />
         <field name="zip">15067</field>
-        <field name="phone_ids" eval="[Command.create({'number': '+51 912 345 678', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+51 912 345 678', 'type': 'landline'})]" />
         <field name="email">info@company.peexample.com</field>
         <field name="website">www.peexample.com</field>
         <field name="l10n_latam_identification_type_id" ref="it_RUC" />

@@ -8,7 +8,9 @@
         <field name="city" />
         <field name="country_id" ref="base.ml" />
         <field name="zip" />
-        <field name="phone_ids" eval="[Command.create({'number': '+223 1907 0650', 'type': 'landline'})]" />
+        <field
+            name="phone_ids"
+            eval="[Command.create({'number': '+223 1907 0650', 'type': 'landline'})]" />
         <field name="email">info@company.maliexample.com</field>
         <field name="website">www.maliexample.com</field>
         <field name="is_company" eval="True" />

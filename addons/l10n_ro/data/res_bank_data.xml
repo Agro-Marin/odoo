@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+
     <data>
         <record id="res_bank_1" model="res.bank">
             <field name="active" eval="True" />
@@ -9,7 +10,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 209.99.99', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 209.99.99', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_2" model="res.bank">
             <field name="active" eval="True" />
@@ -19,7 +22,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '+44(0)207 826 4200', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '+44(0)207 826 4200', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_3" model="res.bank">
             <field name="active" eval="True" />
@@ -29,7 +34,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 30.30.732', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 30.30.732', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_4" model="res.bank">
             <field name="active" eval="True" />
@@ -39,7 +46,9 @@
             <field name="city">SIBIU</field>
             <field name="state" ref="base.RO_SB" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(0269) 23.39.85', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(0269) 23.39.85', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_5" model="res.bank">
             <field name="active" eval="True" />
@@ -49,7 +58,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '0801 0801 227', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '0801 0801 227', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_6" model="res.bank">
             <field name="active" eval="True" />
@@ -59,7 +70,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 201.19.30', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 201.19.30', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_7" model="res.bank">
             <field name="active" eval="True" />
@@ -69,7 +82,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 336.61.62', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 336.61.62', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_8" model="res.bank">
             <field name="active" eval="True" />
@@ -79,17 +94,22 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 232.08.18', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 232.08.18', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_9" model="res.bank">
             <field name="active" eval="True" />
             <field name="name">Banca Italo Romena</field>
             <field name="bic">BITRROBU</field>
-            <field name="street">Bd. Dimitrie Cantemir nr.1, bl.B2, sc.2, parter si mezanin, sector 4</field>
+            <field
+                name="street">Bd. Dimitrie Cantemir nr.1, bl.B2, sc.2, parter si mezanin, sector 4</field>
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 330.78.76', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 330.78.76', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_10" model="res.bank">
             <field name="active" eval="True" />
@@ -99,7 +119,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 321.16.01', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 321.16.01', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_11" model="res.bank">
             <field name="active" eval="True" />
@@ -109,17 +131,22 @@
             <field name="city">CLUJ-NAPOCA</field>
             <field name="state" ref="base.RO_CJ" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(0264) 407 150', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(0264) 407 150', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_12" model="res.bank">
             <field name="active" eval="True" />
             <field name="name">Banc Post</field>
             <field name="bic">BPOSROBU</field>
-            <field name="street">Calea Vitan nr.6, 6A, Tronson B si C, et.3-7, sector 3</field>
+            <field
+                name="street">Calea Vitan nr.6, 6A, Tronson B si C, et.3-7, sector 3</field>
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 308.09.01', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 308.09.01', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_13" model="res.bank">
             <field name="active" eval="True" />
@@ -129,7 +156,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 302.72.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 302.72.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_14" model="res.bank">
             <field name="active" eval="True" />
@@ -139,7 +168,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 301.61.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 301.61.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_15" model="res.bank">
             <field name="active" eval="True" />
@@ -149,7 +180,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 311.11.19.', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 311.11.19.', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_16" model="res.bank">
             <field name="active" eval="True" />
@@ -159,7 +192,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 210.18.50', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 210.18.50', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_17" model="res.bank">
             <field name="active" eval="True" />
@@ -169,7 +204,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 317.74.05', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 317.74.05', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_18" model="res.bank">
             <field name="active" eval="True" />
@@ -179,17 +216,22 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 406.40.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 406.40.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_19" model="res.bank">
             <field name="active" eval="True" />
             <field name="name">Egnatia Bank</field>
             <field name="bic">EGNAROBX</field>
-            <field name="street">str. General Constantin Budisteanu nr.28C, P+1, sector 1</field>
+            <field
+                name="street">str. General Constantin Budisteanu nr.28C, P+1, sector 1</field>
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 303.21.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 303.21.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_20" model="res.bank">
             <field name="active" eval="True" />
@@ -199,7 +241,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 310.39.55', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 310.39.55', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_21" model="res.bank">
             <field name="active" eval="True" />
@@ -209,7 +253,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 230.84.30', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 230.84.30', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_22" model="res.bank">
             <field name="active" eval="True" />
@@ -219,7 +265,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 300 11 22', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 300 11 22', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_23" model="res.bank">
             <field name="active" eval="True" />
@@ -229,7 +277,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 222.16.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 222.16.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_24" model="res.bank">
             <field name="active" eval="True" />
@@ -239,7 +289,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 206.70.75', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 206.70.75', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_25" model="res.bank">
             <field name="active" eval="True" />
@@ -249,17 +301,22 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 20.88.000', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 20.88.000', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_26" model="res.bank">
             <field name="active" eval="True" />
             <field name="name">Millenium Bank</field>
             <field name="bic">MILBROBU</field>
-            <field name="street">Piaţa Presei Libere nr. 3-5, Clădirea City Gate, Turnul Sudic, parter si et. 13-17</field>
+            <field
+                name="street">Piaţa Presei Libere nr. 3-5, Clădirea City Gate, Turnul Sudic, parter si et. 13-17</field>
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 308 13 00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 308 13 00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_27" model="res.bank">
             <field name="active" eval="True" />
@@ -269,7 +326,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 307.57.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 307.57.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_28" model="res.bank">
             <field name="active" eval="True" />
@@ -279,17 +338,22 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 250.67.98', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 250.67.98', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_29" model="res.bank">
             <field name="active" eval="True" />
             <field name="name">Porsche Bank România</field>
             <field name="bic">PORLROBU</field>
-            <field name="street">sos.Pipera-Tunari nr.2, cladirea PORSCHE, parter, etaj 1 si 2</field>
+            <field
+                name="street">sos.Pipera-Tunari nr.2, cladirea PORSCHE, parter, etaj 1 si 2</field>
             <field name="city">VOLUNTARI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 208.26.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 208.26.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_30" model="res.bank">
             <field name="active" eval="True" />
@@ -299,7 +363,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 201.60.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 201.60.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_31" model="res.bank">
             <field name="active" eval="True" />
@@ -309,27 +375,35 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 233.30.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 233.30.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_32" model="res.bank">
             <field name="active" eval="True" />
             <field name="name">Raiffeisen Bank</field>
             <field name="bic">RZBRROBU</field>
-            <field name="street">Piata Charles de Gaulle nr.15, et.4,5,6,7 si 8, sector 1</field>
+            <field
+                name="street">Piata Charles de Gaulle nr.15, et.4,5,6,7 si 8, sector 1</field>
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 323.00.31', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 323.00.31', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_33" model="res.bank">
             <field name="active" eval="True" />
             <field name="name">RBS Bank România</field>
             <field name="bic">ABNAROBU</field>
-            <field name="street">Piata Montreal nr.10, WTCB - E etajul 2, sector 1</field>
+            <field
+                name="street">Piata Montreal nr.10, WTCB - E etajul 2, sector 1</field>
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 20.20.400', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 20.20.400', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_34" model="res.bank">
             <field name="active" eval="True" />
@@ -339,7 +413,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 323.10.35.', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 323.10.35.', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_35" model="res.bank">
             <field name="active" eval="True" />
@@ -349,7 +425,9 @@
             <field name="city">TARGU MURES</field>
             <field name="state" ref="base.RO_MS" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(0265) 16.66.41', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(0265) 16.66.41', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_36" model="res.bank">
             <field name="active" eval="True" />
@@ -359,7 +437,9 @@
             <field name="city">ARAD</field>
             <field name="state" ref="base.RO_AR" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(0257) 30.82.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(0257) 30.82.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_37" model="res.bank">
             <field name="active" eval="True" />
@@ -369,7 +449,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021)  317.27.70', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021)  317.27.70', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_38" model="res.bank">
             <field name="active" eval="True" />
@@ -379,7 +461,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 200.20.20', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 200.20.20', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_39" model="res.bank">
             <field name="active" eval="True" />
@@ -389,7 +473,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 303.93.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 303.93.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_40" model="res.bank">
             <field name="active" eval="True" />
@@ -399,7 +485,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 303.40.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 303.40.00', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_41" model="res.bank">
             <field name="active" eval="True" />
@@ -409,7 +497,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '0801 080.275', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '0801 080.275', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_42" model="res.bank">
             <field name="active" eval="True" />
@@ -419,7 +509,9 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '08000 877.777', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '08000 877.777', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_43" model="res.bank">
             <field name="active" eval="True" />
@@ -429,17 +521,23 @@
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 310.09.70', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 310.09.70', 'type': 'landline'})]" />
         </record>
         <record id="res_bank_44" model="res.bank">
             <field name="active" eval="True" />
             <field name="name">TBI Bank EAD Sofia</field>
             <field name="bic">TBIBROBU</field>
-            <field name="street">Str. Putul lui Zamfir, nr. 8-12, etaj 4, sector 1</field>
+            <field
+                name="street">Str. Putul lui Zamfir, nr. 8-12, etaj 4, sector 1</field>
             <field name="city">BUCURESTI</field>
             <field name="state" ref="base.RO_B" />
             <field name="country" ref="base.ro" />
-            <field name="phone_ids" eval="[Command.create({'number': '(021) 529.86.00', 'type': 'landline'})]" />
+            <field
+                name="phone_ids"
+                eval="[Command.create({'number': '(021) 529.86.00', 'type': 'landline'})]" />
         </record>
     </data>
+
 </odoo>
