@@ -664,9 +664,9 @@ class IrHttp(models.AbstractModel):
     def _url_rewrite(
         self, path: str, _visited: frozenset[str]
     ) -> tuple[str, typing.Any]:
-        router = http.root.get_routing_map(self.env.registry.db_name, env=self.env).bind(
-            ""
-        )
+        router = http.root.get_routing_map(
+            self.env.registry.db_name, env=self.env
+        ).bind("")
         try:
             try:
                 func, _args = router.match(path, method="POST")
