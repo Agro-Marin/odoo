@@ -135,6 +135,7 @@ msgid "Apply specific routes"
 msgstr "ใช้เส้นทางเฉพาะ"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__direct
 msgid "As soon as possible"
 msgstr "เร็วที่สุดเท่าที่เป็นไปได้"
@@ -541,11 +542,6 @@ msgid "Partially Delivered"
 msgstr "จัดส่งแล้วบางส่วน"
 
 #. module: sale_stock
-#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
-msgid "Picking Policy"
-msgstr "นโยบายการรับ"
-
-#. module: sale_stock
 #: model:ir.model,name:sale_stock.model_product_template
 msgid "Product"
 msgstr "สินค้า"
@@ -709,16 +705,7 @@ msgid "Selectable on Sales Order Line"
 msgstr "สามารถเลือกได้ในรายการคำสั่งขาย"
 
 #. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
-msgid "Ship all products at once"
-msgstr "จัดส่งสินค้าทั้งหมดในครั้งเดียว"
-
-#. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
-msgid "Ship products as soon as available, with back orders"
-msgstr "จัดส่งสินค้าให้เร็วที่สุดเมื่อพร้อม ด้วยคำสั่งซื้อล่วงหน้า"
-
-#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
 #: model:ir.model.fields,field_description:sale_stock.field_sale_order__picking_policy
 msgid "Shipping Policy"
 msgstr "นโยบายการจัดส่ง"
@@ -861,6 +848,7 @@ msgid "Warning!"
 msgstr "คำเตือน!"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__one
 msgid "When all products are ready"
 msgstr "เมื่อสินค้าทุกรายการพร้อม"

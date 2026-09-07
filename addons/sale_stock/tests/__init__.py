@@ -17,3 +17,4 @@ from . import test_packaging_tours
 from . import test_customer_on_time_rate
 from . import test_delivery_line_match
 from . import test_sale_stock_regressions
+from . import test_sale_stock_shipping_policy

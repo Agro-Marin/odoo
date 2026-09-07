@@ -140,6 +140,7 @@ msgid "Apply specific routes"
 msgstr "Specifieke routes toepassen"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__direct
 msgid "As soon as possible"
 msgstr "Zo snel mogelijk"
@@ -553,11 +554,6 @@ msgid "Partially Delivered"
 msgstr "Gedeeltelijk geleverd"
 
 #. module: sale_stock
-#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
-msgid "Picking Policy"
-msgstr "Leveringsbeleid"
-
-#. module: sale_stock
 #: model:ir.model,name:sale_stock.model_product_template
 msgid "Product"
 msgstr "Product"
@@ -722,16 +718,7 @@ msgid "Selectable on Sales Order Line"
 msgstr "Selecteerbaar op verkooporderregels"
 
 #. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
-msgid "Ship all products at once"
-msgstr "Verzend alle producten in één keer"
-
-#. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
-msgid "Ship products as soon as available, with back orders"
-msgstr "Verzend producten wanneer ze beschikbaar zijn en sta backorders toe"
-
-#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
 #: model:ir.model.fields,field_description:sale_stock.field_sale_order__picking_policy
 msgid "Shipping Policy"
 msgstr "Leveringsbeleid"
@@ -875,6 +862,7 @@ msgid "Warning!"
 msgstr "Waarschuwing!"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__one
 msgid "When all products are ready"
 msgstr "Wanneer alle producten beschikbaar zijn"

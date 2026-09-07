@@ -4,10 +4,10 @@ from odoo import fields, models
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    security_lead = fields.Float(
+    security_lead = fields.Integer(
         string="Sales Safety Days",
         required=True,
-        default=0.0,
+        default=0,
         help="Margin of error for dates promised to customers. "
         "Products will be scheduled for procurement and delivery "
         "that many days earlier than the actual promised date, to "

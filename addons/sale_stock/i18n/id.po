@@ -139,6 +139,7 @@ msgid "Apply specific routes"
 msgstr "Terapkan rute-rute spesifik"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__direct
 msgid "As soon as possible"
 msgstr "Sesegera mungkin"
@@ -552,11 +553,6 @@ msgid "Partially Delivered"
 msgstr "Terkirim Sebagian"
 
 #. module: sale_stock
-#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
-msgid "Picking Policy"
-msgstr "Kebijakan Picking"
-
-#. module: sale_stock
 #: model:ir.model,name:sale_stock.model_product_template
 msgid "Product"
 msgstr "Produk"
@@ -720,16 +716,7 @@ msgid "Selectable on Sales Order Line"
 msgstr "Dapat Dipilih pada Detail Order Penjualan"
 
 #. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
-msgid "Ship all products at once"
-msgstr "Kirim semua produk sekaligus"
-
-#. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
-msgid "Ship products as soon as available, with back orders"
-msgstr "Kirim produk sesegera mungkin, dengan backorder"
-
-#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
 #: model:ir.model.fields,field_description:sale_stock.field_sale_order__picking_policy
 msgid "Shipping Policy"
 msgstr "Kebijakan Pengiriman"
@@ -874,6 +861,7 @@ msgid "Warning!"
 msgstr "Peringatan!"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__one
 msgid "When all products are ready"
 msgstr "Ketika semua produk siap"

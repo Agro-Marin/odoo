@@ -136,6 +136,7 @@ msgid "Apply specific routes"
 msgstr "Pritaikyti specifines taisykles"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__direct
 msgid "As soon as possible"
 msgstr "Kaip įmanoma greičiau"
@@ -546,11 +547,6 @@ msgid "Partially Delivered"
 msgstr "Dalinis pristatymas"
 
 #. module: sale_stock
-#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
-msgid "Picking Policy"
-msgstr "Paėmimo politika"
-
-#. module: sale_stock
 #: model:ir.model,name:sale_stock.model_product_template
 msgid "Product"
 msgstr "Produktas"
@@ -712,16 +708,7 @@ msgid "Selectable on Sales Order Line"
 msgstr "Pasirenkamas pardavimų užsakymų eilutėje"
 
 #. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
-msgid "Ship all products at once"
-msgstr "Siųsti visus produktus vienu metu"
-
-#. module: sale_stock
-#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__direct
-msgid "Ship products as soon as available, with back orders"
-msgstr "Siųsti produktus iškart, kai jie yra pasiekiami, su atidėta siunta"
-
-#. module: sale_stock
+#: model:ir.model.fields,field_description:sale_stock.field_res_config_settings__default_picking_policy
 #: model:ir.model.fields,field_description:sale_stock.field_sale_order__picking_policy
 msgid "Shipping Policy"
 msgstr "Pristatymo politika"
@@ -857,6 +844,7 @@ msgid "Warning!"
 msgstr "Įspėjimas!"
 
 #. module: sale_stock
+#: model:ir.model.fields.selection,name:sale_stock.selection__res_config_settings__default_picking_policy__one
 #: model:ir.model.fields.selection,name:sale_stock.selection__sale_order__picking_policy__one
 msgid "When all products are ready"
 msgstr "Kai visi produktai paruošti"
