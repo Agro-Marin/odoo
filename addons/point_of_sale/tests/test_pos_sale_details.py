@@ -482,12 +482,14 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
 
         report = self.report.get_sale_details(session_ids=[session.id])
         row = next(p for p in report["payments"] if p.get("id") == self.bank_pm1.id)
-        self.assertNotEqual(
-            row.get("money_difference"),
-            40.0,
-            "a move sharing the ref but touching neither difference account "
-            "says nothing about what was counted",
+        self.assertEqual(row["final_count"], 100.0)
+        self.assertEqual(
+            row["money_counted"],
+            100.0,
+            "what was counted is what settled the payments, not the total of a "
+            "journal entry that merely shares the closing-difference reference",
         )
+        self.assertEqual(row["money_difference"], 0.0)
 
     def test_a_deduction_line_is_subtracted_not_added(self):
         """A negative line on an ordinary order is a deduction, not a refund. Its
