@@ -61,6 +61,35 @@ export function pinnedApps(config, apps) {
     });
 }
 
+/**
+ * The stored order after a drag: `movedId` lifted out and put back after
+ * `afterId`, or at the front when it was dropped before everything.
+ *
+ * Answers `null` rather than an order when `movedId` is not in the list. That
+ * is the case `Array.indexOf` reports as -1 and `splice(-1, 1)` then acts on
+ * by removing the LAST app instead, silently reordering something the user
+ * never touched.
+ *
+ * An `afterId` that is not in the list lands at the front, which is where the
+ * same -1 put it before, and is the only sensible answer for "after an app
+ * that is not here".
+ *
+ * @param {string[]} order the stored order, unchanged by this
+ * @param {string} movedId
+ * @param {string} [afterId] the app it was dropped behind, if any
+ * @returns {string[] | null}
+ */
+export function orderAfterDrag(order, movedId, afterId) {
+    const from = order.indexOf(movedId);
+    if (from === -1) {
+        return null;
+    }
+    const next = [...order];
+    next.splice(from, 1);
+    next.splice(afterId ? next.indexOf(afterId) + 1 : 0, 0, movedId);
+    return next;
+}
+
 export class HomeMenuLayout {
     /** @type {import("@web/webclient/menus/menu_utils").HomeMenuConfig} */
     config;

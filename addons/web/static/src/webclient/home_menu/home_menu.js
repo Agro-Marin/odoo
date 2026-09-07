@@ -29,7 +29,12 @@ import {
 import { appBadge, loadHomeMenuBadges } from "./badges.js";
 import { ExpirationPanel } from "./expiration_panel.js";
 import { gridRows, nextFocusedIndex } from "./grid_navigation.js";
-import { HomeMenuLayout, pinnedApps, shownApps } from "./home_menu_layout.js";
+import {
+    HomeMenuLayout,
+    orderAfterDrag,
+    pinnedApps,
+    shownApps,
+} from "./home_menu_layout.js";
 import { SysAdminPanel } from "./sysadmin_panel.js";
 
 // A stable object, so a menu service without `getMenuAsTree` still resolves
@@ -526,34 +531,22 @@ export class HomeMenu extends Component {
 
     /** @param {import("@web/core/utils/dnd/sortable").DropParams} params */
     _sortAppDrop({ element, previous }) {
-        const elementId = /** @type {HTMLElement} */ (element.children[0]).dataset
+        const movedId = /** @type {HTMLElement} */ (element.children[0]).dataset
             .menuXmlid;
-        if (elementId === undefined) {
-            // An app the DOM cannot name cannot be placed in a stored order,
-            // and splicing at indexOf's -1 would move the last app instead.
+        if (movedId === undefined) {
+            // An app the DOM cannot name has no place in a stored order.
             return;
         }
-        /** @type {string[]} */
-        const order = [];
-        for (const app of this.displayedApps) {
-            if (app.xmlid !== undefined) {
-                order.push(app.xmlid);
-            }
+        const order = orderAfterDrag(
+            this.displayedApps.flatMap((app) =>
+                app.xmlid === undefined ? [] : [app.xmlid],
+            ),
+            movedId,
+            /** @type {HTMLElement} */ (previous?.children[0])?.dataset.menuXmlid,
+        );
+        if (!order) {
+            return;
         }
-        const elementIndex = order.indexOf(elementId);
-        // first remove dragged element
-        order.splice(elementIndex, 1);
-        const previousId =
-            previous &&
-            /** @type {HTMLElement} */ (previous.children[0]).dataset.menuXmlid;
-        if (previousId) {
-            // insert dragged element after previous element
-            order.splice(order.indexOf(previousId) + 1, 0, elementId);
-        } else {
-            // insert dragged element at beginning if no previous element
-            order.splice(0, 0, elementId);
-        }
-        // apply new order
         this.props.reorderApps(order);
         this.layout.setOrder(order);
     }

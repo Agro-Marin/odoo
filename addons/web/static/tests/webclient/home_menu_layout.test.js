@@ -5,7 +5,12 @@ import { animationFrame } from "@odoo/hoot-dom";
 import { Deferred } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { user } from "@web/core/user";
-import { HomeMenuLayout } from "@web/webclient/home_menu/home_menu_layout";
+import {
+    HomeMenuLayout,
+    orderAfterDrag,
+    pinnedApps,
+    shownApps,
+} from "@web/webclient/home_menu/home_menu_layout";
 import { parseHomeMenuConfig } from "@web/webclient/menus/menu_utils";
 
 /** @type {{ key: string, value: unknown, def: InstanceType<typeof Deferred> }[]} */
@@ -138,4 +143,40 @@ test("a change made while a write is in flight still gets written", async () => 
     expect(writes[1].value).toBe(
         '{"version":2,"order":[],"pinned":["sale","crm"],"hidden":[]}',
     );
+});
+
+test("shownApps leaves out what the layout hides, and keeps what it cannot name", () => {
+    const config = parseHomeMenuConfig('{"hidden":["b"]}');
+    const apps = [{ xmlid: "a" }, { xmlid: "b" }, {}, { xmlid: "c" }];
+    expect(shownApps(config, apps).map((a) => a.xmlid)).toEqual(["a", undefined, "c"]);
+});
+
+test("pinnedApps answers in the pinned order and skips an app that is gone", () => {
+    const config = parseHomeMenuConfig('{"pinned":["c","gone","a"]}');
+    const apps = [{ xmlid: "a" }, { xmlid: "b" }, { xmlid: "c" }];
+    expect(pinnedApps(config, apps).map((a) => a.xmlid)).toEqual(["c", "a"], {
+        message: "pinned order, not list order, and no hole for the missing one",
+    });
+    expect(pinnedApps(parseHomeMenuConfig(null), apps)).toEqual([]);
+});
+
+test("orderAfterDrag moves one app and leaves the rest in place", () => {
+    const order = ["a", "b", "c", "d"];
+    expect(orderAfterDrag(order, "d", "a")).toEqual(["a", "d", "b", "c"]);
+    expect(orderAfterDrag(order, "a", "c")).toEqual(["b", "c", "a", "d"]);
+    expect(orderAfterDrag(order, "c", undefined)).toEqual(["c", "a", "b", "d"], {
+        message: "dropped before everything",
+    });
+    expect(order).toEqual(["a", "b", "c", "d"], {
+        message: "the order handed in is not touched",
+    });
+});
+
+test("orderAfterDrag refuses an app the order does not hold, rather than moving the last one", () => {
+    // indexOf answers -1 and splice(-1, 1) acts on it by removing the last
+    // entry, which reorders an app the user never dragged.
+    expect(orderAfterDrag(["a", "b", "c"], "gone", "a")).toBe(null);
+    // An `afterId` that is absent is not the same failure: it lands at the
+    // front, which is where the same -1 put it before.
+    expect(orderAfterDrag(["a", "b", "c"], "c", "gone")).toEqual(["c", "a", "b"]);
 });
