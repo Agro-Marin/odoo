@@ -2,6 +2,7 @@
 // @ts-check
 
 import { EvaluationError } from "@odoo/o-spreadsheet";
+import { _t } from "@web/core/translation";
 
 import { isLoadingError, LoadingDataError } from "../o_spreadsheet/errors.js";
 
@@ -265,7 +266,9 @@ export class BatchEndpoint {
      */
     _notifyResults(batchResult) {
         for (const [request, result] of batchResult) {
-            if (result instanceof Error) {
+            if (result && result.__error__) {
+                this.failureCallback(request, new Error(result.__error__));
+            } else if (result instanceof Error) {
                 this.failureCallback(request, result);
             } else {
                 this.successCallback(request, result);
@@ -289,38 +292,32 @@ export class BatchEndpoint {
             const promise = this.orm
                 .call(resModel, method, batch.payload)
                 .then((result) => batch.splitResponse(result))
-                .catch(() => this._retryOneByOne(batch))
+                .catch(() => this._handleBatchFailure(batch))
                 .then((batchResults) => this._notifyResults(batchResults));
             this.batchStartsLoadingCallback(promise);
         });
     }
 
     /**
+     * The batch could not be answered at all: a per-request failure would have
+     * come back as an `__error__` entry instead. Retrying request by request
+     * would only repeat a server or development error N times, so every
+     * request in the batch gets the same explanatory message.
+     *
      * @private
      * @param {ListRequestBatch} batch
-     * @returns {Promise<Map<Request, unknown>>}
+     * @returns {Map<Request, Error>}
      */
-    async _retryOneByOne(batch) {
-        const mergedResults = new Map();
-        const { resModel, method } = batch;
-        const singleRequestBatches = batch.requests.map(
-            (request) => new ListRequestBatch(resModel, method, [request]),
+    _handleBatchFailure(batch) {
+        const results = new Map();
+        const error = new Error(
+            _t(
+                "Data failed to load due to a server error or a formula issue (possibly in a referenced cell). Please verify the formula or retry later. Contact odoo.com/help if the problem persists.",
+            ),
         );
-        const proms = [];
-        for (const batch of singleRequestBatches) {
-            const request = batch.requests[0];
-            const prom = this.orm
-                .call(resModel, method, batch.payload)
-                .then((result) =>
-                    mergedResults.set(
-                        request,
-                        batch.splitResponse(result).get(request),
-                    ),
-                )
-                .catch((error) => mergedResults.set(request, error));
-            proms.push(prom);
+        for (const request of batch.requests) {
+            results.set(request, error);
         }
-        await Promise.allSettled(proms);
-        return mergedResults;
+        return results;
     }
 }

@@ -8,6 +8,7 @@ from collections import defaultdict
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import MissingError, ValidationError
 
+from odoo.addons.spreadsheet.utils.helpers import spreadsheet_safe_batch
 from odoo.addons.spreadsheet.utils.validate_data import (
     fields_in_spreadsheet,
     menus_xml_ids_in_spreadsheet,
@@ -127,6 +128,7 @@ class MixinSpreadsheet(models.AbstractModel):
 
     @api.readonly
     @api.model
+    @spreadsheet_safe_batch
     def get_display_names_for_spreadsheet(self, args):
         ids_per_model = defaultdict(list)
         for arg in args:
