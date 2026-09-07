@@ -2,7 +2,7 @@ import logging
 
 from requests.exceptions import HTTPError
 
-from odoo import _, api, exceptions, models, modules, release
+from odoo import _, api, exceptions, models, release
 
 from odoo.addons.iap.tools import iap_tools
 
@@ -21,8 +21,6 @@ class IapAutocompleteApi(models.AbstractModel):
 
     @api.model
     def _contact_iap(self, local_endpoint, action, params, timeout=15):
-        if modules.module.current_test:
-            raise exceptions.ValidationError(_("Test mode"))
         # Spending the company's paid IAP credit balance requires the same
         # authority as managing partner records, not just being logged in.
         self.env["res.partner"].browse().check_access("write")
@@ -59,8 +57,6 @@ class IapAutocompleteApi(models.AbstractModel):
         """
         try:
             results = self._contact_iap("/api/dnb/1", action, params, timeout=timeout)
-        except exceptions.ValidationError:
-            return False, "Insufficient Credit"
         except (
             ConnectionError,
             HTTPError,
