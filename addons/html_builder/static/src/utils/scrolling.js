@@ -88,10 +88,12 @@ export function scrollTo(el, options = {}) {
     if (!el) {
         throw new Error("The scrollTo function was called without any given element");
     }
+    const isTop = typeof el === "string" && el === "#top";
+    const isBottom = typeof el === "string" && el === "#bottom";
+    const isTopOrBottomHidden = isTop || isBottom;
     if (typeof el === "string") {
         el = document.querySelector(el);
     }
-    const isTopOrBottomHidden = el === "top" || el === "bottom";
     const scrollable = isTopOrBottomHidden
         ? document.scrollingElement
         : options.scrollable || closestScrollable(el.parentElement);
@@ -105,10 +107,10 @@ export function scrollTo(el, options = {}) {
     const topLevelScrollable = getScrollingElement(scrollDocument);
 
     function _computeScrollTop() {
-        if (el === "#top" || el.id === "top") {
+        if (isTop || el?.id === "top") {
             return 0;
         }
-        if (el === "#bottom" || el.id === "bottom") {
+        if (isBottom || el?.id === "bottom") {
             return scrollable.scrollHeight - scrollable.clientHeight;
         }
 
