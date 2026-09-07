@@ -107,7 +107,9 @@ class OnboardingOnboardingStep(models.Model):
             if new_is_per_company is None
             else self.filtered(lambda step: step.is_per_company != new_is_per_company)
         )
-        already_linked_onboardings = self.onboarding_ids
+        already_linked_onboardings_by_id = {
+            step.id: step.onboarding_ids for step in self
+        }
 
         res = super().write(vals)
 
@@ -116,8 +118,13 @@ class OnboardingOnboardingStep(models.Model):
             steps_changing_is_per_company.progress_ids.unlink()
         self.onboarding_ids.action_refresh_progress_ids()
 
-        if self.onboarding_ids - already_linked_onboardings:
-            self.onboarding_ids.progress_ids._recompute_progress_step_ids()
+        changed = self.filtered(
+            lambda step: (
+                step.onboarding_ids != already_linked_onboardings_by_id[step.id]
+            )
+        )
+        if changed:
+            changed.onboarding_ids.progress_ids._recompute_progress_step_ids()
 
         return res
 
