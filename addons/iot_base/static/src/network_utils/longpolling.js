@@ -91,7 +91,6 @@ export class IoTLongpolling {
      * @param {string} route endpoint to call on the IoT Box (default: /iot_drivers/action)
      */
     action(iot_ip, device_identifier, data, fallback = false, route = null) {
-        this.protocol = window.location.protocol;
         const body = {
             session_id: this._session_id,
             device_identifier: device_identifier,
