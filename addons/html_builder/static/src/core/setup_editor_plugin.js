@@ -46,7 +46,9 @@ export class SetupEditorPlugin extends Plugin {
             .filter((el) => !el.classList.contains("oe_snippet_editor"))
             .filter((el) => !el.matches("hr, br, input, textarea"))
             .filter((el) => !el.hasAttribute("data-oe-sanitize-prevent-edition"));
-        editableEls.concat(Array.from(this.editable.querySelectorAll(".o_editable")));
+        editableEls = editableEls.concat(
+            Array.from(this.editable.querySelectorAll(".o_editable")),
+        );
         editableEls.forEach((el) => el.classList.add("o_editable"));
         if (this.delegateTo("after_setup_editor_handlers")) {
             return;
