@@ -334,6 +334,7 @@ export class HistoryPlugin extends Plugin {
                 })),
             id: this.steps[this.steps.length - 1]?.id || this.generateId(),
             previousStepId: undefined,
+            extraStepInfos: {},
         };
     }
 
