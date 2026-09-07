@@ -261,7 +261,16 @@ class HrLeaveAccrualLevel(models.Model):
         "You cannot have a cap on yearly accrued time without setting a maximum amount.",
     )
 
-    @api.constrains("first_day", "second_day", "week_day", "frequency")
+    @api.constrains(
+        "first_day",
+        "second_day",
+        "week_day",
+        "frequency",
+        "first_month",
+        "first_month_day",
+        "second_month",
+        "second_month_day",
+    )
     def _check_dates(self):
         error_message = ""
         for level in self:
@@ -273,6 +282,13 @@ class HrLeaveAccrualLevel(models.Model):
                 level.second_day
             ):
                 error_message = _("The first day must be lower than the second day.")
+            elif level.frequency == "biyearly" and (
+                int(level.first_month),
+                int(level.first_month_day),
+            ) >= (int(level.second_month), int(level.second_month_day)):
+                error_message = _(
+                    "The first date must be earlier in the year than the second date."
+                )
         if error_message:
             raise ValidationError(error_message)
 
