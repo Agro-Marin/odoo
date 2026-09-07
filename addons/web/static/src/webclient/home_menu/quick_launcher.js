@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillStart, useState } from "@odoo/owl";
+import { Component, onMounted, useState } from "@odoo/owl";
+import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 
@@ -38,7 +39,8 @@ export class QuickLauncher extends Component {
         this.state = useState({ badges: {} });
         const { apps, config } = computeHomeMenuProps(this.menus);
         this.apps = this._pickApps(apps, config);
-        onWillStart(async () => {
+        // Counts arrive after the tiles: a slow provider must not hold the popover.
+        onMounted(async () => {
             this.state.badges = await loadHomeMenuBadges(
                 /** @type {import("@web/env").OdooEnv} */ (
                     /** @type {unknown} */ (this.env)
@@ -63,6 +65,11 @@ export class QuickLauncher extends Component {
         });
         const ordered = [...pinned, ...menuUsage.rank(shown), ...shown];
         return [...new Set(ordered)].slice(0, TILES);
+    }
+
+    /** @param {number} count */
+    badgeLabel(count) {
+        return _t("%s pending", count);
     }
 
     /** @param {import("./home_menu.js").HomeMenuApp} app */

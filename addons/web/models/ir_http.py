@@ -293,7 +293,7 @@ class IrHttp(models.AbstractModel):
                 ._get_or_create_for_user(user)
                 ._res_users_settings_format()
             ),
-            homemenu_default_config=user.company_id.homemenu_default_config or None,
+            homemenu_default_config=self.env.company.homemenu_default_config or None,
             support_url="https://www.odoo.com/help",
             name=user.name,
             username=user.login,

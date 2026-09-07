@@ -89,12 +89,12 @@
         </div>
         <div class="o_caption w-100 text-center text-truncate mt-2" t-esc="app.label or app.name"/>
         <t t-set="badge" t-value="badgeFor(app)"/>
-        <span t-if="badge and !state.editing" class="o_app_badge badge rounded-pill text-bg-danger position-absolute" t-att-aria-label="badge + ' pending'" t-esc="badge > 99 ? '99+' : badge"/>
+        <span t-if="badge and !state.editing" class="o_app_badge badge rounded-pill text-bg-danger position-absolute" t-att-aria-label="badgeLabel(badge)" t-esc="badge > 99 ? '99+' : badge"/>
         <div t-if="state.editing and gridIndex !== undefined and app.xmlid" class="o_app_edit_actions position-absolute top-0 end-0 d-flex gap-1 p-1">
-            <button type="button" class="o_app_pin btn btn-sm btn-light border" t-att-title="isPinned(app) ? 'Unpin' : 'Pin'" t-att-aria-label="isPinned(app) ? 'Unpin' : 'Pin'" t-on-click.stop.prevent="() => this._togglePinned(app)">
+            <button type="button" class="o_app_pin btn btn-sm btn-light border" t-att-title="pinTitle(app)" t-att-aria-label="pinTitle(app)" t-on-click.stop.prevent="() => this._togglePinned(app)">
                 <i class="fa fa-thumb-tack" aria-hidden="true"/>
             </button>
-            <button type="button" class="o_app_hide btn btn-sm btn-light border" t-att-title="isHidden(app) ? 'Show' : 'Hide'" t-att-aria-label="isHidden(app) ? 'Show' : 'Hide'" t-on-click.stop.prevent="() => this._toggleHidden(app)">
+            <button type="button" class="o_app_hide btn btn-sm btn-light border" t-att-title="hideTitle(app)" t-att-aria-label="hideTitle(app)" t-on-click.stop.prevent="() => this._toggleHidden(app)">
                 <i t-att-class="isHidden(app) ? 'fa fa-eye' : 'fa fa-eye-slash'" aria-hidden="true"/>
             </button>
         </div>

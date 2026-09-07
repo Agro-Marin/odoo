@@ -98,7 +98,13 @@ export class NavBar extends Component {
         this.navRef = useRef("nav");
         this.menuAppsRef = useRef("menuApps");
         this.appSubMenus = useRef("appSubMenus");
-        this._busToggledCallback = () => this._updateMenuAppsIcon();
+        this._busToggledCallback = () => {
+            // The home menu is the launcher in full; a popover of it has no
+            // place over it, nor once the user is somewhere else.
+            this._clearQuickLauncherTimer();
+            this.quickLauncher.close();
+            this._updateMenuAppsIcon();
+        };
         useBus(this.env.bus, AppEvent.HOME_MENU_TOGGLED, this._busToggledCallback);
         useEffect(() => this._updateMenuAppsIcon());
         const debouncedAdapt = debounce(this.adapt.bind(this), 250);

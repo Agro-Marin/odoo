@@ -773,3 +773,29 @@ test("the arrows move the real focus from the search box onto the tiles, a lette
         message: "typing on a tile searches, as it does from the box",
     });
 });
+
+test("with a pinned row the arrows follow the rows on screen, not one flat grid", async () => {
+    const props = getLayoutProps('{"pinned":["app.1"]}');
+    props.apps = Array.from({ length: 8 }, (_, i) => ({
+        actionID: 121,
+        href: "/odoo/action-121",
+        appID: i + 1,
+        id: i + 1,
+        label: `0${i}`,
+        parents: "",
+        webIcon: false,
+        xmlid: `app.${i}`,
+    }));
+    await mountWithCleanup(HomeMenu, { props });
+    expect(queryAllTexts(".o_pinned_apps .o_caption")).toEqual(["01"]);
+
+    await walkOn([
+        { key: "ArrowDown", index: 0 }, // the pinned tile
+        { key: "ArrowDown", index: 1 }, // the tile below it: first of the next row
+        { key: "ArrowRight", index: 2 },
+        { key: "ArrowDown", index: 7 }, // last row has one tile, column clamps
+        { key: "ArrowDown", index: 0 }, // wraps to the pinned row
+        { key: "ArrowUp", index: 7 },
+        { key: "ArrowUp", index: 1 }, // back on the six-wide row, same column
+    ]);
+});

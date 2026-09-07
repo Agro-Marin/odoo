@@ -15,6 +15,7 @@ import { browser } from "@web/core/browser/browser";
 import { hasTouch, isIosApp, isMacOS } from "@web/core/browser/feature_detection";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
@@ -288,6 +289,21 @@ export class HomeMenu extends Component {
     }
 
     /** @param {HomeMenuApp} app */
+    pinTitle(app) {
+        return this.isPinned(app) ? _t("Unpin") : _t("Pin");
+    }
+
+    /** @param {HomeMenuApp} app */
+    hideTitle(app) {
+        return this.isHidden(app) ? _t("Show") : _t("Hide");
+    }
+
+    /** @param {number} count */
+    badgeLabel(count) {
+        return _t("%s pending", count);
+    }
+
+    /** @param {HomeMenuApp} app */
     isPinned(app) {
         return app.xmlid !== undefined && this.config.pinned.includes(app.xmlid);
     }
@@ -407,74 +423,70 @@ export class HomeMenu extends Component {
      * Update this.state.focusedIndex if not null.
      * @param {string} cmd
      */
+    /**
+     * The tiles as rows: the pinned ones first, then the rest, each section
+     * wrapping at the grid's width, so the arrows follow what is on screen.
+     *
+     * @returns {number[][]} visible indices, row by row
+     */
+    get keyboardRows() {
+        /** @type {number[][]} */
+        const rows = [];
+        let index = 0;
+        for (const section of [this.pinnedApps, this.unpinnedApps]) {
+            for (let i = 0; i < section.length; i += this.maxIconNumber) {
+                const row = [];
+                for (
+                    let j = i;
+                    j < Math.min(i + this.maxIconNumber, section.length);
+                    j++
+                ) {
+                    row.push(index++);
+                }
+                rows.push(row);
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * Update this.state.focusedIndex if not null.
+     * @param {string} cmd
+     */
     _updateFocusedIndex(cmd) {
-        const nbrApps = this.visibleApps.length;
-        const lastIndex = nbrApps - 1;
-        const focusedIndex = this.state.focusedIndex;
-        if (lastIndex < 0) {
+        const rows = this.keyboardRows;
+        if (!rows.length) {
             return;
         }
         this.focusSelectedTile = true;
+        const focusedIndex = this.state.focusedIndex;
         if (focusedIndex === null) {
             this.state.focusedIndex = 0;
             return;
         }
-        const lineNumber = Math.ceil(nbrApps / this.maxIconNumber);
-        const currentLine = Math.ceil((focusedIndex + 1) / this.maxIconNumber);
-        let newIndex;
+        let r = rows.findIndex((row) => row.includes(focusedIndex));
+        if (r === -1) {
+            this.state.focusedIndex = 0;
+            return;
+        }
+        let c = rows[r].indexOf(focusedIndex);
         switch (cmd) {
             case "previousColumn":
-                if (focusedIndex % this.maxIconNumber) {
-                    // app is not the first one on its line
-                    newIndex = focusedIndex - 1;
-                } else {
-                    newIndex =
-                        focusedIndex +
-                        Math.min(lastIndex - focusedIndex, this.maxIconNumber - 1);
-                }
+                c = c > 0 ? c - 1 : rows[r].length - 1;
                 break;
             case "nextColumn":
-                if (
-                    focusedIndex === lastIndex ||
-                    (focusedIndex + 1) % this.maxIconNumber === 0
-                ) {
-                    // app is the last one on its line
-                    newIndex = (currentLine - 1) * this.maxIconNumber;
-                } else {
-                    newIndex = focusedIndex + 1;
-                }
+                c = c < rows[r].length - 1 ? c + 1 : 0;
                 break;
             case "previousLine":
-                if (currentLine === 1) {
-                    newIndex = focusedIndex + (lineNumber - 1) * this.maxIconNumber;
-                    if (newIndex > lastIndex) {
-                        newIndex = lastIndex;
-                    }
-                } else {
-                    // we go to the previous line on same column
-                    newIndex = focusedIndex - this.maxIconNumber;
-                }
+                r = r > 0 ? r - 1 : rows.length - 1;
                 break;
             case "nextLine":
-                if (currentLine === lineNumber) {
-                    newIndex = focusedIndex % this.maxIconNumber;
-                } else {
-                    // we go to the next line on the closest column
-                    newIndex =
-                        focusedIndex +
-                        Math.min(this.maxIconNumber, lastIndex - focusedIndex);
-                }
+                r = r < rows.length - 1 ? r + 1 : 0;
                 break;
             default:
                 return;
         }
-        // if newIndex is out of bounds -> normalize it
-        if (newIndex < 0) {
-            newIndex = lastIndex;
-        } else if (newIndex > lastIndex) {
-            newIndex = 0;
-        }
-        this.state.focusedIndex = newIndex;
+        this.state.focusedIndex = rows[r][Math.min(c, rows[r].length - 1)];
     }
 
     _focusInput() {
