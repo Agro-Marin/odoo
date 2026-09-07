@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -15,20 +17,24 @@ class MrpWorkcenter(models.Model):
 
     @api.constrains("asset_id")
     def _check_asset_unique(self):
-        for workcenter in self.filtered("asset_id"):
-            other = self.search(
-                [
-                    ("asset_id", "=", workcenter.asset_id.id),
-                    ("id", "!=", workcenter.id),
-                ],
-                limit=1,
-            )
+        scoped = self.filtered("asset_id")
+        if not scoped:
+            return
+        # One query for the whole batch. The batch is folded in as well: two
+        # work centres given the same asset in one create clash with each
+        # other, and neither is in the database yet for the other to find.
+        holders = self.search([("asset_id", "in", scoped.asset_id.ids)]) | scoped
+        by_asset = defaultdict(self.browse)
+        for holder in holders:
+            by_asset[holder.asset_id.id] |= holder
+        for workcenter in scoped:
+            other = by_asset[workcenter.asset_id.id] - workcenter
             if other:
                 raise ValidationError(
                     self.env._(
                         "%(asset)s already runs %(workcenter)s.",
                         asset=workcenter.asset_id.display_name,
-                        workcenter=other.display_name,
+                        workcenter=other[0].display_name,
                     )
                 )
 
