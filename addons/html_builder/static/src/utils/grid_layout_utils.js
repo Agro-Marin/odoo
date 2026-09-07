@@ -87,7 +87,7 @@ export function resizeGrid(rowEl) {
         c.classList.contains("o_grid_item"),
     );
     rowEl.dataset.rowCount =
-        Math.max(...columnEls.map((el) => el.style.gridRowEnd)) - 1;
+        Math.max(1, ...columnEls.map((el) => el.style.gridRowEnd)) - 1;
 }
 /**
  * Removes the properties and elements added to make the drag over a grid work.
