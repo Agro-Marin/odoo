@@ -293,6 +293,7 @@
             "point_of_sale.customer_display_assets",
             "point_of_sale.customer_display_assets_test",
             "point_of_sale.assets_debug",
+            "point_of_sale.base_tests",
         ],
         "secondary_import_map_includes": {
             # the tests bundle borrows the POS app's modules from the app bundle
