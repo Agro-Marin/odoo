@@ -43,23 +43,23 @@ export const MAX_DISPLAYED_COMMANDS = 100;
 const BROKEN_COMMANDS = new WeakMap();
 
 /**
- * @type {WeakMap<Function, number>}
+ * @type {WeakMap<object | Function, number>}
  */
-const COMPONENT_IDS = new WeakMap();
-let nextComponentId = 1;
+const IDENTITIES = new WeakMap();
+let nextIdentity = 1;
 
 /**
- * @param {Function} [component]
+ * @param {object | Function} [value]
  * @returns {string}
  */
-function componentId(component) {
-    if (!component) {
+function identityOf(value) {
+    if (!value) {
         return "";
     }
-    let id = COMPONENT_IDS.get(component);
+    let id = IDENTITIES.get(value);
     if (id === undefined) {
-        id = nextComponentId++;
-        COMPONENT_IDS.set(component, id);
+        id = nextIdentity++;
+        IDENTITIES.set(value, id);
     }
     return String(id);
 }
@@ -77,13 +77,15 @@ function commandKey(command) {
             const isCarrier =
                 typeof value === "function" ||
                 (value !== null && typeof value === "object");
-            return isCarrier ? name : `${name}=${String(value)}`;
+            return isCarrier
+                ? `${name}#${identityOf(value)}`
+                : `${name}=${String(value)}`;
         })
         .join("\u0000");
     return [
         command.category ?? "",
         command.name,
-        componentId(command.Component),
+        identityOf(command.Component),
         propSignature,
     ].join("\u0000");
 }

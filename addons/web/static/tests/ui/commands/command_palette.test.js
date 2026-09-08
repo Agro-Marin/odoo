@@ -2011,3 +2011,47 @@ test("hotkey props reach the item that renders them and no other", async () => {
     expect(".o_command_hotkey kbd").toHaveCount(2);
     await press("escape");
 });
+
+test("a command that cannot render is dropped, and its namesake is not", async () => {
+    expect.errors(1);
+    /** @type {any} */
+    let palette;
+    patchWithCleanup(CommandPalette.prototype, {
+        setup() {
+            super.setup();
+            palette = this;
+        },
+    });
+    class RecordItem extends Component {
+        static template = xml`<span class="o_command_default" t-esc="props.name"/>`;
+        static props = ["*"];
+    }
+    const openRecord = (/** @type {number} */ id) => ({
+        name: "Open record",
+        category: "default",
+        action: () => {},
+        Component: RecordItem,
+        props: { record: { id } },
+    });
+    const records = [openRecord(1), openRecord(2)];
+    await mountWithCleanup(MainComponentsContainer);
+    getService("dialog").add(CommandPalette, {
+        config: { providers: [{ provide: () => records }] },
+    });
+    await animationFrame();
+    expect(palette.state.commands).toHaveLength(2);
+
+    palette.handleCommandError(palette.state.commands[0], new Error("cannot render"));
+    expect(
+        palette.state.commands.map((/** @type {any} */ c) => c.props.record.id),
+    ).toEqual([2], { message: "only the one that threw leaves the list" });
+
+    await palette.setCommands("default", { searchValue: "" });
+    expect(
+        palette.state.commands.map((/** @type {any} */ c) => c.props.record.id),
+    ).toEqual([2], {
+        message: "the working namesake survives the broken-command filter",
+    });
+    await animationFrame();
+    expect.verifyErrors(["cannot render"]);
+});
