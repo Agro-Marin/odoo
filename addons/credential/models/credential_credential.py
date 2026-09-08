@@ -1,4 +1,3 @@
-import hashlib
 import ipaddress
 import json
 import logging
@@ -8,23 +7,14 @@ from types import SimpleNamespace
 from typing import Any, Self
 
 from cryptography.fernet import Fernet, InvalidToken
-from psycopg import errors as psycopg_errors
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.http import request
 
-from odoo.addons.credential.tools import (
-    check_json_depth,
-    get_caller_rate_limiter,
-)
+from odoo.addons.credential.tools import get_caller_rate_limiter
 
 _logger = logging.getLogger(__name__)
-
-
-MAX_CREDENTIAL_DATA_SIZE = 65536
-MAX_CREDENTIAL_VALUE_SIZE = 8192
-MAX_JSON_NESTING_DEPTH = 10
 
 DAYS_NO_EXPIRY = 999
 
@@ -83,7 +73,7 @@ CATEGORY_REQUIRED_FIELDS = {
 
 class CredentialCredential(models.Model):
     _name = "credential.credential"
-    _inherit = "mixin.encryption"
+    _inherit = ["mixin.credential.store"]
     _description = "Credential"
     _order = "company_id, sequence, name"
     _rec_name = "name"
@@ -183,56 +173,6 @@ class CredentialCredential(models.Model):
         help="Additional notes or documentation for this credential.\n\n"
         "⚠️ SECURITY WARNING: Notes are stored in PLAIN TEXT (not encrypted).\n"
         "Do NOT store passwords, API keys, or other secrets in notes.",
-    )
-
-    credential_value_encrypted = fields.Binary(
-        string="Credential Value (Encrypted)",
-        copy=False,
-        attachment=False,
-        groups="base.group_system",
-        help="Encrypted storage for credential value (API key, token, secret, etc.)",
-    )
-    cached_plaintext = fields.Char(
-        compute="_compute_cached_plaintext",
-        store=False,
-        copy=False,
-        groups="base.group_system",
-        help="Internal: single-decrypt memo for credential_value_encrypted. "
-        "Do NOT depend on this field outside this model.",
-    )
-    storage_method = fields.Selection(
-        selection=[
-            ("none", "Not Set"),
-            ("simple", "Simple Value"),
-            ("json", "JSON Data"),
-        ],
-        default="none",
-        store=True,
-        readonly=True,
-        copy=False,
-        help="Storage mode for credential_value_encrypted. Write-once: set "
-        "by the first payload write and sealed thereafter. Mixing simple "
-        "and JSON storage on the same record is not permitted.",
-    )
-    credential_value = fields.Char(
-        compute="_compute_credential_value",
-        store=False,
-        inverse="_inverse_credential_value",
-        readonly=False,
-        copy=False,
-        groups="base.group_system",
-        help="Credential value (encrypted at rest) - API key, bearer token, etc.",
-    )
-    credential_data = fields.Text(
-        string="Credential Data (JSON)",
-        compute="_compute_credential_data",
-        store=False,
-        inverse="_inverse_credential_data",
-        readonly=False,
-        copy=False,
-        groups="base.group_system",
-        help="JSON storage for complex multi-value credentials (e.g., OAuth2). "
-        "Example: {'access_token': '...', 'refresh_token': '...'}",
     )
 
     health_status = fields.Selection(
@@ -454,12 +394,6 @@ class CredentialCredential(models.Model):
         "when tokens are refreshed (comes from provider's 'expires_in' response).",
     )
 
-    credential_hash = fields.Char(
-        compute="_compute_credential_hash",
-        store=True,
-        readonly=True,
-        help="Hash of encrypted credentials for cache key generation and integrity",
-    )
     encryption_key_is_current = fields.Boolean(
         compute="_compute_encryption_key_is_current",
         store=False,
@@ -615,10 +549,6 @@ class CredentialCredential(models.Model):
 
     _INTERNAL_STATS_UPDATE_KEY = "_credential_internal_stats_update"
 
-    _INTERNAL_STORAGE_UPDATE_KEY = "_credential_internal_storage_update"
-
-    _STORAGE_METHOD_GUARD_FIELD = "storage_method"
-
     _ENCRYPTED_PAYLOAD_FIELDS = (
         "credential_value",
         "credential_data",
@@ -733,76 +663,6 @@ class CredentialCredential(models.Model):
         for record in self:
             record.is_system_wide = not record.company_id
 
-    @api.depends("credential_value_encrypted")
-    def _compute_cached_plaintext(self):
-        for record in self:
-            encrypted = record.with_context(bin_size=False).credential_value_encrypted
-            if not encrypted:
-                record.cached_plaintext = False
-                continue
-
-            decrypted = record._decrypt_value_safe(encrypted, default=None)
-
-            if decrypted is None:
-                _logger.warning(
-                    "Credential %s: could not decrypt credential_value_encrypted "
-                    "(key missing or rotated). Field will read as empty.",
-                    record.id or "new",
-                )
-                record.cached_plaintext = False
-                continue
-
-            if decrypted and record.id:
-                record._enforce_access_rate_limit()
-
-            record.cached_plaintext = decrypted or False
-
-            if decrypted and record.id:
-                try:
-                    record._log_access_guarded("read")
-                except psycopg_errors.ReadOnlySqlTransaction:
-                    raise
-                except Exception as e:
-                    _logger.warning(
-                        "Credential %s: failed to write audit log for read: %s",
-                        record.id,
-                        e,
-                    )
-
-    @api.depends("cached_plaintext", "storage_method")
-    def _compute_credential_value(self):
-        for record in self:
-            if record.storage_method != "simple":
-                record.credential_value = False
-                continue
-            record.credential_value = record.cached_plaintext or False
-
-    def _parse_plaintext_dict(self) -> dict:
-        self.check_singleton()
-        if self.storage_method != "json":
-            return {}
-        plaintext = self.cached_plaintext
-        if not plaintext:
-            return {}
-        try:
-            parsed = json.loads(plaintext)
-        except json.JSONDecodeError, ValueError:
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
-
-    @api.depends("cached_plaintext", "storage_method")
-    def _compute_credential_data(self):
-        for record in self:
-            # Only the keys no named accessor claims. A password reaches the
-            # form through its own masked field; putting it here too would
-            # render it in clear text and send it to the browser besides.
-            extra = {
-                key: value
-                for key, value in record._parse_plaintext_dict().items()
-                if key not in self._JSON_ACCESSOR_FIELDS
-            }
-            record.credential_data = json.dumps(extra) if extra else "{}"
-
     @api.depends("date_expiration")
     def _compute_is_expired(self):
         now = fields.Datetime.now()
@@ -860,17 +720,6 @@ class CredentialCredential(models.Model):
             for field_name in self._JSON_ACCESSOR_FIELDS:
                 record[field_name] = parsed.get(field_name, False)
 
-    @api.depends("credential_value_encrypted")
-    def _compute_credential_hash(self) -> None:
-        for cred in self:
-            if cred.credential_value_encrypted:
-                encrypted = cred.credential_value_encrypted
-                if isinstance(encrypted, str):
-                    encrypted = encrypted.encode("utf-8")
-                cred.credential_hash = hashlib.sha256(encrypted).hexdigest()
-            else:
-                cred.credential_hash = False
-
     @api.depends("encryption_key_version")
     def _compute_encryption_key_is_current(self):
         current_version = self._get_current_encryption_key_version() or 1
@@ -879,159 +728,6 @@ class CredentialCredential(models.Model):
                 not record.encryption_key_version
                 or record.encryption_key_version >= current_version
             )
-
-    def _seal_storage_method(self, target_mode: str) -> None:
-        self.check_singleton()
-        current = self.storage_method or "none"
-        if current == target_mode:
-            return
-        if current != "none":
-            raise ValidationError(
-                self.env._(
-                    "This credential is already using %(current)s storage. "
-                    "Writing through the %(target)s path would silently "
-                    "corrupt the stored value. Archive this credential and "
-                    "create a new one if you need to change storage mode.",
-                )
-                % {"current": current, "target": target_mode},
-            )
-        self.with_context(
-            **{self._INTERNAL_STORAGE_UPDATE_KEY: True},
-        ).write({self._STORAGE_METHOD_GUARD_FIELD: target_mode})
-
-    def _inverse_credential_value(self):
-        for record in self:
-            if record.credential_value:
-                value_size = len(record.credential_value.encode("utf-8"))
-                if value_size > MAX_CREDENTIAL_VALUE_SIZE:
-                    raise ValidationError(
-                        self.env._(
-                            "Credential value exceeds maximum size!\n\n"
-                            "Size: %(size)s bytes\n"
-                            "Maximum: %(max)s bytes (8KB)\n\n"
-                            "For larger data, use credential_data (JSON format, up to 64KB).",
-                        )
-                        % {
-                            "size": value_size,
-                            "max": MAX_CREDENTIAL_VALUE_SIZE,
-                        },
-                    )
-
-                record._seal_storage_method("simple")
-                record.credential_value_encrypted = record._encrypt_value(
-                    record.credential_value,
-                )
-                if record.id:
-                    record._log_access("write")
-            elif record.storage_method == "simple":
-                record.credential_value_encrypted = False
-
-    def _inverse_credential_data(self):
-        for record in self:
-            if not record.credential_data or record.credential_data == "{}":
-                # This field owns the keys no named accessor claims. Emptying it
-                # must not destroy a username or a bearer token, which have their
-                # own visible field and are written by their own inverse: the
-                # form carries this one empty for every category that hides it,
-                # so a blanket clear here loses whatever the accessors wrote and
-                # the order the fields happen to arrive in decides whether the
-                # secret survives.
-                if record.storage_method == "json":
-                    stored = record._read_credential_dict_raw()
-                    owned = {
-                        key: value
-                        for key, value in stored.items()
-                        if key in record._JSON_ACCESSOR_FIELDS
-                    }
-                    if owned != stored:
-                        if owned:
-                            record.set_credential_dict(owned)
-                        else:
-                            record.credential_value_encrypted = False
-                continue
-            record._seal_storage_method("json")
-
-            data_size = len(record.credential_data.encode("utf-8"))
-            if data_size > MAX_CREDENTIAL_DATA_SIZE:
-                raise ValidationError(
-                    self.env._(
-                        "Credential data exceeds maximum size!\n\nSize: %(size)s bytes\nMaximum: %(max)s bytes (64KB)",
-                    )
-                    % {"size": data_size, "max": MAX_CREDENTIAL_DATA_SIZE},
-                )
-
-            try:
-                parsed_data = json.loads(record.credential_data)
-            except (json.JSONDecodeError, ValueError) as e:
-                raise ValidationError(
-                    self.env._("Invalid JSON format in credential_data!\nError: %s")
-                    % str(e),
-                ) from e
-
-            try:
-                check_json_depth(parsed_data, MAX_JSON_NESTING_DEPTH)
-            except ValueError as e:
-                raise ValidationError(
-                    self.env._(
-                        "Invalid JSON structure!\n\nError: %(error)s\nMaximum nesting depth allowed: %(max)s levels",
-                    )
-                    % {"error": str(e), "max": MAX_JSON_NESTING_DEPTH},
-                ) from e
-
-            claimed = sorted(set(parsed_data) & set(record._JSON_ACCESSOR_FIELDS))
-            if claimed:
-                raise ValidationError(
-                    self.env._(
-                        "Set %(fields)s in its own field, not here. This one "
-                        "carries the keys the vault has no field for, and a "
-                        "secret typed here would be shown in clear text.",
-                    )
-                    % {"fields": ", ".join(claimed)},
-                )
-
-            # Merge rather than replace: the named accessors own their keys and
-            # are not shown here, so writing this field alone must not drop them.
-            owned = {
-                key: value
-                for key, value in record._read_credential_dict_raw().items()
-                if key in record._JSON_ACCESSOR_FIELDS
-            }
-            record.set_credential_dict({**owned, **parsed_data})
-
-    def _inverse_credential_json_field(self, field_name: str) -> None:
-        for record in self:
-            value = getattr(record, field_name)
-            if not value and record.storage_method != "json":
-                continue
-            record._seal_storage_method("json")
-            data = record._read_credential_dict_raw()
-            if value:
-                data[field_name] = value
-            else:
-                data.pop(field_name, None)
-            record.set_credential_dict(data)
-
-    def _read_credential_dict_raw(self) -> dict:
-        self.check_singleton()
-        if self.storage_method != "json":
-            return {}
-        if self.id:
-            self.env.cr.execute(
-                "SELECT id FROM credential_credential WHERE id = %s FOR NO KEY UPDATE",
-                [self.id],
-            )
-            self.invalidate_recordset(["credential_value_encrypted"])
-        encrypted = self.with_context(bin_size=False).credential_value_encrypted
-        if not encrypted:
-            return {}
-        plaintext = self._decrypt_value_safe(encrypted, default=None)
-        if not plaintext:
-            return {}
-        try:
-            parsed = json.loads(plaintext)
-        except json.JSONDecodeError, ValueError:
-            return {}
-        return parsed if isinstance(parsed, dict) else {}
 
     def _inverse_api_key(self) -> None:
         self._inverse_credential_json_field("api_key")
@@ -1070,10 +766,6 @@ class CredentialCredential(models.Model):
             self.decrypt_rate_limit_max = category.default_decrypt_rate_limit_max
             self.auto_validate_health = category.default_auto_validate_health
             self.allow_key_fallback = category.default_allow_key_fallback
-
-    _ENCRYPTED_FIELD_PAIRS = (
-        ("credential_value", "credential_value_encrypted", False),
-    )
 
     def action_migrate_encryption_keys(self) -> dict[str, Any]:
         if not self.env.user.has_group(
@@ -1392,16 +1084,6 @@ class CredentialCredential(models.Model):
             limit=1,
         )
 
-    def get_credential_dict(self) -> dict[str, Any]:
-        """The whole payload, named accessor keys included.
-
-        Read the decrypted dict rather than `credential_data`, which shows only
-        the keys no named accessor claims so that a password is never rendered
-        in clear text on the form.
-        """
-        self.check_singleton()
-        return self._parse_plaintext_dict()
-
     _SECRET_ACCESSOR_PRIORITY = (
         "bearer_token",
         "api_key",
@@ -1614,36 +1296,3 @@ class CredentialCredential(models.Model):
             {"last_used_at": fields.Datetime.now()}
         )
         self._log_access("use")
-
-    def set_credential_dict(self, data_dict: dict[str, Any]):
-        self.check_singleton()
-
-        if not isinstance(data_dict, dict):
-            raise ValidationError(self.env._("Credential data must be a dictionary"))
-
-        json_str = json.dumps(data_dict)
-
-        data_size = len(json_str.encode("utf-8"))
-        if data_size > MAX_CREDENTIAL_DATA_SIZE:
-            raise ValidationError(
-                self.env._(
-                    "Credential data exceeds maximum size!\n\nSize: %(size)s bytes\nMaximum: %(max)s bytes (64KB)",
-                )
-                % {"size": data_size, "max": MAX_CREDENTIAL_DATA_SIZE},
-            )
-
-        try:
-            check_json_depth(data_dict, MAX_JSON_NESTING_DEPTH)
-        except ValueError as e:
-            raise ValidationError(
-                self.env._(
-                    "Invalid JSON structure!\n\nError: %(error)s\nMaximum nesting depth allowed: %(max)s levels",
-                )
-                % {"error": str(e), "max": MAX_JSON_NESTING_DEPTH},
-            ) from e
-
-        if json_str and json_str != "{}":
-            self.credential_value_encrypted = self._encrypt_value(json_str)
-        else:
-            self.credential_value_encrypted = False
-        self._log_access("write")
