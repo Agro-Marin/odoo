@@ -101,6 +101,23 @@ class TestResourceCalendar(TransactionCase):
             "Last attendance interval should not end after end_dt",
         )
 
+    def test_flexible_calendar_days_data_without_hours_per_day(self):
+        bare = self.env["resource.calendar"].create(
+            {
+                "name": "Bare Flexible Calendar",
+                "flexible_hours": True,
+                "tz": "UTC",
+            }
+        )
+        self.assertEqual(bare.hours_per_day, 0.0)
+
+        start_dt = datetime(2025, 6, 2, 0, 0, 0).astimezone(UTC)
+        end_dt = datetime(2025, 6, 6, 23, 59, 59).astimezone(UTC)
+        intervals = bare._attendance_intervals_batch(start_dt, end_dt)[0]
+        data = bare._get_attendance_intervals_days_data(intervals)
+        self.assertGreater(data["hours"], 0.0)
+        self.assertGreater(data["days"], 0.0)
+
     def test_public_holiday_calendar_no_company(self):
         self.env["resource.calendar.leaves"].create(
             [
