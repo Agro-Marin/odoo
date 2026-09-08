@@ -41,9 +41,6 @@ export function gridRows(sectionSizes, perRow, singleRows = 0) {
 /** @typedef {"previousColumn"|"nextColumn"|"previousLine"|"nextLine"} GridMove */
 
 /**
- * Where an arrow key lands. Both axes wrap, and a move onto a shorter row
- * lands on its last item rather than falling off it.
- *
  * @param {number[][]} rows as `gridRows` returns them
  * @param {number | null} from the flat index the focus is on, or none yet
  * @param {GridMove | string} move

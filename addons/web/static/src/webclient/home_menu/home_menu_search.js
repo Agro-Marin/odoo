@@ -19,15 +19,6 @@ class FooterComponent extends Component {
 }
 
 /**
- * The launcher's search box: what has been typed, where the focus is, and the
- * one query that is not the launcher's to answer.
- *
- * A leading character the command palette has claimed as a namespace is the
- * user asking for the palette, not for the grid, so the text is handed over
- * whole and the box empties. Anything else filters the tiles in place.
- *
- * Wants a `t-ref="input"` on the box itself.
- *
  * @param {{ onQueryChanged: () => void }} params called when the query moves,
  *  since what it invalidates -- a keyboard selection into the grid -- belongs
  *  to the component and not here
@@ -52,7 +43,6 @@ export function useHomeMenuSearch({ onQueryChanged }) {
             return inputEl();
         },
 
-        /** The box takes the focus back, unless there is no room for it. */
         focus() {
             const el = inputEl();
             if (el && !ui.isSmall) {

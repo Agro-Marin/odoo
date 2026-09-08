@@ -186,9 +186,6 @@ export class HomeMenuLayout {
     }
 
     /**
-     * Back to the fallback layout, and to following it: a user with no layout
-     * of their own picks up the company's next change too.
-     *
      * @returns {{ order: string[], saved: Promise<unknown> }}
      */
     reset() {
@@ -202,7 +199,6 @@ export class HomeMenuLayout {
         };
     }
 
-    /** Publish the layout on screen as the fallback for the whole company. */
     async setCompanyDefault() {
         const config = JSON.parse(serializeHomeMenuConfig(this.config));
         await this.orm.write("res.company", [user.activeCompany.id], {

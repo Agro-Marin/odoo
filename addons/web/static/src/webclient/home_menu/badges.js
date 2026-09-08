@@ -7,13 +7,6 @@ import { _t } from "@web/core/translation";
 const badgeProviders = registry.category("home_menu_badges");
 badgeProviders.addValidation({ provide: Function });
 
-/**
- * How long a set of counts serves both launchers. The quick launcher opens on
- * a navbar hover, so without this every mouse crossing the toggle is a full
- * run of every provider -- free while the only provider reads the store, an
- * request storm the moment one asks the server. Long enough to collapse a
- * hover, short enough that deliberately reopening the launcher is fresh.
- */
 const BADGE_TTL = 20_000;
 
 /**
@@ -26,11 +19,6 @@ const BADGE_TTL = 20_000;
 let cached = null;
 
 /**
- * Which apps a set of counts answers for. Sorted, because the answer is by
- * xmlid and no provider is told to care about order -- the popover ranks its
- * dozen tiles by use and the grid keeps the stored order, and those are the
- * same question asked twice.
- *
  * @param {{ xmlid?: string }[]} apps
  */
 function badgeCacheKey(apps) {
@@ -51,12 +39,6 @@ export function invalidateHomeMenuBadges() {
 badgeProviders.addEventListener("UPDATE", invalidateHomeMenuBadges);
 
 /**
- * Every `home_menu_badges` provider answers with counts by app xmlid; a tile
- * shows their sum. A provider that fails costs its own counts only.
- *
- * The result is shared between the two launchers for `BADGE_TTL`, and a call
- * arriving while one is in flight joins it rather than starting a second.
- *
  * @param {import("@web/env").OdooEnv} env
  * @param {{ xmlid?: string }[]} apps
  * @param {{ refresh?: boolean }} [options] `refresh` for a caller the user
@@ -111,13 +93,9 @@ async function countHomeMenuBadges(env, apps) {
     return badges;
 }
 
-/** Above this a tile shows "99+": a four-digit count does not fit an icon. */
 const BADGE_CEILING = 99;
 
 /**
- * A tile's count, and how to show it. One value rather than three calls, so
- * the ceiling and the wording live here instead of in each launcher.
- *
  * @param {Record<string, number>} badges
  * @param {{ xmlid?: string }} app
  * @returns {{ count: number, text: string, label: string }} count 0 for an app
