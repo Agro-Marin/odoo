@@ -306,7 +306,7 @@ class MixinRating(models.AbstractModel):
             stats = stats_per_record[res_id]
             stats["total"] += count
             stats["weighted_sum"] += rating * count
-            stats["counts"][int(rating)] = count
+            stats["counts"][int(rating)] += count
         for stats in stats_per_record.values():
             total = stats["total"]
             if total > 0:
