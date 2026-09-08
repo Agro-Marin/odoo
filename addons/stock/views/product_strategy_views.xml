@@ -19,6 +19,11 @@
                         name="filter_to_rules_on_category"
                         string="Rules on Categories"
                         domain="[('category_id' ,'!=', False)]" />
+                    <separator />
+                    <filter
+                        name="inactive"
+                        string="Archived"
+                        domain="[('active', '=', False)]" />
                 </group>
                 <group>
                     <filter

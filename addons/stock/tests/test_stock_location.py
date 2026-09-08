@@ -1,8 +1,10 @@
+from lxml import etree
 from psycopg.errors import CheckViolation, UniqueViolation
 
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
 from odoo.tools import mute_logger
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.stock.tests.common import TestStockCommon
 
@@ -94,6 +96,44 @@ class TestStockLocationPutawayContract(TestStockCommon):
                 f"line for move to {line.move_id.location_dest_id.complete_name} "
                 f"was put away in {line.location_dest_id.complete_name}",
             )
+
+    def test_an_archived_putaway_rule_can_be_found_again(self):
+        """An archived putaway rule must stay reachable from the search view.
+
+        The model carries `active`, so rules can be archived, but the search
+        view offered no filter for them: an archived rule simply vanished from
+        the interface, with no way to find it, review it or restore it.
+        """
+        shelf = self.env["stock.location"].create(
+            {"name": "Putaway Archive Shelf", "location_id": self.stock_location.id},
+        )
+        rule = self.env["stock.putaway.rule"].create(
+            {
+                "product_id": self.productA.id,
+                "location_in_id": self.stock_location.id,
+                "location_out_id": shelf.id,
+            },
+        )
+        rule.action_archive()
+        self.assertFalse(
+            self.env["stock.putaway.rule"].search([("id", "=", rule.id)]),
+            "fixture: the archived rule must be out of the default search",
+        )
+
+        arch = etree.fromstring(
+            self.env["stock.putaway.rule"].get_view(
+                self.env.ref("stock.view_stock_putaway_rule_search").id, "search"
+            )["arch"],
+        )
+        archived_filters = arch.xpath("//filter[@name='inactive']")
+        self.assertTrue(
+            archived_filters,
+            "the search view must offer a filter for archived rules",
+        )
+        found = self.env["stock.putaway.rule"].search(
+            safe_eval(archived_filters[0].get("domain")),
+        )
+        self.assertIn(rule, found, "that filter must bring the archived rule back")
 
 
 @tagged("post_install", "-at_install")
