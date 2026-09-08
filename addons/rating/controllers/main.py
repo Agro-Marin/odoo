@@ -37,21 +37,8 @@ class Rating(http.Controller):
         # has been removed.
         rating, record_sudo = self._get_rating_and_record(token)
 
-        if (
-            not request.env.user._is_public()
-            and request.env.user.partner_id.commercial_partner_id
-            != rating.partner_id.commercial_partner_id
-        ):
-            return request.render(
-                "rating.rating_external_page_invalid_partner",
-                {
-                    "model_name": request.env["ir.model"]
-                    ._get(rating.res_model)
-                    .display_name,
-                    "name": record_sudo.display_name,
-                    "web_base_url": rating.get_base_url(),
-                },
-            )
+        if not self._has_rating_partner_access(rating):
+            return self._render_invalid_partner_page(rating, record_sudo)
 
         lang = rating.partner_id.lang or get_lang(request.env).code
         return (
@@ -82,6 +69,10 @@ class Rating(http.Controller):
     def action_submit_rating(self, token, rate=0, **kwargs):
 
         rating, record_sudo = self._get_rating_and_record(token)
+
+        if not self._has_rating_partner_access(rating):
+            return self._render_invalid_partner_page(rating, record_sudo)
+
         if request.httprequest.method == "POST":
             rate = int(rate)
             if rate not in (
@@ -116,6 +107,25 @@ class Rating(http.Controller):
                     "rating": rating,
                 },
             )
+        )
+
+    def _has_rating_partner_access(self, rating):
+        return (
+            request.env.user._is_public()
+            or request.env.user.partner_id.commercial_partner_id
+            == rating.partner_id.commercial_partner_id
+        )
+
+    def _render_invalid_partner_page(self, rating, record_sudo):
+        return request.render(
+            "rating.rating_external_page_invalid_partner",
+            {
+                "model_name": request.env["ir.model"]
+                ._get(rating.res_model)
+                .display_name,
+                "name": record_sudo.display_name,
+                "web_base_url": rating.get_base_url(),
+            },
         )
 
     def _get_rating_and_record(self, token):
