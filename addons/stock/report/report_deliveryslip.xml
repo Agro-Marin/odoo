@@ -77,8 +77,13 @@
                             <div
                                 t-if="o.state == 'done'"
                                 t-field="o.date_done"
+                                t-options="{&quot;widget&quot;: &quot;date&quot;}"
                                 class="m-0" />
-                            <div t-else="" t-field="o.date_planned" class="m-0" />
+                            <div
+                                t-else=""
+                                t-field="o.date_planned"
+                                t-options="{&quot;widget&quot;: &quot;date&quot;}"
+                                class="m-0" />
                         </div>
                         <div t-if="o.user_id" class="col-auto" name="div_operator">
                             <strong>Operator:</strong>
