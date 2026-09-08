@@ -120,7 +120,7 @@ class ProjectProject(models.Model):
         }
 
     def action_profitability_items(self, section_name, domain=None, res_id=False):
-        if section_name in ["other_revenues_aal", "other_costs_aal", "other_costs"]:
+        if section_name in ["other_revenues_aal", "other_costs_aal"]:
             action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "analytic.account_analytic_line_action_entries"
             )
