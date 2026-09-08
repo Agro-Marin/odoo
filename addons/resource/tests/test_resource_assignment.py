@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -243,6 +243,23 @@ class TestResourceAssignment(TransactionCase):
                     "date_start": self.now,
                 }
             )
+
+    def test_cross_company_assignee_is_rejected(self):
+        other_company = self.env["res.company"].create({"name": "Other Co"})
+        foreign_driver = (
+            self.env["resource.resource"]
+            .with_company(other_company)
+            .create(
+                {
+                    "name": "Foreign",
+                    "resource_type": "user",
+                    "tz": "UTC",
+                    "company_id": other_company.id,
+                }
+            )
+        )
+        with self.assertRaises(UserError):
+            self._assign(assignee=foreign_driver)
 
     def test_end_before_start_is_rejected(self):
         from odoo.tools import mute_logger
