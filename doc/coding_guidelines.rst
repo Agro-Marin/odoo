@@ -1138,7 +1138,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   315
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 25,901
+§2.4.3   Non-test methods declared on a model class                 25,900
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               101
 §2.4.4   Model methods with an abolished verb behind a noun            137
@@ -1829,7 +1829,7 @@ running the other way.
 
 **``_get_`` is not a default.** It is 23.0 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 678
+deriving and computing. The split that matters is against ``_prepare_``: 677
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
 are spelled ``get_*``, against 841 already spelled ``_prepare_*``.
@@ -1969,7 +1969,7 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **A ``bool`` return does not make a predicate** ``[review]``. **365** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **263**
+this repository are annotated ``-> bool`` and are not predicates, against **262**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
