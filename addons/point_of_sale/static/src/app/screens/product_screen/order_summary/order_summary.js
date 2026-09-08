@@ -250,11 +250,7 @@ export class OrderSummary extends Component {
                 this.currentOrder.removeOrderline(line);
                 return;
             }
-            const result = line.setQuantity(val, Boolean(line.combo_line_ids?.length));
-            if (result !== true) {
-                this.dialog.add(AlertDialog, result);
-                this.numberBuffer.reset();
-            }
+            this.setLineQuantity(line, val);
         } else if (numpadMode === "discount" && val !== "remove") {
             this.pos.setDiscountFromUI(this.editedLine, val);
         } else if (numpadMode === "price" && val !== "remove") {
@@ -278,15 +274,22 @@ export class OrderSummary extends Component {
             return await this.updateQuantityNumber(newQuantity);
         }
     }
+    setLineQuantity(line, quantity) {
+        const result = line.setQuantity(quantity, Boolean(line.combo_line_ids?.length));
+        if (result === true) {
+            return true;
+        }
+        this.dialog.add(AlertDialog, result);
+        this.numberBuffer.reset();
+        return false;
+    }
+
     async updateQuantityNumber(newQuantity) {
         if (newQuantity !== null) {
             const selectedLine = this.editedLine;
             const currentQuantity = selectedLine.getQuantity();
             if (newQuantity >= currentQuantity) {
-                selectedLine.setQuantity(
-                    newQuantity,
-                    Boolean(selectedLine.combo_line_ids?.length),
-                );
+                return this.setLineQuantity(selectedLine, newQuantity);
             } else if (newQuantity >= selectedLine.uiState.savedQuantity) {
                 await this.handleDecreaseUnsavedLine(newQuantity);
             } else {
