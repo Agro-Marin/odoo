@@ -38,6 +38,7 @@ GATES = {
     "js_private_access": ["--check"],
     "xml_reference_coherence": ["--check"],
     "js_class_length": ["--count"],
+    "license_notices": ["--check"],
     "js_function_length": ["--count"],
     "js_duplication": ["--count"],
     "js_vacuous_assertions": ["--count"],
