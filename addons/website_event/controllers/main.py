@@ -452,6 +452,18 @@ class WebsiteEventController(http.Controller):
             },
         )
 
+    def _check_posted_ids_are_offered(
+        self, form_details, field_name, offered_ids, message
+    ):
+        posted = [
+            form_details[key]
+            for key in form_details
+            if field_name in key and form_details[key] is not None
+        ]
+        for posted_id in posted:
+            if int(posted_id) not in offered_ids and offered_ids:
+                raise UserError(message)
+
     def _process_attendees_form(self, event, form_details):
         """Process data posted from the attendee details form.
         Extracts question answers:
@@ -470,36 +482,18 @@ class WebsiteEventController(http.Controller):
             for key, v in request.env["event.registration"]._fields.items()
             if key in allowed_fields
         }
-        for ticket_id in list(
-            filter(
-                lambda x: x is not None,
-                [
-                    form_details[field] if "event_ticket_id" in field else None
-                    for field in form_details
-                ],
-            )
-        ):
-            if (
-                int(ticket_id) not in event.event_ticket_ids.ids
-                and len(event.event_ticket_ids.ids) > 0
-            ):
-                raise UserError(
-                    _("This ticket is not available for sale for this event")
-                )
-        for slot_id in list(
-            filter(
-                lambda x: x is not None,
-                [
-                    form_details[field] if "event_slot_id" in field else None
-                    for field in form_details
-                ],
-            )
-        ):
-            if (
-                int(slot_id) not in event.event_slot_ids.ids
-                and len(event.event_slot_ids.ids) > 0
-            ):
-                raise UserError(_("This slot is not available for this event"))
+        self._check_posted_ids_are_offered(
+            form_details,
+            "event_ticket_id",
+            event.event_ticket_ids.ids,
+            _("This ticket is not available for sale for this event"),
+        )
+        self._check_posted_ids_are_offered(
+            form_details,
+            "event_slot_id",
+            event.event_slot_ids.ids,
+            _("This slot is not available for this event"),
+        )
         registrations = {}
         general_answer_ids = []
         general_identification_answers = {}
