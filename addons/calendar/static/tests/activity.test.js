@@ -18,7 +18,9 @@ preloadFullCalendar();
  * shared fixture both tests below exercise.
  */
 function createMeetingWithActivity(pyEnv, { partnerName } = {}) {
-    const partnerId = pyEnv["res.partner"].create(partnerName ? { name: partnerName } : {});
+    const partnerId = pyEnv["res.partner"].create(
+        partnerName ? { name: partnerName } : {},
+    );
     const activityTypeId = pyEnv["mail.activity.type"].create({
         icon: "fa-calendar",
         name: "Meeting",
@@ -57,7 +59,9 @@ test("activity click on Reschedule", async () => {
 
 test("Can cancel activity linked to an event", async () => {
     const pyEnv = await startServer();
-    const partnerId = createMeetingWithActivity(pyEnv, { partnerName: "Milan Kundera" });
+    const partnerId = createMeetingWithActivity(pyEnv, {
+        partnerName: "Milan Kundera",
+    });
     await start();
     await openFormView("res.partner", partnerId);
     await click(".o-mail-Activity .btn", { text: "Cancel" });
@@ -66,7 +70,9 @@ test("Can cancel activity linked to an event", async () => {
 
 test("Cancelling an activity linked to an event keeps it visible if the server rejects", async () => {
     const pyEnv = await startServer();
-    const partnerId = createMeetingWithActivity(pyEnv, { partnerName: "Milan Kundera" });
+    const partnerId = createMeetingWithActivity(pyEnv, {
+        partnerName: "Milan Kundera",
+    });
     onRpc("mail.activity", "unlink_w_meeting", () => {
         throw new Error("boom");
     });

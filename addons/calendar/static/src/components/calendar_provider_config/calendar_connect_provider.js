@@ -46,7 +46,8 @@ export class CalendarConnectProvider extends Component {
             [this.props.record.resId],
         );
         // See google/microsoft_calendar for the origin of this shortened version
-        const provider = providerData[this.props.record.data.external_calendar_provider];
+        const provider =
+            providerData[this.props.record.data.external_calendar_provider];
         if (!provider) {
             return;
         }

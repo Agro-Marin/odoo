@@ -10,7 +10,14 @@ function makeFakeLongpolling() {
             this.calls.push(["action", iot_ip, device_identifier, data, fallback]);
         },
         addListener(iot_ip, devices, listener_id, callback, fallback) {
-            this.calls.push(["addListener", iot_ip, devices, listener_id, callback, fallback]);
+            this.calls.push([
+                "addListener",
+                iot_ip,
+                devices,
+                listener_id,
+                callback,
+                fallback,
+            ]);
         },
         removeListener(iot_ip, device_identifier, listener_id) {
             this.calls.push(["removeListener", iot_ip, device_identifier, listener_id]);

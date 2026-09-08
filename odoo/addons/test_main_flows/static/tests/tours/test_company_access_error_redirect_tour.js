@@ -1,5 +1,6 @@
 import { cookie } from "@web/core/browser/cookie";
 import { registry } from "@web/core/registry";
+
 import { assertEqual } from "./tour_test_utils.js";
 
 registry.category("web_tour.tours").add("test_company_access_error_redirect", {

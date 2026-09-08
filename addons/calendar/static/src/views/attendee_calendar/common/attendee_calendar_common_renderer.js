@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { AttendeeCalendarCommonPopover } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_popover";
 import { getAttendeeStatusClass } from "@calendar/views/attendee_calendar/attendee_calendar_utils";
+import { AttendeeCalendarCommonPopover } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_popover";
 import { CalendarCommonRenderer } from "@web/views/calendar";
 
 export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {

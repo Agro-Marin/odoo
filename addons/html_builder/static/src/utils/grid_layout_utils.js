@@ -51,8 +51,7 @@ export function setElementToMaxZindex(element, rowEl) {
     const childrenEls = [...rowEl.children].filter(
         (el) => el !== element && !el.classList.contains("o_we_grid_preview"),
     );
-    element.style.zIndex =
-        Math.max(0, ...childrenEls.map((el) => el.style.zIndex)) + 1;
+    element.style.zIndex = Math.max(0, ...childrenEls.map((el) => el.style.zIndex)) + 1;
 }
 /**
  * Creates the background grid appearing everytime a change occurs in a grid.

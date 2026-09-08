@@ -549,7 +549,7 @@ export class SelectionPlugin extends Plugin {
         } else if (!isSelectionConnected) {
             this.activeSelection = this.makeActiveSelection();
         }
-        let {
+        const {
             anchorNode,
             anchorOffset,
             focusNode,

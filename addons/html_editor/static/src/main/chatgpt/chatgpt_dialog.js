@@ -19,8 +19,7 @@ const POSTPROCESS_GENERATED_CONTENT = (content, baseContainer) => {
             li.innerText = line.trim().slice(2);
             parentUl.appendChild(li);
         } else if (
-            (parentOl &&
-                line.trim().startsWith(`${parentOl.children.length + 1}. `)) ||
+            (parentOl && line.trim().startsWith(`${parentOl.children.length + 1}. `)) ||
             (!parentOl && line.trim().startsWith("1. "))
         ) {
             parentOl = parentOl || document.createElement("ol");

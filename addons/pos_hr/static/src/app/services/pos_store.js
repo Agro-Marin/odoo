@@ -15,9 +15,13 @@ patch(PosStore.prototype, {
         browser.addEventListener("online", () => {
             if (this.config.current_session_id?.id) {
                 this.employeeBuffer.forEach((employee) =>
-                    this.data.write("pos.session", [this.config.current_session_id.id], {
-                        employee_id: employee.id,
-                    }),
+                    this.data.write(
+                        "pos.session",
+                        [this.config.current_session_id.id],
+                        {
+                            employee_id: employee.id,
+                        },
+                    ),
                 );
             }
             this.employeeBuffer = [];

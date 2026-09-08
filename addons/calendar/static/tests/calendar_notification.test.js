@@ -76,7 +76,8 @@ test("alarm body renders as markup, not as escaped text", async () => {
     await start();
     sendAlarm(pyEnv, {
         title: "standup",
-        message: "08/09/2026 at (08:15:13 PM To 09:15:13 PM) (UTC)<p>bring the deck</p>",
+        message:
+            "08/09/2026 at (08:15:13 PM To 09:15:13 PM) (UTC)<p>bring the deck</p>",
         notify_at: "2026-08-09 20:05:13",
     });
     await contains(".o_notification_content p", { text: "bring the deck" });

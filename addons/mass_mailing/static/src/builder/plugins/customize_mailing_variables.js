@@ -30,7 +30,7 @@ function generateSimpleMailingVariables(prefix, selectors, properties) {
 
 // Properties and default values:
 
-/* eslint-disable */
+ 
 const wrapperProperties = [
     "background-color",
 ];
@@ -68,7 +68,7 @@ const separatorProperties = [
     "border-color",
     "width",
 ];
-/* eslint-enable */
+ 
 
 export const CUSTOMIZE_MAILING_VARIABLES = Object.assign(
     generateSimpleMailingVariables("wrapper", ["> [data-snippet]"], wrapperProperties),

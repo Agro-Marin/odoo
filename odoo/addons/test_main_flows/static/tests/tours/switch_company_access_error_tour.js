@@ -1,5 +1,6 @@
 import { router } from "@web/core/browser/router";
 import { registry } from "@web/core/registry";
+
 import { assertEqual } from "./tour_test_utils.js";
 
 registry.category("web_tour.tours").add("test_company_switch_access_error", {

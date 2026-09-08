@@ -1,6 +1,7 @@
 // @ts-check
 
 import { after, before, withFetch } from "@odoo/hoot";
+import { HomeMenuBadge } from "@web/../tests/_framework/mock_server/mock_models/home_menu_badge";
 import { globalBundleCache, loadBundle } from "@web/core/assets";
 import { loadChartJS } from "@web/core/lib/chartjs";
 import { loadFullCalendar } from "@web/core/lib/fullcalendar";
@@ -12,7 +13,6 @@ import { IrHttp } from "./_framework/mock_server/mock_models/ir_http.js";
 import { IrModel } from "./_framework/mock_server/mock_models/ir_model.js";
 import { IrModelAccess } from "./_framework/mock_server/mock_models/ir_model_access.js";
 import { IrModelFields } from "./_framework/mock_server/mock_models/ir_model_fields.js";
-import { HomeMenuBadge } from "@web/../tests/_framework/mock_server/mock_models/home_menu_badge";
 import { IrModuleCategory } from "./_framework/mock_server/mock_models/ir_module_category.js";
 import { IrRule } from "./_framework/mock_server/mock_models/ir_rule.js";
 import { IrUiView } from "./_framework/mock_server/mock_models/ir_ui_view.js";
