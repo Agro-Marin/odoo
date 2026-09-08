@@ -11,7 +11,7 @@ declare module "models" {
     }
 
     export interface Models {
-        "website": Website;
+        website: Website;
         "website.visitor": WebsiteVisitor;
     }
 }

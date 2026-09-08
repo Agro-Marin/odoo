@@ -20,7 +20,7 @@ declare module "models" {
     export interface LivechatExpertise extends LivechatExpertiseClass {}
 
     export interface ChatWindow {
-        livechatStep: undefined|"CONFIRM_CLOSE"|"FEEDBACK";
+        livechatStep: undefined | "CONFIRM_CLOSE" | "FEEDBACK";
     }
     export interface DataResponse {
         chatbot_step: ChatbotStep;
@@ -39,13 +39,31 @@ declare module "models" {
     export interface Store {
         Chatbot: StaticMailRecord<Chatbot, typeof ChatbotClass>;
         "chatbot.script": StaticMailRecord<ChatbotScript, typeof ChatbotScriptClass>;
-        "chatbot.script.answer": StaticMailRecord<ChatbotScriptStepAnswer, typeof ChatbotScriptStepAnswerClass>;
-        "chatbot.script.step": StaticMailRecord<ChatbotScriptStep, typeof ChatbotScriptStepClass>;
+        "chatbot.script.answer": StaticMailRecord<
+            ChatbotScriptStepAnswer,
+            typeof ChatbotScriptStepAnswerClass
+        >;
+        "chatbot.script.step": StaticMailRecord<
+            ChatbotScriptStep,
+            typeof ChatbotScriptStepClass
+        >;
         ChatbotStep: StaticMailRecord<ChatbotStep, typeof ChatbotStepClass>;
-        "im_livechat.channel": StaticMailRecord<LivechatChannel, typeof LivechatChannelClass>;
-        "im_livechat.channel.rule": StaticMailRecord<LivechatChannelRule, typeof LivechatChannelRuleClass>;
-        "im_livechat.conversation.tag": StaticMailRecord<LivechatConversationTag, typeof LivechatConversationTagClass>;
-        "im_livechat.expertise": StaticMailRecord<LivechatExpertise, typeof LivechatExpertiseClass>;
+        "im_livechat.channel": StaticMailRecord<
+            LivechatChannel,
+            typeof LivechatChannelClass
+        >;
+        "im_livechat.channel.rule": StaticMailRecord<
+            LivechatChannelRule,
+            typeof LivechatChannelRuleClass
+        >;
+        "im_livechat.conversation.tag": StaticMailRecord<
+            LivechatConversationTag,
+            typeof LivechatConversationTagClass
+        >;
+        "im_livechat.expertise": StaticMailRecord<
+            LivechatExpertise,
+            typeof LivechatExpertiseClass
+        >;
     }
     export interface Thread {
         chatbot: Chatbot;
@@ -55,7 +73,7 @@ declare module "models" {
         livechat_end_dt: import("luxon").DateTime;
         livechat_operator_id: ResPartner;
         livechatVisitorMember: ChannelMember;
-        open_chat_window: true|undefined;
+        open_chat_window: true | undefined;
         livechat_lang_id: ResLang;
     }
 

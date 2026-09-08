@@ -1,11 +1,8 @@
-
 interface Element {
-    querySelector<E extends HTMLElement = HTMLElement>(
-        selectors: string
-    ): E | null;
+    querySelector<E extends HTMLElement = HTMLElement>(selectors: string): E | null;
 
     querySelectorAll<E extends HTMLElement = HTMLElement>(
-        selectors: string
+        selectors: string,
     ): NodeListOf<E>;
 }
 

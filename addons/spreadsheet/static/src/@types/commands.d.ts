@@ -20,22 +20,34 @@ type OdooCancelledReason = string;
 
 declare module "@spreadsheet" {
     interface OdooCommandDispatcher {
-        dispatch<T extends OdooCommandTypes, C extends Extract<OdooCommand, { type: T }>>(
-            type: {} extends Omit<C, "type"> ? T : never
+        dispatch<
+            T extends OdooCommandTypes,
+            C extends Extract<OdooCommand, { type: T }>,
+        >(
+            type: {} extends Omit<C, "type"> ? T : never,
         ): OdooDispatchResult;
-        dispatch<T extends OdooCommandTypes, C extends Extract<OdooCommand, { type: T }>>(
+        dispatch<
+            T extends OdooCommandTypes,
+            C extends Extract<OdooCommand, { type: T }>,
+        >(
             type: T,
-            r: Omit<C, "type">
+            r: Omit<C, "type">,
         ): OdooDispatchResult;
     }
 
     interface OdooCoreCommandDispatcher {
-        dispatch<T extends OdooCoreCommandTypes, C extends Extract<OdooCoreCommand, { type: T }>>(
-            type: {} extends Omit<C, "type"> ? T : never
+        dispatch<
+            T extends OdooCoreCommandTypes,
+            C extends Extract<OdooCoreCommand, { type: T }>,
+        >(
+            type: {} extends Omit<C, "type"> ? T : never,
         ): OdooDispatchResult;
-        dispatch<T extends OdooCoreCommandTypes, C extends Extract<OdooCoreCommand, { type: T }>>(
+        dispatch<
+            T extends OdooCoreCommandTypes,
+            C extends Extract<OdooCoreCommand, { type: T }>,
+        >(
             type: T,
-            r: Omit<C, "type">
+            r: Omit<C, "type">,
         ): OdooDispatchResult;
     }
 

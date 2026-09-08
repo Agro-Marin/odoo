@@ -10,10 +10,10 @@ declare module "registries" {
     export type CommandProviderRegistryItemShape = Provider;
 
     export interface CommandSetupRegistryItemShape {
-        debounceDelay?: number,
-        emptyMessage?: string,
-        name?: string,
-        placeholder?: string,
+        debounceDelay?: number;
+        emptyMessage?: string;
+        name?: string;
+        placeholder?: string;
     }
 
     interface GlobalRegistryCategories {

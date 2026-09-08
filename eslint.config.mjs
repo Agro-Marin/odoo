@@ -191,6 +191,18 @@ const SHARED_IGNORES = [
     // cannot re-include anything, because the directory is never descended
     // into. Ignoring only the files keeps those negations effective.
     "**/static/lib/**/*",
+    // TypeScript declaration files. Every `files:` glob in this config is
+    // *.js, so a .d.ts matched no block and eslint reported "File ignored
+    // because no matching configuration was supplied" -- a WARNING that reads
+    // like a finding but means eslint had no opinion at all. It cannot form
+    // one: espree does not parse TypeScript and no TS parser is a dependency
+    // here. Declared rather than left to fall through, so the boundary is a
+    // decision someone can find. What covers them instead: tsc, whose
+    // tsconfig include is **/*.ts so declaration files are its native input,
+    // and the prettier_dts gate, which holds their formatting at zero drift
+    // the way prettier_scss does for Sass -- formatting being the one thing
+    // eslint would otherwise have enforced here, via eslint-plugin-prettier.
+    "**/*.d.ts",
 ];
 
 const COMMUNITY_IGNORES = [

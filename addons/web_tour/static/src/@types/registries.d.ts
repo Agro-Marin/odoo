@@ -2,7 +2,7 @@ declare module "registries" {
     interface TourStep {
         content?: string;
         trigger?: string;
-        run?: string | (() => (void | Promise<void>));
+        run?: string | (() => void | Promise<void>);
         [key: string]: any;
     }
 

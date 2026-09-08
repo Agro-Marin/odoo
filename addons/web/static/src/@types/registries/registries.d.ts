@@ -11,9 +11,13 @@ declare module "registries" {
         env: OdooEnv;
         options: ActionOptions;
     }
-    export type ActionHandlersRegistryItemShape = (params: ActionHandlerParams) => (void | Promise<void>);
+    export type ActionHandlersRegistryItemShape = (
+        params: ActionHandlerParams,
+    ) => void | Promise<void>;
 
-    export type ActionsRegistryItemShape = (((env: OdooEnv, action: ActionDescription) => void) | ComponentConstructor) & {
+    export type ActionsRegistryItemShape = (
+        ((env: OdooEnv, action: ActionDescription) => void) | ComponentConstructor
+    ) & {
         displayName?: string;
         path?: string;
         target?: ActionMode;
@@ -27,13 +31,24 @@ declare module "registries" {
 
     export type DialogsRegistryItemShape = ComponentConstructor;
 
-    export type EffectsRegistryItemShape = (env: OdooEnv, params: object) => ({ Component?: ComponentConstructor, props?: object, remove?: () => void } | undefined);
+    export type EffectsRegistryItemShape = (
+        env: OdooEnv,
+        params: object,
+    ) =>
+        | { Component?: ComponentConstructor; props?: object; remove?: () => void }
+        | undefined;
 
     export type ErrorDialogsRegistryItemShape = ComponentConstructor;
 
-    export type ErrorHandlersRegistryItemShape = (env: OdooEnv, error: any, originalError?: any) => boolean | void;
+    export type ErrorHandlersRegistryItemShape = (
+        env: OdooEnv,
+        error: any,
+        originalError?: any,
+    ) => boolean | void;
 
-    export type ErrorNotificationsRegistryItemShape = NotificationOptions & { message?: string };
+    export type ErrorNotificationsRegistryItemShape = NotificationOptions & {
+        message?: string;
+    };
 
     export interface FavoriteMenuRegistryItemShape {
         Component: ComponentConstructor;
@@ -57,7 +72,11 @@ declare module "registries" {
         label: String;
         method: string | (() => {});
         isVisible: boolean | ((params: KanbanHeaderConfigItemsFnParams) => boolean);
-        class: string | ((params: KanbanHeaderConfigItemsFnParams) => (string | string[] | { [key: string]: boolean }));
+        class:
+            | string
+            | ((
+                  params: KanbanHeaderConfigItemsFnParams,
+              ) => string | string[] | { [key: string]: boolean });
         icon?: string;
         [key: string]: any;
     }
@@ -84,7 +103,11 @@ declare module "registries" {
         isDisplayed?: (env: OdooEnv) => boolean;
     }
 
-    export type IrActionsReportHandlers = (action: ActionRequest, options: ActionOptions, env: OdooEnv) => (void | boolean | Promise<void | boolean>);
+    export type IrActionsReportHandlers = (
+        action: ActionRequest,
+        options: ActionOptions,
+        env: OdooEnv,
+    ) => void | boolean | Promise<void | boolean>;
 
     export type InteractionRegistryItemShape = typeof Interaction;
 

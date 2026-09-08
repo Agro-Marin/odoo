@@ -170,6 +170,18 @@ declare module "@spreadsheet" {
         defaultValue?: SetValue;
     }
 
-    export type GlobalFilter = TextGlobalFilter | DateGlobalFilter | RelationalGlobalFilter | BooleanGlobalFilter | SelectionGlobalFilter | NumericGlobalFilter;
-    export type CmdGlobalFilter = CmdTextGlobalFilter | DateGlobalFilter | RelationalGlobalFilter | BooleanGlobalFilter | SelectionGlobalFilter | NumericGlobalFilter;
+    export type GlobalFilter =
+        | TextGlobalFilter
+        | DateGlobalFilter
+        | RelationalGlobalFilter
+        | BooleanGlobalFilter
+        | SelectionGlobalFilter
+        | NumericGlobalFilter;
+    export type CmdGlobalFilter =
+        | CmdTextGlobalFilter
+        | DateGlobalFilter
+        | RelationalGlobalFilter
+        | BooleanGlobalFilter
+        | SelectionGlobalFilter
+        | NumericGlobalFilter;
 }

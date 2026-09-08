@@ -24,7 +24,7 @@ declare module "registries" {
 
     interface DebugItem {
         type: "item";
-        callback?: () => (void | Promise<void>);
+        callback?: () => void | Promise<void>;
         description: string;
         href?: string;
         sequence: number;
@@ -33,14 +33,16 @@ declare module "registries" {
 
     type DebugRegistryItemShapeResult = DebugComponent | DebugItem | null;
 
-    export type DebugRegistryItemShape = (params: DebugRegistryItemShapeParams) => DebugRegistryItemShapeResult;
+    export type DebugRegistryItemShape = (
+        params: DebugRegistryItemShapeParams,
+    ) => DebugRegistryItemShapeResult;
 
     export type DebugRegistryCategories = Record<string, DebugRegistryItemShape>;
 
     export interface DebugSectionRegistryItemShape {
         label: string;
         sequence?: number;
-    };
+    }
 
     interface GlobalRegistryCategories {
         debug: RegistryData<DebugRegistryItemShape, DebugRegistryCategories>;

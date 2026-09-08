@@ -2,7 +2,11 @@ import { OdooPivotRuntimeDefinition } from "@spreadsheet/pivot/pivot_runtime";
 import { ORM } from "@web/core/network/orm_service";
 import { PivotMeasure } from "@spreadsheet/pivot/pivot_runtime";
 import { ServerData } from "@spreadsheet/data_sources/server_data";
-import { Pivot, CommonPivotCoreDefinition, PivotCoreDefinition } from "@odoo/o-spreadsheet";
+import {
+    Pivot,
+    CommonPivotCoreDefinition,
+    PivotCoreDefinition,
+} from "@odoo/o-spreadsheet";
 
 declare module "@spreadsheet" {
     export interface OdooPivotCoreDefinition extends CommonPivotCoreDefinition {
@@ -13,7 +17,8 @@ declare module "@spreadsheet" {
         actionXmlId: string;
     }
 
-    export type ExtendedPivotCoreDefinition = PivotCoreDefinition | OdooPivotCoreDefinition;
+    export type ExtendedPivotCoreDefinition =
+        PivotCoreDefinition | OdooPivotCoreDefinition;
 
     interface OdooPivot<T> extends Pivot<T> {
         type: ExtendedPivotCoreDefinition["type"];

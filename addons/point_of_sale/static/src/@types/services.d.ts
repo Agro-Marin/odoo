@@ -1,4 +1,3 @@
-
 declare module "services" {
     import { CustomerDisplayDataService } from "@point_of_sale/customer_display/customer_display_data_service";
     import { alertService } from "@point_of_sale/app/services/alert_service";

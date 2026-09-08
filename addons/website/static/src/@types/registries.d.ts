@@ -1,4 +1,3 @@
-
 declare module "registries" {
     import { Interaction } from "@web/public/interaction";
 

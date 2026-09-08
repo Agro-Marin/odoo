@@ -86,7 +86,7 @@ declare module "@odoo/owl" {
     export function onWillStart(callback: () => void | Promise<void>): void;
     export function onWillUnmount(callback: () => void | Promise<void>): void;
     export function onWillUpdateProps(
-        callback: (nextProps: any) => void | Promise<void>
+        callback: (nextProps: any) => void | Promise<void>,
     ): void;
 
     export function reactive<T extends object>(target: T, callback?: () => void): T;
@@ -101,32 +101,32 @@ declare module "@odoo/owl" {
     export function useComponent<C = Component>(): C;
     export function useEffect(
         effect: (...deps: any[]) => void | (() => void),
-        getDependencies?: () => any[]
+        getDependencies?: () => any[],
     ): void;
 
     export function useExternalListener<K extends keyof WindowEventMap>(
         target: Window,
         type: K,
         handler: (this: Window, ev: WindowEventMap[K]) => any,
-        options?: boolean | AddEventListenerOptions
+        options?: boolean | AddEventListenerOptions,
     ): void;
     export function useExternalListener<K extends keyof DocumentEventMap>(
         target: Document,
         type: K,
         handler: (this: Document, ev: DocumentEventMap[K]) => any,
-        options?: boolean | AddEventListenerOptions
+        options?: boolean | AddEventListenerOptions,
     ): void;
     export function useExternalListener<K extends keyof HTMLElementEventMap>(
         target: HTMLElement,
         type: K,
         handler: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
-        options?: boolean | AddEventListenerOptions
+        options?: boolean | AddEventListenerOptions,
     ): void;
     export function useExternalListener(
         target: EventTarget,
         type: string,
         handler: EventListenerOrEventListenerObject,
-        options?: boolean | AddEventListenerOptions
+        options?: boolean | AddEventListenerOptions,
     ): void;
 
     export interface Ref<T extends Element = HTMLElement> {
@@ -140,7 +140,7 @@ declare module "@odoo/owl" {
         constructor();
         trigger<K extends keyof EventDetailMap & string>(
             name: K,
-            detail?: EventDetailMap[K]
+            detail?: EventDetailMap[K],
         ): void;
     }
 
@@ -158,11 +158,11 @@ declare module "@odoo/owl" {
     export function mount<C extends Component>(
         component: ComponentConstructor,
         target: HTMLElement,
-        config?: AppConfig
+        config?: AppConfig,
     ): Promise<C>;
 
     export function status(
-        component: Component
+        component: Component,
     ): "new" | "mounted" | "unmounted" | "destroyed";
 
     export function validate(value: any, schema: any): void;

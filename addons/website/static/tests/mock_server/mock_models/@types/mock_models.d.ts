@@ -6,7 +6,7 @@ declare module "mock_models" {
     export interface WebsiteVisitor extends WebsiteVisitor2 {}
 
     export interface Models {
-        "website": Website,
-        "website.visitor": WebsiteVisitor,
+        website: Website;
+        "website.visitor": WebsiteVisitor;
     }
 }

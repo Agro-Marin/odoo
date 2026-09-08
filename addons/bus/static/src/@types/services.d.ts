@@ -12,16 +12,16 @@ declare module "services" {
     import { simpleNotificationService } from "@bus/simple_notification_service";
 
     export interface Services {
-        "bus.monitoring_service": typeof busMonitoringservice,
-        "bus.outdated_page_watcher": typeof outdatedPageWatcherService,
-        "bus.parameters": typeof busParametersService,
-        bus_service: typeof busService,
-        "bus.logs_service": typeof busLogsService,
-        legacy_multi_tab: typeof legacyMultiTabService,
-        multi_tab: typeof multiTabService,
-        presence: typeof presenceService,
-        worker_service: typeof workerService,
-        "bus.assets_watchdog": typeof assetsWatchdogService,
-        simple_notification: typeof simpleNotificationService,
+        "bus.monitoring_service": typeof busMonitoringservice;
+        "bus.outdated_page_watcher": typeof outdatedPageWatcherService;
+        "bus.parameters": typeof busParametersService;
+        bus_service: typeof busService;
+        "bus.logs_service": typeof busLogsService;
+        legacy_multi_tab: typeof legacyMultiTabService;
+        multi_tab: typeof multiTabService;
+        presence: typeof presenceService;
+        worker_service: typeof workerService;
+        "bus.assets_watchdog": typeof assetsWatchdogService;
+        simple_notification: typeof simpleNotificationService;
     }
 }

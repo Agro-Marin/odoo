@@ -55,7 +55,9 @@ declare module "services" {
     import { serviceWorkerService } from "@web/webclient/service_worker_service";
     import { shareTargetService } from "@web/webclient/share_target/share_target_service";
 
-    type ExtractServiceFactory<T extends ServicesRegistryShape> = Awaited<ReturnType<T["start"]>>;
+    type ExtractServiceFactory<T extends ServicesRegistryShape> = Awaited<
+        ReturnType<T["start"]>
+    >;
     export type ServiceFactories = {
         [P in keyof Services]: ExtractServiceFactory<Services[P]>;
     };

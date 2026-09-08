@@ -10,7 +10,7 @@ declare module "models" {
     export interface ResPartner {
         employee_id: HrEmployee;
         employee_ids: HrEmployee[];
-        employeeId: number|undefined;
+        employeeId: number | undefined;
     }
     export interface ResUsers {
         employee_id: HrEmployee;
@@ -19,7 +19,10 @@ declare module "models" {
     export interface Store {
         "hr.department": StaticMailRecord<HrDepartment, typeof HrDepartmentClass>;
         "hr.employee": StaticMailRecord<HrEmployee, typeof HrEmployeeClass>;
-        "hr.work.location": StaticMailRecord<HrWorkLocation, typeof HrWorkLocationClass>;
+        "hr.work.location": StaticMailRecord<
+            HrWorkLocation,
+            typeof HrWorkLocationClass
+        >;
     }
 
     export interface Models {

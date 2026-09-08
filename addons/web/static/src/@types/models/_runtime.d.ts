@@ -36,8 +36,7 @@ declare module "@web/@types/models/_runtime" {
      * @template TModel string-literal model name (e.g. ``"res.partner"``)
      */
     export type Many2one<TModel extends string> =
-        | (readonly [number, string] & { readonly __model?: TModel })
-        | false;
+        (readonly [number, string] & { readonly __model?: TModel }) | false;
 
     /**
      * Tagged number-array for one2many fields.  The wire shape is
@@ -47,8 +46,9 @@ declare module "@web/@types/models/_runtime" {
      *
      * @template TModel string-literal model name of the related side
      */
-    export type One2many<TModel extends string> =
-        readonly number[] & { readonly __model?: TModel };
+    export type One2many<TModel extends string> = readonly number[] & {
+        readonly __model?: TModel;
+    };
 
     /**
      * Tagged number-array for many2many fields.  Same shape as
@@ -58,8 +58,9 @@ declare module "@web/@types/models/_runtime" {
      *
      * @template TModel string-literal model name of the related side
      */
-    export type Many2many<TModel extends string> =
-        readonly number[] & { readonly __model?: TModel };
+    export type Many2many<TModel extends string> = readonly number[] & {
+        readonly __model?: TModel;
+    };
 
     /**
      * Reference field — string of the form ``"<model>,<id>"`` or

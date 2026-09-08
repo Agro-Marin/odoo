@@ -6,7 +6,11 @@ declare module "registries" {
     import { ViewCompiler } from "@web/views/view_compiler";
 
     interface ArchParser {
-        parse(xmlDoc: XMLDocument, models: Record<string, FieldDefinitionMap>, modelName: string): any;
+        parse(
+            xmlDoc: XMLDocument,
+            models: Record<string, FieldDefinitionMap>,
+            modelName: string,
+        ): any;
     }
 
     interface ViewInfo {
@@ -28,7 +32,11 @@ declare module "registries" {
         Controller?: any;
         Compiler?: any;
         Model?: any;
-        props?(genericProps: ViewInfo, viewDescr: ViewsRegistryItemShape, config: object): object;
+        props?(
+            genericProps: ViewInfo,
+            viewDescr: ViewsRegistryItemShape,
+            config: object,
+        ): object;
         Renderer?: any;
         searchMenuTypes?: string[];
         SearchModel?: any;

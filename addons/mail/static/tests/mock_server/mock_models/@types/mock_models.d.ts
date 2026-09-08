@@ -58,34 +58,34 @@ declare module "mock_models" {
     export interface ResUsersSettingsVolumes extends ResUsersSettingsVolumes2 {}
 
     export interface Models {
-        "base": Base,
-        "discuss.channel": DiscussChannel,
-        "discuss.channel.member": DiscussChannelMember,
-        "discuss.channel.rtc.session": DiscussChannelRtcSession,
-        "discuss.voice.metadata": DiscussVoiceMetadata,
-        "ir.attachment": IrAttachment,
-        "mail.activity": MailActivity,
-        "mail.activity.type": MailActivityType,
-        "mail.followers": MailFollowers,
-        "mail.guest": MailGuest,
-        "mail.link.preview": MailLinkPreview,
-        "mail.message": MailMessage,
-        "mail.message.link.preview": MailMessageLinkPreview,
-        "mail.message.reaction": MailMessageReaction,
-        "mail.message.subtype": MailMessageSubtype,
-        "mail.notification": MailNotification,
-        "mail.scheduled.message": MailScheduledMessage,
-        "mail.shortcode": MailShortcode,
-        "mail.template": MailTemplate,
-        "mixin.mail.thread": MailThread,
-        "mail.tracking.value": MailTrackingValue,
-        "res.fake": ResFake,
-        "res.groups": ResGroups,
-        "res.lang": ResLang,
-        "res.partner": ResPartner,
-        "res.role": ResRole,
-        "res.users": ResUsers,
-        "res.users.settings": ResUsersSettings,
-        "res.users.settings.volumes": ResUsersSettingsVolumes,
+        base: Base;
+        "discuss.channel": DiscussChannel;
+        "discuss.channel.member": DiscussChannelMember;
+        "discuss.channel.rtc.session": DiscussChannelRtcSession;
+        "discuss.voice.metadata": DiscussVoiceMetadata;
+        "ir.attachment": IrAttachment;
+        "mail.activity": MailActivity;
+        "mail.activity.type": MailActivityType;
+        "mail.followers": MailFollowers;
+        "mail.guest": MailGuest;
+        "mail.link.preview": MailLinkPreview;
+        "mail.message": MailMessage;
+        "mail.message.link.preview": MailMessageLinkPreview;
+        "mail.message.reaction": MailMessageReaction;
+        "mail.message.subtype": MailMessageSubtype;
+        "mail.notification": MailNotification;
+        "mail.scheduled.message": MailScheduledMessage;
+        "mail.shortcode": MailShortcode;
+        "mail.template": MailTemplate;
+        "mixin.mail.thread": MailThread;
+        "mail.tracking.value": MailTrackingValue;
+        "res.fake": ResFake;
+        "res.groups": ResGroups;
+        "res.lang": ResLang;
+        "res.partner": ResPartner;
+        "res.role": ResRole;
+        "res.users": ResUsers;
+        "res.users.settings": ResUsersSettings;
+        "res.users.settings.volumes": ResUsersSettingsVolumes;
     }
 }

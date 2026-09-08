@@ -43,8 +43,7 @@ declare module "registries" {
             dynamicInfo: DynamicWidgetInfo & Record<string, any>,
         ): Record<string, any>;
         fieldDependencies?:
-            | FieldDependency[]
-            | ((baseInfo: StaticWidgetInfo) => FieldDependency[]);
+            FieldDependency[] | ((baseInfo: StaticWidgetInfo) => FieldDependency[]);
         supportedAttributes?: any[];
         supportedOptions?: any[];
         [key: string]: any;

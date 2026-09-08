@@ -6,6 +6,6 @@ declare module "mock_models" {
     export interface RatingRating extends RatingRating2 {}
 
     export interface Models {
-        "im_livechat.channel": LivechatChannel,
+        "im_livechat.channel": LivechatChannel;
     }
 }

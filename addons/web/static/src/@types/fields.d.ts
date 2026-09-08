@@ -76,7 +76,8 @@ declare module "fields" {
 
     export type Many2OneFieldDefinition = IFieldDefinition<"many2one"> & IRelational;
 
-    export type Many2OneReferenceFieldDefinition = IFieldDefinition<"many2one_reference">;
+    export type Many2OneReferenceFieldDefinition =
+        IFieldDefinition<"many2one_reference">;
 
     export type MonetaryFieldDefinition = IFieldDefinition<"monetary"> &
         INumerical & {
@@ -93,7 +94,8 @@ declare module "fields" {
         definition_record_field: string;
     };
 
-    export type PropertiesDefinitionFieldDefinition = IFieldDefinition<"properties_definition">;
+    export type PropertiesDefinitionFieldDefinition =
+        IFieldDefinition<"properties_definition">;
 
     export type ReferenceFieldDefinition = IFieldDefinition<"reference"> & {
         selection: [value: number | string, label: string][];

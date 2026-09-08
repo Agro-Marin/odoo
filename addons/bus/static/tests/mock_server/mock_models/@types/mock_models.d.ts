@@ -6,7 +6,7 @@ declare module "mock_models" {
     export interface IrWebSocket extends IrWebSocket2 {}
 
     export interface Models {
-        "bus.bus": BusBus,
-        "ir.websocket": IrWebSocket,
+        "bus.bus": BusBus;
+        "ir.websocket": IrWebSocket;
     }
 }
