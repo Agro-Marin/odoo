@@ -8,10 +8,6 @@ from odoo.tools import format_amount
 class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
-    _name_search_services_index = models.Index(
-        "(order_id DESC, sequence, id) WHERE is_service IS TRUE"
-    )
-
     # used to know if generate a task and/or a project, depending on the product settings
     is_service = fields.Boolean(
         "Is a Service",
@@ -86,22 +82,3 @@ class SaleOrderLine(models.Model):
                 name_per_id[line.id] = f"- {name}"
 
         return name_per_id
-
-    @api.model
-    def name_search(self, name="", domain=None, operator="ilike", limit=100):
-        domain = domain or []
-        # optimization for a SOL services name_search, to avoid joining on sale_order with too many lines
-        if (
-            domain
-            and ("is_service", "=", True) in domain
-            and operator in ("like", "ilike")
-            and limit is not None
-        ):
-            sols = self.search_fetch(
-                domain,
-                ["display_name"],
-                limit=limit,
-                order="order_id.id DESC, sequence, id",
-            )
-            return [(sol.id, sol.display_name) for sol in sols]
-        return super().name_search(name, domain, operator, limit)
