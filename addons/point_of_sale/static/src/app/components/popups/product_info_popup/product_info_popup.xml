@@ -3,7 +3,7 @@
  <t t-name="point_of_sale.ProductInfoPopup">
  <Dialog>
  <t t-set-slot="header">
- <button t-on-click="toggleFavorite" class="border-0 bg-transparent mb-2" t-att-disabled="this.pos.cashier._role == 'minimal'">
+ <button t-on-click="toggleFavorite" class="border-0 bg-transparent mb-2" t-att-disabled="this.pos.cashierIsMinimal">
  <i t-attf-class="fa-lg {{props.productTemplate.is_favorite ? 'fa-solid fa-star' : 'fa-regular fa-star'}}"
  t-att-style="props.productTemplate.is_favorite ? 'color: #f3cc00;' : ''"
  role="img"/>

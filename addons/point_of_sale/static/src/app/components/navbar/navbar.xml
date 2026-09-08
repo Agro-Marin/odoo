@@ -61,10 +61,10 @@
  </span>
  </div>
  <div class="p-2 pos-burger-menu-items">
- <DropdownItem t-if="!isDisplayStandalone and this.pos.cashier._role != 'minimal'" onSelected="() => window.open(this.appUrl)">
+ <DropdownItem t-if="!isDisplayStandalone and !this.pos.cashierIsMinimal" onSelected="() => window.open(this.appUrl)">
  Install App
  </DropdownItem>
- <DropdownItem t-if="showCashMoveButton and this.pos.cashier._role != 'minimal'" onSelected="() => this.pos.cashMove()">
+ <DropdownItem t-if="showCashMoveButton and !this.pos.cashierIsMinimal" onSelected="() => this.pos.cashMove()">
  Cash In/Out
  </DropdownItem>
  <DropdownItem t-if="!this.pos.data.network.offline" onSelected="() => this.reloadProducts()">

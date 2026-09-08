@@ -10,7 +10,7 @@
                         <b t-esc="props.partner.name or ''" />
                         <div class="company-field text-bg-muted" t-esc="props.partner.parent_name or ''" />
                     </div>
-                    <Dropdown t-if="this.pos.cashier._role !== 'minimal'">
+                    <Dropdown t-if="!this.pos.cashierIsMinimal">
                         <button class="btn btn-ligth fa-solid fa-bars" />
                         <t t-set-slot="content">
                             <DropdownItem onSelected="() => props.onClickEdit(props.partner)">
@@ -65,7 +65,7 @@
                     </button>
                 </td>
                 <td class="edit-partner-button-cell align-middle">
-                    <t t-if="this.pos.cashier._role !== 'minimal'">
+                    <t t-if="!this.pos.cashierIsMinimal">
                         <Dropdown>
                             <button class="btn btn-light btn-lg lh-lg border float-end">
                                 <i class="fa-solid fa-bars"/>

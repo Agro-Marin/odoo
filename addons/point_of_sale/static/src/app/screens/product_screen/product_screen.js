@@ -156,24 +156,21 @@ export class ProductScreen extends Component {
             {
                 value: "discount",
                 text: _t("%"),
-                disabled:
-                    !this.pos.config.manual_discount ||
-                    this.pos.cashier._role === "minimal",
+                disabled: !this.pos.config.manual_discount || this.pos.cashierIsMinimal,
             },
             {
                 value: "price",
                 text: _t("Price"),
                 disabled:
                     !this.pos.cashierHasPriceControlRights() ||
-                    this.pos.cashier._role === "minimal",
+                    this.pos.cashierIsMinimal,
             },
             BACKSPACE,
         ]).map((button) => ({
             ...button,
             disabled:
                 button.disabled ||
-                (button.value === SWITCHSIGN.value &&
-                    this.pos.cashier._role === "minimal"),
+                (button.value === SWITCHSIGN.value && this.pos.cashierIsMinimal),
             class: `
                 ${colorClassMap[button.value] || ""}
                 ${this.pos.numpadMode === button.value ? "active" : ""}

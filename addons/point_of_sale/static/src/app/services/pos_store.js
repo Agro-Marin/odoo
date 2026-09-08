@@ -1328,6 +1328,12 @@ export class PosStore extends WithLazyGetterTrap {
     cashierHasPriceControlRights() {
         return cashierHasPriceControlRights(this);
     }
+
+    // A logged-out cashier is `false`, and is unset entirely before `setup` runs.
+    get cashierIsMinimal() {
+        return this.cashier?._role === "minimal";
+    }
+
     get showCashMoveButton() {
         return Boolean(this.config.cash_control && this.config._has_cash_move_perm);
     }
