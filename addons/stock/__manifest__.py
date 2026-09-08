@@ -20,6 +20,7 @@
         "data/default_barcode_patterns.xml",
         "data/stock_data.xml",
         "data/stock_sequence_data.xml",
+        "data/stock_picking_batch_data.xml",
         "data/stock_traceability_report_data.xml",
         "report/report_stock_quantity.xml",
         "report/report_stock_reception.xml",

@@ -39,6 +39,7 @@ from . import (
     stock_picking_type,
     stock_picking_type_dashboard,
     stock_picking,
+    stock_picking_batch,
     stock_picking_availability,
     stock_picking_backorder,
     stock_picking_package,

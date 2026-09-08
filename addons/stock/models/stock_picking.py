@@ -202,6 +202,16 @@ class StockPicking(models.Model):
         related="picking_type_id.code",
         readonly=True,
     )
+
+    batch_id = fields.Many2one(
+        "stock.picking.batch",
+        string="Batch Transfer",
+        check_company=True,
+        help="Batch associated to this transfer",
+        index=True,
+        copy=False,
+    )
+    batch_sequence = fields.Integer(string="Sequence")
     picking_type_entire_packs = fields.Boolean(
         related="picking_type_id.show_entire_packs",
     )

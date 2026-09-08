@@ -193,16 +193,6 @@ class StockPickingType(models.Model):
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
-    batch_id = fields.Many2one(
-        "stock.picking.batch",
-        string="Batch Transfer",
-        check_company=True,
-        help="Batch associated to this transfer",
-        index=True,
-        copy=False,
-    )
-    batch_sequence = fields.Integer(string="Sequence")
-
     @api.model_create_multi
     def create(self, vals_list):
         pickings = super().create(vals_list)
