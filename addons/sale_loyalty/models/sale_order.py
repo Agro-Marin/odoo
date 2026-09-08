@@ -952,7 +952,11 @@ class SaleOrder(models.Model):
                     "points_cost"
                 )
             )
-        return coupon.currency_id.round(points)
+        if any(
+            rule.reward_point_mode == "money" for rule in coupon.program_id.rule_ids
+        ):
+            points = coupon.currency_id.round(points)
+        return points
 
     def _add_points_for_coupon(self, coupon_points):
         """
