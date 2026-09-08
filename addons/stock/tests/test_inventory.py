@@ -1,8 +1,9 @@
 from datetime import date, datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
+from freezegun import freeze_time
 
-from odoo import Command
+from odoo import Command, fields
 from odoo.exceptions import ValidationError
 from odoo.tests import Form, TransactionCase
 
@@ -714,3 +715,49 @@ class TestInventory(TransactionCase):
         self.assertEqual(
             quant_non_cyclic_loc.inventory_date, date.today() + relativedelta(years=1)
         )
+
+    def test_inventory_dates_are_stamped_in_the_users_timezone(self):
+        """A count applied after 18:00 local belongs to the local day, not to UTC.
+
+        Every user of this database sits on a Mexican timezone (UTC-6), so from
+        18:00 to 23:59 local `fields.Date.today()` has already rolled over to
+        tomorrow. The dates a counter reads back afterwards -- when the location
+        was last counted, and when it is due again -- must follow the day the
+        count actually happened.
+        """
+        self.env.user.tz = "America/Mexico_City"
+        self.stock_location.cyclic_inventory_frequency = 5
+        # 2026-09-09 00:30 UTC is 2026-09-08 18:30 in America/Mexico_City.
+        with freeze_time("2026-09-09 00:30:00"):
+            self.assertEqual(
+                fields.Date.context_today(self.env.user),
+                date(2026, 9, 8),
+                "fixture: the frozen instant must land in the UTC-6 evening gap",
+            )
+            self.assertEqual(
+                fields.Date.today(),
+                date(2026, 9, 9),
+                "fixture: UTC must have rolled over already",
+            )
+            self.env["stock.quant"]._update_available_quantity(
+                self.product1, self.stock_location, 100
+            )
+            inventory_quant = self.env["stock.quant"].search(
+                [
+                    ("location_id", "=", self.stock_location.id),
+                    ("product_id", "=", self.product1.id),
+                ]
+            )
+            inventory_quant.inventory_quantity = 90
+            inventory_quant.action_apply_inventory()
+
+            self.assertEqual(
+                self.stock_location.last_inventory_date,
+                date(2026, 9, 8),
+                "the count happened on the 8th local, not on the 9th UTC",
+            )
+            self.assertEqual(
+                self.stock_location.next_inventory_date,
+                date(2026, 9, 13),
+                "the next count is the frequency away from the local count day",
+            )

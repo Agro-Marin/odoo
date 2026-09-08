@@ -1,6 +1,7 @@
 import datetime
 
 from freezegun import freeze_time
+from lxml import etree
 
 from odoo import Command
 from odoo.exceptions import UserError
@@ -304,3 +305,54 @@ class TestStockMoveLine(TestStockCommon):
 
         line = move.move_line_ids[0]
         self.assertEqual(line.lot_id, serial_lot)
+
+    def test_moves_history_reads_chronologically(self):
+        """The Moves History list must be ordered by date, not by id.
+
+        Applying an inventory count backdates its moves on purpose, so a line
+        written last can belong months earlier. Ordered by id, those backdated
+        lines sat at the top of the history as though they had just happened,
+        and even without backdating the two orders already disagree whenever
+        rows are written out of date order.
+        """
+        first, second = self.env["stock.move.line"].create(
+            [
+                {
+                    "product_id": self.product.id,
+                    "location_id": self.shelf_1.id,
+                    "location_dest_id": self.customer_location.id,
+                    "company_id": self.env.company.id,
+                    "quantity": 1,
+                },
+                {
+                    "product_id": self.product.id,
+                    "location_id": self.shelf_1.id,
+                    "location_dest_id": self.customer_location.id,
+                    "company_id": self.env.company.id,
+                    "quantity": 1,
+                },
+            ]
+        )
+        self.assertLess(first.id, second.id, "fixture: ids must ascend")
+        # The younger row carries the older date, the way a backdated count does.
+        first.date = "2026-03-01 08:00:00"
+        second.date = "2026-01-01 08:00:00"
+
+        arch = etree.fromstring(
+            self.env["stock.move.line"].get_view(
+                self.env.ref("stock.view_stock_move_line_list").id, "list"
+            )["arch"],
+        )
+        default_order = arch.get("default_order")
+        self.assertTrue(default_order, "fixture: the list must declare an order")
+
+        rows = self.env["stock.move.line"].search(
+            [("id", "in", (first | second).ids)],
+            order=default_order,
+        )
+        dates = rows.mapped("date")
+        self.assertEqual(
+            dates,
+            sorted(dates, reverse=True),
+            "the Moves History list must read newest-first by date",
+        )

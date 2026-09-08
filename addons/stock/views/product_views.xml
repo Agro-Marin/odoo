@@ -63,6 +63,14 @@
                     decoration-bf="1"
                     groups="stock.group_stock_user"
                     sum="Total Forecasted" />
+                <button
+                    name="action_product_tmpl_forecast_report"
+                    type="object"
+                    title="View Forecast"
+                    icon="fa-area-chart"
+                    context="{'default_product_tmpl_id': id}"
+                    invisible="not show_on_hand_qty_status_button"
+                    groups="stock.group_stock_user" />
             </field>
             <field name="default_code" position="after">
                 <field

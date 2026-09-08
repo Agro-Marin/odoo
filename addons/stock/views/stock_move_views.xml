@@ -121,6 +121,7 @@
                     readonly="1"
                     decoration-danger="(state not in ('cancel','done')) and date &gt; current_date" />
                 <field name="reference" />
+                <field name="partner_id" optional="hide" readonly="1" />
                 <field name="picking_type_id" column_invisible="True" readonly="1" />
                 <field name="location_usage" column_invisible="True" readonly="1" />
                 <field
@@ -507,7 +508,7 @@
         <field
             name="context">{
             'search_default_done': 1,
-            'pivot_measures': ['quantity', '__count__'],
+            'pivot_measures': ['product_qty', 'quantity_product_uom'],
             }</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">

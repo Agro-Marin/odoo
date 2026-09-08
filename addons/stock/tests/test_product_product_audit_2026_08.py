@@ -1,6 +1,6 @@
 import datetime
 
-from odoo.exceptions import UserError
+from odoo.exceptions import RedirectWarning, UserError
 from odoo.fields import Domain
 from odoo.tests import TransactionCase, tagged
 
@@ -641,3 +641,38 @@ class TestProductProductAudit(TransactionCase):
         self.assertNotIn(
             empty, self.env["product.template"].search([("qty_available", ">", 0)])
         )
+
+    def test_the_variant_forecast_offers_to_create_the_missing_warehouse(self):
+        """A variant's forecast redirects like its template's already does.
+
+        Opening the forecast of a product whose company has no warehouse should
+        offer to create one. The template action guards for it; the variant one
+        did not, so the same click from the product list, the reordering rules
+        or the forecast widget fell through to a report with no warehouse
+        behind it.
+        """
+        second = self.env["res.company"].create({"name": "Audit 0822 no WH fc"})
+        Warehouse = self.env["stock.warehouse"]
+        Warehouse.search([("company_id", "=", second.id)]).action_archive()
+        self.assertFalse(
+            Warehouse.search([("company_id", "=", second.id)]),
+            "fixture: no warehouse may be visible for the second company",
+        )
+        scoped = self.product.with_company(second)
+        self.assertFalse(
+            scoped.env.user._get_default_warehouse_id(),
+            "fixture: the acting company must have no default warehouse",
+        )
+        # _warehouse_redirect_warning returns early while the registry is not
+        # ready, so pin it or the assertions below could pass vacuously. Put
+        # back whatever it was rather than False: the flag is process-wide, and
+        # forcing it off here silences the guard for every test that runs after
+        # this one.
+        was_ready = self.env.registry.ready
+        self.env.registry.ready = True
+        self.addCleanup(setattr, self.env.registry, "ready", was_ready)
+
+        with self.assertRaises(RedirectWarning):
+            scoped.product_tmpl_id.action_product_tmpl_forecast_report()
+        with self.assertRaises(RedirectWarning):
+            scoped.action_product_forecast_report()

@@ -340,6 +340,15 @@ class StockMove(models.Model):
         store=True,
         inverse="_inverse_quantity",
     )
+    quantity_product_uom = fields.Float(
+        string="Quantity in Product UoM",
+        min_display_digits="Product Unit",
+        compute="_compute_quantity_product_uom",
+        compute_sudo=True,
+        store=True,
+        help="Quantity in the default UoM of the product, so that it can be "
+        "summed across moves held in different units.",
+    )
     reference = fields.Char(
         string="Reference",
         compute="_compute_reference",
@@ -850,6 +859,14 @@ class StockMove(models.Model):
         for move in saved_moves:
             move.quantity = sum_qty[move.id]
 
+    @api.depends("quantity", "product_uom_id", "product_id.uom_id")
+    def _compute_quantity_product_uom(self):
+        for move in self:
+            move.quantity_product_uom = move.product_uom_id._compute_quantity_stored(
+                move.quantity,
+                move.product_id.uom_id,
+            )
+
     @api.depends("product_uom_id")
     def _compute_packaging_uom_id(self):
         for move in self:
@@ -1037,7 +1054,7 @@ class StockMove(models.Model):
         move_waiting.write({"state": "waiting"})
         (move_to_confirm | move_waiting).filtered(
             lambda m: m.picking_type_id.reservation_method == "at_confirm",
-        ).write({"date_reservation": fields.Date.today()})
+        ).write({"date_reservation": fields.Date.context_today(self)})
 
         if to_assign:
             self.browse(to_assign).with_context(

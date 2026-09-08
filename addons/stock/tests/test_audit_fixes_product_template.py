@@ -1,3 +1,5 @@
+from lxml import etree
+
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
@@ -396,3 +398,25 @@ class TestProductTemplateAuditFixes(TransactionCase):
         )
         tmpl2 = self.Tmpl.with_user(user).create({"name": "V18b", "type": "consu"})
         self.assertEqual(tmpl2.responsible_id, user)
+
+    def test_the_product_list_opens_the_forecast_in_one_click(self):
+        """The product list must carry the forecast button beside the figure.
+
+        The list already shows the forecasted quantity, but reading it and then
+        having to open the product to see where it comes from is two
+        navigations for one question.
+        """
+        arch = etree.fromstring(
+            self.Tmpl.get_view(
+                self.env.ref("product.view_product_template_list").id, "list"
+            )["arch"],
+        )
+        buttons = arch.xpath("//button[@name='action_product_tmpl_forecast_report']")
+        self.assertTrue(
+            buttons,
+            "the product list must offer the forecast button",
+        )
+        self.assertTrue(
+            hasattr(self.Tmpl, "action_product_tmpl_forecast_report"),
+            "the button must name a method that exists on the model",
+        )
