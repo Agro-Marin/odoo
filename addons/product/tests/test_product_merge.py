@@ -1,6 +1,6 @@
 from ast import literal_eval
 
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests import tagged
 
@@ -351,6 +351,37 @@ class TestProductMerge(ProductVariantsCommon):
             len((destination + source).exists()),
             1,
             "The group found by the search is merged down to one product",
+        )
+
+    def test_automatic_process_skips_a_group_that_raises_validation_error(self):
+        destination_a = self._create_template("Sweep A", default_code="SWEEP-A")
+        source_a = self._create_template("Sweep A", default_code="SWEEP-A")
+        destination_b = self._create_template("Sweep B", default_code="SWEEP-B")
+        source_b = self._create_template("Sweep B", default_code="SWEEP-B")
+
+        original_merge = type(self.wizard)._merge
+
+        def fake_merge(self, product_tmpl_ids, dst_template=None):
+            if set(product_tmpl_ids) == {destination_a.id, source_a.id}:
+                raise ValidationError("boom")
+            return original_merge(self, product_tmpl_ids, dst_template)
+
+        self.patch(type(self.wizard), "_merge", fake_merge)
+
+        wizard = self.env["product.merge.wizard"].create(
+            {"group_by_name": True, "group_by_default_code": True}
+        )
+        wizard.action_start_automatic_process()
+
+        self.assertEqual(
+            len((destination_a + source_a).exists()),
+            2,
+            "The group that raised ValidationError is left untouched",
+        )
+        self.assertEqual(
+            len((destination_b + source_b).exists()),
+            1,
+            "The other group is still merged despite the first one failing",
         )
 
     def test_merge_never_narrows_the_company_of_the_destination(self):
