@@ -929,7 +929,7 @@ class Base_ImportImport(models.TransientModel):
                 # exc.name_from attribute is present as of python 3.12
                 requires = str(getattr(exc, "name_from", None) or exc.name)
                 requires_extension = file_extension
-            except ImportValidationError, ValueError:
+            except ImportValidationError, UserError, ValueError:
                 raise
             except Exception as exc:
                 e = _prepare_read_file_error(
@@ -941,9 +941,6 @@ class Base_ImportImport(models.TransientModel):
             raise e
 
         if requires:
-            # `requires_extension`, not the loop variable: the latter holds
-            # whichever candidate was tried *last*, which is not necessarily the
-            # one whose reader was missing its optional dependency.
             raise UserError(
                 _(
                     'Unable to load "%(extension)s" file: requires Python module "%(modname)s"',

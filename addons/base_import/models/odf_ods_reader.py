@@ -4,6 +4,9 @@ from odf import opendocument
 from odf.table import Table, TableCell, TableRow
 from odf.text import P
 
+from odoo import _
+from odoo.exceptions import UserError
+
 # `.ods`/`.xlsx` are both zip archives, and their parsing libraries (odfpy,
 # openpyxl) read some members fully into memory -- `content.xml`, embedded
 # pictures, thumbnails for odfpy; the shared-strings table for openpyxl, even
@@ -24,15 +27,27 @@ def _check_zip_member_sizes(file):
     library (odfpy for `.ods`, openpyxl for `.xlsx`).
 
     :param file: a file-like object holding the zip archive
-    :raises ValueError: on the first oversized member
+    :raises UserError: on the first oversized member
+
+    A `UserError` and not a `ValueError`, because both callers are import
+    readers and `BaseImport._get_preview_error` renders this message into the
+    import UI verbatim -- measured: `parse_preview` on an archive over the cap
+    answers `{"error": "Import file … would expand to more than … MiB, …"}`.
+    It is a sentence the person who uploaded the file reads, so it is
+    translated; a builtin exception carrying gettext is a developer diagnostic
+    booked into the catalogue, which is what `gettext-developer-error` exists
+    to stop and what this is not.
     """
     with zipfile.ZipFile(file) as archive:
         for info in archive.infolist():
             if info.file_size > MAX_UNCOMPRESSED_MEMBER_SIZE:
-                cap_mib = MAX_UNCOMPRESSED_MEMBER_SIZE // (1024 * 1024)
-                raise ValueError(
-                    f"Import file {info.filename} would expand to more than "
-                    f"{cap_mib} MiB, which is not supported."
+                raise UserError(
+                    _(
+                        "Import file %(member)s would expand to more than "
+                        "%(cap)s MiB, which is not supported.",
+                        member=info.filename,
+                        cap=MAX_UNCOMPRESSED_MEMBER_SIZE // (1024 * 1024),
+                    )
                 )
 
 
