@@ -157,6 +157,22 @@ class TestPartnerFormatAddress(FormatAddressCase):
         )
         view = self.View.create({"name": "view", "model": model, "arch": form_arch})
 
+        partner_view = self.View.create(
+            {
+                "name": "partner view",
+                "model": "res.partner",
+                "arch": '<form><div class="o_address_format">'
+                '<field name="street"/></div></form>',
+            }
+        )
+        self.assertIn(
+            '"city"',
+            self.env["res.partner"].get_view(partner_view.id)["arch"],
+            "premise: the address view substitutes for a model that CAN "
+            "postprocess it, so a miss below is the fallback and not an "
+            "unset company country making the whole branch unreachable",
+        )
+
         arch = self.env[model].get_view(view.id)["arch"]
         self.assertNotIn('"city"', arch)
 
