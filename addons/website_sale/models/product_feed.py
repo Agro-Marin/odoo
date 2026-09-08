@@ -144,7 +144,7 @@ class ProductFeed(models.Model):
             # The binary field stores the data in the `datas` field of an `ir.attachment` which is a
             # base64 view of its `raw` data, therefore we encode the gzip content before saving it.
             self.feed_cache = base64.b64encode(compressed_gmc_xml)
-            self.cache_expiry = fields.Datetime.today() + relativedelta(days=1)
+            self.cache_expiry = fields.Datetime.now() + relativedelta(days=1)
             return compressed_gmc_xml  # Avoid encoding and directly decoding
 
         return base64.b64decode(self.feed_cache)

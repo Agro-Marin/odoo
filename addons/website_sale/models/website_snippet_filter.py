@@ -39,12 +39,16 @@ class WebsiteSnippetFilter(models.Model):
             limit = product_limit**2  # heuristic, may still be inadequate in some cases
             stored_limit = self.limit
             update_limit_cache(value=limit)
-        res = super(
-            WebsiteSnippetFilter,
-            self.with_context(hide_variants=hide_variants, product_limit=product_limit),
-        )._prepare_values(limit=limit, search_domain=search_domain, **kwargs)
-        if update_limit_cache:
-            update_limit_cache(value=stored_limit)
+        try:
+            res = super(
+                WebsiteSnippetFilter,
+                self.with_context(
+                    hide_variants=hide_variants, product_limit=product_limit
+                ),
+            )._prepare_values(limit=limit, search_domain=search_domain, **kwargs)
+        finally:
+            if update_limit_cache:
+                update_limit_cache(value=stored_limit)
         return res
 
     @api.model

@@ -33,7 +33,7 @@ class SaleOrder(models.Model):
         string="Order Lines displayed on Website",
         comodel_name="sale.order.line",
         compute="_compute_website_order_line",
-    )  # should not be used for computation purpose.',
+    )  # used internally by _compute_cart_info; do not depend on it from other modules.
     amount_delivery = fields.Monetary(
         string="Delivery Amount",
         compute="_compute_amount_delivery",
@@ -543,9 +543,7 @@ class SaleOrder(models.Model):
         }
 
     # hook to be overridden
-    def _get_updated_quantity(
-        self, order_line, product_id, new_qty, uom_id, **kwargs
-    ):
+    def _get_updated_quantity(self, order_line, product_id, new_qty, uom_id, **kwargs):
         return new_qty, ""
 
     def _cart_update_order_line(self, order_line, quantity, **kwargs):

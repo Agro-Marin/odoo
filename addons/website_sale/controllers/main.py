@@ -753,6 +753,8 @@ class WebsiteSale(payment_portal.PaymentPortal):
                     }
                 )
             ]
+        else:
+            raise ValidationError(_("Invalid media type."))
 
         product_product = request.env["product.product"].browse(
             _parse_record_id(product_product_id)
@@ -1907,7 +1909,8 @@ class WebsiteSale(payment_portal.PaymentPortal):
                 )
         else:
             order_sudo = request.env["sale.order"].sudo().browse(sale_order_id)
-            assert order_sudo.id == request.session.get("sale_last_order_id")
+            if order_sudo.id != request.session.get("sale_last_order_id"):
+                raise Forbidden
 
         if not order_sudo:
             return request.redirect(self._get_shop_path())
