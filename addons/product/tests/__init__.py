@@ -25,6 +25,7 @@ from . import test_update_pav_wizard
 from . import test_variants
 from . import test_product_rounding
 from . import test_product_uom_and_copy
+from . import test_product_uom_settings
 from . import test_robustness
 from . import test_unlink_where_possible
 from . import test_product_category_company
