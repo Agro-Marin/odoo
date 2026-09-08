@@ -556,7 +556,10 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
         // Service Worker override — `self` is the standard global
         // =========================================================================
         {
-            files: ["**/service_worker.js"],
+            // `*service_worker.js` and not `service_worker.js`: enterprise's
+            // `push_service_worker.js` is one too, and matched only the
+            // dedicated-worker block below, which carries the wrong globals.
+            files: ["**/*service_worker.js"],
             languageOptions: {
                 globals: {
                     ...globals.serviceworker,
@@ -570,7 +573,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
         // Web/dedicated workers (e.g. discuss tick_worker.js) — eslint 10 dropped
         // `/* eslint-env worker */` comments, so declare the worker globals here.
         {
-            files: ["**/*_worker.js"],
+            files: ["**/*_worker.js", "**/worker/*.js"],
             languageOptions: {
                 globals: {
                     ...globals.worker,
