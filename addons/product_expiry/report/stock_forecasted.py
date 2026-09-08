@@ -77,12 +77,14 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 aggregates=["quantity:sum", "reserved_quantity:sum"],
             )[0]
             unreserved_expired = (expired_qty or 0.0) - (reserved_expired or 0.0)
+            reported_qty = 0.0
             if not product.uom_id.is_zero(unreserved_expired):
                 res += [
                     self.with_context(removal_date=-1)._prepare_report_line(
                         unreserved_expired, product=product, read=read
                     )
                 ]
+                reported_qty += unreserved_expired
 
             to_reduce = sum(d["taken_from_stock"] for d in moves_data.values())
 
@@ -102,8 +104,12 @@ class StockForecasted_Product_Product(models.AbstractModel):
                             free_stock_at_date, product=product, read=read
                         )
                     )
+                    reported_qty += free_stock_at_date
 
-            free_stock += reserved_expired
+            # `free_stock` already includes the expired and dated-removal
+            # quantities just broken out above; without this, the
+            # undivided line added by super() below double-counts them.
+            free_stock += reserved_expired - reported_qty
         return res + super()._free_stock_lines(
             product, free_stock, moves_data, wh_location_ids, read
         )
