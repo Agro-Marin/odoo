@@ -7,7 +7,6 @@ from .common import ProductCommon
 
 @tagged("post_install", "-at_install")
 class TestProductLabelLayout(ProductCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
