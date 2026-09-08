@@ -31,6 +31,13 @@ class SpreadsheetDashboard(models.Model):
         help="Indicates whether the dashboard is favorited by the current user",
     )
     main_data_model_ids = fields.Many2many("ir.model", copy=False)
+    allowed_user_ids = fields.Many2many(
+        "res.users",
+        "spreadsheet_dashboard_allowed_users_rel",
+        string="Allowed Users",
+        help="Users allowed to access this dashboard, on top of the access "
+        "groups above. Leave empty to grant access by group only.",
+    )
 
     def _get_serialized_readonly_dashboard(self):
         snapshot = json.loads(self.spreadsheet_data)

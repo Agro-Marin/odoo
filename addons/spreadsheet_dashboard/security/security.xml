@@ -11,6 +11,13 @@
         <field name="domain_force">[('group_ids', 'in', user.all_group_ids.ids)]</field>
     </record>
 
+    <record id="ir_rule_spreadsheet_dashboard_user" model="ir.rule">
+        <field name="name">Spreadsheet dashboard: allowed users</field>
+        <field name="model_id" ref="model_spreadsheet_dashboard" />
+        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="domain_force">[('allowed_user_ids', 'in', user.id)]</field>
+    </record>
+
     <record id="spreadsheet_dashboard_rule_company" model="ir.rule">
         <field name="name">Dashboard multi-company</field>
         <field name="model_id" ref="model_spreadsheet_dashboard" />

@@ -8,7 +8,11 @@
             <list create="false" editable="bottom" expand="1">
                 <field name="sequence" widget="handle" groups="base.group_system" />
                 <field name="name" />
-                <field name="group_ids" widget="many2many_tags" required="1" />
+                <field name="group_ids" widget="many2many_tags" />
+                <field
+                    name="allowed_user_ids"
+                    widget="many2many_avatar_user"
+                    optional="show" />
                 <field
                     name="company_ids"
                     options="{'no_create': True}"
@@ -80,6 +84,7 @@
                             name="dashboard_group_id"
                             placeholder="Choose a section..." />
                         <field name="group_ids" widget="many2many_tags" />
+                        <field name="allowed_user_ids" widget="many2many_avatar_user" />
                         <field
                             name="company_ids"
                             options="{'no_create': True}"

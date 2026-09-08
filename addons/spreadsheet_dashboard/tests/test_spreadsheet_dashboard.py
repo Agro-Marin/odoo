@@ -1,5 +1,6 @@
 import json
 
+from odoo import Command
 from odoo.exceptions import UserError
 
 from .common import DashboardTestCommon
@@ -61,6 +62,42 @@ class TestSpreadsheetDashboard(DashboardTestCommon):
         self.assertEqual(action["type"], "ir.actions.client")
         self.assertEqual(action["tag"], "action_spreadsheet_dashboard")
         self.assertEqual(action["params"]["dashboard_id"], dashboard.id)
+
+    def test_allowed_user_can_read_a_dashboard_with_no_group(self):
+        dashboard = self.env["spreadsheet.dashboard"].create(
+            {
+                "name": "user-restricted dashboard",
+                "dashboard_group_id": self.env["spreadsheet.dashboard.group"]
+                .create({"name": "a section"})
+                .id,
+                "group_ids": [],
+                "allowed_user_ids": [Command.link(self.user.id)],
+            }
+        )
+        as_user = self.env["spreadsheet.dashboard"].with_user(self.user)
+        self.assertEqual(as_user.search([("id", "=", dashboard.id)]), dashboard)
+
+    def test_user_outside_allowed_users_cannot_read_it(self):
+        dashboard = self.env["spreadsheet.dashboard"].create(
+            {
+                "name": "private dashboard",
+                "dashboard_group_id": self.env["spreadsheet.dashboard.group"]
+                .create({"name": "a section"})
+                .id,
+                "group_ids": [],
+                "allowed_user_ids": [],
+            }
+        )
+        as_user = self.env["spreadsheet.dashboard"].with_user(self.user)
+        self.assertFalse(as_user.search([("id", "=", dashboard.id)]))
+
+    def test_group_access_still_works_alongside_allowed_users(self):
+        # the two grants are OR-ed, so naming no user must not narrow the
+        # existing group-based access
+        dashboard = self.create_dashboard()
+        self.assertFalse(dashboard.allowed_user_ids)
+        as_user = self.env["spreadsheet.dashboard"].with_user(self.user)
+        self.assertEqual(as_user.search([("id", "=", dashboard.id)]), dashboard)
 
     def test_unlink_prevent_spreadsheet_group(self):
         group = self.env["spreadsheet.dashboard.group"].create({"name": "a_group"})
