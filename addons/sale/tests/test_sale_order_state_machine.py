@@ -10,7 +10,6 @@ class TestSaleOrderStateMachine(SaleCommon):
     def _other_pricelist(self):
         return self.env["product.pricelist"].create({"name": "Other PL"})
 
-
     def test_pricelist_frozen_when_done(self):
         self.sale_order.action_confirm()
         self.assertEqual(self.sale_order.state, "done")
@@ -22,7 +21,6 @@ class TestSaleOrderStateMachine(SaleCommon):
         pricelist = self._other_pricelist()
         self.sale_order.pricelist_id = pricelist
         self.assertEqual(self.sale_order.pricelist_id, pricelist)
-
 
     def test_legal_transition_draft_to_done(self):
         self.sale_order.write({"state": "done"})
@@ -60,7 +58,6 @@ class TestSaleOrderStateMachine(SaleCommon):
         self.assertEqual(self.sale_order.state, "cancel")
         self.sale_order.action_draft()
         self.assertEqual(self.sale_order.state, "draft")
-
 
     def _lock(self, order):
         order.action_confirm()
