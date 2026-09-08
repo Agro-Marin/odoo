@@ -149,10 +149,4 @@
         </field>
     </record>
 
-    <record id="action_product_pricelist_item" model="ir.actions.act_window">
-        <field name="name">Price Rules</field>
-        <field name="res_model">product.pricelist.item</field>
-        <field name="view_mode">list,form</field>
-    </record>
-
 </odoo>
