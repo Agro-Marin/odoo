@@ -12,6 +12,13 @@ function processLine(line) {
     return { ...line, lines: [], isFolded: true };
 }
 
+/** True as soon as one unfoldable line anywhere in the tree is still closed. */
+function hasFoldedLine(lines) {
+    return lines.some(
+        (line) => (line.unfoldable && line.isFolded) || hasFoldedLine(line.lines),
+    );
+}
+
 function extractPrintData(lines) {
     const data = [];
     for (const line of lines) {
@@ -157,6 +164,39 @@ export class TraceabilityReport extends Component {
 
     foldLabel(line) {
         return line.isFolded ? _t("Unfold") : _t("Fold");
+    }
+
+    get hasUnfoldableLines() {
+        return this.state.lines.some((line) => line.unfoldable);
+    }
+
+    get hasFoldedLines() {
+        return hasFoldedLine(this.state.lines);
+    }
+
+    async onClickUnfold() {
+        const unfoldLines = async (lines) => {
+            for (const line of lines) {
+                if (!line.unfoldable) {
+                    continue;
+                }
+                if (line.isFolded) {
+                    await this.toggleLine(line);
+                }
+                await unfoldLines(line.lines);
+            }
+        };
+        await unfoldLines(this.state.lines);
+    }
+
+    onClickFold() {
+        const foldLines = (lines) => {
+            for (const line of lines) {
+                line.isFolded = true;
+                foldLines(line.lines);
+            }
+        };
+        foldLines(this.state.lines);
     }
 
     async toggleLine(line) {
