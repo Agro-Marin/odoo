@@ -437,6 +437,30 @@ class TestProductMerge(ProductVariantsCommon):
         self.assertFalse(wizard.line_ids)
         self.assertEqual(len((first + second).exists()), 2, "Nothing was merged")
 
+    def test_excluded_templates_are_narrowed_to_the_referenced_member(self):
+        untouched_a = self._create_template("Untouched A")
+        untouched_b = self._create_template("Untouched B")
+        referenced = self._create_template("Has Pricelist Item")
+        self.env["product.pricelist.item"].create(
+            {
+                "pricelist_id": self.pricelist.id,
+                "applied_on": "0_product_variant",
+                "product_id": referenced.product_variant_id.id,
+                "fixed_price": 1.0,
+            }
+        )
+
+        excluded = self.wizard._get_excluded_templates(
+            (untouched_a + untouched_b + referenced).ids,
+            {"product.pricelist.item": "product_id"},
+        )
+
+        self.assertEqual(
+            excluded,
+            {referenced.id},
+            "Only the referenced template is excluded, not the whole group",
+        )
+
     def test_a_product_manager_can_merge_without_being_a_superuser(self):
         manager = self.env["res.users"].create(
             {
