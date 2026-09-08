@@ -1,4 +1,5 @@
 from datetime import datetime
+from unittest.mock import patch
 
 from odoo.exceptions import ValidationError
 from odoo.tests import new_test_user, tagged
@@ -620,6 +621,36 @@ class TestSchedulingMixin(TransactionCase):
         record.write({"date_start": False, "date_end": False})
         self.assertFalse(record.reservation_ids)
         self.assertEqual(record.allocated_hours, 8.0)
+
+    def test_reactivating_with_new_dates_writes_the_reservation_once(self):
+        record = self.Model.create(
+            {
+                "name": "Reactivated",
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 17, 0),
+                "resource_id": self.resource.id,
+            }
+        )
+        record.write({"active": False})
+        reservation_id = record.with_context(active_test=False).reservation_ids.id
+        self.assertTrue(reservation_id)
+
+        Reservation = type(record.reservation_ids)
+        with patch.object(
+            Reservation, "write", autospec=True, side_effect=Reservation.write
+        ) as write_spy:
+            record.write(
+                {
+                    "active": True,
+                    "date_start": datetime(2025, 1, 7, 8, 0),
+                    "date_end": datetime(2025, 1, 7, 17, 0),
+                }
+            )
+        self.assertEqual(write_spy.call_count, 1)
+        reservation = record.with_context(active_test=False).reservation_ids
+        self.assertEqual(reservation.id, reservation_id)
+        self.assertEqual(reservation.date_start, datetime(2025, 1, 7, 8, 0))
+        self.assertTrue(reservation.active)
 
     def test_allocated_hours_are_fresh_right_after_create(self):
         records = self.Model.create(
