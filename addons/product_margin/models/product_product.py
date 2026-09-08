@@ -278,7 +278,7 @@ class ProductProduct(models.Model):
                     ) FILTER (WHERE i.move_type = ANY(%(sale_types)s)) /
                     NULLIF(SUM(l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) FILTER (WHERE i.move_type = ANY(%(sale_types)s)), 0) AS sale_avg_unit_price,
                     SUM(l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) FILTER (WHERE i.move_type = ANY(%(sale_types)s)) AS sale_num_qty,
-                    SUM(CASE WHEN i.move_type = 'out_invoice' THEN -l.balance WHEN i.move_type = 'in_invoice' THEN l.balance ELSE -ABS(l.balance) END) FILTER (WHERE i.move_type = ANY(%(sale_types)s)) AS sale_total,
+                    SUM(CASE WHEN i.move_type = 'out_invoice' THEN -l.balance ELSE -ABS(l.balance) END) FILTER (WHERE i.move_type = ANY(%(sale_types)s)) AS sale_total,
                     SUM(l.quantity * pt.list_price * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) FILTER (WHERE i.move_type = ANY(%(sale_types)s)) AS sale_expected,
                     SUM(
                         l.price_unit / (CASE COALESCE(cr.rate, 0) WHEN 0 THEN 1.0 ELSE cr.rate END) *
@@ -286,7 +286,7 @@ class ProductProduct(models.Model):
                     ) FILTER (WHERE i.move_type = ANY(%(purchase_types)s)) /
                     NULLIF(SUM(l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) FILTER (WHERE i.move_type = ANY(%(purchase_types)s)), 0) AS purchase_avg_unit_price,
                     SUM(l.quantity * (CASE WHEN i.move_type IN ('out_invoice', 'in_invoice') THEN 1 ELSE -1 END)) FILTER (WHERE i.move_type = ANY(%(purchase_types)s)) AS purchase_num_qty,
-                    SUM(CASE WHEN i.move_type = 'out_invoice' THEN -l.balance WHEN i.move_type = 'in_invoice' THEN l.balance ELSE -ABS(l.balance) END) FILTER (WHERE i.move_type = ANY(%(purchase_types)s)) AS purchase_total
+                    SUM(CASE WHEN i.move_type = 'in_invoice' THEN l.balance ELSE -ABS(l.balance) END) FILTER (WHERE i.move_type = ANY(%(purchase_types)s)) AS purchase_total
                 FROM account_move_line l
                 LEFT JOIN account_move i ON (l.move_id = i.id)
                 LEFT JOIN product_product product ON (product.id=l.product_id)
@@ -338,19 +338,6 @@ class ProductProduct(models.Model):
             res[product_id]["sales_gap"] = (
                 res[product_id]["sale_expected"] - res[product_id]["turnover"]
             )
-            res[product_id]["total_margin"] = res[product_id]["turnover"]
-            res[product_id]["expected_margin"] = res[product_id]["sale_expected"]
-            res[product_id]["total_margin_rate"] = (
-                res[product_id]["turnover"]
-                and res[product_id]["total_margin"] * 100 / res[product_id]["turnover"]
-            ) or 0.0
-            res[product_id]["expected_margin_rate"] = (
-                res[product_id]["sale_expected"]
-                and res[product_id]["expected_margin"]
-                * 100
-                / res[product_id]["sale_expected"]
-            ) or 0.0
-
             res[product_id]["purchase_avg_price"] = purchase_avg or 0.0
             res[product_id]["purchase_num_invoiced"] = purchase_qty or 0.0
             res[product_id]["total_cost"] = purchase_total or 0.0
