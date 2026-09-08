@@ -359,6 +359,19 @@ class CredentialCredential(models.Model):
         "when tokens are refreshed (comes from provider's 'expires_in' response).",
     )
 
+    secret_values = fields.Json(
+        compute="_compute_secret_values",
+        inverse="_inverse_secret_values",
+        store=False,
+        readonly=False,
+        copy=False,
+        groups="base.group_system",
+        help="One entry per field the category declares, carrying its label and "
+        "whether it holds a value -- never the value itself. An entry given a "
+        "'value' string is stored; an empty one clears the key; an entry with "
+        "no 'value' is left alone.",
+    )
+
     encryption_key_is_current = fields.Boolean(
         compute="_compute_encryption_key_is_current",
         store=False,
@@ -719,6 +732,65 @@ class CredentialCredential(models.Model):
 
     def _inverse_bearer_token(self) -> None:
         self._inverse_credential_json_field("bearer_token")
+
+    @api.depends("credential_data", "category_id")
+    def _compute_secret_values(self) -> None:
+        for record in self:
+            payload = record.get_credential_dict()
+            record.secret_values = [
+                {
+                    "code": definition.code,
+                    "label": definition.name,
+                    "placeholder": definition.placeholder or "",
+                    "help": definition.help_text or "",
+                    "required": definition.required,
+                    "filled": bool(payload.get(definition.code)),
+                }
+                for definition in record.category_id.sudo().field_ids
+                if definition.is_blob_key
+            ]
+
+    def _inverse_secret_values(self) -> None:
+        for record in self:
+            written = {
+                entry["code"]: entry["value"]
+                for entry in (record.secret_values or [])
+                if isinstance(entry, dict) and isinstance(entry.get("value"), str)
+            }
+            if not written:
+                continue
+            record._check_secret_codes(written)
+            record._seal_storage_method("json")
+            payload = record._read_credential_dict_raw()
+            for code, value in written.items():
+                if value:
+                    payload[code] = value
+                else:
+                    payload.pop(code, None)
+            record.set_credential_dict(payload)
+
+    def _check_secret_codes(self, written: dict) -> None:
+        self.check_singleton()
+        declared = set(self.category_id.sudo().field_ids.mapped("code"))
+        if undeclared := sorted(set(written) - declared):
+            raise ValidationError(
+                self.env._(
+                    "%(category)s declares no field named %(fields)s, so there is "
+                    "nowhere to put the value.",
+                    category=self.category_id.display_name,
+                    fields=", ".join(undeclared),
+                )
+            )
+
+    def action_reveal_secret_field(self, code: str) -> str:
+        self.check_singleton()
+        self._check_secret_codes({code: ""})
+        self.check_access("read")
+        record = self.sudo()
+        record._enforce_access_rate_limit()
+        value = record._read_credential_dict_raw().get(code) or ""
+        record._log_access_guarded("read")
+        return value
 
     @api.onchange("category_id")
     def _onchange_category_id(self):

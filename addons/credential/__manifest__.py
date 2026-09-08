@@ -84,5 +84,11 @@ rotation.
         "views/rate_limit_bucket_views.xml",
         "views/credential_menu.xml",
     ],
+    "assets": {
+        "web.assets_backend": [
+            "credential/static/src/fields/credential_secret_fields.js",
+            "credential/static/src/fields/credential_secret_fields.xml",
+        ],
+    },
     "pre_init_hook": "pre_init_hook",
 }
