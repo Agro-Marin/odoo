@@ -8,6 +8,8 @@ class MixinProductLabelReport(models.AbstractModel):
     _name = "mixin.product.label.report"
     _description = "Product Label Report"
 
+    MAX_TOTAL_LABELS = 10000
+
     def _get_report_values(self, docids, data):
         data = data or {}
         layout = self.env["product.label.layout"].browse(
@@ -113,6 +115,13 @@ class MixinProductLabelReport(models.AbstractModel):
         if not total or per_page <= 0:
             raise UserError(
                 self.env._("There is nothing to print with this label layout.")
+            )
+        if total > self.MAX_TOTAL_LABELS:
+            raise UserError(
+                self.env._(
+                    "You cannot print more than %(maximum)s labels at once.",
+                    maximum=self.MAX_TOTAL_LABELS,
+                )
             )
         return (total - 1) // per_page + 1
 

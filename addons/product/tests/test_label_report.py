@@ -48,6 +48,13 @@ class TestProductLabelLayout(ProductCommon):
         with self.assertRaises(UserError):
             wizard._prepare_report_data()
 
+    def test_quantity_over_ceiling_raises(self):
+        Report = self.env["report.product.report_producttemplatelabel2x7"]
+        self.wizard.custom_quantity = Report.MAX_TOTAL_LABELS + 1
+        _xml_id, data = self.wizard._prepare_report_data()
+        with self.assertRaises(UserError):
+            self._prepare_data(data)
+
     def test_page_count_boundaries(self):
         self.wizard.print_format = "2x7xprice"
         for quantity, pages in [(1, 1), (14, 1), (15, 2), (28, 2), (29, 3)]:
