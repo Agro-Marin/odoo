@@ -142,6 +142,9 @@ class ResPartnerRelation(models.Model):
     )
     def _compute_labels(self):
         for relation in self:
+            if not relation.type_id:
+                relation.label = relation.label_inverse = False
+                continue
             relation.label = relation.type_id._get_label(
                 gender=relation.partner_id.gender
             )
@@ -155,7 +158,7 @@ class ResPartnerRelation(models.Model):
             relation.display_name = self.env._(
                 "%(one)s — %(label)s — %(other)s",
                 one=relation.partner_id.display_name,
-                label=relation.label,
+                label=relation.label or "",
                 other=relation.other_partner_id.display_name,
             )
 
