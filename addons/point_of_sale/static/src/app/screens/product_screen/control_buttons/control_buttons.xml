@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates id="template" xml:space="preserve">
     <t t-name="point_of_sale.ControlButtons">
-        <!-- All buttons always displayed -->
         <SelectPartnerButton partner="partner" t-if="!props.showRemainingButtons"/>
         <t t-if="!props.showRemainingButtons || (ui.isSmall and props.showRemainingButtons)">
             <InternalNoteButton label.translate="Note" class="buttonClass"/>
@@ -19,7 +18,6 @@
         <button class="btn btn-secondary btn-lg flex-shrink-0 more-btn" t-att-class="{'ms-auto': !this.pos.showSaveOrderButton}" t-if="!props.showRemainingButtons and !ui.isSmall and props.onClickMore" t-on-click="props.onClickMore">
             <i class="oi oi-fw oi-ellipsis-v" aria-hidden="true" />
         </button>
-        <!-- All these buttons will only be displayed in a dialog -->
         <t t-if="props.showRemainingButtons">
             <div class="control-buttons control-buttons-modal d-grid gap-2 mt-2">
                 <NoteButton

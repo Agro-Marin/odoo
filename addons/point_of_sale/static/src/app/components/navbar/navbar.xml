@@ -47,7 +47,6 @@
  <button class="btn btn-light btn-lg lh-lg" t-if="isBarcodeScannerSupported() and ['ProductScreen', 'TicketScreen'].includes(this.pos.router.state.current) and !pos.config.module_pos_restaurant" t-on-click="onClickScan">
  <i class="fa-solid fa-barcode fa-lg" /><span t-if="this.pos.scanning" class="ms-1">Stop</span>
  </button>
- <!-- No need to show the cashier name on small screens -->
  <CashierName t-if="!ui.isSmall"/>
  <Dropdown>
  <button class="btn btn-light btn-lg lh-lg">

@@ -57,7 +57,6 @@
                         <i class="fa-regular fa-paper-plane me-2 lh-base flex-shrink-0"/><span class="text-break" t-esc="props.partner.email" />
                     </div>
                 </td>
-                <!-- FIXME: this should be in pos_settle_due, not here -->
                 <td class="partner-line-balance" t-if="props.isBalanceDisplayed"></td>
                 <td class="edit-partner-button-cell align-middle pe-0">
                     <button t-if="props.isSelected" t-on-click.stop="props.onClickUnselect" class="unselect-tag d-lg-inline-block d-none btn btn-link btn-lg mt-1 float-end">
