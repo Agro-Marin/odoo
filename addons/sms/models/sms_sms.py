@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from itertools import batched
 from uuid import uuid4
 
@@ -23,14 +24,6 @@ class SmsSms(models.Model):
         "sent": "pending",
         "delivered": "sent",
     }
-    IAP_TO_SMS_FAILURE_TYPE = {  # TODO RIGR remove me in master
-        "insufficient_credit": "sms_credit",
-        "wrong_number_format": "sms_number_format",
-        "country_not_supported": "sms_country_not_supported",
-        "server_error": "sms_server",
-        "unregistered": "sms_acc",
-    }
-
     BOUNCE_DELIVERY_ERRORS = {
         "sms_invalid_destination",
         "sms_not_allowed",
@@ -143,7 +136,19 @@ class SmsSms(models.Model):
                 )
 
     def _split_by_api(self):
-        yield SmsApi(self.env), self
+        # group by company: `SmsApi`'s IAP account is resolved via
+        # `iap.account.get()`, which is scoped to `self.env.companies` -- a
+        # single ungrouped batch would resolve to whichever company's account
+        # happens to match the calling env, silently used for every company's
+        # SMS in the batch.
+        sms_by_company = defaultdict(self.browse)
+        for sms in self:
+            sms_by_company[sms._get_sms_company()] += sms
+        for company, company_sms in sms_by_company.items():
+            company_env = self.env(
+                context={**self.env.context, "allowed_company_ids": [company.id]}
+            )
+            yield SmsApi(company_env), company_sms
 
     def resend_failed(self):
         sms_to_send = self.filtered(
@@ -215,10 +220,9 @@ class SmsSms(models.Model):
     def _send(self, unlink_failed=False, unlink_sent=True, raise_exception=False):
         """Resolve the SMS API and delegate sending to it."""
         sms_api = self.env.context.get("sms_api")
-        if not sms_api:
-            company = self._get_sms_company()
-            company.check_singleton()  # This should always be the case since the grouping is done in `send`
-            sms_api = company._get_sms_api_class()(self.env)
+        assert sms_api, (
+            "sms_api must be set in context: only `send()` calls `_send()`, and it always sets it via `_split_by_api()`."
+        )
 
         return self._send_with_api(
             sms_api,
