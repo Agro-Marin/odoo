@@ -825,3 +825,25 @@ class TestPickingRefactor(TestStockCommon):
             "picking_ids must follow the move reassignment without manual cache "
             "invalidation",
         )
+
+    def test_the_formatted_picking_name_carries_its_origin_and_contact(self):
+        """A transfer picked from a dropdown must be told apart by more than its reference.
+
+        web_name_search asks every model for a formatted display name and the
+        autocomplete renders it, so choosing a transfer -- on a landed cost, on
+        a return, anywhere a picking is picked -- offered nothing but the bare
+        reference, and two receipts of the same day read identically.
+        """
+        partner = self.env["res.partner"].create({"name": "Formatted Contact"})
+        picking = self._new_picking(self.picking_type_in)
+        picking.write({"partner_id": partner.id, "origin": "SO-FORMATTED-1"})
+
+        self.assertEqual(
+            picking.display_name,
+            picking.name,
+            "without the context the label must stay the bare reference",
+        )
+        formatted = picking.with_context(formatted_display_name=True).display_name
+        self.assertIn(picking.name, formatted, "the reference must survive")
+        self.assertIn("SO-FORMATTED-1", formatted, "the source document must be shown")
+        self.assertIn(partner.display_name, formatted, "the contact must be shown")

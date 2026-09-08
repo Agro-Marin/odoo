@@ -514,6 +514,21 @@ class StockPicking(models.Model):
         )
         return picking_type.id
 
+    @api.depends("origin", "partner_id")
+    @api.depends_context("formatted_display_name")
+    def _compute_display_name(self):
+        super()._compute_display_name()
+        if not self.env.context.get("formatted_display_name"):
+            return
+        for picking in self:
+            details = [
+                detail
+                for detail in (picking.origin, picking.partner_id.display_name)
+                if detail
+            ]
+            if details:
+                picking.display_name += f"\t--{' '.join(details)}--"
+
     @api.depends("move_ids.has_tracking")
     def _compute_has_tracking(self):
         for picking in self:
