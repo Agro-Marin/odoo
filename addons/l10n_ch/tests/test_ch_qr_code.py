@@ -110,8 +110,8 @@ class TestSwissQRCode(AccountTestInvoicingCommon):
 
         # generate the field values, instead of the QR image.
         unstruct_ref = (
-            (self.ch_qr_invoice.ref and self.ch_qr_invoice.ref) or self.ch_qr_invoice.name
-        )
+            self.ch_qr_invoice.ref and self.ch_qr_invoice.ref
+        ) or self.ch_qr_invoice.name
         vals = self.ch_qr_invoice.partner_bank_id._prepare_qr_code_vals(
             self.ch_qr_invoice.amount_residual,
             unstruct_ref,

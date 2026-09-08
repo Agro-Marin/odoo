@@ -122,9 +122,7 @@ class ResPartnerBank(models.Model):
                 (0, "br.gov.bcb.pix"),  # GUI
                 (1, self.proxy_value),  # key
             )
-            return 26, "".join(
-                starmap(self._serialize, merchant_account_info_data)
-            )
+            return 26, "".join(starmap(self._serialize, merchant_account_info_data))
 
         return super()._get_merchant_account_info()
 

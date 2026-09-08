@@ -570,8 +570,14 @@ class TestCredentialSecurityValidations(TransactionCase):
         # password alone, whichever order the two reach their inverses.
         category = self.env.ref("credential.credential_category_basic_auth")
         for label, vals in (
-            ("data last", {"username": "portal", "password": "s3cret", "credential_data": ""}),
-            ("data first", {"credential_data": "", "username": "portal", "password": "s3cret"}),
+            (
+                "data last",
+                {"username": "portal", "password": "s3cret", "credential_data": ""},
+            ),
+            (
+                "data first",
+                {"credential_data": "", "username": "portal", "password": "s3cret"},
+            ),
         ):
             credential = self.env["credential.credential"].create(
                 {"name": f"Basic {label}", "category_id": category.id, **vals}
@@ -591,7 +597,9 @@ class TestCredentialSecurityValidations(TransactionCase):
             }
         )
         credential.flush_recordset()
-        self.assertTrue(credential.with_context(bin_size=False).credential_value_encrypted)
+        self.assertTrue(
+            credential.with_context(bin_size=False).credential_value_encrypted
+        )
 
         credential.credential_data = "{}"
         credential.flush_recordset()

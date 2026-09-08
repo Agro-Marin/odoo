@@ -1,4 +1,3 @@
-
 from odoo import Command
 from odoo.tests import tagged
 

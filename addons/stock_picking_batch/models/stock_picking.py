@@ -53,14 +53,6 @@ class StockPickingType(models.Model):
         )
 
 
-
-
-
-
-
-
-
-
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 

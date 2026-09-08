@@ -228,7 +228,9 @@ class TestQweb(TransactionCaseWithUserDemo):
             value = str(env["ir.qweb"]._render(template, {"doc": name}))
             self.assertEqual(value, expected % name)
             self.assertEqual(
-                env.cr.sql_statement_count - init, queries, f"Maximum queries: {queries}"
+                env.cr.sql_statement_count - init,
+                queries,
+                f"Maximum queries: {queries}",
             )
 
         def check_website(template, name, queries):
@@ -237,7 +239,9 @@ class TestQweb(TransactionCaseWithUserDemo):
                 value = str(request.env["ir.qweb"]._render(template, {"doc": name}))
             self.assertEqual(value, expected_website % name)
             self.assertEqual(
-                env.cr.sql_statement_count - init, queries, f"Maximum queries: {queries}"
+                env.cr.sql_statement_count - init,
+                queries,
+                f"Maximum queries: {queries}",
             )
 
         FIRST_SEARCH_FETCH = 1

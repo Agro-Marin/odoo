@@ -422,7 +422,6 @@ class StockPickingBatch(models.Model):
         self.picking_ids = False
         return True
 
-
     def action_done(self):
         def has_no_quantity(picking):
             return all(
@@ -537,8 +536,6 @@ class StockPickingBatch(models.Model):
             },
         }
 
-
-
     def action_view_packages(self):
         self.check_singleton()
         if self.state == "done":
@@ -607,7 +604,6 @@ class StockPickingBatch(models.Model):
                         incompatible_transfers=erroneous_pickings.mapped("name"),
                     )
                 )
-
 
     def _is_auto_mergeable(self, *, moves=0, pickings=0, weight=0.0):
         self.check_singleton()
