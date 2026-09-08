@@ -554,9 +554,7 @@
     <record id="action_unreserve_batch_picking" model="ir.actions.server">
         <field name="name">Unreserve</field>
         <field name="model_id" ref="stock.model_stock_picking_batch" />
-        <field
-            name="binding_model_id"
-            ref="stock.model_stock_picking_batch" />
+        <field name="binding_model_id" ref="stock.model_stock_picking_batch" />
         <field name="binding_view_types">list,kanban,form</field>
         <field name="state">code</field>
         <field
@@ -567,9 +565,7 @@
     <record id="action_merge_batch_picking" model="ir.actions.server">
         <field name="name">Merge</field>
         <field name="model_id" ref="stock.model_stock_picking_batch" />
-        <field
-            name="binding_model_id"
-            ref="stock.model_stock_picking_batch" />
+        <field name="binding_model_id" ref="stock.model_stock_picking_batch" />
         <field name="binding_view_types">list,kanban</field>
         <field name="state">code</field>
         <field
