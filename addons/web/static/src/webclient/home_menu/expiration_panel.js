@@ -9,11 +9,19 @@ import { useService } from "@web/core/utils/hooks";
 const RENEWAL_GRACE_DAYS = 15;
 
 /**
- * Expiration panel
+ * A count of days as a phrase. Every number the panel prints can be 1: the
+ * days left reach it on the last day, and the two renewal counts are measured
+ * from the end of the grace period rather than from today, so they reach it on
+ * their own.
  *
- * Component representing the banner located on top of the home menu. Its purpose
- * is to display the expiration state of the current database and to help the
- * user to buy/renew its subscription.
+ * @param {number} days
+ * @returns {string}
+ */
+function dayCount(days) {
+    return days === 1 ? _t("1 day") : _t("%s days", days);
+}
+
+/**
  * @extends Component
  */
 export class ExpirationPanel extends Component {
@@ -62,7 +70,7 @@ export class ExpirationPanel extends Component {
         if (daysLeft <= 0) {
             return _t("This database has expired. ");
         }
-        const delay = daysLeft === 30 ? _t("1 month") : _t("%s days", daysLeft);
+        const delay = daysLeft === 30 ? _t("1 month") : dayCount(daysLeft);
         if (this.subscription.expirationReason === "demo") {
             return _t("This demo database will expire in %s. ", delay);
         }
@@ -71,13 +79,13 @@ export class ExpirationPanel extends Component {
         }
         if (daysLeft > RENEWAL_GRACE_DAYS) {
             return _t(
-                "Your subscription expires in %s days. ",
-                daysLeft - RENEWAL_GRACE_DAYS,
+                "Your subscription expires in %s. ",
+                dayCount(daysLeft - RENEWAL_GRACE_DAYS),
             );
         }
         return _t(
-            "Your subscription expired %s days ago. This database will be blocked soon. ",
-            RENEWAL_GRACE_DAYS - daysLeft,
+            "Your subscription expired %s ago. This database will be blocked soon. ",
+            dayCount(RENEWAL_GRACE_DAYS - daysLeft),
         );
     }
 

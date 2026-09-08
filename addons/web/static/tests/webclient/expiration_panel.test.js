@@ -18,7 +18,7 @@ test("Expiration Panel one app installed", async () => {
     patchWithCleanup(session, {
         expiration_date: "2019-11-09 12:00:00",
         expiration_reason: "",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
     await mountWebClient();
@@ -27,10 +27,8 @@ test("Expiration Panel one app installed", async () => {
 
     expect(".oe_instance_register").toHaveText("This database will expire in 1 month.");
 
-    // Color should be grey
     expect(".database_expiration_panel").toHaveClass("alert-info");
 
-    // Close the expiration panel
     await click(".oe_instance_hide_panel");
     await animationFrame();
 
@@ -44,7 +42,7 @@ test("Expiration Panel one app installed, buy subscription", async () => {
     patchWithCleanup(session, {
         expiration_date: "2019-10-24 12:00:00",
         expiration_reason: "demo",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
     onRpc("res.users", "search_count", () => 7);
@@ -68,7 +66,6 @@ test("Expiration Panel one app installed, buy subscription", async () => {
         message: "There should be no registration form",
     });
 
-    // Click on 'buy subscription'
     await click(".oe_instance_buy");
     await animationFrame();
 
@@ -87,15 +84,13 @@ test("Expiration Panel one app installed, try several times to register subscrip
     patchWithCleanup(session, {
         expiration_date: "2019-10-15 12:00:00",
         expiration_reason: "trial",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
 
     mockService("notification", {
         add: (message, options) => {
             expect.step({ message, options });
-            // The real service hands back a closer; a mock returning nothing
-            // breaks any caller that closes the notification it opened.
             return () => {};
         },
     });
@@ -151,7 +146,6 @@ test("Expiration Panel one app installed, try several times to register subscrip
         message: "There should be no registration form",
     });
 
-    // Click on 'buy subscription'
     await click(".oe_instance_register_show");
     await animationFrame();
 
@@ -220,14 +214,12 @@ test("Expiration Panel one app installed, try several times to register subscrip
     });
 
     expect.verifySteps([
-        // second try to submit
         "get_param",
         "set_param",
         "update_notification",
         "get_param",
         "get_param",
         "get_param",
-        // third try
         "get_param",
         "set_param",
         "update_notification",
@@ -252,7 +244,7 @@ test("Expiration Panel one app installed, subscription already linked", async ()
     patchWithCleanup(session, {
         expiration_date: "2019-10-15 12:00:00",
         expiration_reason: "trial",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
     onRpc("/already/linked/send/mail/url", () => ({
@@ -293,7 +285,6 @@ test("Expiration Panel one app installed, subscription already linked", async ()
     expect(".oe_instance_register").toHaveText(
         "This database will expire in 5 days. Register your subscription or buy a subscription.",
     );
-    // Click on 'register your subscription'
     await click(".oe_instance_register_show");
     await animationFrame();
     await click(".oe_instance_register_form input");
@@ -336,7 +327,7 @@ test("One app installed, database expired", async () => {
     patchWithCleanup(session, {
         expiration_date: "2019-10-08 12:00:00",
         expiration_reason: "trial",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
     onRpc("/already/linked/send/mail/url", () => ({
@@ -376,7 +367,6 @@ test("One app installed, database expired", async () => {
 
     expect(".oe_instance_register_form").toHaveCount(0);
 
-    // Click on 'Register your subscription'
     await click(".oe_instance_register_show");
     await animationFrame();
     await click(".oe_instance_register_form input");
@@ -400,7 +390,7 @@ test("One app installed, renew", async () => {
     patchWithCleanup(session, {
         expiration_date: "2019-10-20 12:00:00",
         expiration_reason: "renewal",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
     onRpc("get_param", ({ args }) => {
@@ -429,7 +419,6 @@ test("One app installed, renew", async () => {
 
     expect(".oe_instance_register_form").toHaveCount(0);
 
-    // Click on 'Renew your subscription'
     await click(".oe_instance_renew");
     await animationFrame();
 
@@ -444,7 +433,7 @@ test("One app installed, check status and get success", async () => {
     patchWithCleanup(session, {
         expiration_date: "2019-10-20 12:00:00",
         expiration_reason: "renewal",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
     onRpc("get_param", ({ args }) => {
@@ -459,7 +448,6 @@ test("One app installed, check status and get success", async () => {
     await mountWebClient();
     await animationFrame();
 
-    // click on "I paid, please recheck!"
     expect("a.check_enterprise_status").toHaveText("I paid, please recheck!");
     await click("a.check_enterprise_status");
     await animationFrame();
@@ -471,7 +459,6 @@ test("One app installed, check status and get success", async () => {
     expect.verifySteps(["update_notification", "get_param"]);
 });
 
-// Why would we want to reload the page when we check the status and it hasn't changed?
 test.skip("One app installed, check status and get page reload", async () => {
     expect.assertions(4);
 
@@ -480,7 +467,7 @@ test.skip("One app installed, check status and get page reload", async () => {
     patchWithCleanup(session, {
         expiration_date: "2019-10-20 12:00:00",
         expiration_reason: "renewal",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
     onRpc("get_param", () => {
@@ -494,7 +481,6 @@ test.skip("One app installed, check status and get page reload", async () => {
     await mountWebClient();
     await animationFrame();
 
-    // click on "I paid, please recheck!"
     await click("a.check_enterprise_status");
     await animationFrame();
 
@@ -509,7 +495,7 @@ test("One app installed, upgrade database", async () => {
     patchWithCleanup(session, {
         expiration_date: "2019-10-20 12:00:00",
         expiration_reason: "upsell",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
     onRpc("get_param", ({ args }) => {
@@ -532,7 +518,6 @@ test("One app installed, upgrade database", async () => {
             "I paid, please recheck!",
     );
 
-    // click on "Upgrade your subscription"
     await click("a.oe_instance_upsell");
     await animationFrame();
 
@@ -550,7 +535,7 @@ test("One app installed, message for non admin user", async () => {
     patchWithCleanup(session, {
         expiration_date: "2019-11-08 12:00:00",
         expiration_reason: "",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "user",
     });
     await mountWebClient();
@@ -573,7 +558,7 @@ test("One app installed, navigation to renewal page", async () => {
     patchWithCleanup(session, {
         expiration_date: "2019-10-20 12:00:00",
         expiration_reason: "renewal",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
     onRpc("get_param", ({ args }) => {
@@ -603,7 +588,6 @@ test("One app installed, navigation to renewal page", async () => {
 
     expect(".oe_instance_register_form").toHaveCount(0);
 
-    // Click on 'Renew your subscription'
     await click(".oe_instance_renew");
     await animationFrame();
 
@@ -622,7 +606,7 @@ test("One app installed, different locale (arabic)", async () => {
     patchWithCleanup(session, {
         expiration_date: "2019-10-20 12:00:00",
         expiration_reason: "renewal",
-        storeData: true, // used by subscription service to know whether mail is installed
+        storeData: true,
         warning: "admin",
     });
     serverState.lang = "ar-001";
@@ -636,5 +620,55 @@ test("One app installed, different locale (arabic)", async () => {
 
     expect(".oe_instance_register").toHaveText(
         "Your subscription was updated and is valid until ٩ نوفمبر ٢٠١٩.",
+    );
+});
+
+test("a single day is a day, not '1 days'", async () => {
+    mockDate("2019-10-10T12:00:00");
+    patchWithCleanup(session, {
+        expiration_date: "2019-10-11 12:00:00",
+        expiration_reason: "",
+        storeData: true,
+        warning: "admin",
+    });
+    await mountWebClient();
+    await animationFrame();
+    await getService("action").doAction("menu");
+
+    expect(".oe_instance_register").toHaveText("This database will expire in 1 day.");
+});
+
+test("a renewal one day from its grace period reads as a day, in both directions", async () => {
+    // The renewal wording counts from the end of a 15-day grace period, so the
+    // number it prints is not daysLeft and reaches 1 on its own.
+    mockDate("2019-10-10T12:00:00");
+    patchWithCleanup(session, {
+        expiration_date: "2019-10-26 12:00:00", // 16 days: 1 past the grace period
+        expiration_reason: "renewal",
+        storeData: true,
+        warning: "admin",
+    });
+    await mountWebClient();
+    await animationFrame();
+    await getService("action").doAction("menu");
+    expect(".oe_instance_register").toHaveText(
+        "Your subscription expires in 1 day.\nRenew now\nI paid, please recheck!",
+    );
+});
+
+test("a renewal one day into its grace period reads as a day", async () => {
+    mockDate("2019-10-10T12:00:00");
+    patchWithCleanup(session, {
+        expiration_date: "2019-10-24 12:00:00", // 14 days: 1 into the grace period
+        expiration_reason: "renewal",
+        storeData: true,
+        warning: "admin",
+    });
+    await mountWebClient();
+    await animationFrame();
+    await getService("action").doAction("menu");
+    expect(".oe_instance_register").toHaveText(
+        "Your subscription expired 1 day ago. This database will be blocked soon.\n" +
+            "Renew now\nI paid, please recheck!",
     );
 });
