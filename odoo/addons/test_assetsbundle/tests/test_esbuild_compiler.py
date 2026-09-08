@@ -13,7 +13,7 @@ from odoo.tools.json import scriptsafe as json
 
 class TestEsbuildFailClosed(TransactionCase):
     def _run(self, **config):
-        from odoo.addons.base.models.ir_qweb_assets import EsbuildBundleError
+        from odoo.addons.base.models.ir_qweb_assets_esbuild import EsbuildBundleError
 
         qweb = self.env["ir.qweb"]
         patched = dict(tools.config._runtime_options)
@@ -121,7 +121,7 @@ class TestEsbuildFailurePath(TransactionCase):
             )
 
     def test_a_compile_failure_raises_when_fail_closed(self):
-        from odoo.addons.base.models.ir_qweb_assets import EsbuildBundleError
+        from odoo.addons.base.models.ir_qweb_assets_esbuild import EsbuildBundleError
 
         with self.assertLogs("odoo.assets.fallback", level="WARNING"):
             with self.assertRaises(EsbuildBundleError) as caught:
