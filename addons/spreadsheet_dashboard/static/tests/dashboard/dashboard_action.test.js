@@ -69,6 +69,14 @@ test("Fold/unfold the search panel", async function () {
     expect(".o_spreadsheet_dashboard_search_panel").toHaveCount(1);
 });
 
+test("The fold/unfold buttons carry an accessible name", async function () {
+    await createSpreadsheetDashboard();
+    expect(".o_spreadsheet_dashboard_search_panel button[aria-label='Close sidebar']").toHaveCount(1);
+
+    await contains(".o_spreadsheet_dashboard_search_panel button").click();
+    expect(".o_search_panel_sidebar button[aria-label='Open sidebar']").toHaveCount(1);
+});
+
 test("Folding dashboard from 'FAVORITES' group shows correct active dashboard group", async function () {
     await createSpreadsheetDashboard({
         mockRPC: async function (route, args) {
