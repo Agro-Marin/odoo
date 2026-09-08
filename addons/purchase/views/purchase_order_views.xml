@@ -944,10 +944,7 @@
                                                 readonly="is_downpayment" />
                                             <label for="discount" />
                                             <div name="discount">
-                                                <field
-                                                    name="discount"
-                                                    class="oe_inline"
-                                                    readonly="qty_invoiced != 0" /> % </div>
+                                                <field name="discount" class="oe_inline" readonly="qty_invoiced != 0" /> % </div>
                                         </group>
                                         <group invisible="display_type">
                                             <field
