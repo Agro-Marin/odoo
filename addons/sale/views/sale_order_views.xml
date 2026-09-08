@@ -701,6 +701,7 @@
                                     name="action_update_prices"
                                     string="Update Prices"
                                     type="object"
+                                    groups="sales_team.group_sale_salesman"
                                     class="btn-link mb-1 px-0"
                                     icon="fa-refresh"
                                     confirm="This will update the unit price of all products based on the new pricelist."
@@ -750,6 +751,7 @@
                                             name="action_add_from_catalog"
                                             string="Catalog"
                                             type="object"
+                                            groups="sales_team.group_sale_salesman"
                                             class="px-4 btn-link"
                                             context="{'order_id': parent.id}" />
                                     </control>
@@ -1047,6 +1049,7 @@
                                             name="action_add_from_catalog"
                                             string="Catalog"
                                             type="object"
+                                            groups="sales_team.group_sale_salesman"
                                             class="btn-secondary"
                                             context="{'order_id': parent.id}" />
                                     </control>
@@ -1190,6 +1193,7 @@
                                             name="action_update_taxes"
                                             string="Update Taxes"
                                             type="object"
+                                            groups="sales_team.group_sale_salesman"
                                             class="btn-link mb-1 px-0"
                                             icon="fa-refresh"
                                             confirm="This will update all taxes based on the currently selected fiscal position."
