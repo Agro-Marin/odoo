@@ -25,10 +25,10 @@ class TestLinkTrackerCost(common.TransactionCase):
     def _queries(self, func):
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         func()
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def _body(self, count, tag):
         return "".join(

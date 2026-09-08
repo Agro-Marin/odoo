@@ -162,12 +162,12 @@ class TestLoyaltyMerge(TransactionCase):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.env['base.partner.merge.automatic.wizard']._merge_loyalty_cards(
             source, destination
         )
         self.env.flush_all()
-        queries = self.env.cr.sql_log_count - before
+        queries = self.env.cr.sql_statement_count - before
 
         self.assertLess(
             queries, 8 * 3,

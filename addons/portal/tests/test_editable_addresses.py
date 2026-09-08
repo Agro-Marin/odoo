@@ -77,9 +77,9 @@ class TestEditableAddresses(TransactionCase):
 
     def _query_count(self, call):
         call()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         call()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_batch_cost_does_not_grow_with_the_address_book(self):
         two = self._as_user(self.own_addresses[:2])

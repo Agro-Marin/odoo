@@ -1574,13 +1574,13 @@ class TestIrModelInherit(TransactionCase):
 
         self.env.flush_all()
         self.env.registry.clear_cache("stable")
-        count0 = self.env.cr.sql_log_count
+        count0 = self.env.cr.sql_statement_count
         with patch.object(cls, "_get_ids_by_name", spy):
             mapping = IrModelInherit._prepare_inherit_mapping(
                 ["res.partner", "res.users", "res.country"]
             )
         self.assertEqual(asked, ["res.users"])
-        self.assertEqual(self.env.cr.sql_log_count - count0, 2)
+        self.assertEqual(self.env.cr.sql_statement_count - count0, 2)
         self.assertTrue(mapping)
 
     def test_inherit_and_inherits_same_parent_is_rejected_clearly(self):

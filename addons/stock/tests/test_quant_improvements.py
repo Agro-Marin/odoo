@@ -1422,7 +1422,7 @@ class TestStockQuantImprovements(TestStockCommon):
         self.env.invalidate_all()
 
         cache = self.Quant._get_quants_by_products_locations(products, self.loc)
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         for product in products:
             quants = cache[product.id, self.loc.id, False, False, False]
             self.assertTrue(quants, "the scan covered this product/location")
@@ -1430,7 +1430,7 @@ class TestStockQuantImprovements(TestStockCommon):
             quants.mapped("in_date")
             quants.mapped("reserved_quantity")
         self.assertEqual(
-            self.env.cr.sql_log_count,
+            self.env.cr.sql_statement_count,
             before,
             "cached quants must already carry their values",
         )

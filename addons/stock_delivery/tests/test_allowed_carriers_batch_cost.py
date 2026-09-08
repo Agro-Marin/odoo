@@ -22,9 +22,9 @@ class TestAllowedCarriersBatchCost(TransactionCase):
     def _queries_for(self, count):
         records = self.pickings[:count]
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         records.mapped("allowed_carrier_ids")
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_allowed_carrier_ids_does_not_query_per_picking(self):
         small = self._queries_for(2)

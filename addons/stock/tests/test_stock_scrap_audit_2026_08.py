@@ -148,10 +148,10 @@ class TestScrapBatchCost(TransactionCase):
         )
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         scraps._action_done()
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_a_further_scrap_costs_less_than_a_first_one(self):
         small = self._scrap_batch(2, "sm")

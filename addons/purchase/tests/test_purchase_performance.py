@@ -480,13 +480,13 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        queries_start = self.env.cr.sql_log_count
+        queries_start = self.env.cr.sql_statement_count
         t0 = time.perf_counter()
 
         result = operation_func()
 
         t1 = time.perf_counter()
-        query_count = self.env.cr.sql_log_count - queries_start
+        query_count = self.env.cr.sql_statement_count - queries_start
 
         _logger.info(
             "SCALE TEST: %s - Duration: %.3fs, Queries: %d",
@@ -712,13 +712,13 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        queries_start = self.env.cr.sql_log_count
+        queries_start = self.env.cr.sql_statement_count
         t0 = time.perf_counter()
 
         result = operation_func()
 
         t1 = time.perf_counter()
-        query_count = self.env.cr.sql_log_count - queries_start
+        query_count = self.env.cr.sql_statement_count - queries_start
 
         _logger.info(
             "STRESS: %s - Duration: %.3fs, Queries: %d",
@@ -1051,7 +1051,7 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        queries_start = self.env.cr.sql_log_count
+        queries_start = self.env.cr.sql_statement_count
         t0 = time.perf_counter()
 
         po = self.env["purchase.order"].create(
@@ -1070,7 +1070,7 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         )
 
         t1 = time.perf_counter()
-        query_count = self.env.cr.sql_log_count - queries_start
+        query_count = self.env.cr.sql_statement_count - queries_start
 
         _logger.info(
             "10 products × 19 sellers each: %.3fs, %d queries", t1 - t0, query_count
@@ -1079,13 +1079,13 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        queries_start = self.env.cr.sql_log_count
+        queries_start = self.env.cr.sql_statement_count
         t0 = time.perf_counter()
 
         po.line_ids.write({"product_qty": 50})
 
         t1 = time.perf_counter()
-        query_count = self.env.cr.sql_log_count - queries_start
+        query_count = self.env.cr.sql_statement_count - queries_start
 
         _logger.info(
             "Qty update triggering seller reselection: %.3fs, %d queries",
@@ -1117,7 +1117,7 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        queries_start = self.env.cr.sql_log_count
+        queries_start = self.env.cr.sql_statement_count
         t0 = time.perf_counter()
 
         _ = po.amount_untaxed
@@ -1127,7 +1127,7 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         _ = po.amount_taxinc_invoiced
 
         t1 = time.perf_counter()
-        query_count = self.env.cr.sql_log_count - queries_start
+        query_count = self.env.cr.sql_statement_count - queries_start
 
         _logger.info(
             "Amount computation (50 lines): %.3fs, %d queries", t1 - t0, query_count
@@ -1155,7 +1155,7 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        queries_start = self.env.cr.sql_log_count
+        queries_start = self.env.cr.sql_statement_count
         t0 = time.perf_counter()
 
         for line in po.line_ids:
@@ -1163,7 +1163,7 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
             _ = line.date_commitment
 
         t1 = time.perf_counter()
-        query_count = self.env.cr.sql_log_count - queries_start
+        query_count = self.env.cr.sql_statement_count - queries_start
 
         _logger.info(
             "Date planned recomputation (10 lines × 19 sellers): %.3fs, %d queries",

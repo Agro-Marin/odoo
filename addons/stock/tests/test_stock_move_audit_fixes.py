@@ -341,11 +341,11 @@ class TestStockMoveAuditFixes(TransactionCase):
         walked_queries = []
 
         def counting(records, *args, **kwargs):
-            before = records.env.cr.sql_log_count
+            before = records.env.cr.sql_statement_count
             try:
                 return original(records, *args, **kwargs)
             finally:
-                walked_queries.append(records.env.cr.sql_log_count - before)
+                walked_queries.append(records.env.cr.sql_statement_count - before)
 
         self.env.invalidate_all()
         moves = self.Move.browse(move_ids)

@@ -264,10 +264,10 @@ class TestObjectWriteCostsNothingPerExtraRecord(ServerActionCase):
         records = self._partners(n, f"cost{n}_")
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         action.with_context(**self._ctx(records)).run()
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_a_static_update_costs_the_same_for_two_records_and_twenty(self):
         action = self._action(

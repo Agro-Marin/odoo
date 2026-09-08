@@ -346,10 +346,10 @@ class TestQuantSweepShape(TestStockCommon):
         return products
 
     def _clean_cost(self, products):
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.Quant._clean_reservations(products=products, locations=self.loc)
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_clean_reservations_cost_per_group_is_bounded(self):
         small = self._clean_cost(self._drift(2, "small"))

@@ -8041,9 +8041,9 @@ class TestCombineIsBatched(ViewCase):
 
     def _queries_to_validate(self, count):
         views = self._forms(count)
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         views._check_xml()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_validating_many_views_costs_one_combine_not_one_each(self):
         small = self._queries_to_validate(2)

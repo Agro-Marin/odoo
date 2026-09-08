@@ -204,11 +204,11 @@ class TestMailMessageCreateBatch(common.MailCommon):
             self.env.flush_all()
             self.env.invalidate_all()
             self.env.cr.flush()
-            before = self.cr.sql_log_count
+            before = self.cr.sql_statement_count
             Message.create(vals_list)
             self.env.flush_all()
             self.env.cr.flush()
-            return self.cr.sql_log_count - before
+            return self.cr.sql_statement_count - before
 
         few = create_with(2)
         many = create_with(20)

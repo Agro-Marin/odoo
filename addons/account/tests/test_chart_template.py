@@ -1929,11 +1929,11 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             )
 
         self.env.invalidate_all()
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         for record in mapping.values():
             record.code
             record.account_type
-        queries = self.cr.sql_log_count - before
+        queries = self.cr.sql_statement_count - before
         self.assertLess(
             queries,
             len(mapping),

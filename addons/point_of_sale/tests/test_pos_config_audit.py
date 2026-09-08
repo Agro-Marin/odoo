@@ -46,9 +46,9 @@ class TestPosConfigAudit(TestPoSCommon):
                     {"name": f"clone-{number_of_clones}-{index}"}
                 )
             self.env.invalidate_all()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             configs.mapped("last_session_closing_cash")
-            return self.env.cr.sql_log_count - before
+            return self.env.cr.sql_statement_count - before
 
         few = count_for(2)
         many = count_for(16)

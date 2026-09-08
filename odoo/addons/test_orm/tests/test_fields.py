@@ -5934,9 +5934,9 @@ class TestTranslatedFieldEnUsFallback(TransactionCase):
 class TestReferenceBatchValidation(TransactionCase):
     def _query_count(self, func):
         self.env.flush_all()
-        count0 = self.cr.sql_log_count
+        count0 = self.cr.sql_statement_count
         result = func()
-        return result, self.cr.sql_log_count - count0
+        return result, self.cr.sql_statement_count - count0
 
     def _reset_reference_memo(self):
         from odoo.orm.fields.reference import REFERENCE_VERIFIED_CACHE_KEY

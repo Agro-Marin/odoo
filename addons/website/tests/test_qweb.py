@@ -224,20 +224,20 @@ class TestQweb(TransactionCaseWithUserDemo):
                 IrUiView.invalidate_model()
 
         def check(template, name, queries):
-            init = env.cr.sql_log_count
+            init = env.cr.sql_statement_count
             value = str(env["ir.qweb"]._render(template, {"doc": name}))
             self.assertEqual(value, expected % name)
             self.assertEqual(
-                env.cr.sql_log_count - init, queries, f"Maximum queries: {queries}"
+                env.cr.sql_statement_count - init, queries, f"Maximum queries: {queries}"
             )
 
         def check_website(template, name, queries):
-            init = env.cr.sql_log_count
+            init = env.cr.sql_statement_count
             with MockRequest(env, website=website) as request:
                 value = str(request.env["ir.qweb"]._render(template, {"doc": name}))
             self.assertEqual(value, expected_website % name)
             self.assertEqual(
-                env.cr.sql_log_count - init, queries, f"Maximum queries: {queries}"
+                env.cr.sql_statement_count - init, queries, f"Maximum queries: {queries}"
             )
 
         FIRST_SEARCH_FETCH = 1

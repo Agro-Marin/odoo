@@ -480,10 +480,10 @@ class TestPushBatchCost(ProcRuleAuditCommon):
         moves._action_confirm()
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         moves._push_apply()
         self.env.flush_all()
-        return self.cr.sql_log_count - before, moves
+        return self.cr.sql_statement_count - before, moves
 
     def test_pushing_a_batch_costs_no_create_per_move(self):
         few_queries, _few = self._push_cost(2)

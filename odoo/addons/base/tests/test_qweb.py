@@ -3192,11 +3192,11 @@ class TestQwebPerformance(TransactionCaseWithUserDemo):
 
         def check(template, name, queries):
             doc.name = name
-            init = env.cr.sql_log_count
+            init = env.cr.sql_statement_count
             value = env["ir.qweb"]._render(template, {"doc": doc})
             self.assertEqual(str(value), expected % name)
             self.assertEqual(
-                env.cr.sql_log_count - init,
+                env.cr.sql_statement_count - init,
                 queries,
                 f"Maximum queries: {queries}",
             )

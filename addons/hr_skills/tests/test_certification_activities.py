@@ -282,10 +282,10 @@ class TestCertificationActivities(TransactionCase):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         activities = self.env["hr.employee"]._add_certification_activity_to_employees()
         self.env.flush_all()
-        cost = self.env.cr.sql_log_count - before
+        cost = self.env.cr.sql_statement_count - before
 
         # scoped to this test's own employees: the class fixtures qualify too
         mine = activities.filtered(lambda a: a.res_id in batch.ids)

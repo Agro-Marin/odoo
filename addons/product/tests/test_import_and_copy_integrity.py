@@ -262,9 +262,9 @@ class TestTemplateBarcodeCheckBatching(ProductCommon):
         )
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         templates._check_barcode_uniqueness()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_barcode_constraint_does_not_scale_with_batch_size(self):
         small = self._count_check_queries(5, "small")

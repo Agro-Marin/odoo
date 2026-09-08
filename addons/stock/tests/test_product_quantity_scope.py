@@ -287,12 +287,12 @@ class TestProductQuantityScope(TransactionCase):
         ]._get_domains_quantity_from_context()
         self.env.flush_all()
         past = fields.Datetime.now() - datetime.timedelta(days=5)
-        queries_before = self.env.cr.sql_log_count
+        queries_before = self.env.cr.sql_statement_count
         scope = self.product._prepare_quantities_scope(
             QuantityFilters(to_date=past), location_domains=location_domains
         )
         self.assertEqual(
-            self.env.cr.sql_log_count,
+            self.env.cr.sql_statement_count,
             queries_before,
             "assembling the scope must not hit the database",
         )

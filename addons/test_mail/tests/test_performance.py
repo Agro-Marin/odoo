@@ -1301,7 +1301,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
             self.env.invalidate_all()
             self.env.flush_all()
             self.env.cr.flush()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             records = self.env["mail.test.ticket"].create(
                 [
                     {"name": f"Ticket {idx}", "container_id": container.id}
@@ -1310,7 +1310,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
             )
             self.env.flush_all()
             self.env.cr.flush()
-            counts[size] = self.env.cr.sql_log_count - before
+            counts[size] = self.env.cr.sql_statement_count - before
 
             # cheaper is only interesting if it is unchanged: one creation log per
             # record, same subtype, same author.
@@ -1382,7 +1382,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
             self.env.invalidate_all()
             self.env.flush_all()
             self.env.cr.flush()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             # auto_delete off so the rows survive the send and can be compared:
             # with it on, a forced send unlinks every mail.mail it just created
             # and the equivalence check below would inspect an empty table.
@@ -1394,7 +1394,7 @@ class TestMailAPIPerformance(BaseMailPerformance):
             )
             self.env.flush_all()
             self.env.cr.flush()
-            counts[size] = self.env.cr.sql_log_count - before
+            counts[size] = self.env.cr.sql_statement_count - before
             posted[size] = (records, messages)
 
         # Each message's mail must carry that message's body and exactly that

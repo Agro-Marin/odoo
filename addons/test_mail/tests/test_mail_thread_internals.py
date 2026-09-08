@@ -1016,11 +1016,11 @@ class TestAPI(ThreadRecipients):
             )
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         suggested = records._message_get_suggested_recipients_batch(
             reply_discussion=True
         )
-        return self.cr.sql_log_count - before, suggested
+        return self.cr.sql_statement_count - before, suggested
 
     @users("employee")
     def test_message_get_suggested_recipients_batch_costs_no_query_per_record(self):

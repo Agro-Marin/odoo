@@ -112,10 +112,10 @@ class TestProductivityDuration(common.TestMrpCommon):
             Productivity.search([("workcenter_id", "=", self.workcenter.id)]).unlink()
             self.env.flush_all()
             self.env.invalidate_all()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             Productivity.create(make(count))
             self.env.flush_all()
-            cost[count] = self.env.cr.sql_log_count - before
+            cost[count] = self.env.cr.sql_statement_count - before
         marginal = (cost[20] - cost[2]) / 18
         self.assertLess(
             marginal,

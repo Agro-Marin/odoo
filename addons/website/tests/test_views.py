@@ -2364,9 +2364,9 @@ class TestFirstPageIdBatchCost(common.TransactionCase):
             # invoked once per view on top of the batch. That is an artefact of
             # the measurement, and it hides what opening the list actually costs.
             self.env.invalidate_all()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             views[:count].mapped("first_page_id")
-            return self.env.cr.sql_log_count - before
+            return self.env.cr.sql_statement_count - before
 
         small = queries_for(2)
         large = queries_for(20)

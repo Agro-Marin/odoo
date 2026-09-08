@@ -400,9 +400,9 @@ class TestValuationBatching(TestStockValuationCommon):
 
     def _stock_value_query_count(self):
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.company.stock_value()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_stock_value_does_not_scale_with_the_catalogue(self):
         categ = self.env["product.category"].create({"name": "batched"})
@@ -519,14 +519,14 @@ class TestLotValuationBatching(TestStockValuationCommon):
         self.env.flush_all()
 
         self.lots.invalidate_recordset()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.lots[:2].mapped("total_value")
-        two_lots = self.env.cr.sql_log_count - before
+        two_lots = self.env.cr.sql_statement_count - before
 
         self.lots.invalidate_recordset()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.lots.mapped("total_value")
-        six_lots = self.env.cr.sql_log_count - before
+        six_lots = self.env.cr.sql_statement_count - before
 
         self.assertLess(
             six_lots,
@@ -564,11 +564,11 @@ class TestQuantValuationBatching(TestStockValuationCommon):
 
     def _read_group_query_count(self, products):
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.env["stock.quant"]._read_group(
             [("product_id", "in", products.ids)], ["location_id"], ["value:sum"]
         )
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_value_sum_does_not_scale_with_the_product_count(self):
         categ = self._avco_categ()
@@ -634,10 +634,10 @@ class TestValuationScopeReuse(TestStockValuationCommon):
         scoped = product._with_valuation_context()
         self.env.flush_all()
 
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         rescoped = scoped._with_valuation_context()
         self.assertEqual(
-            self.env.cr.sql_log_count,
+            self.env.cr.sql_statement_count,
             before,
             "re-scoping an already-scoped recordset searched the locations again",
         )

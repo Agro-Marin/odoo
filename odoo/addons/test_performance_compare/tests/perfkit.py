@@ -127,11 +127,11 @@ class BenchmarkRecorder:
                     setup()
                 if invalidate is not None:
                     invalidate()
-                q0 = cr.sql_log_count
+                q0 = cr.sql_statement_count
                 t0 = time.perf_counter_ns()
                 func()
                 t1 = time.perf_counter_ns()
-                q1 = cr.sql_log_count
+                q1 = cr.sql_statement_count
                 if i >= warmup:
                     times_us.append((t1 - t0) / 1000.0)
                     q_counts.append(q1 - q0)

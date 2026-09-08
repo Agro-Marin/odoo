@@ -37,10 +37,10 @@ class TestLoyaltyBatching(TransactionCase):
     def _queries(self, operation):
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         operation()
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_resolving_discounted_products_costs_one_search(self):
         """`all_discount_product_ids` used to search once per reward."""

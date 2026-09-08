@@ -683,9 +683,9 @@ class IrModuleSearchPanelCase(TransactionCase):
         Module = self.env["ir.module.module"]
         self.env.flush_all()
         self.env.invalidate_all()
-        start = self.env.cr.sql_log_count
+        start = self.env.cr.sql_statement_count
         result = Module.search_panel_select_range("category_id", enable_counters=True)
-        return self.env.cr.sql_log_count - start, result["values"]
+        return self.env.cr.sql_statement_count - start, result["values"]
 
     def test_counting_cost_does_not_grow_with_the_number_of_categories(self):
         Module = self.env["ir.module.module"]

@@ -255,9 +255,9 @@ class TestCaseDocuments(TransactionCaseDocuments):
             self.env.flush_all()
             self.env.invalidate_all()
             as_user = documents.with_user(user)
-            count0 = self.cr.sql_log_count
+            count0 = self.cr.sql_statement_count
             as_user.mapped("user_permission")
-            return self.cr.sql_log_count - count0
+            return self.cr.sql_statement_count - count0
 
         few, many = measure(2), measure(20)
         self.assertLess(
@@ -1493,9 +1493,9 @@ class TestDocumentsResName(TransactionCaseDocuments):
         self.env.flush_all()
         documents.invalidate_recordset()
         self.env.invalidate_all()
-        count0 = self.cr.sql_log_count
+        count0 = self.cr.sql_statement_count
         names = documents.mapped("res_name")
-        queries = self.cr.sql_log_count - count0
+        queries = self.cr.sql_statement_count - count0
 
         self.assertEqual(names, partners.mapped("display_name"))
         self.assertLess(

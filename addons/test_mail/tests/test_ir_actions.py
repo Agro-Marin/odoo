@@ -611,12 +611,12 @@ class TestServerActionsMailBatch(MailCommon):
         leads = self._leads(count)
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         action.with_context(
             active_model="mail.test.lead", active_ids=leads.ids, active_id=leads[0].id
         ).run()
         self.env.flush_all()
-        return self.cr.sql_log_count - before, leads
+        return self.cr.sql_statement_count - before, leads
 
     def _assert_marginal_cost(self, action, budget, label):
         few, _few_records = self._run_on(action, 2)
@@ -713,14 +713,14 @@ class TestServerActionsMailBatch(MailCommon):
             )
             self.env.flush_all()
             self.env.invalidate_all()
-            before = self.cr.sql_log_count
+            before = self.cr.sql_statement_count
             action.with_context(
                 active_model="mail.test.lead",
                 active_ids=leads.ids,
                 active_id=leads[0].id,
             ).run()
             self.env.flush_all()
-            return self.cr.sql_log_count - before, leads
+            return self.cr.sql_statement_count - before, leads
 
         few, _ = cost_of(2)
         many, leads = cost_of(20)
@@ -1747,12 +1747,12 @@ class TestMailPostBatch(MailCommon):
         )
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.action.with_context(
             active_model="mail.test.simple", active_ids=records.ids
         ).run()
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
 
 @tagged("ir_actions")

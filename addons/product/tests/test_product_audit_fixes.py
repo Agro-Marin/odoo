@@ -532,7 +532,7 @@ class TestProductAuditFixes(ProductCommon):
 
         def query_count(products):
             self.env.invalidate_all()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             Report._get_report_data(
                 {
                     "active_model": "product.template",
@@ -541,7 +541,7 @@ class TestProductAuditFixes(ProductCommon):
                     "quantities": [1, 2, 3, 4, 5],
                 }
             )
-            return self.env.cr.sql_log_count - before
+            return self.env.cr.sql_statement_count - before
 
         few = query_count(templates[:5])
         many = query_count(templates)

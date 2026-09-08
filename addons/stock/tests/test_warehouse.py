@@ -1739,10 +1739,10 @@ class TestWarehouse(TestStockCommon):
 
     def _cost(self, work):
         self.env.flush_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         work()
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_creating_warehouses_in_a_batch_is_never_worse_per_warehouse(self):
         Warehouse = self.env["stock.warehouse"]

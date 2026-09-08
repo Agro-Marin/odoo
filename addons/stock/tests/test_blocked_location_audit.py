@@ -95,9 +95,9 @@ class TestBlockMetadata(BlockedLocationCase):
             self.env.flush_all()
             self.env.invalidate_all()
             locations.mapped("parent_path")
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             locations._total_reserved_quantities()
-            return self.env.cr.sql_log_count - before
+            return self.env.cr.sql_statement_count - before
 
         self.assertEqual(
             aggregation_cost(2, "small"),

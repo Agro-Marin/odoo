@@ -1852,10 +1852,10 @@ class TestRelatedInverseIsBatched(TransactionCase):
 
     def _cost(self, users, vals):
         self.env.flush_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         users.write(vals)
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_one_shared_value_costs_one_write_however_many_records(self):
         few = self._users(2, "ru_rel_few")

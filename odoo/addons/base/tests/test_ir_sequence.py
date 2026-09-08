@@ -855,10 +855,10 @@ class TestIrSequenceNextBatch(common.TransactionCase):
                 sequence = self._sequence(implementation=implementation)
                 sequence._next()
                 self.env.flush_all()
-                before = self.env.cr.sql_log_count
+                before = self.env.cr.sql_statement_count
                 sequence._next_batch(20)
                 self.assertLessEqual(
-                    self.env.cr.sql_log_count - before,
+                    self.env.cr.sql_statement_count - before,
                     3,
                     "twenty values should not cost twenty statements",
                 )

@@ -824,10 +824,10 @@ class TestPartnerCompanyDependentSync(TransactionCase):
             for extra in (3, 12):
                 contact = self._tree_with_barcode_as_a_commercial_field(extra)
                 self.env.invalidate_all()
-                before = self.cr.sql_log_count
+                before = self.cr.sql_statement_count
                 contact.sudo()._company_dependent_commercial_sync()
                 self.env.flush_all()
-                costs.append(self.cr.sql_log_count - before)
+                costs.append(self.cr.sql_statement_count - before)
             self.assertEqual(
                 costs[0],
                 costs[1],
@@ -1157,9 +1157,9 @@ class TestPartnerSimilarNameDuplicates(TransactionCase):
             )
             batch.invalidate_recordset(["duplicate_ids", "duplicate_count"])
             self.env.flush_all()
-            before = self.cr.sql_log_count
+            before = self.cr.sql_statement_count
             batch.mapped("duplicate_ids")
-            return self.cr.sql_log_count - before
+            return self.cr.sql_statement_count - before
 
         queries_for(2)
         self.assertEqual(

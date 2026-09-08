@@ -316,15 +316,15 @@ class TestMailMessageCreateDetails(MailCommon):
         Message.create(create(1))
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         Message.create(create(1))
         self.env.flush_all()
-        one = self.env.cr.sql_log_count - before
+        one = self.env.cr.sql_statement_count - before
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         Message.create(create(20))
         self.env.flush_all()
-        twenty = self.env.cr.sql_log_count - before
+        twenty = self.env.cr.sql_statement_count - before
         self.assertLess(
             twenty,
             one * 3,
@@ -580,14 +580,14 @@ class TestMailMessageLinkedMessages(MailCommon):
         self._store(Message.browse(self.linkers[:2].ids))
 
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self._store(Message.browse(self.linkers[:5].ids))
-        five = self.env.cr.sql_log_count - before
+        five = self.env.cr.sql_statement_count - before
 
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self._store(Message.browse(self.linkers.ids))
-        twenty = self.env.cr.sql_log_count - before
+        twenty = self.env.cr.sql_statement_count - before
 
         self.assertEqual(
             five,

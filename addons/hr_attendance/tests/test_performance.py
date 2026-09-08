@@ -294,12 +294,12 @@ class TestAttendanceComputeBatchCost(TransactionCase):
         records = self.employees[:count]
         self.env.invalidate_all()
         records.mapped("attendance_ids")
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         if field_name is None:
             getattr(records, compute_name)()
         else:
             records.mapped(field_name)
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def _assert_flat(self, compute_name, field_name=None):
         small = self._queries_for(compute_name, field_name, 2)

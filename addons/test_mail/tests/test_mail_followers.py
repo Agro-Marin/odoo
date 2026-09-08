@@ -1642,7 +1642,7 @@ class AdvancedResponsibleNotifiedTest(MailCommon):
         ]
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         records = (
             self.env["mail.test.track"]
             .with_user(self.user_employee)
@@ -1650,7 +1650,7 @@ class AdvancedResponsibleNotifiedTest(MailCommon):
             .create(vals)
         )
         self.env.flush_all()
-        return self.cr.sql_log_count - before, records
+        return self.cr.sql_statement_count - before, records
 
     def test_assigning_a_batch_to_different_people_costs_one_batch(self):
         """Assigning N records to N *different* users must stay one notify batch.

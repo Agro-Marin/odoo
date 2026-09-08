@@ -607,9 +607,9 @@ class TestTemplateQuantityBatching(TransactionCase):
 
     def _cost(self, template_ids, field_name):
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.Tmpl.browse(template_ids).mapped(field_name)
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def _assert_flat(self, field_name):
         small = self._templates(2, f"S{field_name}")

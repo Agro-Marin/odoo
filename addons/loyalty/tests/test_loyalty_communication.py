@@ -37,13 +37,13 @@ class TestLoyaltyCommunication(TransactionCase):
     def _issue(self, program, holders):
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         cards = self.env['loyalty.card'].create([
             {'program_id': program.id, 'partner_id': holder.id, 'points': 1}
             for holder in holders
         ])
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before, cards
+        return self.env.cr.sql_statement_count - before, cards
 
     def _mails_for(self, cards):
         return self.env['mail.mail'].sudo().search([
@@ -127,10 +127,10 @@ class TestLoyaltyCommunication(TransactionCase):
             self.env.flush_all()
             self.env.invalidate_all()
             live = self.env['loyalty.card'].browse(cards.ids)
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             live.write({'points': 60})
             self.env.flush_all()
-            return self.env.cr.sql_log_count - before, cards
+            return self.env.cr.sql_statement_count - before, cards
 
         cross(2, "MWarm")
         small, _ = cross(2, "MSmall")

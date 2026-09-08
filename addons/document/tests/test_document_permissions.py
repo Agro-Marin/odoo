@@ -258,9 +258,9 @@ class TestDocumentsReadCost(TransactionCaseDocuments):
         Document = self.env["document.document"].with_user(self.doc_user)
         self.env.invalidate_all()
 
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         result = Document.search_read([("id", "in", documents.ids)], ["folder_id"])
-        queries = self.env.cr.sql_log_count - before
+        queries = self.env.cr.sql_statement_count - before
 
         self.assertEqual(len(result), count)
         self.assertTrue(all(row["folder_id"] for row in result))

@@ -345,7 +345,7 @@ class TestBatchCreateDoesNotSubscribePerRecord(ApprovalCommon):
         def create_n(count):
             self.env.invalidate_all()
             self.env.flush_all()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             self.env["approval.request"].create(
                 [
                     {
@@ -356,7 +356,7 @@ class TestBatchCreateDoesNotSubscribePerRecord(ApprovalCommon):
                 ],
             )
             self.env.flush_all()
-            return self.env.cr.sql_log_count - before
+            return self.env.cr.sql_statement_count - before
 
         small = create_n(2)
         large = create_n(20)

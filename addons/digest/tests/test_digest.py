@@ -884,7 +884,7 @@ class TestDigestDefects(TestDigestCommon):
                 None,
                 self.company_1,
             )
-            before = self.cr.sql_log_count
+            before = self.cr.sql_statement_count
             one_scan = scoped._read_kpi_over_windows(
                 "kpi_probe",
                 "res.users",
@@ -893,7 +893,7 @@ class TestDigestDefects(TestDigestCommon):
                 None,
                 self.company_1,
             )
-            spent = self.cr.sql_log_count - before
+            spent = self.cr.sql_statement_count - before
         finally:
             self.cr.cache.pop(KPI_AGGREGATE_MEMO, None)
 
@@ -1059,9 +1059,9 @@ class TestDigestDefects(TestDigestCommon):
             )
             self.env.flush_all()
             self.env.invalidate_all()
-            before = self.cr.sql_log_count
+            before = self.cr.sql_statement_count
             digests._get_digests_to_slowdown()
-            return self.cr.sql_log_count - before
+            return self.cr.sql_statement_count - before
 
         small, large = measure(2), measure(20)
         self.assertLessEqual(

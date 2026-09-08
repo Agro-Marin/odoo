@@ -212,9 +212,9 @@ class TestPortalMessageFormatScaling(TransactionCase):
         self.env.flush_all()
         self.env.invalidate_all()
         cold = self.env["mail.message"].browse(messages.ids)
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         cold.portal_message_format(options={})
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_query_count_does_not_grow_with_message_count(self):
         few = self._make_messages(3)

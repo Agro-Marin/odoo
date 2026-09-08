@@ -23,9 +23,9 @@ class TestLocationSubtreeCost(TestStockCommon):
         zone = self._fan(name, width)
         locations = zone | zone.child_ids
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         locations.mapped("child_internal_location_ids")
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_reading_the_field_over_a_recordset_is_one_query(self):
         narrow = self._queries_to_read_the_fan("Narrow", 5)
@@ -273,9 +273,9 @@ class TestPutawayScanCost(TestStockCommon):
         )
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         zone._get_putaway_strategy(self.productA, 1, package=package)
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_scanning_twice_as_many_candidates_costs_the_same(self):
         narrow = self._queries_to_scan("Narrow scan", 5)

@@ -457,14 +457,14 @@ class TestPosSessionOldSessionAlert(TestPoSCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         self.env["pos.session"]._alert_old_sessions()
-        first_run = self.cr.sql_log_count - before
+        first_run = self.cr.sql_statement_count - before
 
         self.env.invalidate_all()
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         self.env["pos.session"]._alert_old_sessions()
-        second_run = self.cr.sql_log_count - before
+        second_run = self.cr.sql_statement_count - before
 
         self.assertLessEqual(
             second_run,

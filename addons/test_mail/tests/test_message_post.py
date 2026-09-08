@@ -3450,13 +3450,13 @@ class TestMessageNotifyBatchCost(TestMessagePostCommon):
         )
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         messages = records._message_notify_batch(
             {record.id: f"<p>body {record.id}</p>" for record in records},
             partner_ids=(self.partner_1 | self.partner_2).ids,
         )
         self.env.flush_all()
-        return self.cr.sql_log_count - before, messages
+        return self.cr.sql_statement_count - before, messages
 
     def test_notifying_a_batch_costs_no_query_per_record(self):
         few_queries, _few = self._notify_batch_of(2)

@@ -5,7 +5,7 @@ from odoo.tests import TransactionCase, tagged
 
 BASE_PICKING = "odoo.addons.stock_picking_batch.models.stock_picking.StockPicking"
 BASE_BATCH = (
-    "odoo.addons.stock_picking_batch.models.stock_picking_batch.StockPickingBatch"
+    "odoo.addons.stock.models.stock_picking_batch.StockPickingBatch"
 )
 
 

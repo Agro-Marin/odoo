@@ -405,9 +405,9 @@ class TestSearchOpenedGroupsBatching(TransactionCase):
         n_groups = 60
         self.env.invalidate_all()
         self.env.cr.flush()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self._records_per_group(n_groups, None, 5, 0)
-        queries = self.env.cr.sql_log_count - before
+        queries = self.env.cr.sql_statement_count - before
         self.assertLess(
             queries,
             n_groups // 2,

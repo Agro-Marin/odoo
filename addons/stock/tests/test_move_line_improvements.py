@@ -608,10 +608,10 @@ class TestBatchQuantCost(TestMoveLineCommon):
         lines = self._lines(self._delivery(product, 10 * count), count, 5)
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         lines.write({"quantity": 3})
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_writing_a_quantity_costs_the_same_for_two_lines_as_for_twenty(self):
         small, large = self._write_cost(2), self._write_cost(20)
@@ -657,10 +657,10 @@ class TestBatchQuantCost(TestMoveLineCommon):
                 }
             ] * count
             self.env.invalidate_all()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             self.MoveLine.create(vals)
             self.env.flush_all()
-            return self.env.cr.sql_log_count - before
+            return self.env.cr.sql_statement_count - before
 
         small, large = cost(2), cost(20)
         per_line = (large - small) / 18

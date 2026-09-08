@@ -1800,7 +1800,7 @@ class TestMrpAuditFixes(TestMrpCommon):
             {"name": "Audit batch %s extra" % tag, "is_storable": True}
         )
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         productions.write(
             {
                 "move_raw_ids": [
@@ -1815,7 +1815,7 @@ class TestMrpAuditFixes(TestMrpCommon):
             }
         )
         self.env.flush_all()
-        queries = self.env.cr.sql_log_count - before
+        queries = self.env.cr.sql_statement_count - before
         added = productions.move_raw_ids.filtered(lambda m: not m.bom_line_id)
         self.assertEqual(len(added), count, "one move per order, whatever the batching")
         return queries
@@ -1933,9 +1933,9 @@ class TestMrpAuditFixes(TestMrpCommon):
     def _sn_uniqueness_cost(self, line_count, tag):
         production = self._audit_serial_byproduct_order(line_count, tag)
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         production._check_sn_uniqueness()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_checking_serial_byproducts_costs_one_batch(self):
         small = self._sn_uniqueness_cost(2, "small")
@@ -3284,11 +3284,11 @@ class TestMrpAuditFixes(TestMrpCommon):
             )
             self.env.flush_all()
             self.env.invalidate_all()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             exploded = moves.action_explode()
             self.env.flush_all()
             self.assertTrue(exploded, "the fixture must actually explode")
-            return self.env.cr.sql_log_count - before
+            return self.env.cr.sql_statement_count - before
 
         few = queries_for(2)
         many = queries_for(20)

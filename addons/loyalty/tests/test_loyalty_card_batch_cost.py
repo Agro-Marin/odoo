@@ -27,13 +27,13 @@ class TestLoyaltyCardBatchCost(TransactionCase):
         )
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.env['loyalty.card'].with_context(loyalty_no_mail=True).create([
             {'program_id': self.program.id, 'partner_id': partner.id, 'points': 1}
             for partner in partners
         ])
         self.env.flush_all()
-        return self.env.cr.sql_log_count - before
+        return self.env.cr.sql_statement_count - before
 
     def test_issuing_cards_costs_one_batch(self):
         """Creating cards is batched: 18 more cards must not cost 18 more queries.

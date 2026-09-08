@@ -389,11 +389,11 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
         for size in (51, 100):
             self.env.flush_all()
             self.env.cr.flush()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             mails_sudo = template.send_mail_batch(record_ids[:size])
             self.env.flush_all()
             self.env.cr.flush()
-            counts[size] = self.env.cr.sql_log_count - before
+            counts[size] = self.env.cr.sql_statement_count - before
             sent[size] = len(mails_sudo)
 
         self.assertEqual(

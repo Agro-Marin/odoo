@@ -223,10 +223,10 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
             self.env.flush_all()
             self.env.invalidate_all()
 
-            before = self.cr.sql_log_count
+            before = self.cr.sql_statement_count
             team._allocate_leads(creation_delta_days=0)
             self.env.flush_all()
-            counts[count] = self.cr.sql_log_count - before
+            counts[count] = self.cr.sql_statement_count - before
 
         marginal = (counts[20] - counts[2]) / 18.0
         self.assertLess(

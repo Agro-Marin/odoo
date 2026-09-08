@@ -107,7 +107,7 @@ class TestBatchAuditFixes(TransactionCase):
         self.assertEqual(first.move_line_ids, first_lines)
 
     def test_a_sequence_without_a_slash_still_names_the_batch(self):
-        self.env.ref("stock_picking_batch.seq_picking_batch").prefix = "BATCH-"
+        self.env.ref("stock.seq_picking_batch").prefix = "BATCH-"
         name = self.env["stock.picking.batch"]._prepare_name(
             self.picking_type, "picking.batch", self.env.company.id
         )

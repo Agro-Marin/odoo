@@ -1774,11 +1774,11 @@ class TestTrackingBatchCost(MailCommon):
         )
         self.flush_tracking()
         self.env.invalidate_all()
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         for index, record in enumerate(records):
             record.customer_id = self.customers[index % len(self.customers)]
         self.flush_tracking()
-        return self.cr.sql_log_count - before, records
+        return self.cr.sql_statement_count - before, records
 
     def _tracking_messages_of(self, records):
         return (
@@ -1855,13 +1855,13 @@ class TestTrackingBatchCost(MailCommon):
         records.message_subscribe(partner_ids=self.customers[:3].ids)
         self.flush_tracking()
         self.env.invalidate_all()
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         for index, record in enumerate(records):
             if authors:
                 record._track_set_author(authors[index % len(authors)])
             record.container_id = containers[index % len(containers)]
         self.flush_tracking()
-        return self.cr.sql_log_count - before, records
+        return self.cr.sql_statement_count - before, records
 
     def test_tracking_with_a_subtype_costs_no_query_per_record(self):
         """The subtype exit of `_message_track` must batch like the logging one.
@@ -1909,13 +1909,13 @@ class TestTrackingBatchCost(MailCommon):
         )
         self.flush_tracking()
         self.env.invalidate_all()
-        before = self.cr.sql_log_count
+        before = self.cr.sql_statement_count
         for index, record in enumerate(records):
             if authors:
                 record._track_set_author(authors[index % len(authors)])
             record.email_from = f"logged.{index}@test.example.com"
         self.flush_tracking()
-        return self.cr.sql_log_count - before, records
+        return self.cr.sql_statement_count - before, records
 
     def test_distinct_authors_cost_no_query_per_author(self):
         """Resolving N distinct authors must not cost N queries.
@@ -1976,10 +1976,10 @@ class TestTrackingBatchCost(MailCommon):
             records.message_subscribe(partner_ids=self.customers[:3].ids)
             self.flush_tracking()
             self.env.invalidate_all()
-            before = self.cr.sql_log_count
+            before = self.cr.sql_statement_count
             records.container_id = container
             self.flush_tracking()
-            return self.cr.sql_log_count - before, records
+            return self.cr.sql_statement_count - before, records
 
         few_queries, _few = batched_write_on(2)
         many_queries, many_records = batched_write_on(20)

@@ -356,10 +356,10 @@ class TestGathering(BlockedLocationCase):
         def gather_queries():
             self.env.invalidate_all()
             quant_user._gather(self.product, self.stock_location)
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             for _ in range(5):
                 quant_user._gather(self.product, self.stock_location)
-            return self.env.cr.sql_log_count - before
+            return self.env.cr.sql_statement_count - before
 
         self.Location.create(
             [

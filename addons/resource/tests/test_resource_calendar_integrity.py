@@ -263,9 +263,9 @@ class TestBatchedResourceQueries(TransactionCase):
     def _count(self, fn):
         self.env.flush_all()
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         result = fn()
-        return self.env.cr.sql_log_count - before, result
+        return self.env.cr.sql_statement_count - before, result
 
     def test_adjust_to_calendar_is_batched_per_calendar(self):
         one, _ = self._count(

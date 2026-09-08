@@ -3005,16 +3005,16 @@ class TestMailAliasAddressAvailability(TestMailAliasCommon):
                 for index in range(count)
             ]
 
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.env["mail.alias"].create(make(2, 0))
         self.env.flush_all()
-        small = self.env.cr.sql_log_count - before
+        small = self.env.cr.sql_statement_count - before
 
         self.env.invalidate_all()
-        before = self.env.cr.sql_log_count
+        before = self.env.cr.sql_statement_count
         self.env["mail.alias"].create(make(20, 100))
         self.env.flush_all()
-        large = self.env.cr.sql_log_count - before
+        large = self.env.cr.sql_statement_count - before
 
         self.assertLessEqual(
             large - small,

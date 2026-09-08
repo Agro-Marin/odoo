@@ -149,9 +149,9 @@ class TestApprovalInsightsAuditRegressions(ApprovalCommon):
         self.env.invalidate_all()
         self.env.flush_all()
 
-        queries_before = self.env.cr.sql_log_count
+        queries_before = self.env.cr.sql_statement_count
         requests._predict_outcomes()
-        queries_issued = self.env.cr.sql_log_count - queries_before
+        queries_issued = self.env.cr.sql_statement_count - queries_before
         self.assertLessEqual(
             queries_issued,
             3,

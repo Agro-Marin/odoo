@@ -415,10 +415,10 @@ class TestStockMoveAudit(TestMrpCommon):
             ]
             self.env.flush_all()
             self.env.invalidate_all()
-            before = self.env.cr.sql_log_count
+            before = self.env.cr.sql_statement_count
             self.env["stock.move"].create(vals_list)
             self.env.flush_all()
-            return self.env.cr.sql_log_count - before
+            return self.env.cr.sql_statement_count - before
 
         few = create_for(2)
         many = create_for(20)
