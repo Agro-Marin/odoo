@@ -82,3 +82,4 @@ from . import test_completion_sequence
 from . import test_group_readonly
 from . import test_picking_list_layout
 from . import test_lot_view_groups
+from . import test_move_line_list_decorations
