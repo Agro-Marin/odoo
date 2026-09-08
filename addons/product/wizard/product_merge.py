@@ -31,6 +31,9 @@ class ProductMergeWizard(models.TransientModel):
     _inherit = ["mixin.merge"]
     _description = "Merge Products Wizard"
 
+    # Products carry more cross-model side effects to reconcile per merge
+    # (variants, attribute lines, pricelist rules) than a plain partner merge,
+    # so the batch is kept small; re-open the wizard to merge more.
     _MAX_MERGE_SIZE = 3
 
     _GROUPBY_ALLOWED_FIELDS = frozenset(
