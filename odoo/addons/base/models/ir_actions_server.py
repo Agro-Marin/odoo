@@ -30,6 +30,15 @@ _server_action_logger = logging.getLogger(
 )
 
 
+def _webhook_json_default(value: Any) -> str:
+    if isinstance(value, bytes | bytearray):
+        try:
+            return bytes(value).decode()
+        except UnicodeDecodeError:
+            return base64.b64encode(value).decode()
+    return str(value)
+
+
 def _resolve_webhook_candidates(
     url: str,
 ) -> tuple[str | None, list[IPAddress], str | None]:
