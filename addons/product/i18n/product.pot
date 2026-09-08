@@ -4423,6 +4423,14 @@ msgstr ""
 
 #. module: product
 #. odoo-python
+#: code:addons/product/models/product_category.py:0
+msgid ""
+"You cannot restrict %(categories)s to %(company)s: it holds products shared "
+"between companies or belonging to another company."
+msgstr ""
+
+#. module: product
+#. odoo-python
 #: code:addons/product/models/product_template_attribute_value.py:0
 msgid ""
 "You cannot update related variants from the values. Please update related "

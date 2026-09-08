@@ -86,7 +86,9 @@ class TestExportImportRoundtrip(TransactionCase):
                 errors = [m for m in result["messages"] if m.get("type") != "warning"]
                 self.assertFalse(errors, f"{value!r} reported {errors}")
                 self.assertEqual(len(result["ids"]), 1)
-                self.assertEqual(self.Partner.browse(result["ids"]).is_company, expected)
+                self.assertEqual(
+                    self.Partner.browse(result["ids"]).is_company, expected
+                )
 
     def test_load_reports_unconvertible_cell_type_instead_of_raising(self):
         result = self.Partner.load(

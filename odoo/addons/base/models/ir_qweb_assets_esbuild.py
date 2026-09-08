@@ -219,20 +219,15 @@ class IrQweb(models.AbstractModel):
 
     _SPECIFIER_LITERAL_RE = re.compile(r"""["'](@[\w./+-]+)["']""")
 
-    def _get_exported_specs(
+    def _get_export_consumers(
         self,
         bundle: str,
         asset_bundle: AssetsBundle,
         assets_params: dict[str, Any] | None,
         child_bundles: list[AssetsBundle],
-    ) -> frozenset[str]:
+    ) -> list[AssetsBundle]:
         registry = esm_registry()
         installed = self.env["ir.asset"]._get_addons_installed()
-        members = {
-            name
-            for asset in asset_bundle.native_modules
-            for name in module_specifiers(asset)
-        }
         consumers = list(child_bundles)
         consumer_names = {child.name for child in consumers}
 
@@ -270,6 +265,23 @@ class IrQweb(models.AbstractModel):
             if member_paths <= parent_specs:
                 for name in children:
                     add_consumer(name)
+        return consumers
+
+    def _get_exported_specs(
+        self,
+        bundle: str,
+        asset_bundle: AssetsBundle,
+        assets_params: dict[str, Any] | None,
+        child_bundles: list[AssetsBundle],
+    ) -> frozenset[str]:
+        members = {
+            name
+            for asset in asset_bundle.native_modules
+            for name in module_specifiers(asset)
+        }
+        consumers = self._get_export_consumers(
+            bundle, asset_bundle, assets_params, child_bundles
+        )
         exported = {"@web/core/templates", "@web/core/assets"} & members
         exported.update(_get_specs_imported_by_consumers(consumers, members))
         for source in (

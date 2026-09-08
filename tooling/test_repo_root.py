@@ -233,6 +233,7 @@ class TestEveryToolAgrees:
         ("patchorder", "patchorder"): "ROOT",
         ("lint", "migration_version_guard"): "ROOT",
         ("lint", "py_lint"): "REPO",
+        ("testbaseline", "testbaseline"): "REPO_ROOT",
     }
 
     def _roots(self):

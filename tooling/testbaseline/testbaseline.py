@@ -12,9 +12,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from _repo_root import find_odoo_root
+
 HERE = Path(__file__).resolve().parent
 BASELINES_DIR = HERE / "baselines"
-REPO_ROOT = HERE.parent.parent
+REPO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="testbaseline")
 
 EXIT_OK = 0
 EXIT_DRIFT = 1

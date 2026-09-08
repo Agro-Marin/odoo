@@ -1659,6 +1659,12 @@ msgid "This shortcut will bring you right back to the event form."
 msgstr ""
 
 #. module: website_event
+#. odoo-python
+#: code:addons/website_event/controllers/main.py:0
+msgid "This slot is not available for this event"
+msgstr ""
+
+#. module: website_event
 #: model_terms:ir.actions.act_window,help:website_event.website_event_menu_action
 msgid "This technical menu displays all event sub-menu items."
 msgstr ""

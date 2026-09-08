@@ -32,6 +32,49 @@ def _drop_stale_unique_constraints(cr):
         cr.execute(f'ALTER TABLE res_partner_bank DROP CONSTRAINT "{conname}"')
 
 
+def _repoint_one_column(cr, table, column, survivor, duplicates):
+    # On a relation table the column is half of the primary key, so a row
+    # whose other half already points at the survivor would collide once it
+    # is repointed. Drop those first; the survivor already carries them.
+    cr.execute(
+        """
+        SELECT a.attname
+          FROM pg_index i
+          JOIN pg_attribute a ON a.attrelid = i.indrelid
+                             AND a.attnum = ANY(i.indkey)
+         WHERE i.indrelid = %s::regclass AND i.indisprimary
+        """,
+        (table,),
+    )
+    key = [name for (name,) in cr.fetchall() if name != column]
+    if key:
+        match = SQL(" AND ").join(
+            SQL("keep.%(k)s = dup.%(k)s", k=SQL.identifier(name)) for name in key
+        )
+        cr.execute(
+            SQL(
+                "DELETE FROM %(t)s dup"
+                " WHERE dup.%(c)s = ANY(%(d)s)"
+                " AND EXISTS (SELECT 1 FROM %(t)s keep"
+                " WHERE keep.%(c)s = %(s)s AND %(match)s)",
+                t=SQL.identifier(table),
+                c=SQL.identifier(column),
+                s=survivor,
+                d=duplicates,
+                match=match,
+            )
+        )
+    cr.execute(
+        SQL(
+            "UPDATE %(t)s SET %(c)s = %(s)s WHERE %(c)s = ANY(%(d)s)",
+            t=SQL.identifier(table),
+            c=SQL.identifier(column),
+            s=survivor,
+            d=duplicates,
+        )
+    )
+
+
 def _repoint_foreign_keys(cr, survivor, duplicates):
     """Move everything that names a folded-away account onto the survivor."""
     cr.execute(
@@ -46,46 +89,7 @@ def _repoint_foreign_keys(cr, survivor, duplicates):
         """
     )
     for table, column in cr.fetchall():
-        # On a relation table the column is half of the primary key, so a row
-        # whose other half already points at the survivor would collide once it
-        # is repointed. Drop those first; the survivor already carries them.
-        cr.execute(
-            """
-            SELECT a.attname
-              FROM pg_index i
-              JOIN pg_attribute a ON a.attrelid = i.indrelid
-                                 AND a.attnum = ANY(i.indkey)
-             WHERE i.indrelid = %s::regclass AND i.indisprimary
-            """,
-            (table,),
-        )
-        key = [name for (name,) in cr.fetchall() if name != column]
-        if key:
-            match = SQL(" AND ").join(
-                SQL("keep.%(k)s = dup.%(k)s", k=SQL.identifier(name)) for name in key
-            )
-            cr.execute(
-                SQL(
-                    "DELETE FROM %(t)s dup"
-                    " WHERE dup.%(c)s = ANY(%(d)s)"
-                    " AND EXISTS (SELECT 1 FROM %(t)s keep"
-                    " WHERE keep.%(c)s = %(s)s AND %(match)s)",
-                    t=SQL.identifier(table),
-                    c=SQL.identifier(column),
-                    s=survivor,
-                    d=duplicates,
-                    match=match,
-                )
-            )
-        cr.execute(
-            SQL(
-                "UPDATE %(t)s SET %(c)s = %(s)s WHERE %(c)s = ANY(%(d)s)",
-                t=SQL.identifier(table),
-                c=SQL.identifier(column),
-                s=survivor,
-                d=duplicates,
-            )
-        )
+        _repoint_one_column(cr, table, column, survivor, duplicates)
     for table, model_column in (
         ("ir_attachment", "res_model"),
         ("ir_model_data", "model"),

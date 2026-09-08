@@ -1938,6 +1938,12 @@ msgid "No meetings found. Let's schedule one!"
 msgstr ""
 
 #. module: calendar
+#. odoo-python
+#: code:addons/calendar/wizard/calendar_provider_config.py:0
+msgid "No module found to configure the %(provider)s calendar."
+msgstr ""
+
+#. module: calendar
 #. odoo-javascript
 #: code:addons/calendar/static/src/views/attendee_calendar/attendee_calendar_model.js:0
 msgid "No, keep it"
@@ -2549,8 +2555,20 @@ msgstr ""
 
 #. module: calendar
 #. odoo-python
+#: code:addons/calendar/models/calendar_alarm.py:0
+msgid "The reminder delay cannot be negative."
+msgstr ""
+
+#. module: calendar
+#. odoo-python
 #: code:addons/calendar/models/calendar_event.py:0
 msgid "There are no attendees on these events"
+msgstr ""
+
+#. module: calendar
+#. odoo-python
+#: code:addons/calendar/wizard/mail_activity_schedule.py:0
+msgid "There is no record to schedule this activity on."
 msgstr ""
 
 #. module: calendar

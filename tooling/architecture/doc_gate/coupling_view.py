@@ -240,7 +240,14 @@ class TestCompositionTable(unittest.TestCase):
         named = {
             "BaseModel": {"env", "_ids", "_prefetch_ids", "_log_access"},
             "Field": {"description_attrs"},
-            "Cursor": {"_cnx", "_obj", "_thread", "_schema_cache", "_before_statement"},
+            "Cursor": {
+                "_cnx",
+                "_obj",
+                "_thread",
+                "_schema_cache",
+                "_before_statement",
+                "_savepoint_depth",
+            },
         }
         self.assertTrue(
             self.rows, "the composition table is gone; nothing left to name"
