@@ -10,6 +10,7 @@ from . import test_design_system
 from . import test_domain
 from . import test_esm_pipeline
 from . import test_export
+from . import test_home_menu_badge
 from . import test_json_export
 from . import test_favorite
 from . import test_feature_flags

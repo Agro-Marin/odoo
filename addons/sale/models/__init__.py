@@ -6,6 +6,7 @@ from . import (
     chart_template,
     crm_team,
     documents_document,
+    home_menu_badge,
     ir_actions_report,
     ir_config_parameter,
     payment_provider,

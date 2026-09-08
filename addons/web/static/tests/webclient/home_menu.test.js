@@ -32,6 +32,7 @@ import {
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { session } from "@web/session";
+import "@web/webclient/home_menu/server_badges";
 import { loadHomeMenuBadges } from "@web/webclient/home_menu/badges";
 import { HomeMenu } from "@web/webclient/home_menu/home_menu";
 import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
@@ -1640,4 +1641,20 @@ test("the counts are cached for a hover and re-read for a deliberate open", asyn
         message:
             "a provider arriving means the cached answer was to a smaller question",
     });
+});
+
+test("the server's counts land on the tiles alongside a client provider's", async () => {
+    onRpc("home.menu.badge", "get_badges", () => ({ "app.1": 4, "app.2": 1 }));
+    registry.category("home_menu_badges").add("client_side", {
+        provide: () => ({ "app.1": 3 }),
+    });
+    after(() => registry.category("home_menu_badges").remove("client_side"));
+    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    await animationFrame();
+    // Summed, not replaced: an addon counting from the store and one counting
+    // from the database are both answering for the same tile.
+    expect(".o_app[data-menu-xmlid='app.1'] .o_app_badge").toHaveText("7");
+    expect(".o_app[data-menu-xmlid='app.2'] .o_app_badge").toHaveText("1");
+    expect(".o_app[data-menu-xmlid='app.3'] .o_app_badge").toHaveCount(0);
 });

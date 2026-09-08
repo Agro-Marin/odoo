@@ -1,11 +1,5 @@
-from . import record_snapshot
-from . import web_onchange
-from . import web_read
-from . import web_read_group_helpers
-from . import web_read_group
-from . import web_search_panel_helpers
-from . import web_search_panel
-
+from . import base_document_layout
+from . import home_menu_badge
 from . import ir_asset
 from . import ir_http
 from . import ir_model
@@ -13,8 +7,7 @@ from . import ir_qweb_fields
 from . import ir_ui_menu
 from . import ir_ui_view
 from . import properties_base_definition
-
-from . import base_document_layout
+from . import record_snapshot
 from . import report_theme
 from . import res_company
 from . import res_config_settings
@@ -22,6 +15,11 @@ from . import res_partner
 from . import res_users
 from . import res_users_settings
 from . import res_users_settings_embedded_action
-
 from . import web_cwv_metric
 from . import web_js_error
+from . import web_onchange
+from . import web_read
+from . import web_read_group
+from . import web_read_group_helpers
+from . import web_search_panel
+from . import web_search_panel_helpers

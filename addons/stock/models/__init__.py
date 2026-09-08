@@ -1,4 +1,5 @@
 from . import (
+    home_menu_badge,
     res_company,
     res_partner,
     res_users,

@@ -4,6 +4,7 @@ from . import (
     account_move,
     account_move_line,
     account_tax,
+    home_menu_badge,
     ir_actions_report,
     product_template,
     product_product,

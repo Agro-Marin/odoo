@@ -1,3 +1,4 @@
+from . import home_menu_badge
 from . import mixin_project_pm
 from . import account_analytic_account
 from . import mail_message
