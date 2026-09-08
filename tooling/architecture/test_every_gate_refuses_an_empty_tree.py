@@ -32,6 +32,7 @@ GATES = {
     "js_suite_parity": ["--check"],
     "js_context_narrowing": ["--check"],
     "named_export_coherence": ["--check"],
+    "plural_forms": ["--check"],
     "py_addon_imports": ["--check"],
     "layer_check": ["--check"],
     "model_name_ownership": ["--check"],
