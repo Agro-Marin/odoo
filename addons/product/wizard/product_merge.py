@@ -223,14 +223,6 @@ class ProductMergeWizard(models.TransientModel):
             pairs[variant] = counterpart
         return pairs
 
-    def _merge_dependent_records(
-        self,
-        src_templates: models.BaseModel,
-        dst_template: models.BaseModel,
-        src_variants_by_dst: dict[models.BaseModel, models.BaseModel],
-    ) -> None:
-        pass
-
     @api.model
     def _update_foreign_keys(
         self, src_templates: models.BaseModel, dst_template: models.BaseModel
@@ -318,8 +310,6 @@ class ProductMergeWizard(models.TransientModel):
             pairs = self._get_variant_pairs(src_template, dst_template)
             for src_variant, dst_variant in pairs.items():
                 src_variants_by_dst[dst_variant] |= src_variant
-
-        self._merge_dependent_records(src_templates, dst_template, src_variants_by_dst)
 
         deferred_variant_values = {}
         for dst_variant, src_variants in src_variants_by_dst.items():
