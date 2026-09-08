@@ -64,6 +64,23 @@ class TestLeaveDateToMultiCompanyTz(TransactionCase):
         self.assertEqual(leave_a.date_to, datetime(2025, 1, 6, 22, 59, 59))
         self.assertEqual(leave_b.date_to, datetime(2025, 1, 6, 14, 59, 59))
 
+    def test_date_to_calendar_tz_wins_over_the_acting_users_tz(self):
+        # Company A's calendar is Europe/Brussels (UTC+1 in January); the
+        # acting user is in Asia/Tokyo (UTC+9). Both compute() and
+        # default_get() must resolve the same "end of day": the calendar's.
+        leave = (
+            self.env["resource.calendar.leaves"]
+            .with_context(tz="Asia/Tokyo")
+            .create(
+                {
+                    "name": "A",
+                    "calendar_id": self.company_a.resource_calendar_id.id,
+                    "date_from": datetime(2025, 1, 6, 8, 0),
+                }
+            )
+        )
+        self.assertEqual(leave.date_to, datetime(2025, 1, 6, 22, 59, 59))
+
 
 @tagged("post_install", "-at_install")
 class TestIntervalBatchStringTz(TransactionCase):
