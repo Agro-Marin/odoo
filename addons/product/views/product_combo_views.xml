@@ -49,6 +49,7 @@
                         <field
                             name="lst_price"
                             widget="monetary"
+                            readonly="1"
                             options="{'field_digits': True}" />
                         <field
                             name="extra_price"

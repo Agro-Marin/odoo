@@ -1,4 +1,5 @@
 from freezegun import freeze_time
+from lxml.etree import fromstring
 
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
@@ -8,6 +9,18 @@ from odoo.addons.product.tests.common import ProductCommon
 
 
 class TestProductCombo(ProductCommon):
+    def test_combo_item_lst_price_is_readonly_in_the_form(self):
+        arch = self.env["product.combo"].get_view(
+            view_id=self.env.ref("product.view_product_combo_form").id
+        )["arch"]
+        field_node = fromstring(arch).find(".//list//field[@name='lst_price']")
+        self.assertEqual(
+            field_node.get("readonly"),
+            "1",
+            "lst_price is a related to the shared product.template.list_price;"
+            " editing it here must not silently rewrite it",
+        )
+
     def test_count_combo_item_ids(self):
         combo = self.env["product.combo"].create(
             {
