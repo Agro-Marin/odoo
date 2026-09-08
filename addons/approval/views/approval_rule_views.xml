@@ -12,9 +12,7 @@
                 <field name="condition_field" />
                 <field name="operator" />
                 <field name="threshold" />
-                <field
-                    name="threshold_max"
-                    invisible="operator != 'between'" />
+                <field name="threshold_max" invisible="operator != 'between'" />
                 <field name="action_type" />
                 <field
                     name="approver_ids"
@@ -77,7 +75,8 @@
                         <group>
                             <field name="action_type" widget="radio" />
                         </group>
-                        <group invisible="action_type not in ('add_approver', 'set_approvers')">
+                        <group
+                            invisible="action_type not in ('add_approver', 'set_approvers')">
                             <field name="approver_ids" widget="many2many_tags" />
                             <field name="approver_required" />
                             <field

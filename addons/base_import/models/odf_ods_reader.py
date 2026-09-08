@@ -4,8 +4,6 @@ from odf import opendocument
 from odf.table import Table, TableCell, TableRow
 from odf.text import P
 
-from odoo import _
-
 # `.ods`/`.xlsx` are both zip archives, and their parsing libraries (odfpy,
 # openpyxl) read some members fully into memory -- `content.xml`, embedded
 # pictures, thumbnails for odfpy; the shared-strings table for openpyxl, even
@@ -31,13 +29,10 @@ def _check_zip_member_sizes(file):
     with zipfile.ZipFile(file) as archive:
         for info in archive.infolist():
             if info.file_size > MAX_UNCOMPRESSED_MEMBER_SIZE:
+                cap_mib = MAX_UNCOMPRESSED_MEMBER_SIZE // (1024 * 1024)
                 raise ValueError(
-                    _(
-                        "Import file %(member)s would expand to more than "
-                        "%(cap)s MiB, which is not supported.",
-                        member=info.filename,
-                        cap=MAX_UNCOMPRESSED_MEMBER_SIZE // (1024 * 1024),
-                    )
+                    f"Import file {info.filename} would expand to more than "
+                    f"{cap_mib} MiB, which is not supported."
                 )
 
 

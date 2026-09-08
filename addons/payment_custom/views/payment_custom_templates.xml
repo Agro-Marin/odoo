@@ -36,9 +36,7 @@
         </xpath>
 
         <xpath expr="//div[@name='o_payment_status_alert']" position="inside">
-            <t
-                t-set="qr_code"
-                t-value="tx._get_custom_qr_code()" />
+            <t t-set="qr_code" t-value="tx._get_custom_qr_code()" />
             <t t-if="tx.provider_id.sudo().code == 'custom' and qr_code">
                 <div
                     class="position-relative order-2 d-flex flex-md-column justify-content-center align-items-center align-items-md-stretch w-100 w-md-auto">
