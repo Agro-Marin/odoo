@@ -214,6 +214,7 @@ class TestEveryToolAgrees:
         ("architecture", "js_ts_check"): "ROOT",
         ("architecture", "js_unreached_assertions"): "ROOT",
         ("architecture", "js_template_binding"): "ROOT",
+        ("architecture", "js_unreached_assertions"): "ROOT",
         ("architecture", "js_vacuous_assertions"): "ROOT",
         ("architecture", "license_notices"): "ROOT",
         ("architecture", "naming_core_vocabulary"): "ROOT",
