@@ -17,6 +17,11 @@ class DashboardTestCommon(TransactionCase):
             password="exporter",
             groups="base.group_user,base.group_allow_export",
         )
+        cls.dashboard_manager = new_test_user(
+            cls.env,
+            login="dashboard_manager",
+            groups="spreadsheet_dashboard.group_dashboard_manager",
+        )
 
     def create_dashboard(self, group=None):
         dashboard_group = group or self.env["spreadsheet.dashboard.group"].create(
@@ -30,10 +35,11 @@ class DashboardTestCommon(TransactionCase):
             }
         )
 
-    def share_dashboard(self, dashboard):
+    def share_dashboard(self, dashboard, **values):
         return self.env["spreadsheet.dashboard.share"].create(
             {
                 "dashboard_id": dashboard.id,
                 "spreadsheet_data": dashboard.spreadsheet_data,
+                **values,
             }
         )
