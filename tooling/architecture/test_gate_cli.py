@@ -49,10 +49,19 @@ def _parser_keywords(tree: ast.Module) -> list[ast.keyword]:
 def test_a_gate_that_passes_its_docstring_to_argparse_has_one(gate):
     path = HERE / gate
     tree = _tree(path)
+    # `description=__doc__` is one spelling of five here; the other is
+    # `description=__doc__.splitlines()[0]`, which reads the docstring just as
+    # hard and CRASHES on None rather than rendering nothing. Matching only the
+    # bare Name left py_class_length, js_class_length, js_unreached_assertions,
+    # license_notices and model_name_ownership unguarded -- found when a comment
+    # sweep stripped license_notices' docstring and `--check` died with
+    # `'NoneType' object has no attribute 'splitlines'`.
     passes_doc = any(
         keyword.arg == "description"
-        and isinstance(keyword.value, ast.Name)
-        and keyword.value.id == "__doc__"
+        and any(
+            isinstance(node, ast.Name) and node.id == "__doc__"
+            for node in ast.walk(keyword.value)
+        )
         for keyword in _parser_keywords(tree)
     )
     if not passes_doc:
