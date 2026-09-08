@@ -22,6 +22,7 @@ class StockPicking(models.Model):
         "mixin.mail.thread",
         "mixin.mail.activity",
         "mixin.stock.activity",
+        "mixin.stock.consignment",
         "mixin.date.category",
     ]
     _description = "Transfer"
@@ -1041,6 +1042,9 @@ class StockPicking(models.Model):
             explored_moves |= new_moves
             frontier = new_moves.move_dest_ids - explored_moves
         return impacted_pickings
+
+    def _get_consignment_pickings(self):
+        return self
 
     def _remove_reference(self, reference):
         self.check_singleton()

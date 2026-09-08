@@ -7,16 +7,23 @@ from odoo.fields import Domain
 
 class StockPickingBatch(models.Model):
     _name = "stock.picking.batch"
-    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.stock.consignment"]
     _description = "Batch Transfer"
     _order = "name desc"
 
     name = fields.Char(
-        string="Batch Transfer", default="New", copy=False, required=True, readonly=True
+        string="Batch Transfer",
+        default="New",
+        copy=False,
+        required=True,
+        readonly=True,
     )
     description = fields.Char("Description")
     user_id = fields.Many2one(
-        "res.users", string="Responsible", tracking=True, check_company=True
+        "res.users",
+        string="Responsible",
+        tracking=True,
+        check_company=True,
     )
     company_id = fields.Many2one(
         "res.company",
@@ -35,16 +42,21 @@ class StockPickingBatch(models.Model):
         help="List of transfers associated to this batch",
     )
     show_check_availability = fields.Boolean(
-        compute="_compute_move_ids", string="Show Check Availability"
+        string="Show Check Availability",
+        compute="_compute_move_ids",
     )
     show_allocation = fields.Boolean(
-        compute="_compute_show_allocation", string="Show Allocation Button"
+        string="Show Allocation Button",
+        compute="_compute_show_allocation",
     )
     allowed_picking_ids = fields.One2many(
-        "stock.picking", compute="_compute_allowed_picking_ids"
+        "stock.picking",
+        compute="_compute_allowed_picking_ids",
     )
     move_ids = fields.One2many(
-        "stock.move", string="Stock moves", compute="_compute_move_ids"
+        "stock.move",
+        string="Stock moves",
+        compute="_compute_move_ids",
     )
     move_line_ids = fields.One2many(
         "stock.move.line",
@@ -648,6 +660,9 @@ class StockPickingBatch(models.Model):
         sequence_prefix, _, sequence_number = sequence.rpartition("/")
         parts = [sequence_prefix, picking_type.sequence_code, sequence_number]
         return "/".join(part for part in parts if part)
+
+    def _get_consignment_pickings(self):
+        return self.picking_ids
 
     def _set_picking_type_from_pickings(self):
         for batch in self.filtered(

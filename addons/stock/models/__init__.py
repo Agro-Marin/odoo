@@ -5,6 +5,7 @@ from . import (
     uom_uom,
     mixin_date_category,
     mixin_stock_activity,
+    mixin_stock_consignment,
     mixin_product_catalog,
     product_category,
     product_removal,

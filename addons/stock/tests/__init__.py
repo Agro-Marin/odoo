@@ -80,3 +80,4 @@ from . import test_move_line_audit_2026_08_31
 from . import test_picking_audit_2026_08_31
 from . import test_completion_sequence
 from . import test_group_readonly
+from . import test_consignment_interface
