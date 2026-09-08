@@ -1037,7 +1037,7 @@ class StockMove(models.Model):
         move_waiting.write({"state": "waiting"})
         (move_to_confirm | move_waiting).filtered(
             lambda m: m.picking_type_id.reservation_method == "at_confirm",
-        ).write({"date_reservation": fields.Date.today()})
+        ).write({"date_reservation": fields.Date.context_today(self)})
 
         if to_assign:
             self.browse(to_assign).with_context(

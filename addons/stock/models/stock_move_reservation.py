@@ -819,7 +819,10 @@ class StockMoveReservation(models.Model):
         return (
             self._should_bypass_reservation()
             or self.picking_type_id.reservation_method == "at_confirm"
-            or (self.date_reservation and self.date_reservation <= fields.Date.today())
+            or (
+                self.date_reservation
+                and self.date_reservation <= fields.Date.context_today(self)
+            )
         )
 
     def _filtered_to_assign_at_confirm(self):

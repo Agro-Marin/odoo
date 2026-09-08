@@ -475,7 +475,9 @@ class StockQuantInventory(models.Model):
         if date:
             moves.date = date
         moves._trigger_assign()
-        self.location_id.sudo().write({"last_inventory_date": fields.Date.today()})
+        self.location_id.sudo().write(
+            {"last_inventory_date": fields.Date.context_today(self)},
+        )
         self._update_next_inventory_date()
         self.action_clear_inventory_quantity()
 
@@ -674,7 +676,7 @@ class StockQuantInventory(models.Model):
         else:
             quant.inventory_quantity = inventory_quantity
             quant.user_id = vals.get("user_id", self.env.user.id)
-            quant.inventory_date = fields.Date.today()
+            quant.inventory_date = fields.Date.context_today(self)
         return quant, created
 
     def move_quants(

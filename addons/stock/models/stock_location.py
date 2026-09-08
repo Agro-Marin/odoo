@@ -528,7 +528,7 @@ class StockLocation(models.Model):
         "cyclic_inventory_frequency", "last_inventory_date", "usage", "company_id"
     )
     def _compute_next_inventory_date(self):
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         for location in self:
             if not (
                 location.company_id
@@ -726,7 +726,7 @@ class StockLocation(models.Model):
         self.check_singleton()
         if not self.company_id.annual_inventory_month:
             return False
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         month = int(self.company_id.annual_inventory_month)
         day = max(self.company_id.annual_inventory_day, 1)
         day = min(day, calendar.monthrange(today.year, month)[1])

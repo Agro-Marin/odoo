@@ -116,7 +116,7 @@ class StockReplenishmentInfo(models.TransientModel):
     def _compute_json_lead_days(self):
         def _format_description(description):
             formatted_description = []
-            intermediary_date = fields.Date.today()
+            intermediary_date = fields.Date.context_today(self)
             for line in reversed(description):
                 if isinstance(line[1], str):
                     formatted_description.append((line[0], line[1], False))
@@ -149,7 +149,7 @@ class StockReplenishmentInfo(models.TransientModel):
                         self.env, orderpoint.lead_horizon_date
                     ),
                     "lead_days_description": lead_days_description,
-                    "today": format_date(self.env, fields.Date.today()),
+                    "today": format_date(self.env, fields.Date.context_today(self)),
                     "trigger": orderpoint.trigger,
                     "qty_forecast": qty_to_html(orderpoint.qty_forecast, precision),
                     "qty_to_order": qty_to_html(orderpoint.qty_to_order, precision),
