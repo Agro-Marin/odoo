@@ -153,6 +153,18 @@ class TestQuest(common.TransactionCase):
         with self.assertRaises(ValidationError):
             self.step_1.prerequisite_ids = [(6, 0, [self.step_1.id])]
 
+    def test_transitive_prerequisite_cycle_prevented(self):
+        """A step cannot be its own indirect prerequisite either.
+
+        Regression: only the direct self-prerequisite case was rejected.
+        step_2 already has step_1 as a prerequisite; wiring step_1 -> step_2
+        would close a two-step cycle that leaves both steps permanently
+        stuck at in_progress (complete_step refuses both forever), with no
+        error raised anywhere.
+        """
+        with self.assertRaises(ValidationError):
+            self.step_1.prerequisite_ids = [(6, 0, [self.step_2.id])]
+
     def test_abandon_quest(self):
         """User can abandon a quest."""
         enrollment = self.env["gamification.quest.enrollment"].create(

@@ -55,12 +55,20 @@ class GamificationSeason(models.Model):
         "gamification.badge",
         "gamification_season_badge_rel",
         string="Exclusive Badges",
-        help="Badges only available during this season.",
+        help="Badges thematically tied to this season, for reporting/grouping "
+        "purposes. Purely informative: nothing here checks the season's "
+        "state or dates before a listed badge is granted, so a badge stays "
+        "grantable after the season ends unless its own rules say otherwise.",
     )
     quest_ids = fields.Many2many(
         "gamification.quest",
         "gamification_season_quest_rel",
         string="Season Quests",
+        help="Quests thematically tied to this season, for reporting/grouping "
+        "purposes. Purely informative: nothing here checks the season's "
+        "state or dates before enrollment in a listed quest, so a quest "
+        "stays open after the season ends unless its own rules say "
+        "otherwise.",
     )
 
     # Stats
@@ -97,7 +105,12 @@ class GamificationSeason(models.Model):
         self.filtered(lambda s: s.state == "draft").write({"state": "active"})
 
     def action_end(self):
-        """End the season and archive its challenges."""
+        """End the season.
+
+        Only flips ``state`` to ``"ended"``: it does not touch
+        ``challenge_ids`` in any way, and a season's linked challenges keep
+        running (or not) on their own independent lifecycle.
+        """
         self.filtered(lambda s: s.state == "active").write({"state": "ended"})
 
     @api.model

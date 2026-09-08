@@ -154,12 +154,30 @@ class GamificationQuestStep(models.Model):
     )
 
     @api.constrains("prerequisite_ids")
-    def _check_no_self_prerequisite(self):
-        """Prevent a step from being its own prerequisite."""
+    def _check_no_prerequisite_cycle(self):
+        """Reject a step that is its own (in)direct prerequisite.
+
+        A cycle would deadlock ``complete_step``: every step in the loop
+        waits on another that can never complete first, so both stay stuck
+        at ``in_progress`` forever with no error raised anywhere. Detected
+        with an iterative closure over the prerequisite edges, mirroring
+        ``gamification.skill.node._check_no_prerequisite_cycle``.
+        """
         for step in self:
-            if step in step.prerequisite_ids:
-                raise exceptions.ValidationError(
-                    _("A step cannot be its own prerequisite.")
+            seen = set()
+            frontier = step.prerequisite_ids
+            while frontier:
+                if step in frontier:
+                    raise exceptions.ValidationError(
+                        _(
+                            "Step %s cannot be a prerequisite of itself "
+                            "(directly or transitively).",
+                            step.name,
+                        )
+                    )
+                seen |= set(frontier.ids)
+                frontier = frontier.prerequisite_ids.filtered(
+                    lambda s, seen=seen: s.id not in seen
                 )
 
 
