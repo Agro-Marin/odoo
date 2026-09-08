@@ -112,9 +112,9 @@ class ResourceCalendarLeaves(models.Model):
             ):
                 continue
             tz_name = (
-                user_tz_name
-                or leave.calendar_id.tz
+                leave.calendar_id.tz
                 or leave.company_id.resource_calendar_id.tz
+                or user_tz_name
                 or "UTC"
             )
             local_date_from = leave.date_from.replace(tzinfo=UTC).astimezone(
