@@ -1,7 +1,7 @@
 from typing import NamedTuple
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 
 
@@ -627,14 +627,6 @@ class StockPickingType(models.Model):
             )
 
     @api.model
-    def _get_batch_grouping_criteria(self):
-        return {}
-
-    @api.model
-    def _get_wave_grouping_criteria(self):
-        return {}
-
-    @api.model
     def _get_grouping_criteria(self):
         return {
             **self._get_batch_grouping_criteria(),
@@ -650,3 +642,149 @@ class StockPickingType(models.Model):
 
     def _get_active_wave_criteria(self):
         return self._get_active_grouping_criteria(self._get_grouping_criteria())
+
+    auto_batch = fields.Boolean(
+        "Automatic Batches",
+        help="Automatically put pickings into batches as they are confirmed when possible.",
+    )
+
+    batch_group_by_partner = fields.Boolean(
+        "Contact", help="Automatically group batches by contacts."
+    )
+
+    batch_group_by_destination = fields.Boolean(
+        "Destination Country",
+        help="Automatically group batches by destination country.",
+    )
+
+    batch_group_by_src_loc = fields.Boolean(
+        "Group by Source Location",
+        help="Automatically group batches by their source location.",
+    )
+
+    batch_group_by_dest_loc = fields.Boolean(
+        "Group by Destination Location",
+        help="Automatically group batches by their destination location.",
+    )
+
+    wave_group_by_product = fields.Boolean(
+        "Product",
+        help="Split transfers by product then group transfers that have the same product.",
+    )
+
+    wave_group_by_category = fields.Boolean(
+        "Product Category",
+        help="Split transfers by product category, then group transfers that have the same product category.",
+    )
+
+    wave_category_ids = fields.Many2many(
+        "product.category",
+        string="Wave Product Categories",
+        help="Categories to consider when grouping waves.",
+    )
+
+    wave_group_by_location = fields.Boolean(
+        "Location",
+        help="Split transfers by defined locations, then group transfers with the same location.",
+    )
+
+    wave_location_ids = fields.Many2many(
+        "stock.location",
+        string="Wave Locations",
+        help="Locations to consider when grouping waves.",
+        domain="[('usage', '=', 'internal')]",
+    )
+
+    batch_max_lines = fields.Integer(
+        "Maximum lines",
+        help="A transfer will not be automatically added to batches that will exceed this number of lines if the transfer is added to it.\n"
+        "Leave this value as '0' if no line limit.",
+    )
+
+    batch_max_pickings = fields.Integer(
+        "Maximum transfers",
+        help="A transfer will not be automatically added to batches that will exceed this number of transfers.\n"
+        "Leave this value as '0' if no transfer limit.",
+    )
+
+    batch_auto_confirm = fields.Boolean("Auto-confirm", default=True)
+
+    batch_properties_definition = fields.PropertiesDefinition("Batch Properties")
+
+    @api.model
+    def _get_batch_grouping_criteria(self):
+        return {
+            "batch_group_by_partner": GroupingCriterion(
+                "move_id.partner_id", "name", "partner_id", "wave_partner_id"
+            ),
+            "batch_group_by_destination": GroupingCriterion(
+                "move_id.partner_id.country_id",
+                "name",
+                "partner_id.country_id",
+                "wave_country_id",
+            ),
+            "batch_group_by_src_loc": GroupingCriterion(
+                "location_id", "display_name", "location_id", "wave_source_location_id"
+            ),
+            "batch_group_by_dest_loc": GroupingCriterion(
+                "location_dest_id",
+                "display_name",
+                "location_dest_id",
+                "wave_dest_location_id",
+            ),
+        }
+
+    @api.model
+    def _get_wave_grouping_criteria(self):
+        return {
+            "wave_group_by_product": GroupingCriterion(
+                "product_id", "display_name", wave_field="wave_product_id"
+            ),
+            "wave_group_by_category": GroupingCriterion(
+                "product_id.categ_id", "complete_name", wave_field="wave_category_id"
+            ),
+        }
+
+    def _get_nearest_wave_location(self, location):
+        self.check_singleton()
+        wave_location_ids = set(self.wave_location_ids.ids)
+        while location and location.id not in wave_location_ids:
+            location = location.location_id
+        return location
+
+    @api.model
+    def _get_batch_group_by_keys(self):
+        return list(self._get_batch_grouping_criteria())
+
+    @api.model
+    def _get_wave_group_by_keys(self):
+        return [*self._get_wave_grouping_criteria(), "wave_group_by_location"]
+
+    @api.model
+    def _get_batch_and_wave_group_by_keys(self):
+        return self._get_batch_group_by_keys() + self._get_wave_group_by_keys()
+
+    @api.constrains(
+        lambda self: self._get_batch_and_wave_group_by_keys() + ["auto_batch"]
+    )
+    def _check_auto_batch_group_by(self):
+        group_by_keys = self._get_batch_and_wave_group_by_keys()
+        for picking_type in self:
+            if not picking_type.auto_batch:
+                continue
+            if not any(picking_type[key] for key in group_by_keys):
+                raise ValidationError(
+                    _(
+                        "If the Automatic Batches feature is enabled, at least one 'Group by' option must be selected."
+                    )
+                )
+
+    @api.constrains("batch_max_lines", "batch_max_pickings")
+    def _check_batch_limits(self):
+        for picking_type in self:
+            if picking_type.batch_max_lines < 0 or picking_type.batch_max_pickings < 0:
+                raise ValidationError(
+                    _(
+                        "Batch limits cannot be negative. Leave a limit at '0' to disable it."
+                    )
+                )

@@ -1,6 +1,6 @@
 {
     "name": "Warehouse Management: Batch Transfer",
-    "version": "1.1",
+    "version": "1.2",
     "category": "Supply Chain/Inventory",
     "description": """
 This module adds the batch transfer option in warehouse management
