@@ -58,7 +58,6 @@ export function nextFocusedIndex(rows, from, move) {
     }
     let r = rows.findIndex((row) => row.includes(from));
     if (r === -1) {
-        // The grid changed under the selection: start over rather than guess.
         return 0;
     }
     let c = rows[r].indexOf(from);

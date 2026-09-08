@@ -16,7 +16,6 @@ import { useTagNavigation } from "./tag_navigation_hook.js";
 /** @typedef {{ resIds: number[], [key: string]: any }} MultiRecordSelectorProps */
 
 export class MultiRecordSelector extends BaseRecordSelector {
-    // side. DomainSelectorAutocomplete carried a `@ts-expect-error` for that.
     /** @type {Record<string, any>} */
     static props = {
         resIds: { type: Array, element: Number },

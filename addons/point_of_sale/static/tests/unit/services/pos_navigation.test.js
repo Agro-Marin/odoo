@@ -26,10 +26,6 @@ describe("firstPage is a description, not an action", () => {
     });
 
     test("the idle timer returns to the floor without logging the cashier out", async () => {
-        // Chrome's useIdleTimer onAlive callback is exactly this call. It used to
-        // reset the cashier, so touching the screen after the saver appeared ended
-        // the session -- but only when the page had NOT been opened from the
-        // backend, which is not a rule anyone would write down.
         const store = await setupPosEnv();
         store.addNewOrder();
         const cashier = store.cashier;

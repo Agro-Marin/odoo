@@ -9,7 +9,6 @@ test("gridRows wraps each section at the grid's width and keeps one flat index",
         [0, 1, 2, 3, 4, 5],
         [6, 7],
     ]);
-    // Pinned first, then the rest: the index runs across the sections.
     expect(gridRows([2, 3], 6)).toEqual([
         [0, 1],
         [2, 3, 4],
@@ -35,7 +34,7 @@ test("the first arrow onto an unfocused grid lands on the first item", () => {
 });
 
 test("both axes wrap", () => {
-    const rows = gridRows([6, 6], 6); // two full rows
+    const rows = gridRows([6, 6], 6);
     expect(nextFocusedIndex(rows, 5, "nextColumn")).toBe(0, {
         message: "past the end of a row comes back to its start",
     });
@@ -47,7 +46,7 @@ test("both axes wrap", () => {
 });
 
 test("a move onto a shorter row lands on its last item, never past it", () => {
-    const rows = gridRows([8], 6); // [0..5], [6,7]
+    const rows = gridRows([8], 6);
     expect(nextFocusedIndex(rows, 5, "nextLine")).toBe(7, {
         message: "column 5 has no counterpart on a two-item row",
     });
@@ -70,8 +69,6 @@ test("nothing to focus, or nothing asked, leaves the selection alone", () => {
 });
 
 test("the tiles and the matching menus are one index space for the arrows", () => {
-    // Two pinned, three others, two menu rows: down from the last tile must
-    // reach the menus rather than wrapping inside the grid.
     const rows = gridRows([2, 3], 6, 2);
     expect(rows).toEqual([[0, 1], [2, 3, 4], [5], [6]]);
     expect(nextFocusedIndex(rows, 2, "nextLine")).toBe(5);

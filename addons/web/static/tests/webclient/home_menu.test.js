@@ -149,7 +149,6 @@ test("Display Expiration Panel (no module installed)", async () => {
         { message: "There should be an expiration panel displayed" },
     );
 
-    // Close the expiration panel
     await click(".database_expiration_panel .oe_instance_hide_panel");
     await animationFrame();
     expect(".database_expiration_panel").toHaveCount(0);
@@ -240,14 +239,11 @@ test("Navigation and open an app in the home menu", async () => {
     });
     mockService("menu", {
         async selectMenu(menu) {
-            // The service takes a menu or a bare id; the tests always pass the
-            // menu, and saying so keeps the step readable either way.
             expect.step(
                 `selectMenu ${typeof menu === "number" ? menu : /** @type {any} */ (menu).id}`,
             );
         },
     });
-    // No app selected so nothing to open
     await press("enter");
     expect.verifySteps([]);
 
@@ -258,7 +254,6 @@ test("Navigation and open an app in the home menu", async () => {
         { key: "ArrowLeft", index: 1 },
     ]);
 
-    // open first app (Calendar)
     await press("enter");
 
     expect.verifySteps(["selectMenu 2"]);
@@ -317,7 +312,6 @@ test("The HomeMenu input takes the focus when you press a key only if no other e
 
     const activeElement = document.createElement("div");
     getService("ui").activateElement(activeElement);
-    // remove the focus from the input
     const otherInput = document.createElement("input");
     queryOne(".o_home_menu").appendChild(otherInput);
     await pointerDown(otherInput);
@@ -700,9 +694,6 @@ test("an admin can make the current layout the company default", async () => {
 });
 
 test("setting the company default with no default passed in still clears the reset", async () => {
-    // `defaultConfig` is an optional prop, and the fallback used to be minted
-    // fresh per read: the layout was written to a copy nobody read, so the
-    // launcher went on offering to reset a layout that was now the default.
     patchWithCleanup(user, { isAdmin: true });
     onRpc("set_res_users_settings", () => ({}));
     onRpc("res.company", "write", () => true);
@@ -831,13 +822,13 @@ test("with a pinned row the arrows follow the rows on screen, not one flat grid"
     expect(queryAllTexts(".o_pinned_apps .o_caption")).toEqual(["01"]);
 
     await walkOn([
-        { key: "ArrowDown", index: 0 }, // the pinned tile
-        { key: "ArrowDown", index: 1 }, // the tile below it: first of the next row
+        { key: "ArrowDown", index: 0 },
+        { key: "ArrowDown", index: 1 },
         { key: "ArrowRight", index: 2 },
-        { key: "ArrowDown", index: 7 }, // last row has one tile, column clamps
-        { key: "ArrowDown", index: 0 }, // wraps to the pinned row
+        { key: "ArrowDown", index: 7 },
+        { key: "ArrowDown", index: 0 },
         { key: "ArrowUp", index: 7 },
-        { key: "ArrowUp", index: 1 }, // back on the six-wide row, same column
+        { key: "ArrowUp", index: 1 },
     ]);
 });
 
@@ -1057,9 +1048,6 @@ function menuTreeOf(xmlids, childrenPerApp = 0) {
 }
 
 test("reset after publishing a company default returns the TILES to it, not only the config", async () => {
-    // resetApps used to close over the layout read at mount, so publishing a
-    // new company default left it resetting to the old one: the config said
-    // one order and the grid showed another.
     patchWithCleanup(user, { isAdmin: true, settings: {} });
     patchWithCleanup(session, { homemenu_default_config: null });
     onRpc("set_res_users_settings", () => ({}));
@@ -1094,14 +1082,6 @@ test("reset after publishing a company default returns the TILES to it, not only
 });
 
 test("a keystroke evaluates each derived list once per render, not once per result row", async () => {
-    // The matching-menu rows used to ask for the app grid's length one row at
-    // a time, so eight rows rebuilt the pinned map and the fuzzy-matched list
-    // eight times over, per render, per character typed.
-    //
-    // Counted on the computations, not on the reads: the getters are now memo
-    // readers over one cache per render, and the whole point of that cache is
-    // that reading a list twice is free. What must stay at one per render is
-    // the walk over every app and every menu, which is `_<name>()`.
     const counts = { shownApps: 0, pinnedApps: 0, unpinnedApps: 0, menuMatches: 0 };
     let renders = 0;
     class Counted extends HomeMenu {
@@ -1110,9 +1090,6 @@ test("a keystroke evaluates each derived list once per render, not once per resu
             onRendered(() => renders++);
         }
     }
-    // Instrumented on HomeMenuGrid, which is where the walking moved: the
-    // component reads `this.grid`, and the cache the guard is about is the
-    // grid's own, cleared once per render.
     for (const name of Object.keys(counts)) {
         const compute = HomeMenuGrid.prototype[`_${name}`];
         patchWithCleanup(HomeMenuGrid.prototype, {
@@ -1154,19 +1131,12 @@ test("a keystroke evaluates each derived list once per render, not once per resu
             message: `${name}: at most once per render`,
         });
     }
-    // `shownApps` is not one of them under a query: a query searches every app
-    // the user has, hidden ones included, so the layout filter never runs.
     expect(counts.shownApps).toBe(0);
     expect(counts.unpinnedApps).toBe(renders);
     expect(counts.menuMatches).toBe(renders);
 });
 
 test("two quick pins are written one after the other, so neither can be lost", async () => {
-    // res.users.settings writes are not serialised, so this used to put two
-    // whole layouts in flight at once -- {pinned:[a]} and {pinned:[a,b]} --
-    // and whichever reached the server last won. Losing the second pin left
-    // nothing behind to show it had happened. Two clicks are two writes,
-    // being a tick apart; what changed is that the second waits.
     patchWithCleanup(user, { settings: { id: 1 } });
     const pending = [];
     onRpc("set_res_users_settings", ({ kwargs }) => {
@@ -1218,9 +1188,6 @@ test("a count too wide for an icon is shown as 99+, by the same rule in both lau
     });
     await mountWithCleanup(HomeMenu, { props: getDefaultHomeMenuProps() });
     await runAllTimers();
-    // Scoped to the grid throughout: an app with a count also appears in the
-    // Needs attention row above it, so an unscoped selector reads every badge
-    // twice, and in that section's order rather than the grid's.
     expect(queryAllTexts(".o_apps_listbox .o_app_badge")).toEqual(
         ["99", "99+", "99+"],
         { message: "99 still fits; anything above it does not" },
@@ -1251,8 +1218,6 @@ test("a menu reload that changes the apps re-counts their badges", async () => {
         webIcon: false,
         xmlid: "app.4",
     };
-    // A parent that can hand the launcher a different app list, which is what
-    // HomeMenuAction does on MENUS_APP_CHANGED.
     class Parent extends Component {
         static components = { HomeMenu };
         static props = {};
@@ -1273,8 +1238,6 @@ test("a menu reload that changes the apps re-counts their badges", async () => {
         message: "the new app is counted, not left blank until the next visit",
     });
 
-    // A re-render that changes no app must not re-count: MENUS_APP_CHANGED
-    // also fires for a plain navigation, and a provider may cost a request.
     counted = [];
     parent.state.props = { ...base, apps: [...base.apps, newApp] };
     await animationFrame();
@@ -1283,9 +1246,6 @@ test("a menu reload that changes the apps re-counts their badges", async () => {
 });
 
 test("a re-render that leaves the grid alone keeps the keyboard selection", async () => {
-    // MENUS_APP_CHANGED fires for a plain navigation too, and HomeMenuAction
-    // answers it by recomputing props -- a fresh array and a fresh layout
-    // holding exactly the same apps. That used to drop the user's selection.
     const base = getDefaultHomeMenuProps();
     class Parent extends Component {
         static components = { HomeMenu };
@@ -1300,15 +1260,12 @@ test("a re-render that leaves the grid alone keeps the keyboard selection", asyn
     await animationFrame();
     expect(".o_menuitem:eq(0)").toHaveClass("o_focused");
 
-    // Same apps, new array: what a navigation hands down.
     parent.state.props = { ...base, apps: [...base.apps] };
     await animationFrame();
     expect(".o_menuitem:eq(0)").toHaveClass("o_focused", {
         message: "nothing about the grid changed, so the selection stands",
     });
 
-    // A different app list is a different grid, and the index no longer means
-    // what it meant.
     parent.state.props = { ...base, apps: base.apps.slice(0, 2) };
     await animationFrame();
     expect(".o_menuitem.o_focused").toHaveCount(0, {
@@ -1317,9 +1274,6 @@ test("a re-render that leaves the grid alone keeps the keyboard selection", asyn
 });
 
 test("the grid scrolls to follow an arrow key, and stays put for anything else", async () => {
-    // scrollIntoView used to run on every patch while a tile was selected, so
-    // a badge provider answering -- or any unrelated render -- dragged the
-    // grid back to a centred tile under a user who had scrolled away from it.
     let scrolls = 0;
     patchWithCleanup(Element.prototype, {
         scrollIntoView() {
@@ -1461,8 +1415,6 @@ test("the grid takes category headings once it stops fitting on a screen", async
         ["SUPPLY CHAIN", "SALES"],
         { message: "in the order their first app sits in, not alphabetical" },
     );
-    // The running index is the display order, so alt+n and the arrows agree
-    // with what is on screen.
     expect(queryAllAttributes(".o_apps_section .o_app", "id").slice(0, 3)).toEqual([
         "result_app_0",
         "result_app_1",
@@ -1528,8 +1480,6 @@ test("the arrows walk the sections in the order they are shown", async () => {
     const menu = await mountWithCleanup(HomeMenu, {
         props: { apps, reorderApps: (o) => reorderApps(apps, o) },
     });
-    // Sales holds seven, so it wraps after six; Supply Chain starts a row of
-    // its own rather than filling the tail of the last Sales row.
     expect(menu.keyboardRows).toEqual([
         [0, 1, 2, 3, 4, 5],
         [6],
@@ -1662,8 +1612,6 @@ test("the server's counts land on the tiles alongside a client provider's", asyn
     mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
     await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
     await runAllTimers();
-    // Summed, not replaced: an addon counting from the store and one counting
-    // from the database are both answering for the same tile.
     expect(".o_app[data-menu-xmlid='app.1'] .o_app_badge").toHaveText("7");
     expect(".o_app[data-menu-xmlid='app.2'] .o_app_badge").toHaveText("1");
     expect(".o_app[data-menu-xmlid='app.3'] .o_app_badge").toHaveCount(0);
@@ -1677,14 +1625,11 @@ test("the apps with something waiting lead the grid, most first", async () => {
     mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
     await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
     await runAllTimers();
-    // Ordered by what is waiting, not by the grid order or by use: the app with
-    // forty is first even though it is neither pinned nor recently opened.
     expect(queryAllTexts(".o_attention_apps .o_caption")).toEqual([
         "Discuss",
         "Contacts",
     ]);
     expect(".o_attention_apps .o_app_badge:first").toHaveText("40");
-    // Still in the grid below; the section is a shortcut, not a move.
     expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual([
         "Discuss",
         "Calendar",

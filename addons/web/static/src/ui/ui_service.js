@@ -10,7 +10,6 @@ import { BlockUI } from "@web/ui/block/block_ui";
 import { mainComponentEntry } from "@web/ui/main_components_container";
 import { getMediaQueryLists, SIZES, utils } from "@web/ui/viewport";
 
-// The focus half of this module lives next to the stack it drives. Re-exported
 export {
     getFirstAndLastTabableElements,
     useActiveElement,

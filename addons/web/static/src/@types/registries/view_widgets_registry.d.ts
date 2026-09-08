@@ -47,8 +47,6 @@ declare module "registries" {
             | ((baseInfo: StaticWidgetInfo) => FieldDependency[]);
         supportedAttributes?: any[];
         supportedOptions?: any[];
-        // Same escape hatch FieldsRegistryItemShape carries: widget entries take
-        // arbitrary extra keys that consumers read dynamically.
         [key: string]: any;
     }
 

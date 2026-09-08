@@ -10,7 +10,6 @@ import { useService } from "@web/core/utils/hooks";
 class FooterComponent extends Component {
     static template = "web.HomeMenu.CommandPalette.Footer";
     static props = {
-        //prop added by the command palette
         switchNamespace: { type: Function, optional: true },
     };
 
@@ -92,8 +91,6 @@ export function useHomeMenuSearch({ onQueryChanged }) {
             if (hasTouch()) {
                 return;
             }
-            // Blurring onto the body -- a click on anything that does not take
-            // focus -- leaves an IME with nowhere to put the next character.
             browser.setTimeout(() => {
                 if (
                     document.activeElement === document.body &&
@@ -109,9 +106,6 @@ export function useHomeMenuSearch({ onQueryChanged }) {
         },
     };
 
-    // Typing anywhere on the launcher types into the box, the way it does on a
-    // phone's home screen -- but not over another field, and not while an
-    // overlay owns the keyboard.
     useExternalListener(window, "keydown", (/** @type {KeyboardEvent} */ ev) => {
         const printable =
             ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey;

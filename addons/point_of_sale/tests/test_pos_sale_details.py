@@ -222,14 +222,6 @@ class TestPosCategoryGuards(TestPoSCommon):
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosSaleDetailsCoherence(TestPoSCommon):
-    """One report, one set of numbers.
-
-    Every figure the report prints for a block must be derivable from the other
-    figures in that block: a tax total is the total of the tax rows above it, a
-    refund block reads in one direction, and a scope either covers a session or
-    says it does not.
-    """
-
     def setUp(self):
         super().setUp()
         self.config = self.basic_config

@@ -169,7 +169,6 @@ export class HomeMenuLayout {
         const index = this.config.hidden.indexOf(app.xmlid);
         if (index === -1) {
             this.config.hidden.push(app.xmlid);
-            // A hidden app has no place to be pinned to.
             const pinnedIndex = this.config.pinned.indexOf(app.xmlid);
             if (pinnedIndex !== -1) {
                 this.config.pinned.splice(pinnedIndex, 1);
@@ -210,8 +209,6 @@ export class HomeMenuLayout {
             homemenu_default_config: config,
         });
         session.homemenu_default_config = config;
-        // Nothing of this user's own is left to reset. A copy, because the
-        // object handed in belongs to whoever handed it in.
         this.defaultConfig = parseHomeMenuConfig(config);
     }
 
@@ -219,7 +216,6 @@ export class HomeMenuLayout {
         this.unsaved = true;
         return this.mutex.exec(() => {
             if (!this.unsaved) {
-                // An earlier turn already wrote the layout this change is in.
                 return;
             }
             this.unsaved = false;

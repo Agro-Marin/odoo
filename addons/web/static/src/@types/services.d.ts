@@ -1,7 +1,6 @@
 declare module "services" {
     import { ServicesRegistryShape } from "registries";
 
-    // Core infrastructure services
     import { errorService } from "@web/core/errors/error_service";
     import { fieldService } from "@web/core/field_service";
     import { fileUploadService } from "@web/core/file_upload/file_upload_service";
@@ -18,15 +17,12 @@ declare module "services" {
     import { treeProcessorService } from "@web/core/tree/tree_processor_service";
     import { webVitalsService } from "@web/core/network/web_vitals/web_vitals_service";
 
-    // Public services
     import { publicInteractionService } from "@web/public/interaction_service";
 
-    // Domain services
     import { connectionRecoveryService } from "@web/components/errors/error_handlers";
     import { datetimePickerService } from "@web/components/datetime/datetime_picker_service";
     import { frequentEmojiService } from "@web/components/emoji_picker/frequent_emoji_service";
 
-    // UI overlay services
     import { bottomSheetService } from "@web/ui/bottom_sheet/bottom_sheet_service";
     import { commandService } from "@web/ui/commands/command_service";
     import { dialogService } from "@web/ui/dialog/dialog_service";
@@ -41,13 +37,11 @@ declare module "services" {
     import { tooltipService } from "@web/ui/tooltip/tooltip_service";
     import { uiService } from "@web/ui/ui_service";
 
-    // View services
     import { demoDataService } from "@web/views/settings/widgets/demo_data_service";
     import { fillTemporalService } from "@web/views/fill_temporal_service";
     import { userInviteService } from "@web/views/settings/widgets/user_invite_service";
     import { viewService } from "@web/views/view_service";
 
-    // Webclient services
     import { actionService } from "@web/webclient/actions/action_service";
     import { colorSchemeService } from "@web/webclient/color_scheme/color_scheme_service";
     import { currencyService } from "@web/webclient/currency_service";

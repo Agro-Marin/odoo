@@ -6,9 +6,6 @@ declare module "luxon" {
     export default _default;
 }
 
-// `DateTime` is only re-exported from "luxon", and an augmentation of a
-// re-exporting module declares a new symbol rather than merging with the
-// original. The class has to be augmented in the module that declares it.
 declare module "luxon/src/datetime" {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     interface DateTime<IsValid extends boolean = DefaultValidity> {

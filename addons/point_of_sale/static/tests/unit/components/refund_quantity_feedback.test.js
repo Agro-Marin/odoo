@@ -51,9 +51,6 @@ describe("a refused refund quantity reaches the cashier", () => {
         const dialogs = [];
         component.dialog = { add: (_, props) => dialogs.push(props) };
 
-        // `disallowLineQuantityChange()` routes the fiscal-certification
-        // deployments -- Belgian, German and Swedish -- down this branch
-        // instead of the numpad one for the very same gesture.
         await component.updateQuantityNumber(2);
 
         expect(refundLine.getQuantity()).toBe(-1);

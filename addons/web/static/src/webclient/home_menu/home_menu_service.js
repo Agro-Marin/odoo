@@ -28,18 +28,12 @@ export class HomeMenuState {
 
     /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
-        // The state is reactive for its two flags. A service reached through
-        // it would run on a proxied `this` and hand out proxied objects, which
-        // `history.pushState` cannot clone: services are not state.
         this.action = markRaw(env.services.action);
         this.mutex = markRaw(new Mutex());
     }
 
     /** @param {boolean} [show] */
     async toggle(show) {
-        // A navigation minted after this request outranks the menu: the
-        // client's start-up default-app load runs behind this mutex, and must
-        // not supersede what the user opened meanwhile.
         const { action } = this;
         const epoch = action.navigation.epoch;
         return this.mutex.exec(async () => {
@@ -78,15 +72,11 @@ export class HomeMenuState {
  * }}
  */
 export function computeHomeMenuLayout(menus) {
-    // The company's default applies until the user has a layout of their own;
-    // a layout is the user's whole answer, never a per-field merge.
     const defaultConfig = parseHomeMenuConfig(session.homemenu_default_config);
     const own = parseHomeMenuConfig(user.settings?.homemenu_config);
     const config = isDefaultHomeMenuConfig(own)
         ? parseHomeMenuConfig(defaultConfig)
         : own;
-    // A copy: the flattened tree is shared with the palette, and reordering
-    // sorts in place.
     const apps = [...flattenMenuTree(menus.getMenuAsTree("root")).apps];
     const defaultOrder = apps.flatMap((app) =>
         app.xmlid === undefined ? [] : [app.xmlid],
@@ -111,10 +101,6 @@ export function computeHomeMenuProps(menus) {
         config,
         defaultConfig,
         reorderApps: (/** @type {string[]} */ order) => reorderApps(apps, order),
-        // The order comes from the caller: the component owns the fallback
-        // layout and can be handed a new one (an admin publishing the current
-        // layout as the company's), so a closure over the layout read at mount
-        // would reset the tiles to a default that has since been replaced.
         resetApps: (/** @type {string[]} */ order) => {
             reorderApps(apps, defaultOrder);
             if (order?.length) {

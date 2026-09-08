@@ -182,8 +182,6 @@ class LoadMenusTests(HttpCase):
 
 @tagged("web_http", "web_menu")
 class LoadMenusSearchTests(HttpCase):
-    """The two fields the app launcher searches and groups on."""
-
     def setUp(self):
         super().setUp()
         self.authenticate("admin", "admin")
@@ -208,12 +206,6 @@ class LoadMenusSearchTests(HttpCase):
         )
 
     def test_category_is_the_root_of_the_module_tree(self):
-        """The leaf category is nearly the app itself; its root is a heading.
-
-        Measured over a 22-app database the leaf yields 17 categories, 12 of
-        them holding one app, so grouping on it names more sections than it
-        saves rows. Walking to the root yields eight.
-        """
         base_menu = self.env.ref("base.menu_administration")
         category = self.env.ref("base.module_base").category_id
         while category.parent_id:

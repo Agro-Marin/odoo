@@ -355,9 +355,6 @@ export class PosOrderline extends PosOrderlineAccounting {
             return false;
         }
 
-        // Resolving the pricelist is the expensive half of this predicate and
-        // the only one that survives every cheap discriminator above, so it is
-        // reached once per genuine candidate instead of once per order line.
         const ProductPrice = this.models["decimal.precision"].getBy(
             "name",
             PRODUCT_PRICE,

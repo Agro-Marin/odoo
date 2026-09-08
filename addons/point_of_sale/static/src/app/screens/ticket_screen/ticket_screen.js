@@ -584,8 +584,6 @@ export class TicketScreen extends Component {
         return Math.ceil(this.filteredOrdersCount / this.state.nbrByPage);
     }
     getPageNumber() {
-        // Read once: outside the SYNCED filter this getter filters, fuzzy-matches
-        // and sorts every order in the session on each access.
         const count = this.filteredOrdersCount;
         if (!count) {
             return `0/0`;

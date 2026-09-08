@@ -9,7 +9,6 @@ class HomeMenuBadge(models.AbstractModel):
 
     @api.model
     def get_badges(self) -> dict[str, int]:
-        """{app xmlid: count}, for the current user, zeroes dropped."""
         return {
             xmlid: count for xmlid, count in self._get_badges().items() if count > 0
         }

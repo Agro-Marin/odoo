@@ -17,8 +17,6 @@ import { parseHomeMenuConfig } from "@web/webclient/menus/menu_utils";
 let writes;
 
 beforeEach(() => {
-    // The layout's own writing is what these test; the round trip through
-    // res.users.settings is covered where the component is mounted.
     writes = [];
     patchWithCleanup(user, {
         settings: { id: 1 },
@@ -68,7 +66,6 @@ test("hiding an app unpins it, because a hidden app has nowhere to be pinned to"
     layout.toggleHidden(sale);
     expect(layout.config.hidden).toEqual(["sale"]);
     expect(layout.config.pinned).toEqual(["crm"]);
-    // Showing it again does not silently pin it back.
     layout.toggleHidden(sale);
     expect(layout.config.hidden).toEqual([]);
     expect(layout.config.pinned).toEqual(["crm"]);
@@ -77,7 +74,6 @@ test("hiding an app unpins it, because a hidden app has nowhere to be pinned to"
 test("a layout is customised only when it differs from the fallback", () => {
     expect(makeLayout().isCustomised).toBe(false);
     expect(makeLayout('{"pinned":["sale"]}').isCustomised).toBe(true);
-    // Matching the company's layout is not a customisation of it.
     expect(makeLayout('{"pinned":["sale"]}', '{"pinned":["sale"]}').isCustomised).toBe(
         false,
     );
@@ -173,10 +169,6 @@ test("orderAfterDrag moves one app and leaves the rest in place", () => {
 });
 
 test("orderAfterDrag refuses an app the order does not hold, rather than moving the last one", () => {
-    // indexOf answers -1 and splice(-1, 1) acts on it by removing the last
-    // entry, which reorders an app the user never dragged.
     expect(orderAfterDrag(["a", "b", "c"], "gone", "a")).toBe(null);
-    // An `afterId` that is absent is not the same failure: it lands at the
-    // front, which is where the same -1 put it before.
     expect(orderAfterDrag(["a", "b", "c"], "c", "gone")).toEqual(["c", "a", "b"]);
 });

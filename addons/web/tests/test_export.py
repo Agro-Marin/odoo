@@ -44,14 +44,6 @@ def _sheet_text(xlsx_bytes: bytes) -> str:
 
 
 class TestCsvExportCells(unittest.TestCase):
-    """`CSVExport.from_data` is one Rust call; these pin its cell semantics.
-
-    No database and no HTTP — the function takes a header list and a row list
-    and returns the finished bytes, so the rules worth pinning (QUOTE_ALL, the
-    `None`/`False` blanking, the formula guard, and what an undecodable cell
-    raises) are testable directly.
-    """
-
     def test_quote_all_and_embedded_quotes(self):
         self.assertEqual(
             csv_export(["h"], [['a"b']]),

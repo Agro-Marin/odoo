@@ -142,8 +142,6 @@ export function computeAppsAndMenuItems(menuTree) {
             menuItems.push(item);
             return;
         }
-        // "module,static/description/icon.png" names the addon; the three-part
-        // "iconClass,color,background" form of a Studio icon names none.
         const iconParts =
             typeof menuItem.webIcon === "string" ? menuItem.webIcon.split(",") : [];
         if (iconParts.length === 2 && iconParts[0]) {
@@ -258,8 +256,6 @@ export function appSearchKey(app) {
  */
 export function reorderApps(apps, order) {
     apps.sort((a, b) => {
-        // An entry with no xmlid is not in a stored order and sorts as such,
-        // which is what indexOf already returned for it.
         const aIndex = a.xmlid === undefined ? -1 : order.indexOf(a.xmlid);
         const bIndex = b.xmlid === undefined ? -1 : order.indexOf(b.xmlid);
         if (aIndex === -1 && bIndex === -1) {

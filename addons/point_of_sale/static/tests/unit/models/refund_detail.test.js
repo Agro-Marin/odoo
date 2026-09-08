@@ -37,22 +37,15 @@ describe("a refund detail lives on the refunded order", () => {
 
         refundOrder.removeOrderline(refundLine);
 
-        // It used to look the key up in `this.uiState.lineToRefund` -- the
-        // REFUNDING order's map -- where a refunded line's uuid can never be,
-        // because the only writer keys each order's map by its own lines. So the
-        // guard was always false, the delete never ran, and the original order
-        // went on reporting the quantity as still to refund.
         expect(originalLine.uuid in original.uiState.lineToRefund).toBe(false);
     });
 
     test("setQuantity finds the detail without merging every order's map", async () => {
         const store = await setupPosEnv();
         const { refundLine } = await anOrderBeingRefunded(store);
-        // a positive quantity on a refund line is refused
         const refusal = refundLine.setQuantity(2);
         expect(refusal).not.toBe(true);
         expect(refusal.title).toBeOfType("string");
-        // and a negative one within the refundable quantity is accepted
         expect(refundLine.setQuantity(-1)).toBe(true);
     });
 });

@@ -4,7 +4,6 @@
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
-// A provider answers `provide(env, apps)` with counts by app xmlid, sync or not.
 const badgeProviders = registry.category("home_menu_badges");
 badgeProviders.addValidation({ provide: Function });
 
@@ -49,9 +48,6 @@ export function invalidateHomeMenuBadges() {
     cached = null;
 }
 
-// A different set of providers answers a different question, so counts taken
-// before one arrived are not an answer to it. This is also what keeps one
-// test's providers out of the next one's tiles.
 badgeProviders.addEventListener("UPDATE", invalidateHomeMenuBadges);
 
 /**
@@ -77,7 +73,6 @@ export function loadHomeMenuBadges(env, apps, { refresh = false } = {}) {
     }
     const badges = countHomeMenuBadges(env, apps);
     cached = { key, at: now, badges };
-    // A run that failed outright must not be served for the rest of the TTL.
     badges.catch(() => {
         if (cached?.badges === badges) {
             cached = null;
@@ -107,8 +102,6 @@ async function countHomeMenuBadges(env, apps) {
             continue;
         }
         for (const [xmlid, value] of Object.entries(result.value || {})) {
-            // Coerced, not trusted: a provider is addon code, and a count that
-            // is not a number would concatenate into every later sum.
             const count = Number(value);
             if (count > 0) {
                 badges[xmlid] = (badges[xmlid] || 0) + count;
@@ -135,7 +128,6 @@ export function appBadge(badges, app) {
     return {
         count,
         text: count > BADGE_CEILING ? `${BADGE_CEILING}+` : String(count),
-        // The reader is told the real number, not the shortened one.
         label: _t("%s pending", count),
     };
 }

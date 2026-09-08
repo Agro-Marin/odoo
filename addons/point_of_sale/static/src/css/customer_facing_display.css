@@ -365,13 +365,12 @@ body .pos-customer_facing_display .pos-payment_info .pos-odoo_logo_container spa
 }
 
 body .pos-customer_facing_display .pos-payment_info .pos-payment_info_details .pos-paymentlines::after {
-    height: 2vw; /* this empty element gives space between the paymentlines and the Odoo logo footer only if there is enough space (depending on the amount of paymentlines) */
+    height: 2vw;
     content: '';
     display: block;
     width: 100%;
 }
 
-/* properties for default orientation (landscape): */
 body .pos-customer_facing_display .pos-portrait-top {
     display: none;
 }
@@ -404,14 +403,13 @@ body .pos-customer_facing_display .pos-payment_info .pos-company_logo {
 }
 
 body .pos-customer_facing_display .pos-payment_info {
-    background-size: cover; /* background image displayed */
+    background-size: cover;
 }
 
 body .pos-customer_facing_display .pos-customer_products,
 body .pos-customer_facing_display .pos-payment_info {
     height: 100%;
 }
-/* end of properties for default orientation (landscape) */
 
 @media all and (orientation: portrait) {
   body .pos-customer_facing_display {
@@ -474,7 +472,7 @@ body .pos-customer_facing_display .pos-payment_info {
     margin-bottom: 1vh;
   }
   body .pos-customer_facing_display .pos-payment_info {
-    background-size: 0 0; /* background image hidden */
+    background-size: 0 0;
     max-width: 100%;
     width: 100%;
     max-height: 40vh;
@@ -814,8 +812,8 @@ body .pos-hidden {
   max-width: 500px;
   max-height: 500px;
   padding: 1em;
-  margin-left: -250px; /*Half the value of width to center div*/
-  margin-top: -250px; /*Half the value of height to center div*/
+  margin-left: -250px;
+  margin-top: -250px;
   z-index: 200;
 }
 

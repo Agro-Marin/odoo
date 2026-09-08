@@ -13,7 +13,6 @@
                     autocomplete="off"
                 />
               </div>
-              <!-- The one page-level action sits in the corner of the surface, as a launcher's edit affordance does; it says its name on hover and to the reader. -->
               <button t-if="canEditLayout and !state.editing" type="button" class="o_home_menu_customize btn btn-link position-absolute top-0 end-0 h-100 px-3" title="Customize" aria-label="Customize" t-on-click="_toggleEditing">
                   <i class="oi oi-settings-adjust fa-lg" aria-hidden="true"/>
               </button>
@@ -27,7 +26,6 @@
                     <button type="button" class="o_home_menu_done btn btn-primary btn-sm" t-on-click="_toggleEditing">Done</button>
                 </t>
             </div>
-            <!-- When the subscription has expired, the expiration panel is shown over the whole UI instead of here -->
             <ExpirationPanel t-if="subscription.warningType and !subscription.isWarningHidden and subscription.daysLeft &lt;= 30 and subscription.daysLeft > 0 and !subscription.sysadmin.replace"/>
             <SysAdminPanel t-if="subscription.daysLeft > 0 and subscription.sysadmin.message"/>
             <t t-set="attention" t-value="grid.attentionApps"/>
@@ -55,8 +53,6 @@
             <t t-set="pinned" t-value="grid.pinnedApps"/>
             <t t-set="sections" t-value="grid.appSections"/>
             <t t-set="unpinned" t-value="grid.visibleApps.length - pinned.length"/>
-            <!-- Read once: each of these walks every app or every menu in the
-                 database, and the branches below ask for them more than once. -->
             <t t-set="menuResults" t-value="grid.menuMatches"/>
             <t t-set="menuIndexOffset" t-value="pinned.length + unpinned"/>
             <div t-if="pinned.length or unpinned" class="o_apps_listbox user-select-none" role="list" aria-label="Apps" t-att-class="{'mt-5': !recents.length, 'mt-3': recents.length, o_home_menu_editing: state.editing}">

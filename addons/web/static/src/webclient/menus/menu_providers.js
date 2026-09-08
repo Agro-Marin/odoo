@@ -44,7 +44,6 @@ commandProviderRegistry.add("menu", {
         /** @type {typeof menuItems} */
         let matchingItems;
         if (options.searchValue === "") {
-            // No query: what the user opens, then everything else in menu order.
             const recentApps = menuUsage.rank(apps);
             apps = [...recentApps, ...apps.filter((app) => !recentApps.includes(app))];
             matchingItems = menuUsage.rank(menuItems, RECENT_MENU_ITEMS);

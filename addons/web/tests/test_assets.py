@@ -230,10 +230,6 @@ class TestWebAssetsCursors(HttpCase):
 
 @tagged("post_install", "-at_install")
 class TestWebAssetsRegenerationLock(HttpCase):
-    """F014: a cache-miss regeneration takes a stable per-bundle advisory
-    lock, so concurrent misses for the same bundle serialize instead of
-    racing to independently rebuild it."""
-
     def test_regeneration_takes_a_stable_per_bundle_advisory_lock(self):
         bundle_name = "web.assets_frontend"
         self.env["ir.attachment"].search(

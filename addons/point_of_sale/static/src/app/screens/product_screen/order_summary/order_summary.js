@@ -33,8 +33,6 @@ export class OrderSummary extends Component {
         return this.pos.selectedOrder;
     }
 
-    // A combo child's quantity and discount belong to its parent; its price does
-    // not, which is why the price branch of _setValue reads the selected line.
     get editedLine() {
         const line = this.currentOrder.getSelectedOrderline();
         return line?.combo_parent_id || line;

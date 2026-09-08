@@ -47,8 +47,6 @@ describe("getCashier() does not read pos.cashier", () => {
         expect(store.cashier).toBe(false);
         expect(store.cashierIsMinimal).toBe(false);
 
-        // `utils/cashier.js` defines getCashier as `pos.user`, which
-        // `resetCashier` never touches, so the two disagree from here on.
         expect(store.getCashier()).toBe(store.user);
         expect(store.cashierHasPriceControlRights()).toBe(true);
     });

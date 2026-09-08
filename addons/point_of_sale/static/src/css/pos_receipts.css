@@ -64,8 +64,6 @@
     font-family: inherit;
     font-size: 75%;
 
-    /* The following prevents html_editor/main/font/font_plugin.scss
-       from interfering (included by pos_appointment module) */
     padding: unset;
     border: unset;
     border-radius: unset;
@@ -89,7 +87,6 @@
 }
 
 .pos-receipt .orderlines {
-    /*rtl:ignore*/
     direction: ltr;
 }
 

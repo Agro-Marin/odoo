@@ -56,19 +56,12 @@ test("a message aimed at admins is shown to an admin reader", async () => {
 });
 
 test("an audience the client does not recognise is hidden from a user reader", async () => {
-    // `sysadmin_message` is whatever JSON a sysadmin put in the
-    // `sysadmin.message` config parameter: `warning_type` is not a selection
-    // field and nothing validates it, so a typo, or a value from another
-    // version's convention, arrives here intact. The panel denies by default.
     withSession({ warning: "user", warningType: "everyone", message: "who knows" });
     await mountWithCleanup(SysAdminPanel);
     expect("div:contains(who knows)").toHaveCount(0);
 });
 
 test("an audience the client does not recognise is hidden from an admin too", async () => {
-    // The one that matters, and the one a simplification reaches for: showing
-    // an unrecognised audience to admins "because they see everything" is what
-    // turns a typo in a config parameter into a broadcast.
     withSession({ warning: "admin", warningType: "everyone", message: "who knows" });
     await mountWithCleanup(SysAdminPanel);
     expect("div:contains(who knows)").toHaveCount(0);

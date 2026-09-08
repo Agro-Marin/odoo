@@ -33,12 +33,6 @@ function homeMenuAppsKey(apps) {
 }
 
 const APPS_PER_ROW = 6;
-// The launcher is the client's landing page, so it mounts on every cold load
-// and is replaced a few round trips later by whatever the url actually asked
-// for. Counting for a launcher nobody sees is a wasted request on every deep
-// link, and it put `get_badges` in the middle of the boot sequence of every
-// test that records network calls. Long enough to outlive that mount, short
-// enough that a user who did land here sees the counts arrive with the page.
 const BADGE_DELAY = 200;
 const DIRECT_JUMP_HOTKEYS = 9;
 

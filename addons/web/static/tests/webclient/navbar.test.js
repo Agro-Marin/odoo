@@ -713,11 +713,6 @@ test("a getter-only patch keeps the setter, so patch order cannot break assignme
 
 test.tags("mobile");
 test("the toggle follows the home menu opening", async () => {
-    // The template branches on `hm.hasHomeMenu` -- a hamburger that opens the
-    // app sidebar while in an app, the grid icon while the launcher is up.
-    // That it re-renders at all is `useService` wrapping a reactive service in
-    // `useState` for its caller, which is easy to mistake for a plain read and
-    // was untested here.
     await mountWithCleanup(NavBar);
     const homeMenu = getService("home_menu");
     expect(".o_menu_toggle .fa-bars").toHaveCount(1, {
@@ -738,8 +733,6 @@ test("the toggle follows the home menu opening", async () => {
 
 test.tags("desktop");
 test("the navbar hides the breadcrumb's slot, not the breadcrumb another component put in it", async () => {
-    // The control panel portals its own `.o_breadcrumb` into this slot. That
-    // element belongs to it; the slot belongs to the navbar.
     await mountWithCleanup(NavBar);
     const homeMenu = getService("home_menu");
     const slot = queryOne(".o_navbar_breadcrumbs");

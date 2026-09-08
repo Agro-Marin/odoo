@@ -107,8 +107,6 @@ test("computeAppsAndMenuItems records the ancestor path and the owning app", () 
     ]);
     const { menuItems } = computeAppsAndMenuItems(tree);
     const tags = menuItems.find((m) => m.label === "Tags");
-    // `find` may come back empty; saying so keeps a missing item an assertion
-    // failure instead of a TypeError.
     expect(tags?.parents).toBe("Sales / Configuration");
     expect(tags?.appID).toBe(1);
 });
@@ -302,8 +300,6 @@ test("flattenMenuTree walks a tree once and hands every caller the same result",
         message: "the home menu and the command palette share one traversal",
     });
     expect(second.apps).toBe(first.apps);
-    // A different tree object is a different answer, which is how a menu
-    // reload invalidates this without a cache key of its own.
     expect(flattenMenuTree(makeTree([]))).not.toBe(first);
 });
 
@@ -323,10 +319,6 @@ test("reordering a flattened tree's apps is the caller's copy, never the shared 
 
 test("menuSearchKey puts a menu's own name before its ancestors, normalized", () => {
     const menu = { parents: "Sales / Órders", label: "Quotations" };
-    // The deepest name first, accents folded away. The ragged spacing is the
-    // reversal splitting on a bare "/" while the path joins on " / "; it is
-    // the shape the palette has always matched against, and fuzzy matching
-    // does not read the separators, so it is pinned here rather than changed.
     expect(menuSearchKey(menu)).toBe(" quotations/ orders /sales ");
     expect(menuSearchKey(menu)).toBe(menuSearchKey(menu), {
         message: "computed once per entry, so a keystroke re-normalizes nothing",
@@ -334,8 +326,6 @@ test("menuSearchKey puts a menu's own name before its ancestors, normalized", ()
 });
 
 test("a launcher's stored order never reaches the command palette, which shares the flatten", async () => {
-    // The two used to traverse the tree separately, so this could not happen.
-    // They share one cached flatten now, and the launcher sorts its apps.
     const tree = makeTree([
         { id: 1, name: "Alpha", xmlid: "a", actionID: 10 },
         { id: 2, name: "Beta", xmlid: "b", actionID: 11 },

@@ -6,14 +6,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @tagged("post_install", "-at_install")
 class TestPosOrderLinePricing(TestPoSCommon):
-    """`pos.order.line` must price a line one way, not two.
-
-    ``_compute_amount_line_all`` is that one way: it maps the taxes through the
-    order's fiscal position, passes the order's partner, and carries the refund
-    sign. A second handler on the same trigger fields would silently win or lose
-    by declaration order.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -157,14 +149,6 @@ class TestPosOrderLinePricing(TestPoSCommon):
 
 @tagged("post_install", "-at_install")
 class TestPosOrderPayload(TestPoSCommon):
-    """What `pos.order` sends to the POS client.
-
-    Before this list existed the mixin default of `[]` reached `read()`, which
-    treats a falsy field list as *all* fields, so the payload carried the whole
-    mail-thread and portal surface and `load_data_params` built the JS schema
-    for `pos.order` from an empty list.
-    """
-
     AUDIT_FIELDS = {"create_date", "create_uid", "write_uid"}
 
     @classmethod

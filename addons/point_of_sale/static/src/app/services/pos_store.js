@@ -1329,7 +1329,6 @@ export class PosStore extends WithLazyGetterTrap {
         return cashierHasPriceControlRights(this);
     }
 
-    // A logged-out cashier is `false`, and is unset entirely before `setup` runs.
     get cashierIsMinimal() {
         return this.cashier?._role === "minimal";
     }
@@ -2313,9 +2312,6 @@ export class PosStore extends WithLazyGetterTrap {
                     { type: "danger" },
                 );
             }
-            // Never fall through: the generic close path below syncs and then
-            // redirects on success, which would carry the cashier away from the
-            // failure notification raised just above.
             return;
         }
 

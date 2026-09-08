@@ -20,11 +20,6 @@ declare module "@odoo/hoot" {
     }
 
     interface TestFunction extends HootConfigurators {
-        // `void`, not `void | PromiseLike<void>`: TS only applies its
-        // return-value-ignored rule when the target return type is exactly
-        // `void`, so the union form rejects both an async body and a concise
-        // arrow like `() => expect(x).toBe(y)`. Plain `void` accepts every
-        // shape and still says the runner discards the value (it awaits it).
         (name: string, fn: () => void): any;
     }
 

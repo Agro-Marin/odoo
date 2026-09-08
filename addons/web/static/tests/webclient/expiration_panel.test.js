@@ -639,11 +639,9 @@ test("a single day is a day, not '1 days'", async () => {
 });
 
 test("a renewal one day from its grace period reads as a day, in both directions", async () => {
-    // The renewal wording counts from the end of a 15-day grace period, so the
-    // number it prints is not daysLeft and reaches 1 on its own.
     mockDate("2019-10-10T12:00:00");
     patchWithCleanup(session, {
-        expiration_date: "2019-10-26 12:00:00", // 16 days: 1 past the grace period
+        expiration_date: "2019-10-26 12:00:00",
         expiration_reason: "renewal",
         storeData: true,
         warning: "admin",
@@ -659,7 +657,7 @@ test("a renewal one day from its grace period reads as a day, in both directions
 test("a renewal one day into its grace period reads as a day", async () => {
     mockDate("2019-10-10T12:00:00");
     patchWithCleanup(session, {
-        expiration_date: "2019-10-24 12:00:00", // 14 days: 1 into the grace period
+        expiration_date: "2019-10-24 12:00:00",
         expiration_reason: "renewal",
         storeData: true,
         warning: "admin",

@@ -2081,9 +2081,6 @@ test("nothing is hidden at the display limit, so nothing is said", async () => {
 });
 
 test("one result over the limit is one result, not '1 more results'", async () => {
-    // MAX_DISPLAYED_COMMANDS is a round number, which is exactly the kind a
-    // provider lands one past. Nothing showed at the limit and the plural was
-    // only true again from two, so this was the single count that read wrong.
     expect(await truncationNoticeFor(MAX_DISPLAYED_COMMANDS + 1)).toEqual([
         "1 more result — refine your search",
     ]);

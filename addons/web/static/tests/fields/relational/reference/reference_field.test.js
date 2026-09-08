@@ -932,7 +932,6 @@ test("Change model field of a ReferenceField then select an invalid value (tree 
     await click(".o_list_table .reference_field input");
     await press("Backspace");
 
-    // popover owns `ui.activeElement` while it is up. The list's own global
     await click(".o_form_view_container");
     await animationFrame();
     expect(".o_popover").toHaveCount(0);

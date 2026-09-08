@@ -462,9 +462,6 @@ describe("FlowEditor: viewport animation", () => {
         expect(editor.store.viewport).toEqual({ x: 0, y: 0, scale: 1 });
 
         editor.onFlowLocationClick(pointerEvent());
-        // The first frame only records the start timestamp: progress is 0 and
-        // the easing moves nothing. Asserting after one frame would pass over a
-        // cancelled animation just as happily.
         await advanceFrame();
         expect(editor.store.viewport).toEqual({ x: 0, y: 0, scale: 1 });
 
@@ -488,8 +485,6 @@ describe("FlowEditor: viewport animation", () => {
         await advanceFrame();
         await advanceTime(200);
         const stopped = { ...editor.store.viewport };
-        // The animation must have MOVED before cancelling proves anything: a
-        // still viewport that never started stays still for the wrong reason.
         expect(stopped.x).toBeLessThan(0);
 
         editor.cancelViewportAnimation();
