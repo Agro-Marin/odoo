@@ -20,7 +20,7 @@ does not narrow this — `tools/config.py:37` defines
 missing, so `base` always loads. Measured, on this tree:
 
 ```python
-load_odoo_module("base")   # → weasyprint, cssselect2, lxml, psycopg all imported
+load_odoo_module("base")  # → weasyprint, cssselect2, lxml, psycopg all imported
 ```
 
 So an unguarded module-level import anywhere in `odoo/` or `odoo/addons/base/`
