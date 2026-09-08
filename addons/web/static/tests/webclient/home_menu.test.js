@@ -34,6 +34,7 @@ import { user } from "@web/core/user";
 import { session } from "@web/session";
 import "@web/webclient/home_menu/server_badges";
 import { loadHomeMenuBadges } from "@web/webclient/home_menu/badges";
+import { HomeMenuGrid } from "@web/webclient/home_menu/home_menu_grid";
 import { HomeMenu } from "@web/webclient/home_menu/home_menu";
 import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
 import { computeHomeMenuProps } from "@web/webclient/home_menu/home_menu_service";
@@ -118,8 +119,6 @@ test("Click on an app", async () => {
     });
     mockService("menu", {
         async selectMenu(menu) {
-            // The service takes a menu or a bare id; the tests always pass the
-            // menu, and saying so keeps the step readable either way.
             expect.step(
                 `selectMenu ${typeof menu === "number" ? menu : /** @type {any} */ (menu).id}`,
             );
@@ -760,7 +759,7 @@ test("tiles show the counts the badge providers answer with, summed", async () =
     });
     expect.errors(0);
     await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
-    await animationFrame();
+    await runAllTimers();
     expect(".o_app[data-menu-xmlid='app.1'] .o_app_badge").toHaveCount(0);
     expect(".o_app[data-menu-xmlid='app.2'] .o_app_badge").toHaveText("5");
     expect(".o_app[data-menu-xmlid='app.2'] .o_app_badge").toHaveAttribute(
@@ -1111,12 +1110,17 @@ test("a keystroke evaluates each derived list once per render, not once per resu
             onRendered(() => renders++);
         }
     }
+    // Instrumented on HomeMenuGrid, which is where the walking moved: the
+    // component reads `this.grid`, and the cache the guard is about is the
+    // grid's own, cleared once per render.
     for (const name of Object.keys(counts)) {
-        const compute = HomeMenu.prototype[`_${name}`];
-        Counted.prototype[`_${name}`] = function () {
-            counts[name]++;
-            return compute.call(this);
-        };
+        const compute = HomeMenuGrid.prototype[`_${name}`];
+        patchWithCleanup(HomeMenuGrid.prototype, {
+            [`_${name}`]() {
+                counts[name]++;
+                return compute.call(this);
+            },
+        });
     }
     const xmlids = Array.from({ length: 20 }, (_, i) => `app${i}`);
     const tree = menuTreeOf(xmlids, 5);
@@ -1213,7 +1217,7 @@ test("a count too wide for an icon is shown as 99+, by the same rule in both lau
         provide: () => ({ "app.1": 99, "app.2": 100, "app.3": 4200 }),
     });
     await mountWithCleanup(HomeMenu, { props: getDefaultHomeMenuProps() });
-    await animationFrame();
+    await runAllTimers();
     // Scoped to the grid throughout: an app with a count also appears in the
     // Needs attention row above it, so an unscoped selector reads every badge
     // twice, and in that section's order rather than the grid's.
@@ -1258,12 +1262,13 @@ test("a menu reload that changes the apps re-counts their badges", async () => {
         }
     }
     const parent = await mountWithCleanup(Parent);
-    await animationFrame();
+    await runAllTimers();
     expect(counted).toEqual(["app.1", "app.2", "app.3"]);
 
     counted = [];
     parent.state.props = { ...base, apps: [...base.apps, newApp] };
     await animationFrame();
+    await runAllTimers();
     expect(counted).toEqual(["app.1", "app.2", "app.3", "app.4"], {
         message: "the new app is counted, not left blank until the next visit",
     });
@@ -1273,6 +1278,7 @@ test("a menu reload that changes the apps re-counts their badges", async () => {
     counted = [];
     parent.state.props = { ...base, apps: [...base.apps, newApp] };
     await animationFrame();
+    await runAllTimers();
     expect(counted).toEqual([], { message: "same apps, no second count" });
 });
 
@@ -1463,7 +1469,7 @@ test("the grid takes category headings once it stops fitting on a screen", async
         "result_app_2",
     ]);
     expect(
-        big.appSections.map((section) => [
+        big.grid.appSections.map((section) => [
             section.category,
             section.offset,
             section.apps.map((app) => app.label),
@@ -1503,7 +1509,7 @@ test("a grid that fits on a screen is the overview, and takes no headings", asyn
     expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual([], {
         message: "a heading here would only cost a row",
     });
-    expect(menu.appSections[0].offset).toBe(0);
+    expect(menu.grid.appSections[0].offset).toBe(0);
 });
 
 test("the arrows walk the sections in the order they are shown", async () => {
@@ -1530,7 +1536,7 @@ test("the arrows walk the sections in the order they are shown", async () => {
         [7, 8, 9, 10, 11, 12],
         [13],
     ]);
-    expect(menu.visibleApps.map((app) => app.label)).toEqual(
+    expect(menu.grid.visibleApps.map((app) => app.label)).toEqual(
         apps.map((app) => app.label),
     );
 });
@@ -1655,7 +1661,7 @@ test("the server's counts land on the tiles alongside a client provider's", asyn
     after(() => registry.category("home_menu_badges").remove("client_side"));
     mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
     await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
-    await animationFrame();
+    await runAllTimers();
     // Summed, not replaced: an addon counting from the store and one counting
     // from the database are both answering for the same tile.
     expect(".o_app[data-menu-xmlid='app.1'] .o_app_badge").toHaveText("7");
@@ -1670,7 +1676,7 @@ test("the apps with something waiting lead the grid, most first", async () => {
     after(() => registry.category("home_menu_badges").remove("attention"));
     mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
     await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
-    await animationFrame();
+    await runAllTimers();
     // Ordered by what is waiting, not by the grid order or by use: the app with
     // forty is first even though it is neither pinned nor recently opened.
     expect(queryAllTexts(".o_attention_apps .o_caption")).toEqual([

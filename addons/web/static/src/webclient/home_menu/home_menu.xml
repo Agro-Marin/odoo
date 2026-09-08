@@ -18,9 +18,7 @@
                   <i class="oi oi-settings-adjust fa-lg" aria-hidden="true"/>
               </button>
             </div>
-            <!-- The grid collapsing IS the answer to a search, and it is
-                 silent to anyone not looking at it. -->
-            <div class="o_home_menu_search_status visually-hidden" role="status" aria-live="polite" t-esc="searchSummary"/>
+            <div class="o_home_menu_search_status visually-hidden" role="status" aria-live="polite" t-esc="grid.searchSummary"/>
             <div t-if="canEditLayout and state.editing" class="o_home_menu_toolbar d-flex justify-content-center align-items-center gap-2 mt-2">
                 <t>
                     <span class="o_home_menu_edit_hint text-muted small me-2">Drag a tile to reorder</span>
@@ -32,7 +30,7 @@
             <!-- When the subscription has expired, the expiration panel is shown over the whole UI instead of here -->
             <ExpirationPanel t-if="subscription.warningType and !subscription.isWarningHidden and subscription.daysLeft &lt;= 30 and subscription.daysLeft > 0 and !subscription.sysadmin.replace"/>
             <SysAdminPanel t-if="subscription.daysLeft > 0 and subscription.sysadmin.message"/>
-            <t t-set="attention" t-value="attentionApps"/>
+            <t t-set="attention" t-value="grid.attentionApps"/>
             <nav t-if="attention.length" class="o_home_menu_attention mt-4 mx-0" aria-label="Apps needing attention">
                 <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Needs attention</div>
                 <div class="o_attention_apps row user-select-none mx-0" role="list">
@@ -43,7 +41,7 @@
                     </div>
                 </div>
             </nav>
-            <t t-set="recents" t-value="recentApps"/>
+            <t t-set="recents" t-value="grid.recentApps"/>
             <nav t-if="recents.length and !search.query" class="o_home_menu_recent mt-4 mx-0" aria-label="Recent apps">
                 <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Recent</div>
                 <div class="o_recent_apps row user-select-none mx-0" role="list">
@@ -54,12 +52,12 @@
                     </div>
                 </div>
             </nav>
-            <t t-set="pinned" t-value="pinnedApps"/>
-            <t t-set="sections" t-value="appSections"/>
-            <t t-set="unpinned" t-value="visibleApps.length - pinned.length"/>
+            <t t-set="pinned" t-value="grid.pinnedApps"/>
+            <t t-set="sections" t-value="grid.appSections"/>
+            <t t-set="unpinned" t-value="grid.visibleApps.length - pinned.length"/>
             <!-- Read once: each of these walks every app or every menu in the
                  database, and the branches below ask for them more than once. -->
-            <t t-set="menuResults" t-value="menuMatches"/>
+            <t t-set="menuResults" t-value="grid.menuMatches"/>
             <t t-set="menuIndexOffset" t-value="pinned.length + unpinned"/>
             <div t-if="pinned.length or unpinned" class="o_apps_listbox user-select-none" role="list" aria-label="Apps" t-att-class="{'mt-5': !recents.length, 'mt-3': recents.length, o_home_menu_editing: state.editing}">
                 <div t-if="pinned.length" class="o_pinned_apps mb-2">
@@ -93,7 +91,7 @@
             </div>
             <nav t-if="menuResults.length" class="o_home_menu_menu_results mx-auto mt-3" aria-label="Matching menus">
                 <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Menus</div>
-                <a t-foreach="menuResults" t-as="menu" t-key="menu.id" t-att-id="'result_menu_' + menu_index" class="o_menu_result o_menuitem d-block px-2 py-1 rounded text-decoration-none" t-att-class="{o_focused: state.focusedIndex === menuIndexOffset + menu_index}" t-att-href="menu.href" t-on-click.prevent="() => this._onMenuResultClick(menu)" t-on-focus="() => this._onItemFocus(menuIndexOffset + menu_index)">
+                <a t-foreach="menuResults" t-as="menu" t-key="menu.id" t-att-id="'result_menu_' + menu_index" class="o_menu_result o_menuitem d-block px-2 py-1 rounded text-decoration-none" t-att-class="{o_focused: keyboard.focusedIndex === menuIndexOffset + menu_index}" t-att-href="menu.href" t-on-click.prevent="() => this._onMenuResultClick(menu)" t-on-focus="() => this._onItemFocus(menuIndexOffset + menu_index)">
                     <span class="text-muted" t-esc="menu.parents"/><span class="text-muted"> / </span><span t-esc="menu.label"/>
                 </a>
             </nav>
@@ -101,12 +99,10 @@
     </div>
 </t>
 
-<!-- One tile. `gridIndex` set: a listbox option of the main grid, with the
-     keyboard selection, the drag id and an alt+n hotkey for the first nine. -->
 <t t-name="web.HomeMenu.App">
     <a t-att-id="tileId"
         class="o_app o_menuitem position-relative d-flex flex-column rounded-3 justify-content-start align-items-center w-100 p-1 p-md-2"
-        t-att-class="{o_focused: gridIndex !== undefined and state.focusedIndex === gridIndex, o_app_pinned: layout.isPinned(app), o_app_hidden: layout.isHidden(app)}"
+        t-att-class="{o_focused: gridIndex !== undefined and keyboard.focusedIndex === gridIndex, o_app_pinned: layout.isPinned(app), o_app_hidden: layout.isHidden(app)}"
         t-att-data-menu-xmlid="gridIndex !== undefined ? app.xmlid : undefined"
         t-att-data-hotkey="gridIndex !== undefined and gridIndex &lt; directJumpHotkeys ? '' + (gridIndex + 1) : undefined"
         t-att-href="app.href"
@@ -135,7 +131,6 @@
     </a>
 </t>
 
-<!-- The count on a tile. `badge` set by the caller; nothing below 1 shows. -->
 <t t-name="web.AppBadge">
     <span t-if="badge.count" class="o_app_badge badge rounded-pill text-bg-danger position-absolute" t-att-aria-label="badge.label" t-esc="badge.text"/>
 </t>
