@@ -335,8 +335,6 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
 
     def test_the_request_does_not_follow_redirects(self):
         action = self._webhook()
-        # A pinned-IP delivery (ACT-1) goes through a Session it mounts its
-        # own adapter on, not the bare requests.post() module function.
         with patch.object(requests.Session, "post") as post:
             action.with_context(**self._ctx(self._partners(1))).run()
             self.env.cr.postcommit.run()
@@ -360,10 +358,6 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
         post.assert_not_called()
 
     def test_delivery_uses_a_session_mounted_with_the_pinned_ip(self):
-        """ACT-1: delivery must go through _PinnedIPAdapter carrying the
-        exact IP the guard just validated, not a bare requests.post() that
-        would let requests/urllib3 resolve the hostname again -- that second,
-        independent resolution is the DNS-rebinding TOCTOU."""
         action = self._webhook()
         mounted_adapters = {}
 
@@ -393,9 +387,6 @@ class TestWebhookGuardHoldsAtSendTime(ServerActionCase):
         self.assertEqual(adapter._pinned_ip, "203.0.113.10")
 
     def test_pinned_adapter_targets_the_ip_not_the_hostname(self):
-        """Unit-level proof of the adapter itself: the connection pool must
-        be keyed on the pinned IP, with the original hostname carried only
-        for TLS SNI/hostname verification -- not used to reach the peer."""
         adapter = ir_actions_server._PinnedIPAdapter("203.0.113.10")
         request = requests.Request(
             "POST", "https://example.com/hook", data=b"{}"

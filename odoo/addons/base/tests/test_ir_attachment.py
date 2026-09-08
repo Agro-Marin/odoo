@@ -868,29 +868,39 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                     "login": "ira_c2_b",
                     "company_id": company_b.id,
                     "company_ids": [(6, 0, [company_b.id])],
-                    "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
+                    "group_ids": [
+                        (
+                            6,
+                            0,
+                            [
+                                self.env.ref("base.group_user").id,
+                                self.env.ref("base.group_partner_manager").id,
+                            ],
+                        )
+                    ],
                 }
             )
         )
 
-    def test_create_unique_dedups_an_attached_row_the_caller_cannot_read(self):
+    def test_create_unique_dedups_a_cross_company_row_on_a_writable_record(self):
         user_b = self._make_other_company_user()
         payload = b"ira-c2-shared-" + os.urandom(8)
-        parameter = self.env["ir.config_parameter"].search([], limit=1)
+        target = self.env["res.partner"].sudo().create({"name": "ira-c2 target"})
         seeded = self.Attachment.sudo().create(
             {
                 "name": "seed",
                 "mimetype": "text/plain",
                 "raw": payload,
-                "res_model": "ir.config_parameter",
-                "res_id": parameter.id,
+                "res_model": "res.partner",
+                "res_id": target.id,
                 "company_id": self.env.company.id,
             }
         )
         self.env.flush_all()
-        self.assertFalse(
-            self.Attachment.with_user(user_b).search([("id", "=", seeded.id)]),
-            "precondition: the seeded row is unreadable by the dedup caller",
+        self.assertNotEqual(
+            seeded.company_id,
+            user_b.company_id,
+            "precondition: the seeded row belongs to another company",
         )
         dedup_ids = self.Attachment.with_user(user_b).create_unique(
             [
@@ -898,8 +908,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                     "name": "dup",
                     "mimetype": "text/plain",
                     "raw": payload,
-                    "res_model": "ir.config_parameter",
-                    "res_id": parameter.id,
+                    "res_model": "res.partner",
+                    "res_id": target.id,
                     "company_id": user_b.company_id.id,
                 }
             ]
@@ -907,8 +917,24 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(
             dedup_ids,
             [seeded.id],
-            "sudo dedup reuses the unreadable cross-company row instead of duplicating",
+            "dedup reuses the cross-company row instead of duplicating the file",
         )
+
+    def test_create_unique_refuses_a_record_the_caller_cannot_write(self):
+        user_b = self._make_other_company_user()
+        parameter = self.env["ir.config_parameter"].search([], limit=1)
+        with self.assertRaises(AccessError):
+            self.Attachment.with_user(user_b).create_unique(
+                [
+                    {
+                        "name": "dup",
+                        "mimetype": "text/plain",
+                        "raw": b"ira-c2-unwritable-" + os.urandom(8),
+                        "res_model": "ir.config_parameter",
+                        "res_id": parameter.id,
+                    }
+                ]
+            )
 
     def test_create_unique_never_returns_another_users_private_row(self):
         user_b = self._make_other_company_user()

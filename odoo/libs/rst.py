@@ -32,13 +32,6 @@ class DropSystemMessages(Transform):
 
 
 class HtmlDocumentWriter(Writer):
-    """Renders a complete standalone HTML document (doctype/html/head/body),
-    not a fragment -- ``get_transforms`` only changes writer-contributed
-    post-processing, it cannot turn ``publish_string``'s output into a
-    fragment. Callers wanting a bare fragment need ``publish_parts(...)
-    ["fragment"]`` instead.
-    """
-
     def get_transforms(self) -> list[type[Transform]]:
         return [DropSystemMessages, writer_aux.Admonitions]
 

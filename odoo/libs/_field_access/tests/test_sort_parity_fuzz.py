@@ -206,10 +206,6 @@ def test_mixed_naive_aware_datetimes_raise_like_python():
 
 
 class _RandomOrder:
-    """A `__lt__` that is not a total order. `sorted()` returns some
-    permutation; Rust's `sort_by` would panic, and `PanicException` is a
-    `BaseException` that no `except Exception` sees."""
-
     def __init__(self, rng):
         self._rng = rng
 
@@ -253,11 +249,6 @@ def test_a_comparison_error_midway_propagates_like_python():
 
 
 class _ContrarianEq:
-    """Null-aware keys are `(rank, value)` tuples, whose comparison asks
-    `__eq__` before `__lt__`; the fallback must go through the same
-    protocol as the reference, which a hand-written `__lt__`-only
-    comparator did not."""
-
     def __init__(self, value):
         self.value = value
 

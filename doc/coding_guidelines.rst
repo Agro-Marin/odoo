@@ -1138,7 +1138,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   314
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 25,873
+§2.4.3   Non-test methods declared on a model class                 25,874
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               101
 §2.4.4   Model methods with an abolished verb behind a noun            137
@@ -1160,8 +1160,8 @@ Section  Population                                                  Count
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     177
-§2.4.10  ``_raise_*`` model methods                                     16
-§2.4.10  … raising unconditionally                                       9
+§2.4.10  ``_raise_*`` model methods                                     17
+§2.4.10  … raising unconditionally                                      10
 §2.4.11  ``_find_*`` methods                                            27
 §2.4.11  … performing an ORM read                                        4
 §2.4.11  … doing something else entirely                                22
@@ -2385,7 +2385,7 @@ grounds in ascending weight:
   happens, while ``self._raise_x_error()`` looks like every other call and the
   lines after it are unreachable in a way a reader has to deduce;
 * nothing types it. A function that never returns is ``NoReturn``; **0** of this
-  repository's **16** ``_raise_*`` model methods say so, and some claim
+  repository's **17** ``_raise_*`` model methods say so, and some claim
   ``-> None``, which is false.
 
 The cost is accepted -- the call site says the verb twice, and ``B904`` fires the

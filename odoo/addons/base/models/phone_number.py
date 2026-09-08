@@ -76,9 +76,6 @@ class PhoneNumber(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        # key each row the way the stored `sanitized` will be computed: the
-        # explicit country, else the first linked contact's -- a row keyed
-        # without it missed its own stored twin and tripped the unique index
         wanted = [
             self._sanitize_number(vals.get("number"), self._country_from_vals(vals))
             for vals in vals_list
@@ -90,8 +87,6 @@ class PhoneNumber(models.Model):
             )
         }
         to_create, by_position = [], {}
-        # the same number twice in one batch (a seed CSV listing it once per
-        # contact, say) is one record too: the later rows link onto the first
         first_position, deferred = {}, []
         for position, (vals, sanitized) in enumerate(
             zip(vals_list, wanted, strict=True)
@@ -132,8 +127,6 @@ class PhoneNumber(models.Model):
         return self.env["res.partner"].browse(partner_ids[:1]).country_id
 
     def _link_existing(self, vals: ValuesType) -> None:
-        # a shared number gains the new row's contacts; a SET from that row
-        # (what the CSV loader emits) must not drop the ones already linked
         relational = {
             fname: [
                 Command.link(id_)

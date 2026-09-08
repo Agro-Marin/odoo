@@ -1,26 +1,3 @@
-r"""Pre-migration: the ``documents`` module family becomes ``document``.
-
-Thirty-four modules, twenty-one models and every table they own are renamed.
-This lives in ``base`` rather than in each renamed module for one reason: a
-renamed module is a *new* module to the loader, so its own ``migrations/`` never
-runs -- ``ir_module_module`` still carries the old row, and the new name is
-merely uninstalled. ``base`` is upgraded before every other module.
-
-Twenty of the models share the ``documents.`` prefix and one does not
-(``ai_documents.sort``), so every mapping here is an explicit old-to-new pair
-rather than a prefix rule. That is also why the model renames are applied by
-joining against an ``unnest`` of the two lists: one statement per column,
-whatever the shape of the names.
-
-Nothing matches on a prefix. A stored value is rewritten only when it equals a
-known old model name in full, which is what makes discovering the columns safe:
-a column called ``model`` that holds a car model is untouched, because no car is
-called ``documents.document``. ``model_id`` is in the list because ``ir.filters``
-stores a model *name* in a column of that name; the text-type filter keeps every
-genuine many2one ``model_id`` out. Every statement is idempotent -- the guard stops
-matching once a row is rewritten.
-"""
-
 from odoo.db import schema
 from odoo.tools import SQL
 
@@ -88,7 +65,6 @@ MODELS = {
 OLD_MODELS = list(MODELS)
 NEW_MODELS = [MODELS[m] for m in OLD_MODELS]
 
-# longest first, so `documents_access_log` is matched before `documents_access`
 TABLES = dict(
     sorted(
         ((o.replace(".", "_"), n.replace(".", "_")) for o, n in MODELS.items()),
@@ -96,8 +72,6 @@ TABLES = dict(
     )
 )
 
-# Columns that hold a model name. Discovered rather than listed, so a module this
-# file never heard of is repointed too; exact equality is what makes that safe.
 MODEL_COLUMNS = (
     "model",
     "model_id",
@@ -109,7 +83,6 @@ MODEL_COLUMNS = (
     "res_model_name",
     "alias_model",
 )
-# Columns holding an expression that may embed a model name.
 EXPRESSION_COLUMNS = (
     ("ir_act_window", ("domain", "context")),
     ("ir_act_server", ("code",)),
@@ -120,7 +93,6 @@ EXPRESSION_COLUMNS = (
 
 
 def _new_table(name):
-    """Old table name rewritten, or None when it names nothing being renamed."""
     for old, new in TABLES.items():
         if name == old:
             return new
@@ -139,7 +111,6 @@ def _rename_table(cr, old, new):
     cr.execute(
         SQL("ALTER TABLE %s RENAME TO %s", SQL.identifier(old), SQL.identifier(new))
     )
-    # PostgreSQL keeps the old name for everything the table owns.
     cr.execute(
         "SELECT conname FROM pg_constraint WHERE conrelid = %s::regclass AND conname LIKE %s",
         [new, old + "\\_%"],
@@ -184,7 +155,6 @@ def _rename_model_tables(cr):
 
 
 def _rename_many2many(cr):
-    """Relation tables and columns the ORM derives from *both* model names."""
     cr.execute(
         """
         SELECT DISTINCT relation_table, column1, column2 FROM ir_model_fields
@@ -261,14 +231,13 @@ def _repoint_model_names(cr):
 
 
 def _rewrite_expressions(cr):
-    """Model names embedded in a stored domain, context or view arch."""
     for table, columns in EXPRESSION_COLUMNS:
         if not schema.table_exists(cr, table):
             continue
         for column in columns:
             if not schema.column_exists(cr, table, column):
                 continue
-            for old, new in MODELS.items():  # longest first is not needed: exact quotes
+            for old, new in MODELS.items():
                 for quote in ("'", '"'):
                     needle, replacement = f"{quote}{old}{quote}", f"{quote}{new}{quote}"
                     rewritten = SQL(
@@ -317,7 +286,6 @@ def _rename_modules(cr):
 
 
 def _rename_derived_xml_ids(cr):
-    """The two xml ids the ORM derives from a model name rather than from a file."""
     for old, new in TABLES.items():
         cr.execute(
             "UPDATE ir_model_data SET name = %s WHERE model = 'ir.model' AND name = %s",
@@ -341,12 +309,6 @@ def _rename_derived_xml_ids(cr):
 
 
 def _rename_config_parameters(cr):
-    """Keys the module reads by name, in rows `noupdate="1"` will not refresh.
-
-    Without this the module asks for `document.deletion_delay`, the row still
-    says `documents.deletion_delay`, and `get_param` quietly returns its default
-    -- a configured value replaced by a fallback, with nothing raised.
-    """
     cut = len("documents.") + 1
     cr.execute(
         r"""

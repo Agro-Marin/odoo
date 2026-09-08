@@ -236,8 +236,6 @@ class FSWatcherWatchdog(FSWatcherBase):
 if inotify:
 
     class _OwnedInotify(Inotify):
-        """Own descriptor closure independently of third-party finalization."""
-
         def __init__(self, **kwargs):
             try:
                 super().__init__(**kwargs)
@@ -262,8 +260,6 @@ if inotify:
                 self.close()
 
     class InotifyTrees(_InotifyTrees):
-        """Retain upstream event handling with explicit resource ownership."""
-
         def __init__(self, paths, mask, block_duration_s):
             self._mask = (
                 mask

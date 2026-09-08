@@ -264,8 +264,8 @@ class TestPartner(TransactionCaseWithUserDemo):
             ),
             (False, False),
             ("", False),
-            (" ", '"Balázs" <@ >'),
-            ("notanemail", '"Balázs" <@notanemail>'),
+            (" ", False),
+            ("notanemail", False),
         ]:
             with self.subTest(source=source):
                 new_partner.write({"email": source})

@@ -105,10 +105,6 @@ class _DirectBorrow(contextlib.ExitStack):
 
 
 class TestPermitAccounting(unittest.TestCase):
-    """Sixteen source pins collapsed into these: the permit, the checkout and
-    the failure counter are observable, so the tests drive both borrow paths
-    through both outcomes instead of reading which helper releases what."""
-
     def test_a_pooled_borrow_holds_one_permit_and_one_checkout_until_give_back(self):
         p = pool.ConnectionPool(maxconn=2)
         with _PooledBorrow(p) as h:

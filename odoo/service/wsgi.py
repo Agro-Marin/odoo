@@ -231,8 +231,6 @@ class RequestHandler(CommonRequestHandler):
 
 
 class _NonblockingRequestServer(Protocol):
-    """socketserver's accept-loop hook, omitted from its public type stubs."""
-
     def _handle_request_noblock(self) -> None: ...
 
 

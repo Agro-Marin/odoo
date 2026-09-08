@@ -102,8 +102,6 @@ def _is_host_blocked(hostname: str | None) -> bool:
             for info in socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
         }
     except OSError:
-        # Unresolvable hostnames are not a blocking concern here: the
-        # actual fetch will fail on its own resolution attempt.
         return False
     return not resolved or any(_is_ip_blocked(ip) for ip in resolved)
 

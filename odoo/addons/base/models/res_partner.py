@@ -1006,8 +1006,10 @@ class ResPartner(models.Model):
                 partner.email_formatted = fmt(
                     (partner.name or "", ",".join(emails_normalized))
                 )
-            else:
+            elif "@" in email:
                 partner.email_formatted = fmt((partner.name or "", email))
+            else:
+                partner.email_formatted = False
 
     @api.constrains("barcode")
     def _check_barcode_unicity(self) -> None:

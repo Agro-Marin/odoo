@@ -15,9 +15,6 @@ def _repoint_foreign_keys(cr, survivor, duplicates):
         """
     )
     for table, column in cr.fetchall():
-        # On a relation table the column is half of the primary key, so a row
-        # whose partner already points at the survivor would collide once it
-        # is repointed. Drop those first; the survivor already carries them.
         cr.execute(
             """
             SELECT a.attname
@@ -71,8 +68,6 @@ def _repoint_foreign_keys(cr, survivor, duplicates):
                 d=duplicates,
             )
         )
-    # A follower is unique per (record, party), so the ones the survivor
-    # already has are dropped rather than moved onto it.
     cr.execute(
         """
         DELETE FROM mail_followers dup

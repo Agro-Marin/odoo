@@ -11,19 +11,6 @@ _logger = logging.getLogger(__name__)
 
 
 class TestOpaqueFieldPreservesValue(BaseCase):
-    """`type="html"`/`type="xml"` field content is read back verbatim, not
-    normalized the way whitespace between structural tags is. A field
-    authored on one physical line must stay on one line: splitting it across
-    the opening tag, its content and the closing tag inserts a newline and
-    indentation that becomes part of the field's own value.
-
-    `daaa18e8e39` did exactly that to 24 `type="html"` fields across 17
-    files (mail templates, activity notes, forum posts) by running the
-    formatter before this test existed -- `test_mail`'s tracking-template
-    body carried a trailing `"\\n        "` no assertion expected until the
-    2026-09-03 fix.
-    """
-
     def _field_value(self, xml: str) -> str:
         record = etree.fromstring(xml.encode())
         field = record.find("field")

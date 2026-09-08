@@ -1,25 +1,3 @@
-r"""Pre-migration: absorb ``stock_blocked_location`` into ``stock``.
-
-The blocking feature is no longer a separate addon -- its fields, groups,
-enforcement and views now ship inside ``stock`` itself. The columns are
-untouched (same table, same names), so all that has to move is ownership.
-
-It runs from ``base`` rather than from ``stock`` because a module row naming a
-directory that no longer exists is fatal earlier than ``stock``'s own
-pre-migration: ``module_graph.extend`` drops the missing module *and everything
-that depends on it*, so ``marin`` would silently stop loading. ``base`` is
-loaded and migrated before the graph is extended with any other module, which is
-the only point where deleting the row still prevents that.
-
-The three inherited views must be **deleted**, not re-homed. Their arch adds
-``block_type`` to a form that now declares it natively, so a survivor makes the
-combined arch carry the field twice and the upgrade fails on view validation --
-and ``_process_end`` only garbage-collects them *after* the data files load,
-which is too late.
-
-Every statement is idempotent: each guard stops matching once its row is gone.
-"""
-
 import logging
 import typing
 
@@ -74,8 +52,6 @@ def _drop_inherited_views(cr: "Cursor") -> None:
 
 
 def _rehome_model_data(cr: "Cursor") -> None:
-    # ir_model_data is UNIQUE (module, name); a name stock already owns wins,
-    # so the absorbed duplicate goes rather than blocking the rename.
     cr.execute(
         """
         DELETE FROM ir_model_data d
@@ -93,9 +69,6 @@ def _rehome_model_data(cr: "Cursor") -> None:
 
 
 def _rehome_reflection(cr: "Cursor") -> None:
-    # ir_model_constraint.module and ir_model_relation.module both cascade on
-    # delete, so anything left pointing at the absorbed module would vanish with
-    # it and have to be reflected again on the next boot.
     for table, unique_by in (
         ("ir_model_constraint", "name"),
         ("ir_model_relation", "name"),

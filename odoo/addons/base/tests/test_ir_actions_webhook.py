@@ -49,7 +49,7 @@ class TestWebhookTimeout(WebhookCase):
 
     def test_the_configured_timeout_reaches_the_request(self):
         action = self._action(webhook_timeout=12)
-        with patch.object(requests, "post") as post:
+        with patch.object(requests.Session, "post") as post:
             self._run(action)
         self.assertEqual(post.call_args.kwargs["timeout"], 12)
 
@@ -57,7 +57,9 @@ class TestWebhookTimeout(WebhookCase):
     def test_a_timeout_names_the_action_and_says_what_to_do(self):
         action = self._action()
         with (
-            patch.object(requests, "post", side_effect=requests.exceptions.ReadTimeout),
+            patch.object(
+                requests.Session, "post", side_effect=requests.exceptions.ReadTimeout
+            ),
             self.assertLogs(_MODULE, level="WARNING") as logs,
         ):
             self._run(action)
@@ -72,7 +74,7 @@ class TestWebhookTimeout(WebhookCase):
         action = self._action()
         with (
             patch.object(
-                requests,
+                requests.Session,
                 "post",
                 side_effect=requests.exceptions.ConnectionError("refused"),
             ),
@@ -153,7 +155,7 @@ class TestWebhookNeverLogsItsSecret(WebhookCase):
     def _captured(self, side_effect=None, level="DEBUG"):
         action = self._action()
         with (
-            patch.object(requests, "post", side_effect=side_effect) as post,
+            patch.object(requests.Session, "post", side_effect=side_effect) as post,
             self.assertLogs(_MODULE, level=level) as logs,
         ):
             if side_effect is None:
@@ -209,7 +211,7 @@ class TestWebhookNeverLogsItsSecret(WebhookCase):
     def test_a_rollback_logs_no_token(self):
         action = self._action()
         with (
-            patch.object(requests, "post") as post,
+            patch.object(requests.Session, "post") as post,
             self.assertLogs(_MODULE, level="WARNING") as logs,
         ):
             action.with_context(

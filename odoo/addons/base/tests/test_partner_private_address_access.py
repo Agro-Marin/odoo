@@ -5,17 +5,6 @@ from odoo.tests.common import TransactionCase
 
 @tagged("post_install", "-at_install")
 class TestPrivateAddressAccess(TransactionCase):
-    """A private address is a row, so a row rule is what guards it.
-
-    Every read goes through `with_user`. A `TransactionCase` runs as superuser
-    and `env.su` skips record rules entirely, so the same assertions written
-    without `with_user` pass whether or not the rule exists.
-
-    The field-level `groups=` that `hr` puts on `private_street` and its five
-    siblings gates the ACCESSOR. It cannot gate this model, which is what
-    `search` reaches -- and that is the whole reason this rule exists.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

@@ -55,15 +55,9 @@ MIN_DELTA_BEFORE_DEACTIVATION = timedelta(days=7)
 TRIGGER_RETENTION_PERIOD = timedelta(weeks=1)
 PROGRESS_RETENTION_PERIOD = timedelta(weeks=1)
 
-# Advisory-lock namespace for cron mutual exclusion. Any stable int32 does; it
-# only has to be distinct from other advisory-lock users in this database.
 CRON_ADVISORY_LOCK_NAMESPACE = 0x0DD0C401
 
-# How long the completion row may take to write before it is worth a line in the
-# log. It is a single-row UPDATE by primary key: past a second or two it is not
-# slow, it is waiting on a lock, and that is the shape of the bug this constant
-# exists to catch a repeat of.
-SLOW_COMPLETION_WRITE = 5.0  # seconds
+SLOW_COMPLETION_WRITE = 5.0
 
 NOTIFY_PENDING_KEY = "ir.cron.notify"
 
@@ -476,22 +470,6 @@ class IrCron(models.Model):
     def _acquire_job(
         cr: BaseCursor, job_id: int, *, include_not_ready: bool = False
     ) -> CronJob | None:
-        # Mutual exclusion between cron workers, held for this transaction and
-        # therefore for the whole job -- the same lifetime as the row lock it
-        # replaces, and the same contract: None here means another worker has
-        # the job, which the caller already treats as "skip".
-        #
-        # It cannot be a row lock. The completion bookkeeping is an UPDATE of
-        # this very ir_cron row, issued from the job's *other* cursor, so a
-        # `FOR NO KEY UPDATE` taken here blocks that UPDATE until this
-        # transaction ends -- and this transaction does not end until the job
-        # whose bookkeeping is blocked has finished. Every job deadlocked
-        # against itself, and the only reason any cron completed is that the
-        # server's `idle_in_transaction_session_timeout` eventually killed this
-        # cursor and let the UPDATE through; the failed commit then abandoned
-        # the pass with `nextcall` unwritten, so the job stayed at the head of
-        # the queue and starved every cron behind it. An advisory lock excludes
-        # the other workers without conflicting with a write to the row.
         cr.execute(
             SQL(
                 "SELECT pg_try_advisory_xact_lock(%s, %s)",
@@ -559,15 +537,6 @@ class IrCron(models.Model):
         failed_by_timeout = job.timed_out_counter >= CONSECUTIVE_TIMEOUT_FOR_FAILURE
 
         if not failed_by_timeout:
-            # The completion bookkeeping (reschedule/failure vals) is
-            # computed and committed by _run_job_within_budget itself, on
-            # the same job_cr cursor as the job body's own last unit of
-            # work (INF-2): they must land together. Recomputing and
-            # writing it here afterwards, on cron_cr, left a window where
-            # an exception between _run_job_within_budget returning and
-            # cron_cr's own commit reverted only the bookkeeping -- the
-            # job body's side effects, already committed via job_cr,
-            # stayed done, and the next pass ran the same job again.
             cls._run_job_within_budget(job, deadline=deadline)
             return
 
@@ -746,8 +715,6 @@ class IrCron(models.Model):
                 time.monotonic() - start_time,
             )
 
-            # Written and committed on this same job_cr, together with the
-            # job body's own last unit of work (INF-2) -- see _run_job.
             cls._apply_job_completion(job_cr, cron, job, status)
 
         return status
@@ -981,12 +948,6 @@ class IrCron(models.Model):
             self.lock_for_update(allow_referencing=allow_referencing)
         except LockError:
             self._raise_currently_executing()
-        # The row lock on its own no longer answers "is this cron running": the
-        # runner holds an advisory lock instead, precisely so that its own
-        # completion write is not blocked by its own claim on the row. Asking
-        # for that same lock is what detects a run in progress, and holding it
-        # for this transaction is what keeps a run from starting underneath an
-        # edit -- the two halves the row lock used to provide together.
         for record in self:
             self.env.cr.execute(
                 SQL(

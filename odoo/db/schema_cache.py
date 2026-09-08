@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from types import MappingProxyType
+
 
 class TransactionSchemaCache:
     __slots__ = ("_column_types", "_id_sequences", "_locked_tables")
@@ -15,6 +18,10 @@ class TransactionSchemaCache:
             f" column_types={len(self._column_types)},"
             f" locked={len(self._locked_tables)})"
         )
+
+    @property
+    def locked_tables(self) -> Mapping[str, int]:
+        return MappingProxyType(self._locked_tables)
 
     def is_locked(self, table: str) -> bool:
         return table in self._locked_tables

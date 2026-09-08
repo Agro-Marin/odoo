@@ -32,11 +32,6 @@ def _recipient_is_live(cr):
 
 
 def _hand_over(cr):
-    # base no longer declares res.partner.age.range, so every xmlid still filed
-    # under base is one ir.model.data._process_end would delete at the end of
-    # this upgrade -- taking the ir.model row, and with it the table, along.
-    # Filing them under partner before reflection runs is what turns a drop
-    # into a hand-over: partner then finds the rows and reuses them.
     cr.execute(
         """
         DELETE FROM ir_model_data held
@@ -73,10 +68,6 @@ def migrate(cr, version):
     if not _recipient_is_live(cr):
         cohorts = _count_cohorts(cr)
         if cohorts:
-            # ir.model._drop_table skips a model the registry no longer
-            # knows, so the cohorts outlive the upgrade in an orphaned
-            # table. What does not survive is res_partner.age_range_id:
-            # base drops the column, and every classification with it.
             _logger.warning(
                 "base 1.23: res.partner.age.range moved to the %s module, which "
                 "is not installed here; base is about to drop "

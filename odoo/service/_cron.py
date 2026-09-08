@@ -203,15 +203,6 @@ class ReconnectBackoff:
 
 
 class CronListener:
-    """One LISTEN connection: cursor, selector and reconnects, owned together.
-
-    Both cron loops used to wire these by hand, and the pieces could disagree:
-    a reconnect that opened a new cursor but failed before swapping the
-    selector left the loop selecting on one connection while draining another.
-    Held here, the cursor and the selector are created and destroyed as a unit
-    and no such state exists.
-    """
-
     def __init__(
         self,
         channel: str,

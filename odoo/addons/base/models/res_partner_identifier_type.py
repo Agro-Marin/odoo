@@ -9,16 +9,6 @@ _NON_ALPHANUMERIC = re.compile(r"[^\w&]+|_+")
 
 
 class ResPartnerIdentifierType(models.Model):
-    """A kind of identifier a contact can carry: RFC, CURP, SIREN, GLN…
-
-    The dimension only. What a given contact's identifier *is* lives in
-    ``res.partner.identifier``, one row per contact per type, because an
-    identifier's value is free text unique to its holder rather than a choice
-    from a shared vocabulary. That is the one point where this family departs
-    from ``mixin.attribute``, whose value model is a catalog several subjects
-    select from.
-    """
-
     _name = "res.partner.identifier.type"
     _inherit = ["mixin.catalog"]
     _description = "Partner Identifier Type"

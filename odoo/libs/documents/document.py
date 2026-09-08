@@ -63,8 +63,6 @@ def _clamp(text: str, name: str, limit: int = TEXT_MAX_CHARS) -> str:
 
 
 class Document:
-    """Bytes, what they are, and what can be derived from them."""
-
     def __init__(
         self,
         data: bytes,

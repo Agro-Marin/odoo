@@ -1500,13 +1500,6 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
         return job
 
     def test_completion_bookkeeping_lands_on_the_job_cursor_not_the_caller(self):
-        """INF-2: the completion bookkeeping (lastcall/nextcall) must commit
-        on the SAME cursor as the job body's own last unit of work
-        (job_cr), not on the caller's cron_cr -- deferred there, an
-        exception between _run_job returning and the caller's own commit
-        reverted only the bookkeeping while the job body's already-
-        committed side effects stayed done, so the next pass ran the job
-        again."""
         seen_cursor_ids = []
         real_write = self.registry["ir.cron"]._write_job_row
 

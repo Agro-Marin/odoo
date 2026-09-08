@@ -9,7 +9,9 @@ from typing import TYPE_CHECKING, Any, NoReturn, cast
 
 from odoo.db import BaseCursor, FunctionStatus
 from odoo.libs.collections import Collector
+from odoo.libs.lru import LRU
 from odoo.tools import OrderedSet
+from odoo.tools.constants import REGISTRY_CACHES
 
 from . import decorators as api
 from . import registration
@@ -36,14 +38,6 @@ class InMemorySqlNotSupported(NotImplementedError):
 
 class InMemoryRecordRulesNotSupported(NotImplementedError):
     pass
-
-
-class _GenerationDict(dict):
-    generation = 0
-
-    def clear(self) -> None:
-        self.generation += 1
-        super().clear()
 
 
 class _TestBase(AbstractModel):
@@ -242,7 +236,10 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         self.field_setup_dependents: Collector = Collector()
         self.many2one_company_dependents: Collector = Collector()
 
-        self.ormcache_lrus: dict[str, dict] = defaultdict(_GenerationDict)
+        self.ormcache_lrus: defaultdict[str, LRU] = defaultdict(
+            lambda: LRU(REGISTRY_CACHES["default"]),
+            {name: LRU(size) for name, size in REGISTRY_CACHES.items()},
+        )
 
         self.ready = True
 

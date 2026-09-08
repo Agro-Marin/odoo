@@ -1,17 +1,3 @@
-"""Source-text pins over odoo.db.
-
-Every test here reads SOURCE, through inspect.getsource, ast.parse or a code
-object's co_names, and asserts on its shape: which helper a method calls, that
-nothing follows a guarded block, that two counters are read under one lock.
-None of them exercises the pool, the cursor or the probe.
-
-A red here means "you moved code", not "you broke the pool": the observable
-half of these invariants lives in test_invariants.py, and a refactor that keeps
-that file green while turning this one red has changed a shape this file was
-pinning, which is a decision to record, not a regression to revert. Re-derive
-the pin against the new shape, or delete it if the shape was the point.
-"""
-
 import ast
 import inspect
 import pathlib

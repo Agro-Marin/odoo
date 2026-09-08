@@ -260,8 +260,6 @@ class HttpCase(TransactionCase):
     def _wait_for_requests_unless_already_failing(
         self, exc_type: type[BaseException] | None, exc: object, tb: object
     ) -> None:
-        # A leaked request is a real defect and says so, but raising it over a
-        # test that is already failing would replace the message that matters.
         self._wait_remaining_requests(strict=exc_type is None)
 
     def logout(self, keep_db: bool = True) -> None:

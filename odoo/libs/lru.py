@@ -119,11 +119,6 @@ class LRU[K, V](MutableMapping[K, V]):
             self._map.clear()
 
     def set_if_generation(self, key: K, value: V, expected_generation: int) -> bool:
-        """Atomically store ``value`` under ``key`` iff the generation has not
-        advanced past ``expected_generation`` since it was read by the caller.
-
-        Returns whether the value was stored.
-        """
         with self._lock:
             if self._generation != expected_generation:
                 return False

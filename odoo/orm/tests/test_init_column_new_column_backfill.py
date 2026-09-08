@@ -43,9 +43,6 @@ def _model(default):
 
 
 def test_a_new_boolean_column_backfills_every_row():
-    # create_column gives a boolean column DEFAULT false, so a `WHERE active IS
-    # NULL` backfill matched nothing and the main company stayed inactive on a
-    # fresh install: every user creation then failed its company check.
     model = _model(default=True)
     model._init_column("active", new_column=True)
     assert model.env.cr.executed == [

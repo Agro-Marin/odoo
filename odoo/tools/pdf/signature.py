@@ -53,12 +53,7 @@ def _escape_pdf_literal(text: str) -> str:
 
 
 class PdfSignatureError(Exception):
-    """Raised when a PDF signing attempt with a real key/certificate fails.
-
-    Not raised when signing is simply not configured (no company
-    certificate) — that case still returns None, preserving the
-    existing silent no-op contract for the common case.
-    """
+    pass
 
 
 class _SignatureAlgorithm(NamedTuple):

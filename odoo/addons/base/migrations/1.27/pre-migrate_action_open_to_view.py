@@ -1,34 +1,3 @@
-r"""Pre-migration: follow the ``action_open_*`` -> ``action_view_*`` sweep.
-
-The refactor renamed the button methods behind 94 stored view references and
-shipped no view migration for any of them. None of the old names survives
-anywhere in the tree, so each is a view that stops combining the moment its
-parent reloads -- "``X`` is not a valid action on ``<model>``", or "Element
-<button name='X'> cannot be located in parent view" where the name was used as
-a locator.
-
-The sweep spans all three checkouts (core, enterprise and ``agromarin``) and
-94 names, so it runs from ``base``: a view breaks when its *parent* reloads,
-not when its own module does, and only ``base`` is guaranteed to precede all of
-them. Every one of these views is rewritten from its own data file later in the
-same upgrade -- this only has to carry them through that window.
-
-Whole-word (``\y``) rewriting over ``ir_ui_view`` is safe because every old name
-listed here is extinct in the tree; the mapping was derived by scanning the
-stored arches and keeping only names with no occurrence left.
-
-It also drops the views owned by the four ``*_extract`` modules whose code this
-refactor deletes while leaving them ``installed`` (``account_extract``,
-``account_bank_statement_extract``, ``iap_extract``,
-``hr_recruitment_extract``). Those views inherit parents that *do* reload, and
-nothing will ever recreate them, so unlike everything else here they have to go
-rather than be rewritten.
-
-Rehearsal note: upstream, each rename belongs in the renaming module's own
-pre-migration, and the orphaned modules want a real uninstall decision rather
-than a view sweep.
-"""
-
 import logging
 import typing
 
@@ -134,7 +103,6 @@ RENAMES = {
     "action_print_technical": "action_view_technical_sheet",
 }
 
-# Installed, but their directories are gone from every addons path.
 ORPHANED_MODULES = (
     "account_extract",
     "account_bank_statement_extract",

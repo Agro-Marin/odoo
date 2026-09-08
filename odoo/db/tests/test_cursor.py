@@ -390,10 +390,6 @@ class TestTheDiscardPathTellsAnOutageFromAFault(unittest.TestCase):
 
 
 class TestPipelineAccountsForTheSyncCost(unittest.TestCase):
-    """Real-Postgres check: pipeline mode only times each queued statement's
-    client-side queue time, not the round trip paid at the implicit sync
-    when the pipeline exits. That gap must land in query_time, not vanish."""
-
     DBNAME = "test_cursor_pipeline_sync_cost"
 
     @classmethod

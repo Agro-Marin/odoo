@@ -107,13 +107,6 @@ def _is_reusable_checksum_entry(entry: object, digest: str) -> typing.TypeGuard[
 
 
 def _overrides_another_module(entry: dict, module: str) -> bool:
-    """Does this file write records another module declares?
-
-    Such a file is an override, and an override says nothing on its own: its
-    answer is that it runs *after* the file it overrides. The stored digest
-    witnesses the bytes, never the position, so it cannot tell an override that
-    is still standing from one a later run of the definer has since undone.
-    """
     return any(xmlid.split(".", 1)[0] != module for xmlid in entry["xmlids"])
 
 

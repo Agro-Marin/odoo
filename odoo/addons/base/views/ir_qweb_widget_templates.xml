@@ -80,8 +80,6 @@
                         title="Phone" />
                     <span class="o_force_ltr" itemprop="telephone" t-esc="phone" />
                 </div>
-                <!-- Safari on iOS needs a telephone itemprop even when there is no
-                    number to put in it; see test_value_to_html_without_phone. -->
                 <div t-if="not (phone and 'phone' in fields)" itemprop="telephone" />
                 <div
                     class="d-flex align-items-baseline gap-1"

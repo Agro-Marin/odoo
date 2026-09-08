@@ -1,5 +1,3 @@
-"""Discover in-memory search dependencies without invoking SQL callbacks."""
-
 from collections import defaultdict
 
 from ..domain.ast import Domain, DomainCondition, DomainCustom, DomainNary, DomainNot

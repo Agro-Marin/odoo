@@ -4,24 +4,12 @@ from odoo.db import schema
 
 _logger = logging.getLogger(__name__)
 
-# The §2.4 sweep renamed every abolished-verb definition in the core package.
-# Source is rewritten by the ordinary upgrade; a database also holds Python in
-# columns, and the ``_for_xml_id`` rename established both that this is a
-# binding of the third kind and which columns hold it.
 _STORED_PYTHON = (
     ("ir_act_server", "code"),
     ("ir_actions_server_history", "code"),
     ("ir_model_fields", "compute"),
 )
 
-# METHODS ONLY, and that is the whole of the safety argument. Stored Python runs
-# under safe_eval with env / record / model in scope and no import, so a renamed
-# module-level function (validate_db_name, normalize_url, verify_hash_signed and
-# 13 more) is not reachable from it and rewriting its spelling could only ever
-# hit a name that belongs to somebody else. A method is reachable exactly one
-# way -- attribute access -- which is why every pattern below is anchored on a
-# leading dot rather than on a bare word boundary: `.delete_rows` is ours,
-# `delete_rows` on its own is a local of the author's that we must not touch.
 _RENAMES = (
     ("_assign_new", "_update_new"),
     ("_assign_protected", "_update_protected"),
@@ -89,19 +77,6 @@ def _rewrite(cr, table, column):
 
 
 def _survivors(cr, table, column):
-    """Rows still reaching an old method by a route the rewrite cannot take.
-
-    Two of them, and deliberately not a third. Python accepts whitespace around
-    the dot (`record . name()`, or a continuation across lines), and a name can
-    be reached through getattr with a string literal. Both are rare enough not to
-    rewrite blind and too damaging to leave silent.
-
-    A BARE OCCURRENCE IS NOT ONE OF THEM. `delete_rows = 1` is the author's own
-    local and the rewrite leaves it alone on purpose, so reporting it would ask
-    an operator to review the one thing that is certainly correct -- and these
-    names are common enough as locals (`delete_rows`, `make_key`, `update_spec`)
-    that the noise would bury the two real cases.
-    """
     found = {}
     for old, _new in _RENAMES:
         cr.execute(

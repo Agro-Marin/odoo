@@ -5,15 +5,6 @@ from odoo.exceptions import ValidationError
 
 
 class ResPartnerIdentifier(models.Model):
-    """One identifier a contact carries: this type, this value.
-
-    The value is free text belonging to one contact, which is why this is not
-    a ``mixin.attribute.value``: that model is a vocabulary several subjects
-    select from, name-unique within its attribute and reachable by Many2many.
-    Two contacts pointing at one identifier row is precisely what duplicate
-    detection exists to find, so it must not be expressible.
-    """
-
     _name = "res.partner.identifier"
     _description = "Partner Identifier"
     _order = "type_id, id"

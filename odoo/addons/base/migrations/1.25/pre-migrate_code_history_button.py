@@ -1,26 +1,3 @@
-r"""Pre-migration: follow the ``action_open_code_history`` button rename.
-
-``ir.actions.server``'s code-history button is now
-``action_view_code_history`` (``ir_actions_server.py``, and the button itself in
-``views/ir_actions_views.xml``). ``base.ir_cron_view_form`` xpaths that button by
-name to drop it from the cron form, and the new file already names the new one.
-
-The stored arch is what breaks the upgrade. ``base`` loads
-``views/ir_actions_views.xml`` before ``views/ir_cron_views.xml``, and writing
-the parent revalidates every view inheriting it -- so the *old* cron arch, still
-xpathing ``action_open_code_history``, is checked against the *new* parent that
-no longer has that button, and validation fails with "Element ... cannot be
-located in parent view" before the file that would have fixed the child is ever
-read. ``_process_end`` cleans up superseded views only after data loading, which
-is likewise too late.
-
-Rewriting the name in place is enough: both stored views are overwritten by
-their own data files later in this same upgrade, so this only has to survive
-the window between the two.
-
-Idempotent: the ``LIKE`` guard stops matching once the rename has been applied.
-"""
-
 import logging
 import typing
 

@@ -1,24 +1,3 @@
-"""A fixture model belongs to a ``test_*`` module, not to the module it exercises.
-
-A model whose ``_name`` carries ``test`` as a namespace segment -- ``a.test.b``,
-never merely ``a.b.test`` -- exists to be written to by a suite. Declaring one
-from a production module registers it unconditionally: every customer database
-that installs the module gets its table, its ``ir.model`` row, its
-``ir.model.fields`` rows and whatever ACL surface follows, forever, for a
-consumer that only ever runs under ``--test-enable``.
-
-The framework's own convention is the opposite one and predates the fork:
-``test_orm``, ``test_base_order``, ``test_date_range`` and ``test_automation``
-are separate modules, so nothing installs their models by accident. This gate
-holds that line at zero.
-
-The shape stops at the *last* segment on purpose. ``mailing.mailing.test``,
-``mailing.sms.test`` and ``accounting.assert.test`` are shipped features -- a
-test mailing, a test SMS, an accounting consistency test -- where ``test`` is
-the domain noun rather than a namespace, and they are named that way in menus
-their users read.
-"""
-
 import ast
 import logging
 import os

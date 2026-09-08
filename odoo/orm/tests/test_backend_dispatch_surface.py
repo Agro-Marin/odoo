@@ -153,10 +153,6 @@ def test_lossy_sites_are_spelled_out():
             assert len(note) > 60, f"{site}: LOSSY note must say what is lost"
 
 
-# What a model still turns into SQL itself: a field, an order or a related path
-# becomes SQL *text* here, and Domain._to_sql and read_group call these too.
-# The statements that move rows -- INSERT, UPDATE, DELETE, SELECT ... FOR
-# UPDATE, the m2m-table writes -- are the backend's, on both implementors.
 QUERY_COMPILERS = frozenset(
     {
         "_field_to_sql",

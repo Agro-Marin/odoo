@@ -1,28 +1,3 @@
-r"""Pre-migration: ``res.partner.category_id`` becomes ``res.partner.tag_ids``.
-
-Step 2 of the tag rename. 1.30 renamed the MODEL; this renames the FIELD, which
-was left alone there because ``category_id`` is declared by some thirty unrelated
-models and needed its own pass.
-
-The name was wrong twice over: it said "category" for a model that is now
-``res.partner.tag``, and it was SINGULAR for a Many2many -- `category_id` holding
-a set of tags, presented in the UI as "Tags" and read by consumers as a
-recordset. ``tag_ids`` fixes both.
-
-WHY PRE. The Many2many has no column on ``res_partner``; its data lives in
-``res_partner_res_partner_tag_rel``, whose second column is named after the
-field. Renaming the field in code makes the reloaded registry derive
-``tag_id`` and ADD it empty beside the populated ``category_id`` -- every tag on
-every partner stranded in a column nothing reads, with no error. The column has
-to move before the ORM looks.
-
-``ir_model_fields`` is renamed rather than left to be rebuilt for the same
-reason: the ORM would otherwise treat the ``category_id`` row as an orphan of a
-field the code no longer declares.
-
-Idempotent: each guard stops matching once the rename has happened.
-"""
-
 import logging
 import typing
 

@@ -104,6 +104,7 @@ class TestPartnerFormatAddress(FormatAddressCase):
         self.assertLess(order.index("city"), order.index("state_id"))
 
     def test_address_view_extra_class_on_placeholder(self):
+        self.env.company.country_id = self.env.ref("base.us")
         address_view = self.View.create(
             {
                 "name": "addr",

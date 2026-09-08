@@ -1,10 +1,3 @@
-"""The accelerated primitives, native when odoo_rust is importable and pure Python otherwise.
-
-One seam: every call site imports from here, so whether the process runs on the
-extension is decided once. The pure versions are the references the parity and
-timing tests measure the extension against; ``NATIVE`` says which side is live.
-"""
-
 from __future__ import annotations
 
 import csv

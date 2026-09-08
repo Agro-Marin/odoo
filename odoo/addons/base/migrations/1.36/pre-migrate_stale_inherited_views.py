@@ -1,29 +1,8 @@
-"""Pre-migration: the inheriting views that still name a field this release removes.
-
-A view's combined arch is built by applying *every* extension view of its root,
-so one stale child poisons the validation of each of its siblings, not just of
-itself. That validation fires the moment any view in the tree is written --
-which happens while the field's own module loads its view files, before the
-modules owning the other children are upgraded and can replace their archs. The
-run aborts with "Element cannot be located in parent view" or "Field ... does
-not exist", naming a view whose source was corrected in this very release.
-
-The cleanup therefore cannot live in the module that removes the field: by the
-time that module runs, the tree has already been validated. It lives here
-because `base` is the only module guaranteed to load before all of them, which
-is why this one list spans several modules' fields.
-
-Only views carrying an xmlid are dropped, since those are the ones a module
-puts back from corrected source later in the same run. A hand-made view is
-reported and left alone.
-"""
-
 import logging
 
 _logger = logging.getLogger(__name__)
 
 REMOVED_FIELDS = (
-    # a phone number and a bank account became records every contact can share
     ("res.partner", "phone"),
     ("res.partner", "mobile"),
     ("res.users", "work_phone"),
@@ -42,19 +21,14 @@ REMOVED_FIELDS = (
     ("hr.applicant", "partner_phone_sanitized"),
     ("product.msds", "emergency_phone"),
     ("res.partner", "msds_emergency_phone"),
-    # the employee's work channels are its party's
     ("hr.employee", "work_phone"),
     ("hr.employee", "mobile_phone"),
     ("hr.employee", "private_phone"),
     ("hr.employee", "emergency_phone"),
-    # an asset lot carries a resource.asset
     ("account.asset", "asset_type_kind"),
     ("account.return.type", "payment_partner_id"),
 )
 
-# Models this release retires. A view still declared on one of them fails with
-# "Model not found" as soon as anything in its tree is validated, and the module
-# that owns it redeclares it on the surviving model later in the same run.
 RETIRED_MODELS = ("hr.employee.public",)
 
 
@@ -81,9 +55,7 @@ def migrate(cr, version):
                 view_id,
             )
             continue
-        cr.execute(
-            "DELETE FROM ir_ui_view WHERE inherit_id = %s", (view_id,)
-        )
+        cr.execute("DELETE FROM ir_ui_view WHERE inherit_id = %s", (view_id,))
         cr.execute(
             "DELETE FROM ir_model_data WHERE model = 'ir.ui.view' AND res_id = %s",
             (view_id,),
@@ -116,7 +88,7 @@ def migrate(cr, version):
              GROUP BY stale.id
              ORDER BY max(stale.depth) DESC
             """,
-            (model, 'name=[\'"]%s[\'"]' % field),
+            (model, "name=['\"]%s['\"]" % field),
         )
         rows = cr.fetchall()
         doomed = []
@@ -133,9 +105,11 @@ def migrate(cr, version):
                 )
         if not doomed:
             continue
-        # Deepest first: ir_ui_view.inherit_id is ON DELETE RESTRICT.
         for view_id in doomed:
-            cr.execute("DELETE FROM ir_model_data WHERE model = 'ir.ui.view' AND res_id = %s", (view_id,))
+            cr.execute(
+                "DELETE FROM ir_model_data WHERE model = 'ir.ui.view' AND res_id = %s",
+                (view_id,),
+            )
             cr.execute("DELETE FROM ir_ui_view WHERE id = %s", (view_id,))
         _logger.info(
             "stale views: dropped %s inheriting views that still named %s.%s; "

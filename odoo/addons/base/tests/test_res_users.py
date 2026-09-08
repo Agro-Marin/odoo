@@ -814,9 +814,6 @@ class TestLoginCooldown(TransactionCase):
         icp = self.env["ir.config_parameter"].sudo()
         icp.set_param("base.login_cooldown_after", "2")
         icp.set_param("base.login_cooldown_duration", "60")
-        # The cooldown state is persisted through its own committed cursor
-        # (AUTH-2), independently of this test's transaction, so it must be
-        # cleaned up the same way rather than relying on rollback.
         self.addCleanup(self._purge_cooldown_rows)
 
     def _purge_cooldown_rows(self):
@@ -925,9 +922,6 @@ class TestLoginCooldown(TransactionCase):
         with patch(self._REQUEST, self._request("203.0.113.7")):
             self._fail_once(users)
 
-        # Naive UTC, like the production code writes: an aware value here
-        # would be skewed by the session's TimeZone on the implicit cast to
-        # this "timestamp without time zone" column.
         now = datetime.now(UTC).replace(tzinfo=None)
         stale = now - timedelta(seconds=120)
         stale_sources = [f"198.51.100.{i}" for i in range(4)]
@@ -965,9 +959,6 @@ class TestLoginCooldown(TransactionCase):
 class TestLoginTimingSideChannel(TransactionCase):
     @mute_logger("odoo.addons.base.models.res_users")
     def test_unknown_user_pays_a_dummy_hash_check(self):
-        """AUTH-1: an unknown login must not be rejected before paying the
-        same order-of-magnitude cost as a wrong-password rejection, or the
-        two are distinguishable by response time."""
         from odoo.addons.base.models.res_users import _DUMMY_PASSWORD_HASH
 
         with patch(

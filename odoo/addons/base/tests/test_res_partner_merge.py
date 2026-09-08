@@ -308,13 +308,6 @@ class TestMergePartner(TransactionCase):
 
 
 class SidecarTableCase(TransactionCase):
-    """A table with a partner foreign key and a unique constraint on it.
-
-    The merge wizard drops a source row whose re-point would violate such a
-    constraint and keeps every other one. No shipped model has that shape any
-    more, so the tests below build it.
-    """
-
     def _rows_of(self, ids):
         self.env.cr.execute(
             "SELECT code, partner_id FROM test_merge_sidecar WHERE id = ANY(%s)"

@@ -33,8 +33,6 @@ _REFERENCES = {
 
 @dataclass(frozen=True, slots=True)
 class Cue:
-    """A span of a recording, and what is said in it."""
-
     start: float
     end: float
     text: str

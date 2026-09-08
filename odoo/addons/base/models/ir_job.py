@@ -882,16 +882,6 @@ class IrJob(models.Model):
                 runnable = IrJob._runnable_channels(cr, channels)
                 if not runnable:
                     return None
-                # Pick the best candidate with a plain, lock-free SELECT
-                # (INF-1): the old single-statement UPDATE locked one
-                # candidate row *per runnable channel* via a LATERAL
-                # `FOR NO KEY UPDATE SKIP LOCKED`, even though it only ever
-                # updates the single globally-best one. The losing channels'
-                # locked-but-unmodified rows stayed locked until commit, so
-                # a concurrent worker claiming from one of those channels
-                # could SKIP LOCKED past its own, otherwise-free, highest-
-                # priority job. Locking nothing here means there is nothing
-                # for another channel's claim to skip past.
                 cr.execute(
                     SQL(
                         """
@@ -916,10 +906,6 @@ class IrJob(models.Model):
                 picked = cr.fetchone()
                 if picked is None:
                     return None
-                # Claim it with a single targeted, single-row UPDATE. If
-                # another worker claimed it first, 0 rows match and `row`
-                # below is None -- retry the pick rather than give up, since
-                # a different job may now be the best candidate.
                 cr.execute(
                     SQL(
                         """

@@ -42,10 +42,6 @@ _logger = logging.getLogger(__name__)
 
 MIN_ROUNDS = 600_000
 
-# A fixed pbkdf2-sha512 hash at MIN_ROUNDS, verified against on every login
-# with an unknown user so that a "user not found" response costs about as
-# much as a "wrong password" one (AUTH-1) and is not distinguishable by
-# timing. The password it was derived from is never used for anything.
 _DUMMY_PASSWORD_HASH = (
     "$pbkdf2-sha512$600000$7w4wftbyNcmfyucdH94fxA$"
     "6gY5uDHtaWIcyKdWlT0sfnF8OhSZMjbKmB8DizAUKVRJ8HidOesEczP4wP5dSBKAZPAuoE2TuABEWSXm6XGR1Q"
@@ -1503,8 +1499,6 @@ class ResUsers(models.Model):
         return self.env.company.currency_id.id
 
     def _get_login_failure_state(self, source: str) -> tuple[int, datetime.datetime]:
-        # Own short-lived cursor: this must reflect what every worker/process
-        # has committed, not a value cached in this process's memory (AUTH-2).
         with self.pool.cursor() as cr:
             cr.execute(
                 "SELECT failures, last_failure FROM res_users_login_cooldown "
@@ -1515,8 +1509,6 @@ class ResUsers(models.Model):
         if not row:
             return 0, datetime.datetime.min.replace(tzinfo=datetime.UTC)
         failures, last_failure = row
-        # Stored (like every Odoo Datetime field) as a naive value that is
-        # already UTC wall-clock; attach tzinfo rather than convert.
         return failures, last_failure.replace(tzinfo=datetime.UTC)
 
     def _record_login_failure(self, source: str) -> None:
@@ -1527,15 +1519,8 @@ class ResUsers(models.Model):
             .get_param("base.login_cooldown_duration", 60)
         )
         cutoff = now - datetime.timedelta(seconds=delay)
-        # Naive UTC, not a tz-aware value: passing an aware datetime here
-        # would let Postgres apply the session's TimeZone setting on the
-        # implicit cast to this "timestamp without time zone" column,
-        # skewing it by the server's UTC offset.
         now_naive = now.replace(tzinfo=None)
         cutoff_naive = cutoff.replace(tzinfo=None)
-        # Own cursor, committed on its own: a failed login raises AccessDenied,
-        # which unwinds the caller's transaction without committing, so the
-        # count must not depend on that transaction succeeding.
         with self.pool.cursor() as cr:
             cr.execute(
                 """

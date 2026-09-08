@@ -5,13 +5,6 @@ from odoo.tests.common import TransactionCase
 
 @tagged("post_install", "-at_install")
 class TestIdentifierConfidentiality(TransactionCase):
-    """The record rule, exercised as a real user.
-
-    Every read goes through `with_user`. A `TransactionCase` runs as superuser
-    by default, and `env.su` skips record rules entirely -- so the same
-    assertions written without `with_user` pass whether or not the rule exists.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

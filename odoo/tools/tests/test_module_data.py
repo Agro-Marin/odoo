@@ -10,14 +10,7 @@ BaseCase = unittest.TestCase
 
 
 class _Cursor:
-    """An `ir_model_data` / `ir_module_module` pair small enough to hold in a dict.
-
-    Rows are keyed by id; each statement the helpers issue is interpreted
-    against them, so the test asserts the resulting table, not the SQL text.
-    """
-
     def __init__(self, xmlids, installed=()):
-        # xmlids: {id: (module, name)}
         self.xmlids = dict(xmlids)
         self.modules = dict.fromkeys(installed, "installed")
         self.statements = []
@@ -103,9 +96,7 @@ class TestAbsorbReadonlyForerunners(BaseCase):
                 "access_stock_picking_purchase_readonly",
             },
         )
-        # groups keep their name; only ACL rows take the domain suffix
         self.assertEqual(cr.xmlids[1], (READONLY_MERGED_MODULE, "group_sale_readonly"))
-        # a row of an unrelated module is untouched
         self.assertEqual(cr.xmlids[7], ("mail", "group_mail_something"))
 
     def test_the_forerunner_modules_are_retired_once_emptied(self):
@@ -127,9 +118,6 @@ class TestAbsorbReadonlyForerunners(BaseCase):
         self.assertEqual(cr.modules, {})
 
     def test_the_split_adoption_then_finds_the_absorbed_rows(self):
-        # The defect: sales_team 1.7 adopted `group_sale_readonly` from
-        # `group_readonly`, which held nothing when the intermediate module
-        # was never installed, so the loader created a second "Read-only".
         cr = _Cursor(FORERUNNER_ROWS, installed=("sale_group_readonly",))
         self.assertEqual(
             adopt_xmlids(

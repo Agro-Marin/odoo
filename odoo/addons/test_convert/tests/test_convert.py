@@ -355,8 +355,6 @@ class TestEvalXML(common.TransactionCase):
 
 
 class TestConvertCsvEncoding(common.TransactionCase):
-    """Module CSV data is developer-authored, and editors add byte-order marks."""
-
     def _load(self, text, mode="init"):
         convert_csv_import(
             self.env,

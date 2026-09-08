@@ -42,11 +42,6 @@ def _webhook_json_default(value: Any) -> str:
 def _resolve_webhook_candidates(
     url: str,
 ) -> tuple[str | None, list[IPAddress], str | None]:
-    """Resolve `url`'s host and validate it against the SSRF blocklist.
-
-    Returns `(hostname, candidate_ips, blocked_reason)`; `blocked_reason` is
-    `None` iff every candidate is safe to connect to.
-    """
     try:
         parsed = urlparse(url)
     except ValueError:
@@ -107,14 +102,6 @@ def _scrub_webhook_url(message: str, url: str, target: str) -> str:
 
 
 class _PinnedIPAdapter(requests.adapters.HTTPAdapter):
-    """Connects to the address a caller already validated, instead of
-    letting requests/urllib3 resolve the hostname again. Closes the
-    DNS-rebinding TOCTOU between an SSRF check and the actual connection
-    (ACT-1): the URL's hostname is kept for the `Host` header and, for
-    HTTPS, for SNI/certificate hostname verification via `server_hostname`/
-    `assert_hostname` — only the TCP destination is pinned.
-    """
-
     def __init__(self, pinned_ip: str, **kwargs: Any) -> None:
         self._pinned_ip = pinned_ip
         super().__init__(**kwargs)

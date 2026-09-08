@@ -780,11 +780,11 @@ ZeroDivisionError: division by zero"""
         )
         num_requests = 0
 
-        def _patched_post(*args, **kwargs):
+        def _patched_post(_session, url, **kwargs):
             nonlocal num_requests
             response = requests.Response()
             response.status_code = 200 if num_requests == 0 else 400
-            self.assertEqual(args[0], "http://example.com/webhook")
+            self.assertEqual(url, "http://example.com/webhook")
             self.assertEqual(
                 kwargs["data"],
                 json_dumps(
@@ -805,7 +805,7 @@ ZeroDivisionError: division by zero"""
             return response
 
         with (
-            patch.object(requests, "post", _patched_post),
+            patch.object(requests.Session, "post", _patched_post),
             mute_logger("odoo.addons.base.models.ir_actions_server"),
         ):
             self.action.with_context(self.context).run()
@@ -871,10 +871,10 @@ ZeroDivisionError: division by zero"""
             }
         )
 
-        def _patched_post(*args, **kwargs):
+        def _patched_post(_session, _url, **kwargs):
             raise requests.exceptions.ReadTimeout("timed out")
 
-        with patch.object(requests, "post", _patched_post):
+        with patch.object(requests.Session, "post", _patched_post):
             self.action.with_context(self.context).run()
             with self.assertLogs(
                 "odoo.addons.base.models.ir_actions_server", level="WARNING"
@@ -893,10 +893,10 @@ ZeroDivisionError: division by zero"""
             }
         )
 
-        def _patched_post(*args, **kwargs):
+        def _patched_post(_session, _url, **kwargs):
             raise requests.exceptions.ConnectionError("connection refused")
 
-        with patch.object(requests, "post", _patched_post):
+        with patch.object(requests.Session, "post", _patched_post):
             self.action.with_context(self.context).run()
             with self.assertLogs(
                 "odoo.addons.base.models.ir_actions_server", level="WARNING"

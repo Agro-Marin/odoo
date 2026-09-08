@@ -1555,18 +1555,28 @@ class TestXMLTranslation(TransactionCase):
         terms_fr = (
             "Pain et fromage",
             "Couteau et Fourchette",
-            'Couteau <span style="text-align: center;" readonly="1">et</span> Fourchette',
+            'Couteau <span style="font-weight:bold" readonly="1">et</span> Fourchette',
         )
         terms_nl = (
             "Brood and kaas",
             "Mes en Vork",
-            'Knife <span style="text-align: center;" readonly="1">and</span> Fork',
+            'Knife <span readonly="1">and</span> Fork',
         )
 
         self.assertEqual(view.with_env(env_nolang).arch_db, archf % terms_en)
         self.assertEqual(view.with_env(env_en).arch_db, archf % terms_en)
-        self.assertEqual(view.with_env(env_fr).arch_db, archf % terms_fr)
-        self.assertEqual(view.with_env(env_nl).arch_db, archf % terms_nl)
+        self.assertEqual(
+            view.with_env(env_fr).arch_db,
+            archf % terms_fr,
+            "a modifier follows the source term; style is translator-owned "
+            "(TRANSLATOR_ADDABLE_ATTRS) and keeps the translation's value",
+        )
+        self.assertEqual(
+            view.with_env(env_nl).arch_db,
+            archf % terms_nl,
+            "the stale modifier is dropped and the source's taken; a style the "
+            "translation never carried is not invented from the source",
+        )
 
     def test_sync_xml_close_terms(self):
         archf = '<form string="X">%s<div>%s</div>%s</form>'

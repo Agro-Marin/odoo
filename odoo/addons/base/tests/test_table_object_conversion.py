@@ -103,12 +103,6 @@ class TestTableObjectConversion(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestIrModelConstraintUnlink(TransactionCase):
-    """`type` records the declaration; the database holds what was built.
-
-    They disagree after a conversion, and following the record then issues DDL
-    the object refuses -- fatally, because it happens while the registry loads.
-    """
-
     def setUp(self):
         super().setUp()
         self.env.cr.execute(

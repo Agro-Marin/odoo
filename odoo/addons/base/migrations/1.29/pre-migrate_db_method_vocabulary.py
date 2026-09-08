@@ -4,48 +4,12 @@ from odoo.db import schema
 
 _logger = logging.getLogger(__name__)
 
-# The §2.4 sweep of the core `db` package. Source is rewritten by the ordinary
-# upgrade; a database also holds Python in columns, and the ``_for_xml_id``
-# rename established both that this is a binding of the third kind and which
-# columns hold it. The
-# shape, the anchoring and the survivor report are 1.23's, which swept the rest
-# of core -- read that script first, this one only carries a different list.
 _STORED_PYTHON = (
     ("ir_act_server", "code"),
     ("ir_actions_server_history", "code"),
     ("ir_model_fields", "compute"),
 )
 
-# METHODS ONLY, and DISTINCTIVE ones, which is the whole of the safety argument.
-# 1.23 made the first half: stored Python runs under safe_eval with no import,
-# so a module-level function is not reachable from it and rewriting its spelling
-# could only hit a name belonging to somebody else. That excludes most of this
-# sweep on its own -- `schema.get_tables_existing`, `utils.get_connection_info_
-# for_database`, `savepoint.get_or_create_row`, `probe.get_libpq_connect_
-# timeout`, `errors.has_reached_server` and the rest are module-level and are
-# not here.
-#
-# The second half is new, and it is the reason this list is shorter than the
-# sweep. A leading dot proves attribute access; it does not prove WHOSE
-# attribute. `.snapshot`, `.health`, `.age`, `.due`, `.collect`, `.allow`,
-# `.allows`, `.outstanding` and `._format` were all renamed in `odoo/db` and
-# none is here: every one of them is a plausible member of a model an author
-# wrote themselves, so a dot-anchored rewrite would corrupt working code to fix
-# a call nobody makes. A pool internal reached from a server action is already
-# a stretch; trading a real corruption for a hypothetical AttributeError is not
-# the trade. Where the generic name is the only route to an object, the object
-# is `env.cr`'s pool, which stored Python has no business holding.
-#
-# The second §2.4 pass over the package adds five names and excludes four more
-# under the two rules above, unchanged. Module-level, so out by the first half:
-# `schema.drop_depending_views` -> `drop_views_depending_on_table` and
-# `schema.get_constraint_columns` -> `get_column_names_in_constraint`. Too
-# generic to anchor on a dot, so out by the second: `ConnectionPool.drain` ->
-# `drain_all` and `ConnectionBudget.exhausted` -> `exhausted_count`. `.drain`
-# and `.exhausted` are both plausible members of a model an author wrote --
-# `.drain` doubly so, because psycopg_pool's own pool declares one, so a
-# dot-anchored rewrite cannot tell the wrapper from the wrapped any better than
-# a `sed` can.
 _RENAMES = (
     ("_binary_pays_off", "_is_binary_copy_worthwhile"),
     ("_borrow_direct", "_borrow_directly"),
@@ -103,14 +67,6 @@ def _rewrite(cr, table, column):
 
 
 def _survivors(cr, table, column):
-    """Rows still reaching an old method by a route the rewrite cannot take.
-
-    1.23's two: whitespace around the dot, and getattr with a string literal.
-    Both are rare enough not to rewrite blind and too damaging to leave silent.
-    A bare occurrence is not one of them and is not reported -- it is the
-    author's own local, and these names are common enough as locals that the
-    noise would bury the two real cases.
-    """
     found = {}
     for old, _new in _RENAMES:
         cr.execute(

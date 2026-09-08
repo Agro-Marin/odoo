@@ -2531,8 +2531,6 @@ class TestIrModelInfoStopsAtTheOrmBoundary(TransactionCase):
 
 
 class TestInverseSuppliedInTheSameBatch(TransactionCase):
-    """`_check_inverses_exist` searched the database and not its own vals_list."""
-
     def _pair(self, tag):
         main, line = f"x_{tag}", f"x_{tag}_line"
         return (

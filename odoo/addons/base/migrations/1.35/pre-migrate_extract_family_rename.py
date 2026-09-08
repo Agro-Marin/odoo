@@ -1,19 +1,3 @@
-r"""Pre-migration: the ``document_extract`` module family becomes ``extract``.
-
-The ``document_`` prefix means "bridges the ``document`` app" for every other
-module wearing it, and none of these eleven depends on that app. The rename
-lives in ``base`` because a renamed module is a new module to the loader: its
-own ``migrations/`` never runs while ``ir_module_module`` still carries the old
-row. ``base`` is upgraded before every other module.
-
-One abstract model moves with the modules, ``mixin.document.extract`` to
-``mixin.extract``. It has no table, so what moves is its ``ir_model`` row, its
-fields' rows and the xml ids the ORM derives from the name. The job channel is
-matched by name at dispatch, so its row is renamed rather than left for the
-update to recreate under a new xml id with queued jobs still pointing at the old.
-Every statement is idempotent.
-"""
-
 from odoo.db import schema
 from odoo.tools import SQL
 
@@ -72,7 +56,6 @@ def _rename_modules(cr):
 
 
 def _rename_file_xml_ids(cr):
-    """Ids declared in data files that carried the module's name in their own."""
     cr.execute(
         """
         UPDATE ir_model_data
