@@ -10,14 +10,12 @@ class SaleOrderLine(models.Model):
         min_display_digits="Product Price",
         store=True,
         groups="base.group_user",
-        precompute=True,
     )
     margin_percent = fields.Float(
         "Margin (%)",
         compute="_compute_margin",
         store=True,
         groups="base.group_user",
-        precompute=True,
         aggregator="avg",
     )
     purchase_price = fields.Float(
