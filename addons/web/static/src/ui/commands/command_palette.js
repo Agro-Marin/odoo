@@ -131,6 +131,19 @@ function commandKey(command) {
  */
 
 /**
+ * How many results were not shown. One is reachable: the limit is a round
+ * number, which is exactly the kind a provider lands one past.
+ *
+ * @param {number} hidden
+ * @returns {string}
+ */
+function moreResultsMessage(hidden) {
+    return hidden === 1
+        ? _t("1 more result — refine your search")
+        : _t("%s more results — refine your search", hidden);
+}
+
+/**
  * @template {CommandItem} T
  * @param {T[]} commands
  * @param {string[]} categories
@@ -320,11 +333,7 @@ export class CommandPalette extends Component {
 
     /** @returns {string} */
     get truncationMessage() {
-        // One over the limit is one result, and the limit is a round number a
-        // provider lands on exactly often enough to matter.
-        return this.state.hiddenCount === 1
-            ? _t("1 more result — refine your search")
-            : _t("%s more results — refine your search", this.state.hiddenCount);
+        return moreResultsMessage(this.state.hiddenCount);
     }
 
     /** @returns {Array<{commands: DisplayedCommand[], name: string, keyId: string}>} */
