@@ -931,7 +931,19 @@ class StockPicking(models.Model):
         backorder_moves += open_moves.filtered(
             lambda m: m.product_uom_id.is_zero(m.quantity),
         )
-        self._create_backorder(backorder_moves=backorder_moves)
+        backorder = self._create_backorder(backorder_moves=backorder_moves)
+        if not backorder:
+            return False
+        backorder.message_post(
+            body=_("Split from %s.", self._get_html_link()),
+        )
+        return {
+            "name": _("Split Backorder"),
+            "view_mode": "form",
+            "res_model": "stock.picking",
+            "res_id": backorder.id,
+            "type": "ir.actions.act_window",
+        }
 
     def _get_pickings_to_autopick(self):
         to_autopick = self.browse()
