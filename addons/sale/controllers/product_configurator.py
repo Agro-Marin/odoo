@@ -94,7 +94,11 @@ class SaleProductConfiguratorController(Controller):
     )
     def sale_product_configurator_create_product(self, product_template_id, ptav_ids):
         product_template = self._get_product_template(product_template_id)
-        combination = request.env["product.template.attribute.value"].browse(ptav_ids)
+        combination = (
+            request.env["product.template.attribute.value"]
+            .browse(ptav_ids)
+            .filtered(lambda ptav: ptav.product_tmpl_id.id == product_template_id)
+        )
         product = product_template._create_product_variant(combination)
         return product.id
 
