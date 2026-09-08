@@ -54,10 +54,6 @@ export class DashboardSearchBar extends Component {
         onWillUpdateProps(this.computeState.bind(this));
     }
 
-    openFilterValueDropdown() {
-        this.filtersValuesDropdown.open();
-    }
-
     closeFilterValueDropdown() {
         this.filtersValuesDropdown.close();
     }
@@ -84,6 +80,14 @@ export class DashboardSearchBar extends Component {
             return undefined;
         }
         return this.props.model.getters.getGlobalFilterValue(this.firstDateFilter.id);
+    }
+
+    onInputContainerClick(ev) {
+        // only the padding around the input and the facets, not a click that
+        // one of those children already handled
+        if (ev.target === ev.currentTarget) {
+            this.onSearchClick();
+        }
     }
 
     onSearchClick() {
