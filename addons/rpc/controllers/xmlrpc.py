@@ -89,8 +89,7 @@ class OdooMarshaller(xmlrpc.client.Marshaller):
         self.dump_unicode(value, write)
 
     def dump_lazy(self, value, write):
-        v = value._value
-        return self.dispatch[type(v)](self, v, write)
+        return self._Marshaller__dump(value._value, write)
 
     def dump_unicode(self, value, write):
         return super().dump_unicode(value.translate(CONTROL_CHARACTERS), write)
