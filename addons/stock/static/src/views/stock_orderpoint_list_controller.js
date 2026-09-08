@@ -19,6 +19,16 @@ export class StockOrderpointListController extends ListController {
         this.onClickSnooze = this.opGuard.guard(this.onClickSnooze.bind(this));
     }
 
+    async createRecord() {
+        const locationId = this.env.searchModel.categories.find(
+            (category) => category.fieldName === "location_id",
+        )?.activeValueId;
+        await super.createRecord(...arguments);
+        if (locationId && this.editedRecord) {
+            this.editedRecord.update({ location_id: { id: locationId } });
+        }
+    }
+
     async onClickOrder(force_to_max) {
         const resIds = await this.model.root.getResIds(true);
         const action = await this.model.orm.call(

@@ -1,5 +1,7 @@
 from datetime import date, datetime, timedelta
-from re import findall
+from re import findall, search
+
+from lxml import etree
 
 from odoo import Command
 from odoo.tests import Form, TransactionCase
@@ -2931,3 +2933,61 @@ class TestReports(TestReportsCommon):
         self.assertEqual(linked_out.procure_method, "make_to_order")
         self.assertEqual(linked_out.product_qty, 6.0)
         self.assertEqual(len(delivery.move_ids), 2)
+
+    def test_the_delivery_slip_prints_the_shipping_date_without_a_time(self):
+        """The printed Shipping Date must be a calendar date, not a timestamp.
+
+        Both branches of that block render a Datetime -- date_done once the
+        transfer is validated, date_planned before -- so the slip handed to
+        whoever receives the goods carried hours, minutes and seconds that mean
+        nothing to them.
+        """
+        customers = self.env.ref("stock.stock_location_customers")
+        product = self.env["product.product"].create(
+            {"name": "Slip Date Product", "is_storable": True},
+        )
+        pickings = {}
+        for branch in ("planned", "done"):
+            picking = self.env["stock.picking"].create(
+                {
+                    "picking_type_id": self.picking_type_out.id,
+                    "partner_id": self.partner.id,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": customers.id,
+                    "move_ids": [
+                        Command.create(
+                            {
+                                "product_id": product.id,
+                                "product_uom_qty": 1,
+                                "location_id": self.stock_location.id,
+                                "location_dest_id": customers.id,
+                            },
+                        ),
+                    ],
+                },
+            )
+            picking.action_confirm()
+            pickings[branch] = picking
+
+        done = pickings["done"]
+        done.move_ids.quantity = 1
+        done.move_ids.picked = True
+        done.button_validate()
+        self.assertEqual(done.state, "done", "fixture: one branch must be validated")
+        self.assertNotEqual(
+            pickings["planned"].state, "done", "fixture: the other must not be"
+        )
+
+        for branch, picking in pickings.items():
+            with self.subTest(branch=branch):
+                html = self.env["ir.actions.report"]._render_qweb_html(
+                    "stock.report_deliveryslip", picking.ids
+                )[0]
+                tree = etree.fromstring(html, etree.HTMLParser())
+                blocks = tree.xpath("//div[@name='div_sched_date']")
+                self.assertTrue(blocks, "fixture: the date block must render")
+                text = " ".join(blocks[0].itertext())
+                self.assertFalse(
+                    search(r"\d{1,2}:\d{2}", text),
+                    f"the shipping date must print without a time, got {text.strip()!r}",
+                )

@@ -2484,3 +2484,26 @@ class TestWarehouse(TestStockCommon):
             rule.name.startswith(stored + ": "),
             "rule %r is prefixed by a code the warehouse does not hold" % rule.name,
         )
+
+    def test_the_warehouse_opens_only_its_own_locations(self):
+        """A warehouse must be able to show the locations that hang under it.
+
+        Our locations nest down to rack level, so reaching the ones that belong
+        to one warehouse meant filtering the global list by hand every time.
+        """
+        other = self.env["stock.warehouse"].create(
+            {"name": "Locations Button WH", "code": "LBWH"},
+        )
+        shelf = self.env["stock.location"].create(
+            {"name": "Rack A", "location_id": self.warehouse_1.lot_stock_id.id},
+        )
+
+        action = self.warehouse_1.action_open_internal_locations()
+
+        self.assertEqual(action["res_model"], "stock.location")
+        found = self.env["stock.location"].search(action["domain"])
+        self.assertIn(self.warehouse_1.lot_stock_id, found, "its own stock location")
+        self.assertIn(shelf, found, "and whatever hangs under it")
+        self.assertNotIn(
+            other.lot_stock_id, found, "but nothing belonging to another warehouse"
+        )

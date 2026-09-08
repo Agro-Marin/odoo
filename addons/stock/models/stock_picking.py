@@ -514,6 +514,21 @@ class StockPicking(models.Model):
         )
         return picking_type.id
 
+    @api.depends("origin", "partner_id")
+    @api.depends_context("formatted_display_name")
+    def _compute_display_name(self):
+        super()._compute_display_name()
+        if not self.env.context.get("formatted_display_name"):
+            return
+        for picking in self:
+            details = [
+                detail
+                for detail in (picking.origin, picking.partner_id.display_name)
+                if detail
+            ]
+            if details:
+                picking.display_name += f"\t--{' '.join(details)}--"
+
     @api.depends("move_ids.has_tracking")
     def _compute_has_tracking(self):
         for picking in self:
@@ -931,7 +946,19 @@ class StockPicking(models.Model):
         backorder_moves += open_moves.filtered(
             lambda m: m.product_uom_id.is_zero(m.quantity),
         )
-        self._create_backorder(backorder_moves=backorder_moves)
+        backorder = self._create_backorder(backorder_moves=backorder_moves)
+        if not backorder:
+            return False
+        backorder.message_post(
+            body=_("Split from %s.", self._get_html_link()),
+        )
+        return {
+            "name": _("Split Backorder"),
+            "view_mode": "form",
+            "res_model": "stock.picking",
+            "res_id": backorder.id,
+            "type": "ir.actions.act_window",
+        }
 
     def _get_pickings_to_autopick(self):
         to_autopick = self.browse()

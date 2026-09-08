@@ -2165,6 +2165,66 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(backorder.move_ids[0].product_uom_qty, 2)
         self.assertEqual(backorder.move_ids[1].product_uom_qty, 10)
 
+    def test_splitting_a_transfer_opens_the_backorder_and_links_back(self):
+        """A split must land the user on the backorder and say where it came from.
+
+        The source transfer already gets a forward link when a backorder is
+        created, but the backorder said nothing about its origin and the split
+        returned nothing, so the operator stayed on the original transfer with
+        no way to know what had just been made or under what number.
+        """
+        loc_1 = self.env["stock.location"].create(
+            {"name": "Split A", "location_id": self.stock_location.id}
+        )
+        loc_2 = self.env["stock.location"].create(
+            {"name": "Split B", "location_id": self.stock_location.id}
+        )
+        self.env["stock.quant"]._update_available_quantity(self.productA, loc_1, 10)
+        picking = self.env["stock.picking"].create(
+            {
+                "location_id": loc_1.id,
+                "location_dest_id": loc_2.id,
+                "picking_type_id": self.warehouse.int_type_id.id,
+                "state": "draft",
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.productA.id,
+                            "product_uom_qty": 10,
+                            "location_id": loc_1.id,
+                            "location_dest_id": loc_2.id,
+                            "quantity": 8,
+                        }
+                    ),
+                ],
+            }
+        )
+        picking.action_confirm()
+
+        action = picking.action_split_transfer()
+
+        backorder = self.env["stock.picking"].search(
+            [("backorder_id", "=", picking.id)]
+        )
+        self.assertEqual(
+            len(backorder), 1, "fixture: the split must make one backorder"
+        )
+        self.assertEqual(
+            (action or {}).get("res_model"),
+            "stock.picking",
+            "the split must return an action on transfers",
+        )
+        self.assertEqual(
+            (action or {}).get("res_id"),
+            backorder.id,
+            "the split must open the backorder it just created",
+        )
+        self.assertIn(
+            picking.name,
+            "".join(backorder.message_ids.mapped("body")),
+            "the backorder must record which transfer it was split from",
+        )
+
     def test_put_in_pack_partial_different_destinations(self):
         self.productA.tracking = "serial"
 
