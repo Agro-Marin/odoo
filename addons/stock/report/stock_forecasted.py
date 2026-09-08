@@ -619,11 +619,14 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 )
             )
 
-        if not uom.is_zero(free_stock) or not lines:
+        if self._needs_free_stock_lines(product, free_stock, lines, wh_location_ids):
             lines += self._free_stock_lines(
                 product, free_stock, moves_data, wh_location_ids, ctx.read
             )
         return lines + self._get_in_report_lines(product, ctx)
+
+    def _needs_free_stock_lines(self, product, free_stock, lines, wh_location_ids):
+        return not product.uom_id.is_zero(free_stock) or not lines
 
     def _get_out_report_lines(self, product, outs, moves_data, transit_stock, ctx):
         uom = product.uom_id

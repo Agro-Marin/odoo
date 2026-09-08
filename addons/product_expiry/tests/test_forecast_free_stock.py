@@ -1,6 +1,7 @@
 import datetime
 
 from odoo import fields
+from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
 
@@ -41,6 +42,31 @@ class TestForecastFreeStock(TransactionCase):
         )
         self.env.flush_all()
         return lot
+
+    def _deliver(self, quantity):
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.warehouse.out_type_id.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.env.ref("stock.stock_location_customers").id,
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product.id,
+                            "product_uom_qty": quantity,
+                            "location_id": self.stock_location.id,
+                            "location_dest_id": self.env.ref(
+                                "stock.stock_location_customers"
+                            ).id,
+                        }
+                    )
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.action_assign()
+        self.env.flush_all()
+        return picking
 
     def _free_stock_rows(self):
         lines = self.report._get_report_data(product_ids=self.product.ids)["lines"]
@@ -93,4 +119,24 @@ class TestForecastFreeStock(TransactionCase):
         fresh = [row for row in rows if row.get("removal_date") != -1]
 
         self.assertEqual(sorted(row["quantity"] for row in fresh), [10.0, 24.0])
+        self.assertEqual(sum(row["quantity"] for row in fresh), self.product.qty_free)
+
+    def test_expired_stock_is_reported_when_free_stock_nets_to_zero(self):
+        self.product.categ_id.removal_strategy_id = self.env.ref(
+            "product_expiry.removal_fefo"
+        )
+        self._stock("FFS-STALE4", -10, 27.0)
+        self._stock("FFS-FRESH4", 30, 24.0)
+        self._deliver(24.0)
+
+        rows = self._free_stock_rows()
+        expired = [row for row in rows if row.get("removal_date") == -1]
+
+        self.assertEqual(
+            [row["quantity"] for row in expired],
+            [27.0],
+            "the stock that is past its removal date and backs no delivery must"
+            " be reported even when the free stock nets to zero",
+        )
+        fresh = [row for row in rows if row.get("removal_date") != -1]
         self.assertEqual(sum(row["quantity"] for row in fresh), self.product.qty_free)
