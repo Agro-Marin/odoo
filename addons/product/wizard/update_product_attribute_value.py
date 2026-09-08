@@ -19,8 +19,11 @@ class UpdateProductAttributeValue(models.TransientModel):
     )
     message = fields.Char(compute="_compute_message")
     product_count = fields.Integer(compute="_compute_product_count")
+    customized_product_count = fields.Integer(compute="_compute_product_count")
 
-    @api.depends("product_count", "mode", "attribute_value_id")
+    @api.depends(
+        "product_count", "customized_product_count", "mode", "attribute_value_id"
+    )
     def _compute_message(self):
         self.message = ""
         for wizard in self:
@@ -31,10 +34,20 @@ class UpdateProductAttributeValue(models.TransientModel):
                     product_count=wizard.product_count,
                 )
             elif wizard.mode == "update_extra_price":
-                wizard.message = _(
-                    "You are about to update the extra price of %s products.",
-                    wizard.product_count,
-                )
+                if wizard.customized_product_count:
+                    wizard.message = _(
+                        "You are about to update the extra price of %(product_count)s"
+                        " products, including %(customized_count)s with a price"
+                        " already customized away from the previous default. Their"
+                        " custom price will be overwritten.",
+                        product_count=wizard.product_count,
+                        customized_count=wizard.customized_product_count,
+                    )
+                else:
+                    wizard.message = _(
+                        "You are about to update the extra price of %s products.",
+                        wizard.product_count,
+                    )
 
     def _get_product_count_key(self):
         self.check_singleton()
@@ -54,6 +67,7 @@ class UpdateProductAttributeValue(models.TransientModel):
     @api.depends("mode", "attribute_value_id")
     def _compute_product_count(self):
         self.product_count = 0
+        self.customized_product_count = 0
         ProductTemplate = self.env["product.template"]
         keys_by_wizard = {wizard: wizard._get_product_count_key() for wizard in self}
         counts = {
@@ -62,6 +76,28 @@ class UpdateProductAttributeValue(models.TransientModel):
         }
         for wizard in self:
             wizard.product_count = counts.get(keys_by_wizard[wizard], 0)
+            if wizard.mode == "update_extra_price" and wizard.attribute_value_id:
+                wizard.customized_product_count = self.env[
+                    "product.template.attribute.value"
+                ].search_count(
+                    [
+                        (
+                            "product_attribute_value_id",
+                            "=",
+                            wizard.attribute_value_id.id,
+                        ),
+                        (
+                            "product_tmpl_id.company_id",
+                            "in",
+                            self.env.companies.ids + [False],
+                        ),
+                        (
+                            "price_extra",
+                            "!=",
+                            wizard.attribute_value_id.default_extra_price,
+                        ),
+                    ]
+                )
 
     def action_confirm(self):
         self.check_singleton()

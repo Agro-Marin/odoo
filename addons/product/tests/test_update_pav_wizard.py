@@ -52,6 +52,22 @@ class TestUpdateProductAttributeValueWizard(ProductVariantsCommon):
             product_template_shirt.attribute_line_ids.value_ids,
         )
 
+    def test_update_extra_prices_warns_about_customized_values(self):
+        ptav = self.product_template_sofa.attribute_line_ids.product_template_value_ids.filtered(
+            lambda ptav: ptav.product_attribute_value_id == self.color_attribute_red
+        )
+        ptav.price_extra = 5.0
+
+        wizard = Form.from_action(
+            self.env, self.color_attribute_red.action_update_prices()
+        ).save()
+
+        self.assertEqual(wizard.customized_product_count, 1)
+        self.assertIn("already customized", wizard.message)
+
+        wizard.action_confirm()
+        self.assertEqual(ptav.price_extra, 0.0, "The customization is overwritten")
+
     def test_update_extra_prices(self):
         self.assertEqual(
             self.color_attribute.value_ids.mapped("default_extra_price"),
