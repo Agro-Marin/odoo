@@ -234,6 +234,48 @@ class TestResourceCalendar(TransactionCase):
         )[resource.id]
         self.assertEqual(len(lunch_via_flexible_self), len(lunch_via_own_calendar))
 
+    def test_flexible_partial_day_is_a_fraction_not_a_whole_day(self):
+        fixed = self.env["resource.calendar"].create(
+            {
+                "name": "9-to-5 (measuring calendar)",
+                "tz": "UTC",
+                "attendance_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Morning",
+                            "dayofweek": str(i),
+                            "hour_from": 9,
+                            "hour_to": 17,
+                            "day_period": "morning",
+                        },
+                    )
+                    for i in range(5)
+                ],
+            }
+        )
+        flexible = self.env["resource.calendar"].create(
+            {
+                "name": "Flexible, tight weekly cap",
+                "flexible_hours": True,
+                "hours_per_day": 8.0,
+                "full_time_required_hours": 10,
+                "tz": "UTC",
+            }
+        )
+        resource = self.env["resource.resource"].create(
+            {"name": "On flexible calendar", "calendar_id": flexible.id, "tz": "UTC"}
+        )
+        start_dt = datetime(2026, 6, 1, 0, 0, 0).astimezone(UTC)
+        end_dt = datetime(2026, 6, 3, 23, 59, 59).astimezone(UTC)
+        intervals = fixed._attendance_intervals_batch(start_dt, end_dt, resource)[
+            resource.id
+        ]
+        data = fixed._get_attendance_intervals_days_data(intervals)
+        self.assertEqual(data["hours"], 10.0)
+        self.assertEqual(data["days"], 1.25)
+
     def test_public_holiday_calendar_no_company(self):
         self.env["resource.calendar.leaves"].create(
             [

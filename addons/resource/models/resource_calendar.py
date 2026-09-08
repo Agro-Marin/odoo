@@ -556,7 +556,10 @@ class ResourceCalendar(models.Model):
                     (
                         start_time,
                         end_time,
-                        self._prepare_dummy_attendance(allocate_hours, 1),
+                        self._prepare_dummy_attendance(
+                            allocate_hours,
+                            min(1.0, allocate_hours / max_hours_per_day),
+                        ),
                     )
                 )
                 day += timedelta(days=1)
