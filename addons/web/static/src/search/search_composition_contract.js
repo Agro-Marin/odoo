@@ -236,7 +236,6 @@ export const SEARCH_MODEL_SHARED_STATE = [
     "_sectionLoadIds",
     "_sections",
     "_sectionsByType",
-    "blockNotification",
     "canOrderByCount",
     "defaultGroupByRemoved",
     "dialog",
