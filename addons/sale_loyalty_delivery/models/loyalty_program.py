@@ -7,15 +7,26 @@ class LoyaltyProgram(models.Model):
     @api.model
     def _program_type_default_values(self):
         res = super()._program_type_default_values()
-        # Add a loyalty reward for free shipping
+        # Add a loyalty reward for free shipping, ordered (by loyalty.reward's
+        # `required_points asc` _order) after the other template rewards, so a
+        # DB-fresh read of reward_ids never surfaces it ahead of e.g. the base
+        # discount reward.
         if "loyalty" in res:
+            highest_points = max(
+                (
+                    vals.get("required_points", 0)
+                    for command, _id, vals in res["loyalty"]["reward_ids"]
+                    if command == 0
+                ),
+                default=0,
+            )
             res["loyalty"]["reward_ids"].append(
                 (
                     0,
                     0,
                     {
                         "reward_type": "shipping",
-                        "required_points": 100,
+                        "required_points": highest_points + 1,
                     },
                 )
             )
