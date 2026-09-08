@@ -68,6 +68,21 @@ class CredentialCategory(models.Model):
         help="Default setting for allowing decryption with old key versions. Can be overridden per credential.",
     )
 
+    requirement_message = fields.Char(
+        translate=True,
+        help="Sentence shown when a credential of this category is saved without "
+        "one of the values it requires. Generated from the field labels when "
+        "left empty.",
+    )
+
+    field_ids = fields.One2many(
+        comodel_name="credential.category.field",
+        inverse_name="category_id",
+        string="Fields",
+        help="Values a credential of this category holds, each one a key in the "
+        "encrypted payload.",
+    )
+
     credential_ids = fields.One2many(
         comodel_name="credential.credential",
         inverse_name="category_id",
@@ -83,6 +98,20 @@ class CredentialCategory(models.Model):
         "unique(code)",
         "Category code must be unique!",
     )
+
+    def _requirement_message(self) -> str:
+        self.check_singleton()
+        if self.requirement_message:
+            return self.requirement_message
+        alternatives = [
+            " or ".join(dict.fromkeys(definition.name for definition in spec))
+            for spec in self.field_ids._requirement_specs()
+        ]
+        return self.env._(
+            "%(category)s credentials require %(fields)s.",
+            category=self.name,
+            fields=", ".join(alternatives),
+        )
 
     @api.depends("name", "code")
     def _compute_display_name(self):

@@ -36,41 +36,6 @@ SECRET_NAMED_REGEXES = [
 ]
 
 
-CATEGORY_REQUIRED_FIELDS = {
-    "api_key": {
-        "fields": [("credential_value", "api_key")],
-        "message": "API Key credentials require a secret value.",
-    },
-    "bearer_token": {
-        "fields": [("credential_value", "bearer_token")],
-        "message": "Bearer Token credentials require a token value.",
-    },
-    "basic_auth": {
-        "fields": ["username", "password"],
-        "message": "Basic Authentication requires username and password.",
-    },
-    "oauth2": {
-        # The refresh token counts. An access token expires -- often in an hour --
-        # and the refresh token is what survives to buy the next one, so a
-        # credential holding only that one is not a half-filled credential, it is
-        # an OAuth credential at rest. Demanding an access token made the steady
-        # state unrepresentable and pushed callers onto `bearer_token`, which has
-        # one value field and no place for the pair.
-        "fields": [
-            ("oauth_access_token", "oauth_refresh_token", "oauth_client_secret")
-        ],
-        "message": (
-            "OAuth 2.0 credentials require an access token, a refresh token or a "
-            "client secret."
-        ),
-    },
-    "aws_iam": {
-        "fields": ["api_key", "api_secret"],
-        "message": "AWS IAM credentials require Access Key ID and Secret Access Key.",
-    },
-}
-
-
 class CredentialCredential(models.Model):
     _name = "credential.credential"
     _inherit = ["mixin.credential.store"]
@@ -420,49 +385,48 @@ class CredentialCredential(models.Model):
         self.invalidate_recordset(["credential_value_encrypted"])
 
         for record in self:
-            if not record.category_code:
-                continue
-
-            config = CATEGORY_REQUIRED_FIELDS.get(record.category_code)
-            if not config:
+            specs = record.category_id.sudo().field_ids._requirement_specs()
+            if not specs:
                 continue
 
             record = record.sudo()
+            payload = record._decrypted_payload_dict()
 
-            json_data = {}
-            encrypted = record.with_context(bin_size=False).credential_value_encrypted
-            if encrypted:
-                decrypted = record._decrypt_value(encrypted)
-                if decrypted:
-                    try:
-                        parsed = json.loads(decrypted)
-                    except json.JSONDecodeError, ValueError:
-                        parsed = {}
-                    if isinstance(parsed, dict):
-                        json_data = parsed
+            missing = [
+                spec[0].code
+                for spec in specs
+                if not record._satisfies_requirement(spec, payload)
+            ]
+            if not missing:
+                continue
 
-            missing_fields = []
-            for spec in config["fields"]:
-                alternatives = (spec,) if isinstance(spec, str) else tuple(spec)
-                satisfied = False
-                for field_name in alternatives:
-                    if getattr(record, field_name, None):
-                        satisfied = True
-                        break
-                    if json_data.get(field_name):
-                        satisfied = True
-                        break
-                if not satisfied:
-                    missing_fields.append(alternatives[0])
-
-            if missing_fields:
-                raise ValidationError(
-                    self.env._("%(message)s\n\nMissing fields: %(fields)s")
-                    % {
-                        "message": config["message"],
-                        "fields": ", ".join(missing_fields),
-                    },
+            raise ValidationError(
+                self.env._(
+                    "%(message)s\n\nMissing fields: %(fields)s",
+                    message=record.category_id.sudo()._requirement_message(),
+                    fields=", ".join(missing),
                 )
+            )
+
+    def _decrypted_payload_dict(self) -> dict:
+        self.check_singleton()
+        encrypted = self.with_context(bin_size=False).credential_value_encrypted
+        if not encrypted:
+            return {}
+        decrypted = self._decrypt_value(encrypted)
+        if not decrypted:
+            return {}
+        try:
+            parsed = json.loads(decrypted)
+        except json.JSONDecodeError, ValueError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _satisfies_requirement(self, spec, payload: dict) -> bool:
+        return any(
+            getattr(self, definition.code, None) or payload.get(definition.code)
+            for definition in spec
+        )
 
     @api.constrains("notes")
     def _check_notes_for_secrets(self):

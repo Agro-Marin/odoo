@@ -1,6 +1,6 @@
 {
     "name": "Credential Vault",
-    "version": "19.0.1.12.0",
+    "version": "19.0.1.13.0",
     "category": "Technical",
     "sequence": 5,
     "summary": "Foundation module for secure credential management across all external integrations",
@@ -75,6 +75,7 @@ rotation.
         "security/ir.model.access.csv",
         "security/ir_rule.xml",
         "data/credential_category_data.xml",
+        "data/credential_category_field_data.xml",
         "data/ir_cron.xml",
         "views/credential_credential_views.xml",
         "views/credential_category_views.xml",

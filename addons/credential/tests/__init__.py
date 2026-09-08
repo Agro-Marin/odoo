@@ -18,3 +18,4 @@ from . import test_verification_secret
 from . import test_decryption_allowance
 from . import test_expiry_warning
 from . import test_rename_adoption
+from . import test_category_field_definitions
