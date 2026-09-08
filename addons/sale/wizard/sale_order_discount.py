@@ -26,7 +26,6 @@ class SaleOrderDiscount(models.TransientModel):
         default="sol_discount",
     )
 
-
     @api.constrains("discount_type", "discount_percentage", "discount_amount")
     def _check_discount_amount(self):
         for wizard in self:
