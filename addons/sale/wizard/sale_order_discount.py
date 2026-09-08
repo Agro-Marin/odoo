@@ -29,11 +29,13 @@ class SaleOrderDiscount(models.TransientModel):
     @api.constrains("discount_type", "discount_percentage", "discount_amount")
     def _check_discount_amount(self):
         for wizard in self:
-            if (
-                wizard.discount_type in ("sol_discount", "so_discount")
-                and wizard.discount_percentage > 1.0
-            ):
-                raise ValidationError(_("Discount percentage must be at most 100%."))
+            if wizard.discount_type in ("sol_discount", "so_discount"):
+                if wizard.discount_percentage > 1.0:
+                    raise ValidationError(
+                        _("Discount percentage must be at most 100%.")
+                    )
+                if wizard.discount_percentage < 0.0:
+                    raise ValidationError(_("Discount percentage cannot be negative."))
             if wizard.discount_type == "amount":
                 currency = wizard.currency_id or wizard.sale_order_id.currency_id
                 if wizard.discount_amount < 0.0:
@@ -192,8 +194,8 @@ class SaleOrderDiscount(models.TransientModel):
         self.check_singleton()
         self = self.with_company(self.company_id)
         if self.discount_type == "sol_discount":
-            self.sale_order_id.line_ids.write(
-                {"discount": self.discount_percentage * 100}
-            )
+            self.sale_order_id.line_ids.filtered(
+                lambda line: not line.display_type and not line.is_downpayment
+            ).write({"discount": self.discount_percentage * 100})
         else:
             self._create_discount_lines()
