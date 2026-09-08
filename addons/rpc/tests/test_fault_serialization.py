@@ -4,6 +4,7 @@ from markupsafe import Markup
 
 from odoo import exceptions
 from odoo.tests import TransactionCase, tagged
+from odoo.tools import lazy
 
 from odoo.addons.base.models.res_lang import LangData
 from odoo.addons.rpc.controllers.xmlrpc import (
@@ -107,6 +108,7 @@ class TestMarkupMarshalling(TransactionCase):
                 self.a = 1
 
         self.assertIn("struct", dumps((Arbitrary(),)))
+        self.assertIn("struct", dumps((lazy(Arbitrary),)))
         payload = dumps((LangData({"id": 1, "code": "en_US"}),))
         (value,), _method = xmlrpc.client.loads(payload)
         self.assertEqual(value["code"], "en_US")
