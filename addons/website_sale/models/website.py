@@ -293,7 +293,7 @@ class Website(models.Model):
                 "product.pricelist"
             ]  # with correct company in env
             website.pricelist_ids = ProductPricelist.sudo().search_fetch(
-                ProductPricelist._get_website_pricelists_domain(website)
+                ProductPricelist._get_domain_website_pricelists(website)
             )
 
     @api.depends("company_id")
@@ -619,7 +619,7 @@ class Website(models.Model):
                 return True
 
         # Note: 1. pricelists from all_pl are already website compliant (went through
-        #          `_get_website_pricelists_domain`)
+        #          `_get_domain_website_pricelists`)
         #       2. do not read `property_product_pricelist` here as `_get_pl_partner_order`
         #          is cached and the result of this method will be impacted by that field value.
         #          Pass it through `partner_pl_id` parameter instead to invalidate the cache.
@@ -1092,14 +1092,14 @@ class Website(models.Model):
             )
         )
 
-    def _get_allowed_steps_domain(self):
+    def _get_domain_allowed_steps(self):
         return [("website_id", "=", self.id), ("is_published", "=", True)]
 
     def _get_checkout_steps(self):
         return (
             self.env["website.checkout.step"]
             .sudo()
-            .search(self._get_allowed_steps_domain(), order="sequence")
+            .search(self._get_domain_allowed_steps(), order="sequence")
         )
 
     def _get_checkout_step_values(self):
@@ -1111,7 +1111,7 @@ class Website(models.Model):
         if href == rewrite("/shop/address"):
             href = rewrite("/shop/checkout")
 
-        allowed_steps_domain = self._get_allowed_steps_domain()
+        allowed_steps_domain = self._get_domain_allowed_steps()
         current_step = request.env["website.checkout.step"].sudo()
         for step in current_step.search(allowed_steps_domain):
             if rewrite(step.step_href) == href:

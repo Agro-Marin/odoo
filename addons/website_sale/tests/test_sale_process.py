@@ -253,7 +253,7 @@ class TestSaleProcess(HttpCaseWithUserDemo, WebsiteSaleCommon, HttpCaseWithWebsi
         self.assertEqual(response.url[-13:], "/test/address")
 
         # check that navigation (next and previous checkout steps) are correct
-        allowed_steps_domain = self.website._get_allowed_steps_domain()
+        allowed_steps_domain = self.website._get_domain_allowed_steps()
         checkout_step = self.env.ref("website_sale.checkout_step_delivery")
         previous_step = checkout_step._get_previous_checkout_step(allowed_steps_domain)
         next_step = checkout_step._get_next_checkout_step(allowed_steps_domain)

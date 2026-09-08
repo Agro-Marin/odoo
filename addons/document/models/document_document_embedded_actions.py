@@ -63,7 +63,7 @@ class DocumentsDocument(models.Model):
                     [
                         self.env["ir.embedded.actions"]
                         .sudo()
-                        ._get_documents_embed_base_domain(),
+                        ._get_domain_documents_embed_base(),
                         [
                             ("action_id", "=", action_id),
                             ("parent_res_id", "=", folder_id),
@@ -244,7 +244,7 @@ class DocumentsDocument(models.Model):
                     [
                         self.env["ir.embedded.actions"]
                         .sudo()
-                        ._get_documents_embed_base_domain(),
+                        ._get_domain_documents_embed_base(),
                         [
                             (
                                 "parent_res_id",

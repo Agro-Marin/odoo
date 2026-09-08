@@ -60,6 +60,8 @@ _fallback_log = get_asset_logger("fallback")
 _loader_log = get_asset_logger("loader")
 _pregen_log = get_asset_logger("pregen")
 
+_ASSET_CACHE_ENABLED = "xml" not in tools.config["dev_mode"]
+
 
 class _BuildDeclined(Exception):
     pass
@@ -192,7 +194,7 @@ class IrQweb(models.AbstractModel):
         )
 
     @tools.conditional(
-        "xml" not in tools.config["dev_mode"],
+        _ASSET_CACHE_ENABLED,
         tools.ormcache(
             "bundle",
             "css",
@@ -333,7 +335,7 @@ class IrQweb(models.AbstractModel):
     _combine_bundle_with_templates = staticmethod(combine_bundle_with_templates)
 
     @tools.conditional(
-        "xml" not in tools.config["dev_mode"],
+        _ASSET_CACHE_ENABLED,
         tools.ormcache(
             "bundle",
             "tuple(sorted(assets_params.items()))",
@@ -362,7 +364,7 @@ class IrQweb(models.AbstractModel):
             return None
 
     @tools.conditional(
-        "xml" not in tools.config["dev_mode"],
+        _ASSET_CACHE_ENABLED,
         tools.ormcache(
             "bundle",
             "tuple(sorted(assets_params.items()))",
@@ -421,7 +423,7 @@ class IrQweb(models.AbstractModel):
         )
 
     @tools.conditional(
-        "xml" not in tools.config["dev_mode"],
+        _ASSET_CACHE_ENABLED,
         tools.ormcache(
             "bundle",
             "tuple(sorted(assets_params.items()))",
@@ -480,7 +482,7 @@ class IrQweb(models.AbstractModel):
         return declared
 
     @tools.conditional(
-        "xml" not in tools.config["dev_mode"],
+        _ASSET_CACHE_ENABLED,
         tools.ormcache(
             "parents",
             "tuple(sorted(assets_params.items()))",
@@ -729,7 +731,7 @@ class IrQweb(models.AbstractModel):
         )
 
     @tools.conditional(
-        "xml" not in tools.config["dev_mode"],
+        _ASSET_CACHE_ENABLED,
         tools.ormcache(
             "bundle",
             "tuple(sorted(assets_params.items()))",

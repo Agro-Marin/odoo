@@ -266,7 +266,7 @@ def _watch(suites: list[str], state: dict, args) -> int:
         return 0
 
 
-def main() -> int:
+def _prepare_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="hoot",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -402,6 +402,11 @@ def main() -> int:
         action="store_true",
         help="Force a fresh warm server before running.",
     )
+    return ap
+
+
+def main() -> int:
+    ap = _prepare_parser()
     args = ap.parse_args()
     _setup_logging(args.verbose)
 

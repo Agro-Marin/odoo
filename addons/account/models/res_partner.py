@@ -178,9 +178,7 @@ class ResPartner(models.Model):
         string="Partner Contracts",
         readonly=True,
     )
-    bank_account_count = fields.Integer(
-        compute="_compute_bank_account_count", string="Bank"
-    )
+    bank_account_count = fields.Count("bank_ids", string="Bank")
     trust = fields.Selection(
         [("good", "Good Debtor"), ("normal", "Normal Debtor"), ("bad", "Bad Debtor")],
         string="Degree of trust you have in this debtor",
@@ -469,14 +467,6 @@ class ResPartner(models.Model):
                 currency = company.sudo().currency_id
                 currency_by_company[company.id] = currency
             partner.currency_id = currency
-
-    def _compute_bank_account_count(self):
-        bank_data = self.env["res.partner.bank"]._read_group(
-            [("partner_id", "in", self.ids)], ["partner_id"], ["__count"]
-        )
-        mapped_data = {partner.id: count for partner, count in bank_data}
-        for partner in self:
-            partner.bank_account_count = mapped_data.get(partner.id, 0)
 
     def _aggregate_by_partner_hierarchy(self, comodel, domain, aggregate):
         all_partners = self.with_context(active_test=False).search_fetch(

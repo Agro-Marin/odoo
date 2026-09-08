@@ -32,7 +32,7 @@ class IrEmbeddedActions(models.Model):
             folders.check_access("write")
 
     @api.model
-    def _get_documents_embed_base_domain(self) -> list:
+    def _get_domain_documents_embed_base(self) -> list:
         return [
             ("parent_action_id", "=", self.env.ref("document.document_action").id),
             ("action_id.type", "=", "ir.actions.server"),
@@ -50,7 +50,7 @@ class IrEmbeddedActions(models.Model):
         obsolete = self.search(
             Domain.AND(
                 [
-                    self._get_documents_embed_base_domain(),
+                    self._get_domain_documents_embed_base(),
                     [("action_id", "not in", embeddable)],
                 ]
             ),

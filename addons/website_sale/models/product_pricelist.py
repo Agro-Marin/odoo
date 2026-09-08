@@ -85,7 +85,7 @@ class ProductPricelist(models.Model):
         domain = super()._get_partner_pricelist_multi_search_domain_hook(company_id)
         website = ir_http.get_request_website()
         if website:
-            domain += self._get_website_pricelists_domain(website)
+            domain += self._get_domain_website_pricelists(website)
         return domain
 
     def _get_partner_pricelist_multi_filter_hook(self):
@@ -105,7 +105,7 @@ class ProductPricelist(models.Model):
         Note: A pricelist without a website_id, not selectable and without a
               code is a backend pricelist.
 
-        Change in this method should be reflected in `_get_website_pricelists_domain`.
+        Change in this method should be reflected in `_get_domain_website_pricelists`.
         """
         self.check_singleton()
         if self.company_id and self.company_id != website.company_id:
@@ -120,7 +120,7 @@ class ProductPricelist(models.Model):
             return True
         return country_code in self.country_group_ids.country_ids.mapped("code")
 
-    def _get_website_pricelists_domain(self, website):
+    def _get_domain_website_pricelists(self, website):
         """Check above `_is_available_on_website` for explanation.
         Change in this method should be reflected in `_is_available_on_website`.
         """

@@ -118,10 +118,10 @@ ZoomOdoo.prototype._init = function () {
         this._attachParent.addEventListener("touchend", this._onLeave.bind(this), {
             signal,
         });
-        this.target.addEventListener(this.opts.event, this._onEnter.bind(this), {
+        this.target.addEventListener(this.opts.event, this._onPointerEnter.bind(this), {
             signal,
         });
-        this.target.addEventListener("touchstart", this._onEnter.bind(this), {
+        this.target.addEventListener("touchstart", this._onPointerEnter.bind(this), {
             signal,
         });
 
@@ -268,7 +268,7 @@ ZoomOdoo.prototype.show = function (e, testMouseOver) {
  * @private
  * @param {Event} e
  */
-ZoomOdoo.prototype._onEnter = function (e) {
+ZoomOdoo.prototype._onPointerEnter = function (e) {
     const touches = e.touches;
     e.preventDefault();
     this.isMouseOver = true;

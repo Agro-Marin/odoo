@@ -9,7 +9,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             product_template_ids, product_ids, wh_location_ids
         )
         domain = [("state", "=", "draft")]
-        domain += self._product_purchase_domain(product_template_ids, product_ids)
+        domain += self._get_domain_product_purchase(product_template_ids, product_ids)
         warehouse_id = self.env.context.get("warehouse_id", False)
         if warehouse_id:
             domain += [("order_id.picking_type_id.warehouse_id", "=", warehouse_id)]
@@ -39,7 +39,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             )
         return res
 
-    def _product_purchase_domain(self, product_template_ids, product_ids):
+    def _get_domain_product_purchase(self, product_template_ids, product_ids):
         if product_ids:
             return [("product_id", "in", product_ids)]
         elif product_template_ids:
