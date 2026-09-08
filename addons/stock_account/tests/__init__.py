@@ -5,6 +5,7 @@ from . import test_closing_date_fallback
 from . import test_closing_date_timezone
 from . import test_lot_valuation
 from . import test_post_deferral_contract
+from . import test_remaining_aggregates
 from . import test_review_fixes
 from . import test_search_valuation
 from . import test_stock_report_columns

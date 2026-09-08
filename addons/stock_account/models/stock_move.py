@@ -256,6 +256,44 @@ class StockMove(models.Model):
             else:
                 move.remaining_value = move.remaining_qty * move.standard_price
 
+    # `remaining_qty` and `remaining_value` are computed and unstored, so there
+    # is no column for SQL to aggregate and a grouped read raises outright
+    # ("Cannot convert stock.move.remaining_qty to SQL because it is not
+    # stored") rather than dropping the measure. Select the group's records
+    # instead and add them up in Python, which is what lets a pivot answer
+    # "how much of what is still on hand came in each month".
+    REMAINING_AGGREGATES = frozenset(
+        {
+            "remaining_qty:sum",
+            "remaining_value:sum",
+            "remaining_value:sum_currency",
+        }
+    )
+
+    def _read_group_select(self, aggregate_spec, query):
+        if aggregate_spec in self.REMAINING_AGGREGATES:
+            return super()._read_group_select("id:recordset", query)
+        return super()._read_group_select(aggregate_spec, query)
+
+    def _read_group_postprocess_aggregate(self, aggregate_spec, raw_values):
+        if aggregate_spec not in self.REMAINING_AGGREGATES:
+            return super()._read_group_postprocess_aggregate(aggregate_spec, raw_values)
+        fname, __, func = aggregate_spec.partition(":")
+        groups = super()._read_group_postprocess_aggregate("id:recordset", raw_values)
+        if func == "sum":
+            return (sum(moves.mapped(fname)) for moves in groups)
+        company_currency = self.env.company.currency_id
+        return (
+            sum(
+                move.company_currency_id._convert(
+                    from_amount=move[fname],
+                    to_currency=company_currency,
+                )
+                for move in moves
+            )
+            for moves in groups
+        )
+
     def _inverse_picked(self):
         super()._inverse_picked()
         self.sudo()._create_analytic_move()
