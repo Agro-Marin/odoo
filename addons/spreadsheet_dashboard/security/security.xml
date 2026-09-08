@@ -27,6 +27,7 @@
 
     <record id="res_groups_privilege_dashboard" model="res.groups.privilege">
         <field name="name">Dashboard</field>
+        <field name="placeholder">User</field>
         <field name="sequence">30</field>
         <field name="category_id" ref="base.module_category_productivity" />
     </record>

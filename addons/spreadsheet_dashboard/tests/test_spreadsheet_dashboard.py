@@ -2,6 +2,7 @@ import json
 
 from odoo import Command
 from odoo.exceptions import UserError
+from odoo.tests.common import new_test_user
 
 from .common import DashboardTestCommon
 
@@ -98,6 +99,31 @@ class TestSpreadsheetDashboard(DashboardTestCommon):
         self.assertFalse(dashboard.allowed_user_ids)
         as_user = self.env["spreadsheet.dashboard"].with_user(self.user)
         self.assertEqual(as_user.search([("id", "=", dashboard.id)]), dashboard)
+
+    def test_privilege_placeholder_matches_what_a_plain_user_gets(self):
+        # The Users form renders the privilege's empty option from
+        # `placeholder` (res_user_group_ids_field.js). A plain internal user
+        # holding no dashboard group still reads every dashboard, so the label
+        # has to say so.
+        privilege = self.env.ref("spreadsheet_dashboard.res_groups_privilege_dashboard")
+        privileges = self.env["res.groups"]._get_view_group_hierarchy()["privileges"]
+        served = privileges[privilege.id]
+        self.assertEqual(served["placeholder"], "User")
+
+        plain = new_test_user(self.env, login="plain_reader")
+        self.assertFalse(plain.group_ids & privilege.group_ids)
+        # a dashboard left on its default groups, which is base.group_user
+        dashboard = self.env["spreadsheet.dashboard"].create(
+            {
+                "name": "a default dashboard",
+                "dashboard_group_id": self.env["spreadsheet.dashboard.group"]
+                .create({"name": "a section"})
+                .id,
+            }
+        )
+        self.assertEqual(dashboard.group_ids, self.env.ref("base.group_user"))
+        as_plain = self.env["spreadsheet.dashboard"].with_user(plain)
+        self.assertEqual(as_plain.search([("id", "=", dashboard.id)]), dashboard)
 
     def test_unlink_prevent_spreadsheet_group(self):
         group = self.env["spreadsheet.dashboard.group"].create({"name": "a_group"})
