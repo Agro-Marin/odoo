@@ -442,6 +442,8 @@ class ProductProduct(models.Model):
 
     def action_product_forecast_report(self):
         self.check_singleton()
+        if not self.env.user._get_default_warehouse_id():
+            self.env["stock.warehouse"]._warehouse_redirect_warning()
         return self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_forecasted_product_product_action"
         )
