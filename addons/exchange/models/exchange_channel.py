@@ -87,6 +87,12 @@ class ExchangeChannel(models.Model):
         compute="_compute_count_transmission",
     )
 
+    # SELECTION METHODS
+
+    @api.model
+    def _selection_protocol(self) -> list[tuple[str, str]]:
+        return self.env["exchange.protocol"]._selection_protocol()
+
     # CONSTRAINT METHODS
 
     @api.constrains("protocol", "company_id", "endpoint_id", "active")
