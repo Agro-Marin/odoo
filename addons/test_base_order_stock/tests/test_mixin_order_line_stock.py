@@ -1,10 +1,9 @@
 from odoo.tests import tagged
-
-from .common import BaseOrderStockLineCase
+from odoo.tests.common import TransactionCase
 
 
 @tagged("post_install", "-at_install")
-class TestMixinOrderLineStock(BaseOrderStockLineCase):
+class TestMixinOrderLineStock(TransactionCase):
     def _line(self, **values):
         return self.env["base_order_stock.test.order.line"].new(values)
 
