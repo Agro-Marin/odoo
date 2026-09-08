@@ -7,13 +7,21 @@ class DashboardTestCommon(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.group = cls.env["res.groups"].create({"name": "test group"})
-        cls.user = new_test_user(cls.env, login="Raoul")
+        cls.user = new_test_user(cls.env, login="Raoul", password="Raoul")
         cls.user.group_ids |= cls.group
+        # Downloading a shared dashboard is an export, so it needs
+        # ``base.group_allow_export``; ``cls.user`` deliberately lacks it.
+        cls.exporter = new_test_user(
+            cls.env,
+            login="exporter",
+            password="exporter",
+            groups="base.group_user,base.group_allow_export",
+        )
 
     def create_dashboard(self, group=None):
-        dashboard_group = group or self.env["spreadsheet.dashboard.group"].create({
-            "name": "Dashboard group"
-        })
+        dashboard_group = group or self.env["spreadsheet.dashboard.group"].create(
+            {"name": "Dashboard group"}
+        )
         return self.env["spreadsheet.dashboard"].create(
             {
                 "name": "a dashboard",

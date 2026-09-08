@@ -1,4 +1,6 @@
-from odoo import http
+from werkzeug.exceptions import Forbidden
+
+from odoo import _, http
 from odoo.http import request
 
 
@@ -11,6 +13,12 @@ class DashboardShareRoute(http.Controller):
         if not share:
             raise request.not_found()
         share._check_dashboard_access(token)
+        # The xlsx copy is a bulk export of the dashboard's data, so only offer
+        # it to a visitor who is allowed to export. The public layout drops the
+        # button when the url is empty.
+        download_url = ""
+        if request.env.user.has_group("base.group_allow_export"):
+            download_url = f"/dashboard/download/{share.id}/{token}"
         return request.render(
             "spreadsheet.public_spreadsheet_layout",
             {
@@ -20,7 +28,7 @@ class DashboardShareRoute(http.Controller):
                 "session_info": request.env["ir.http"].session_info(),
                 "props": {
                     "dataUrl": f"/dashboard/data/{share.id}/{token}",
-                    "downloadExcelUrl": f"/dashboard/download/{share.id}/{token}",
+                    "downloadExcelUrl": download_url,
                     "mode": "dashboard",
                 },
             },
@@ -29,7 +37,7 @@ class DashboardShareRoute(http.Controller):
     @http.route(
         ["/dashboard/download/<int:share_id>/<token>"],
         type="http",
-        auth="public",
+        auth="user",
         readonly=True,
     )
     def download(self, token=None, share_id=None):
@@ -39,6 +47,13 @@ class DashboardShareRoute(http.Controller):
         if not share:
             raise request.not_found()
         share._check_dashboard_access(token)
+        if not request.env.user.has_group("base.group_allow_export"):
+            raise Forbidden(
+                _(
+                    "You don't have the rights to export data. "
+                    "Please contact an Administrator."
+                )
+            )
         stream = request.env["ir.binary"]._get_stream_from_record(
             share, "excel_export", filename=share.name
         )
