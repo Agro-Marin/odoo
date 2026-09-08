@@ -142,6 +142,12 @@ class ResPartnerRelation(models.Model):
     )
     def _compute_labels(self):
         for relation in self:
+            # A record being composed in the form has no type yet, and the
+            # onchange computes both labels before the user picks one.
+            if not relation.type_id:
+                relation.label = False
+                relation.label_inverse = False
+                continue
             relation.label = relation.type_id._get_label(
                 gender=relation.partner_id.gender
             )
@@ -154,9 +160,9 @@ class ResPartnerRelation(models.Model):
         for relation in self:
             relation.display_name = self.env._(
                 "%(one)s — %(label)s — %(other)s",
-                one=relation.partner_id.display_name,
-                label=relation.label,
-                other=relation.other_partner_id.display_name,
+                one=relation.partner_id.display_name or "",
+                label=relation.label or "",
+                other=relation.other_partner_id.display_name or "",
             )
 
     def action_swap(self):
