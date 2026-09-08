@@ -664,10 +664,13 @@ class TestProductProductAudit(TransactionCase):
             "fixture: the acting company must have no default warehouse",
         )
         # _warehouse_redirect_warning returns early while the registry is not
-        # ready, and it never is under test, so the guard would be unreachable
-        # and every assertion below would pass vacuously.
+        # ready, so pin it or the assertions below could pass vacuously. Put
+        # back whatever it was rather than False: the flag is process-wide, and
+        # forcing it off here silences the guard for every test that runs after
+        # this one.
+        was_ready = self.env.registry.ready
         self.env.registry.ready = True
-        self.addCleanup(setattr, self.env.registry, "ready", False)
+        self.addCleanup(setattr, self.env.registry, "ready", was_ready)
 
         with self.assertRaises(RedirectWarning):
             scoped.product_tmpl_id.action_product_tmpl_forecast_report()
