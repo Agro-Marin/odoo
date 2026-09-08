@@ -163,7 +163,7 @@
             <list
                 string="Move Lines"
                 create="0"
-                default_order="id desc"
+                default_order="date desc, id desc"
                 action="action_view_reference"
                 type="object"
                 duplicate="0">
