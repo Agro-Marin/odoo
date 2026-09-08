@@ -12,7 +12,6 @@ from odoo.addons.product.tests.common import ProductCommon
 
 @tagged("post_install", "-at_install")
 class TestProductAuditFixes(ProductCommon):
-
     def test_attribute_line_write_does_not_mutate_caller_vals(self):
         attribute = self.env["product.attribute"].create(
             {
@@ -1193,7 +1192,6 @@ class TestProductAuditFixes(ProductCommon):
 
 @tagged("post_install", "-at_install")
 class TestAttributeNameUniqueness(ProductCommon):
-
     @mute_logger("odoo.db.cursor")
     def test_duplicate_value_in_one_attribute_is_refused(self):
         attribute = self.env["product.attribute"].create({"name": "Fabric"})
