@@ -14,6 +14,8 @@ from odoo.tools import float_is_zero, float_round
 
 from odoo.addons.website_sale import const, utils
 
+XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>'
+
 
 class ProductFeed(models.Model):
     _name = "product.feed"
@@ -184,7 +186,7 @@ class ProductFeed(models.Model):
             "items": self._prepare_gmc_items(),
         }
 
-        return (
+        rendered = (
             self.env["ir.ui.view"]
             .sudo()
             ._render_template(
@@ -192,6 +194,10 @@ class ProductFeed(models.Model):
                 gmc_data,
             )
         )
+        # The declaration has to be the document's first bytes, and QWeb emits
+        # the template's own indentation before whatever the template holds --
+        # so it belongs to the serialization here, not to the template.
+        return f"{XML_DECLARATION}\n{str(rendered).strip()}"
 
     def _prepare_gmc_items(self):
         """Prepare Google Merchant Center items' fields.

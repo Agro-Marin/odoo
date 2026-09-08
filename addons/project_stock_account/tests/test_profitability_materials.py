@@ -26,6 +26,20 @@ class TestProfitabilityMaterials(TransactionCase):
             }
         )
 
+    def test_picking_aal_is_excluded_from_the_other_section(self):
+        """The Materials section counts it, so the generic one must not.
+
+        This is the half `project_account` cannot test: `picking_entry`
+        reaches the selection only once this module is installed.
+        """
+        self._picking_aal(-75.0)
+        self.assertIn(
+            "picking_entry",
+            self.project._get_aal_categories_with_their_own_section(),
+        )
+        items = self.project._get_items_from_aal(with_action=False)
+        self.assertEqual(items["costs"]["total"]["billed"], 0.0)
+
     def test_no_picking_aal_returns_false(self):
         """Without picking analytic lines there is no Materials section."""
         self.assertFalse(self.project._get_items_from_aal_picking(with_action=False))

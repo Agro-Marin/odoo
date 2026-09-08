@@ -53,7 +53,12 @@ registerWebsitePreviewTour(
         {
             content:
                 "Check that you landed on a form view and that the record was unpublished",
-            trigger: '.o-form-buttonbox [name="is_published"] .fa-globe.text-danger',
+            // Keyed on the widget's own `o_button_icon` and the state class it
+            // sets, not on the icon glyph: the glyph is a FontAwesome name that
+            // has already been renamed once (`fa-globe` -> `fa-earth-americas`)
+            // and took this assertion with it.
+            trigger:
+                '.o-form-buttonbox [name="is_published"] .o_button_icon.text-danger',
         },
     ],
 );

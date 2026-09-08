@@ -84,14 +84,23 @@ class TestFiscalPosition(common.TransactionCase):
         self.george.property_account_position_id = self.be_nat
         assert_fp(self.george, self.be_nat, "Forced position has max precedence")
 
-    def test_20_fp_one_tax_2m(self):
-        self.env.company.country_id = self.env.ref("base.us")
-        self.env["account.tax.group"].create(
+    def _create_tax_group_for_company(self, country):
+        """A tax cannot be created without one.
+
+        `account.tax.tax_group_id` is required and precomputed, and its compute
+        searches the company's groups: with none, the precompute finds nothing
+        and the insert fails on the NOT NULL column instead of saying so.
+        """
+        self.env.company.country_id = country
+        return self.env["account.tax.group"].create(
             {
                 "name": "Test Tax Group",
                 "company_ids": [Command.set(self.env.company.ids)],
             }
         )
+
+    def test_20_fp_one_tax_2m(self):
+        self._create_tax_group_for_company(self.us)
 
         self.src_tax = self.env["account.tax"].create({"name": "SRC", "amount": 0.0})
 
@@ -131,6 +140,7 @@ class TestFiscalPosition(common.TransactionCase):
         *unmapped* tax or account -- a line priced in a form is then priced
         without its fiscal position.
         """
+        self._create_tax_group_for_company(self.us)
         src_tax = self.env["account.tax"].create({"name": "SRC-NEW", "amount": 7.0})
         fpos = self.fp.create({"name": "FP-NEWID"})
         dst_tax = self.env["account.tax"].create(
@@ -281,13 +291,7 @@ class TestFiscalPosition(common.TransactionCase):
         )
 
     def test_domestic_fp_map_self(self):
-        self.env.company.country_id = self.us
-        self.env["account.tax.group"].create(
-            {
-                "name": "Test Tax Group",
-                "company_ids": [Command.set(self.env.company.ids)],
-            }
-        )
+        self._create_tax_group_for_company(self.us)
         fp = self.env["account.fiscal.position"].create(
             {
                 "name": "FP Self",

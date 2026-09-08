@@ -8,6 +8,7 @@ from odoo.fields import Command
 from odoo.http import _request_stack
 from odoo.libs.password import CryptContext, pbkdf2_sha512_hash
 from odoo.tests import (
+    TEST_CURSOR_COOKIE_NAME,
     Form,
     HttpCase,
     TransactionCase,
@@ -766,7 +767,17 @@ class TestUsersIdentitycheck(HttpCase):
         )
         self.assertTrue(self.url_open("/web").url.endswith("/web"))
 
-        _request_stack.push(SimpleNamespace(session=session, env=self.env))
+        # The double has to look like the request an HttpCase serves: the
+        # identity check rate-limits by remote address and reads the
+        # test-cursor cookie before it may open a pool cursor.
+        _request_stack.push(
+            SimpleNamespace(
+                session=session,
+                env=self.env,
+                httprequest=SimpleNamespace(remote_addr="127.0.0.1", path="/web"),
+                cookies={TEST_CURSOR_COOKIE_NAME: self.http_request_key},
+            )
+        )
         self.addCleanup(_request_stack.pop)
         action = self.env.user.action_revoke_all_devices()
         form = Form(

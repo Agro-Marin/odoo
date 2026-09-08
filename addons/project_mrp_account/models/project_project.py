@@ -22,6 +22,12 @@ class ProjectProject(models.Model):
         sequence_per_invoice_type["manufacturing_order"] = 12
         return sequence_per_invoice_type
 
+    def _get_aal_categories_with_their_own_section(self):
+        return [
+            *super()._get_aal_categories_with_their_own_section(),
+            "manufacturing_order",
+        ]
+
     def _get_domain_profitability_aal(self):
         return Domain.AND(
             [

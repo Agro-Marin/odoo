@@ -37,10 +37,10 @@ class ProjectProject(models.Model):
             action["res_id"] = expense_ids[0]
         return action
 
-    def _get_add_purchase_items_domain(self):
+    def _get_domain_add_purchase_items(self):
         return Domain.AND(
             [
-                super()._get_add_purchase_items_domain(),
+                super()._get_domain_add_purchase_items(),
                 Domain("expense_id", "=", False),
             ]
         )

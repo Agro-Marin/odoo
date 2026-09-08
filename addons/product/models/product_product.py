@@ -352,21 +352,31 @@ class ProductProduct(models.Model):
         for record in self:
             record[field] = record[variant_field] or record.product_tmpl_id[field]
 
+    @api.depends("image_variant_1920", "product_tmpl_id.image_1920")
     def _compute_image_1920(self):
         self._compute_variant_image(1920)
 
+    @api.depends("image_variant_1024", "product_tmpl_id.image_1024")
     def _compute_image_1024(self):
         self._compute_variant_image(1024)
 
+    @api.depends("image_variant_512", "product_tmpl_id.image_512")
     def _compute_image_512(self):
         self._compute_variant_image(512)
 
+    @api.depends("image_variant_256", "product_tmpl_id.image_256")
     def _compute_image_256(self):
         self._compute_variant_image(256)
 
+    @api.depends("image_variant_128", "product_tmpl_id.image_128")
     def _compute_image_128(self):
         self._compute_variant_image(128)
 
+    @api.depends(
+        "image_variant_1920",
+        "can_image_variant_1024_be_zoomed",
+        "product_tmpl_id.can_image_1024_be_zoomed",
+    )
     def _compute_can_image_1024_be_zoomed(self):
         for record in self:
             record.can_image_1024_be_zoomed = (

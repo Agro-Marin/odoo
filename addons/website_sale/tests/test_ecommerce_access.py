@@ -95,17 +95,20 @@ class TestEcommerceAccess(HttpCaseWithUserDemo, WebsiteSaleCommon):
             }
         )
 
-        # Check if by default public user can see shop menu
-        self.menu.with_user(
-            self.public_user
-        ).sudo()._compute_is_visible()  # Needs to be sudoed as
-        # public user can't access _compute_is_visible
-        self.assertTrue(self.menu.is_visible)
+        # The compute is env-user dependent, so it has to be triggered AND read
+        # on the same recordset: `_compute_is_visible()` writes into the cache
+        # of the environment it runs in, and reading `self.menu` back would ask
+        # the admin environment, for whom the menu is visible either way.
+        # Sudo because the public user cannot read what the compute reaches.
+        menu_as_public = self.menu.with_user(self.public_user).sudo()
+
+        menu_as_public._compute_is_visible()
+        self.assertTrue(menu_as_public.is_visible)
 
         self.website.ecommerce_access = "logged_in"
-        self.menu.with_user(self.public_user).sudo()._compute_is_visible()
-        # Check if menu is hidden for public user when ecommerce is restricted
-        self.assertFalse(self.menu.is_visible)
+        menu_as_public.invalidate_recordset(["is_visible"])
+        menu_as_public._compute_is_visible()
+        self.assertFalse(menu_as_public.is_visible)
 
     def test_ecommerce_access_shop_redirection(self):
         self.website.ecommerce_access = "logged_in"

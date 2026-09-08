@@ -1,5 +1,7 @@
 """Tests for the analytic-line split of project profitability."""
 
+from unittest.mock import patch
+
 from odoo.tests import TransactionCase, tagged
 
 
@@ -43,11 +45,22 @@ class TestProfitabilityAal(TransactionCase):
         self.assertEqual(items["revenues"]["data"][0]["id"], "other_revenues_aal")
         self.assertEqual(items["costs"]["data"][0]["id"], "other_costs_aal")
 
-    def test_stock_categories_excluded(self):
-        """Manufacturing/picking lines belong to other sections (boundary)."""
-        self._aal(-80.0, category="picking_entry")
-        self._aal(-70.0, category="manufacturing_order")
-        items = self.project._get_items_from_aal(with_action=False)
+    def test_a_category_with_its_own_section_is_excluded(self):
+        """A line another section reports is not counted again here.
+
+        Spelled through the hook rather than through `picking_entry` and
+        `manufacturing_order`: those values reach the selection only once
+        `project_stock_account` and `project_mrp_account` are installed, which
+        this module does not depend on, so naming them here tests nothing and
+        cannot even create the line.
+        """
+        self._aal(-80.0)
+        with patch.object(
+            type(self.project),
+            "_get_aal_categories_with_their_own_section",
+            lambda project: ["other"],
+        ):
+            items = self.project._get_items_from_aal(with_action=False)
         self.assertEqual(items["costs"]["total"]["billed"], 0.0)
 
     def test_to_bill_and_to_invoice_stay_zero(self):

@@ -10,7 +10,7 @@ class ProjectProject(models.Model):
     _inherit = "project.project"
 
     def _add_purchase_items(self, profitability_items, with_action=True):
-        domain = self._get_add_purchase_items_domain()
+        domain = self._get_domain_add_purchase_items()
         with_action = with_action and (
             self.env.user.has_group("account.group_account_invoice")
             or self.env.user.has_group("account.group_account_readonly")
@@ -19,7 +19,7 @@ class ProjectProject(models.Model):
             domain, profitability_items, with_action=with_action
         )
 
-    def _get_add_purchase_items_domain(self):
+    def _get_domain_add_purchase_items(self):
         purchase_order_line_invoice_line_ids = (
             self._get_already_included_profitability_invoice_line_ids()
         )
@@ -167,11 +167,26 @@ class ProjectProject(models.Model):
         in the hr_timesheet module, we can't add the condition ('project_id', '=', False) here."""
         return [("account_id", "=", self.account_id.id), ("move_line_id", "=", False)]
 
+    def _get_aal_categories_with_their_own_section(self):
+        """Analytic-line categories another profitability section already counts.
+
+        A module that adds a `category` to `account.analytic.line` and reports
+        it under a heading of its own extends this, so the "other" section
+        below does not count the same line a second time. Naming those values
+        here instead would be this module reading its own extensions'
+        vocabulary, and the selection does not even carry them until the module
+        that adds them is installed.
+        """
+        return []
+
     def _get_items_from_aal(self, with_action=True):
+        own_section = self._get_aal_categories_with_their_own_section()
         domain = Domain.AND(
             [
                 self._get_domain_aal_with_no_move_line(),
-                Domain("category", "not in", ["manufacturing_order", "picking_entry"]),
+                Domain("category", "not in", own_section)
+                if own_section
+                else Domain.TRUE,
             ]
         )
         aal_other_search = (

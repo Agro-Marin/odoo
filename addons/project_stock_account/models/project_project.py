@@ -17,6 +17,12 @@ class Project(models.Model):
             "other_costs": 12,
         }
 
+    def _get_aal_categories_with_their_own_section(self):
+        return [
+            *super()._get_aal_categories_with_their_own_section(),
+            "picking_entry",
+        ]
+
     def _get_profitability_items(self, with_action=True):
         profitability_items = super()._get_profitability_items(with_action)
         aal_from_picking = self._get_items_from_aal_picking(with_action)
