@@ -384,7 +384,12 @@ class AccountMove(models.Model):
                 invoice.invoice_line_ids = [
                     Command.update(
                         po_line.id,
-                        {"quantity": inv_line.quantity, "tax_ids": inv_line.tax_ids},
+                        {
+                            "quantity": inv_line.product_uom_id._compute_quantity(
+                                inv_line.quantity, po_line.product_uom_id
+                            ),
+                            "tax_ids": inv_line.tax_ids,
+                        },
                     )
                     for po_line, inv_line in inv_and_po_lines
                 ]
