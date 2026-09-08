@@ -15,12 +15,6 @@ from odoo.addons.rating.models.rating_data import (
 
 _logger = logging.getLogger(__name__)
 
-MAPPED_RATES = {
-    1: RATING_UNHAPPY_VALUE,
-    5: RATING_NEUTRAL_VALUE,
-    10: RATING_HAPPY_VALUE,
-}
-
 
 class Rating(http.Controller):
     @http.route(
