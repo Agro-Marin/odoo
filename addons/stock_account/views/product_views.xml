@@ -37,16 +37,19 @@
                     <field
                         name="property_stock_valuation_account_id"
                         string="Stock Account"
-                        options="{'no_create': True}" />
+                        options="{'no_create': True}"
+                        decoration-muted="not property_stock_valuation_account_active" />
                     <field
                         name="account_stock_variation_id"
                         string="Stock Variation"
                         options="{'no_create': True}"
-                        readonly="not property_stock_valuation_account_id" />
+                        readonly="not property_stock_valuation_account_id"
+                        decoration-muted="not account_stock_variation_active" />
                     <field
                         name="property_price_difference_account_id"
                         options="{'no_create': True}"
-                        invisible="not (property_cost_method == 'standard' and property_valuation == 'real_time')" />
+                        invisible="not (property_cost_method == 'standard' and property_valuation == 'real_time')"
+                        decoration-muted="not property_price_difference_account_active" />
                 </field>
             </field>
         </record>

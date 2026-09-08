@@ -9,11 +9,13 @@
             <field name="tag_ids" position="after">
                 <field
                     name="account_stock_variation_id"
-                    invisible="account_type != 'asset_current'" />
+                    invisible="account_type != 'asset_current'"
+                    decoration-muted="not account_stock_variation_active" />
                 <field
                     name="account_stock_expense_id"
                     invisible="account_type != 'asset_current'"
-                    placeholder="For Perpetual Continental Only" />
+                    placeholder="For Perpetual Continental Only"
+                    decoration-muted="not account_stock_expense_active" />
             </field>
         </field>
     </record>

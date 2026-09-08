@@ -1,4 +1,5 @@
 from . import test_account_move
+from . import test_archived_valuation_accounts
 from . import test_anglo_saxon_valuation_reconciliation_common
 from . import test_closing_date_fallback
 from . import test_lot_valuation
