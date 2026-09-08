@@ -131,6 +131,7 @@
                     name="create_sale_order"
                     string="Create Sale"
                     type="object"
+                    groups="sales_team.group_sale_salesman"
                     class="oe_highlight"
                     invisible="move_type != 'out_invoice' or state != 'posted' or sale_order_count != 0" />
             </header>
