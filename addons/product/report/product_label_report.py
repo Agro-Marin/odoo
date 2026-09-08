@@ -5,7 +5,6 @@ from odoo.exceptions import UserError
 
 
 class MixinProductLabelReport(models.AbstractModel):
-
     _name = "mixin.product.label.report"
     _description = "Product Label Report"
 
