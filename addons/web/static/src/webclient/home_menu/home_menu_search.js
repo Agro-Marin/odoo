@@ -73,20 +73,11 @@ export function useHomeMenuSearch({ onQueryChanged }) {
                 return;
             }
             search.clear();
-            command.openMainPalette(
-                /** @type {any} */ ({ searchValue: typed, FooterComponent }),
-                () => search.focus(),
-            );
+            handOverToPalette(command, typed, () => search.focus());
         },
 
         openPalette() {
-            command.openMainPalette(
-                /** @type {any} */ ({
-                    searchValue: `/${state.query}`,
-                    FooterComponent,
-                }),
-                () => search.focus(),
-            );
+            handOverToPalette(command, `/${state.query}`, () => search.focus());
         },
 
         onBlur() {
@@ -112,6 +103,29 @@ export function useHomeMenuSearch({ onQueryChanged }) {
         },
     };
 
+    useTypeToFocus(inputRef, ui, () => search.focus());
+
+    return search;
+}
+
+/**
+ * @param {import("services").ServiceFactories["command"]} command
+ * @param {string} searchValue
+ * @param {() => void} refocus
+ */
+function handOverToPalette(command, searchValue, refocus) {
+    command.openMainPalette(
+        /** @type {any} */ ({ searchValue, FooterComponent }),
+        refocus,
+    );
+}
+
+/**
+ * @param {import("@odoo/owl").Ref<HTMLElement>} inputRef
+ * @param {import("services").ServiceFactories["ui"]} ui
+ * @param {() => void} focus
+ */
+function useTypeToFocus(inputRef, ui, focus) {
     useExternalListener(window, "keydown", (/** @type {KeyboardEvent} */ ev) => {
         const printable =
             ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey;
@@ -124,9 +138,7 @@ export function useHomeMenuSearch({ onQueryChanged }) {
             ) &&
             !document.activeElement?.closest("[contenteditable=true]")
         ) {
-            search.focus();
+            focus();
         }
     });
-
-    return search;
 }

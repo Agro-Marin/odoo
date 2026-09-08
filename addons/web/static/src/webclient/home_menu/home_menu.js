@@ -142,25 +142,7 @@ export class HomeMenu extends Component {
         this.search = useHomeMenuSearch({
             onQueryChanged: () => this.keyboard.clear(),
         });
-        this.layout = new HomeMenuLayout({
-            config: useState(this.props.config ?? reactive(parseHomeMenuConfig(null))),
-            defaultConfig: this.props.defaultConfig ?? parseHomeMenuConfig(null),
-            orm: useService("orm"),
-            personal: this.props.personal,
-            onSaved: () => this.props.reorderApps(this.layout.config.order),
-        });
-        this.layout.state = useState(this.layout.state);
-        useSetupAction({
-            beforeLeave: () => this.layout.flush(),
-            beforeUnload: (/** @type {BeforeUnloadEvent} */ event) => {
-                if (this.layout.unsaved) {
-                    event.preventDefault();
-                    event.returnValue = "";
-                }
-            },
-        });
-        this.badgeRequest = 0;
-        useHomeMenuBadgeUpdates(this.env, () => this._loadBadges());
+        this._setupLayout();
         this.rootRef = useRef("root");
 
         this.grid = new HomeMenuGrid({
@@ -182,28 +164,68 @@ export class HomeMenu extends Component {
             enterTarget: () => this.search.inputEl,
         });
 
-        useSortable({
-            enable: () => this._enableAppsSorting(),
-            ref: this.rootRef,
-            elements: ".o_apps .o_draggable",
-            ignore: ".o_app_edit_actions",
-            cursor: "move",
-            onWillStartDrag: (params) => this._sortStart(params),
-            onDrop: (params) => this._sortAppDrop(params),
-        });
+        this._setupSorting();
+        this._setupBadges();
+        this._setupPropsSync();
 
-        useSortable({
-            enable: () => this._enableAppsSorting(),
-            ref: this.rootRef,
-            elements: ".o_pinned_apps .o_draggable",
-            ignore: ".o_app_edit_actions",
-            cursor: "move",
-            onWillStartDrag: (params) => this._sortStart(params),
-            onDrop: (params) => this._sortPinnedDrop(params),
+        onMounted(() => {
+            if (!hasTouch()) {
+                this.search.focus();
+            }
         });
+    }
 
+    _setupLayout() {
+        this.layout = new HomeMenuLayout({
+            config: useState(this.props.config ?? reactive(parseHomeMenuConfig(null))),
+            defaultConfig: this.props.defaultConfig ?? parseHomeMenuConfig(null),
+            orm: useService("orm"),
+            personal: this.props.personal,
+            onSaved: () => this.props.reorderApps(this.layout.config.order),
+        });
+        this.layout.state = useState(this.layout.state);
+        useSetupAction({
+            beforeLeave: () => this.layout.flush(),
+            beforeUnload: (/** @type {BeforeUnloadEvent} */ event) => {
+                if (this.layout.unsaved) {
+                    event.preventDefault();
+                    event.returnValue = "";
+                }
+            },
+        });
+    }
+
+    _setupSorting() {
+        for (const [elements, onDrop] of /** @type {const} */ ([
+            [".o_apps .o_draggable", this._sortAppDrop],
+            [".o_pinned_apps .o_draggable", this._sortPinnedDrop],
+        ])) {
+            useSortable({
+                enable: () => this._enableAppsSorting(),
+                ref: this.rootRef,
+                elements,
+                ignore: ".o_app_edit_actions",
+                cursor: "move",
+                onWillStartDrag: (params) => this._sortStart(params),
+                onDrop: (params) => onDrop.call(this, params),
+            });
+        }
+    }
+
+    _setupBadges() {
+        this.badgeRequest = 0;
+        useHomeMenuBadgeUpdates(this.env, () => this._loadBadges());
+        onMounted(() => {
+            this.badgeTimer = browser.setTimeout(() => this._loadBadges(), BADGE_DELAY);
+        });
+        onWillUnmount(() => {
+            browser.clearTimeout(this.badgeTimer);
+            this.badgeRequest++;
+        });
+    }
+
+    _setupPropsSync() {
         this.appsKey = homeMenuAppsKey(this.props.apps);
-
         onWillUpdateProps((nextProps) => {
             const appsKey = homeMenuAppsKey(nextProps.apps);
             const appsChanged = appsKey !== this.appsKey;
@@ -222,18 +244,6 @@ export class HomeMenu extends Component {
             if (appsChanged || configChanged) {
                 this.keyboard.clear();
             }
-        });
-
-        onMounted(() => {
-            if (!hasTouch()) {
-                this.search.focus();
-            }
-            this.badgeTimer = browser.setTimeout(() => this._loadBadges(), BADGE_DELAY);
-        });
-
-        onWillUnmount(() => {
-            browser.clearTimeout(this.badgeTimer);
-            this.badgeRequest++;
         });
     }
 
