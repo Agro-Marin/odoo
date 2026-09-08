@@ -247,7 +247,7 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
         company = order_sudo.company_id
         logged_in = not request.env.user._is_public()
         partner_sudo = (
-            request.env.user.partner_id if logged_in else order_sudo.partner_id
+            request.env.user.partner_id if logged_in else order_sudo.partner_invoice_id
         )
         currency = order_sudo.currency_id
 
@@ -303,7 +303,7 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
             "payment_amount": payment_amount,
         }
         payment_form_values = {
-            "show_tokenize_input_mapping": PaymentPortal._compute_show_tokenize_input_mapping(
+            "show_tokenize_input_mapping": payment_portal.PaymentPortal._compute_show_tokenize_input_mapping(
                 providers_sudo, sale_order_id=order_sudo.id
             ),
         }
