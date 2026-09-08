@@ -121,6 +121,7 @@
                     readonly="1"
                     decoration-danger="(state not in ('cancel','done')) and date &gt; current_date" />
                 <field name="reference" />
+                <field name="partner_id" optional="hide" readonly="1" />
                 <field name="picking_type_id" column_invisible="True" readonly="1" />
                 <field name="location_usage" column_invisible="True" readonly="1" />
                 <field

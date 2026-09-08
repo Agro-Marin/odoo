@@ -1,5 +1,6 @@
 from dateutil.relativedelta import relativedelta
 from freezegun import freeze_time
+from lxml import etree
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
@@ -9247,4 +9248,27 @@ class TestStockMove(TestStockCommon):
         self.assertFalse(
             move.show_lot_actions,
             "a return move must not offer to create new lots",
+        )
+
+    def test_the_moves_analysis_list_offers_the_contact(self):
+        """The Moves Analysis list must be able to show the contact.
+
+        partner_id is filled on 79 677 of our 150 567 stock moves, yet the list
+        had no column for it. The name does appear in this file, but only in
+        the search view, so grepping the file suggests a column that is not
+        there -- hence rendering the list on its own here.
+        """
+        arch = etree.fromstring(
+            self.env["stock.move"].get_view(
+                self.env.ref("stock.view_stock_move_list").id, "list"
+            )["arch"],
+        )
+        self.assertEqual(
+            arch.tag,
+            "list",
+            "fixture: this must be the list view, not the search view",
+        )
+        self.assertTrue(
+            arch.xpath("//field[@name='partner_id']"),
+            "the Moves Analysis list must offer the contact as a column",
         )
