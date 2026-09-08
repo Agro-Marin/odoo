@@ -304,15 +304,27 @@ def test_mails_shallow_surface_is_exactly_the_unlayered_directory():
     ]
 
 
-def test_mails_deep_and_production_specifiers_are_different_sets():
+def test_depth_and_production_are_independent_axes(tmp_path):
+    # Depth is a property of the specifier, production-reach a property of the
+    # importer, and measure_detailed must not collapse them. Built here rather
+    # than measured over CONSUMER_ROOTS: the live tree happening to contain a
+    # test-only deep specifier is not an invariant anyone maintains, and when
+    # it stopped being true this assertion failed while the tool was correct.
+    _consumer(
+        tmp_path, "sale/static/tests/a.test.js", 'import "@mail/core/common/thread";\n'
+    )
+    _consumer(tmp_path, "sale/static/src/b.js", 'import "@mail/model/record";\n')
 
-    detailed = jps.measure_detailed(jps.CONSUMER_ROOTS, "mail")
+    detailed = jps.measure_detailed((tmp_path,), "mail")
     deep = {s for s in detailed if s.count("/") >= 3}
     production = {
         s for s, scopes in detailed.items() if any(prod for prod, _ in scopes.values())
     }
+
+    assert deep == {"@mail/core/common/thread"}
+    assert production == {"@mail/model/record"}
     assert deep != production
-    assert deep - production, "some deep specifiers are reached only from tests"
+    assert deep - production == {"@mail/core/common/thread"}
 
 
 def test_an_addons_own_imports_are_not_its_surface():
