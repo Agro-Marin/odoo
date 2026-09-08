@@ -338,7 +338,7 @@ class L10nMyEDITestFileGeneration(AccountTestInvoicingCommon):
             'partner_id': self.partner_a.id,
             'line_ids': [(0, 0, {
                 'product_id': self.product_a.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
                 'price_unit': 100,
                 'currency_id': self.other_currency.id,
                 'tax_ids': [Command.set(self.company_data['default_tax_sale'].ids)],

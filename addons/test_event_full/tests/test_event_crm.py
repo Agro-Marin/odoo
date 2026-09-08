@@ -31,7 +31,7 @@ class TestEventCrm(TestEventFullCommon):
                             "event_id": cls.test_event.id,
                             "event_ticket_id": ticket1.id,
                             "product_id": ticket1.product_id.id,
-                            "product_uom_qty": cls.TICKET1_COUNT,
+                            "product_qty": cls.TICKET1_COUNT,
                         },
                     ),
                     (
@@ -41,7 +41,7 @@ class TestEventCrm(TestEventFullCommon):
                             "event_id": cls.test_event.id,
                             "event_ticket_id": ticket2.id,
                             "product_id": ticket2.product_id.id,
-                            "product_uom_qty": cls.TICKET2_COUNT,
+                            "product_qty": cls.TICKET2_COUNT,
                             "price_unit": 50,
                         },
                     ),
@@ -122,7 +122,7 @@ class TestEventCrm(TestEventFullCommon):
                             "product_id": self.test_event.event_ticket_ids[
                                 0
                             ].product_id.id,
-                            "product_uom_qty": 2,
+                            "product_qty": 2,
                         },
                     )
                 ],

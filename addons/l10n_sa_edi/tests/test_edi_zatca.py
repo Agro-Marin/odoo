@@ -225,7 +225,7 @@ class TestEdiZatca(TestSaEdiCommon):
                     Command.create({
                         'product_id': self.product_a.id,
                         'price_unit': 1000,
-                        'product_uom_qty': 1,
+                        'product_qty': 1,
                         'tax_ids': [Command.set(self.tax_15.ids)],
                     })
                 ]

@@ -823,12 +823,12 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
 
         self.env["pos.order"].sync_from_ui([pos_order])
         self.assertEqual(
-            sale_order.line_ids[0].untaxed_amount_invoiced,
+            sale_order.line_ids[0].amount_taxexc_invoiced,
             10,
             "Untaxed invoiced amount should be 10",
         )
         self.assertEqual(
-            sale_order.line_ids[1].untaxed_amount_invoiced,
+            sale_order.line_ids[1].amount_taxexc_invoiced,
             0,
             "Untaxed invoiced amount should be 0",
         )
@@ -919,7 +919,7 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
             "PosSettleDraftOrder",
             login="accountman",
         )
-        self.assertEqual(sale_order.state, "sale")
+        self.assertEqual(sale_order.state, "done")
 
     def test_settle_order_change_customer(self):
         """
@@ -1395,10 +1395,14 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
             login="accountman",
         )
         self.assertEqual(
-            sale_order.amount_to_invoice, 80.0, "Downpayment amount not considered!"
+            sale_order.amount_taxinc_to_invoice,
+            80.0,
+            "Downpayment amount not considered!",
         )
         self.assertEqual(
-            sale_order.amount_invoiced, 20.0, "Downpayment amount not considered!"
+            sale_order.amount_taxinc_invoiced,
+            20.0,
+            "Downpayment amount not considered!",
         )
 
         self.assertEqual(sale_order.line_ids[2].price_unit, 20)
@@ -2326,11 +2330,13 @@ class TestPoSSale(TestPointOfSaleHttpCommon):
             "to_invoice": True,
         }
         self.assertEqual(
-            sale_order.amount_to_invoice, 100.0, "Amount to invoice should be 100.0"
+            sale_order.amount_taxinc_to_invoice,
+            100.0,
+            "Amount to invoice should be 100.0",
         )
         self.env["pos.order"].sync_from_ui([order_data])
         self.assertEqual(
-            sale_order.amount_to_invoice, 0.0, "Amount to invoice should be 0.0"
+            sale_order.amount_taxinc_to_invoice, 0.0, "Amount to invoice should be 0.0"
         )
 
     def test_payment_terms_with_early_discount(self):

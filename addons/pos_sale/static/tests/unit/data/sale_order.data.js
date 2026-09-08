@@ -27,7 +27,7 @@ export class SaleOrder extends models.ServerModel {
         {
             id: 1,
             name: "S00001",
-            state: "sale",
+            state: "done",
             line_ids: [1, 2],
             partner_id: 3,
             pricelist_id: 1,

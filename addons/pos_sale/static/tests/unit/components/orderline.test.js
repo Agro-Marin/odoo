@@ -21,13 +21,13 @@ test("Displays the table with details of the down payment", async () => {
             down_payment_details: [
                 {
                     product_name: sol1.display_name,
-                    product_uom_qty: sol1.product_uom_qty,
+                    product_qty: sol1.product_qty,
                     price_unit: sol1.price_unit,
                     total: sol1.price_total,
                 },
                 {
                     product_name: sol2.display_name,
-                    product_uom_qty: sol2.product_uom_qty,
+                    product_qty: sol2.product_qty,
                     price_unit: sol2.price_unit,
                     total: sol2.price_total,
                 },

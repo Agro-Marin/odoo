@@ -56,7 +56,7 @@ class TestPerishableQtyAtDate(TestStockCommon, HttpCase):
                     Command.create(
                         {
                             "product_id": product_exp[i].id,
-                            "product_uom_qty": 50,
+                            "product_qty": 50,
                             "price_unit": 100,
                         }
                     )

@@ -225,7 +225,7 @@ class TestUi(TestUICommon):
                     {
                         "name": self.furniture_course_product.name,
                         "product_id": self.furniture_course_product.id,
-                        "product_uom_qty": 1,
+                        "product_qty": 1,
                         "price_unit": self.furniture_course_product.list_price,
                     },
                 )

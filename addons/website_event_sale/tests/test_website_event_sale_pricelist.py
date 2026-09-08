@@ -32,7 +32,7 @@ class TestWebsiteEventPriceList(TestWebsiteEventSaleCommon):
                 "name": self.event.name,
                 "order_id": self.empty_cart.id,
                 "product_id": self.ticket.product_id.id,
-                "product_uom_qty": 1,
+                "product_qty": 1,
             }
         )
         self.assertEqual(so_line.price_unit_discounted_taxexc, 100)

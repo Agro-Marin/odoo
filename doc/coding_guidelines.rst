@@ -6677,11 +6677,18 @@ both carry the *other* one's upstream meaning. ``mixin.order.line.amount``
        (``product_id.uom_id``). Computed, stored, ``readonly=True``.
      - the ordered quantity in the line's own unit
 
-**Writing ``product_uom_qty`` does not raise; it silently does the wrong
-thing.** In ``create`` the value is discarded and ``product_qty`` falls back to
-its default of 1 — a test that orders 10 orders 1 and usually still passes. In
-``write`` it lands in the stored column while ``product_qty`` keeps its old
-value, so the two disagree until something recomputes.
+**Writing ``product_uom_qty`` raises.**
+``mixin.order.line.amount._check_write_derived_quantity`` refuses it, from
+``create`` and from ``write`` alike, with ``product_uom_qty is computed from
+product_qty and cannot be written; set product_qty instead``.
+
+That is a change of kind, and this appendix described the old one until
+2026-09-07. Before ``fed310f743c`` the write was **silent**: in ``create`` the
+value was discarded and ``product_qty`` fell back to its default of 1, so a
+test that ordered 10 ordered 1 and usually still passed; in ``write`` it landed
+in the stored column while ``product_qty`` kept its old value. Read any
+pre-September reasoning about this pair with that in mind — a site the old text
+called inert is a hard failure now.
 
 So: **write ``product_qty``**, and read it wherever the quantity is about to be
 converted from ``product_uom_id`` or compared with a BoM's ``product_qty``. Read
@@ -6690,9 +6697,30 @@ line against free stock. ``stock.move.product_uom_qty`` is unrelated and
 unchanged: a real, writable field there.
 
 Counted by ``tooling/architecture/order_line_qty.py`` and ratcheted as
-``orderlineqty`` rather than made to raise, on the naming count's argument: the
-floor is frozen where it stands and driven down module by module. A raise is where it
-ends.
+``orderlineqty``, which was floored at 31 while the write was silent and driven
+down module by module. The raise arrived first, so every remaining site was a
+red test rather than drift, and the floor went to **zero** in one sweep: **33**
+writes across 21 test files, every one a fixture building an order line, none of
+them a place where the reference unit was the point.
+
+Thirty-three against a floor of thirty-one, and **both of the extra two were
+sites the gate could not see** — each found by a suite failing, not by the scan:
+
+- ``order.line_ids = [Command.create({...})]``. The assignment branch only read
+  ``<order line>.product_uom_qty = value``, so a command list assigned straight
+  to the one2many was invisible although it reaches exactly the rows a
+  ``write`` of the same list reaches. Closed, and pinned by
+  ``test_assigning_a_command_list_to_the_o2m_is_a_write`` beside its negative
+  twin on ``picking.move_ids``, where the field is real.
+- **A payload the call site named.** ``test_event_full``'s ``test_event_mail``
+  assembled ``order_line_vals`` into a variable and passed it to ``write`` on
+  the next line; the scan reads dict *literals*, so it saw nothing.
+  Still open — resolving a name to its dict is local dataflow, not a shape
+  test, and the false-positive question there has not been thought through.
+
+A floor of zero is what makes the remaining gap survivable: with nothing banked,
+the next literal site fails the gate on the day it lands, and only the named-dict
+form can still arrive quietly.
 
 Appendix B — References
 ========================

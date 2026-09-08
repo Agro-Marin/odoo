@@ -216,7 +216,7 @@ class L10nHuEdiTestFlowsMocked(L10nHuEdiTestCommon, TestAccountMoveSendCommon):
                 'pricelist_id': pricelist.id,
                 'line_ids': [Command.create({
                     'product_id': self.product.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                     'price_unit': 600,
                 })],
                 'currency_id': currency.id,

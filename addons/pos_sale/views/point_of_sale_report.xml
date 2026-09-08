@@ -19,7 +19,7 @@
                                 <t
                                     t-if="sale_order_line.product_id != down_payment_product and sale_order_line.tax_ids == line.tax_ids">
                                     <div>
-                                        <span style="margin-right: 5px;"><t t-esc="int(sale_order_line.product_uom_qty)" />x</span>
+                                        <span style="margin-right: 5px;"><t t-esc="int(sale_order_line.product_qty)" />x</span>
                                         <span t-esc="sale_order_line.name" />
                                         <span style="margin: 0px 5px;">:</span>
                                         <t

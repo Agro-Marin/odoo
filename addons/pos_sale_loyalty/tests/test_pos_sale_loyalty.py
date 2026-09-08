@@ -39,7 +39,7 @@ class TestPoSSaleLoyalty(TestPointOfSaleHttpCommon):
             'partner_id': self.partner_a.id,
             'line_ids': [(0, 0, {
                 'product_id': self.desk_organizer.product_variant_id.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
                 'price_unit': 100,
             })]
         })
@@ -83,7 +83,7 @@ class TestPoSSaleLoyalty(TestPointOfSaleHttpCommon):
             'partner_id': self.partner_a.id,
             'line_ids': [(0, 0, {
                 'product_id': test_product.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
                 'price_unit': 100,
             })]
         })
@@ -144,7 +144,7 @@ class TestPoSSaleLoyalty(TestPointOfSaleHttpCommon):
             'partner_id': self.partner_a.id,
             'line_ids': [(0, 0, {
                 'product_id': test_product.id,
-                'product_uom_qty': 1,
+                'product_qty': 1,
                 'price_unit': 100,
             })]
         })

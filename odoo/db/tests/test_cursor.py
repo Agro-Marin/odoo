@@ -415,11 +415,19 @@ class TestPipelineAccountsForTheSyncCost(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        subprocess.run(
+        from odoo.db import close_db
+
+        close_db(cls.DBNAME)
+        dropped = subprocess.run(
             ["dropdb", "--if-exists", cls.DBNAME],
             check=False,
             capture_output=True,
+            text=True,
             timeout=30,
+        )
+        assert dropped.returncode == 0, (
+            f"{cls.DBNAME} outlived the test, so the next run skips instead of "
+            f"measuring: {dropped.stderr.strip()}"
         )
 
     def test_pipelined_execute_values_accounts_for_almost_all_wall_time(self):

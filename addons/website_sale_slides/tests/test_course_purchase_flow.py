@@ -57,7 +57,7 @@ class TestCoursePurchaseFlow(common.SlidesCase):
                         {
                             "name": self.course_product.name,
                             "product_id": self.course_product.id,
-                            "product_uom_qty": 1,
+                            "product_qty": 1,
                             "price_unit": self.course_product.list_price,
                         },
                     )
@@ -85,7 +85,7 @@ class TestCoursePurchaseFlow(common.SlidesCase):
                             {
                                 "name": self.course_product.name,
                                 "product_id": self.course_product.id,
-                                "product_uom_qty": 1,
+                                "product_qty": 1,
                                 "price_unit": self.course_product.list_price,
                             },
                         )

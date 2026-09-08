@@ -124,10 +124,21 @@ def _scan(path: Path, rel: str, out: dict[tuple[str, int], Write]) -> None:
 
         if isinstance(node, ast.Assign):
             for target in node.targets:
-                if not (isinstance(target, ast.Attribute) and target.attr == FIELD):
+                if not isinstance(target, ast.Attribute):
                     continue
-                if _is_order_line_expr(target.value):
-                    record(target.lineno, "assign", ast.unparse(node.value))
+                if target.attr == FIELD:
+                    if _is_order_line_expr(target.value):
+                        record(target.lineno, "assign", ast.unparse(node.value))
+                    continue
+                # `order.line_ids = [Command.create({...})]` reaches the same
+                # rows as a write of the same command list, and read nothing
+                # here until sale_timesheet_margin failed on a site this gate
+                # had counted as clean.
+                if target.attr not in LINE_ATTRS:
+                    continue
+                for inner in ast.walk(node.value):
+                    if isinstance(inner, ast.Dict) and FIELD in _string_keys(inner):
+                        record(inner.lineno, "assign", _value_for(inner, FIELD))
 
 
 def default_roots() -> list[Path]:
@@ -202,15 +213,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  ... and {len(found) - len(shown)} more (--top 0 for all)")
     print("-" * 72)
 
-    inert = sum(1 for w in found if w.kind == "create" and w.value in ("1", "1.0"))
     print(f"\n{len(found)} write(s) of `{FIELD}` on an order line")
     print(
-        f"  {len(found) - inert} change behaviour: a create of any other quantity "
-        f"silently\n  becomes 1, and every `write` desynchronises the two fields."
-    )
-    print(
-        f"  {inert} are create(s) of 1, which the default absorbs — inert today, "
-        f"and\n  still the wrong field."
+        f"  Every one raises: `mixin.order.line.amount._check_write_derived_"
+        f"quantity`\n  refuses the field from `create` and from `write` alike, so a "
+        f"site listed\n  here is a red test, not silent drift. Write "
+        f"`{CANONICAL}` instead."
     )
 
     by_module = collections.Counter(_module_of(w) for w in found)

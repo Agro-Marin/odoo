@@ -46,7 +46,7 @@ class TestPoSSaleL10NBe(TestPointOfSaleHttpCommon):
                 'partner_id': self.partner_a.id,
                 'line_ids': [Command.create({
                     'product_id': self.product_a.id,
-                    'product_uom_qty': 10,
+                    'product_qty': 10,
                     'price_unit': 10,
                     'tax_ids': intracom_tax,
                 })],
@@ -55,7 +55,7 @@ class TestPoSSaleL10NBe(TestPointOfSaleHttpCommon):
                 'partner_id': self.partner_a.id,
                 'line_ids': [Command.create({
                     'product_id': self.product_a.id,
-                    'product_uom_qty': 20,
+                    'product_qty': 20,
                     'price_unit': 20,
                     'tax_ids': False,
                 })],
@@ -113,7 +113,7 @@ class TestPoSSaleL10NBeNormalCompany(TestPointOfSaleHttpCommon):
             'partner_id': self.partner_a.id,
             'line_ids': [Command.create({
                 'product_id': self.product_a.id,
-                'product_uom_qty': 10,
+                'product_qty': 10,
                 'price_unit': 10,
             })],
         })

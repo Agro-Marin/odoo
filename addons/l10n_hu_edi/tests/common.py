@@ -231,7 +231,7 @@ class L10nHuEdiTestCommon(AccountTestInvoicingCommon):
             'line_ids': [
                 Command.create({
                     'product_id': self.product_a.id,
-                    'product_uom_qty': 1,
+                    'product_qty': 1,
                     'price_unit': 10000.0,
                     'tax_ids': [Command.set(self.tax_vat.ids)],
                 })

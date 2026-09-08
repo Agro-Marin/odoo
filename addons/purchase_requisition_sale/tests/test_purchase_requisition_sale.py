@@ -41,7 +41,7 @@ class TestPurchaseRequisitionSale(TransactionCase):
                     Command.create(
                         {
                             "product_id": self.sub_service.id,
-                            "product_uom_qty": 5,
+                            "product_qty": 5,
                         }
                     )
                 ],

@@ -256,7 +256,7 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
         sale_order.line_ids.write(
             {
                 "product_id": self.ticket.product_id.id,
-                "product_uom_qty": 2,
+                "product_qty": 2,
                 "event_id": self.event.id,
                 "event_ticket_id": self.ticket.id,
             }
@@ -297,7 +297,7 @@ class TestRoutes(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon, PaymentHttpCo
             )
 
         # Payment should succeed when buying only one ticket
-        sale_order.line_ids.product_uom_qty = 1
+        sale_order.line_ids.product_qty = 1
         registration[1].unlink()
         self.call_jsonrpc(url, route_kwargs)
         registration.exists().write({"state": "open"})

@@ -17,12 +17,12 @@ describe("saleDetails", () => {
                 down_payment_details: [
                     {
                         product_name: "Product 1",
-                        product_uom_qty: 2,
+                        product_qty: 2,
                         total: 100,
                     },
                     {
                         product_name: "Product 2",
-                        product_uom_qty: 1,
+                        product_qty: 1,
                         total: 50,
                     },
                 ],
@@ -34,19 +34,19 @@ describe("saleDetails", () => {
         const saleDetails = line.saleDetails;
         expect(saleDetails).toEqual([
             {
-                product_uom_qty: 2,
+                product_qty: 2,
                 product_name: "Product 1",
                 total: "$\u00a0100.00",
             },
             {
-                product_uom_qty: 1,
+                product_qty: 1,
                 product_name: "Product 2",
                 total: "$\u00a050.00",
             },
         ]);
     });
 
-    test("down payment details as stringified JSON", async () => {
+    test("stringified JSON, stored under the legacy product_uom_qty key", async () => {
         const store = await setupPosEnv();
         const order = store.addNewOrder();
 
@@ -74,12 +74,12 @@ describe("saleDetails", () => {
         const saleDetails = line.saleDetails;
         expect(saleDetails).toEqual([
             {
-                product_uom_qty: 2,
+                product_qty: 2,
                 product_name: "Product 1",
                 total: "$\u00a0100.00",
             },
             {
-                product_uom_qty: 1,
+                product_qty: 1,
                 product_name: "Product 2",
                 total: "$\u00a050.00",
             },
@@ -93,7 +93,7 @@ describe("setQuantityFromSOL", () => {
         const order = await getFilledOrder(store);
         const line = order.lines[0];
         line.product_id.type = "service";
-        line.sale_order_origin_id = { state: "sale" }; // not 'sent' or 'draft'
+        line.sale_order_origin_id = { state: "done" }; // confirmed, not draft
 
         const saleOrderLine = { qty_to_invoice: 2 };
 

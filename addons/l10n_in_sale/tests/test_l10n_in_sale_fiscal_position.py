@@ -20,7 +20,7 @@ class TestSaleFiscal(L10nInTestInvoicingCommon):
             'line_ids': [
                 Command.create({
                     'product_id': self.product.id,
-                    'product_uom_qty': 10,
+                    'product_qty': 10,
                 }),
             ],
         })
@@ -71,7 +71,7 @@ class TestSaleFiscal(L10nInTestInvoicingCommon):
                 'partner_id': self.partner_a.id,  # Intra-State Partner
                 'line_ids': [Command.create({
                     'product_id': self.product_a.id,
-                    'product_uom_qty': 10,
+                    'product_qty': 10,
                     'name': 'product test 1',
                     'price_unit': 40,
                 })]

@@ -111,9 +111,11 @@ def test_a_missing_root_is_refused(tmp_path):
         olq.measure([tmp_path / "nope"])
 
 
-def test_the_tree_measures_above_its_floor_shape():
+def test_the_tree_scan_runs_and_yields_only_python_paths():
+    # No assertion that the tree still HOLDS one: the sweep took this gate to
+    # zero, and a test demanding a non-empty result would have to be deleted by
+    # whoever cleared it -- which is the one moment a gate should not be edited.
     found = olq.measure()
-    assert found, "the gate found nothing at all, which no longer matches the tree"
     assert all(w.path.endswith(".py") for w in found)
 
 
@@ -126,6 +128,20 @@ def test_a_filtered_order_line_set_is_still_order_lines(tmp_path):
         tmp_path,
         'order.line_ids.filtered(lambda l: l.x).write({"product_uom_qty": 2})\n',
     ) == [("write", "2")]
+
+
+def test_assigning_a_command_list_to_the_o2m_is_a_write(tmp_path):
+    assert _kinds(
+        tmp_path,
+        'order.line_ids = [Command.create({"product_uom_qty": 4})]\n',
+    ) == [("assign", "4")]
+
+
+def test_assigning_a_command_list_to_an_unrelated_o2m_is_not(tmp_path):
+    assert not _measure(
+        tmp_path,
+        'picking.move_ids = [Command.create({"product_uom_qty": 4})]\n',
+    )
 
 
 def test_a_tree_with_no_python_is_refused(tmp_path):

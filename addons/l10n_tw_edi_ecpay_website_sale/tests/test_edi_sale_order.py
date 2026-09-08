@@ -20,7 +20,7 @@ class L10nTWITestEdiSaleOrder(L10nTWITestEdi):
         self.env['sale.order.line'].sudo().create({
             'name': self.product_a.name,
             'product_id': self.product_a.id,
-            'product_uom_qty': 1,
+            'product_qty': 1,
             'order_id': so.id,
         })
 

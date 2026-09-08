@@ -23,7 +23,7 @@ class TestL10nECAccountSale(TestSaleCommon):
             'line_ids': [
                 Command.create({
                     'product_id': cls.company_data['product_order_no'].id,
-                    'product_uom_qty': 5,
+                    'product_qty': 5,
                     'tax_ids': False,
                 }),
             ]

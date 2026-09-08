@@ -273,7 +273,7 @@ patch(PosStore.prototype, {
         const extraValues = { currency_id: so.currency_id || this.company.currency_id };
         return {
             ...extraValues,
-            quantity: soLine.product_uom_qty,
+            quantity: soLine.product_qty,
             tax_ids: soLine.tax_ids,
             partner_id: so.partner_id,
             product_id: soLine.product_id,
@@ -430,7 +430,7 @@ patch(PosStore.prototype, {
                 down_payment_details: JSON.stringify(
                     matchedSaleOrderLines.map((saleOrderLine) => ({
                         product_name: saleOrderLine.product_id.display_name,
-                        product_uom_qty: saleOrderLine.product_uom_qty,
+                        product_qty: saleOrderLine.product_qty,
                         price_unit: saleOrderLine.price_unit,
                         total: saleOrderLine.price_total,
                     })),

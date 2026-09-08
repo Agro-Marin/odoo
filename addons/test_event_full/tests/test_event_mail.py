@@ -396,7 +396,7 @@ class TestEventSaleMail(TestEventFullCommon):
             "event_id": self.test_event.id,
             "event_ticket_id": ticket.id,
             "product_id": ticket.product_id.id,
-            "product_uom_qty": 1,
+            "product_qty": 1,
         }
         self.customer_so.write({"line_ids": [(0, 0, order_line_vals)]})
 
@@ -425,7 +425,7 @@ class TestEventSaleMail(TestEventFullCommon):
             self.customer_so.action_confirm()
             # mail send is done when writing state value, hence flushing for the test
             registration.flush_recordset()
-        self.assertEqual(self.customer_so.state, "sale")
+        self.assertEqual(self.customer_so.state, "done")
         self.assertEqual(registration.state, "open")
 
         # Ensure mails are sent to customers right after subscription

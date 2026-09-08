@@ -25,6 +25,7 @@ class SaleOrderLine(models.Model):
             "price_total",
             "price_unit",
             "product_id",
+            "product_qty",
             "product_uom_qty",
             "qty_transferred",
             "qty_invoiced",
@@ -125,6 +126,7 @@ class SaleOrderLine(models.Model):
             "product_id",
             "display_name",
             "price_unit",
+            "product_qty",
             "product_uom_qty",
             "tax_ids",
             "qty_transferred",
@@ -158,9 +160,11 @@ class SaleOrderLine(models.Model):
                 if product_uom_id == sale_line_uom:
                     results.append(item)
                     continue
-                item["product_uom_qty"] = self._convert_qty(
-                    sale_line, item["product_uom_qty"], "s2p"
-                )
+                # `product_uom_qty` is ALREADY the product's reference unit in
+                # this fork (Appendix A), so converting it here multiplied the
+                # ratio in a second time: one dozen settled as 144 rather than
+                # 12. The other three quantities are in the line's own unit and
+                # do need the conversion.
                 item["qty_transferred"] = self._convert_qty(
                     sale_line, item["qty_transferred"], "s2p"
                 )
