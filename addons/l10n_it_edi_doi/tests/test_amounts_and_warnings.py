@@ -94,7 +94,7 @@ class TestItEdiDoiRemaining(TestItEdiDoi):
                 'name': 'declaration line',
                 'product_id': self.product_1.id,
                 'price_unit': 1000.0,  # == declaration.threshold
-                'product_uom_qty': 2,
+                'product_qty': 2,
                 'tax_ids': [Command.set(declaration_tax.ids)],
             }),
         ])
@@ -109,7 +109,7 @@ class TestItEdiDoiRemaining(TestItEdiDoi):
                     "Invoiced: 0.00\xa0€; Not Yet Invoiced: 4,000.00\xa0€"
                 )
             with order_form.line_ids.edit(0) as line_form:
-                line_form.product_uom_qty = 1
+                line_form.product_qty = 1
                 line_form.price_unit = 2000
                 line_form.save()
                 self.assertEqual(
@@ -135,7 +135,7 @@ class TestItEdiDoiRemaining(TestItEdiDoi):
                     "Invoiced: 0.00\xa0€; Not Yet Invoiced: 3,000.00\xa0€"
                 )
             with order_form.line_ids.edit(0) as line_form:
-                line_form.product_uom_qty = 2
+                line_form.product_qty = 2
                 line_form.price_unit = 3000
                 line_form.save()
                 self.assertEqual(
@@ -448,7 +448,7 @@ class TestItEdiDoiRemaining(TestItEdiDoi):
                 Command.create({
                     'name': 'declaration line',
                     'product_id': self.product_1.id,
-                    'product_uom_qty': 2,
+                    'product_qty': 2,
                     'price_unit': 2000.0,  # > declaration.threshold
                     'tax_ids': [Command.set(declaration_tax.ids)],
                 }),
