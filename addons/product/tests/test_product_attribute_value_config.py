@@ -1,5 +1,7 @@
 import time
 
+from lxml.etree import fromstring
+
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests import tagged
@@ -349,6 +351,17 @@ class TestProductAttributeValueCommon(BaseCommon):
 
 @tagged("post_install", "-at_install")
 class TestProductAttributeValueConfig(TestProductAttributeValueCommon):
+    def test_attribute_line_value_ids_widget_matches_its_field_type(self):
+        arch = self.env["product.template.attribute.line"].get_view(
+            view_id=self.env.ref("product.view_product_template_attribute_line_form").id
+        )["arch"]
+        field_node = fromstring(arch).find(".//field[@name='value_ids']")
+        self.assertEqual(
+            field_node.get("widget"),
+            "many2many",
+            "value_ids is a Many2many; the arch must match its declared type",
+        )
+
     def test_product_template_attribute_values_creation(self):
         self.assertEqual(
             len(self.computer_ssd_attribute_lines.product_template_value_ids),
