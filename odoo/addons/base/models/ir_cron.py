@@ -55,6 +55,16 @@ MIN_DELTA_BEFORE_DEACTIVATION = timedelta(days=7)
 TRIGGER_RETENTION_PERIOD = timedelta(weeks=1)
 PROGRESS_RETENTION_PERIOD = timedelta(weeks=1)
 
+# Advisory-lock namespace for cron mutual exclusion. Any stable int32 does; it
+# only has to be distinct from other advisory-lock users in this database.
+CRON_ADVISORY_LOCK_NAMESPACE = 0x0DD0C401
+
+# How long the completion row may take to write before it is worth a line in the
+# log. It is a single-row UPDATE by primary key: past a second or two it is not
+# slow, it is waiting on a lock, and that is the shape of the bug this constant
+# exists to catch a repeat of.
+SLOW_COMPLETION_WRITE = 5.0  # seconds
+
 NOTIFY_PENDING_KEY = "ir.cron.notify"
 
 ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
@@ -466,6 +476,31 @@ class IrCron(models.Model):
     def _acquire_job(
         cr: BaseCursor, job_id: int, *, include_not_ready: bool = False
     ) -> CronJob | None:
+        # Mutual exclusion between cron workers, held for this transaction and
+        # therefore for the whole job -- the same lifetime as the row lock it
+        # replaces, and the same contract: None here means another worker has
+        # the job, which the caller already treats as "skip".
+        #
+        # It cannot be a row lock. The completion bookkeeping is an UPDATE of
+        # this very ir_cron row, issued from the job's *other* cursor, so a
+        # `FOR NO KEY UPDATE` taken here blocks that UPDATE until this
+        # transaction ends -- and this transaction does not end until the job
+        # whose bookkeeping is blocked has finished. Every job deadlocked
+        # against itself, and the only reason any cron completed is that the
+        # server's `idle_in_transaction_session_timeout` eventually killed this
+        # cursor and let the UPDATE through; the failed commit then abandoned
+        # the pass with `nextcall` unwritten, so the job stayed at the head of
+        # the queue and starved every cron behind it. An advisory lock excludes
+        # the other workers without conflicting with a write to the row.
+        cr.execute(
+            SQL(
+                "SELECT pg_try_advisory_xact_lock(%s, %s)",
+                CRON_ADVISORY_LOCK_NAMESPACE,
+                job_id,
+            )
+        )
+        if not cr.fetchone()[0]:
+            return None
         where_clause = SQL("id = %s", job_id)
         if not include_not_ready:
             where_clause = SQL(
@@ -484,7 +519,6 @@ class IrCron(models.Model):
             FROM ir_cron
             LEFT JOIN last_cron_progress lcp ON lcp.cron_id = ir_cron.id
             WHERE %(where)s
-            FOR NO KEY UPDATE OF ir_cron SKIP LOCKED
         """,
             cron_id=job_id,
             columns=SQL(", ").join(
@@ -885,9 +919,20 @@ class IrCron(models.Model):
         assignments = SQL(", ").join(
             SQL("%s = %s", SQL.identifier(name), value) for name, value in vals.items()
         )
+        started = time.monotonic()
         self.env.cr.execute(
             SQL("UPDATE ir_cron SET %s WHERE id = %s", assignments, job.id)
         )
+        waited = time.monotonic() - started
+        if waited > SLOW_COMPLETION_WRITE:
+            _logger.warning(
+                "cron %s: the completion row took %.1fs to write. A single-row "
+                "UPDATE by id does not take that long unless it is waiting on a "
+                "lock; check pg_blocking_pids for another cursor holding this "
+                "row, and see _acquire_job on why it must not be one.",
+                job.id,
+                waited,
+            )
 
     @api.model
     def _reschedule_job_asap(self, job: CronJob) -> None:
@@ -922,17 +967,36 @@ class IrCron(models.Model):
             self.env.cr.rollback()
             raise
 
+    def _raise_currently_executing(self) -> typing.NoReturn:
+        raise UserError(
+            self.env._(
+                "Record cannot be modified right now: "
+                "This cron task is currently being executed and may not be modified "
+                "Please try again in a few minutes"
+            )
+        ) from None
+
     def _lock_for_update_or_raise(self, *, allow_referencing: bool = False) -> None:
         try:
             self.lock_for_update(allow_referencing=allow_referencing)
         except LockError:
-            raise UserError(
-                self.env._(
-                    "Record cannot be modified right now: "
-                    "This cron task is currently being executed and may not be modified "
-                    "Please try again in a few minutes"
+            self._raise_currently_executing()
+        # The row lock on its own no longer answers "is this cron running": the
+        # runner holds an advisory lock instead, precisely so that its own
+        # completion write is not blocked by its own claim on the row. Asking
+        # for that same lock is what detects a run in progress, and holding it
+        # for this transaction is what keeps a run from starting underneath an
+        # edit -- the two halves the row lock used to provide together.
+        for record in self:
+            self.env.cr.execute(
+                SQL(
+                    "SELECT pg_try_advisory_xact_lock(%s, %s)",
+                    CRON_ADVISORY_LOCK_NAMESPACE,
+                    record.id,
                 )
-            ) from None
+            )
+            if not self.env.cr.fetchone()[0]:
+                record._raise_currently_executing()
 
     def write(self, vals: dict[str, Any]) -> bool:
         self._lock_for_update_or_raise(allow_referencing=True)
