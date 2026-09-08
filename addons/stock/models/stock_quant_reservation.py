@@ -261,7 +261,7 @@ class StockQuantReservation(models.Model):
     def _is_gather_domain_extended(
         self, domain, product_id, location_id, lot_id, package_id, owner_id, strict
     ):
-        return domain != StockQuantReservation._get_gather_domain(
+        return domain != type(self)._get_gather_domain(
             self, product_id, location_id, lot_id, package_id, owner_id, strict
         )
 
