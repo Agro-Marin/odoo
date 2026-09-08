@@ -5,7 +5,8 @@ from collections import defaultdict
 from typing import Any
 
 from odoo import api, fields, models, modules, tools
-from odoo.exceptions import UserError
+from odoo.db.errors import PG_USER_FAULT_EXCEPTIONS
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tools import SQL
 
@@ -569,7 +570,7 @@ class ProductMergeWizard(models.TransientModel):
             try:
                 with self.env.cr.savepoint():
                     self._merge(template_ids)
-            except UserError as error:
+            except (UserError, ValidationError, *PG_USER_FAULT_EXCEPTIONS) as error:
                 _logger.warning(
                     "Skipping the merge of products %s: %s", template_ids, error
                 )
