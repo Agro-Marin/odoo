@@ -1070,6 +1070,12 @@ class ResourceCalendar(models.Model):
             start_dt = start_dt.replace(tzinfo=UTC)
         if not end_dt.tzinfo:
             end_dt = end_dt.replace(tzinfo=UTC)
+        # rrule preserves start_dt's time-of-day; anchor on whole days so a
+        # later start time never makes the final day drop out of range.
+        day_rrule_start = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        day_rrule_end = end_dt.replace(
+            hour=23, minute=59, second=59, microsecond=999999
+        )
 
         domain = []
         if company_id:
@@ -1086,7 +1092,7 @@ class ResourceCalendar(models.Model):
                 )
             return {
                 fields.Date.to_string(day.date()): (day.date() in leave_days)
-                for day in rrule(DAILY, start_dt, until=end_dt)
+                for day in rrule(DAILY, day_rrule_start, until=day_rrule_end)
             }
         works = {
             d[0].date()
@@ -1094,7 +1100,7 @@ class ResourceCalendar(models.Model):
         }
         return {
             fields.Date.to_string(day.date()): (day.date() not in works)
-            for day in rrule(DAILY, start_dt, until=end_dt)
+            for day in rrule(DAILY, day_rrule_start, until=day_rrule_end)
         }
 
     def _get_default_attendance_ids(self, company_id=None):

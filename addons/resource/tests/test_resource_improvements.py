@@ -605,6 +605,12 @@ class TestListWorkTimePerDay(TransactionCase):
         self.assertTrue(result.get("2025-01-12", False), "Sunday should be unusual")
         self.assertFalse(result.get("2025-01-06", True), "Monday should be normal")
 
+    def test_get_unusual_days_keeps_the_last_day_on_an_early_end_time(self):
+        start = datetime(2025, 1, 6, 8, 0).replace(tzinfo=UTC)
+        end = datetime(2025, 1, 8, 0, 0).replace(tzinfo=UTC)
+        result = self.calendar._get_unusual_days(start, end)
+        self.assertIn("2025-01-08", result)
+
 
 @tagged("post_install", "-at_install")
 class TestDurationBasedAverageHours(TransactionCase):
