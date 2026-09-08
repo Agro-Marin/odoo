@@ -1,21 +1,8 @@
-from typing import NamedTuple
-
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command, Domain
 
-
-class GroupingCriterion(NamedTuple):
-    line_path: str
-    label_field: str
-    picking_path: str = ""
-    wave_field: str = ""
-
-    @property
-    def batch_path(self):
-        if self.picking_path:
-            return f"picking_ids.{self.picking_path}"
-        return f"move_line_ids.{self.line_path}"
+from odoo.addons.stock.models.stock_picking_type import GroupingCriterion
 
 
 class StockPickingType(models.Model):
@@ -125,6 +112,7 @@ class StockPickingType(models.Model):
     @api.model
     def _get_batch_grouping_criteria(self):
         return {
+            **super()._get_batch_grouping_criteria(),
             "batch_group_by_partner": GroupingCriterion(
                 "move_id.partner_id", "name", "partner_id", "wave_partner_id"
             ),
@@ -148,6 +136,7 @@ class StockPickingType(models.Model):
     @api.model
     def _get_wave_grouping_criteria(self):
         return {
+            **super()._get_wave_grouping_criteria(),
             "wave_group_by_product": GroupingCriterion(
                 "product_id", "display_name", wave_field="wave_product_id"
             ),
@@ -155,23 +144,6 @@ class StockPickingType(models.Model):
                 "product_id.categ_id", "complete_name", wave_field="wave_category_id"
             ),
         }
-
-    @api.model
-    def _get_grouping_criteria(self):
-        return {
-            **self._get_batch_grouping_criteria(),
-            **self._get_wave_grouping_criteria(),
-        }
-
-    def _get_active_grouping_criteria(self, criteria):
-        self.check_singleton()
-        return {key: criterion for key, criterion in criteria.items() if self[key]}
-
-    def _get_active_batch_criteria(self):
-        return self._get_active_grouping_criteria(self._get_batch_grouping_criteria())
-
-    def _get_active_wave_criteria(self):
-        return self._get_active_grouping_criteria(self._get_grouping_criteria())
 
     def _get_nearest_wave_location(self, location):
         self.check_singleton()

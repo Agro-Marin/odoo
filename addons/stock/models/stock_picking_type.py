@@ -1,6 +1,21 @@
+from typing import NamedTuple
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+
+
+class GroupingCriterion(NamedTuple):
+    line_path: str
+    label_field: str
+    picking_path: str = ""
+    wave_field: str = ""
+
+    @property
+    def batch_path(self):
+        if self.picking_path:
+            return f"picking_ids.{self.picking_path}"
+        return f"move_line_ids.{self.line_path}"
 
 
 class StockPickingType(models.Model):
@@ -610,3 +625,28 @@ class StockPickingType(models.Model):
             raise ValueError(
                 f"an operation type action opens one type at a time, got {self!r}"
             )
+
+    @api.model
+    def _get_batch_grouping_criteria(self):
+        return {}
+
+    @api.model
+    def _get_wave_grouping_criteria(self):
+        return {}
+
+    @api.model
+    def _get_grouping_criteria(self):
+        return {
+            **self._get_batch_grouping_criteria(),
+            **self._get_wave_grouping_criteria(),
+        }
+
+    def _get_active_grouping_criteria(self, criteria):
+        self.check_singleton()
+        return {key: criterion for key, criterion in criteria.items() if self[key]}
+
+    def _get_active_batch_criteria(self):
+        return self._get_active_grouping_criteria(self._get_batch_grouping_criteria())
+
+    def _get_active_wave_criteria(self):
+        return self._get_active_grouping_criteria(self._get_grouping_criteria())

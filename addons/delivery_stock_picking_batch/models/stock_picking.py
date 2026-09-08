@@ -1,7 +1,7 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
-from odoo.addons.stock_picking_batch.models.stock_picking import GroupingCriterion
+from odoo.addons.stock.models.stock_picking_type import GroupingCriterion
 
 
 class StockPickingType(models.Model):
