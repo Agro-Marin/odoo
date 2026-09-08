@@ -266,9 +266,7 @@ class Batch extends models.Model {
 
     name = fields.Char();
     bar = fields.Boolean();
-    // the server totals this one, so a group's value is its sum
     qty_sum = fields.Float({ aggregator: "sum" });
-    // and averages this one, so a group's value is already an average
     qty_avg = fields.Float({ aggregator: "avg" });
 
     _records = [
@@ -282,10 +280,6 @@ defineModels([Batch]);
 
 test.tags("desktop");
 test("a grouped avg re-weights by group size, whichever way the server aggregated", async () => {
-    // Four records in two groups of three and one. Every correct answer here is
-    // 10 for the summed column and 15 for the averaged one; the average of the
-    // group values -- 20 either way -- is the wrong answer both times, which is
-    // what makes this worth asserting.
     await mountView({
         resModel: "batch",
         type: "list",
@@ -301,21 +295,15 @@ test("a grouped avg re-weights by group size, whichever way the server aggregate
 });
 
 describe("weightedGroupAverage — an avg over groups", () => {
-    // Each entry is a GROUP, so `value` is that group's aggregate and
-    // `record.__count` the records behind it. The average of the group averages
-    // is not the average, and which correction applies depends on what the
-    // server already did to the column.
     /** @param {[number, number][]} pairs */
     const groups = (...pairs) =>
         pairs.map(([value, count]) => ({ value, record: { __count: count } }));
 
     test("an already-averaged column is re-weighted by each group's count", () => {
-        // 10 over 1 record and 20 over 3 is (10*1 + 20*3) / 4, not (10 + 20) / 2
         expect(weightedGroupAverage(groups([10, 1], [20, 3]), "avg")).toBe(17.5);
     });
 
     test("a summed column divides the summed total by the total count", () => {
-        // the groups hold sums here: 10 over 1 record, 60 over 3
         expect(weightedGroupAverage(groups([10, 1], [60, 3]), "sum")).toBe(17.5);
     });
 

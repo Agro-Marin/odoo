@@ -140,9 +140,6 @@ test("the palette placeholder is a string, not a lazy translation", async () => 
 });
 
 test("an identified command is qualified next to a plain namesake, not dropped", async () => {
-    // The (name, category) dedup keeps one command per name and category, so an
-    // identified command that stays unqualified beside a namesake carrying no
-    // identifier loses its row and the user cannot tell which one runs.
     await makeMockEnv();
     const command = getService("command");
     command.add("Assign to ...", () => {}, {
@@ -154,8 +151,6 @@ test("an identified command is qualified next to a plain namesake, not dropped",
     const names = command.getCommands(document).map((c) => c.name);
     expect(names).toEqual(["Assign to ... (Assignees)", "Assign to ..."]);
 
-    // The `command` provider answers synchronously; the registry's shape allows
-    // a promise, which is what the cast is for.
     const provided = /** @type {{ name: string }[]} */ (
         registry
             .category("command_provider")

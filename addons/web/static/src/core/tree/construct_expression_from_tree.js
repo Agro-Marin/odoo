@@ -56,8 +56,6 @@ function isSimpleAnd(tree) {
 }
 
 /**
- * `(a and b) or (not a and c)` reads back as `b if a else c`.
- *
  * @param {Connector} tree an `|` of two simple `&`
  * @param {Options} options
  * @param {boolean} isRoot

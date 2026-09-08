@@ -283,17 +283,7 @@ class PosOrder(models.Model):
 
     @api.model
     def _load_pos_data_fields(self, config):
-        """Every field this model declares, and nothing the mixins add.
-
-        Without this the mixin default of `[]` reaches `read()`, which treats
-        a falsy field list as *all* fields -- so the payload carried the whole
-        mail-thread and portal surface (`message_ids`, `message_follower_ids`,
-        `access_token`, ...) that no POS frontend code reads, and
-        `load_data_params` built the JS schema from an empty list.
-        """
         return [
-            # `mixin.portal`'s, not declared below: the receipt's ticket-validation
-            # URL is built from it in `order_receipt.js`.
             "access_token",
             "account_move",
             "amount_difference",
@@ -682,12 +672,6 @@ class PosOrder(models.Model):
             vals["last_order_preparation_change"] = json.dumps(local_change)
 
     def _write_newest_preparation_change(self, vals):
-        """`_keep_newest_preparation_change` only settles the value inside `vals`.
-
-        The draft branch of the sync then writes the whole payload, so the
-        resolution lands. The branch that ignores the rest of the payload writes
-        nothing, so the resolution has to be persisted here or it is discarded.
-        """
         self.check_singleton()
         resolved = dict(vals)
         self._keep_newest_preparation_change(resolved)
@@ -1812,9 +1796,6 @@ class PosOrder(models.Model):
         return {"pos.order": self._load_pos_data_read(draft_orders, self.config_id)}
 
     def _cancel_draft_orders(self):
-        # cancelling is one operation with one owner: it moves the state AND tells
-        # the other devices. Both public entry points reach it here, so neither
-        # can do half of it.
         draft_orders = self.filtered(lambda order: order.state == "draft")
         if not draft_orders:
             return draft_orders
@@ -2006,9 +1987,6 @@ class PosOrder(models.Model):
                     origin=self.name,
                 )
             )
-            # Backorders are created inside `_action_done`, after the pickings
-            # above are already stamped, so they are the only ones still needing
-            # the identity written afterwards.
             pickings.backorder_ids.write(
                 {
                     "pos_session_id": self.session_id.id,
@@ -2161,9 +2139,6 @@ class PosOrder(models.Model):
     @api.model
     def remove_from_ui(self, server_ids):
         orders = self.search([("id", "in", server_ids), ("state", "=", "draft")])
-        # writing the state inline here sent no notification, and it also silenced
-        # the ondelete guard's own remedy: _unlink_except_draft_or_cancel calls
-        # action_pos_order_cancel() only for orders still in draft
         orders._cancel_draft_orders()
         orders.mapped("payment_ids").sudo().unlink()
         orders.sudo().unlink()
@@ -2193,9 +2168,6 @@ class PosOrder(models.Model):
         ):
             fold(order.id, write_date)
 
-        # A line refunding one of these orders touches it too. `_read_group`
-        # cannot traverse a relation in its groupby, so group by the refunded
-        # line and resolve those lines to their orders in one further read.
         refund_groups = PosOrderLine._read_group(
             [("refunded_orderline_id.order_id", "in", orders.ids)],
             groupby=["refunded_orderline_id"],
@@ -2473,12 +2445,6 @@ class PosOrderLine(models.Model):
 
     @api.model
     def get_existing_lots(self, company_id, config_id, product_id):
-        """`company_id` arrives from the client and is not trusted here.
-
-        The quants are read as sudo, so the company that scopes them must come
-        from the configuration the caller is allowed to read, not from the
-        argument.
-        """
         self.check_access("read")
         pos_config = self.env["pos.config"].browse(config_id)
         if not pos_config:
@@ -2710,8 +2676,6 @@ class PosOrderLine(models.Model):
                 line.margin = 0
                 line.margin_percent = 0
             else:
-                # `price_subtotal` and `total_cost` both carry the sign of `qty`,
-                # so the margin is their plain difference.
                 line.margin = line.price_subtotal - line.total_cost
                 line.margin_percent = (
                     not float_is_zero(

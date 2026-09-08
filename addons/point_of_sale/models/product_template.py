@@ -7,8 +7,6 @@ class ProductTemplate(models.Model):
     _name = "product.template"
     _inherit = ["product.template", "mixin.pos.load"]
 
-    # FIELDS
-    # ------------------------------------------------------------------
 
     available_in_pos = fields.Boolean(
         string="Available in POS",
@@ -42,8 +40,6 @@ class ProductTemplate(models.Model):
         copy=False,
     )
 
-    # CONSTRAINT METHODS
-    # ------------------------------------------------------------------
 
     @api.constrains("available_in_pos")
     def _check_available_in_pos(self):
@@ -97,8 +93,6 @@ class ProductTemplate(models.Model):
                 )
             )
 
-    # CRUD METHODS
-    # ------------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -130,8 +124,6 @@ class ProductTemplate(models.Model):
     def _unlink_except_special_product(self):
         self._check_is_special_product()
 
-    # COMPUTE METHODS
-    # ------------------------------------------------------------------
 
     @api.depends("pos_categ_ids")
     def _compute_color(self):
@@ -141,8 +133,6 @@ class ProductTemplate(models.Model):
             else:
                 product.color = product.color or 0
 
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------------
 
     @api.onchange("sale_ok")
     def _onchange_sale_ok(self):
@@ -154,8 +144,6 @@ class ProductTemplate(models.Model):
         if self.available_in_pos and not self.sale_ok:
             self.sale_ok = True
 
-    # POS TERMINAL METHODS
-    # ------------------------------------------------------------------
 
     def set_pos_favorite(self, is_favorite):
         self.check_singleton()
@@ -312,15 +300,9 @@ class ProductTemplate(models.Model):
             for attribute_line in self.attribute_line_ids
         ]
 
-    # HELPER METHODS
-    # ------------------------------------------------------------------
 
     @api.model
     def _update_available_in_pos_vals(self, vals):
-        # _onchange_sale_ok clears this in the form; every other writer -- import,
-        # RPC, migration -- could leave a product flagged for the POS that the POS
-        # domain excludes, so it silently stops loading with nothing on the record
-        # saying why
         if "sale_ok" in vals and not vals["sale_ok"]:
             vals["available_in_pos"] = False
 
@@ -345,11 +327,6 @@ class ProductTemplate(models.Model):
             vals["pos_sequence"] = next_sequence + offset
 
     def _filtered_pos_special_products(self):
-        # Two different questions, and the guard wants both. Since da0e178100f
-        # _get_special_products honours self, so the configs answer "what any
-        # config actually uses" -- which the empty recordset cannot -- and the
-        # empty recordset answers "the global defaults", which the configs cannot
-        # once every one of them has cleared its tip_product_id.
         config = self.env["pos.config"].sudo()
         special = (
             config.search([])._get_special_products() | config._get_special_products()

@@ -230,17 +230,9 @@ class ClickBot {
      * @returns {Promise}
      */
     async waitForCondition(stopCondition) {
-        // The budget is spent per poll, not per millisecond: under the mocked
-        // timers the unit suites install, `Date.now()` does not advance with
-        // `setTimeout`, so a wall-clock deadline would never expire and a stuck
-        // step would hang instead of reporting. The cost is that a slow poll
-        // body stretches the real timeout past STEP_TIMEOUT, which is the safe
-        // direction for a bot driving a live UI.
         let timeLimit = STEP_TIMEOUT;
         const pending = () => Object.keys(this.calledRPC);
         for (;;) {
-            // Throws on an error dialog; it contributes no value to the wait,
-            // and reading it as one operand of the condition below hid that.
             this.checkForErrorDialog();
             if (
                 stopCondition() &&

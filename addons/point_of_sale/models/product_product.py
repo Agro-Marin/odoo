@@ -16,8 +16,6 @@ class ProductProduct(models.Model):
             self.env["account.tax"]._check_company_domain(config.company_id.id)
         )
         product_fields = taxes._eval_taxes_computation_prepare_product_fields()
-        # sorted(): set iteration order is not stable between runs, and this
-        # list is the field order every POS client receives
         return sorted(
             product_fields.union(
                 {
@@ -86,8 +84,6 @@ class ProductProduct(models.Model):
         company = config.company_id
         target = config.currency_id
         today = fields.Date.today()
-        # lst_price is priced in currency_id and standard_price in cost_currency_id;
-        # the two differ as soon as the product carries no company of its own
         cost_currency_by_id = {
             product.id: product.cost_currency_id
             for product in self.browse([row["id"] for row in rows]).with_company(
@@ -115,11 +111,6 @@ class ProductProduct(models.Model):
 
     def write(self, vals):
         if "active" in vals and not vals["active"]:
-            # deliberately NOT _check_unused_in_pos: archiving a variant retires one
-            # combination, it does not take the product off the terminal, and the
-            # payload broadcasts it through _archived_combinations. The button used
-            # to refuse what write allowed; test_pos_archived_combination documents
-            # which of the two the fork means
             self.product_tmpl_id._check_is_special_product()
         return super().write(vals)
 

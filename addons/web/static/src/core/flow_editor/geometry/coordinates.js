@@ -16,8 +16,6 @@ export function clampScale(scale, min = DEFAULT_MIN_SCALE, max = DEFAULT_MAX_SCA
 }
 
 /**
- * Convert screen coordinates into flow world coordinates.
- *
  * @param {{ x: number, y: number }} point
  * @param {{ left: number, top: number }} canvasRect
  * @param {import("../flow_types").FlowViewport} viewport
@@ -32,8 +30,6 @@ export function screenToWorld(point, canvasRect, viewport) {
 }
 
 /**
- * Convert flow world coordinates into screen coordinates.
- *
  * @param {import("../flow_types").FlowPosition} point
  * @param {{ left: number, top: number }} canvasRect
  * @param {import("../flow_types").FlowViewport} viewport

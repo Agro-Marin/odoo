@@ -48,9 +48,6 @@ export class FileViewer extends Component {
     };
 
     /**
-     * Assigned in setup() and read from callbacks and from the template, a
-     * sequence TypeScript cannot follow, so the fields are declared.
-     *
      * @type {{ dx: number, dy: number, x: number, y: number }}
      */
     translate;

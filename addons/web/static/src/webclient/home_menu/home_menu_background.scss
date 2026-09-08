@@ -1,4 +1,3 @@
-// Shared with web client and login screen
 .o_home_menu_background,
 .o_web_client.o_home_menu_background {
     background: {
@@ -9,13 +8,8 @@
     }
 }
 
-// The dark half, folded in from `home_menu_background.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
-        // = Home Menu Background
-        // ============================================================================
-        // No CSS hacks, variables overrides only
-
         .o_home_menu_background {
             --homeMenu-bg-color: #000511;
             --homeMenu-bg-image: url("/web/static/img/background-dark.jpg");

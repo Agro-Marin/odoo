@@ -51,14 +51,6 @@ export function watchServiceWorkerUpdates(registration) {
 }
 
 /**
- * Hands back the disposer alongside the registration: `watchServiceWorkerUpdates`
- * installs a repeating timer and a document listener, and until this returned
- * one nothing could stop them — `env.destroy()` runs after every test that
- * starts this service, so they accumulated across a suite.
- *
- * `settledDeferred` still settles on every exit path, including the early one
- * where the browser has no service worker at all.
- *
  * @param {Deferred} settledDeferred
  * @returns {Promise<{
  *   registration: ServiceWorkerRegistration | undefined,
@@ -125,9 +117,6 @@ class ServiceWorkerService {
         const settledDeferred = new Deferred();
         /** @type {Promise<void>} */
         this.registrationSettled = settledDeferred;
-        // `null` means "registration has not answered yet". `destroy()` writes a
-        // no-op over it instead, so a disposer that arrives after teardown can
-        // tell the two apart and stop itself.
         /** @type {(() => void) | null} */
         this.stopWatching = null;
         registerServiceWorker(settledDeferred).then(({ stopWatching }) => {

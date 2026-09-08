@@ -2,11 +2,9 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Product Category -->
         <record id="product_category_clothes" model="product.category">
             <field name="name">Clothes</field>
         </record>
-        <!-- Clothes scenario pos categories -->
         <record id="pos_category_upper" model="pos.category">
             <field name="name">Upper body</field>
             <field

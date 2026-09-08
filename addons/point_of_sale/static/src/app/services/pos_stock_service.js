@@ -5,13 +5,6 @@ import { registry } from "@web/core/registry";
 
 import { logPosMessage } from "../utils/pretty_console_log.js";
 
-/**
- * On-hand quantities for the product cards, keyed by product.product id.
- *
- * Requests issued in one tick travel as one call, a quantity is fetched once
- * per session, and `refresh()` refetches every product the session knows.
- * `null` marks a product whose fetch failed, `undefined` one still pending.
- */
 export class PosStockService {
     /**
      * @param {object} env

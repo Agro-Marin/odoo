@@ -21,19 +21,6 @@ test("none of them survives into the next test", () => {
     expect(seen).toEqual({ win: 1, doc: 1, body: 1 });
 });
 
-// Owl installs ONE delegation listener per event type on the document and
-// memoizes that it has, so it never reinstalls one that is taken away. It is
-// therefore the exception to the rule the two tests above pin, and the only
-// listener `trackTestListeners` must not clean up: remove it and every
-// `t-on-*.synthetic` handler in the page dies for the rest of the run, without
-// an error -- the elements keep their `__event__synthetic_*` data and the click
-// still reaches the document.
-//
-// It went unnoticed because the exemption recognised the listener by the name
-// `nativeToSyntheticEvent`, which the bundled test page minifies to `i=>On(e,i)`.
-// These two tests are what a name-based check cannot be: they exercise a real
-// synthetic handler twice, and the second one is the assertion.
-
 class SyntheticCounter extends Component {
     static props = ["onClick"];
     static template = xml`<button t-on-click.synthetic="() => this.props.onClick()">go</button>`;

@@ -29,8 +29,6 @@ export function makeLazyLib(load, { pick, extra, constructable = false } = {}) {
             if (value) {
                 return Promise.resolve(facade);
             }
-            // A rejected load clears the memo so the next caller retries rather
-            // than awaiting a promise that can only ever reject again.
             loading ??= load().then(
                 (module) => {
                     value = pick ? pick(module) : module;

@@ -6,10 +6,6 @@ import { undefineTags } from "@web/../lib/hoot/core/tag";
 
 describe.current.tags("headless");
 
-/**
- * The configurators (`skip`, `only`, ...) are attached with defineProperty, so
- * they are invisible to the checker on the bound `test` / `describe` members.
- */
 function makeHeadlessRunner() {
     const runner = new Runner(/** @type {any} */ ({ headless: true }));
     after(() => undefineTags(runner.tags.keys()));

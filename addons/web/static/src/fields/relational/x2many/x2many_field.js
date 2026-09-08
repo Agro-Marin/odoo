@@ -71,11 +71,6 @@ export class X2ManyField extends FieldComponent {
     fieldDefinition;
 
     /**
-     * The callbacks handed to the sub-renderer, bound once. `rendererProps` is
-     * read on every render, and OWL compares props by value, so a bound
-     * function or an object literal built there re-renders the whole sub-view
-     * -- every row -- on an edit of an unrelated field of the parent record.
-     *
      * @type {{
      * openRecord: (record: any) => any,
      * onAdd: (params: any) => any,
@@ -153,9 +148,6 @@ export class X2ManyField extends FieldComponent {
     }
 
     /**
-     * Title of the dialog a record of this field opens in; undefined lets the
-     * dialog derive one from the field and the record.
-     *
      * @returns {string | undefined}
      */
     getOpenRecordTitle() {
@@ -262,10 +254,6 @@ export class X2ManyField extends FieldComponent {
     }
 
     /**
-     * The inline-edit position (`"top"` / `"bottom"`) the list adds rows at,
-     * or a falsy value when rows are not edited inline. A string, not a
-     * boolean: it is handed on as the `position` of the new row.
-     *
      * @returns {string | false | undefined}
      */
     get listEditable() {
@@ -276,11 +264,6 @@ export class X2ManyField extends FieldComponent {
     }
 
     /**
-     * `useActiveActions` updates one object in place, which the sub-renderer
-     * cannot see through props; this hands it a copy whose identity changes
-     * exactly when a permission does, so a `create` or `delete` domain that
-     * flips on a record edit still reaches the rows.
-     *
      * @returns {Record<string, any>}
      */
     get rendererActiveActions() {
@@ -492,10 +475,6 @@ export class X2ManyField extends FieldComponent {
 const CRUD_OPTIONS = new WeakMap();
 
 /**
- * The five permission domains, as one object per arch option bag: extractProps
- * runs on every render of the Field, and a fresh literal there is a prop
- * change that re-renders the widget on any edit of its record.
- *
  * @param {Record<string, any>} options
  * @returns {Record<string, any>}
  */

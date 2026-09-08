@@ -54,12 +54,6 @@
                 </div>
 
                 <div class="o_control_panel_navigation d-flex flex-wrap flex-md-nowrap justify-content-end gap-1 gap-xl-3 order-1 order-lg-2 flex-grow-1">
-                    <!-- `embeddedActions` first: `state.embeddedInfos` falls back to
-                         makeNoEmbeddedInfos() when useEmbeddedActions() answered null,
-                         so its list can be non-empty while there is no model behind
-                         it. OWL prop validation caught exactly that once the dropdown
-                         became a component; the t-call it replaced rendered on into a
-                         null model and produced garbage silently. -->
                     <t t-if="embeddedActions and state.embeddedInfos.embeddedActions?.length and env.isSmall">
                         <EmbeddedActionsDropdown embeddedActions="embeddedActions"/>
                     </t>

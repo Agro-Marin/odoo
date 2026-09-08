@@ -64,7 +64,6 @@
                         </div>
                         <div invisible="not pos_config_id">
                             <block title="Point of Sale" id="restaurant_section">
-                                <!-- Wrap the warnings in an o_setting_box so that it doesn't show in the search. -->
                                 <setting id="is_restaurant">
                                     <field
                                         name="pos_module_pos_restaurant"

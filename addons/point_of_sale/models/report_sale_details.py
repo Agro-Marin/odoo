@@ -195,19 +195,9 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         }
 
     def _prepare_sales_accumulator(self):
-        # Sales and refunds are accumulated into two of these and rendered as two
-        # blocks, so a refund reads as a magnitude and the block says which
-        # direction it is. Every figure is derived from _get_line_quantity, never
-        # read off pos.order.line, whose refund sign convention is not the
-        # report's to depend on.
         return {"products": {}, "base_amount": 0.0, "taxes": {}}
 
     def _get_line_quantity(self, line):
-        # pos.order.line prices a refund with `qty * sign` (_compute_amount_line_all),
-        # so a refund line holds a negative qty and positive subtotals and the sign
-        # lives on the order. Applying the order's sign here reproduces that: a refund
-        # reads as a magnitude, while a negative line on an ordinary order — which is
-        # a deduction, not a refund — keeps the sign it was entered with.
         return line.qty * (-1 if line.order_id.is_refund else 1)
 
     def _get_product_total_amount(self, line):
@@ -219,9 +209,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         )
 
     def _update_products_and_taxes(self, line, accumulator, currency, precision):
-        # Keyed on the category, not on its name: two pos.category records may
-        # carry the same one, and grouping by name merges them into a row whose
-        # quantity and total belong to neither.
         category = line.product_id.product_tmpl_id.pos_categ_ids[:1]
         combo_products_label = (
             " (" + ", ".join(line.combo_line_ids.product_id.mapped("name")) + ")"
@@ -249,8 +236,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
                     {"name": tax["name"], "tax_amount": 0.0, "base_amount": 0.0},
                 )
                 taxes[tax["id"]]["tax_amount"] += tax["amount"]
-                # A tax yields one entry per repartition line, each carrying the
-                # same base: keyed assignment counts that base once.
                 base_by_tax[tax["id"]] = tax["base"]
 
             for tax_id, tax_base in base_by_tax.items():
@@ -327,8 +312,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
             )
             for category, product_list in products_by_category.items()
         ]
-        # (name, id): same-named categories print together but keep a stable
-        # order, so two runs over the same data render the same page.
         rows.sort(key=lambda row: (row[0], row[1]))
         return [{"name": name, "products": products} for name, _id, products in rows]
 
@@ -444,10 +427,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         if not ref_by_key:
             return {}
 
-        # A closing difference is posted to the payment method's own journal, so
-        # the journal is part of what identifies it. Without that the report will
-        # take any entry whose free-text ref happens to read the same -- and ref
-        # is unindexed, so it also makes the query selective rather than a scan.
         moves = self.env["account.move"].search(
             [
                 ("ref", "in", list(set(ref_by_key.values()))),
@@ -476,8 +455,6 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         ).sorted(lambda line: (line.date, line.id))
 
     def _get_previous_closed_sessions(self, sessions):
-        """The closed session each of these follows, in one query rather than one
-        per session: the uncounted-cash row opens on the previous drawer count."""
         if not sessions:
             return {}
         candidates = self.env["pos.session"].search(

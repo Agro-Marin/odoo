@@ -244,9 +244,7 @@ export function waitRequest() {
                     isLoading = await waitFor("body:has(.fa-circle-o-notch)", {
                         timeout: 2000,
                     });
-                } catch {
-                    /* fa-circle-o-notch will certainly never appears :'( */
-                }
+                } catch {}
                 if (isLoading) {
                     await waitFor("body:not(:has(.fa-circle-o-notch))", {
                         timeout: 10000,

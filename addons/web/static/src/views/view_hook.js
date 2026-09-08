@@ -203,8 +203,6 @@ export function useExportRecords(env, getDefaultExportList) {
 }
 
 /**
- * The confirmation every view asks before deleting records.
- *
  * @param {() => any} confirm
  * @param {{ multi?: boolean }} [options]
  * @returns {Record<string, any>}

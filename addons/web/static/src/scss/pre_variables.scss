@@ -119,11 +119,6 @@ $accordion-button-active-icon: $accordion-button-icon !default;
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='#{$-color}' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/></svg>");
 }
 
-/// The bare `<select>` caret. `$o-caret-down` is the same triangle for the
-/// rules that paint it as a mask, where the fill is inert; a `<select>` cannot
-/// use that technique, because `mask` clips the whole element and takes the
-/// selected option's label with it. So this one carries its colour and is
-/// restated for dark in `scheme_rules.scss`.
 @function o-caret-down-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' viewBox='0 0 7 4'><polygon fill='#{$-color}' points='3.5 4 7 0 0 0'/></svg>");
 }

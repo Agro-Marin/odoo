@@ -85,10 +85,6 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
 }
 
 /**
- * Take `diff` pixels back from the shrinkable columns, evenly among those still
- * above their minimum, or clamp every one to its minimum when that is not
- * enough. Mutates `widths`.
- *
  * @param {number[]} widths
  * @param {any[]} columns
  * @param {{ minWidth: number, maxWidth?: number, canShrink: boolean }[]} specs
@@ -131,10 +127,6 @@ function shrinkColumns(widths, columns, specs, columnOffset, diff) {
 }
 
 /**
- * Hand `diff` pixels to the columns under their maximum, evenly, then whatever
- * is left to the columns with no maximum at all (or to every column when all
- * are capped). Mutates `widths`.
- *
  * @param {number[]} widths
  * @param {any[]} columns
  * @param {{ minWidth: number, maxWidth?: number, canShrink: boolean }[]} specs

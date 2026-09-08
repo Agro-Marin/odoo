@@ -144,9 +144,6 @@ function combineCells(state, cells, action) {
 }
 
 /**
- * Whether Control is held, tracked on the window so a drag that starts with
- * it adds to the selection instead of replacing it.
- *
  * @returns {() => boolean}
  */
 function useCtrlKey() {
@@ -168,10 +165,6 @@ function useCtrlKey() {
 }
 
 /**
- * A click on a cell: shift extends from the previous cell, ctrl toggles,
- * otherwise the cell replaces the selection. Returns the new selection, or
- * null when the click was not on a selectable cell.
- *
  * @param {MouseEvent} ev
  * @param {SquareSelectionState} state
  * @param {{ ref: { el: HTMLElement | null }, cellIsSelectable: Function }} ctx

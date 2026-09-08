@@ -55,9 +55,6 @@ export class Orderline extends Component {
     }
 
     /**
-     * The group this line stands for when the order display collapsed it with
-     * its twins; only a displayed line inside an OrderDisplay has one.
-     *
      * @returns {import("../order_display/orderline_groups").OrderlineGroup | undefined}
      */
     get group() {

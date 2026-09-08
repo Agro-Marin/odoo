@@ -15,15 +15,8 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useActiveElement } from "@web/ui/active_element";
 import { PRESENTED_PROPS } from "@web/ui/overlay/presenter";
 
-/**
- * Used only when the sheet's declared slide-out duration cannot be read. It is
- * not a second spelling of that duration: the stylesheet owns the number, and
- * `slideOutFallbackDelay` derives the watchdog from it, so raising the animation
- * can never leave a watchdog that fires mid-slide.
- */
 const DISMISS_ANIMATION_FALLBACK_DELAY = 1000;
 
-/** Grace over the declared duration before the watchdog gives up on it. */
 const DISMISS_FALLBACK_MARGIN = 250;
 
 const SLIDE_IN_ANIMATION = "bottom-sheet-in";
@@ -43,9 +36,6 @@ function parseCssDuration(value) {
 }
 
 /**
- * The watchdog that closes the sheet if `animationend` never arrives. It has to
- * outlast the animation, so it is read from the animation rather than guessed.
- *
  * @param {HTMLElement | null | undefined} containerEl
  * @returns {number}
  */
@@ -121,9 +111,6 @@ export class BottomSheet extends Component {
     skipsAnimation = false;
 
     /**
-     * Assigned in setup() and read from callbacks and from the template, a
-     * sequence TypeScript cannot follow, so the fields are declared.
-     *
      * @type {{
      *     isPositionedReady: boolean,
      *     isSnappingEnabled: boolean,
@@ -399,10 +386,6 @@ export class BottomSheet extends Component {
     }
 
     /**
-     * True once the overlay removal is in flight, which lasts as long as the
-     * caller's onClose. Distinct from `state.isDismissing`, which starts with
-     * the slide-out animation, before close() is called.
-     *
      * @returns {boolean}
      */
     get isClosing() {

@@ -81,8 +81,6 @@ function isAllowedNodeMove(ctx) {
 }
 
 /**
- * The element's nested list, created on first use.
- *
  * @param {Record<string, any>} ctx
  * @param {Element} el
  * @returns {HTMLElement}
@@ -111,9 +109,6 @@ function positionOf(ctx, el) {
 }
 
 /**
- * The placeholder just moved: hide it where the move is refused, bounce it
- * back out where it would nest too deep, and otherwise tell the consumer.
- *
  * @param {Record<string, any>} ctx
  * @param {Function} callHandler
  * @param {Record<string, any>} prevPos
@@ -148,10 +143,6 @@ function notifyMove(ctx, callHandler, prevPos) {
 }
 
 /**
- * Horizontal travel past the nest interval moves the placeholder one level
- * out (away from the list's leading edge) or one level in (under its
- * previous sibling).
- *
  * @param {Record<string, any>} ctx
  * @param {Function} callHandler
  * @param {Record<string, any>} position
@@ -189,9 +180,6 @@ function nestHorizontally(ctx, callHandler, position) {
 }
 
 /**
- * The pointer is over a sortable element: the placeholder goes before it
- * near its top edge, after it (or into its children) lower down.
- *
  * @param {Record<string, any>} ctx
  * @param {Function} callHandler
  * @param {Element} element
@@ -229,9 +217,6 @@ function placeAroundElement(ctx, callHandler, element, position, currentTop) {
 }
 
 /**
- * The pointer is over another group's empty space: the placeholder joins
- * that group at the end nearest to where it came from.
- *
  * @param {Record<string, any>} ctx
  * @param {Function} callHandler
  * @param {Element} closestEl

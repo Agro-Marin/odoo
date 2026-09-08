@@ -368,10 +368,6 @@
                 )};
         }
 
-        // A bare <select> paints its caret as a background image rather than a
-        // mask, so the colour rides inside the SVG. Restate the token, not
-        // `background-image`: this selector outscores `.form-select`, which
-        // would then lose Bootstrap's chevron to this triangle.
         select {
             --o-select-caret-img: #{escape-svg(
                     o-caret-down-icon($o-dark-main-text-color)
@@ -471,11 +467,6 @@
 
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
-        // ==== The record ramp's two chip presentations
-        //
-        // Not the published `--o-record-color-*-chip-*` tokens: those carry a
-        // different formula (+25% lightness for the fill, -40% for the label).
-        // These two are the theme's own and are restated as they were.
         .badge {
             @for $-i from 1 through length($o-dark-colors) {
                 &.o_badge_color_#{$-i - 1} {
@@ -515,8 +506,6 @@
             }
         }
 
-        // The colour list's own pair, which inverts the tag's: the swatch takes
-        // the darkened colour and the mark on it takes the mixed one.
         @for $-i from 2 through length($o-dark-colors) {
             .o_colorlist_item_color_#{$-i - 1} {
                 --background-color: #{adjust-color(
@@ -532,7 +521,6 @@
             }
         }
 
-        // ==== Components
         .o-dropdown {
             --border-color: #{$o-dark-dropdown-border-color};
             --o-input-border-color: #{$o-dark-dropdown-border-color};
@@ -607,8 +595,6 @@
             --o-stat-text-color: #{map-get($o-dark-theme-text-colors, "primary")};
         }
 
-        // The property type's icon is a bitmap, so the scheme inverts it rather
-        // than recolouring it.
         .o_field_property_definition_type,
         .o_field_property_definition_type_menu {
             img {
@@ -621,7 +607,6 @@
             background-color: $o-dark-border-color;
         }
 
-        // ==== The bottom sheet, and what it restyles inside itself
         .o_bottom_sheet {
             .o_bottom_sheet_sheet {
                 --BottomSheetStatusBar__entry-background--active: #{rgba(

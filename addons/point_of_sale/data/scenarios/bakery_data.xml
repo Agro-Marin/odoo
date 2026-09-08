@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Bakery products -->
         <record id="product_wholemeal_loaf" model="product.product">
             <field name="name">Wholemeal loaf</field>
             <field name="list_price">2.99</field>

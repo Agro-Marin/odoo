@@ -29,7 +29,6 @@ patch(GroupConfigMenu.prototype, {
 
     async openAutomations() {
         if (typeof this._openAutomations === "function") {
-            // this is the case if automation is installed
             return this._openAutomations();
         } else {
             this.dialog.add(PromoteStudioAutomationDialog, {

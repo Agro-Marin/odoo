@@ -11,9 +11,7 @@ import {
 } from "@odoo/owl";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
-/** Fallback half-width used before the handle element exists. */
 const DEFAULT_SPACING = 10;
-/** Shared with `ResizablePanel.defaultProps`, which is the caller-facing copy. */
 export const DEFAULT_PANEL_WIDTH = 400;
 
 /**

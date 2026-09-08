@@ -73,8 +73,6 @@ defineActions([
 describe.current.tags("mobile");
 
 test("scroll position is kept", async () => {
-    // This test relies on the fact that the scrollable element in mobile
-    // is view's root node.
     const firstRecord = Partner._records[0];
     delete firstRecord.id;
     Partner._records = [...Array(80)].map((_, i) => ({
@@ -82,11 +80,9 @@ test("scroll position is kept", async () => {
         name: `Record ${i + 1}`,
     }));
 
-    // force the html node to be scrollable element
     await mountWebClient();
     await animationFrame();
 
-    // partners in list/kanban
     await getService("action").doAction(3);
     expect(".o_kanban_view").toHaveCount(1);
 

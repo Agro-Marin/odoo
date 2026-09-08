@@ -13,18 +13,6 @@ import {
     webModels,
 } from "@web/../tests/web_test_helpers";
 
-/**
- * `switchView` bumps the navigation epoch, which rejects the `/web/action/load`
- * every in-flight `doAction` is awaiting. It must not pay that price on the
- * paths where it declines to switch at all, or the pending navigation is
- * destroyed with nothing replacing it — the click is simply lost. `restore` is
- * reached from a breadcrumb's `onSelected`, which neither awaits nor catches,
- * so the loss surfaces as an unhandled rejection.
- *
- * These drive the real service through a mounted WebClient; the unit-level
- * companions live in navigation_mint_ordering.test.js.
- */
-
 describe.current.tags("desktop");
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
@@ -74,9 +62,6 @@ defineActions([
     },
 ]);
 
-/**
- * Holds the next `/web/action/load` open, and reports how the navigation ended.
- */
 function holdNextActionLoad() {
     const held = new Deferred();
     let holding = false;

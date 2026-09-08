@@ -108,8 +108,6 @@ class ConditionalEnrichHost extends Component {
 }
 
 test("a target removed from the DOM hands the hook a null ref, not a crash", async () => {
-    // The effect runs for every value the ref takes. A target behind a `t-if`
-    // yields `null` on removal, which used to reach `element.matches`.
     const comp = await mountWithCleanup(ConditionalEnrichHost);
     expect("a > .tgt").toHaveCount(1);
 
@@ -134,8 +132,6 @@ class IframeEnrichHost extends Component {
 }
 
 test("an iframe's document is enriched once it loads", async () => {
-    // The iframe branch of the hook had no coverage at all, so a change to it
-    // could not be told apart from a no-op by the suite.
     const comp = await mountWithCleanup(IframeEnrichHost);
     let anchor = null;
     for (let i = 0; i < 50 && !anchor; i++) {

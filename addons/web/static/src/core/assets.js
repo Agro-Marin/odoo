@@ -126,11 +126,6 @@ function resolveSpecifierTarget(specifier, importMap, injected, targetDoc) {
 }
 
 /**
- * Split an import map into what `targetDoc` still needs and what it already
- * has, claiming the fresh entries as it goes, and inject the fresh ones as a
- * new <script type="importmap">. The same-document and cross-document loaders
- * used to each carry this loop.
- *
  * @param {Document} targetDoc
  * @param {Record<string, string>} importMap
  * @param {Map<string, string>} injected
@@ -201,16 +196,6 @@ function seedFromDocument(targetDoc, cacheMap) {
 }
 
 /**
- * Re-seed the document's asset cache once the page has finished parsing.
- *
- * This is NOT redundant with the seeding getAssetCache() does when it creates
- * the map: the map is usually created earlier, by the first loadJS/loadCSS
- * during bundle evaluation, and at that point `head` holds only what the parser
- * has reached. Without this second pass, a <script src> or <link rel=stylesheet>
- * that entered `head` afterwards is unknown to the cache and loadJS/loadCSS
- * re-injects it. Pinned by "the whenReady re-seed picks up scripts added after
- * the cache was created" in tests/core/utils/assets.test.js.
- *
  * @param {Document} targetDoc
  */
 function reseedFromDocument(targetDoc) {
@@ -218,7 +203,6 @@ function reseedFromDocument(targetDoc) {
     if (cacheMap) {
         seedFromDocument(targetDoc, cacheMap);
     } else {
-        // Creating it seeds it; scanning again here would just repeat that.
         getAssetCache(targetDoc);
     }
 }
@@ -271,9 +255,6 @@ const onLoadAndError = (el, onLoad, onError, onPageHideCleanup, onInterrupt) => 
 };
 
 /**
- * The page bundle `targetDoc` rendered, read off the import map the server
- * stamped, so a lazy child can be compiled against exactly that page.
- *
  * @param {Document} targetDoc
  * @returns {string}
  */
@@ -321,8 +302,6 @@ export function loadCSS(url, options) {
 export class AssetsLoadingError extends Error {}
 
 /**
- * Load ESM specifiers into THIS document and register them with odoo.loader.
- *
  * @param {string[]} specifiers
  * @param {Record<string, string> | null} importMap
  * @returns {Promise<void>}
@@ -381,14 +360,6 @@ async function loadESMBundleHere(specifiers, importMap) {
 }
 
 /**
- * The import map another document needs in order to resolve the specifiers this
- * one has already loaded.
- *
- * Every module the target's loader does NOT have is pointed either at the URL
- * the server named or at a generated data: module that re-exports this
- * document's copy (`module_bridge`). Server entries always win, so a bridge is
- * only ever a fallback.
- *
  * @param {Document} targetDoc
  * @param {Record<string, string> | null} importMap
  * @returns {Record<string, any>}
@@ -429,14 +400,6 @@ function buildBridgeImportMap(targetDoc, importMap) {
 }
 
 /**
- * Inject a module script that imports `specifiers` in `targetDoc` and resolve
- * when it reports back.
- *
- * `import()` here would resolve against THIS document, so the import has to run
- * over there; a one-shot event pair carries the outcome back. The watch also
- * ends on the script element's own error and on the target unloading, so a
- * caller is never left awaiting a document that has gone.
- *
  * @param {Document} targetDoc
  * @param {string[]} specifiers
  * @param {Record<string, any>} extraMap
@@ -513,9 +476,6 @@ function runESMBundleScript(targetDoc, specifiers, extraMap, injected) {
 }
 
 /**
- * Load ESM specifiers into ANOTHER document, by injecting a module script that
- * imports them there and reports back through a one-shot event pair.
- *
  * @param {Document} targetDoc
  * @param {string[]} specifiers
  * @param {Record<string, string> | null} importMap
@@ -559,18 +519,6 @@ async function loadESMBundleInto(targetDoc, specifiers, importMap) {
 }
 
 /**
- * Mount an asset element, wait for it, and retry a transient failure.
- *
- * loadCSS and loadJS differ only in the element they build. They used to differ
- * in one more thing that nothing explained: a stylesheet that failed to load was
- * retried three times, a script was not, so one transient network blip made a
- * third-party library unavailable for the rest of the session while the same
- * blip on a stylesheet cost nothing. An `error` event means the resource never
- * ran, so re-mounting is safe for both.
- *
- * Bundles under `/web/assets/` are still not retried: those come from this
- * server, and a failure there is a deploy problem a retry only prolongs.
- *
  * @param {"loadCSS" | "loadJS"} what
  * @param {string} url
  * @param {Document} targetDoc
@@ -858,12 +806,6 @@ export const assets = {
      * @returns {Promise<void>}
      */
     /**
-     * Two loaders, one entry point. The same-document branch injects into this
-     * page's import map and `import()`s directly; the cross-document branch has
-     * to build a bridge map and hand a <script type="module"> to another window,
-     * because `import()` here resolves against the wrong document. They share a
-     * signature and nothing else, which is why they are two functions.
-     *
      * @param {string[]} specifiers
      * @param {{ targetDoc?: Document, importMap?: Record<string, string> | null }} [options]
      * @returns {Promise<void>}
@@ -885,13 +827,6 @@ export const assets = {
     },
 
     /**
-     * Load one compiled ESM bundle. The bundle registers its own modules with
-     * `odoo.loader` and resolves the page bundle's modules through loader
-     * stubs compiled into it, so the only import-map entries it may still
-     * need are the external libraries it names. Same document: a dynamic
-     * `import()`; another document: a `<script type="module" src>` there,
-     * because `import()` here would resolve against this document.
-     *
      * @param {string} url
      * @param {{ targetDoc?: Document, importMap?: Record<string, string> | null }} [options]
      * @returns {Promise<void>}

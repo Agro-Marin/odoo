@@ -6,12 +6,6 @@ import { ActionManager } from "@web/webclient/actions/action_service";
 
 describe.current.tags("desktop");
 
-/**
- * `switchView` and `restore` bump the navigation epoch, which supersedes every
- * in-flight `doAction` load. A call that ends up doing nothing — or that throws
- * because its target does not exist — must not pay that price: the user's
- * pending navigation would be dropped and nothing would replace it.
- */
 function makeManager() {
     const am = new ActionManager(
         /** @type {any} */ ({

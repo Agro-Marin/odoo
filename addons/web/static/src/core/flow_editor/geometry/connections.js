@@ -14,8 +14,6 @@ import { buildOrthogonalPath, buildSelfLoopPath } from "./router.js";
  */
 
 /**
- * Build the display geometry of a connection.
- *
  * @param {Object} params
  * @param {import("../flow_types").FlowConnection} params.connection
  * @param {import("../flow_types").FlowNode} params.sourceNode

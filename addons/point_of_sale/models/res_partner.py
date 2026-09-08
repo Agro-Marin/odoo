@@ -67,9 +67,6 @@ class ResPartner(models.Model):
 
     @api.model
     def _load_pos_data_domain(self, data, config):
-        # `load_data` skips any model its caller left out of `models_to_load`, so
-        # pos.order's rows are not guaranteed to be in `data` at all; and an order
-        # without a customer carries `partner_id` False, which is not an id.
         loaded_order_partner_ids = {
             order["partner_id"]
             for order in data.get("pos.order") or []

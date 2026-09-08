@@ -786,11 +786,6 @@ test("starting a drag blurs what was focused outside the dragged element", async
     expectNoDragResidue();
 });
 
-// `contains().drag()` cannot stage this on a touch device: its touch path burns
-// hoot's 500ms LONG_TAP_DELAY of simulated time before it hands control back, so
-// a 100ms delay has already elapsed and the press has legitimately armed. The
-// touch counterpart below presses by hand instead, so both paths cover the
-// cancellation rather than one of them reporting a premise it never staged.
 test.tags("desktop");
 test("a delayed drag is cancelled when the pointer left the element before it fires", async () => {
     await mountWithCleanup(

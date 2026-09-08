@@ -14,8 +14,6 @@
  */
 
 /**
- * Position in the flow editor's world coordinates.
- *
  * @typedef FlowPosition
  * @property {number} x
  * @property {number} y
@@ -28,8 +26,6 @@
  */
 
 /**
- * Translation and zoom applied to the flow world.
- *
  * @typedef FlowViewport
  * @property {number} x
  * @property {number} y
@@ -37,11 +33,6 @@
  */
 
 /**
- * Reference to any persisted Odoo record represented by a node.
- *
- * `data` is an optional snapshot used for display. The record reference remains
- * the source of identity and consumers decide how the record is loaded or edited.
- *
  * @typedef FlowRecord
  * @property {string} resModel
  * @property {number} resId
@@ -53,11 +44,6 @@
  */
 
 /**
- * A connection endpoint exposed by a node.
- *
- * Compatibility and cardinality are declarative so consumers can describe
- * domain-specific ports without coupling the editor to their business models.
- *
  * @typedef FlowPort
  * @property {FlowPortId} id
  * @property {FlowPortDirection} direction
@@ -69,11 +55,6 @@
  */
 
 /**
- * A node displayed by the flow editor.
- *
- * `record` can point to any Odoo model, such as `res.partner` or `res.users`.
- * Nodes without a persisted record are also supported.
- *
  * @typedef FlowNode
  * @property {FlowNodeId} id
  * @property {string} type
@@ -128,8 +109,6 @@
  */
 
 /**
- * A directed connection between an output port and an input port.
- *
  * @typedef FlowConnection
  * @property {FlowConnectionId} id
  * @property {FlowNodeId} sourceNodeId

@@ -86,15 +86,6 @@ const USER_KEYS_OWNED_BY_USER = [
 ];
 
 /**
- * The user's company set: which are allowed, which are active, and how
- * activating one pulls its children in.
- *
- * Extracted from _makeUser because it is the one part of the user object with
- * rules of its own -- an ordering (the main company first, the rest by id), a
- * fallback when the cookie names nothing valid, a cookie to keep in step, and an
- * event other services listen for. None of that has anything to do with groups,
- * settings or access rights; it only shared a closure with them.
- *
  * @param {any} userCompanies session.user_companies
  * @param {Record<string, any>} context the user context, whose allowed_company_ids this owns
  */
@@ -121,8 +112,6 @@ function makeCompanies(userCompanies, context) {
             activeCompanies = fallback ? [fallback] : [];
         }
         if (activeCompanies.length) {
-            // The main company keeps its place; the rest are ordered by id so
-            // that the same selection always produces the same cookie.
             activeCompanies = [
                 activeCompanies[0],
                 ...sortBy(activeCompanies.slice(1), (c) => c.id),
@@ -201,8 +190,6 @@ function makeCompanies(userCompanies, context) {
 }
 
 /**
- * `hasGroup`, memoised, and pre-seeded with what the session already told us.
- *
  * @param {number | false} userId
  * @param {Record<string, any>} groups session.groups
  * @param {{ isInternalUser?: boolean, isSystem?: boolean, isAdmin?: boolean, isPublic?: boolean }} flags
@@ -220,8 +207,6 @@ function makeGroupCache(userId, groups, flags) {
                 kwargs: { context },
             });
         },
-        // Keyed on the group alone: the context is an argument to the RPC, not
-        // part of the question being cached.
         (/** @type {string} */ group) => group,
     );
 
@@ -253,7 +238,6 @@ function makeGroupCache(userId, groups, flags) {
         has(group, context) {
             return cache.read(group, context);
         },
-        /** Drop every answer and put the session's own back. */
         reseed() {
             cache.invalidate();
             seed();
@@ -261,10 +245,6 @@ function makeGroupCache(userId, groups, flags) {
     };
 }
 
-/**
- * `has_access`, memoised on (model, operation, id SET) -- so the same question
- * asked with the ids in another order, or with duplicates, is one RPC.
- */
 function makeAccessRightCache() {
     const fetch = (
         /** @type {string} */ model,
@@ -331,9 +311,6 @@ async function writeUserSetting(settings, key, value, context) {
 }
 
 /**
- * The company half of the user object, as live getters over the company
- * state so a reseed after activation is visible through them.
- *
  * @param {ReturnType<typeof makeCompanies>} companies
  */
 function companyFacet(companies) {
@@ -439,8 +416,6 @@ export function _makeUser(session) {
             ids = [],
             { context } = /** @type {{ context?: object }} */ ({}),
         ) {
-            // An explicit context is not part of the cache key, so it must not
-            // be answered from the cache either.
             return accessRights.check(
                 model,
                 operation,
@@ -456,7 +431,6 @@ export function _makeUser(session) {
             settings[key] = value;
         },
     };
-    // Getters survive only as descriptors; a spread would freeze their values.
     return /** @type {UserObject} */ (
         Object.defineProperties(
             userObject,

@@ -57,7 +57,6 @@
                 <br />
                 <br />
                 <div class="oe_structure" />
-                <!-- Orderlines -->
                 <div t-if="products" id="sales">
                     <h6 class="bg-secondary p-1 fw-bold">Sales</h6>
                     <div class="oe_structure" />

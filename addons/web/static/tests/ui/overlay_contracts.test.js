@@ -92,9 +92,6 @@ test("the presenters share one option contract, and still name real typos", asyn
     );
     await animationFrame();
 
-    // `onBack` belongs to BottomSheet, which usePopover's useBottomSheet can
-    // route the same call to, so it is part of the contract the caller writes
-    // against and must not be reported as a mistake.
     expect(warnings.filter((w) => w.includes("onBack"))).toHaveLength(0);
     expect(warnings.filter((w) => w.includes("position"))).toHaveLength(0);
     expect(warnings.filter((w) => w.includes("nonsense"))).toHaveLength(1);

@@ -160,9 +160,6 @@ export function isVirtualKeyboardSupported() {
 }
 
 /**
- * The Web Share API, which the DOM types declare unconditionally and desktop
- * browsers do not all implement.
- *
  * @returns {boolean}
  */
 export function isWebShareSupported() {

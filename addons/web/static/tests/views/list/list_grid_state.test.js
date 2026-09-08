@@ -43,8 +43,6 @@ function makeGridState(options = {}) {
         mockColumn("phone"),
     ];
     const list = options.list || mockList(records);
-    // construct then update, which is the order ListRenderer uses: everything
-    // but the list and the direction arrives from the first onWillRender.
     const gridState = new ListGridState({ list, isRTL: options.isRTL ?? false });
     gridState.update({
         columns,

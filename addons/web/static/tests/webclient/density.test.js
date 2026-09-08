@@ -22,18 +22,6 @@ defineModels([ResCompany, ResPartner, ResUsers, ResUsersSettings]);
 
 describe.current.tags("desktop");
 
-/**
- * The session carries no `user_settings`, so `setUserSettings` sends `undefined`
- * as the record id, which arrives as `null` and matches nothing. These tests
- * used to ride on however that miss happened to be handled, and that differed
- * by install set: green under `web` alone, red once `mail` or `web_studio` was
- * installed.
- *
- * Naming the record is not enough either — `res.users.settings` is a
- * `ServerModel`, so installing `mail` gives it `mail.thread` to inherit and a
- * `web`-owned test can no longer define it standalone. Stub the write instead,
- * exactly as `dark_mode_toggle.test.js` does for the same model.
- */
 function seedUserSettings() {
     patchWithCleanup(user, _makeUser({ user_settings: { id: 1 } }));
     onRpc(
@@ -164,8 +152,6 @@ test("two failing persists do not strand a density the server never received", a
     pending[1]();
     await Promise.all([first, second]);
 
-    // Rolling back to "whatever was applied when this call started" would land
-    // on "compact", which never reached the server either.
     expect(density.current).toBe("default");
     expect(document.body.classList.contains("o-density-compact")).toBe(false);
 });

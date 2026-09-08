@@ -141,7 +141,6 @@ function parseTimeComponent(str) {
 }
 
 /**
- * One unbroken run of digits, with no separator to say where the hour ends.
  * @param {string} raw
  * @param {boolean} [parseSeconds]
  * @returns {{ hour: number, minute: number, second: number } | null}

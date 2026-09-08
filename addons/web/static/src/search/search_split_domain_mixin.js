@@ -203,16 +203,6 @@ export const SearchSplitDomainMixin = (Base) =>
             await this._notify();
         }
         /**
-         * Open the custom-filter dialog and hand what it produces to
-         * `splitAndAddDomain`: on a new domain by default, or on the domain
-         * of an existing facet group, which the result then replaces.
-         *
-         * It lives here rather than on the query mixin because that is all it
-         * does: every other name it touches is host state, and the one
-         * operation it calls is this unit's. Owning it from `search_query_mixin`
-         * made the two mixins mutually dependent for a dialog neither of them
-         * is about -- the composition's only remaining mixin-to-mixin cycle.
-         *
          * @param {object} [target]
          * @param {string} [target.domain]
          * @param {number} [target.groupId]

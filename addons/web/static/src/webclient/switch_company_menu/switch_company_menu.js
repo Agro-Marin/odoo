@@ -29,12 +29,6 @@ function normalise(value) {
 }
 
 /**
- * `ir_http.py::_get_company_info` narrows every `child_ids` to the companies it
- * also sends (`children_in_hierarchy`), so each id here resolves. That is the
- * payload's promise, not something this side can check, and
- * `company_selector.js` already declines to rely on it (`getCompany(...)?.`).
- * Resolve and drop rather than dereference `undefined`.
- *
  * @param {{ child_ids?: number[] }} company
  * @returns {Record<string, any>[]}
  */
@@ -43,9 +37,6 @@ function childrenOf(company) {
 }
 
 /**
- * The company under the keyboard cursor, or `undefined` when the cursor rests
- * on something else (the search box, the confirm button).
- *
  * @param {{ activeItem?: { el: HTMLElement } }} navigator
  * @returns {number | undefined}
  */
@@ -180,9 +171,6 @@ export class SwitchCompanyMenu extends Component {
     }
 
     computeVisibleCompanies() {
-        // The filter is a local, not an instance field: it is derived here and
-        // read only by the two closures below, so nothing outside this call can
-        // observe a stale one.
         const filter = normalise(this.state.searchFilter);
         const matches = (/** @type {string} */ name) =>
             !filter || normalise(name).includes(filter);

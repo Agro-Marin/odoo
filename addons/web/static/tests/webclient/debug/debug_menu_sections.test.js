@@ -34,11 +34,6 @@ test("the debug menu renders no empty section header", async () => {
 });
 
 test("a section registered without a sequence sorts at the default, not adrift", async () => {
-    // `sequence` is optional in the debug_section schema. An entry registered
-    // without one used to sort as `undefined`, which compares equal to every
-    // number: an inconsistent comparator, so which sections move depends on the
-    // order they arrive in, and sections that do declare a sequence can move
-    // too. This pins the offender's own place, which is deterministic.
     onRpc("has_access", () => true);
     registry
         .category("debug_section")

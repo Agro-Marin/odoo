@@ -228,10 +228,6 @@ export class ListEditHandlers {
     }
 
     /**
-     * Tab from the last record: a new line where the list creates inline,
-     * else a new record when the row is dirty, else the first record again
-     * when the list cycles.
-     *
      * @param {HTMLTableCellElement} cell
      * @param {object | null} group
      * @param {object} record
@@ -311,10 +307,6 @@ export class ListEditHandlers {
     }
 
     /**
-     * Escape discards the row, then focus goes to the nearest thing that
-     * still exists: the x2many "add a line", the group's own add line, the
-     * cell itself, or the first surviving row when the record was new.
-     *
      * @param {HTMLTableCellElement} cell
      * @param {object | null} group
      * @param {object} record
@@ -360,9 +352,6 @@ export class ListEditHandlers {
 }
 
 /**
- * The edit-mode handlers as an object to install on `nav`, each bound to a
- * ListEditHandlers over that `nav`.
- *
  * @param {object} nav
  * @param {any} tableRef
  * @param {ListEditContext} ctx

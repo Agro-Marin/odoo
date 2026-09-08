@@ -193,10 +193,6 @@ test("UI active element: trap focus - default focus with autofocus", async () =>
 });
 
 test("become UI active element even with no element to focus, without taking the focus", async () => {
-    // Claiming the scope and moving the focus are two decisions. An element with
-    // nothing to focus still owns its hotkeys and commands -- otherwise a popover
-    // of plain text opened from a dialog sends its escape to the dialog -- but it
-    // must not steal the focus to say so.
     class MyComponent extends Component {
         static template = xml`
             <div>

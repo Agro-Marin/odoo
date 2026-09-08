@@ -2,7 +2,6 @@
 <odoo>
 
     <data noupdate="1">
-        <!-- Bakery scenario pos categories -->
         <record id="pos_category_breads" model="pos.category">
             <field name="name">Breads</field>
             <field

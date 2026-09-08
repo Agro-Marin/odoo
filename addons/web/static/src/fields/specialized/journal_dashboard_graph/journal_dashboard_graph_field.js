@@ -26,10 +26,6 @@ export class JournalDashboardGraphField extends FieldComponent {
     };
 
     /**
-     * The parsed contents of the field's JSON value, set by renderChart() and
-     * read by the config getters it then calls, a sequence TypeScript cannot
-     * follow, so the field is declared.
-     *
      * @type {any}
      */
     data;
@@ -38,9 +34,6 @@ export class JournalDashboardGraphField extends FieldComponent {
     chart;
 
     /**
-     * Assigned in setup() and read from other methods, a sequence TypeScript
-     * cannot follow, so the field is declared.
-     *
      * @type {ReturnType<typeof useChartCanvas>}
      */
     canvasRef;

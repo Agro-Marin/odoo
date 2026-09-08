@@ -150,11 +150,6 @@ export class ProgressBarField extends Component {
     }
 
     /**
-     * The template used to inline `100 * currentValue / maxValue`. A literal
-     * `options="{'max_value': 0}"` made that `Infinity`, which CSS drops, and a
-     * negative current value made it negative; both are unreachable through a
-     * *field*-backed max, where a falsy value already falls back to 100.
-     *
      * @returns {string}
      */
     get progressBarStyle() {
@@ -182,10 +177,6 @@ export class ProgressBarField extends Component {
     }
 
     /**
-     * Only reached where the value is *not* rendered as an editable input, so
-     * every caller asks for the human-readable form; `formatValue` is what
-     * carries the "raw while editing" default the inputs read through.
-     *
      * @param {boolean} humanReadable
      * @returns {string}
      */

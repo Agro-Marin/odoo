@@ -59,14 +59,12 @@ class TestCsvExportCells(unittest.TestCase):
         )
 
     def test_none_and_false_are_blank_but_zero_is_not(self):
-        """Identity, not truthiness: `0` and `""` are values, not blanks."""
         self.assertEqual(
             csv_export(["a", "b", "c", "d"], [[None, False, 0, ""]]),
             b'"a","b","c","d"\r\n"","","0",""\r\n',
         )
 
     def test_leading_formula_characters_are_neutralised(self):
-        """OWASP's CSV-injection set, guarded on strings only."""
         row = ["=cmd", "-cmd", "+cmd", "@cmd", "\tcmd", "\rcmd"]
         self.assertEqual(
             csv_export(["h"] * len(row), [row]),
@@ -78,7 +76,6 @@ class TestCsvExportCells(unittest.TestCase):
         self.assertEqual(csv_export(["h"], [["a=b"]]), b'"h"\r\n"a=b"\r\n')
 
     def test_non_strings_are_stringified_without_the_guard(self):
-        """The guard tracks the Python original: `isinstance(d, str)` only."""
         self.assertEqual(
             csv_export(["a", "b", "c"], [[-5, 1.5, True]]),
             b'"a","b","c"\r\n"-5","1.5","True"\r\n',
@@ -90,13 +87,6 @@ class TestCsvExportCells(unittest.TestCase):
         )
 
     def test_undecodable_bytes_raise_unicodedecodeerror(self):
-        """It used to raise `TypeError: function takes exactly 5 arguments`.
-
-        `UnicodeDecodeError` takes five (encoding, object, start, end, reason),
-        and the error was constructed from a single message string, so it blew
-        up on construction — an export of a binary column failed with a
-        TypeError naming no encoding, no row and no column.
-        """
         with self.assertRaises(UnicodeDecodeError) as caught:
             csv_export(["h"], [[b"\xff\xfe"]])
         self.assertEqual(caught.exception.encoding, "utf-8")

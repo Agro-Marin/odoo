@@ -79,13 +79,11 @@ test("uses a mobile-friendly view by default (if possible)", async () => {
 
     await mountWebClient();
     await animationFrame();
-    // should default on a mobile-friendly view (kanban) for action 1
     await getService("action").doAction(1);
 
     expect(".o_list_view").toHaveCount(0);
     expect(".o_kanban_view").toHaveCount(1);
 
-    // there is no mobile-friendly view for action 2, should use the first one (list)
     await getService("action").doAction(2);
 
     expect(".o_list_view").toHaveCount(1);
@@ -103,7 +101,6 @@ test("lazy load mobile-friendly view", async () => {
     expect(".o_kanban_view").toHaveCount(0);
     expect(".o_form_view").toHaveCount(1);
 
-    // go back to lazy loaded view
     await click(".o_breadcrumb .o_back_button");
     await animationFrame();
     expect(".o_list_view").toHaveCount(0);
@@ -115,8 +112,8 @@ test("lazy load mobile-friendly view", async () => {
         "/web/webclient/load_menus",
         "/web/action/load",
         "get_views",
-        "onchange", // default_get/onchange to open form view
-        "web_search_read", // web search read when coming back to Kanban
+        "onchange",
+        "web_search_read",
         "has_group",
     ]);
 });
@@ -132,7 +129,6 @@ test("lazy load mobile-friendly view; legacy url", async () => {
     expect(".o_kanban_view").toHaveCount(0);
     expect(".o_form_view").toHaveCount(1);
 
-    // go back to lazy loaded view
     await click(".o_breadcrumb .o_back_button");
     await animationFrame();
     expect(".o_list_view").toHaveCount(0);
@@ -144,15 +140,13 @@ test("lazy load mobile-friendly view; legacy url", async () => {
         "/web/webclient/load_menus",
         "/web/action/load",
         "get_views",
-        "onchange", // default_get/onchange to open form view
-        "web_search_read", // web search read when coming back to Kanban
+        "onchange",
+        "web_search_read",
         "has_group",
     ]);
 });
 
 test("view switcher button should be displayed in dropdown on mobile screens", async () => {
-    // This test will spawn a kanban view (mobile friendly).
-    // so, the "legacy" code won't be tested here.
     await mountWebClient();
     await animationFrame();
 

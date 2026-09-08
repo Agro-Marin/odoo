@@ -435,8 +435,6 @@ export class CommandPalette extends Component {
         this.categoryKeys = categoryKeys;
         this.categoryNames = categoryNames;
         this.state.hiddenCount = Math.max(0, commands.length - MAX_DISPLAYED_COMMANDS);
-        // Keyed on what the command is, so a row that survives a search is
-        // patched rather than torn down and rebuilt with its hotkey.
         /** @type {Map<string, number>} */
         const occurrences = new Map();
         this.state.commands = markRaw(
@@ -468,10 +466,6 @@ export class CommandPalette extends Component {
         const key = commandKey(command);
         const known = this.brokenCommands.has(key);
         this.brokenCommands.add(key);
-        // Two rows can crash in the same render pass. The list is filtered
-        // by key, not by identity, so a row already reported as broken is
-        // still dropped when the pass that drops its predecessor leaves it in
-        // place; the survivors keep their objects, hence their keyIds.
         const remaining = this.state.commands.filter((c) => commandKey(c) !== key);
         if (remaining.length !== this.state.commands.length) {
             remaining.forEach((c, index) => {

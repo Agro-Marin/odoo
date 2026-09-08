@@ -165,9 +165,6 @@ class ExportXlsxWriter:
         row_count: int,
         env: Any = None,
     ) -> None:
-        # A workbook is not a response. Reading the environment off `request`
-        # bound this to a controller, which is why every wizard and cron that
-        # needs a sheet imports `xlsxwriter` and starts again instead.
         self.env = request.env if env is None else env
         self.fields = fields
         self.columns_headers = columns_headers

@@ -212,7 +212,6 @@ class TestPosSessionAmountBuilders(TestPoSCommon):
         self.assertEqual(old, {"amount": 10.0, "amount_converted": 10.0})
 
     def test_update_amounts_accumulates_the_base_unconverted(self):
-        """account.tax hands tax_base_amount in company currency already."""
         session = self._start_pos_session(self.cash_pm1, 0)
         date = fields.Datetime.now()
         old = {"amount": 0.0, "amount_converted": 0.0, "base_amount_converted": 0.0}

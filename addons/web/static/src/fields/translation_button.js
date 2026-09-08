@@ -53,9 +53,6 @@ export class TranslationButton extends Component {
     };
 
     /**
-     * Assigned in setup() and read from other methods, a sequence TypeScript
-     * cannot follow, so the field is declared.
-     *
      * @type {(params: { record: Object, fieldName: string }) => Promise<void>}
      */
     translationDialog;

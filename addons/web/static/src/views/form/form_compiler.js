@@ -50,9 +50,6 @@ export function objectToString(obj) {
 }
 
 /**
- * Give a group item the class its slot scope carries, on whichever attribute
- * the compiled node reads class names from.
- *
  * @param {Element} mainSlot
  * @param {Element} slotContent
  * @param {Element} child
@@ -414,9 +411,6 @@ export class FormCompiler extends ViewCompiler {
     }
 
     /**
-     * One child of a <group>: its compiled node and the columns it spans. A
-     * field in an inner group also gets its label as the slot's component.
-     *
      * @param {Element} child
      * @param {Record<string, any>} params
      * @param {{ mainSlot: Element, isOuterGroup: boolean, maxCols: number }} group
@@ -424,7 +418,6 @@ export class FormCompiler extends ViewCompiler {
      */
     compileGroupItem(child, params, { mainSlot, isOuterGroup, maxCols }) {
         let itemSpan = Number.parseInt(child.getAttribute("colspan") || "1", 10);
-        // A separator and an empty clearfix both span the whole group row.
         if (
             getTag(child, true) === "separator" ||
             child.matches("div[class='clearfix']:empty")

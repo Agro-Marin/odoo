@@ -265,8 +265,6 @@ test("with neither a valid cookie nor a current_company, the first allowed one w
         },
         user_context: {},
     });
-    // Object.values order, not id order: the fallback is "the first allowed",
-    // and only the companies AFTER the main one get sorted.
     expect(u.activeCompanies).toHaveLength(1);
     expect(u.allowedCompanies.map((c) => c.id)).toEqual([1, 3]);
 });
@@ -309,7 +307,6 @@ test("the active set is mirrored into the user context and the cookie", async ()
         user_context: {},
     });
     u.activateCompanies([3, 2], { reload: false });
-    // the first stays first, the rest are id-sorted
     expect(u.activeCompanies.map((c) => c.id)).toEqual([3, 2]);
     expect(u.context.allowed_company_ids).toEqual([3, 2]);
     expect(cookie.get("cids")).toBe("3-2");

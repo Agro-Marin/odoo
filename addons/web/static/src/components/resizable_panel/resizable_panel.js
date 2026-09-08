@@ -42,10 +42,6 @@ export class ResizablePanel extends Component {
     }
 
     /**
-     * The panel positions its handle absolutely, so it has to establish a
-     * containing block -- unless the caller already chose a `position-*` of
-     * their own, which is theirs to keep.
-     *
      * @returns {Record<string, boolean>}
      */
     get class() {

@@ -145,10 +145,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Fetch one section's values, keeping only the response of the latest
-         * fetch issued for it: an earlier response landing later, from the
-         * network or from the disk cache's refresh callback, is dropped.
-         *
          * @param {Section} section
          * @param {string} method
          * @param {Record<string, any>} kwargs
@@ -242,10 +238,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * First load of every section, with the filter values the context's
-         * `searchpanel_default_*` keys pre-checked. Awaited when a default
-         * was given or the data gates the first query.
-         *
          * @param {Record<string, any>} searchPanelDefaults
          * @returns {Promise<void>}
          */

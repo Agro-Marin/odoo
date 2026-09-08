@@ -71,8 +71,6 @@ class TestPosOrderLinePricing(TestPoSCommon):
         return order.lines
 
     def test_one_pricing_handler_per_trigger_field(self):
-        """Two handlers writing price_subtotal make the stored value depend on
-        their declaration order rather than on the order's data."""
         registry = self.env["pos.order.line"]._onchange_methods
         for name in ("qty", "discount", "price_unit", "tax_ids"):
             methods = [method.__name__ for method in registry.get(name, ())]
@@ -102,13 +100,6 @@ class TestPosOrderLinePricing(TestPoSCommon):
         )
 
     def test_line_subtotals_carry_the_sign_of_their_quantity(self):
-        """One convention, whatever kind of order the line sits on.
-
-        A refund line and a deduction line of identical economic value used to
-        store `+200` and `-100`; every consumer had to join to the order and
-        read `is_refund` to know which it was holding, and `pos_order_report`'s
-        SQL gave up and rebuilt the sign from `qty`.
-        """
         self.open_new_session()
         for is_refund in (True, False):
             order = self._new_order(is_refund=is_refund)
@@ -126,8 +117,6 @@ class TestPosOrderLinePricing(TestPoSCommon):
             self.assertAlmostEqual(order.amount_total, -214.0)
 
     def test_margin_is_the_plain_difference(self):
-        """`price_subtotal` and `total_cost` now carry the same sign, so the
-        margin needs no compensating flip -- and must not have gained one."""
         self.open_new_session()
         order = self._new_order(is_refund=True)
         line = self._add_line(order, qty=-2)
@@ -141,9 +130,6 @@ class TestPosOrderLinePricing(TestPoSCommon):
         self.assertAlmostEqual(order.margin, -100.0)
 
     def test_form_created_line_keeps_the_taxes_it_was_priced_with(self):
-        """The backend form prices a new line with the product's taxes, so it
-        must save them: a line whose price_subtotal_incl carries a tax its
-        tax_ids do not name loses that tax at the next `_recompute_amounts`."""
         self.open_new_session()
         order = self._new_order()
 
@@ -179,7 +165,6 @@ class TestPosOrderPayload(TestPoSCommon):
     for `pos.order` from an empty list.
     """
 
-    # `_log_access` adds these to every model; no POS frontend code reads them.
     AUDIT_FIELDS = {"create_date", "create_uid", "write_uid"}
 
     @classmethod
@@ -188,8 +173,6 @@ class TestPosOrderPayload(TestPoSCommon):
         cls.config = cls.basic_config
 
     def test_payload_declares_every_field_this_module_adds(self):
-        """A new field on pos.order must join the list, or the POS silently
-        stops receiving it -- which is how the whole list came to be missing."""
         PosOrder = self.env["pos.order"]
         listed = set(PosOrder._load_pos_data_fields(self.config))
         owned = {
@@ -204,8 +187,6 @@ class TestPosOrderPayload(TestPoSCommon):
         )
 
     def test_payload_carries_the_receipt_access_token(self):
-        """`order_receipt.js` builds the ticket-validation URL from it, and it
-        comes from `mixin.portal`, so this module's own fields do not cover it."""
         self.assertIn(
             "access_token", self.env["pos.order"]._load_pos_data_fields(self.config)
         )

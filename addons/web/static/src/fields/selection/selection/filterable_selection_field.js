@@ -31,9 +31,6 @@ export class FilterableSelectionField extends SelectionField {
     }
 
     /**
-     * The whitelist field wins over the two literal lists, and a whitelist
-     * over a blacklist; the current value always stays selectable.
-     *
      * @returns {((value: string) => boolean) | null}
      */
     get allowedValuePredicate() {

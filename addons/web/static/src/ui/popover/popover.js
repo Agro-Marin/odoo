@@ -74,10 +74,6 @@ export class Popover extends Component {
         if (this.props.setActiveElement) {
             useActiveElement("ref");
         } else if (this.props.closeOnEscape && odoo.debug) {
-            // Escape is dispatched to the registrations whose scope is the UI's
-            // active element. Declining to become one and asking for
-            // escape-to-close at the same time asks for a key that cannot be
-            // delivered -- and, with a dialog open, hands it to the dialog.
             console.warn(
                 "[popover] closeOnEscape is set with setActiveElement disabled; " +
                     "escape will reach whatever owns the UI instead. Handle escape " +
@@ -131,10 +127,6 @@ export class Popover extends Component {
     }
 
     /**
-     * True from the moment close() is called until the overlay is actually
-     * removed -- a window as long as the caller's onClose, during which the
-     * popover is still on screen.
-     *
      * @returns {boolean}
      */
     get isClosing() {
@@ -187,10 +179,6 @@ export class Popover extends Component {
     }
 
     /**
-     * The anchor and the popover body are already excluded by `useClickAway`;
-     * the overlay container is the one region only this component knows about,
-     * and it is what keeps a nested popover from closing its parent.
-     *
      * @param {EventTarget} target
      * @returns {boolean}
      */

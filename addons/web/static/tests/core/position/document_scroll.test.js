@@ -7,8 +7,6 @@ import { reposition } from "@web/core/position/utils";
 
 describe.current.tags("headless");
 
-// reposition() reads the text direction; this suite never starts the
-// localization service, so it would depend on whichever suite ran before.
 beforeEach(() => patchWithCleanup(localization, { direction: "ltr" }));
 
 /**

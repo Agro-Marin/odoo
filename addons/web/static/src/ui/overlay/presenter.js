@@ -9,16 +9,6 @@ const SERVICE_OPTIONS = ["env", "onClose", "sequence", "useBottomSheet"];
 const PRESENTER_SUPPLIED = ["close", "component", "componentProps", "slots", "target"];
 
 /**
- * Every component a presenter can render. `usePopover`'s `useBottomSheet` hands
- * one option bag to whichever presenter the breakpoint selects, so the contract
- * the caller writes against is the union of them -- judging that bag against one
- * component alone reports the other's options as unknown, which is five warnings
- * per dropdown open on a touch device.
- *
- * Only the warning reads this. What each presenter *forwards* is still decided
- * by its own `toProps`, so an option meant for the other side is still ignored,
- * just not announced as a mistake.
- *
  * @type {Set<import("@odoo/owl").ComponentConstructor>}
  */
 const PRESENTED_COMPONENTS = new Set();
@@ -125,9 +115,6 @@ export function makeOverlayPresenter({
     acceptedCache = null;
     return (target, hostedComponent, props = {}, options = {}) => {
         warnUnknownOptions(scope ?? "overlay", options, acceptedOptions());
-        // The overlay is torn down only once the caller's onClose has settled,
-        // and that can be a round trip. Until then it is still on screen and
-        // still takes clicks, so say so and stop taking them.
         const presentation = reactive({ isClosing: false });
         const remove = overlay.add(
             component,

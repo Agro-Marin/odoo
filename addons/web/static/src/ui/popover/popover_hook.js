@@ -72,9 +72,6 @@ export function usePopover(component, options = {}) {
         }
     };
     const popover = makePopover(add, component, newOptions);
-    // close() settles when the caller's onClose does. At unmount nobody is left
-    // to await it, so a throwing onClose would surface as an unhandled rejection
-    // Owl reports as an onWillUnmount error, naming the wrong culprit.
     onWillUnmount(() => popover.close()?.catch(reportUncaught));
     return popover;
 }

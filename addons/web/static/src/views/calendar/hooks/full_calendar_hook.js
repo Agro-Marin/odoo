@@ -183,10 +183,6 @@ function eventSetFingerprint(instance) {
 }
 
 /**
- * Bring a mounted calendar to what its params now say: the weekend
- * visibility, the view and date, and the events when either moved or the
- * records did. A year view re-renders whole when its event set changed.
- *
  * @param {any} instance
  * @param {Record<string, any>} params
  * @param {any} component

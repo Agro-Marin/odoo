@@ -14,12 +14,6 @@ _logger = logging.getLogger(__name__)
 _RATE_LIMIT_WINDOW_S = 60
 _RATE_LIMIT_MAX = 120
 _RATE_LIMIT_MAX_KEYS = 10_000
-# Process-local state: under prefork --workers=N, each worker imports its own
-# copy of this module and keeps its own dict/lock. The real ceiling per client
-# key is therefore N * _RATE_LIMIT_MAX requests per _RATE_LIMIT_WINDOW_S, not
-# the nominal _RATE_LIMIT_MAX, and it resets whenever a worker respawns. This
-# is an accepted per-worker approximation for these public, unauthenticated
-# telemetry endpoints, not a cross-process guarantee.
 _rate_lock = threading.Lock()
 _rate_state: dict[str, list[float]] = {}
 
@@ -96,10 +90,6 @@ def _clamp_cls(value):
 
 
 def _js_error_beacon(payload: dict) -> dict | None:
-    """The beacon fields of a `/js_error` payload, each bounded and typed.
-
-    None when the payload carries no message: there is nothing to record.
-    """
 
     def _str_field(raw, cap):
         return (str(raw)[:cap]) if isinstance(raw, str) else ""

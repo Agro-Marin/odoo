@@ -183,8 +183,6 @@ const PRECISION_LEVELS = new Map()
                 weeks.push(toWeekItem(weekDayItems));
             }
 
-            // One locale for the whole row: reading `Info.weekdays` per day
-            // rebuilt the same seven-name array seven times.
             const narrowWeekdays = Info.weekdays("narrow", {
                 locale: weeks[0].days[0].range[0].locale,
             });

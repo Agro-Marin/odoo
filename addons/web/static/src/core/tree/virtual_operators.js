@@ -168,8 +168,6 @@ function isSimpleAnd(c) {
 }
 
 /**
- * `path >= value1 and path <upper> value2` on one path, or false.
- *
  * @param {Tree} c
  * @param {"<=" | "<"} upper
  * @returns {{ path: Value, value1: Value | Tree, value2: Value | Tree } | false}

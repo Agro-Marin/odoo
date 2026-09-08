@@ -750,9 +750,6 @@ test("a popover whose target is not in the document does not build its content",
 });
 
 test("escape closes the popover, not the dialog it was opened from", async () => {
-    // A popover whose content has nothing tabable used to never claim the UI, so
-    // its escape registration was scoped to the document while the modal owned
-    // the UI -- and one escape dismissed the dialog instead.
     class InertContent extends Component {
         static template = xml`<div class="inert-pop">plain text</div>`;
         static props = ["*"];

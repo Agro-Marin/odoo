@@ -7,7 +7,6 @@
                 name="implied_ids"
                 eval="[(4, ref('product.group_product_variant'))]" />
         </record>
-        <!-- Clothes products -->
         <record id="casual_t_shirt" model="product.product">
             <field name="name">Casual T-shirt</field>
             <field name="list_price">20.00</field>

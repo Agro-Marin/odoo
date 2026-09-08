@@ -6,12 +6,6 @@ import { useService } from "@web/core/utils/hooks";
 import { useConfirmButton } from "@web/ui/dialog/confirm_button_hook";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-/**
- * A dialog around one editable value that is validated before it is handed
- * back: the subclass names the value it starts from, how to validate it and
- * what to say when validation fails; this class owns the state, the confirm
- * button's disabled window, the notification and the close.
- */
 export class EditorDialog extends Component {
     static components = { Dialog };
 

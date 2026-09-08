@@ -1042,8 +1042,6 @@ class TestUi(TestPointOfSaleHttpCommon):
 
         self.main_pos_config.with_user(self.pos_user).open_ui()
 
-        # Lot tracking presupposes inventory tracking -- `_check_tracking`
-        # says so, and setting only `tracking` leaves the pair inconsistent.
         self.monitor_stand.write({"is_storable": True, "tracking": "lot"})
         self.start_tour(
             "/pos/ui?config_id=%d" % self.main_pos_config.id,
@@ -2459,10 +2457,6 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
         refund_order = current_session.order_ids.filtered(lambda order: order.is_refund)
-        # Negative, like the `price_total` and `margin` this same test asserts on
-        # the report below. Those two were already negative while the stored
-        # column was positive, because `pos_order_report` laundered the sign back
-        # in; the column now carries it and the view reads it as it stands.
         self.assertEqual(
             refund_order.lines[0].price_subtotal, -2 * test_product.list_price
         )
@@ -5140,8 +5134,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
         self.main_pos_config.with_user(self.pos_user).open_ui()
-        # Lot tracking presupposes inventory tracking -- `_check_tracking`
-        # says so, and setting only `tracking` leaves the pair inconsistent.
         self.monitor_stand.write({"is_storable": True, "tracking": "lot"})
         self.start_tour(
             "/pos/ui?config_id=%d" % self.main_pos_config.id,

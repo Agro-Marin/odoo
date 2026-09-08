@@ -16,8 +16,6 @@ class Partner extends models.Model {
 }
 defineModels([...Object.values(webModels), Partner]);
 
-// Two dispatches in one task would join the still-active urgent save of the
-// first and skip the flush, which a real browser never does.
 async function beforeUnloadPrompts() {
     const ev = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(ev);

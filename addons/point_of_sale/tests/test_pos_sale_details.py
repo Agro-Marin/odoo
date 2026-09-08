@@ -274,9 +274,6 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         return session
 
     def test_every_base_in_the_report_is_computed_from_the_line(self):
-        """A base the report reads off ``price_subtotal`` while computing the
-        base beside it from ``compute_all`` can disagree with itself, and the
-        page gives the reader no way to tell which half is right."""
         tax = self.env["account.tax"].create({"name": "Coherence 10%", "amount": 10})
         product = self.create_product("Taxed", self.categ_basic, 100, tax_ids=tax.ids)
         session = self._open_session()
@@ -321,9 +318,6 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         row = rows[0]
         self.assertEqual(row["quantity"], 1.0)
         self.assertEqual(row["base_amount"], 100.0)
-        # total_paid comes from _get_product_total_amount, a hook addons override
-        # (pos_blackbox_be returns the tax-included amount). The direction is this
-        # test's subject; the magnitude belongs to whoever owns the hook.
         self.assertGreater(row["total_paid"], 0.0)
         self.assertEqual(report["refund_info"]["total"], 100.0)
         self.assertEqual(report["refund_taxes_info"]["base_amount"], 100.0)
@@ -425,8 +419,6 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         self.assertEqual(sum(row["quantity"] for row in rows), 2.0)
 
     def test_extra_arguments_do_not_break_the_advertised_signature(self):
-        """``get_sale_details`` declares ``**kwargs``; a caller that supplies one
-        must not hit ``_get_domain() got an unexpected keyword argument``."""
         product = self.create_product("Extra", self.categ_basic, 100)
         session = self._open_session()
         order = self._order(session, product, 100)
@@ -495,10 +487,6 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         self.assertEqual(row["money_difference"], 0.0)
 
     def test_a_deduction_line_is_subtracted_not_added(self):
-        """A negative line on an ordinary order is a deduction, not a refund. Its
-        sign comes from ``order.is_refund`` — the convention
-        ``_compute_amount_line_all`` uses — never from the line's own qty, or two
-        units sold and one deducted read as three units and three units' money."""
         tax = self.env["account.tax"].create({"name": "Deduction 10%", "amount": 10})
         product = self.create_product(
             "Deducted", self.categ_basic, 100, tax_ids=tax.ids
@@ -523,8 +511,6 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         )
 
     def test_a_started_session_without_sales_is_still_in_scope(self):
-        """The window scope is every session that was open in it, not only the
-        ones that took an order: a session with no sales still has a drawer."""
         product = self.create_product("Elsewhere", self.categ_basic, 100)
         quiet_config = self.env["pos.config"].create({"name": "Quiet Shop"})
         quiet_config.open_ui()
@@ -543,7 +529,6 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         )
 
     def _count_session_selects(self, run):
-        """How many times the report goes to pos_session, whatever else it does."""
         seen = []
         cursor_class = type(self.env.cr)
         original = cursor_class.execute
@@ -557,11 +542,6 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         return len([q for q in seen if 'FROM "pos_session"' in q])
 
     def test_the_drawer_history_costs_one_query_not_one_per_session(self):
-        """The uncounted-cash row opens on the previous session's counted total.
-        Looked up inside the per-session loop that is one query per session, so
-        the report's cost grows with the history it covers. Counting the
-        statements rather than the total pins the mechanism: a total moves with
-        every unrelated change, and by one query it would not discriminate."""
         product = self.create_product("Historic", self.categ_basic, 100)
         session_ids = []
         for _index in range(6):
@@ -594,8 +574,6 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         )
 
     def test_discounts_are_counted_in_the_pass_that_reads_the_lines(self):
-        """New coverage, not a regression pin: nothing asserted these two figures,
-        which is why folding them into the product pass could not be verified."""
         product = self.create_product("Marked Down", self.categ_basic, 100)
         session = self._open_session()
         discounted = self._order(session, product, 100, qty=2)
@@ -612,9 +590,6 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         self.assertEqual(report["discount_amount"], 50.0)
 
     def test_a_matching_ref_in_another_journal_is_a_different_entry(self):
-        """The closing difference is posted to the payment method's own journal.
-        Identifying it by ref alone lets any entry whose free-text reference reads
-        the same be reported as this method's counted difference."""
         product = self.create_product("Journals", self.categ_basic, 100)
         session = self._open_session()
         order = self._order(session, product, 100)
@@ -668,9 +643,6 @@ class TestPosSaleDetailsCoherence(TestPoSCommon):
         self.assertEqual(row["money_difference"], 0.0)
 
     def test_two_categories_sharing_a_name_are_two_rows(self):
-        """Products are grouped by category, and two pos.category records may
-        carry the same name. Grouping on the name merges them into one row whose
-        quantity and total belong to neither."""
         first = self.env["pos.category"].create({"name": "Drinks"})
         second = self.env["pos.category"].create({"name": "Drinks"})
         self.assertNotEqual(first.id, second.id)

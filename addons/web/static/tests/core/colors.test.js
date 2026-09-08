@@ -27,9 +27,6 @@ function withScheme(isDark) {
 
 describe("palette selection", () => {
     test("a numeric size picks the smallest palette that fits", () => {
-        // getColor(index, size) maps a series count onto a palette; the ladder
-        // is <=6 sm, <=12 md, <=24 lg, else xl. Distinguish them by a colour
-        // only one of them holds at that index.
         /** @type {[number, "sm" | "md" | "lg" | "xl"][]} */
         const ladder = [
             [1, "sm"],
@@ -57,7 +54,6 @@ describe("palette selection", () => {
         expect(getColors("md")).toHaveLength(12);
         expect(getColors("lg")).toHaveLength(24);
         expect(getColors("xl")).toHaveLength(32);
-        // anything unrecognised, including "xl" itself, lands on the largest
         expect(getColors("nope")).toEqual(getColors("xl"));
     });
 
@@ -115,7 +111,6 @@ describe("colour arithmetic", () => {
     test("hexToRGBA carries the opacity through verbatim", () => {
         expect(hexToRGBA("#4EA7F2", 0.5)).toBe("rgba(78,167,242,0.5)");
         expect(hexToRGBA("#000000", 0)).toBe("rgba(0,0,0,0)");
-        // an unparseable colour degrades to transparent black at that opacity
         expect(hexToRGBA("nope", 0.25)).toBe("rgba(0,0,0,0.25)");
     });
 });

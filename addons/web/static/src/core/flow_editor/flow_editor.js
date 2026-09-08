@@ -35,17 +35,12 @@ const DEFAULT_MIN_NODE_SIZE = { width: 120, height: 80 };
 const DEFAULT_MAX_NODE_SIZE = { width: 640, height: 480 };
 const DEFAULT_GRID_SIZE = 20;
 const OBSTACLE_PADDING = 20;
-/** Pointer travel, in screen pixels, that turns a press into a drag. */
 const DRAG_THRESHOLD = 3;
 
-/** Owl's literal-value prop type, so `viewport` accepts an explicit null. */
 /** @type {{ value: null }} */
 const NULL_VALUE_PROP = { value: null };
 
 /**
- * A pointer gesture can also be cancelled from the keyboard, which carries no
- * pointer of its own and forwards the originating event instead.
- *
  * @typedef {PointerEvent | { pointerId: number | null, originalEvent: Event }} FlowCancelEvent
  */
 
@@ -83,9 +78,6 @@ const NULL_VALUE_PROP = { value: null };
  */
 
 /**
- * A domain-free node graph: the consumer owns the nodes, the connections and
- * their persistence, and this owns the canvas, the gestures and the routing.
- *
  * @extends {Component<FlowEditorProps>}
  */
 export class FlowEditor extends Component {
@@ -249,8 +241,6 @@ export class FlowEditor extends Component {
     /** @type {number | null} */
     viewportAnimationFrame = null;
     /**
-     * Resolves to whether the grabbed connection was released by its
-     * consumer, once the gesture has moved far enough to ask.
      * @type {Promise<boolean> | null}
      */
     pendingDetach = null;
@@ -285,8 +275,6 @@ export class FlowEditor extends Component {
         useExternalListener(window, "pointercancel", this.onPointerCancel);
         useExternalListener(window, "keydown", this.onKeyDown);
         onMounted(() => {
-            // No viewport to restore means the consumer has none stored, so the
-            // graph is framed rather than left wherever the origin happens to be.
             if (!this.props.viewport) {
                 this.fitToContent();
             }
@@ -299,12 +287,6 @@ export class FlowEditor extends Component {
         return this.canvasRef.el;
     }
 
-    /**
-     * Take the focus for the keyboard shortcuts without scrolling the canvas
-     * into view: a scroll here moves the whole graph under a pointer that is
-     * already down, and every delta of that gesture is then measured from an
-     * origin captured before the jump.
-     */
     focusCanvas() {
         this.canvasEl?.focus({ preventScroll: true });
     }
@@ -353,11 +335,6 @@ export class FlowEditor extends Component {
     }
 
     /**
-     * Geometry for a candidate end already hovering a valid port: delegates
-     * to `buildConnectionGeometry`, the exact function a confirmed
-     * connection renders with (self-loop shape included), so the preview
-     * never has to jump to a different route once the drag is confirmed.
-     *
      * @param {Object} candidate
      * @param {import("./flow_types").FlowNodeId} candidate.sourceNodeId
      * @param {import("./flow_types").FlowPortId} candidate.sourcePortId
@@ -405,9 +382,6 @@ export class FlowEditor extends Component {
     }
 
     /**
-     * The end being dragged is the SOURCE: the target stays anchored to its
-     * port and the free end follows the pointer.
-     *
      * @param {import("./flow_types").FlowConnectionDraft} draft
      * @returns {import("./geometry/connections").FlowConnectionGeometry | null}
      */
@@ -452,8 +426,6 @@ export class FlowEditor extends Component {
     }
 
     /**
-     * The end being dragged is the TARGET, leaving the source port anchored.
-     *
      * @param {import("./flow_types").FlowConnectionDraft} draft
      * @returns {import("./geometry/connections").FlowConnectionGeometry | null}
      */
@@ -494,9 +466,6 @@ export class FlowEditor extends Component {
     }
 
     /**
-     * Every node but the one the dragged end is anchored to: an anchor sitting
-     * on its own node's boundary would read as blocked from the first segment.
-     *
      * @param {import("./flow_types").FlowNodeId} [anchoredNodeId]
      * @returns {import("./geometry/nodes").FlowRect[]}
      */
@@ -584,13 +553,6 @@ export class FlowEditor extends Component {
         };
     }
 
-    /**
-     * Every node a source node reaches, a source node being one with no input
-     * port at all. A graph whose every node accepts an input therefore has no
-     * source and reports nothing connected, which is why a consumer whose
-     * domain has no single entry point turns the flag off rather than reading
-     * this as a graph full of unreachable nodes.
-     */
     get connectedNodeIds() {
         const connectedNodeIds = new Set(
             this.store.nodes.filter((node) => !node.input).map((node) => node.id),
@@ -843,10 +805,6 @@ export class FlowEditor extends Component {
                               targetPortId,
                           }
                         : {}),
-                    // A connection is grabbed, not dropped: it stays until the
-                    // pointer has travelled DRAG_THRESHOLD, so a click on a
-                    // port is not a deletion (the automation canvas unlinks
-                    // the edge server-side in onDisconnect).
                     ...(connection ? { pendingConnectionId: connection.id } : {}),
                 },
             })
@@ -858,9 +816,6 @@ export class FlowEditor extends Component {
     }
 
     /**
-     * Ask the consumer to release the grabbed connection and take it out of
-     * the store when it agrees; a veto ends the gesture where it stands.
-     *
      * @param {import("./flow_types").FlowConnectionDraft} draft
      * @returns {Promise<boolean>}
      */
@@ -890,9 +845,6 @@ export class FlowEditor extends Component {
     }
 
     /**
-     * The most recently added connection wins when a port holds several: ids
-     * are compared numerically so `flow-connection-10` sorts after `-9`.
-     *
      * @param {(connection: import("./flow_types").FlowConnection) => boolean} predicate
      * @returns {import("./flow_types").FlowConnection | undefined}
      */
@@ -1074,13 +1026,6 @@ export class FlowEditor extends Component {
             });
             this.store.endInteraction();
         } else if (interaction.type === "connection_drag") {
-            // A self-connection's source and target ports share the same
-            // node <article>, so the browser's own click-target resolution
-            // (nearest common ancestor of pointerdown/pointerup) synthesizes
-            // a click on that node once released - the ports' own click
-            // handlers stop propagation, but aren't in that click's path.
-            // Connecting two different nodes never hits this: their common
-            // ancestor sits above any element with a click handler.
             this.suppressNodeClick = true;
             const draft = interaction.connectionDraft;
             try {
@@ -1205,9 +1150,6 @@ export class FlowEditor extends Component {
     }
 
     /**
-     * The port of the given direction under a screen point, if it belongs to
-     * this canvas and the node it is drawn on really declares it.
-     *
      * @param {number} clientX
      * @param {number} clientY
      * @param {import("./flow_types").FlowPortDirection} direction
@@ -1251,10 +1193,6 @@ export class FlowEditor extends Component {
     }
 
     /**
-     * Apply structural rules before delegating domain-specific rules.
-     *
-     * `canConnect` must be synchronous because it also drives hover feedback.
-     *
      * @param {import("./flow_types").FlowConnection} connection
      * @returns {import("./connection_validator").FlowConnectionValidation}
      */
@@ -1375,8 +1313,6 @@ export class FlowEditor extends Component {
     }
 
     /**
-     * Animate viewport translation so the directional indicator has a clear outcome.
-     *
      * @param {{ x: number, y: number }} target
      * @param {number} [duration]
      */

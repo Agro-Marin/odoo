@@ -26,9 +26,6 @@ function mockPicker({ disposeThrows = false, trackSteps = false } = {}) {
             captured.props = pickerProps;
             return /** @type {any} */ ({
                 enable: () => () => {},
-                // Teardown is one call: the service owns the ordering and the
-                // run-every-step-anyway guarantee, and is tested for both in
-                // components/datetime/datetime_controller.test.js.
                 dispose: () => {
                     step("dispose");
                     if (disposeThrows) {

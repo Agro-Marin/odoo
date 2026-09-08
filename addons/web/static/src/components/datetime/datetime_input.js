@@ -30,7 +30,6 @@ const dateTimeInputOwnProps = {
     disabled: { type: Boolean, optional: true },
 };
 
-/** Everything above is consumed here and must not reach the picker. */
 const DATE_TIME_INPUT_OWN_PROP_NAMES = Object.keys(dateTimeInputOwnProps);
 
 /** @extends {Component<DateTimeInputProps>} */

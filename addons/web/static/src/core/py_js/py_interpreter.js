@@ -329,7 +329,6 @@ const STRING = {
  */
 function applyFunc(key, func, set, ...args) {
     if (args.length === 1) {
-        // A copy of a set that is already folded; nothing to re-check.
         return new Set(set);
     }
     if (args.length > 2) {
@@ -622,8 +621,6 @@ function padSpec(str, width, leftAlign) {
 }
 
 /**
- * `%c`: a code point or a one-character string.
- *
  * @param {any} arg
  * @returns {string}
  */
@@ -649,8 +646,6 @@ function formatCharSpec(arg) {
 }
 
 /**
- * The integer conversions `d i u x X o`, without sign or padding.
- *
  * @param {string} conv
  * @param {any} arg
  * @param {number} num
@@ -677,8 +672,6 @@ function formatIntSpec(conv, arg, num, precision, alt) {
 }
 
 /**
- * The float conversions `f F e E g G`, without sign or padding.
- *
  * @param {string} conv
  * @param {number} num
  * @param {number | null} precision
@@ -705,8 +698,6 @@ function formatFloatSpec(conv, num, precision, alt) {
 }
 
 /**
- * One numeric replacement field, sign, prefix and padding included.
- *
  * @param {string} conv
  * @param {any} arg
  * @param {string} flags
@@ -808,13 +799,6 @@ function pyStringFormat(fmt, value) {
 }
 
 /**
- * CPython names the operator and both operands in SOURCE order:
- * `2 > set([1])` reports "'>' ... between instances of 'int' and 'set'".
- * isLess() can report neither -- `a > b` is dispatched as isLess(b, a), and it
- * never sees the operator at all -- so it raises a bare "not supported between
- * instances of X and Y" and this table, the only place holding both, puts the
- * operator and the original order back.
- *
  * @param {string} op
  * @param {any} left
  * @param {any} right
@@ -994,8 +978,6 @@ function pyMul(left, right) {
 }
 
 /**
- * `/` and `//`: a timedelta divided by a timedelta or a number, else numbers.
- *
  * @param {"/" | "//"} op
  * @param {any} left
  * @param {any} right
@@ -1073,8 +1055,6 @@ function pyPow(left, right) {
 }
 
 /**
- * `|`, `^`, `&`, `<<`, `>>`: set algebra on two sets, else integer bitwise.
- *
  * @param {string} op
  * @param {any} left
  * @param {any} right
@@ -1254,8 +1234,6 @@ function attributeOf(table, typeName, key) {
 const unboundFn = Symbol("unbound function");
 
 /**
- * What one `evaluate()` call carries across its recursion.
- *
  * @typedef {{
  *   context: Record<string, any>,
  *   dicts: Set<object>,
@@ -1351,8 +1329,6 @@ function evalFunctionCall(ast, scope) {
 }
 
 /**
- * `target[key]`
- *
  * @param {import("./ast_type.js").ASTLookup} ast
  * @param {EvalScope} scope
  * @returns {any}
@@ -1388,9 +1364,6 @@ function evalLookup(ast, scope) {
 }
 
 /**
- * `obj.key`: a method table for dicts, strings and sets, the value's own
- * member otherwise, with functions bound to their receiver.
- *
  * @param {import("./ast_type.js").ASTObjLookup} ast
  * @param {EvalScope} scope
  * @returns {any}

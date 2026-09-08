@@ -190,10 +190,6 @@ export class AutoComplete extends Component {
             getAnchor: () => this.root.el,
             getContentEl: () => this.listRef.el,
         });
-        // Not a click-away: a scroll carries no "went outside" semantics of its
-        // own, so this handler owns its containment test. Scrolling the page
-        // under an open dropdown dismisses it; scrolling the dropdown itself,
-        // or anything else inside the component, must not.
         this._onScrollAway = (/** @type {Event} */ ev) => {
             const target = /** @type {Node} */ (ev.target);
             if (
@@ -231,13 +227,6 @@ export class AutoComplete extends Component {
     }
 
     /**
-     * The template binds the input with `t-model="state.value"`, so the state
-     * and the element are one value with two homes. Writing only the element --
-     * which `cancel` and the `resetOnSelect` branch of `selectOption` used to do
-     * -- leaves the state holding the old text for good: owl assigns
-     * `input.value` only when the *rendered* value changed, and it never
-     * changes again, so nothing puts the two back in step.
-     *
      * @param {string} value
      */
     setInputValue(value) {

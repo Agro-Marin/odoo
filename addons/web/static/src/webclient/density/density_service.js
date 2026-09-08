@@ -34,9 +34,6 @@ class DensityService {
         const userDensity = user.settings?.density;
         const initial = DENSITIES.includes(userDensity) ? userDensity : "default";
         this.state = reactive({ density: initial });
-        // The last value the server is known to hold. A failed persist falls
-        // back to this rather than to whatever was on screen when the call
-        // started, which may itself never have reached the server.
         this.persistedDensity = initial;
 
         if (cookie.get("content_density") !== this.state.density) {
@@ -69,10 +66,6 @@ class DensityService {
                 this.persistedDensity = density;
             }
         } catch (error) {
-            // Roll back only while this call is still the last one: a later
-            // `set` has already applied a density the user asked for more
-            // recently, and reinstating an older one over it would show a
-            // value nobody chose.
             if (generation === this.persistGeneration) {
                 this._apply(this.persistedDensity);
             }

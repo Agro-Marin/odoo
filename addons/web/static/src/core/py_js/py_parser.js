@@ -125,8 +125,6 @@ function isSymbol(token, value) {
 }
 
 /**
- * `(a)` is a group and `(a,)` / `()` a tuple.
- *
  * @param {TokenCursor} cur positioned after the opening parenthesis
  * @returns {AST}
  */
@@ -257,8 +255,6 @@ function parsePrefix(current, cur) {
 }
 
 /**
- * `a < b < c` is one chain of comparisons, evaluated left to right.
- *
  * @param {AST} left
  * @param {AST} right
  * @param {Token} current

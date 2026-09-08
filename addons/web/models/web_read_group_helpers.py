@@ -175,7 +175,6 @@ class Base(models.AbstractModel):
         fill_from: Any,
         fill_to: Any,
     ) -> tuple[Any, Any]:
-        """The window to fill: the asked-for bounds, else the ones the groups span."""
         existing_from, existing_to = existing[0], existing[-1]
 
         if fill_from:
@@ -257,7 +256,6 @@ class Base(models.AbstractModel):
     def _web_read_group_get_date_formatter(
         self, field: Any, field_name: str, groupby_spec: str
     ) -> Callable:
-        """The label/domain formatter for a date or datetime groupby granularity."""
         if ":" not in groupby_spec:
             raise ValueError(
                 f"Granularity is missing from date/datetime groupby: {groupby_spec!r}"
@@ -388,7 +386,6 @@ class Base(models.AbstractModel):
     def _web_read_group_get_property_relational_formatter(
         self, fullname: str, definition: dict, property_type: str, values: Any
     ) -> Callable:
-        """The label/domain formatter for a many2one or many2many property."""
         comodel = definition["comodel"]
         all_groups = tuple(value for value in values if value)
 
@@ -431,7 +428,6 @@ class Base(models.AbstractModel):
     def _web_read_group_get_property_date_formatter(
         self, fullname: str, property_type: str, func: str
     ) -> Callable:
-        """The label/domain formatter for a date or datetime property granularity."""
         if func in READ_GROUP_NUMBER_GRANULARITY:
 
             def formatter_property_date_number(value):

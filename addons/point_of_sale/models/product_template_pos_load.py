@@ -167,8 +167,6 @@ class ProductTemplatePosLoad(models.Model):
 
     @api.model
     def _get_pos_pricelist_data(self, product_tmpls, products, config):
-        # asks the config directly: the pricelists, the company and the two field
-        # lists are all its own, so the guard against an absent session goes too
         return config.get_pos_ui_product_pricelist_item_by_product(
             product_tmpls.ids, products.ids
         )
@@ -221,10 +219,6 @@ class ProductTemplatePosLoad(models.Model):
 
     @api.model
     def _get_domain_scanned_barcodes(self, domain):
-        # each condition is mirrored with its own operator rather than flattened
-        # into one list: a scalar under "=" is a barcode, not a sequence of them.
-        # "ilike" is deliberately not mirrored -- the POS search box sends one on
-        # every keystroke, and a substring match over every packaging is unbounded
         conditions = [
             Domain("barcode", condition.operator, condition.value)
             for condition in domain.iter_conditions()
@@ -252,9 +246,6 @@ class ProductTemplatePosLoad(models.Model):
         company = config.company_id
         target = config.currency_id
         today = fields.Date.today()
-        # list_price and standard_price do not share a currency: product.template
-        # prices the first against main-company currency and the second against the
-        # reading company's, and either is the product's own company when it has one
         templates = self.browse([row["id"] for row in rows])._with_pos_company(config)
         currencies_by_id = {
             template.id: (template.currency_id, template.cost_currency_id)
@@ -290,7 +281,6 @@ class ProductTemplatePosLoad(models.Model):
 
     @api.model
     def _get_taxes_by_company(self, taxes):
-        # the membership account_tax._serves_company asks about, indexed once
         taxes_by_company = {}
         for tax in taxes:
             for company_id in tax.sudo().company_ids.ids:
@@ -313,10 +303,6 @@ class ProductTemplatePosLoad(models.Model):
             if not product_tmpl.attribute_line_ids:
                 product["_archived_combinations"] = []
                 continue
-            # the two halves the terminal needs, not _get_attribute_exclusions:
-            # that also builds parent_exclusions, parent_combination,
-            # parent_product_name and mapped_attribute_names, all discarded here,
-            # and mapped_attribute_names alone is more than half its cost
             combinations = product_tmpl._get_archived_combinations()
             exclusions = product_tmpl._complete_inverse_exclusions(
                 product_tmpl._get_own_attribute_exclusions()

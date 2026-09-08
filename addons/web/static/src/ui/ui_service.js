@@ -11,7 +11,6 @@ import { mainComponentEntry } from "@web/ui/main_components_container";
 import { getMediaQueryLists, SIZES, utils } from "@web/ui/viewport";
 
 // The focus half of this module lives next to the stack it drives. Re-exported
-// here because `@web/ui/ui_service` is on the client's public surface.
 export {
     getFirstAndLastTabableElements,
     useActiveElement,
@@ -23,10 +22,6 @@ class UiService {
         this.env = env;
         this.bus = new EventBus();
         /**
-         * Replaced in setup(), which runs on the reactive proxy: a handler
-         * built here would close over the raw instance and its writes would
-         * notify nobody. Initialised only so the property is never undefined.
-         *
          * @type {() => void}
          */
         this._onMediaChange = () => {};

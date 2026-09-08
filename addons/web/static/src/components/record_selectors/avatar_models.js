@@ -30,9 +30,6 @@ export function avatarUrl(resModel, resId) {
 }
 
 /**
- * The avatar a tag shows for a value, or `false` when the model has none or
- * the value is not a record id.
- *
  * @param {string} resModel
  * @param {any} id
  * @returns {string | false}

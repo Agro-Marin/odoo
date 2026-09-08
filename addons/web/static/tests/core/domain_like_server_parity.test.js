@@ -6,28 +6,6 @@ import { Domain } from "@web/core/domain";
 describe.current.tags("headless");
 
 /**
- * `Domain.contains` is the client's twin of the server's IN-MEMORY evaluator --
- * `Field._filter_like` / `_like_regex_parts` in `odoo/orm/fields/_field_sql.py`,
- * the one `filtered_domain` uses. It is NOT a twin of what PostgreSQL does for a
- * `search`, and the two server evaluators do not agree with each other.
- *
- * Both columns below are generated, neither is hand-written:
- *
- *  - `postgres` comes from a real PostgreSQL 18, asked the way the ORM asks it:
- *    the value bound as a parameter, wrapped `%value%` for the unanchored
- *    operators and verbatim for the anchored ones
- *    (`_field_sql.py::_condition_like_to_sql`);
- *  - `inMemory` comes from running the server's own `_like_regex_parts` over the
- *    same value.
- *
- * They agree on 25 of these 27 and differ on 2, both a value ending in a lone
- * backslash: PostgreSQL lets it escape the wrapper's closing `%`, so the pattern
- * ends in a literal percent, while `_like_regex_parts` sets its `escaped` flag
- * and falls out of the loop, dropping the backslash. The client follows the
- * in-memory reading, which is the right one for what `contains` is for --
- * recorded here so that if anyone ever reconciles the two on the server, this
- * file says which rows move and why.
- *
  * @type {[string, string, string, boolean, boolean][]}
  */
 const SERVER = [

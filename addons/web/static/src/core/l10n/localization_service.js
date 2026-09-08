@@ -83,10 +83,6 @@ const FALLBACK_LANG_PARAMETERS = {
  */
 
 /**
- * Where this session's translations live: the server route, the IndexedDB
- * cache in front of it, and the marker other tabs read to know the cache
- * holds this registry version's terms.
- *
  * @typedef {{
  * db: IndexedDB,
  * url: string,
@@ -143,10 +139,6 @@ function updateTranslations(result) {
 }
 
 /**
- * Fetch the translations, adopting the page's preload request when it asked
- * the same URL, and apply + cache them when the server's hash differs from
- * the one we hold.
- *
  * @param {TranslationSource} source
  * @param {string | undefined} hash
  */

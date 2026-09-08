@@ -431,13 +431,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * The optional columns the current record set can show, active or not.
-     *
-     * Read once per render in `syncRenderState`: `hasOptionalFields` and
-     * `optionalFieldGroups` both used to re-evaluate `column_invisible` over
-     * every optional column, and `hasOptionalFields` sits behind
-     * `displayOptionalFields`, which `getRowProps` reads for every row.
-     *
      * @returns {Column[]}
      */
     getVisibleOptionalColumns() {
@@ -515,14 +508,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Fold or unfold a group.
-     *
-     * On the renderer rather than in `listGroupRenderingMixin` because its
-     * whole body reaches `groupOps`, which the renderer owns -- and because
-     * `KanbanRenderer` already keeps the identical method on the renderer
-     * itself. Having it in the mixin was the list view's own divergence, and
-     * it was the only name the renderer reached into that mixin for.
-     *
      * @param {any} group
      */
     toggleGroup(group) {
@@ -1212,9 +1197,6 @@ export class ListRenderer extends Component {
      * @param {PointerEvent} ev
      */
     onGlobalClick(ev) {
-        // The live record, not the render-time copy: a click can land between
-        // the model leaving edition and the render that would refresh the copy,
-        // and a stale copy asks the list to leave edition a second time.
         if (!(this.props.list.editedRecord || this.state.showGroupInput)) {
             return;
         }

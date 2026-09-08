@@ -111,7 +111,7 @@ defineActions([
 ]);
 
 defineMenus([
-    { id: 0 }, // prevents auto-loading the first action
+    { id: 0 },
     { id: 1, name: "App1", appID: 1, actionID: 1001, xmlid: "menu_1" },
     { id: 2, name: "App2", appID: 2, actionID: 1002, xmlid: "menu_2" },
 ]);
@@ -176,8 +176,6 @@ beforeEach(() => {
     actionRegistry.add("__test__client__action__", TestClientAction);
     patchWithCleanup(transitionConfig, { disabled: true });
 });
-// Should test ONLY the webClient and features present in Enterprise
-// Those tests rely on hidden view to be in CSS: display: none
 describe("basic flow with home menu", () => {
     stepAllNetworkCalls();
     onRpc("partner", "get_formview_action", () => ({
@@ -250,7 +248,7 @@ describe("basic flow with home menu", () => {
         ]);
         expect(".o_kanban_view").toHaveCount(1);
         await contains(".o_kanban_record").click();
-        await animationFrame(); // there is another tick to update navbar and destroy HomeMenu
+        await animationFrame();
         expect.verifySteps(["web_read"]);
         expect(".o_menu_toggle").toBeVisible();
         expect(".o_form_view").toHaveCount(1);
@@ -287,7 +285,6 @@ describe("basic flow with home menu", () => {
         expect.verifySteps(["get_formview_action", "get_views", "web_read"]);
         expect(".o_form_view").toHaveCount(1);
         expect(".o_breadcrumb .active").toHaveText("Second record");
-        // The third one is the active one
         expect(".breadcrumb-item").toHaveCount(2);
     });
 
@@ -355,8 +352,6 @@ describe("basic flow with home menu", () => {
         expect.verifySteps(["get_formview_action", "get_views", "web_read"]);
         await contains(".o_menu_toggle").click();
 
-        // can't click again too soon because of the mutex in home_menu
-        // service (waiting for the url to be updated)
         await animationFrame();
 
         await contains(".o_menu_toggle").click();
@@ -366,7 +361,6 @@ describe("basic flow with home menu", () => {
         expect(".o_form_view").toHaveCount(1);
         expect(".o_menu_toggle").not.toHaveClass("o_menu_toggle_back");
         expect(".o_breadcrumb .active").toHaveText("Second record");
-        // Third breadcrumb is the active one
         expect(".breadcrumb-item").toHaveCount(2);
     });
 });
@@ -395,8 +389,6 @@ test("restore the newly created record in form view", async () => {
     await goToHomeMenu();
     expect(".o_form_view").not.toHaveCount();
 
-    // can't click again too soon because of the mutex in home_menu
-    // service (waiting for the url to be updated)
     await animationFrame();
 
     await contains(".o_menu_toggle").click();
@@ -420,7 +412,7 @@ test("fast clicking on restore (implementation detail)", async () => {
             onMounted(() => {
                 if (doVeryFastClick) {
                     doVeryFastClick = false;
-                    click(".o_menu_toggle"); //  go to home menu
+                    click(".o_menu_toggle");
                 }
             });
         }
@@ -430,19 +422,19 @@ test("fast clicking on restore (implementation detail)", async () => {
     await mountWebClient({ WebClient: WebClient });
     await getService("action").doAction("DelayedClientAction");
     await animationFrame();
-    await contains(".o_menu_toggle").click(); // go to home menu
+    await contains(".o_menu_toggle").click();
     expect(".o_home_menu").toBeVisible();
     expect(".delayed_client_action").not.toHaveCount();
 
     doVeryFastClick = true;
-    await contains(".o_menu_toggle").click(); // back
+    await contains(".o_menu_toggle").click();
     expect(".o_home_menu").toHaveCount(0);
     expect(".delayed_client_action").toHaveCount(1);
-    await animationFrame(); // waiting for DelayedClientAction
+    await animationFrame();
     expect(".o_home_menu").toBeVisible();
     expect(".delayed_client_action").not.toHaveCount();
 
-    await contains(".o_menu_toggle").click(); // back
+    await contains(".o_menu_toggle").click();
     await animationFrame();
     expect(".o_home_menu").toHaveCount(0);
     expect(".delayed_client_action").toHaveCount(1);
@@ -450,9 +442,6 @@ test("fast clicking on restore (implementation detail)", async () => {
 
 test("clear unCommittedChanges when toggling home menu", async () => {
     expect.assertions(6);
-    // Edit a form view, don't save, toggle home menu
-    // the autosave feature of the Form view is activated
-    // and relied upon by this test
 
     onRpc("web_save", ({ args, model }) => {
         expect(model).toBe("partner");
@@ -484,8 +473,6 @@ test("can have HomeMenu and dialog action", async () => {
 });
 
 test("supports attachments of apps deleted", async () => {
-    // When doing a pg_restore without the filestore
-    // LPE fixme: may not be necessary anymore since menus are not HomeMenu props anymore
     defineMenus([
         {
             id: 1,
@@ -711,8 +698,6 @@ test("go back to home menu using browser back button", async () => {
 test("initial action crashes", async () => {
     expect.errors(1);
     redirect("/odoo/action-__test__client__action__?menu_id=1");
-    // The registry holds either a component class or a plain function; this
-    // entry is the component the test suite registered.
     const ClientAction = /** @type {any} */ (
         registry.category("actions").get("__test__client__action__")
     );
@@ -731,15 +716,10 @@ test("initial action crashes", async () => {
 
     await mountWebClient({ WebClient: WebClient });
     expect.verifySteps(["clientAction setup"]);
-    // This fork recovers rather than leaving the webclient stranded on an
-    // empty action manager: loadRouterState surfaces the error and, with no
-    // controller displayed, falls back to the default app. The home menu is
-    // therefore shown, and its toggle is hidden because that is where we are.
     expect(".o_home_menu").toHaveCount(1);
     expect(".o_app").toHaveCount(2);
     expect("nav .o_menu_toggle").toHaveCount(1);
     expect("nav .o_menu_toggle").not.toBeVisible();
-    // The url follows the recovery, so reloading does not re-trigger the crash.
     expect(router.current).toEqual({
         action: "menu",
         actionStack: [
@@ -754,7 +734,6 @@ test("initial action crashes", async () => {
 });
 
 test("Apps are reordered at startup based on session's user settings", async () => {
-    // Config is written with apps xmlids order (default is menu_1, menu_2)
     patchWithCleanup(user, {
         get settings() {
             return { id: 1, homemenu_config: '["menu_2","menu_1"]' };
@@ -802,7 +781,6 @@ test("Navigate to an application from the HomeMenu should generate only one push
     patchWithCleanup(history, {
         pushState(state, title, url) {
             super.pushState(...arguments);
-            // pushState may carry no url at all, which means "the current one".
             const parsedUrl = new URL(url ?? browser.location.href);
             expect.step(parsedUrl.pathname + parsedUrl.search);
         },
@@ -871,10 +849,6 @@ test("Should not crash when opening an app via palette and immediately entering 
 });
 
 test("a record button must not cancel the home menu opened while it ran", async () => {
-    // main_flow_tour step 243. "Produce All" is clicked on the MO form, then
-    // the user opens the home menu before the button has finished. The button
-    // returns nothing, so the action manager synthesises an
-    // `ir.actions.act_window_close` — and the home menu never survives it.
     const saveDef = new Deferred();
     onRpc("web_save", () => saveDef);
     onRpc("/web/dataset/call_button/*", () => false);
@@ -883,8 +857,6 @@ test("a record button must not cancel the home menu opened while it ran", async 
     await getService("action").doAction(6);
     expect(".o_form_view").toHaveCount(1);
 
-    // Dirty the record: the button click then has to save before it can run,
-    // which is what lets the home menu get in first.
     await contains(".o_field_widget[name=name] input").edit("changed", {
         confirm: false,
     });
@@ -893,8 +865,6 @@ test("a record button must not cancel the home menu opened while it ran", async 
 
     await goToHomeMenu();
 
-    // The save lands, the button runs, and its close is dispatched. Once
-    // everything has settled the user must be where they asked to go.
     saveDef.resolve();
     await animationFrame();
     await animationFrame();
@@ -904,9 +874,6 @@ test("a record button must not cancel the home menu opened while it ran", async 
 });
 
 test("a record button must not cancel a home menu still opening behind it", async () => {
-    // Same as above, but the button's own RPC is held too, so it enters the
-    // action manager's KeepLast while the home menu's `doAction` — unblocked
-    // by the same save — is still under way.
     const saveDef = new Deferred();
     const buttonDef = new Deferred();
     onRpc("web_save", () => saveDef);

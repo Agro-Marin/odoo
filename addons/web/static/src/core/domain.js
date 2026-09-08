@@ -605,8 +605,6 @@ function asComparableText(value) {
 /** @typedef {(record: Record<string, any>) => any} FieldReader */
 
 /**
- * `=` and `==`: an unset or empty right-hand side matches an unset field.
- *
  * @param {any} value
  * @param {FieldReader} readField
  * @returns {RecordPredicate}
@@ -624,9 +622,6 @@ function compileEquality(value, readField) {
 }
 
 /**
- * `<`, `<=`, `>`, `>=`, with the server's rules for an unset side: never true
- * against a date, else compared as zero or the empty string.
- *
  * @param {"<" | "<=" | ">" | ">="} op
  * @param {any} value
  * @param {FieldReader} readField
@@ -661,8 +656,6 @@ function compileOrdering(op, value, readField) {
 }
 
 /**
- * `in` / `not in`; a falsy member also selects an unset field.
- *
  * @param {any} value
  * @param {FieldReader} readField
  * @param {boolean} isNot
@@ -685,8 +678,6 @@ function compileMembership(value, readField, isNot) {
 }
 
 /**
- * The `like` family, folded the way the server folds.
- *
  * @param {string} op lower-cased
  * @param {string} operator as written
  * @param {any} value

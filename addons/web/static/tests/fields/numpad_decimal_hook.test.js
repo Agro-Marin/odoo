@@ -8,10 +8,6 @@ import { defineParams, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 
 /**
- * `localization` is a lazy parameter bag: reading `decimalPoint` before the
- * parameters land throws, so the separator has to be declared rather than
- * patched onto the object.
- *
  * @param {string} decimalPoint
  */
 function useSeparator(decimalPoint) {
@@ -22,10 +18,6 @@ function useSeparator(decimalPoint) {
 }
 
 /**
- * The hook is attached to a *container*, not to the input, because two of its
- * six consumers (progressbar, monetary) have more than one input under one ref.
- * Every test therefore mounts the shape the widgets actually use.
- *
  * @param {string} [inner]
  */
 async function mountHost(inner = `<input type="text" class="target"/>`) {
@@ -42,9 +34,6 @@ async function mountHost(inner = `<input type="text" class="target"/>`) {
 }
 
 /**
- * `press` alone cannot say *which* physical key produced a character, and the
- * whole hook keys off that: only the numpad's own decimal key is rewritten.
- *
  * @param {HTMLElement} el
  * @param {string} key
  * @param {string} code
@@ -108,8 +97,6 @@ test("it leaves the key alone when it already is the locale's separator", async 
     input.value = "12";
     input.setSelectionRange(2, 2);
 
-    // Not prevented, so the browser types the "." itself -- rewriting it here
-    // would insert one character and let the browser insert a second.
     expect(keydown(input, ".", "NumpadDecimal")).toBe(false);
     expect(input.value).toBe("12");
 });
@@ -178,9 +165,6 @@ test("the hook works when the ref is the input itself, not a container", async (
     expect(input.value).toBe("7,");
 });
 
-// End to end through hoot's own press() rather than a hand-built event, to show
-// the hook is really attached and really declines: press(".") emits the main-row
-// `Period`, so the "." must arrive verbatim even under a comma locale.
 test("a typed period is not rewritten -- only the numpad key is", async () => {
     useSeparator(",");
     await mountHost();

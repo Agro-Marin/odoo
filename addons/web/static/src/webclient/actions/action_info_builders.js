@@ -8,9 +8,6 @@ import { session } from "@web/session";
  */
 
 /**
- * `shallowEqual`'s own comparison, so the patch-vs-clone rewrite below is
- * value-for-value what the clone used to decide (`0`/`-0` equal, `NaN` equal).
- *
  * @param {any} a
  * @param {any} b
  * @returns {boolean}
@@ -27,11 +24,6 @@ function sameValue(a, b) {
  */
 function makeActionStateUpdater(currentState, target, am) {
     return (controller, patchState) => {
-        // Compare against the patch rather than cloning the state to diff it:
-        // this runs on every record navigation, and the overwhelmingly common
-        // patch is a no-op that used to allocate a copy to discover as much.
-        // A key the state does not carry yet counts as a change even when its
-        // value is `undefined`, matching the key-count arm of `shallowEqual`.
         let changed = false;
         for (const [key, value] of Object.entries(patchState)) {
             if (
@@ -49,9 +41,6 @@ function makeActionStateUpdater(currentState, target, am) {
 }
 
 /**
- * The two builders below agree on what an action's state and name are; only
- * where `resId` comes from differs.
- *
  * @param {Action} action
  * @param {ActionProps} props mutated: gains `updateActionState`
  * @param {any} resId

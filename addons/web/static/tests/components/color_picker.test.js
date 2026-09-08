@@ -487,9 +487,6 @@ test("useColorPicker re-reads its props on every open when given a getter", asyn
 });
 
 /**
- * Focus a swatch, leave it for a sibling, focus it again, and report what the
- * picker asked the host to preview at each step.
- *
  * @param {string} tab
  */
 async function focusCycleOnSwatch(tab) {
@@ -531,12 +528,6 @@ async function focusCycleOnSwatch(tab) {
     };
 }
 
-// The custom tab used to wire `focusout` to the *pointer*-out handler, which
-// resets the preview but never clears the picker's `focusedBtn`. `focusin` then
-// short-circuits forever on that element, so a swatch previewed once and never
-// again -- keyboard users lost the preview after the first visit. Both tabs
-// have to answer the same, which is why this is two tests and not one loop:
-// each needs its own fixture.
 test("the solid tab re-previews a swatch focused, left and focused again", async () => {
     const cycle = await focusCycleOnSwatch("solid");
     expect(cycle.focusedOnce.length).toBe(1);
@@ -557,7 +548,6 @@ test("a colour applied from the hex input is offered as a swatch on the next app
     await mountWithCleanup(ColorPicker, {
         props: {
             state: { selectedColor: "", defaultTab: "custom" },
-            // A fresh array per call, as the editor providers rebuild theirs.
             getUsedCustomColors: () => [...applied],
             applyColor: (/** @type {string} */ color) => applied.add(color),
             applyColorPreview() {},
@@ -570,8 +560,6 @@ test("a colour applied from the hex input is offered as a swatch on the next app
     await contains(".o_hex_input").edit("#123456");
     await contains(".o_hex_input").edit("#654321");
     expect(applied.size).toBe(2);
-    // The first colour is no longer the current one, so it is a swatch now;
-    // the picker is still open, nothing remounted the tab.
     expect(
         ".o_colorpicker_section:first .o_color_button[data-color='#123456']",
     ).toHaveCount(1);

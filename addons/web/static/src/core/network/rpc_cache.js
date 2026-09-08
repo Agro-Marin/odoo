@@ -341,9 +341,6 @@ export class RPCCache {
         this.diskGenerations = Object.create(null);
         this.globalDiskGeneration = 0;
         if (this.diskEnabled) {
-            // Fire-and-forget by design -- nothing waits on a size probe -- but
-            // its deleteDatabase() branch returns a promise, and dropping that
-            // on the floor turns a storage failure into an unhandled rejection.
             this.checkSize().catch((error) => {
                 console.warn("RPC cache: storage size check failed", error);
             });
@@ -403,19 +400,6 @@ export class RPCCache {
     }
 
     /**
-     * Persist one result, if it is still the current answer by the time it has
-     * been encrypted.
-     *
-     * Encryption is asynchronous, so between reading the result and having
-     * ciphertext to store, an invalidation can land. Two guards cover that: the
-     * request's own `invalidated` flag, and the table's disk generation, which
-     * `bumpDiskGeneration` moves on every invalidate. Writing past either would
-     * put a value on disk that the RAM cache has already thrown away.
-     *
-     * Failures here are never propagated -- a cache that cannot write is still a
-     * working cache -- except that a quota error drops the database rather than
-     * leaving it wedged.
-     *
      * @param {{ crypto: Crypto, indexedDB: IndexedDB }} useDisk
      * @param {string} table
      * @param {string} key
@@ -455,10 +439,6 @@ export class RPCCache {
     }
 
     /**
-     * Issue the request behind a cache slot: settle from RAM or disk first
-     * when there is a stale value, then from the network, and publish the
-     * result to the slot, the disk and every subscribed callback.
-     *
      * @param {string} table
      * @param {string} key
      * @param {function} fallback
@@ -563,9 +543,6 @@ export class RPCCache {
     }
 
     /**
-     * The decrypted value stored for a slot, with its version stamped back
-     * on, or `undefined` when there is none or it cannot be read.
-     *
      * @param {{ crypto: Crypto, indexedDB: IndexedDB }} useDisk
      * @param {string} table
      * @param {string} key

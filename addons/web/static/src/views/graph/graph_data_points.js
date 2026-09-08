@@ -221,13 +221,6 @@ export function getRawValue(group, fieldAggregate) {
 }
 
 /**
- * Everything a data point needs that is fixed for the whole series.
- *
- * These six were passed per group, which rebuilt the same nine-key object once
- * per row and made the parameter list a byte-exact duplicate of its only call
- * site. Splitting them out leaves the per-group triple at the call site and the
- * series context built once.
- *
  * @typedef {Object} GraphSeriesContext
  * @property {string} fieldAggregate
  * @property {string[]} [monetaryAggregates]

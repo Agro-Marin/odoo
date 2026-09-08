@@ -30,10 +30,6 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * Populate the query from the defaults the arch and the context
-         * declared: the default favorite alone when there is one, else every
-         * default item in rank order.
-         *
          * @param {number|null} defaultFavoriteId
          */
         _activateDefaultSearchItems(defaultFavoriteId) {

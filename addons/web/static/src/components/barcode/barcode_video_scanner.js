@@ -153,10 +153,6 @@ export class BarcodeVideoScanner extends Component {
     }
 
     /**
-     * Runs before the overlay is told the video is ready: the overlay's first
-     * `onResize` arrives as soon as `isReady` renders, and it is scaled through
-     * `zoomRatio`, which needs the track settings this stores.
-     *
      * @param {MediaStream} stream
      */
     bindTrack(stream) {
@@ -170,10 +166,6 @@ export class BarcodeVideoScanner extends Component {
     }
 
     /**
-     * Preview pixels per source pixel. Read at each use rather than stored: the
-     * preview element is sized by CSS and follows the viewport, while the
-     * source size is fixed for the life of the track.
-     *
      * @returns {number}
      */
     get zoomRatio() {

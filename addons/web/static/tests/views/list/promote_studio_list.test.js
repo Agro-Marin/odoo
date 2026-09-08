@@ -64,7 +64,7 @@ test("add custom field button with other optional columns - studio not installed
     await mountView({
         type: "list",
         resModel: "foo",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="foo"/>
                 <field name="bar" optional="hide"/>
@@ -122,7 +122,7 @@ test("add custom field button without other optional columns - studio not instal
         type: "list",
         resModel: "foo",
         config: getDefaultConfig(),
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="foo"/>
                 <field name="bar"/>
@@ -165,7 +165,7 @@ test("add custom field button not shown to non-system users (with opt. col.)", a
         type: "list",
         resModel: "foo",
         config: getDefaultConfig(),
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="foo"/>
                 <field name="bar" optional="hide"/>
@@ -189,7 +189,7 @@ test("add custom field button not shown to non-system users (wo opt. col.)", asy
         type: "list",
         resModel: "foo",
         config: getDefaultConfig(),
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="foo"/>
                 <field name="bar"/>
@@ -209,7 +209,7 @@ test("add custom field button not shown with invalid action", async () => {
         type: "list",
         resModel: "foo",
         config: { ...getDefaultConfig(), actionId: null },
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="foo"/>
                 <field name="bar"/>
@@ -273,7 +273,7 @@ test("x2many should not be editable", async () => {
     await mountView({
         type: "form",
         resModel: "foo",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <notebook>
                     <page>

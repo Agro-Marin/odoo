@@ -113,8 +113,6 @@ function collectFieldEntries(rows, fieldName) {
 }
 
 /**
- * The column's field, if this column can be aggregated at all.
- *
  * @param {any} column
  * @param {Record<string, any>} fields
  * @param {Record<string, boolean>} optionalActiveFields
@@ -135,12 +133,6 @@ function aggregatableField(column, fields, optionalActiveFields) {
 }
 
 /**
- * An `avg` over groups is not the average of the group averages.
- *
- * Each row here is a group, so the mean has to be re-weighted by the number of
- * records behind it: by `__count` when the server already averaged
- * (`aggregator === "avg"`), and by dividing the summed total when it summed.
- *
  * @param {{ value: any, record: Record<string, any> }[]} fieldEntries
  * @param {string} aggregator
  * @returns {number | undefined} undefined when the caller should fall back
@@ -163,8 +155,6 @@ export function weightedGroupAverage(fieldEntries, aggregator) {
 }
 
 /**
- * A cell that shows why there is no total, rather than a wrong one.
- *
  * @param {string} help
  * @returns {Record<string, any>}
  */
@@ -173,8 +163,6 @@ function blockedAggregate(help) {
 }
 
 /**
- * Rewrite each entry into `currencyId`, in place, unless a rate is missing.
- *
  * @param {{ value: any, record: Record<string, any> }[]} fieldEntries
  * @param {Object} params
  * @param {string} params.currencyField
@@ -301,15 +289,6 @@ export class ListAggregates {
     }
 
     /**
-     * The currency a monetary column totals in, and whether it can total
-     * at all.
-     *
-     * Converting entries into the company currency is part of resolving it:
-     * a total is only meaningful once every entry is in one currency, and
-     * the reasons it can fail -- a group mixing currencies, rates still in
-     * flight, a currency with no rate -- are the reasons there is no total.
-     * `blocked` carries the one to show instead.
-     *
      * @param {any} column
      * @param {Record<string, any>} field
      * @param {{ value: any, record: Record<string, any> }[]} fieldEntries

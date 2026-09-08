@@ -7,11 +7,6 @@ import { registry } from "@web/core/registry";
 export const CLICKBOT_RUNNING_KEY = "running.clickbot";
 
 /**
- * Storage can be unavailable outright -- private mode, a policy that disables
- * it -- and then every access throws. `clickbot_loader.js` consults the saved
- * run at module scope in `web.assets_backend`, so an unguarded read there is a
- * throw during backend boot. Same shape as `action_storage.js`'s accessors.
- *
  * @returns {string | null}
  */
 export function readClickbotRun() {

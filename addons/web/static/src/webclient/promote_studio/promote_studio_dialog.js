@@ -42,9 +42,6 @@ export class PromoteStudioDialog extends Component {
             ["id"],
         );
         if (!module) {
-            // Nothing to install, and the page is blocked: unblocking and
-            // raising says so, where reading through the empty result left a
-            // TypeError behind a blocked screen.
             this.uiService.unblock();
             this.disableClick = false;
             throw new Error("web_studio is not available in this database");
@@ -52,16 +49,11 @@ export class PromoteStudioDialog extends Component {
         await this.ormService.call("ir.module.module", "button_immediate_install", [
             [module.id],
         ]);
-        // on rpc call return, the framework unblocks the page
-        // make sure to keep the page blocked until the reload ends.
         this.uiService.unblock();
         browser.localStorage.setItem("openStudioOnReload", "main");
         browser.location.reload();
     }
 
-    /**
-     * Close the dialog on outside click.
-     */
     /** @param {MouseEvent} ev */
     onWindowMouseDown(ev) {
         const dialogContent = this.modalRef.el?.querySelector(".modal-content");

@@ -100,7 +100,6 @@ test("reading the same state through the component's own proxy does subscribe", 
     expect("span").toHaveText("Ada Byron");
 });
 
-/* --- merged from tests/core/reactive.test.js: one module, one suite --- */
 describe("class", () => {
     test("callback registered without SignalStore class constructor will not notify", async () => {
         const bus = new EventBus();

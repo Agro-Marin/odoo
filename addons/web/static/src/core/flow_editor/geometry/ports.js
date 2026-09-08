@@ -19,8 +19,6 @@ export function getNodeHeaderHeight(node, size, defaultHeaderHeight) {
 }
 
 /**
- * Return the vertical offset of a port from the top edge of its node.
- *
  * @param {import("../flow_types").FlowNode} node
  * @param {import("../flow_types").FlowPortId} portId
  * @param {import("../flow_types").FlowSize} defaultSize
@@ -47,11 +45,6 @@ export function getPortOffset(
 }
 
 /**
- * Return the anchor of a port in flow world coordinates.
- *
- * The single input is centered on the left edge of the body. Outputs are
- * distributed on the right edge of the body in their declared order.
- *
  * @param {import("../flow_types").FlowNode} node
  * @param {import("../flow_types").FlowPortId} portId
  * @param {import("../flow_types").FlowSize} defaultSize

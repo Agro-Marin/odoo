@@ -3,13 +3,10 @@
     transition: max-height 0.4s;
 
     &.o-vertical-slide-enter-active {
-        max-height: 10rem; // fixed value is required to properly trigger transition
+        max-height: 10rem;
     }
 }
 
-// Covers the whole client once the database has expired: above every modal,
-// popover and tooltip, since nothing else may be reachable until the
-// subscription is registered.
 .o_expired_subscription_overlay {
     z-index: $zindex-tooltip + 20;
 }

@@ -33,12 +33,10 @@
 
         th > .o_group_by_menu > .dropdown-menu {
             .dropdown-item {
-                // caret centered vertically
                 .dropdown-toggle::after {
                     top: 12px;
                 }
 
-                // nested dropdown should be *under* the parent, not on its side
                 .dropdown-menu {
                     top: initial !important;
                     left: 5% !important;
@@ -66,7 +64,6 @@
 
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
-        // Dark mode overrides for pill/segmented-control notebook tabs
         .o_notebook {
             .nav {
                 background-color: $o-dark-gray-300;

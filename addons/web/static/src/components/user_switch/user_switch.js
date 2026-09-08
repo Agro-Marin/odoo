@@ -32,10 +32,6 @@ export class UserSwitch extends Component {
             if (!this.form) {
                 return;
             }
-            // The login form is hidden exactly while the user is being offered a
-            // choice, which is what `displayUserChoice` already says. Deriving
-            // it here from a second, different threshold (`> 1` against
-            // `toggleFormDisplay`'s `> 0`) was two spellings of one predicate.
             this.syncFormDisplay();
         });
         useEffect(

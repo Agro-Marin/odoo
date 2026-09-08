@@ -268,12 +268,6 @@ class PosSession(models.Model):
         ]
 
     def _load_pos_data_search_read(self, data, config):
-        # The session loads itself. Searching for a record we are already holding
-        # cost a query and forced _load_pos_data_domain — declared @api.model on
-        # every one of its 66 implementations — to read self.id, which is only
-        # non-empty because @api.model does not actually empty self.
-        # mixin.pos.load already exempts pos.session from the write_date filter
-        # _add_server_date_to_domain applies, so nothing else is skipped here.
         return self._load_pos_data_read(self, config)
 
     @api.model
@@ -360,12 +354,6 @@ class PosSession(models.Model):
     def get_pos_ui_product_pricelist_item_by_product(
         self, product_tmpl_ids, product_ids, config_id
     ):
-        # Nothing in this is session-specific: it reads pricelists, a company and
-        # two field lists, all of which belong to the config. It lived here reading
-        # self.config_id while being handed config_id, two spellings of one value —
-        # and with no open session self.config_id was empty, so the domain raised
-        # Expected singleton out of _get_available_pricelists. Delegating on the
-        # argument fixes that as well as placing it.
         return (
             self.env["pos.config"]
             .browse(config_id)
@@ -781,8 +769,6 @@ class PosSession(models.Model):
                 record.move_id.with_company(self.company_id)._post()
             else:
                 record.move_id.sudo().unlink()
-            # independent of whether the entry had lines: a session that closes
-            # leaves no order behind in 'paid'
             record.order_ids.filtered(lambda order: order.state == "paid").write(
                 {"state": "done"}
             )
@@ -1407,7 +1393,6 @@ class PosSession(models.Model):
             payment_method = payment.payment_method_id
             payment_type = payment_method.type
             is_split_payment = payment_method.split_transactions
-            # a split payment is booked per payment, a combined one per method
             scope = "split" if is_split_payment else "combine"
             key = payment if is_split_payment else payment_method
 
@@ -1416,8 +1401,6 @@ class PosSession(models.Model):
                     add(f"{scope}_receivables_pay_later", key, amount, date)
                 continue
 
-            # a type this module does not book itself, such as pos_online_payment's
-            # 'online', still lands on the invoice receivable below
             if payment_type in self.RECEIVABLE_PAYMENT_TYPES:
                 add(f"{scope}_receivables_{payment_type}", key, amount, date)
 
@@ -1846,7 +1829,6 @@ class PosSession(models.Model):
         return data
 
     def _create_receivable_lines_per_key(self, MoveLine, amounts_per_key):
-        """One create for the whole mapping, split back out by key."""
         keys = list(amounts_per_key)
         lines = MoveLine.create(
             [
@@ -2240,10 +2222,6 @@ class PosSession(models.Model):
         moves = self.env["account.move"].search(
             [("pos_diff_session_id", "in", self.ids)]
         )
-        # Moves created before pos_diff_session_id existed carry no link, so they
-        # are still found the old way — by the translated label the creation site
-        # wrote as their only marker, narrowed to the journals that can hold one.
-        # Delete this branch once no session predating the field matters.
         legacy_methods = self.payment_method_ids.filtered(
             lambda pm: pm.type == "bank" and pm.split_transactions
         )
@@ -2385,7 +2363,6 @@ class PosSession(models.Model):
                 ("state", "!=", "closed"),
             ]
         )
-        # res_id is a Many2oneReference, so this groups on plain integers
         already_alerted = self.browse(
             res_id
             for [res_id] in self.env["mail.activity"]._read_group(
@@ -2447,9 +2424,6 @@ class PosSession(models.Model):
         sign = 1 if _type == "in" else -1
         amount = abs(amount or 0.0)
 
-        # filtered() here would silently drop the sessions with no cash journal
-        # and post to the rest, so a caller registering one movement across
-        # several sessions would be told it applied to all of them
         if no_journal := self.filtered(lambda session: not session.cash_journal_id):
             raise UserError(
                 _(

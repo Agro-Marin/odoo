@@ -8,11 +8,6 @@ def _module_state(cr, name):
 
 
 def migrate(cr, version):
-    # web_enterprise is folded into web: the two inherited views it declared
-    # are now web's own templates, the homemenu_config column and its data
-    # stay, every other record it declared moves to web's namespace, and the
-    # module row is closed so nothing tries to load a directory that is no
-    # longer on disk.
     if _module_state(cr, OLD_MODULE) is None:
         return
     cr.execute(

@@ -691,7 +691,6 @@
         </field>
     </record>
 
-    <!-- REMOVE IN MASTER -->
     <record id="pos_rounding_form_view_inherited" model="ir.ui.view">
         <field name="name">pos.cash.rounding.form.inherited</field>
         <field name="model">account.cash.rounding</field>

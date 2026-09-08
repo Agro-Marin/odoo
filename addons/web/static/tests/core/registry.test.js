@@ -476,9 +476,6 @@ describe("keys are data, never property names", () => {
     });
 
     test("nor does one the test harness has cleared", () => {
-        // clearRegistry used to hand back a plain `{}`, and Registry looks keys
-        // up with `key in content` -- so every Object.prototype member became a
-        // registered key, under test only.
         const reg = new Registry("probe");
         reg.add("real", 1);
         clearRegistry(reg);

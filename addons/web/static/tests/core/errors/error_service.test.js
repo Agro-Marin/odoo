@@ -779,11 +779,6 @@ test("a 403 Forbidden routes to WarningDialog, not the session-expired dialog", 
 
 describe("the reported class depends on the debug mode", () => {
     /**
-     * Drive ErrorService.onError directly and report what the error_handlers
-     * registry was handed. Under `debug=assets` the answer is nothing: the
-     * annotation path re-throws so the report arrives a turn later through
-     * onUnhandledRejection instead. See fullAnnotatedTraceback in error_utils.
-     *
      * @param {string} debug
      * @returns {Promise<string[]>}
      */
@@ -823,10 +818,6 @@ describe("the reported class depends on the debug mode", () => {
     });
 
     test("with debug=assets onError re-throws instead, and reports on re-entry", async () => {
-        // Nothing reaches the handlers on this pass; the rejection does, later,
-        // as an UncaughtPromiseError. Three handlers in
-        // components/errors/error_handlers.js gate on exactly that class, which
-        // is why this difference is worth pinning rather than leaving implicit.
         expect(await reportedFor("assets")).toEqual(["RETHROWN"]);
     });
 });

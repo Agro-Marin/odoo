@@ -49,10 +49,6 @@ function warnUnknownOptions(widget, field, options) {
 }
 
 /**
- * The sub-views an x2many field renders with: the widget's own related fields
- * as a "default" view, and every <list>/<kanban>/... child parsed by its own
- * arch parser. Mutates `fieldInfo`.
- *
  * @param {Element} node
  * @param {Record<string, any>} fieldInfo
  * @param {Record<string, any>} models

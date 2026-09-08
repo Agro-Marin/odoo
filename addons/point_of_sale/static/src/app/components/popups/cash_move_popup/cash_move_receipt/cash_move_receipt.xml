@@ -21,7 +21,6 @@
             </div>
             <t t-set="company" t-value="props.order.company" />
             <div class="d-flex gap-2 pt-3">
-                <!-- Left: Company Address -->
                 <div class="w-50 text-break text-start" style="font-size: 75%;">
                     <div t-out="company.name"/>
                     <div>
@@ -32,7 +31,6 @@
                     </div>
                 </div>
 
-                <!-- Right: Contact Info -->
                 <div class="w-50 text-break text-end" style="font-size: 75%;">
                     <div>
                         <div t-if="company.vat" t-out="vatText"/>

@@ -216,10 +216,6 @@ export class KanbanRenderer extends Component {
         onPatched(() => this.scrollToLastOpenedGroup());
     }
 
-    /**
-     * After a folded group opens, bring it (or the folded neighbour it pushed
-     * off-screen) into view.
-     */
     scrollToLastOpenedGroup() {
         if (!this.lastOpenedGroupId) {
             return;

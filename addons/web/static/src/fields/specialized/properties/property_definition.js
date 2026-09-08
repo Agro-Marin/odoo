@@ -327,10 +327,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * Every edit of the definition goes through here: the change is reported
-     * to the owner first, then mirrored in the local state, so that the
-     * owner's `onWillUpdateProps` and the local render agree on one object.
-     *
      * @param {Record<string, any>} patch fields to change, or the whole
      *  definition with `replace`
      * @param {{ replace?: boolean }} [options]

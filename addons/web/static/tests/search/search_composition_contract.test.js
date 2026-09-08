@@ -20,10 +20,6 @@ import { SearchModel } from "@web/search/search_model";
 describe.current.tags("headless");
 
 /**
- * The prototype chain of the composition, most-derived first: `SearchModel`,
- * then one level per mixin factory, then the `EventBus` the chain is applied
- * to. `Object.prototype` is dropped -- it belongs to no unit.
- *
  * @returns {object[]}
  */
 function chain() {
@@ -62,8 +58,6 @@ class Probe extends Component {
 }
 
 /**
- * A real `SearchModel`, loaded the way a view loads one.
- *
  * @returns {Promise<any>}
  */
 async function loadedSearchModel() {
@@ -179,9 +173,6 @@ describe("the composition contract and the composition agree", () => {
     });
 
     test("every unit has an identity its level actually owns", () => {
-        // The identity map is what makes the order check total; if an entry
-        // stops naming something exactly one level owns, the order check below
-        // silently narrows rather than failing.
         const levels = chain();
         /** @type {string[]} */
         const wrong = [];
@@ -202,12 +193,6 @@ describe("the composition contract and the composition agree", () => {
     });
 
     test("the chain is composed in the order the contract declares", () => {
-        // Each unit is located by the level owning its identity member.
-        // SEARCH_COMPOSITION_ORDER is innermost first, so the level indices --
-        // most-derived first -- must come out strictly decreasing. This is what
-        // catches a reordering of the mixin factories, which silently changes
-        // which unit's override of a shared name wins and which `super` a call
-        // reaches.
         const levels = chain();
         const found = MODULES.map((module) =>
             levels.findIndex((proto) =>
@@ -225,10 +210,6 @@ describe("the composition contract and the composition agree", () => {
         });
     });
     test("every unconditional shared-state name exists on a loaded SearchModel", async () => {
-        // The negative check above says these names are not on the prototype.
-        // This is the other half, and the one that catches a _SHARED_STATE
-        // entry naming something the model never actually has: 102 of the 105
-        // are here the moment a model has loaded.
         const conditional = new Set(SEARCH_COMPOSITION_CONDITIONAL_STATE);
         const model = await loadedSearchModel();
         /** @type {string[]} */
@@ -251,10 +232,6 @@ describe("the composition contract and the composition agree", () => {
     });
 
     test("the conditional shared state really is conditional", async () => {
-        // Pins the classification in the other direction. A name that starts
-        // being assigned unconditionally fails here until it leaves the list,
-        // so the list cannot quietly become a place to park inconvenient
-        // entries.
         const model = await loadedSearchModel();
         const present = SEARCH_COMPOSITION_CONDITIONAL_STATE.filter(
             (name) => name in model,

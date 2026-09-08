@@ -2,10 +2,6 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
-# Both modules lived in agromarin/ and are now point_of_sale's own code.
-# `pos_product_stock` declared six pos.config fields, one settings view and a
-# 19.0.2.0.0 post-migration; `pos_orderline_grouped_product` was JS only, so
-# retiring it is the whole of its half.
 DISSOLVED = ("pos_product_stock", "pos_orderline_grouped_product")
 STOCK_MODULE = "pos_product_stock"
 
@@ -34,12 +30,6 @@ def _is_present(cr, name):
 
 
 def _drop_the_settings_view(cr):
-    """Delete the inheriting view, not just its xml id.
-
-    The Stock Display setting is declared inside `pos_config_view_form` now.
-    Left behind, the dissolved module's view would add a second copy of it to
-    the form, and re-pointing its xml id would strand a view nothing loads.
-    """
     cr.execute(
         """
         DELETE FROM ir_ui_view
@@ -58,13 +48,6 @@ def _drop_the_settings_view(cr):
 
 
 def _adopt_the_fields(cr):
-    """Re-point the reflection rows BEFORE point_of_sale reflects the fields.
-
-    The columns and the `pos_config_stock_location_rel` table keep their
-    names, so the data survives untouched; only `ir.model.fields` and its
-    selection rows carry the dissolved module's name, and a row point_of_sale
-    already owns under the same name is dropped rather than duplicated.
-    """
     cr.execute(
         """
         DELETE FROM ir_model_data dissolved
@@ -86,12 +69,6 @@ def _adopt_the_fields(cr):
 
 
 def _clear_a_warehouse_of_another_company(cr):
-    """The dissolved module's own 19.0.2.0.0 post-migration, carried here.
-
-    `stock_warehouse_id` gained `check_company=True` in that version, and a
-    database that never reached it may still hold a warehouse of another
-    company, which every later write to the config would refuse.
-    """
     cr.execute(
         """
         SELECT config.id
@@ -118,13 +95,6 @@ def _clear_a_warehouse_of_another_company(cr):
 
 
 def _retire_the_module(cr, name):
-    """Flip the state, never run an uninstall.
-
-    An uninstall would delete every record the module ever created, which is
-    precisely the data adopted above. The row itself stays so that a database
-    keeps the record of what it once had; the loader ignores an uninstalled
-    module with no manifest on disk.
-    """
     cr.execute("DELETE FROM ir_module_module_dependency WHERE name = %s", (name,))
     cr.execute(
         "UPDATE ir_module_module SET state = 'uninstalled' WHERE name = %s",

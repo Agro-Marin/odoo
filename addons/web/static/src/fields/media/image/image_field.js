@@ -34,9 +34,6 @@ export const fileTypeMagicWordMap = {
 export const IMAGE_PLACEHOLDER = "/web/static/img/placeholder.png";
 
 /**
- * The `src` for a binary field's image: the server route when the record only
- * carries the file's size, a data URI when it carries the bytes themselves.
- *
  * @param {string} value the binary field's value, non-empty
  * @param {{ model: string, resId: number | false, field: string, unique?: any }} location
  * @returns {string}

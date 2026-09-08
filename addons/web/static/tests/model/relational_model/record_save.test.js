@@ -263,10 +263,6 @@ describe("FetchRecordError on empty reload response", () => {
     });
 
     test("throws it when reload is false too, rather than committing against nothing", async () => {
-        // The write happened but nothing came back to read -- deleted
-        // underneath, or a record rule now hides it. Reporting success and
-        // clearing the change set loses exactly the edits the caller asked to
-        // save, and the urgent-save path is the one that runs `reload: false`.
         await makeMockEnv();
 
         const rec = makeRecord({

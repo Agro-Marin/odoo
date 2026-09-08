@@ -90,8 +90,6 @@ export function reverseForRTL(direction, variant = "middle") {
 }
 
 /**
- * Everything one placement needs, measured once per computePosition().
- *
  * @typedef {{
  *   popBox: DOMRect,
  *   targetBox: DOMRect,
@@ -107,10 +105,6 @@ export function reverseForRTL(direction, variant = "middle") {
  */
 
 /**
- * Score one direction/variant pair against the container: a zero malus is a
- * perfect fit, otherwise the overflow in the direction axis plus one when the
- * variant axis had to be nudged.
- *
  * @param {string} d
  * @param {string} v
  * @param {PlacementMeasure} m
@@ -202,8 +196,6 @@ function scorePlacement(d, v, m) {
 }
 
 /**
- * Read every box once; the candidate placements are then pure arithmetic.
- *
  * @param {HTMLElement} popper
  * @param {HTMLElement} target
  * @param {HTMLElement} cont

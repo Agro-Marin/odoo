@@ -48,7 +48,6 @@
         <field name="view_mode">list,kanban,form,activity</field>
         <field name="view_id" ref="product.view_product_product_list" />
         <field name="search_view_id" eval="False" />
-        <!-- Force empty -->
         <field
             name="context">{'search_default_filter_to_availabe_pos': 1, 'default_available_in_pos': True}</field>
         <field name="help" type="html">
@@ -134,7 +133,6 @@
         </field>
     </record>
 
-    <!-- Product Catalog menus and sub menus -->
     <menuitem
         id="pos_config_menu_catalog"
         name="Products"

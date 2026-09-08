@@ -21,8 +21,6 @@ function makeSearchModel(overrides = {}) {
     Object.assign(
         model,
         makeCompositionDouble("search/search_favorites_mixin.js", {
-            // The two the favorites mixin owns that would otherwise reach the
-            // ORM; the substrate comes from the shared, contract-checked double.
             _createIrFilters: async () => 42,
             _getIrFilterDescription: () => ({
                 preFavorite: { userIds: [1], domain: "[]", context: {}, orderedBy: [] },

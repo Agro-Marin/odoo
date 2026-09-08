@@ -14,16 +14,6 @@ function carriesFiles(ev) {
 }
 
 /**
- * Stops the browser from navigating to a file dropped outside a dropzone, and
- * reports the end of the drag session.
- *
- * Both `drop` and `dragend` end a session. `dragend` matters because it is the
- * only event a *cancelled* drag is guaranteed to produce: `dragenter` and
- * `dragleave` do not have to balance -- they fire per element crossed, and the
- * ones raised on a subtree that is torn down mid-drag are simply never
- * delivered. Without a `dragend` reset the counter can never return to zero and
- * the overlay stays on screen for the rest of the page's life.
- *
  * @param {() => void} onDragSessionEnd
  */
 function useSuppressWindowFileDrop(onDragSessionEnd) {
@@ -128,8 +118,6 @@ export function useCustomDropzone(
 }
 
 /**
- * `useCustomDropzone` with the stock overlay.
- *
  * @param {any} targetRef
  * @param {function} onDrop
  * @param {string} [extraClass]

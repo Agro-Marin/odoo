@@ -1101,10 +1101,6 @@ class TestTransitiveImportClosure(TransactionCase):
         ]
         self.assertEqual(len(importmaps), 1)
         imports = json.loads(importmaps[0]["text"])["imports"]
-        # "@web/../lib/bootstrap/bootstrap.esm.js" is deliberately absent:
-        # dc1f24fb663 respelled that import as an absolute URL so esbuild's
-        # --external:/web/static/lib/* matches it, and an absolute URL needs
-        # no import-map entry to resolve.
         for spec in ("@web/libs/bootstrap", "@popperjs/core"):
             self.assertIn(spec, imports, msg=f"{spec} missing from import map")
 
@@ -1132,7 +1128,6 @@ class TestTransitiveImportClosure(TransactionCase):
                         ),
                     )
                 elif imported.startswith("/"):
-                    # an absolute URL resolves without the map; walk into it
                     queue.append((imported, imported))
                 else:
                     queue.append((imported, imports.get(imported)))
@@ -1442,8 +1437,6 @@ class TestEsbuildLockCursor(TransactionCase):
         return self.env.cr.fetchone()[0]
 
     def test_the_lock_is_released_when_the_block_exits(self):
-        # pg_locks spans every database and every backend of the cluster, so a
-        # count over it reads the whole workspace; ask for this one key instead.
         free = "SELECT pg_try_advisory_xact_lock(hashtext(%s))"
         with self._qweb._get_esbuild_lock_cursor("b.x") as lock_cr:
             self.assertTrue(self._qweb._acquire_esbuild_lock("b.x", cr=lock_cr))
@@ -1617,9 +1610,6 @@ class TestReadonlyDeclineIsRemembered(TransactionCase):
         return EsbuildResult(f"built{self.compiles};", None, None)
 
     def _render(self, *, readonly=True):
-        # Rolled back like one HttpCase request (`TestCursor` takes a plain
-        # savepoint per request), which also releases the advisory lock a
-        # readonly render takes on the test cursor.
         with contextlib.ExitStack() as stack:
             stack.enter_context(contextlib.closing(self.env.cr.savepoint(flush=False)))
             if readonly:
@@ -2274,8 +2264,6 @@ class TestSecondaryBundleServesEveryPage(TransactionCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(ir_qweb_assets, "request", req))
             if readonly:
-                # Rolled back like one HttpCase request, which releases the
-                # advisory lock a readonly render takes on the test cursor.
                 stack.enter_context(
                     contextlib.closing(self.env.cr.savepoint(flush=False))
                 )
@@ -2705,8 +2693,6 @@ class TestDynamicBundleIntegrity(TransactionCase):
                 }
             ) & parent_specs
             url = IrQweb._get_esm_bundle_payload(name, debug_assets=False)["esm_url"]
-            # The stub of a module several siblings share lives in a chunk of
-            # the group, so the whole directory is the artifact under test.
             code = "\n".join(
                 att.raw.decode()
                 for att in self.env["ir.attachment"]
@@ -2738,10 +2724,6 @@ class TestDynamicBundleIntegrity(TransactionCase):
         self.assertTrue(payload["specifiers"])
 
     def test_a_page_never_inlines_what_a_dynamic_child_owns(self):
-        # A dynamic import() of a module some child owns is a stub on a page
-        # that declares that child, and an inlined copy on a page that does
-        # not: web.assets_emoji declared under web.assets_web alone put the
-        # 461 KB emoji table into every frontend page bundle.
         IrQweb = self.env["ir.qweb"]
         registry = esm_registry()
         installed = self.env["ir.asset"]._get_addons_installed()
@@ -2763,18 +2745,12 @@ class TestDynamicBundleIntegrity(TransactionCase):
             if page.partition(".")[0] not in installed:
                 continue
             if page in registry.import_map_includes:
-                # The unit-test page carries the helpers its per-file tests
-                # import, builder code included; what it inlines is the test
-                # runner's composition, not a page a user loads.
                 continue
             bundle = IrQweb._get_asset_bundle(
                 page, js=True, css=False, assets_params=params
             )
             if not bundle.native_modules:
                 continue
-            # A file the page lists itself is the page's, whatever child
-            # lists it too; the split that matters is a file only a child
-            # owns reaching the page through an import.
             own = {
                 posixpath.relpath(a._filename, root)
                 for a in bundle.native_modules
@@ -3103,8 +3079,6 @@ class TestBundleDescriptorFormat(HttpCase):
                 name, js=True, css=False, debug_assets=True
             ).native_modules
             if all(asset.url in set(external_libs().values()) for asset in members):
-                # A bundle made only of declared external libraries has
-                # nothing to compile: its one file is the library URL.
                 continue
             checked += 1
             self.assertTrue(payload.get("esm_url"), name)
@@ -3268,10 +3242,6 @@ class TestLibraryFacades(TransactionCase):
         return facaded
 
     def test_a_page_family_reaches_a_facaded_library_only_through_its_facade(self):
-        # A library with a facade under core/lib is lazy by decision: a member
-        # of a page family importing it statically would put it back in every
-        # page load. Bundles a single page or a lazy child owns may still take
-        # it eagerly (survey's live session page, the spreadsheet child).
         facaded = self._facaded_libraries()
         IrQweb = self.env["ir.qweb"]
         offenders = []
@@ -3336,13 +3306,8 @@ class TestServedLibraries(TransactionCase):
         by_url = served_lib_files()
         for url in served.values():
             self.assertIn(url, by_url)
-        # One file, one URL: hoot-dom's helpers are declared one by one and
-        # import each other relatively, so they share a prefix, or the same
-        # helper would be fetched twice as two instances.
         declared_files = [declared for _lib, declared in by_url.values()]
         self.assertEqual(len(declared_files), len(set(declared_files)))
-        # ... and a relative import inside a library resolves under the
-        # importer's own prefix, so hoot-dom's helpers share one unique.
         for served_url, (lib, declared) in by_url.items():
             source = lib.files[declared].read_text(encoding="utf-8")
             for spec in _scan_import_specifiers(source):

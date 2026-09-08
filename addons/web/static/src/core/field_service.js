@@ -17,12 +17,6 @@
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
 
-/**
- * The model and field `get_properties_base_definition` is written against.
- * Both halves of that contract live in
- * `addons/web/models/properties_base_definition.py`; naming them here is what
- * lets a mismatch fail with a sentence instead of a TypeError.
- */
 const BASE_DEFINITION_MODEL = "properties.base.definition";
 const BASE_DEFINITION_FIELD = "properties_definition";
 
@@ -100,11 +94,6 @@ class FieldService {
 
         let result;
         if (definitionRecordModel === BASE_DEFINITION_MODEL) {
-            // The server's get_properties_base_definition hardcodes its
-            // specification (addons/web/models/properties_base_definition.py), so
-            // the definitions come back under BASE_DEFINITION_FIELD whatever the
-            // field is called here. Say so, rather than reading `undefined` and
-            // dying two lines later in a for..of.
             if (definitionRecordField !== BASE_DEFINITION_FIELD) {
                 throw new Error(
                     `Field "${resModel}.${name}" names ` +

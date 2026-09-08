@@ -36,10 +36,6 @@ class ResUserGroupIdsField extends FieldComponent {
     static props = { ...standardFieldProps };
 
     /**
-     * Built in setup() from the record's hierarchy payload and read from the
-     * builders it then calls, a sequence TypeScript cannot follow, so the
-     * fields are declared.
-     *
      * @type {Record<string, any>}
      */
     hierarchyGroups;

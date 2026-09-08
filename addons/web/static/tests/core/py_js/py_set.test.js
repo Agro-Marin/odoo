@@ -5,15 +5,6 @@ import { evaluateExpr } from "@web/core/py_js/py";
 
 describe.current.tags("headless");
 
-/**
- * Every expected value below came from running the expression through the
- * interpreter this fork ships against -- CPython 3.14, the one `safe_eval` uses.
- * Regenerate rather than hand-edit if a row is ever disputed.
- *
- * The `list(...)` rows pin member IDENTITY, not just membership: `1` and `True`
- * are one member but they are distinguishable once you look at what survived,
- * and that is where a naive port silently disagrees with the server.
- */
 const CPYTHON = [
     ["len(set([1, True]))", 1],
     ["len(set([0, False]))", 1],
@@ -99,8 +90,6 @@ describe("py_js sets are CPython sets", () => {
     });
 
     test("structurally equal objects are one member", () => {
-        // py_js lets a set hold dicts; CPython would raise (unhashable), but if
-        // they are allowed at all they must dedup the way every member does.
         expect(evaluateExpr("len(set([{'a': 1}, {'a': 1}]))")).toBe(1);
         expect(evaluateExpr("len(set([{'a': 1}, {'a': 2}]))")).toBe(2);
         expect(evaluateExpr("len(set([[1, 2], [1, 2]]))")).toBe(1);
@@ -108,7 +97,6 @@ describe("py_js sets are CPython sets", () => {
     });
 
     test("a set of ids does not pay for any of this", () => {
-        // the fold only costs a scan for booleans, 0/1 and objects
         const ids = Array.from({ length: 2000 }, (_, i) => i + 2);
         const set = evaluateExpr("set(ids)", { ids });
         expect(set.size).toBe(2000);

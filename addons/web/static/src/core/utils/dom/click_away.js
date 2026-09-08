@@ -17,8 +17,6 @@ function useEarlyExternalListener(target, eventName, handler, eventParams) {
 }
 
 /**
- * Whether `node` is part of the widget delimited by `getAnchor` / `getContentEl`.
- *
  * @param {EventTarget | Node | null | undefined} node
  * @param {(() => (Element | null | undefined)) | undefined} getAnchor
  * @param {(() => (Element | null | undefined)) | undefined} getContentEl
@@ -35,18 +33,6 @@ function isInsideWidget(node, getAnchor, getContentEl) {
 }
 
 /**
- * Calls `callback` when the user acts *outside* the hooked widget.
- *
- * The anchor and the content element are what "outside" is measured against: a
- * pointerdown or a focus move landing inside either one is not an away event
- * and never reaches `callback`. Callers therefore do not repeat the containment
- * test — before this was centralised, three of the four callers each spelled it
- * differently and `Pager` omitted it, which made clicking inside its own open
- * input collapse the input.
- *
- * A navigation is always an away event: nothing can be "inside" a page that is
- * being left.
- *
  * @param {(node?: Node) => any} callback
  * @param {Object} [options]
  * @param {() => (Element | null | undefined)} [options.getAnchor]

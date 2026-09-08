@@ -137,9 +137,6 @@ export function getBorderWhite() {
 const BARE_HEX_REGEX = /^(?:[a-f\d]{3}|[a-f\d]{6})$/i;
 
 /**
- * Hex parsing lives once, in `utils/format/colors`. This wrapper only adds what
- * the chart palettes have always accepted and CSS does not: a hex with no `#`.
- *
  * @param {string} color
  * @returns {[number, number, number] | null}
  */
@@ -150,10 +147,6 @@ function toRgbTriplet(color) {
 }
 
 /**
- * Lowercase on purpose: `convertRgbaToCSSColor` upper-cases, and
- * `views/graph/graph_view.test.js` asserts literals like `#a7d3f9` that this
- * function produced. The case is pinned behaviour, not an accident.
- *
  * @param {number} r
  * @param {number} g
  * @param {number} b

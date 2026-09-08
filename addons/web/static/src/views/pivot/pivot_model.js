@@ -716,10 +716,6 @@ export class PivotModel extends Model {
     }
 
     /**
-     * The aggregates a group is read with. Subclasses that key measurements by
-     * something other than the field name override this together with
-     * `_getMeasurements`, so that both sides of the store agree.
-     *
      * @protected
      * @param {Config} config
      * @returns {string[]}
@@ -729,10 +725,6 @@ export class PivotModel extends Model {
     }
 
     /**
-     * The group values a subdivision contributes. Subclasses that store group
-     * values in a normalised form rather than the raw server form override
-     * this, so that reads and writes agree on the key.
-     *
      * @protected
      * @param {Record<string, any>} group
      * @param {string[]} groupBys
@@ -786,9 +778,6 @@ export class PivotModel extends Model {
     }
 
     /**
-     * One measurement, addressed by its group. Subclasses that key
-     * measurements by something other than the field name override this.
-     *
      * @protected
      * @param {[any[], any[]]} groupId row values and column values
      * @param {string} measureName

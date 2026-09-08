@@ -42,9 +42,6 @@ export class ReferenceField extends FieldComponent {
     currentModelId;
 
     setup() {
-        // Bound once: `m2oProps` is read on every render, and a fresh bound
-        // function there is enough on its own to defeat OWL's shallow prop
-        // comparison and re-render the whole autocomplete.
         this.updateM2O = this.updateM2O.bind(this);
         this.state = useState({
             formattedCharValue: undefined,

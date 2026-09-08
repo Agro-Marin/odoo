@@ -184,10 +184,6 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Registration order: by sequence, then by insertion index. The only place
-     * that order is spelled out -- getAll() and getEntries() are two
-     * projections of this one list, not two sorts that must be kept in step.
-     *
      * @private
      * @returns {[string, [number, GetRegistryItemShape<T>, number]][]}
      */

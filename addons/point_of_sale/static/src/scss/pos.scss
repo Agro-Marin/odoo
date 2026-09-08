@@ -1,5 +1,3 @@
-/* --- Fonts --- */
-
 @font-face {
     font-family: "Inconsolata";
     src: url(../fonts/Inconsolata.otf);
@@ -65,8 +63,6 @@ select {
     font-size: large;
 }
 
-/* --- Display --- */
-
 .z-1000 {
     z-index: 1000;
 }
@@ -74,8 +70,6 @@ select {
 .h-inherit {
     height: inherit;
 }
-
-/*  ********* The leftpane contains the order, numpad and paypad ********* */
 
 .leftpane {
     width: $pos-left-pane-width;
@@ -96,10 +90,7 @@ select {
 }
 
 .pos .numpad {
-    // Loud comment on purpose: production compiles Sass with
     // `output_style = compressed`, which drops a plain `/*rtl:ignore*/`
-    // before rtlcss runs -- and rtlcss then rewrites this to `direction: rtl`,
-    // reversing the keypad in every right-to-left locale.
     /*!rtl:ignore*/
     direction: ltr;
 }
@@ -116,8 +107,6 @@ select {
         height: 70px;
     }
 }
-
-/*  ********* The Webkit Scrollbar  ********* */
 
 .pos.big-scrollbars *::-webkit-scrollbar {
     width: 40px;
@@ -146,8 +135,6 @@ select {
     background-image: url("../img/scroll-down.png");
 }
 
-/* Fade */
-
 .o-fade {
     transition: opacity 0.2s;
 }
@@ -157,24 +144,7 @@ select {
     opacity: 0;
 }
 
-/*
-    We block the top-header when a temp screen is displayed.
-    Similar to blocking the whole ui when a popup is displayed.
-*/
-/* .pos .block-top-header {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height:100%;
-    background-color: rgba(0,0,0,0.5);
-    z-index:1000;
-} */
-
-/* Debug */
-
 .drag-handle {
-    /* See o-grab-cursor mixin */
     cursor: url(/web/static/img/openhand.cur), grab;
 }
 
@@ -185,7 +155,6 @@ select {
     height: calc(var(--btn-height-size) * 2);
 }
 
-// Set all the colors but the "no-color" one
 @for $size from 2 through length($o-colors) {
     .o_colorlist_item_color_transparent_#{$size - 1} {
         $-border-color: adjust-color(
@@ -246,12 +215,10 @@ select {
     }
 }
 
-// this is to override the property in `web/static/src/webclient/webclient_layout.scss'
 body.modal-open {
     position: initial !important;
 }
 
-// External CSS to wrap long notes coming from another component (TagsList)
 .pos .internal-note-container span {
     text-align: start;
 }

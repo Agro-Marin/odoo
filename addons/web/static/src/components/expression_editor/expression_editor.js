@@ -75,10 +75,6 @@ export class ExpressionEditor extends Component {
     }
 
     /**
-     * The operator vocabulary offered for a field. The single place this
-     * component decides it; both the default operator and the operator editor
-     * are derived from it.
-     *
      * @param {Object} fieldDef
      * @returns {string[]}
      */
@@ -127,8 +123,6 @@ export class ExpressionEditor extends Component {
             }),
             isSupported: (value) =>
                 [0, 1].includes(value) || value in this.filteredFields,
-            // Reached only when isSupported said no, which includes paths this
-            // model has no field for -- so this cannot dereference blindly.
             stringify: (value) =>
                 this.props.fields[value]?.string ?? formatValue(value),
             defaultValue: () => defaultCondition.path,

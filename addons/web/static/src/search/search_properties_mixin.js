@@ -103,9 +103,6 @@ export const SearchPropertiesMixin = (Base) =>
         }
 
         /**
-         * Drop search items the model no longer knows, and whatever the query
-         * held on them.
-         *
          * @param {number[]} ids
          * @returns {boolean} whether the query lost an element
          */

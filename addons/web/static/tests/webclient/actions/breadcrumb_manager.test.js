@@ -354,11 +354,6 @@ test("a form leaf marks its parent lazy so the name fetch can be skipped", async
 });
 
 test("a trail longer than the cache limit still names every crumb", async () => {
-    // The answers used to be read back out of the bounded cache after being
-    // written into it. A batch bigger than the limit evicts its own earliest
-    // entries before the read, and an evicted crumb is indistinguishable from
-    // one the server declined to name — so it was dropped from the trail and
-    // from the url.
     await makeMockServer();
     const limit = 4;
     const cache = new BreadcrumbCache(limit);

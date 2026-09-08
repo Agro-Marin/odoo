@@ -12,9 +12,9 @@ definePosModels();
 
 describe("parseNoteEntries", () => {
     test("reads what the note editor writes", () => {
-        expect(
-            parseNoteEntries('[{"text":"no onions","colorIndex":3}]'),
-        ).toEqual([{ text: "no onions", colorIndex: 3 }]);
+        expect(parseNoteEntries('[{"text":"no onions","colorIndex":3}]')).toEqual([
+            { text: "no onions", colorIndex: 3 },
+        ]);
     });
 
     test("an empty note is no entries, whichever way it is empty", () => {
@@ -24,9 +24,6 @@ describe("parseNoteEntries", () => {
     });
 
     test("a note written as plain text is one entry, not a crash", () => {
-        // pos.order.line.note is a Text column: an import, an integration or a
-        // plain ORM write puts a sentence in it, and it used to reach an
-        // unguarded JSON.parse inside a render.
         expect(parseNoteEntries("extra sauce")).toEqual([
             { text: "extra sauce", colorIndex: 0 },
         ]);

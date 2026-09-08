@@ -11,8 +11,6 @@ export function useEnrichWithActionLinks(ref, selector = null) {
     const comp = useComponent();
     useEffect(
         (element) => {
-            // The effect runs for every value the ref takes, `null` included:
-            // a target behind a `t-if` hands one over as soon as it is removed.
             if (!element) {
                 return;
             }

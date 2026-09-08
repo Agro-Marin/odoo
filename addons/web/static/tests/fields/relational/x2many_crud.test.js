@@ -5,12 +5,6 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { useAddInlineRecord, useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 
 /**
- * Neither export touches the component lifecycle -- despite the `use` prefix
- * they take their collaborators as arguments -- so they are exercised directly.
- * That is the point of testing them here: the branch each one takes is decided
- * by a single boolean, and a caller passing the wrong one gets a list that
- * silently deletes where it should unlink.
- *
  * @returns {{ list: any, calls: string[] }}
  */
 function makeList() {
@@ -58,8 +52,6 @@ function makeRecord(resId, calls) {
 test("many2many links through addAndRemove, one2many has no link at all", () => {
     const { list } = makeList();
     expect(typeof useX2ManyCrud(() => list, true).linkRecords).toBe("function");
-    // The one2many branch leaves it undefined on purpose: there is nothing to
-    // link to, and X2ManyField's `onSelected` calls it with `?.` for that reason.
     expect(useX2ManyCrud(() => list, false).linkRecords).toBe(undefined);
 });
 
@@ -74,8 +66,6 @@ test("many2many saveAndLink saves without reloading, then links", async () => {
     const { list, calls } = makeList();
     const crud = useX2ManyCrud(() => list, true);
     await crud.saveAndLink(makeRecord(9, calls));
-    // `reload: false` matters: the list is about to link the record itself, and
-    // a reload here would be a second round trip for the same datapoint.
     expect(calls).toEqual(['save:9:{"reload":false}', "linkTo:9"]);
 });
 
@@ -96,8 +86,6 @@ test("updateRecord saves first only for many2many", async () => {
     expect(o2m.calls).toEqual(["validate:3"]);
 });
 
-// The distinction that matters to the user: unlinking a many2many leaves the
-// record alone, deleting a one2many child destroys it.
 test("removeRecord forgets a many2many and deletes a one2many", () => {
     const m2m = makeList();
     useX2ManyCrud(() => m2m.list, true).removeRecord(makeRecord(5, m2m.calls));
@@ -128,8 +116,6 @@ test("addInlineRecord translates its arguments for addNew", async () => {
     expect(seen).toEqual([{ context: { a: 1 }, mode: "edit", position: "bottom" }]);
 });
 
-// The guard exists because "Add a line" is reachable twice before the first
-// record materialises -- a double click, or a click plus the keyboard shortcut.
 test("addInlineRecord ignores a second call while the first is in flight", async () => {
     const started = new Deferred();
     const release = new Deferred();
@@ -150,7 +136,6 @@ test("addInlineRecord ignores a second call while the first is in flight", async
     release.resolve();
     await first;
 
-    // ...and the guard is released, rather than wedging the button for good.
     await add({ context: {}, editable: "bottom" });
     expect(calls).toBe(2);
 });

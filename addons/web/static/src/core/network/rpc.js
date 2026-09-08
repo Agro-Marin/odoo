@@ -641,13 +641,6 @@ function _rpcCached(url, params, settings, rpcCache) {
 }
 
 /**
- * The fetch options for one JSON-RPC call, and the handles needed to cancel it.
- *
- * Three signals can end this request -- our own abort, an optional timeout, and
- * the caller's -- and `AbortSignal.any` is what folds them into the one the
- * fetch actually watches. `timeoutSignal` comes back out because
- * classifyTransportFailure needs it to tell a timeout from a plain abort.
- *
  * @param {string} url
  * @param {object} data
  * @param {{[key: string]: any}} settings
@@ -707,7 +700,6 @@ function _rpcOnce(url, params, settings) {
     };
     const { controller, timeoutSignal, init } = buildFetchRequest(url, data, settings);
     let aborted = false;
-    // The caller's signal is theirs, not ours to re-broadcast on the bus.
     const busSettings = settings.signal ? omit(settings, "signal") : settings;
     const { promise, resolve, reject } = Promise.withResolvers();
     let settled = false;
@@ -720,10 +712,6 @@ function _rpcOnce(url, params, settings) {
         reject(error);
     };
     /**
-     * Announce a failure and settle. Every branch below did these two steps as
-     * its own seven-line copy; the bus event and the rejection must always agree
-     * on the error, which is exactly the invariant six copies cannot hold.
-     *
      * @param {Error} error
      */
     const fail = (error) => {
@@ -731,9 +719,6 @@ function _rpcOnce(url, params, settings) {
         settleReject(error);
     };
     /**
-     * The error a non-JSON-RPC response deserves: a 5xx is the server buckling,
-     * anything else is a response we cannot read.
-     *
      * @param {Response} response
      * @returns {NetworkError}
      */
@@ -812,8 +797,6 @@ function _rpcOnce(url, params, settings) {
         aborted = true;
         controller.abort();
         const error = new ConnectionAbortedError("fetch abort");
-        // Always announced on the bus -- a listener counting requests must see
-        // this one close -- but only rejected when the caller asked for it.
         rpcBus.trigger(RpcEvent.RESPONSE, { data, url, settings: busSettings, error });
         if (rejectError) {
             settleReject(error);

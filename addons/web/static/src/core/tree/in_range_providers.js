@@ -6,14 +6,6 @@ import { registry } from "@web/core/registry";
 export const inRangeProviderRegistry = registry.category("in_range_providers");
 
 /**
- * Ask one provider one question. A provider that throws contributes nothing
- * and says so once, whichever of the entry points below asked.
- *
- * Before, only getInRangeProviderOptions() had a try/catch. A provider that
- * threw was therefore invisible when listing options and fatal when resolving
- * one -- the operator disappeared from the dropdown but crashed the editor if it
- * was already in the domain.
- *
  * @template T
  * @param {string} what
  * @param {string} name
@@ -34,8 +26,6 @@ function askProvider(what, name, provider, ask) {
 }
 
 /**
- * The first non-empty answer, in registry order.
- *
  * @template T
  * @param {string} what
  * @param {(provider: any) => T | undefined | null | false} ask
@@ -110,8 +100,6 @@ export function describeInRangeProviderOption(fieldType, start, end) {
         if (!id) {
             return undefined;
         }
-        // Ask the provider that matched for its own label rather than
-        // rebuilding every provider's option list to look one up.
         const option = (provider.getOptions?.(fieldType) || []).find(
             (/** @type {any} */ o) => o.id === id,
         );

@@ -107,10 +107,6 @@ test("a new record still reloads", async () => {
     expect(counts.loadFn).toBe(2);
 });
 
-// A save replaces the datapoint but keeps its id. Both reload paths used to
-// claim that event -- useRecordObserver because the object changed, and the
-// onWillUpdateProps handler because its guard compared ids -- so loadFn ran
-// twice for one reload.
 test("a reloaded record -- new object, same id -- reloads once, not twice", async () => {
     const { state, counts } = await mountSpecialData();
     state.record = makeRecord(1, { foo: 2 });

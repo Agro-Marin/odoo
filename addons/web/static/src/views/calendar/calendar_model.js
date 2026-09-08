@@ -285,8 +285,6 @@ export class CalendarModel extends Model {
         const values = await multiCreateData.record.getChanges();
         const timeRange = multiCreateData.timeRange;
 
-        // Only the first section assigns: crossing every active filter of every
-        // section would create one record per combination.
         const [section] = this.filterSections;
         const assignableFilters = section
             ? section.filters.filter((filter) =>
@@ -859,9 +857,6 @@ export class CalendarModel extends Model {
     }
 
     /**
-     * One raw filter per distinct value the loaded records hold for the field,
-     * `false` standing for the records that hold none.
-     *
      * @protected
      */
     collectDynamicRawFilters(data, fieldName, filterInfo) {
@@ -889,10 +884,6 @@ export class CalendarModel extends Model {
     }
 
     /**
-     * The colour records behind the filters, when the filter's colour is not
-     * already what the event's own colour field relates to; an x2many's
-     * display names ride the same read. Mutates the x2many raw filters.
-     *
      * @protected
      * @returns {Promise<Record<string, any>[]>}
      */

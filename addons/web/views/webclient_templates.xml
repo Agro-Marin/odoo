@@ -11,16 +11,6 @@
  &lt;!DOCTYPE html&gt; <html t-att="html_data or {}">
             <head>
                 <meta charset="utf-8" />
-                <!-- Chrome on iOS wraps measures, emails and phone numbers in a
-                     <chrome_annotation> tag, which breaks OWL's patching. This
-                     undocumented meta disables it and must be present before
-                     DOMContentLoaded. It lived in boot/start.js until
-                     2026-08-17, where it was built at module-evaluation time
-                     and therefore reached only the bundles carrying that file —
-                     not the PoS, the public Discuss page, the livechat embed,
-                     the public spreadsheet or the website frontend. Emitted in
-                     the parsed markup here, it covers every Odoo page.
-                     https://issues.chromium.org/issues/353650041 -->
                 <meta name="chrome" content="nointentdetection" />
                 <title t-out="title or 'Odoo'" />
                 <link rel="icon" t-att-href="x_icon or '/web/static/img/favicon.ico'" />

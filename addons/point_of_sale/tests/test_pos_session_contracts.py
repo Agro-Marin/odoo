@@ -48,8 +48,6 @@ class TestPosSessionComputeDependencies(TestPoSCommon):
         self.assertEqual(session.cash_register_balance_end, 100.0)
 
     def test_cash_register_balance_end_follows_a_cash_move(self):
-        """Reads the balance first, so the cached value has to be invalidated by
-        the statement line rather than merely absent when it is next computed."""
         session = self._start_pos_session(self.cash_pm1, 0)
         self._paid_order("dep-move-1")
         self.assertEqual(session.cash_register_balance_end, 100.0)
@@ -72,9 +70,6 @@ class TestPosSessionComputeDependencies(TestPoSCommon):
         self.assertEqual(session.total_payments_amount, 100.0)
 
     def test_total_payments_amount_follows_the_order_state(self):
-        """The domain filters on pos_order_id.state, so a draft order's payments
-        are excluded until it is paid — and the total has to notice the
-        transition even though no payment amount moved."""
         session = self._start_pos_session(self.cash_pm1, 0)
         order = self._paid_order("dep-state-1")
         order.invalidate_recordset()
@@ -302,8 +297,6 @@ class TestPosSessionLoadContract(TestPoSCommon):
             ]
         )
 
-        # .ids, not recordset equality: recordset == is set-based and stayed
-        # green through an ordering regression this suite later had to catch
         self.assertEqual(
             session.get_session_orders().ids,
             session.order_ids.sorted().ids,
@@ -426,8 +419,6 @@ class TestPosSessionMultiRecord(TestPoSCommon):
         first.action_pos_session_closing_control()
         second = self.env["pos.session"].create({"config_id": self.config.id})
 
-        # the search this method used to run was keyed on self.id, so it raised
-        # Expected singleton here — an undeclared constraint on a public method
         self.assertEqual((first | second).get_session_orders(), self.env["pos.order"])
 
 
@@ -459,7 +450,6 @@ class TestPosSessionOldSessionAlert(TestPoSCommon):
     def test_the_alert_costs_one_query_for_the_whole_batch(self):
         for index in range(5):
             config = self.basic_config.copy({"name": f"alert-cfg-{index}"})
-            # a cash method belongs to one point of sale, so each config needs its own
             method = self.cash_pm1.copy({"name": f"alert-cash-{index}"})
             config.write({"payment_method_ids": [(6, 0, method.ids)]})
             config.open_ui()
@@ -476,8 +466,6 @@ class TestPosSessionOldSessionAlert(TestPoSCommon):
         self.env["pos.session"]._alert_old_sessions()
         second_run = self.cr.sql_log_count - before
 
-        # the second run schedules nothing, so what it costs is the lookup alone:
-        # one search for the old sessions plus one grouped read of their activities
         self.assertLessEqual(
             second_run,
             4,
@@ -504,7 +492,6 @@ class TestPosSessionLoadsItself(TestPoSCommon):
         )
 
     def test_the_session_reads_itself_without_searching(self):
-        """The claim is 'no search', not a query count — assert the claim."""
         session = self._start_pos_session(self.cash_pm1, 0)
         searched = []
         original = type(session).search
@@ -530,7 +517,6 @@ class TestPosSessionPaymentPayload(TestPoSCommon):
         self.config = self.basic_config
 
     def test_pos_payment_declares_its_field_list(self):
-        """read([]) means every field; the mixin's default is []."""
         declared = self.env["pos.payment"]._load_pos_data_fields(self.config)
 
         self.assertTrue(
@@ -562,7 +548,6 @@ class TestPosConfigPricelistPayload(TestPoSCommon):
         self.product = self.create_product("PriceProd", self.categ_basic, 100, 50)
 
     def test_the_config_answers_without_a_session(self):
-        """It reads pricelists, a company and two field lists — all the config's."""
         self.assertFalse(self.config.current_session_id)
 
         rows = self.config.get_pos_ui_product_pricelist_item_by_product(
@@ -610,7 +595,6 @@ class TestPosSessionCashMoveCurrency(TestPoSCommon):
         other_config.open_ui()
         second = other_config.current_session_id
 
-        # zero in any of their currencies must refuse the whole batch
         with self.assertRaises(UserError):
             (first | second).try_cash_in_out(
                 "in", 0, "reason", self.env.user.partner_id.id, {}
@@ -639,8 +623,6 @@ class TestPosSessionCashMoveCurrency(TestPoSCommon):
         self.assertEqual(sum(second.statement_line_ids.mapped("amount")), 25.0)
 
     def test_a_session_without_a_cash_journal_refuses_rather_than_being_skipped(self):
-        """filtered() used to drop it and post to the rest, so the caller was told
-        the movement applied to sessions it never reached."""
         with_cash = self._start_pos_session(self.cash_pm1, 0)
         bank_config = self.basic_config.copy({"name": "cashmove-bankonly"})
         bank_method = self.bank_pm1.copy({"name": "cashmove-bankonly-bank"})
@@ -668,8 +650,6 @@ class TestPosSessionPaidOrdersReachDone(TestPoSCommon):
         self.product = self.create_product("DoneProd", self.categ_basic, 100, 50)
 
     def test_paid_orders_reach_done_even_when_the_entry_has_no_lines(self):
-        """The paid -> done write used to sit inside `if move_id.line_ids`, so a
-        session whose closing entry came out empty left its orders in 'paid'."""
         session = self._start_pos_session(self.cash_pm1, 0)
         order = self._create_orders(
             [
@@ -704,9 +684,6 @@ class TestPosSessionDiffMoveLink(TestPoSCommon):
         self.product = self.create_product("DiffProd", self.categ_basic, 100, 50)
 
     def test_a_difference_entry_is_found_by_its_link_not_its_label(self):
-        """The creation site wrote a translated label as the move's only marker
-        and the lookup searched for that label. Any entry sharing the string
-        matched, and none did once the language changed."""
         session = self._start_pos_session(self.cash_pm1 | self.bank_split_pm1, 0)
         self._create_orders(
             [

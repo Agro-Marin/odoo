@@ -26,8 +26,6 @@ export class PercentageField extends NumericInputFieldBase {
      */
     parse(v) {
         const parsed = parsePercentage(v, { allowOperation: true });
-        // parsePercentage already divides a plain number by 100; only an
-        // operation's operand is still in percent.
         return parsed instanceof Operation ? unscaleParsedNumber(parsed, 100) : parsed;
     }
 

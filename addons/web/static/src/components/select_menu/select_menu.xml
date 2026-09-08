@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates>
-    <!-- Only the primary input is reachable by ref below. The other name is empty
-         rather than a second identifier nothing reads: this sub-template renders
-         twice on a bottom sheet, and owl's ref wrapper throws on a name used twice
-         in one component, so the two calls must differ. -->
     <t t-name="web.SelectMenu.search">
         <input
             type="text"
@@ -64,9 +60,6 @@
                         t-att-aria-expanded="dropdownState.isOpen ? 'true' : 'false'"
                         t-att-aria-controls="listboxId">
                         <span class="o_select_menu_toggler_slot text-start text-truncate">
-                            <!-- `hasSelection`, not `!props.value`: under multiSelect the
-                                 value is an array, and an empty array is truthy, so the
-                                 placeholder could never render. -->
                             <span t-if="props.placeholder and !hasSelection" class="text-muted" t-out="props.placeholder"/>
                             <t t-slot="default" />
                         </span>

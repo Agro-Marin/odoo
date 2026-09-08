@@ -182,9 +182,6 @@ describe("py_js refuses arguments CPython refuses", () => {
 
 describe("py_js compares sets the way CPython compares them", () => {
     test("set equality is a bijection, not a per-member lookup", () => {
-        // A JS Set keeps `1` and `True` apart where CPython's set folds them,
-        // so a per-member "some member matches" loop lets two members of the
-        // left claim the same member of the right and calls the pair equal.
         expect(evaluateExpr("set([1, True]) == set([1, 2])")).toBe(false);
         expect(evaluateExpr("set([1, True]) != set([1, 2])")).toBe(true);
         expect(evaluateExpr("set([1]) == set([True])")).toBe(true);
@@ -203,7 +200,6 @@ describe("py_js compares sets the way CPython compares them", () => {
         expect(evaluateExpr("set([1, 2]) > set([1])")).toBe(true);
         expect(evaluateExpr("set([1, 2]) >= set([1, 2])")).toBe(true);
         expect(evaluateExpr("set([1]) >= set([1, 2])")).toBe(false);
-        // Sets are only partially ordered: neither direction holds here.
         expect(evaluateExpr("set([1]) < set([2])")).toBe(false);
         expect(evaluateExpr("set([2]) < set([1])")).toBe(false);
     });
@@ -218,16 +214,12 @@ describe("py_js compares sets the way CPython compares them", () => {
     });
 
     test("the operator and the operand ORDER in the message are CPython's", () => {
-        // CPython names both in SOURCE order, so the two directions differ.
-        // py_js dispatches `a > b` as isLess(b, a), which is why this needs a
-        // wrapper in COMPARISONS rather than a message inside isLess.
         expect(() => evaluateExpr("2 > set([1])")).toThrow(
             /'>' not supported between instances of 'int' and 'set'/,
         );
         expect(() => evaluateExpr("2 < set([1])")).toThrow(
             /'<' not supported between instances of 'int' and 'set'/,
         );
-        // the same table now fixes the pre-existing date/datetime wording
         expect(() =>
             evaluateExpr("datetime.date(2024, 1, 1) > datetime.datetime(2024, 1, 1)"),
         ).toThrow(/'>' not supported between instances of 'date' and 'datetime'/);

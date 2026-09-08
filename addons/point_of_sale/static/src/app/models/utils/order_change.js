@@ -170,7 +170,5 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
 };
 
 export const receiptLineGrouper = {
-    getGroup(orderLine) {
-        // To be overridden
-    },
+    getGroup(orderLine) {},
 };

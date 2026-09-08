@@ -124,9 +124,6 @@ export class SelectMenu extends Component {
     };
 
     /**
-     * Assigned in setup() and read from the callbacks it registers, a
-     * sequence TypeScript cannot follow, so the field is declared.
-     *
      * @type {ReturnType<typeof useDropdownState>}
      */
     dropdownState;

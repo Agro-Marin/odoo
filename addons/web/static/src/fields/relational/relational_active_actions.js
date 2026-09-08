@@ -25,11 +25,6 @@ import { Domain } from "@web/core/domain";
  */
 
 /**
- * One parsed `Domain` per distinct action expression, so a re-evaluation on
- * every prop update does not re-parse. Per hook instance rather than
- * module-wide: the set of expressions a widget sees is its arch's, and a
- * module-level map keyed on every expression ever met was never pruned.
- *
  * @returns {(action: any) => Domain | null}
  */
 function makeDomainResolver() {
@@ -118,9 +113,6 @@ export function useActiveActions({
 
     const component = useComponent();
     const activeActions = compute(component.props);
-    // Before every render, not only on a props change: the domains read the
-    // record's evalContext, and an edit of the record re-renders the widget
-    // without changing its props.
     onWillRender(() => {
         Object.assign(activeActions, compute(component.props));
     });

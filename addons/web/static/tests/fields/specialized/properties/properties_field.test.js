@@ -2333,15 +2333,6 @@ test("properties: save separator folded state", async () => {
 
 test.tags("desktop");
 test("properties: separators move properties", async () => {
-    /**
-     * A move that crosses a group boundary re-parents the property's row, which
-     * destroys the DOM node the definition popover is anchored to. The popover
-     * closes on its own and `_movePopoverIfNeeded` re-opens it against the new
-     * anchor, but the overlay only mounts a frame later -- and the closed
-     * popover's node outlives the close by a frame too, so "it is still on
-     * screen" does not mean it is still live. Each move therefore waits for the
-     * popover to come back before the next one clicks it.
-     */
     const movePropertyBy = async (direction) => {
         await click(`.o_field_property_definition .oi-chevron-${direction}`);
         await animationFrame();
@@ -3346,11 +3337,6 @@ test("properties: an entry that parses to the stored value still reformats", asy
     });
 });
 
-// Clearing a many2one property handed `false` to a branch that read `[0]` off
-// it, so the value written was `undefined` and the key vanished from the
-// definition sent to the server; clearing a selection wrote the `<select>`'s
-// empty string. Both are `false` now, which is what every other cleared
-// property writes.
 test.tags("desktop");
 test("properties: clearing a many2one property writes false", async () => {
     onRpc("has_access", () => true);

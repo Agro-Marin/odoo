@@ -46,8 +46,6 @@ describe("cache key derivation", () => {
     });
 
     test("expanding through the shared derivation reaches the slot it names", () => {
-        // the defect this suite exists for: a caller that read `granularity` off
-        // the field descriptor always got "month" and expanded an unread period.
         mockDate("2021-10-10 12:00:00");
         const svc = service();
         const before = forGroupBy(svc, "date_deadline:year").end;
@@ -122,7 +120,7 @@ describe("re-anchoring", () => {
         mockDate("2021-10-15 12:00:00");
         const svc = service();
         const p = forGroupBy(svc, "date_deadline:month");
-        p.setEnd(p.start.plus({ months: 1 })); // 2021-11-01, now in the past
+        p.setEnd(p.start.plus({ months: 1 }));
         mockDate("2021-12-20 12:00:00");
         forGroupBy(svc, "date_deadline:month");
         expect(p.start.toISODate()).toBe("2021-12-01");
@@ -155,8 +153,6 @@ describe("cycle arithmetic", () => {
     test("expand adds exactly one granularity step", () => {
         mockDate("2021-10-15 12:00:00");
         for (const granularity of Object.keys(GRANULARITY_TABLE)) {
-            // Every key of GRANULARITY_TABLE pluralises to a luxon duration
-            // unit, which is what both diff() and the Duration read want.
             const unit =
                 /** @type {"hours"|"days"|"weeks"|"months"|"quarters"|"years"} */ (
                     `${granularity}s`
@@ -214,8 +210,6 @@ describe("domain and context", () => {
     });
 
     test("a date is sent unshifted; a datetime is converted to UTC", () => {
-        // the class comments this asymmetry: the server wants UTC, but a date
-        // must not shift a day on the way there.
         mockDate("2021-10-15 12:00:00");
         const dateFrom = forGroupBy(service(), "date_deadline:month").getContext({})
             .fill_temporal.fill_from;

@@ -139,10 +139,6 @@ export class DomainSelector extends Component {
     }
 
     /**
-     * The operator vocabulary offered for a field. The single place this
-     * component decides it: both the default operator and the operator editor
-     * are derived from it.
-     *
      * @param {Record<string, any>} [fieldDef]
      * @returns {string[]}
      */

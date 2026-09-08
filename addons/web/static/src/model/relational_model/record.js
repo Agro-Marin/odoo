@@ -81,12 +81,6 @@ function openMultiEditEnvelope(dispatched) {
     return { dispatched: false, result: undefined };
 }
 
-/**
- * A `*Locked` method is the half of a public/locked pair that runs inside
- * `model.mutex`: `update()` queues `updateLocked()` on it, and a caller that
- * already holds the mutex -- a list, a save, a savepoint -- calls the locked
- * half directly. Calling a locked half from outside the mutex races the queue.
- */
 export class RelationalRecord extends DataPoint {
     static type = "Record";
 

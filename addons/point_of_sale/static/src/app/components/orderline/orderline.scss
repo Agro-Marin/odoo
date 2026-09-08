@@ -31,7 +31,6 @@
 
     &.has-change:first-child::before,
     &.has-change:not(.has-change + .has-change)::before {
-        /* First has-change*/
         top: 0;
         border-top-left-radius: 3px;
         border-top-right-radius: 3px;
@@ -39,7 +38,6 @@
 
     &.has-change:not(:has(+ .has-change))::before,
     &.has-change:has(+ .orderline-combo)::before {
-        /* Last has-change*/
         bottom: 0;
         border-bottom-left-radius: 3px;
         border-bottom-right-radius: 3px;

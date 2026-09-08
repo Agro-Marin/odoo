@@ -36,10 +36,6 @@ export async function mountActionHost(options = {}) {
 }
 
 /**
- * `WebClient` swaps in a subclass; everything else is passed through to
- * `mountWithCleanup`. It is destructured rather than deleted so the caller's
- * own options object comes back unmodified.
- *
  * @param {Parameters<typeof mountWithCleanup>[1] & { WebClient?: typeof WebClient }} [options]
  */
 export async function mountWebClient(options = {}) {

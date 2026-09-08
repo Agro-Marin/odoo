@@ -87,17 +87,11 @@ export class SearchModel extends SearchQueryMixin(
     ),
 ) {
     /**
-     * A SearchModel is only ever built inside a view, so its env always
-     * carries the view config the methods below read.
-     *
      * @type {import("@web/env").OdooEnv & { config: Record<string, any> }}
      */
     env;
 
     /**
-     * Assigned by load()/_loadFromState(), which the constructor does not
-     * await, a sequence TypeScript cannot follow, so the fields are declared.
-     *
      * @type {string}
      */
     resModel;
@@ -872,10 +866,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Run `fn` with notifications held back. A `_notify()` inside the window
-     * records a pending notification instead of emitting one; the caller ends
-     * the window with a `_notify()` of its own, or drains the flag.
-     *
      * @template T
      * @param {() => T} fn
      * @returns {T}
@@ -891,8 +881,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * The asynchronous window: held until the promise `fn` returns settles.
-     *
      * @template T
      * @param {() => Promise<T>} fn
      * @returns {Promise<T>}

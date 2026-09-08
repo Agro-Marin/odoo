@@ -426,13 +426,7 @@ class PosConfig(models.Model):
 
     def _get_next_order_refs(self, device_identifier="0"):
         next_number = self.order_backend_seq_id._next()
-        # The business year, not the server's: datetime.now() is the machine's naive
-        # local clock, so around New Year the year in an order reference depended on
-        # where the server was racked rather than on where the shop is.
         year_2_digits = fields.Datetime.now().astimezone(self.env.tz).strftime("%y")
-        # A localisation is free to give this sequence a prefix or suffix, and
-        # int() on the whole rendered string raises; the tracking number is the
-        # numeric tail.
         digits = "".join(c for c in next_number if c.isdigit()) or "0"
         tracking_number = f"{int(digits) % 1000}"
         return (
@@ -557,12 +551,6 @@ class PosConfig(models.Model):
 
     @api.model
     def _load_pos_data_fields(self, config):
-        # Without this the mixin falls back to [], and read([]) means *every* field:
-        # the backend dashboard's computes (each one a query), the whole session
-        # history and the customer-display image all ship on every POS boot.
-        # Deriving the list rather than spelling it out keeps a sibling module's own
-        # stored fields working with no override, while a new non-stored dashboard
-        # compute stays out of the payload by construction.
         computed = self._get_pos_client_computed_fields()
         excluded = self._get_pos_client_excluded_fields()
         return [
@@ -619,12 +607,6 @@ class PosConfig(models.Model):
 
     @api.constrains("use_fast_payment")
     def _check_fast_payment_methods(self):
-        # Asking for fast payment with nothing to pay with is a contradiction, and is
-        # refused rather than silently turned back off. Constrained on the flag alone:
-        # listing fast_payment_method_ids here would re-enter this check from inside
-        # its own recompute, where the pair is transiently inconsistent by design.
-        # Removing the last fast method without naming the flag is not a
-        # contradiction -- write() turns it off below.
         for config in self:
             if config.use_fast_payment and not config.fast_payment_method_ids:
                 raise ValidationError(
@@ -736,9 +718,6 @@ class PosConfig(models.Model):
             if refund.refunded_order_id:
                 refund_totals[refund.refunded_order_id.id] += abs(refund.amount_total)
 
-        # Both comparisons go through the currency: summing partial refunds accumulates
-        # binary error, so a fully refunded 0.10 order reads 0.01 + 0.09 == 0.30000000004
-        # and counts as still paid.
         paid_order_count = sum(
             1
             for order in non_refund_orders
@@ -762,9 +741,6 @@ class PosConfig(models.Model):
         return statistics
 
     def _prepare_order_statistics(self, currency, amount, count):
-        # One msgid per plural form, each a whole string: a bare "order"/"orders" gives
-        # a translator no way to tell the noun from the verb, and no room for languages
-        # whose plural does not agree with English's.
         formatted = currency.format(amount)
         return {
             "amount": amount,
@@ -778,10 +754,6 @@ class PosConfig(models.Model):
 
     @api.depends("session_ids")
     def _compute_last_session(self):
-        # `stop_at` is nullable even on a closed session: action_pos_session_close
-        # reaches state 'closed' without passing closing_control. Excluding it in the
-        # domain is what makes the ordering meaningful -- DESC sorts NULLs first, so a
-        # single such row would otherwise be picked as "the last session" forever.
         tz = self.env.tz
         last_by_config = {}
         for group in self.env["pos.session"]._read_group(
@@ -951,10 +923,6 @@ class PosConfig(models.Model):
 
     @api.constrains("pricelist_id", "available_pricelist_ids")
     def _check_pricelists(self):
-        # Per record: on a multi-record set the relational reads return the union of
-        # every record's value, and comparing two unions rejects sets whose members
-        # are each valid -- a company-less pricelist on one config and a own-company
-        # one on another.
         for config in self.sudo():
             if (
                 config.pricelist_id.company_id
@@ -1051,11 +1019,6 @@ class PosConfig(models.Model):
     )
 
     def _add_company_defaults(self, vals):
-        # Every `default=` on this model reads env.company, which cannot see a
-        # company_id in the same vals dict. Creating a config for any company but the
-        # active one therefore filled each relational default from the wrong company
-        # and died in _check_company_auto -- the path imports, data files and API
-        # callers take, never the company switcher.
         company = self.env["res.company"].browse(vals["company_id"])
         defaults = self.with_company(company).default_get(
             list(self._COMPANY_DEPENDENT_DEFAULTS)
@@ -1065,9 +1028,6 @@ class PosConfig(models.Model):
                 vals[field_name] = defaults[field_name]
 
     def _get_or_create_company_warehouse(self, company, name):
-        # Keyed off the company being created for, not env.company, and off that
-        # record's own name rather than the batch's first: a two-company create used
-        # to get one warehouse, in whichever company happened to be active.
         Warehouse = self.env["stock.warehouse"]
         warehouse = Warehouse.search(Warehouse._check_company_domain(company), limit=1)
         if warehouse:
@@ -1091,9 +1051,6 @@ class PosConfig(models.Model):
         pos_configs = super().create(vals_list)
         for config in pos_configs:
             if not config.payment_method_ids:
-                # with_company, because this bootstrap searches and creates journals
-                # and payment methods against env.company -- for a config created in
-                # another company it built that company's methods out of this one's.
                 _dummy, payment_methods = config.with_company(
                     config.company_id
                 )._create_journal_and_payment_methods()
@@ -1113,9 +1070,6 @@ class PosConfig(models.Model):
     )
 
     def _get_sequence_name(self, field_name):
-        # One msgid per sequence rather than one parameterised by the technical model
-        # code: "POS pos.order.line from config #3" is not a translatable sentence, and
-        # a translator receiving %(code)s cannot know what will land in it.
         self.check_singleton()
         return {
             "order_seq_id": _("POS order from config #%s", self.id),
@@ -1331,10 +1285,6 @@ class PosConfig(models.Model):
         return res
 
     def _update_fiscal_position_ids(self, vals):
-        # Driven by what the caller asked for, not by the stored state. Re-deriving
-        # from the stored state on every write made setting fiscal_position_ids while
-        # the regime was off a silent no-op: the assignment is itself a write, and the
-        # reset ran after it and discarded the value with no error.
         if "tax_regime_selection" in vals and not vals["tax_regime_selection"]:
             self.filtered("fiscal_position_ids").fiscal_position_ids = [Command.clear()]
             return
@@ -1485,11 +1435,6 @@ class PosConfig(models.Model):
             return DEFAULT_LIMIT_LOAD_PARTNER
 
     def get_limited_partners_loading(self, offset=0):
-        # partner.id breaks the ties: order_count is 0 for most partners and names
-        # repeat, so without it LIMIT/OFFSET paging returns some partners twice and
-        # never returns others. The active filter belongs here rather than in the
-        # caller's search() -- applied afterwards, archived partners still consume
-        # the limit and the POS silently loads fewer partners than configured.
         self.env["res.partner"].flush_model(["active", "name", "company_id"])
         self.env["pos.order"].flush_model(["partner_id", "company_id"])
         return self.env.execute_query(
@@ -1538,10 +1483,6 @@ class PosConfig(models.Model):
         return False
 
     def _get_special_products(self):
-        # Called both on a config and on an empty recordset. A config's special
-        # products are its own -- tip_product_id is per-config, so returning the
-        # global tip ref for a config that uses a custom one both names a product it
-        # never sells and omits the one it does.
         if self:
             return self.tip_product_id
         return (

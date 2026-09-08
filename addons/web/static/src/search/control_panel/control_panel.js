@@ -111,10 +111,6 @@ export class ControlPanel extends Component {
         this.setupMobileStickiness();
     }
 
-    /**
-     * One palette command per switchable view, and the hotkey cycling
-     * through them when there is more than one.
-     */
     setupViewSwitcherCommands() {
         const { viewSwitcherEntries } = this.env.config;
         for (const view of viewSwitcherEntries || []) {
@@ -156,10 +152,6 @@ export class ControlPanel extends Component {
         );
     }
 
-    /**
-     * On a small screen the panel slides away with the content's scroll and
-     * comes back on the way up; nothing on a large screen.
-     */
     setupMobileStickiness() {
         useEffect(
             () => {

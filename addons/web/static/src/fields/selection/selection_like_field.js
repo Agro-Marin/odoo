@@ -54,10 +54,6 @@ export class SelectionLikeField extends FieldComponent {
     }
 
     /**
-     * The `{ id, display_name }` pair a many2one is written as, for an option
-     * id picked from `options`; `false` clears, and an id no option carries
-     * returns `undefined` so the caller can decline the write.
-     *
      * @param {unknown} id an option's id, or `false`/`null` to clear
      * @param {Array<[any, string]>} options
      * @returns {{ id: number, display_name: string } | false | undefined}

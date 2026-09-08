@@ -28,9 +28,6 @@ import { useProgressBar } from "./progress_bar_hook.js";
 const sampleModelByModel = new WeakMap();
 
 /**
- * The kanban's view of sample data over a Model class: one subclass per Model,
- * not one per controller instance.
- *
  * @param {any} Model
  * @returns {any}
  */
@@ -201,9 +198,6 @@ export class KanbanController extends MultiRecordController {
     }
 
     /**
-     * Where each unfolded column and the renderer scrolled to, keyed by the
-     * group's server value so a reload can find the column again.
-     *
      * @returns {{ scrollLeft: number, columnScrollTops: [any, number][] }}
      */
     getColumnScrollPositions() {

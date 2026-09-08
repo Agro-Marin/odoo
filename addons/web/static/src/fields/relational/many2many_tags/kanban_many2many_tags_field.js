@@ -8,11 +8,6 @@ export class KanbanMany2ManyTagsField extends Many2ManyTagsField {
     static template = "web.KanbanMany2ManyTagsField";
 
     /**
-     * Keyed on the identity of the base list, which `Many2ManyTagsField.tags`
-     * already keeps stable across renders that changed nothing. Filtering it
-     * afresh each time would hand `TagsList` a new array on every render and
-     * re-render the whole tag list for an edit elsewhere in the card.
-     *
      * @type {{ source: Object[], tags: Object[] } | null}
      */
     _visibleTagsMemo = null;

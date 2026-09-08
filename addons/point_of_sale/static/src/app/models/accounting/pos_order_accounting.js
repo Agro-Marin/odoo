@@ -155,10 +155,6 @@ export class PosOrderAccounting extends Base {
         this.amount_total = this.currency.round(this.totalDue);
         this.amount_return = this.change;
         this.lines.forEach((line) => {
-            // Deliberately NOT priceExcl/priceIncl: those carry `orderSign`, which
-            // flips a refund's amounts positive for the cashier's screen. The
-            // stored columns carry the sign of `qty` instead, so a reader does not
-            // have to join to the order to know what a number means.
             line.price_subtotal = line.currency.round(line.prices.total_excluded);
             line.price_subtotal_incl = line.currency.round(line.prices.total_included);
         });

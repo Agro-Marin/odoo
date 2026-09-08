@@ -76,7 +76,6 @@ class Action(Controller):
     def _get_breadcrumb(
         self, action: dict[str, Any], idx: int, actions: list[dict[str, Any]]
     ) -> dict[str, Any]:
-        """One breadcrumb entry, from an action id/path or from a bare model."""
         record_id = action.get("resId")
         if action.get("action"):
             return self._get_action_breadcrumb(action, record_id, idx, actions)
@@ -98,7 +97,6 @@ class Action(Controller):
         idx: int,
         actions: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        """The breadcrumb of an action reference, or the error that stopped it."""
         act = self.load(action.get("action"))
         if not act:
             return {"error": f"Action {action.get('action')!r} could not be loaded"}

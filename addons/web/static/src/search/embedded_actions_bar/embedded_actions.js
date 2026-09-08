@@ -212,10 +212,6 @@ export class EmbeddedActions {
         this._applyStoredConfig();
     }
 
-    /**
-     * Take the visibility list and the order the stored configuration
-     * holds, when it holds any.
-     */
     _applyStoredConfig() {
         this.embeddedInfos.visibleEmbeddedActions = [
             ...(this.configHandler.getEmbeddedActionsConfig(
@@ -243,9 +239,6 @@ export class EmbeddedActions {
     }
 
     /**
-     * The context an embedded action is opened or replaced with: its own
-     * declared context under the record it is embedded in.
-     *
      * @param {EmbeddedAction} action
      * @returns {Record<string, any>}
      */
@@ -368,9 +361,6 @@ export class EmbeddedActions {
     }
 
     /**
-     * Whether the name typed for the new action can be saved: present, and
-     * not already taken on this bar. Says why not, when not.
-     *
      * @returns {boolean}
      */
     _validateNewActionName() {
@@ -389,9 +379,6 @@ export class EmbeddedActions {
     }
 
     /**
-     * The `ir.embedded.actions` record for a new action cloned from the
-     * current one under the typed name.
-     *
      * @returns {Record<string, any>}
      */
     _newActionValues() {

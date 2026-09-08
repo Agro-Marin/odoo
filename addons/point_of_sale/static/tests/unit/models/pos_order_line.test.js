@@ -295,8 +295,6 @@ describe("[canBeMergedWith]: what it costs to ask", () => {
         }
 
         expect(order.lines.length).toBe(12);
-        // One resolution per added line (handlePriceUnit). The merge scan adds
-        // none, because a differing note answers before the pricelist is read.
         expect(counter.n).toBe(12);
     });
 

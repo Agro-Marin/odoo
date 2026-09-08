@@ -30,9 +30,6 @@ function useHostedSubEnv(baseEnv, extension) {
     if (baseEnv) {
         const node = /** @type {any} */ (useComponent()).__owl__;
         if (!node || !("childEnv" in node)) {
-            // Replacing the child env has no public API. If Owl renames the
-            // field, a silent assignment would leave every hosted overlay on the
-            // container's env instead of its opener's.
             throw new Error(
                 "useHostedSubEnv: owl no longer exposes __owl__.childEnv; " +
                     "the hosted env would silently fall back to the container's.",
@@ -157,24 +154,16 @@ export class OverlayContainer extends Component {
      * @returns {any}
      */
     get service() {
-        // A container can be mounted standalone, with its overlays handed to it
-        // as a prop and no env services at all.
         // eslint-disable-next-line no-restricted-syntax
         return this.env.services?.[/** @type {any} */ (this.constructor).serviceName];
     }
 
     /**
-     * Whether this container takes the overlays that asked for the main
-     * document container when there is no such container to take them. The
-     * first mounted container adopts them, so the choice is deterministic when
-     * several shadow roots are up.
-     *
      * @returns {boolean}
      */
     get adoptsUnrooted() {
         const { rootId } = this.state;
         if (rootId === undefined) {
-            // Already claims them by equality.
             return false;
         }
         const rootIds = this.containerRootIds;
@@ -203,10 +192,6 @@ export class OverlayContainer extends Component {
      * @param {Error} error
      */
     handleError(overlay, error) {
-        // Stop rendering it now rather than when the removal completes: removal
-        // awaits the caller's onClose, and anything that changes in that window
-        // re-renders a subtree that is still throwing, reporting the same crash
-        // twice.
         overlay.hasErrored = true;
         overlay.remove();
         reportUncaught(error);

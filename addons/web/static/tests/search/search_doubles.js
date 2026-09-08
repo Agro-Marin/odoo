@@ -2,49 +2,14 @@
 
 import { Mutex } from "@web/core/utils/concurrency";
 
-/**
- * Test doubles for the `SearchModel` mixin composition, one per unit, each
- * covering everything that unit's contract says it reaches.
- *
- * WHY THIS FILE EXISTS
- * --------------------
- *
- * Every mixin suite used to build its own double inline -- `Object.assign(new
- * Mixin(class {})(), { searchItems: {}, query: [], nextId: 1, blockNotification:
- * false, _notify() {…} })` -- and three of them wrote overlapping halves of the
- * same substrate. Nothing checked any of them against the composition. A double
- * that has fallen behind does not fail: the missing member reads `undefined`,
- * the assertion under test still passes, and the suite goes green against a
- * fiction. `search_panel_mixin.test.js` covered **5** of the 19 names its unit
- * declares.
- *
- * `model/relational_model/` answers this with `record_doubles.js` plus
- * `record_doubles_conformance.test.js`, and this is the same pair:
- * `search_doubles_conformance.test.js` fails when a double stops covering its
- * contract, and `js_mixin_coupling --check` fails when the contract stops
- * covering the code. The two together mean a mixin cannot grow a reach without
- * something going red.
- *
- * The members are written out rather than generated from the contract on
- * purpose. A double derived from the declaration would satisfy any check
- * against that declaration by construction, which is a test that cannot fail.
- */
-
 /** @import { QueryElement } from "@web/search/search_types" */
 
 /**
- * Members the doubles add for the tests' own benefit, declared by no unit.
- * The conformance test permits exactly these and nothing else.
- *
  * @type {string[]}
  */
 export const DOUBLE_ONLY_MEMBERS = ["_notifications"];
 
 /**
- * The notification channel every unit ends a mutation with, plus the block
- * window two of them wrap writes in. Shared because the real composition
- * shares it -- `_notify` is reached by five of the six units.
- *
  * @param {string[]} steps
  */
 function notificationChannel(steps) {
@@ -87,10 +52,6 @@ function notificationChannel(steps) {
     };
 }
 
-/**
- * The item registry and the query the registry is indexed against: the state
- * assigned in `SearchModel.setup()` that four units read straight off `this`.
- */
 function itemRegistry() {
     return {
         /** @type {Record<number, any>} */
@@ -106,11 +67,6 @@ function itemRegistry() {
     };
 }
 
-/**
- * The derivation family the mixins call up into. Answers are inert by design:
- * a suite that cares about one of them overrides it, and a suite that does not
- * should not be silently depending on its shape.
- */
 function derivations() {
     return {
         _getContext: () => ({}),
@@ -224,8 +180,6 @@ const DOUBLES = {
 };
 
 /**
- * The members one unit's double supplies, before overrides.
- *
  * @param {string} module
  * @returns {Record<string, any>}
  */
@@ -238,9 +192,6 @@ export function doubleMembersFor(module) {
 }
 
 /**
- * A double for one unit of the composition, ready to be assigned onto an
- * instance of that unit's mixin applied to a bare class.
- *
  * @param {string} module — the unit's path, as SEARCH_COMPOSITION_ORDER spells it
  * @param {Record<string, any>} [overrides]
  * @returns {any}

@@ -100,7 +100,6 @@ class WebJsonController(http.Controller):
         )
 
     def _get_json_record(self, model, spec, record_id):
-        """The single record `subpath` addressed, as a JSON response."""
         if not record_id:
             raise BadRequest(request.env._("Missing record id"))
         res = model.browse(int(record_id)).web_read(spec)
@@ -111,7 +110,6 @@ class WebJsonController(http.Controller):
     def _get_json_listing(
         self, model, domain, spec, groupby, aggregates, limit, offset
     ):
-        """The grouped or flat listing `subpath` addressed, as a JSON response."""
         if groupby:
             res = model.web_read_group(
                 domain,
@@ -133,7 +131,6 @@ class WebJsonController(http.Controller):
         return request.prepare_json_response(res)
 
     def _get_json_domains(self, model, action, context, eval_context, kwargs):
-        """The action's domain, plus the caller's or the view's default one."""
         domains = [safe_eval(action.domain or "[]", eval_context)]
         if "domain" in kwargs:
             try:
@@ -149,7 +146,6 @@ class WebJsonController(http.Controller):
         return domains
 
     def _get_json_window(self, action, kwargs):
-        """The `(limit, offset)` pair, echoed back into `kwargs` when defaulted."""
         try:
             limit = int(kwargs.get("limit", 0)) or action.limit
             offset = int(kwargs.get("offset", 0))
@@ -162,7 +158,6 @@ class WebJsonController(http.Controller):
         return limit, offset
 
     def _get_json_date_domain(self, view_tree, kwargs):
-        """The date window a calendar/gantt/cohort view reads, defaulted from it."""
         try:
             start_date = date.fromisoformat(kwargs["start_date"])
             end_date = date.fromisoformat(kwargs["end_date"])
@@ -184,7 +179,6 @@ class WebJsonController(http.Controller):
         return date_domain
 
     def _update_json_activity_spec(self, model, spec):
-        """Add the readable `activity_*` fields an activity view needs to `spec`."""
         for field_name, field in model._fields.items():
             if (
                 field_name.startswith("activity_")
@@ -194,7 +188,6 @@ class WebJsonController(http.Controller):
                 spec[field_name] = {}
 
     def _get_json_aggregates(self, model, fields):
-        """`fields` as read_group aggregate specs, or `__count` when there are none."""
         if not fields:
             return ["__count"]
         env = request.env

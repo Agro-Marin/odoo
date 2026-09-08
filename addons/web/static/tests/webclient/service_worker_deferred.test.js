@@ -57,10 +57,6 @@ describe("service worker activation settlement", () => {
         const settled = new Deferred();
         await registerServiceWorker(settled);
         expect(await hasSettled(settled)).toBe(true);
-        // `stopWatching` joined the surface so `env.destroy()` can stop the
-        // update timer and the visibilitychange listener that
-        // `watchServiceWorkerUpdates` installs; without it they outlived every
-        // test that started this service.
         expect(Object.keys(serviceWorkerService.start())).toEqual([
             "registrationSettled",
             "stopWatching",
@@ -94,8 +90,6 @@ describe("service worker teardown", () => {
         });
 
         const service = serviceWorkerService.start();
-        // `registrationSettled` resolves in a `finally`, before the return value
-        // reaches the constructor's `.then`; wait for the disposer itself.
         for (let i = 0; i < 50 && service.stopWatching === null; i++) {
             await Promise.resolve();
         }

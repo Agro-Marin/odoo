@@ -48,16 +48,10 @@ function subscribersFor(specialDataCaches, key) {
 export function useSpecialData(loadFn) {
     const component = useComponent();
     const record = component.props.record;
-    // The raw map: it is plumbing shared by every widget on the model, and
-    // read through the record's reactive proxy every write to it would
-    // re-render whoever last read it -- which is this component, at each load.
     const specialDataCaches = toRaw(record.model.specialDataCaches);
     const orm = useService("orm");
     let loadTicket = 0;
     let appliedTicket = 0;
-    // Equal data is not applied: a loader that assembles its result from two
-    // calls returns a fresh array each time, and assigning it would re-render,
-    // which reloads, which assembles another -- without end.
     const apply = (ticket, data) => {
         if (ticket >= appliedTicket) {
             appliedTicket = ticket;
@@ -132,22 +126,12 @@ export function useSpecialData(loadFn) {
     };
     const load = () => {
         const ticket = ++loadTicket;
-        // The record is read through a proxy bound to this component's own
-        // render: a prop is bound to the parent's, so reads through it would
-        // re-render the parent and leave this widget -- whose props did not
-        // change -- exactly where it was.
         const props = { ...component.props };
         if (props.record) {
             props.record = reactive(props.record, rerender);
         }
         return loadFn(ormWithCache, props).then((res) => apply(ticket, res));
     };
-    // The loader runs before the first render and again before every later
-    // one, except the render that applying its own result caused. What it
-    // reads of the record -- the domain's dependencies, the current ids --
-    // subscribes this component to those fields, so an edit that changes the
-    // domain re-renders and reloads while an unrelated edit does neither. A
-    // reload whose inputs did not change hits the args-keyed cache.
     onWillStart(load);
     let firstRender = true;
     onWillRender(() => {

@@ -23,7 +23,6 @@
                         <label for="name" />
                         <h1><field name="name" placeholder="e.g. NYC Shop" /></h1>
                     </div>
-                    <!-- HIDE this div in create_mode (when '+ New Shop' is clicked in the general settings.) -->
                     <div invisible="context.get('pos_config_create_mode', False)">
                         <div
                             class="o_notification_alert alert alert-warning"
@@ -40,7 +39,6 @@
                         </div>
                     </div>
 
-                    <!-- SHOW this div in create_mode (when '+ New Shop' is clicked in the general settings.) -->
                     <div
                         id="restaurant_on_create"
                         class="row mt16 o_settings_container"
@@ -50,7 +48,6 @@
                         </setting>
                     </div>
 
-                    <!-- HIDE this div in create_mode (when '+ New Shop' is clicked in the general settings.) -->
                     <div
                         class="row mt16 o_settings_container"
                         invisible="context.get('pos_config_create_mode', False)">
@@ -222,7 +219,6 @@
                     </div>
                 </sheet>
 
-                <!-- Replace the default save/discard buttons so that when any of the buttons is clicked, the modal immediately closes. -->
                 <footer invisible="not context.get('pos_config_open_modal', False)">
                     <button string="Save" special="save" class="btn-primary" />
                     <button string="Discard" class="btn-secondary" special="cancel" />
@@ -297,7 +293,6 @@
         </field>
     </record>
 
-    <!-- Products sub Category -->
     <menuitem
         id="menu_products_pos_category"
         parent="point_of_sale.pos_menu_products_configuration"

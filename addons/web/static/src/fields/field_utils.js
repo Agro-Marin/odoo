@@ -57,11 +57,6 @@ export function extractNumericOptions({ options }) {
 }
 
 /**
- * A parsed numeric input, re-scaled for a widget that displays a multiple of
- * the stored value: a plain number is divided, and so is the operand of a
- * relative `+`/`-` operation, while `*` and `/` operations are scale-free and
- * pass through as they are.
- *
  * @template {number | Operation} T
  * @param {T} parsed
  * @param {number} divisor

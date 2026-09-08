@@ -169,14 +169,6 @@ function resolveActionFromModel(state, lastAction, options) {
 }
 
 /**
- * Walks the url's action stack from the tip down, one level per leaf that could
- * not be resolved.
- *
- * `lastAction` is threaded through rather than re-read per level: the two
- * resolvers mutate it only on the paths that also *return* it, and the one
- * `return null` that recurses happens before any of that, so every level below
- * sees the same pristine object the top level normalised.
- *
  * @param {Record<string, any>} state
  * @param {Record<string, any>} lastAction
  * @returns {{ actionRequest: ActionRequest, options: ActionOptions } | null}
@@ -222,7 +214,6 @@ function resolveActionParams(state, lastAction) {
  * @returns {{ actionRequest: ActionRequest, options: ActionOptions } | null}
  */
 export function getActionParams(state) {
-    // One sessionStorage read and one parse per call, not per stack level.
     const lastAction = actionStorage.getCurrentAction();
     delete lastAction.context?.allowed_company_ids;
     if (lastAction.help) {

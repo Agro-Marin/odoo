@@ -30,9 +30,6 @@ async function buildPlaceholderText(orm, model, { path, defaultValue, fieldType 
 }
 
 /**
- * Splices `text` into the element at `rangeIndex`, optionally swallowing the
- * `#` that opened the picker, and tells the input hook about it.
- *
  * @param {HTMLInputElement | HTMLTextAreaElement} element
  * @param {string} text
  * @param {{ rangeIndex: number, removeTriggerKey: boolean }} where

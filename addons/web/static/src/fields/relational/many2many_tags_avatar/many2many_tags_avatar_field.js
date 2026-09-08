@@ -23,10 +23,6 @@ export class Many2ManyTagsAvatarField extends Many2ManyTagsField {
     };
 
     /**
-     * The extra fields the autocomplete's search reads, beyond display_name.
-     * A shared constant: the getter is read per render and handed on as a
-     * prop, so a fresh `{}` each time re-rendered the autocomplete for nothing.
-     *
      * @returns {Object}
      */
     get specification() {
@@ -170,9 +166,6 @@ export class KanbanMany2ManyTagsAvatarField extends Many2ManyTagsAvatarField {
     _popoverProps = null;
 
     /**
-     * Handed to the tag list as a prop on every render; memoised so an
-     * unrelated edit of the card does not re-render every tag.
-     *
      * @returns {Object}
      */
     get popoverProps() {

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Product Tags -->
     <record id="product_tag_form_view_inherit_point_of_sale" model="ir.ui.view">
         <field name="name">product.tag.form.inherit.point.of.sale</field>
         <field name="model">product.tag</field>

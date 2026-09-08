@@ -97,7 +97,6 @@ class TableExporter(http.Controller):
         )
 
     def _write_pivot_col_headers(self, worksheet, jdata, header_plain, measure_count):
-        """The column-group header rows; returns the first free row."""
         x, y, carry = 1, 0, deque()
         for i, header_row in enumerate(jdata["col_group_headers"]):
             worksheet.write(i, 0, "", header_plain)
@@ -134,7 +133,6 @@ class TableExporter(http.Controller):
     def _write_pivot_measure_headers(
         self, worksheet, jdata, y, header_bold, header_plain
     ):
-        """The measure header row, when there is one; returns the first free row."""
         measure_headers = jdata["measure_headers"]
         if not measure_headers:
             return y
@@ -145,7 +143,6 @@ class TableExporter(http.Controller):
         return y + 1
 
     def _write_pivot_rows(self, worksheet, jdata, y, header_plain, bold):
-        """One worksheet row per pivot row, its title indented by its depth."""
         for row in jdata["rows"]:
             indent = _clamp_int(row.get("indent", 0), 50)
             worksheet.write(

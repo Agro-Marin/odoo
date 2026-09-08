@@ -45,8 +45,6 @@ errorNotificationRegistry.addValidation({
 });
 
 /**
- * The host that served the failing script, when the error came with an event.
- *
  * @param {UncaughtError} error
  * @returns {string | undefined}
  */

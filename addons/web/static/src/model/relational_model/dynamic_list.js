@@ -24,10 +24,6 @@ const DEFAULT_HANDLE_FIELD = "sequence";
  * @abstract
  */
 /**
- * Whether `value` would save as what the record already holds. A many2one
- * with a renamed display name is a change, as the single-record update path
- * treats it (Record._pruneUnchangedMany2ones).
- *
  * @param {{ type: string }} field
  * @param {any} value
  * @param {any} current
@@ -448,14 +444,6 @@ export class DynamicList extends EditableListDataPoint {
     }
 
     /**
-     * Public, and not `_warnIfTruncated`, because it is not web's alone: a
-     * "select all" resolves to at most `activeIdsLimit` ids, and every list
-     * view that acts on the selection in bulk has to tell the user when the
-     * rest was left behind. `data_recycle` reached across the tree for the
-     * private spelling rather than reimplement the three-way test; the answer
-     * to a bundled addon needing a behaviour is to publish it, not to let the
-     * reach stand -- `jsprivate_crosstree` counts exactly that.
-     *
      * @param {number[]} resIds
      * @param {() => string} message
      * @returns {void}
@@ -563,12 +551,6 @@ export class DynamicList extends EditableListDataPoint {
     }
 
     /**
-     * A multi-edit does not write the record locally until it is confirmed,
-     * so a widget re-applying its value while the confirmation is pending
-     * (a date picker closing behind the dialog) queues a second update that
-     * runs after the first saved, with the same value the record now holds.
-     * Such a field would only ask the user again.
-     *
      * @param {import("./record").RelationalRecord} editedRecord
      * @param {Record<string, any>} changes
      * @returns {Record<string, any>}

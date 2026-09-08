@@ -26,14 +26,6 @@ export class ListGridState {
     _colIndexById = new Map();
 
     /**
-     * Only what `update()` never refreshes.
-     *
-     * Every other option this took was overwritten by the first `update()` --
-     * which `ListRenderer` calls from `onWillRender`, before anything reads the
-     * state -- and `columns` was handed `this.columns` while it was still `[]`.
-     * A constructor that appears to seed a grid it does not seed is worse than
-     * one that admits `update()` owns the data.
-     *
      * @param {object} options
      * @param {object} options.list the list to materialise until the first update
      * @param {boolean} [options.isRTL] the one option `update()` is never passed

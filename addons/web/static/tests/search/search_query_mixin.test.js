@@ -20,8 +20,6 @@ function makeSearchModel(overrides = {}) {
     Object.assign(
         model,
         makeCompositionDouble("search/search_query_mixin.js", {
-            // `facets` is read by these suites but declared by no unit, so it
-            // stays here rather than in the shared double.
             facets: [],
             ...overrides,
         }),

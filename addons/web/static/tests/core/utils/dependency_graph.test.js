@@ -9,12 +9,6 @@ import {
 describe.current.tags("headless");
 
 /**
- * The cycle `graph` contains, asserted to exist.
- *
- * findDependencyCycle returns `string[] | null`; every caller below then indexes
- * into it. Saying "not null" with expect() does not narrow the type, which is
- * what produced 30 identical `possibly null` errors under the strict config.
- *
  * @param {Map<string, string[]>} graph
  * @returns {string[]}
  */
@@ -156,7 +150,6 @@ describe("createWaveResolver", () => {
     });
 });
 
-/* --- merged from tests/core/dependency_graph.test.js: one module, one suite --- */
 describe("findDependencyCycle", () => {
     test("returns null for empty graph", () => {
         const graph = new Map();

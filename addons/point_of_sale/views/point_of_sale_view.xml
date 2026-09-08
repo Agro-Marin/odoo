@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Top menu item -->
     <menuitem
         id="menu_point_root"
         name="Point of Sale"
@@ -9,7 +8,6 @@
         groups="group_pos_manager,group_pos_user"
         web_icon="point_of_sale,static/description/icon.png" />
 
-    <!-- Orders menu -->
     <menuitem
         id="menu_point_of_sale"
         name="Orders"
@@ -23,7 +21,6 @@
         action="account.res_partner_action_customer"
         sequence="100" />
 
-    <!-- Reporting menu -->
     <menuitem
         id="menu_point_rep"
         name="Reporting"
@@ -37,7 +34,6 @@
         action="action_report_pos_daily_sales_reports"
         sequence="5" />
 
-    <!-- Config menu and sub menus -->
     <menuitem
         id="menu_point_config_product"
         name="Configuration"

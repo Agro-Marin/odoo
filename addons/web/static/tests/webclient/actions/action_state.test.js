@@ -88,9 +88,6 @@ test("each further pop increments the count", async () => {
 });
 
 test("a deep action stack reads the stored action once, not once per level", async () => {
-    // getActionParams recurses one level per leaf it cannot resolve. Re-reading
-    // and re-parsing the same sessionStorage blob at every level is work that
-    // grows with breadcrumb depth for no gain.
     let reads = 0;
     patchWithCleanup(browser.sessionStorage, {
         getItem(key) {

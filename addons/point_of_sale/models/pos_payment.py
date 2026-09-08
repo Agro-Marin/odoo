@@ -86,7 +86,6 @@ class PosPayment(models.Model):
 
     @api.model
     def _get_pos_client_computed_fields(self):
-        # the related ones are real data the client reads; display_name is a label
         return {
             "currency_id",
             "currency_rate",
@@ -97,10 +96,6 @@ class PosPayment(models.Model):
 
     @api.model
     def _load_pos_data_fields(self, config):
-        # Without this the mixin falls back to [], and read([]) means *every* field.
-        # Deriving rather than enumerating keeps a sibling module's own stored fields
-        # working with no override, while a new non-stored compute stays out of the
-        # payload by construction. Mirrors pos.config's rule.
         computed = self._get_pos_client_computed_fields()
         return [
             name

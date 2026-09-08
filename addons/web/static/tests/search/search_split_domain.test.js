@@ -11,10 +11,6 @@ describe.current.tags("headless");
 
 const QueryModel = SearchSplitDomainMixin(SearchQueryMixin(class {}));
 
-/**
- * The block window belongs to the host, which this two-mixin model has no
- * level for: take the doubles' spelling of it rather than a third one.
- */
 const { _withNotificationsBlocked } = doubleMembersFor(
     "search/search_split_domain_mixin.js",
 );

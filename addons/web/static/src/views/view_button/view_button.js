@@ -53,8 +53,6 @@ function iconFromString(iconString) {
 }
 
 /**
- * The slice of a record a view button's action is built from.
- *
  * @param {Object} record
  */
 export function recordResParams(record) {

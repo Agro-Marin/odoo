@@ -167,12 +167,6 @@ export class DateTimePickerController {
         });
 
         /**
-         * `enable` attaches the input listeners and returns their remover;
-         * `dispose` is its inverse and then some -- it also closes the popover,
-         * releases the target margin and drops the registration below.
-         * `unregister` is only that last step, and exists for the caller that
-         * wants to leave a live picker out of the "close the others" sweep.
-         *
          * @type {DateTimePickerHandle}
          */
         this.picker = {
@@ -580,15 +574,6 @@ export class DateTimePickerController {
         this.updateValue(values.length === 2 ? values : values[0], "date", "input");
     };
 
-    /**
-     * Every step runs even when an earlier one throws, and the first failure is
-     * re-raised afterwards. A picker that cannot close its popover must still
-     * drop its input listeners and its registration -- otherwise the page keeps
-     * a dead picker wired to a detached input, and the next `open` sweeps the
-     * registry closing something that no longer exists. This guarantee used to
-     * live in the one caller careful enough to spell it out by hand; it belongs
-     * here, where all three callers get it.
-     */
     dispose = () => {
         this.destroyed = true;
         /** @type {any} */

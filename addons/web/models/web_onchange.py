@@ -24,10 +24,6 @@ class Base(models.AbstractModel):
         first_call = not field_names
 
         if not (self and self._name == "res.users"):
-            # res.users defines SELF_WRITEABLE_FIELDS to give access to the
-            # user to modify themselves, we skip the check in that case
-            # because the user does not have write permission on themselves
-            # TODO update res.users
             self.check_access("write" if self else "create")
 
         field_names = self._onchange_get_known_field_names(field_names)
@@ -104,12 +100,6 @@ class Base(models.AbstractModel):
     def _onchange_compute_default_siblings(
         self, record: Any, field_names: list[str]
     ) -> None:
-        """Compute the other outputs of a method one default already fixed.
-
-        A default is protected together with every sibling of its compute
-        method, as `write` protects a written value; without this, the
-        siblings the default did not touch would never be computed.
-        """
         defaulted = {self._fields[fname] for fname in field_names}
         handled = set()
         for field in defaulted:
@@ -136,7 +126,6 @@ class Base(models.AbstractModel):
                 sibling._update_cache(record, value)
 
     def _onchange_get_known_field_names(self, field_names: list[str]) -> list[str]:
-        """`field_names` minus the ones this model does not carry, with a warning."""
         unknown_names = [fname for fname in field_names if fname not in self._fields]
         if not unknown_names:
             return field_names
@@ -150,7 +139,6 @@ class Base(models.AbstractModel):
     def _onchange_update_default_values(
         self, values: dict, fields_spec: dict
     ) -> list[str]:
-        """Seed `values` from `default_get` on the first call; return what changed."""
         stale_names = [
             fname for fname in values if fname != "id" and fname not in self._fields
         ]
@@ -176,7 +164,6 @@ class Base(models.AbstractModel):
         return field_names
 
     def _onchange_update_x2many_cache(self, values: dict, fields_spec: dict) -> None:
-        """Prime the cache of the x2many lines `values` touches, as new records."""
         self.fetch(fields_spec.keys())
         for field_name, field_spec in fields_spec.items():
             field = self._fields[field_name]
@@ -205,7 +192,6 @@ class Base(models.AbstractModel):
     def _onchange_prepare_record(
         self, values: dict, field_names: list[str], fields_spec: dict
     ) -> tuple[Any, dict]:
-        """The virtual record the onchange methods run on, and the changed values."""
         initial_values = dict(values)
         changed_values = {
             fname: initial_values.pop(fname)
@@ -235,7 +221,6 @@ class Base(models.AbstractModel):
         return record, changed_values
 
     def _onchange_get_warning(self, warnings: OrderedSet) -> dict[str, str] | None:
-        """The single dialog the collected onchange warnings add up to."""
         if not warnings:
             return None
         if len(warnings) == 1:

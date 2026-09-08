@@ -39,7 +39,6 @@
                     </t>
                 </div>
 
-                <!-- Total -->
                 <div class="pos-receipt-amount receipt-total fw-bolder">
                     <span class="label-total">Total</span>
                     <span t-out="order.currencyDisplayPriceIncl" class="pos-receipt-right-align font-monospace"/>
@@ -55,7 +54,6 @@
                     </div>
                 </t>
 
-                <!-- Payment Lines -->
                 <div class="paymentlines text-start pt-1" t-foreach="paymentLines" t-as="line" t-key="line_index">
                     <t t-esc="line.payment_method_id.name" />
                     <span t-out="formatCurrency(line.getAmount())" class="pos-receipt-right-align font-monospace"/>
@@ -66,7 +64,6 @@
                     <span t-out="formatCurrency(order.change)" class="pos-receipt-right-align font-monospace"/>
                 </div>
 
-                <!-- Extra Payment Info -->
                 <t t-set="totalDiscount" t-value="order.getTotalDiscount()" />
                 <t t-if="totalDiscount">
                     <div class="text-start">
@@ -91,11 +88,9 @@
                         </div>
                     </div>
                 </div>
-                <!-- handle xpath using before-footer! -->
                 <div class="before-footer"/>
             </t>
 
-            <!-- Footer -->
             <div t-if="order.config.receipt_footer" class="pos-receipt-center-align pt-3 text-center" style="white-space:pre-line">
                 <t t-esc="order.config.receipt_footer" />
             </div>
@@ -119,7 +114,6 @@
 
             <t t-set="company" t-value="order.company" />
             <div class="d-flex gap-2 pt-3">
-                <!-- Left: Company Address -->
                 <div class="w-50 text-break text-start" style="font-size: 75%;">
                     <div class="pos-config-name" t-out="order.config.name"/>
                     <div>
@@ -130,7 +124,6 @@
                     </div>
                 </div>
 
-                <!-- Right: Contact Info -->
                 <div class="w-50 text-break text-end" style="font-size: 75%;">
                     <div>
                         <div t-if="company.vat" t-out="vatText"/>

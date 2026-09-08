@@ -458,8 +458,6 @@ test("a container whose service is not started says so", async () => {
 });
 
 test("the same lookup answers for the overlay container, and for a prop", async () => {
-    // Both containers resolve "the record this renders" the same way, so the
-    // message that names the missing service is written once.
     const container = Object.create(OverlayContainer.prototype);
     container.env = await makeMockEnv();
     expect(() => serviceBackedItems(container, undefined)).not.toThrow();

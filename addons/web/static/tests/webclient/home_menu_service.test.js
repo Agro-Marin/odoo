@@ -31,14 +31,6 @@ test("use stored menus, and update on load_menus return", async () => {
             webIcon: "bloop,bloop",
         },
     ]);
-    // Initial Stored Values
-    // There is no menu "CRM" in the initial values
-    // menu_storage scopes the cache token to `${registry_hash}:${user.userId}`
-    // so a shared browser cannot serve one user the menus of another
-    // (the tree is filtered by access rights server-side). serverState's
-    // default userId is 7; a bare hash is a miss, and a miss makes the boot
-    // await `load_menus` — which this test deliberately never resolves before
-    // asserting on the cached render.
     browser.localStorage.webclient_menus_version =
         "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0:7";
     browser.localStorage.webclient_menus = JSON.stringify({

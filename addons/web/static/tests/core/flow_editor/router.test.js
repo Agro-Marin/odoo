@@ -27,8 +27,6 @@ function collides(points, obstacles) {
 }
 
 /**
- * Count genuine 90° corners, the same way `polylineToRoundedPath` does.
- *
  * @param {[number, number][]} points
  * @returns {number}
  */
@@ -83,9 +81,6 @@ describe("buildOrthogonalPath", () => {
     });
 
     test("never doubles back when an obstacle's expanded edge extends past the target", () => {
-        // Reproduces the original bug: a naive detour computed only from the
-        // obstacle's own edge, with no clamp against the target, used to
-        // overshoot past `end` and have to travel back to reach it.
         const obstacles = [{ x1: 50, y1: 150, x2: 500, y2: 250 }];
         const { points } = buildOrthogonalPath({
             start: { x: 0, y: 100 },
@@ -124,8 +119,8 @@ describe("buildOrthogonalPath", () => {
 
     test("threads the gap between two stacked obstacles instead of going all the way around", () => {
         const obstacles = [
-            { x1: 100, y1: -10, x2: 200, y2: 10 }, // blocks the direct row (y=0)
-            { x1: 100, y1: 20, x2: 200, y2: 100 }, // gap between the two obstacles: y in (10, 20)
+            { x1: 100, y1: -10, x2: 200, y2: 10 },
+            { x1: 100, y1: 20, x2: 200, y2: 100 },
         ];
         const { points } = buildOrthogonalPath({
             start: { x: 0, y: 0 },
@@ -148,14 +143,10 @@ describe("buildOrthogonalPath", () => {
         });
         expect(collides(points, obstacles)).toBe(false);
         expect(hasReversal(points)).toBe(false);
-        // the shrunk lead never reaches as far as the obstacle's edge
         expect(points[1][0]).toBeLessThan(10);
     });
 
     test("routes a target behind the source without reversing, even with no obstacles", () => {
-        // Ports always exit/enter horizontally to the right, so a target
-        // positioned behind the source can never be reached with a single
-        // elbow — only a row corridor can connect them without reversing.
         const { points } = buildOrthogonalPath({
             start: { x: 300, y: 0 },
             end: { x: 0, y: 100 },
@@ -176,11 +167,6 @@ describe("buildOrthogonalPath", () => {
     });
 
     test("ignores an unrelated obstacle that never overlaps its own horizontal span", () => {
-        // Reproduces a reported bug: dragging a node far from an unrelated
-        // connection (e.g. moving "Start" while "Call a Group" -> "Hangup"
-        // is elsewhere on the canvas) used to reshuffle that connection's
-        // corridor row, because every obstacle's edges fed the row search
-        // regardless of whether they were anywhere near the connection.
         const start = { x: 300, y: 100 };
         const end = { x: 0, y: 400 };
         const farAwayObstacleAt = (/** @type {number} */ y) => [
@@ -226,10 +212,6 @@ describe("buildOrthogonalPath", () => {
 
 describe("staircaseRoute", () => {
     test("terminates and stays collision-free even when a column is sandwiched by two obstacles", () => {
-        // Two obstacles sandwich the source's own lead column (x=32) above and
-        // below, while leaving row 0 itself clear so the lead stays exactly on
-        // that column. Direct 0/2-bend shapes are impossible here (this is
-        // only meant to exercise the escape valve in isolation).
         const obstacles = [
             { x1: 20, y1: 10, x2: 44, y2: 1000 },
             { x1: 20, y1: -1000, x2: 44, y2: -10 },
@@ -240,8 +222,6 @@ describe("staircaseRoute", () => {
         const B = [-268, 0];
         const points = staircaseRoute(A, B, obstacles);
         expect(collides(points, obstacles)).toBe(false);
-        // every segment stays axis-aligned (no diagonal jump), even in the
-        // guard-exhausted last-resort branch
         for (let index = 0; index < points.length - 1; index++) {
             const [x0, y0] = points[index];
             const [x1, y1] = points[index + 1];

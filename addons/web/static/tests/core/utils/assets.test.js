@@ -17,11 +17,6 @@ import {
 describe.current.tags("headless");
 
 /**
- * `loadBundle` appends `<link>` and `<script>` elements, and every callback
- * below reads `tagName`, `type` or `getAttribute` off the argument -- all
- * Element members that a bare Node does not have. Several are async, so the
- * return is whatever they hand back.
- *
  * @param {(node: HTMLLinkElement | HTMLScriptElement) => any} callback
  * @param {HTMLHeadElement} [head] the iframe cases pass their own
  */
@@ -66,8 +61,6 @@ afterEach(async () => {
 });
 
 test("loadJS: load invalid JS lib", async () => {
-    // 3 assertions per attempt, and a script is retried on the same schedule as
-    // a stylesheet: one initial mount plus assets.retries.count.
     expect.assertions(3 * 4 + 1);
 
     patchWithCleanup(assets, { retries: { count: 3, delay: 1, extraDelay: 1 } });
@@ -334,8 +327,6 @@ test("loadBundle: load same bundle in main document and an iframe", async () => 
         "add document SCRIPT - text/javascript - file2.js",
     ]);
 
-    // The descriptor depends on the page bundle the document rendered, and
-    // the iframe rendered none, so it is fetched once more for that page.
     const iframeLoad = loadBundle("test.bundle", { targetDoc: iframeDocument });
     await animationFrame();
     expect.verifySteps([
@@ -785,7 +776,6 @@ describe("the whenReady re-seed", () => {
         expect([...(assetCacheByDocument.get(doc)?.keys() ?? [])]).toEqual([
             "/early.js",
         ]);
-        // seeded, not loaded: no second <script> was appended
         expect(doc.head.querySelectorAll("script[src]")).toHaveLength(1);
     });
 
@@ -794,13 +784,9 @@ describe("the whenReady re-seed", () => {
         appendScript(doc, "/early.js");
         loadJS("/early.js", { targetDoc: doc });
 
-        // the rest of the page parses in
         appendScript(doc, "/late.js");
         expect(assetCacheByDocument.get(doc)?.has("/late.js")).toBe(false);
 
-        // without the re-seed the loader does not know about it and appends a copy.
-        // That copy never loads in a detached document, so the promise is expected
-        // to reject at teardown -- what is under test is the extra <script>.
         loadJS("/late.js", { targetDoc: doc }).catch(() => {});
         expect(doc.head.querySelectorAll('script[src="/late.js"]')).toHaveLength(2);
     });
@@ -811,7 +797,6 @@ describe("the whenReady re-seed", () => {
         loadJS("/early.js", { targetDoc: doc });
 
         appendScript(doc, "/late.js");
-        // what whenReady does for `document`: re-scan into the existing map
         assets.reseedFromDocument(doc);
         expect(assetCacheByDocument.get(doc)?.has("/late.js")).toBe(true);
 

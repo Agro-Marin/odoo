@@ -23,11 +23,6 @@ from .export_writers import (
 
 _logger = logging.getLogger(__name__)
 
-# CSV/XLSX export has no inherent row cap: a domain-based export materializes
-# every matching record (and, for XLSX, the whole workbook) in memory before
-# responding. This is a safety net against an unrestricted domain forcing
-# unbounded memory use, not a product-facing limit; override via the
-# web.export_max_rows system parameter if a deployment needs a different cap.
 _EXPORT_MAX_ROWS_DEFAULT = 100_000
 
 
@@ -188,7 +183,6 @@ class Export(http.Controller):
         import_compat: bool,
         parent_field_type: str | None,
     ) -> dict[str, Any]:
-        """One entry of the export field tree, with its lazy-children params."""
         ident = prefix + ("/" if prefix else "") + field_name
         val = ident
         if (
@@ -297,10 +291,6 @@ class Export(http.Controller):
 
 
 class ExportFormat:
-    # The registered extension, and the only thing a subclass states about its
-    # format. The mimetype comes from the same registration, so the two cannot
-    # drift apart -- `application/vnd.ms-excel` on OOXML bytes is the shape that
-    # mistake takes when they are declared separately.
     format_key: str = ""
 
     @property
@@ -355,7 +345,6 @@ class ExportFormat:
             raise InternalServerError(payload) from exc
 
     def _check_export_order(self, Model: Any, order: str | None) -> None:
-        """Refuse an `order` that is not a comma-separated list of known fields."""
         if not order:
             return
         order_root = []
@@ -387,7 +376,6 @@ class ExportFormat:
     def _get_export_rows(
         self, Model: Any, records: Any, field_names: list[str]
     ) -> list[list]:
-        """Every record's exported row, read and invalidated in prefetch batches."""
         all_rows = []
         for batch_ids in itertools.batched(records.ids, PREFETCH_MAX, strict=False):
             batch = Model.browse(batch_ids)
@@ -404,7 +392,6 @@ class ExportFormat:
         ids: list[int] | None,
         domain: list,
     ) -> GroupsTreeNode:
-        """The grouped export tree: every group's rows, under its own leaf."""
         groupby_root = [x.split(":", 1)[0].split(".", 1)[0] for x in groupby]
         unknown = [f for f in groupby_root if f not in Model._fields]
         if unknown:

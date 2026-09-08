@@ -98,8 +98,6 @@ $o-datetime-picker-width: calc(5px * 7 * 8 + (2 * #{map-get($spacers, 2)})) !def
     }
 }
 
-// The pseudo-element is what carries the mask: `mask` clips `box-shadow` too,
-// and this control's focus ring is one, behind `outline: 0`.
 .btn-close {
     background-image: none;
 

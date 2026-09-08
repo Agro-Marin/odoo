@@ -107,9 +107,6 @@ export function getActiveActions(rootNode) {
 }
 
 /**
- * The context a graph or pivot drill-down opens its records with: the report's
- * own grouping and default filters must not follow into the list.
- *
  * @param {Record<string, any>} context
  * @returns {Record<string, any>}
  */
@@ -124,8 +121,6 @@ export function drillDownContext(context) {
 }
 
 /**
- * The list and form views of the current action, by id when it declares them.
- *
  * @param {Array<[number | false, string]>} [actionViews]
  * @returns {Array<[number | false, string]>}
  */
@@ -155,9 +150,6 @@ export function drillDownAction(metaData, actionViews, { domain, views, context 
 }
 
 /**
- * Open the list of records behind a report cell: the drill-down action built
- * from the renderer's model and the action's views.
- *
  * @param {{ actionService: any, model: { metaData: any }, env: any }} renderer
  * @param {Array} domain
  * @param {Array} views
@@ -350,8 +342,6 @@ export function useControllerServices() {
 }
 
 /**
- * The fields of `activeFields` a view may offer for export.
- *
  * @param {Record<string, any>} fields
  * @param {Record<string, any>} activeFields
  * @param {(field: any) => boolean} [keep] a view-specific filter, applied first

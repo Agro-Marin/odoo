@@ -53,25 +53,12 @@ afterEach(() => restoreRegistry(registry), { global: true });
  * @param {Registry} registry
  */
 export function clearRegistry(registry) {
-    // Object.create(null), not {}: Registry looks keys up with `key in content`
-    // and `content[key]`, both of which walk the prototype chain. A plain object
-    // makes the registry answer for every member of Object.prototype -- a field
-    // widget named "toString" would resolve to Object.prototype.toString instead
-    // of raising KeyNotFoundError. Production builds it the same way
-    // (core/registry.js); a test harness that does not is a harness that can
-    // pass where the real thing would throw.
     registry.content = Object.create(null);
     registry.elements = null;
     registry.entries = null;
 }
 
 /**
- * The environment of the running test. Only meaningful inside one, where
- * `makeMockEnv` has set it -- `getService` below dereferences it with no guard
- * for the same reason, and 33 call sites read `.bus` or `.services` straight
- * off this. Declaring it nullable here would push a check into every one of
- * them for a case none of them can reach.
- *
  * @returns {OdooEnv}
  */
 export function getMockEnv() {
@@ -213,8 +200,6 @@ export function restoreRegistry(registry) {
     if (registriesContent.has(registry)) {
         clearRegistry(registry);
 
-        // Assign into the null-prototype object clearRegistry just made rather
-        // than replacing it with Object.fromEntries's plain one.
         Object.assign(
             registry.content,
             Object.fromEntries(registriesContent.get(registry)),

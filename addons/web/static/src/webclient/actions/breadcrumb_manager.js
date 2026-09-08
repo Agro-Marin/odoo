@@ -93,11 +93,6 @@ async function resolveBreadcrumbs(entries, breadcrumbCache) {
             answers.set(key, answer);
         }
     }
-    // Await what was captured above rather than reading the cache back. The
-    // cache is bounded, so a trail longer than its limit evicts its own entries
-    // between the write and the read, and an evicted one is indistinguishable
-    // from a crumb the server declined to name -- which drops it from the trail
-    // and from the url.
     const results = await Promise.all(
         entries.map((entry) =>
             Promise.resolve(answers.get(entry.key)).catch((error) => ({
@@ -109,10 +104,6 @@ async function resolveBreadcrumbs(entries, breadcrumbCache) {
 }
 
 /**
- * Names each entry's controller from the server's answer. The two callers below
- * differ only in which controllers they nominate and in what an unresolved one
- * costs, so that is all they carry.
- *
  * @param {BreadcrumbEntry[]} entries
  * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
  * @param {(controller: Controller, error?: any) => void} [onUnresolved]

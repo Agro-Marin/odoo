@@ -12,11 +12,8 @@
     text-shadow: none;
     touch-action: manipulation;
 }
-/*  ********* Generic element styling  ********* */
 
 .dvh-100 {
-    // we specify the 100vh as a fallback in case the browser does not
-    // know dvh
     height: 100vh !important;
     height: 100dvh !important;
 }
@@ -29,8 +26,6 @@
 .pos li {
     list-style-type: none;
 }
-
-/* --- Generic Restyling and Resets --- */
 
 html {
     -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
@@ -88,8 +83,6 @@ html {
     user-select: text;
 }
 
-// .o-default-button would be hidden with web assets, but the dialog css file excluded from pos
-// as o-default-button is used inside custom pos dialogs, only apply it to form dialogs
 .o_dialog:has(.o_form_view) {
     button.o-default-button:not(:only-child) {
         display: none;

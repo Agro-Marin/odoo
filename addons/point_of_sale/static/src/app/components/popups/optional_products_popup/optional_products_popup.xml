@@ -9,9 +9,7 @@
                 t-key="optional_product.product_tmpl_id.id"
                 t-attf-class="py-2 {{ optional_product == state.product_lines.at(-1) ? '' : 'border-bottom' }}">
 
-                <!-- Optional Product Line -->
                 <div class="optional-product-line d-flex justify-content-between align-items-center">
-                    <!-- Product Details -->
                     <div class="d-flex flex-column align-items-left overflow-hidden">
                         <div class="d-flex align-items-center flex-grow-1">
                             <img t-if="pos.config.show_product_images" t-att-src="optional_product.product_tmpl_id.getImageUrl()" alt="Product Image"
@@ -27,7 +25,6 @@
                         </div>
                     </div>
 
-                    <!-- Add to Cart Buttons -->
                     <div class="cart-buttons btn-group d-flex align-items-center ms-2 flex-shrink-0" role="group">
                         <t t-if="!optional_product.qty">
                             <button

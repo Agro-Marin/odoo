@@ -49,16 +49,10 @@ export class SubscriptionManager {
         if (session.expiration_date) {
             this.expirationDate = deserializeDateTime(session.expiration_date);
         } else {
-            // If no date found, assume 1 month and hope for the best
             this.expirationDate = DateTime.utc().plus({ days: 30 });
         }
         this.expirationReason = session.expiration_reason;
-        // Hack: we need to know if there is at least one app installed (except from App and
-        // Settings). We use mail to do that, as it is a dependency of almost every addon. To
-        // determine whether mail is installed or not, we check for the presence of the key
-        // "storeData" in session_info, as it is added in mail.
         this.hasInstalledApps = "storeData" in session;
-        // "user" or "admin"
         this.warningType = session.warning;
         this.isWarningHidden = Boolean(cookie.get("oe_instance_hide_panel"));
         this.sysadmin = session.sysadmin_message || {};
@@ -80,15 +74,11 @@ export class SubscriptionManager {
     }
 
     hideWarning() {
-        // Hide warning for 24 hours.
         cookie.set("oe_instance_hide_panel", "1", 24 * 60 * 60);
         this.isWarningHidden = true;
     }
 
     /**
-     * Internal users who logged in during the last fifteen days, the figure
-     * odoo.com prices a purchase or an upsell on.
-     *
      * @returns {Promise<number>}
      */
     _countRecentlyActiveUsers() {
@@ -106,8 +96,6 @@ export class SubscriptionManager {
         browser.location.href = `https://www.odoo.com/odoo-enterprise/upgrade?num_users=${nbUsers}`;
     }
     /**
-     * Save the registration code then triggers a ping to submit it.
-     *
      * @param {string} enterpriseCode
      */
     async submitCode(enterpriseCode) {

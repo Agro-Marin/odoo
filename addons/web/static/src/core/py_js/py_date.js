@@ -172,12 +172,6 @@ function assertTimeComponents(hour, minute, second, microsecond = 0) {
     }
 }
 
-/**
- * What a date and a datetime share: a proleptic-Gregorian ordinal and the
- * weekday derived from it. Deliberately NOT `PyDateTime extends PyDate`: the
- * interpreter and py_compare dispatch on `instanceof PyDate`, and CPython does
- * not treat a datetime as a date for comparison either.
- */
 class PyCalendarDate {
     /** @type {number} */
     year = 0;

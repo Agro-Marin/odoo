@@ -305,9 +305,7 @@ export default class IndexedDB {
         if (this.db) {
             try {
                 this.db.close();
-            } catch {
-                // already closed
-            }
+            } catch {}
             this.db = null;
         }
         this.dbVersion = false;
@@ -451,9 +449,7 @@ export default class IndexedDB {
                 failure = error;
                 try {
                     transaction.abort();
-                } catch {
-                    // A completed transaction can no longer be aborted.
-                }
+                } catch {}
                 fail(error);
             };
             timeout = setTimeout(

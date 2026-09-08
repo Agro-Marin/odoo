@@ -17,7 +17,6 @@ class TestPosProductTemplate(CommonPosTest):
         self.config.open_ui()
         self.session = self.config.current_session_id
 
-    # -- pos_sequence ---------------------------------------------------
 
     def test_pos_sequence_is_unique_across_a_batch_create(self):
         templates = self.env["product.template"].create(
@@ -43,8 +42,6 @@ class TestPosProductTemplate(CommonPosTest):
         self.assertEqual(template.pos_sequence, 4242)
 
     def test_pos_sequence_treats_an_explicit_zero_as_unset(self):
-        # the field carries no default, so default_get omits it and a client that
-        # renders the handle column still posts 0; 0 has to mean "give me one"
         self.assertNotIn(
             "pos_sequence", self.env["product.template"].default_get(["pos_sequence"])
         )
@@ -57,7 +54,6 @@ class TestPosProductTemplate(CommonPosTest):
         source = self.env["product.template"].create({"name": "Sequence source"})
         self.assertNotEqual(source.copy().pos_sequence, source.pos_sequence)
 
-    # -- public_description ---------------------------------------------
 
     def test_empty_public_description_is_normalised_on_create(self):
         template = self.env["product.template"].create(
@@ -89,11 +85,8 @@ class TestPosProductTemplate(CommonPosTest):
         )
         self.env.invalidate_all()
 
-    # -- the loaded payload ----------------------------------------------
 
     def _search_read(self, **context):
-        # pos_loyalty's override reads data["pos.config"], so give the loader the
-        # shape pos.session.load_data hands it rather than an empty dict
         data = {"pos.config": [{"_pos_special_products_ids": []}]}
         return (
             self.env["product.template"]
@@ -131,8 +124,6 @@ class TestPosProductTemplate(CommonPosTest):
             {"name": "Quietly repriced", "available_in_pos": True}
         )
         self.env.flush_all()
-        # write_date is the transaction clock, so age everything but `changed`
-        # to put a real cut-off between them
         long_ago = fields.Datetime.now() - timedelta(days=30)
         self.env.cr.execute(
             "UPDATE product_template SET write_date = %s WHERE id != %s",
@@ -169,7 +160,6 @@ class TestPosProductTemplate(CommonPosTest):
         rows = self._search_read()
         self.assertTrue(all("_archived_combinations" in row for row in rows))
 
-    # -- load_product_from_pos -------------------------------------------
 
     def _uom_barcode_fixture(self):
         variant = self.ten_dollars_no_tax.product_variant_id
@@ -225,8 +215,6 @@ class TestPosProductTemplate(CommonPosTest):
         )
 
     def test_a_search_by_barcode_substring_does_not_drag_in_packagings(self):
-        # the POS search box sends ("barcode", "ilike", word) on every keystroke;
-        # matching every packaging by substring is unbounded, so it is not mirrored
         packaging = self._uom_barcode_fixture()
         data = self.env["product.template"].load_product_from_pos(
             self.config.id,
@@ -275,7 +263,6 @@ class TestPosProductTemplate(CommonPosTest):
         )
         self.assertEqual(data["product.pricelist.item"], [])
 
-    # -- create_product_variant_from_pos ----------------------------------
 
     def test_a_variant_created_from_the_pos_is_read_like_every_other(self):
         attribute = self.env["product.attribute"].create(
@@ -322,8 +309,6 @@ class TestPosProductTemplate(CommonPosTest):
         self.assertEqual(rows[0]["list_price"], 20.0)
 
     def test_a_foreign_company_product_is_not_converted_twice(self):
-        # list_price is priced in the product's own company currency; converting the
-        # whole payload from one currency doubles a product already priced in the target
         self._price_the_other_currency_at(2.0)
         other = self.env["res.company"].create(
             {"name": "POS probe EUR co", "currency_id": self.env.ref("base.EUR").id}
@@ -339,8 +324,6 @@ class TestPosProductTemplate(CommonPosTest):
         )
         config = self.pos_config_eur
         self.assertEqual(config.currency_id, self.env.ref("base.EUR"))
-        # the caller declares both companies, so with_company(config's company) only
-        # reorders them and the foreign product stays visible to the record rule
         both = {"allowed_company_ids": [self.company.id, other.id]}
         template_row = (
             self.env["product.template"]
@@ -369,8 +352,6 @@ class TestPosProductTemplate(CommonPosTest):
         config = self.config
         self.assertEqual(config.company_id, self.company)
         model = self.env["product.template"]
-        # the reading company travels on the RECORDS, not on the model, which is
-        # what _load_pos_data_read is handed
         from_home = model._load_pos_data_read(
             self.ten_dollars_no_tax.with_company(self.company), config
         )
@@ -385,7 +366,6 @@ class TestPosProductTemplate(CommonPosTest):
             "config's company, not whoever asked for it",
         )
 
-    # -- get_product_info_pos ---------------------------------------------
 
     def test_the_product_info_lists_each_vendor_once(self):
         template = self.ten_dollars_no_tax
@@ -473,11 +453,8 @@ class TestPosProductTemplate(CommonPosTest):
         if warehouse_id and info["warehouses"]:
             self.assertEqual(info["warehouses"][0]["id"], warehouse_id)
 
-    # -- sale_ok and optional products -------------------------------------
 
     def test_clearing_sale_ok_by_write_also_clears_available_in_pos(self):
-        # the domain requires both, so the other state is a product that is flagged
-        # for the POS and silently never loads
         template = self.env["product.template"].create(
             {"name": "Withdrawn from sale", "available_in_pos": True}
         )
@@ -495,7 +472,6 @@ class TestPosProductTemplate(CommonPosTest):
         with self.assertRaises(ValidationError):
             template.pos_optional_product_ids = template
 
-    # -- archiving and deleting -------------------------------------------
 
     def test_archiving_by_write_is_refused_while_a_session_is_open(self):
         with self.assertRaises(UserError):
@@ -521,9 +497,6 @@ class TestPosProductTemplate(CommonPosTest):
             tip.write({"active": False})
 
     def test_the_global_tip_stays_protected_when_no_config_sets_one(self):
-        # the mirror of the test above: asking the configs alone answers with an
-        # empty set once every config has cleared its tip, and the global-ref
-        # fallback only runs for the empty recordset
         self.session.action_pos_session_closing_control()
         self.env["pos.config"].sudo().search([]).write({"tip_product_id": False})
         tip = self.env.ref("point_of_sale.product_product_tip").product_tmpl_id
@@ -564,8 +537,6 @@ class TestPosProductTemplate(CommonPosTest):
         )
 
     def test_archiving_one_variant_is_allowed_while_a_session_is_open(self):
-        # retiring one combination is not taking the product off the terminal, and
-        # the payload says so through _archived_combinations
         template = self._a_two_variant_product()
         variant = template.product_variant_ids[0]
         variant.action_archive()
@@ -573,8 +544,6 @@ class TestPosProductTemplate(CommonPosTest):
         self.assertTrue(template.active)
 
     def test_archiving_the_last_variant_is_refused_while_a_session_is_open(self):
-        # product.product.action_archive cascades to the template once no active
-        # variant is left, and that really does take the product off the terminal
         template = self._a_two_variant_product()
         template.product_variant_ids[0].action_archive()
         with self.assertRaises(UserError):

@@ -7,10 +7,6 @@ import { DEFAULT_FLOW_VIEWPORT } from "./flow_types.js";
 import { clampScale } from "./geometry/coordinates.js";
 
 /**
- * Copy the editor-owned parts of a node so that interactions never mutate
- * objects supplied by a consumer. Arbitrary `data` payloads remain
- * consumer-owned and must be treated as read-only by the editor.
- *
  * @param {import("./flow_types").FlowNode} node
  * @returns {import("./flow_types").FlowNode}
  */
@@ -27,12 +23,6 @@ function copyNode(node) {
     };
 }
 
-/**
- * Local reactive state for a flow editor.
- *
- * Consumers own loading and persistence. The store only owns the graph copy and
- * ephemeral UI state used while editing it.
- */
 export class FlowEditorStore {
     /**
      * @param {Object} [params]
@@ -68,8 +58,6 @@ export class FlowEditorStore {
     }
 
     /**
-     * Replace consumer-owned graph data while preserving the viewport.
-     *
      * @param {Object} graph
      * @param {import("./flow_types").FlowNode[]} graph.nodes
      * @param {import("./flow_types").FlowConnection[]} graph.connections
@@ -84,7 +72,6 @@ export class FlowEditorStore {
                 ? interaction.connectionDraft
                 : null;
         const sourceNode = draft ? this.getNode(draft.sourceNodeId) : undefined;
-        // Rewiring a connection updates consumer props while the pointer gesture is active.
         const sourcePortExists =
             draft && sourceNode?.outputs.some((port) => port.id === draft.sourcePortId);
         this.interaction = sourcePortExists ? interaction : null;
@@ -169,8 +156,6 @@ export class FlowEditorStore {
     }
 
     /**
-     * Removing a node also removes every connection attached to it.
-     *
      * @param {import("./flow_types").FlowNodeId} nodeId
      * @returns {boolean}
      */
@@ -342,11 +327,6 @@ export class FlowEditorStore {
 }
 
 /**
- * Create a reactive flow editor store.
- *
- * A component subscribes to it by wrapping the result in `useState`; a
- * consumer holding the store outside a component observes it as it stands.
- *
  * @param {ConstructorParameters<typeof FlowEditorStore>[0]} [params]
  * @returns {FlowEditorStore}
  */

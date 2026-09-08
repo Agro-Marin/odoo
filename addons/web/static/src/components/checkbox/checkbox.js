@@ -51,9 +51,6 @@ export class CheckBox extends Component {
     rootRef;
 
     /**
-     * Assigned in setup() and called from a later callback, which is a
-     * sequence TypeScript cannot follow, so the field is declared.
-     *
      * @type {() => boolean}
      */
     syncWithValue;

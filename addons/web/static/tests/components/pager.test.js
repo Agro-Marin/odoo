@@ -572,10 +572,6 @@ test("editing survives a pointerdown inside the input, and only that", async () 
     }
     const props = { offset: 0, limit: 4, total: 10, onUpdate() {} };
 
-    // Clicking the input to move the caret must not tear the input down. The
-    // click-away hook fires on every window pointerdown, so before it honoured
-    // its own getAnchor/getContentEl this collapsed edit mode on the first
-    // click inside the field.
     await mountWithCleanup(Host, { props });
     await contains(".o_pager_value").click();
     expect("input.o_pager_value").toHaveCount(1);
@@ -585,8 +581,6 @@ test("editing survives a pointerdown inside the input, and only that", async () 
         message: "clicking inside the open input keeps edit mode",
     });
 
-    // A bare pointerdown, with no focus or click following it, is the event the
-    // hook actually listens to.
     queryOne("input.o_pager_value").dispatchEvent(
         new PointerEvent("pointerdown", { bubbles: true, composed: true }),
     );
@@ -595,7 +589,6 @@ test("editing survives a pointerdown inside the input, and only that", async () 
         message: "a bare pointerdown inside the input keeps edit mode",
     });
 
-    // ...while a pointerdown anywhere else still commits and closes.
     await contains(".outside").click();
     await animationFrame();
     expect("input.o_pager_value").toHaveCount(0, {

@@ -252,9 +252,6 @@ class Base(models.AbstractModel):
             new = self._coerce_concurrency_value(field, new_raw)
             return current not in (baseline, new)
         # fmt: skip below: ruff format (target-version=py314) rewrites the
-        # parenthesized tuple into PEP 758's unparenthesized `except A, B:`
-        # form, which is syntactically valid here but reads like the
-        # long-forbidden Python 2 comma-except grammar. Tracked in t25382.
         except (TypeError, ValueError):  # fmt: skip
             return False
 
@@ -420,8 +417,6 @@ class Base(models.AbstractModel):
         if not self:
             return []
         if set(specification) <= {"id"}:
-            # read() checks access for every other spec; the id-only shortcut
-            # below must not let a caller enumerate a model it cannot read
             self.check_access("read")
         return self._web_read(specification)
 

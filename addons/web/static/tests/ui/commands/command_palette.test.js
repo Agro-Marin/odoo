@@ -1815,8 +1815,6 @@ test("two commands that cannot render in one pass both lose their row", async ()
 
 test("opening the palette asks each provider once", async () => {
     await mountWithCleanup(MainComponentsContainer);
-    // Let the container settle: its own post-mount render would cancel and
-    // restart a palette still starting (see the overlay entry in CLAUDE.md §4).
     await animationFrame();
     let calls = 0;
     getService("dialog").add(CommandPalette, {

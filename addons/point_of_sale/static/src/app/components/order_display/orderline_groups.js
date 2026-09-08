@@ -35,13 +35,6 @@ export function orderlineGroupKey(line) {
 }
 
 /**
- * Collapses the repeated lines of one product into one displayed line.
- *
- * Lines sharing product, attributes, lots, unit price, discount, notes and stock
- * location form a group; combos and their children pass through untouched. The displayed member
- * of a group is the selected line when one is selected, otherwise the first, so
- * the numpad and the lot icon keep acting on the line the cashier picked.
- *
  * @param {PosOrderline[]} lines display-ordered lines, combo children behind their parent
  * @returns {{ lines: PosOrderline[], groupOf: Map<string, OrderlineGroup> }}
  */

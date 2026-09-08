@@ -48,11 +48,6 @@ class MixinPosLoad(models.AbstractModel):
         return domain
 
     def _with_pos_company(self, config):
-        """The config's company first, so company-dependent fields (standard_price,
-        cost_currency_id) read as the company the payload is for rather than as
-        whichever company the requester happens to have selected. Every company the
-        caller already had stays allowed, so no record rule narrows; and a user who
-        is not in the config's company cannot read that config in the first place."""
         company_id = config.company_id.id
         if not company_id:
             return self
@@ -68,10 +63,6 @@ class MixinPosLoad(models.AbstractModel):
     def _load_pos_data_read(self, records, config):
         if not config:
             raise ValueError("config must be provided to read PoS data.")
-        # a payload is read FOR one config. Without this the requirement is still
-        # enforced, but by `config.company_id.id` several frames down: this fork's
-        # relational fields return the union rather than raising on a multi-record
-        # receiver, so `config.company_id` reads fine and only `.id` blows up.
         config.check_singleton()
 
         fields = self._load_pos_data_fields(config)

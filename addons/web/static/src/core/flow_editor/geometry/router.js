@@ -5,18 +5,8 @@
  * @typedef {[number, number]} FlowPoint
  */
 
-/**
- * Small clearance kept off an obstacle's edge. Obstacles are already expanded
- * by the caller's own `padding`, so this only needs to clear the exact
- * (inclusive) boundary `segmentIntersectsRect` treats as a collision.
- */
 const BOUNDARY_MARGIN = 1;
 
-/**
- * Default vertical offset used by the row corridor when no obstacle informs
- * a better one (e.g. no obstacle at all, but the target sits behind the
- * source and a corridor is still the only valid shape).
- */
 const DEFAULT_CORRIDOR_OFFSET = 40;
 
 /**
@@ -57,9 +47,6 @@ function simplifyPoints(points) {
 }
 
 /**
- * Collapse a point whose incoming and outgoing segments share the same axis
- * and direction: it is a straight continuation, not a genuine corner.
- *
  * @param {FlowPoint[]} points
  * @returns {FlowPoint[]}
  */
@@ -91,11 +78,6 @@ function mergeCollinearSegments(points) {
 }
 
 /**
- * Every segment here is axis-aligned, so two consecutive segments can only
- * share an axis by continuing in the same direction — already collapsed by
- * `mergeCollinearSegments` — or by reversing on it. Any same-axis adjacency
- * surviving that merge is therefore necessarily a reversal.
- *
  * @param {FlowPoint[]} points
  * @returns {boolean}
  */
@@ -243,10 +225,6 @@ function blockingObstacles(points, obstacles) {
 }
 
 /**
- * Assemble the true anchors with a candidate's interior route, collapse the
- * result to its genuine corners, and accept it only if it never reverses on
- * an axis it just travelled and never crosses an obstacle — leads included.
- *
  * @param {FlowPoint} startPoint
  * @param {FlowPoint} endPoint
  * @param {FlowPoint[]} routePoints
@@ -264,9 +242,6 @@ function validateCandidate(startPoint, endPoint, routePoints, obstacles) {
 }
 
 /**
- * Shrink a port's mandatory lead stub so it stops short of an obstacle
- * sitting on its row, instead of assuming the full `lead` distance is clear.
- *
  * @param {number} anchorX
  * @param {number} y
  * @param {1 | -1} direction leaving the anchor (+x for a source, -x for a target)
@@ -291,10 +266,6 @@ function adaptiveLead(anchorX, y, direction, maxLead, obstacles) {
 }
 
 /**
- * A single elbow, only possible when the target column is at or ahead of the
- * source column — an orthogonal path whose mandatory leads both point +x
- * cannot fold back on itself with a single bend otherwise.
- *
  * @param {FlowPoint} A
  * @param {FlowPoint} B
  * @param {import("./nodes").FlowRect[]} obstacles
@@ -309,8 +280,8 @@ function elbowCandidates(A, B, obstacles) {
     }
     /** @type {FlowPoint[][]} */
     const candidates = [
-        [A, [B[0], A[1]], B], // turn late: keep the source row as long as possible
-        [A, [A[0], B[1]], B], // turn early: reach the target column immediately
+        [A, [B[0], A[1]], B],
+        [A, [A[0], B[1]], B],
     ];
     /** @type {Set<import("./nodes").FlowRect>} */
     const blocked = new Set();
@@ -329,21 +300,12 @@ function elbowCandidates(A, B, obstacles) {
 }
 
 /**
- * A row corridor (vertical, then horizontal, then vertical): the only shape
- * that also works when the target sits behind the source, since its middle
- * horizontal run isn't adjacent to either mandatory (+x) lead.
- *
  * @param {FlowPoint} A
  * @param {FlowPoint} B
  * @param {import("./nodes").FlowRect[]} obstacles
  * @returns {FlowPoint[][]}
  */
 function corridorCandidates(A, B, obstacles) {
-    // Only obstacles whose x-range overlaps the corridor's own horizontal
-    // span can ever block one of its legs. Restricting candidate rows to
-    // these keeps the chosen route stable when an unrelated, distant node
-    // moves — it can no longer shift which gap looks best for a connection
-    // it was never actually near.
     const minX = Math.min(A[0], B[0]);
     const maxX = Math.max(A[0], B[0]);
     const relevantObstacles = obstacles.filter(
@@ -363,9 +325,6 @@ function corridorCandidates(A, B, obstacles) {
         const gapEnd = sorted[index + 1] - BOUNDARY_MARGIN;
         if (gapEnd > gapStart) {
             let row = (gapStart + gapEnd) / 2;
-            // A row exactly on A[1]/B[1] would collapse the corridor back
-            // into a same-row shape instead of a genuine detour — nudge off
-            // it, staying inside the gap, so the shape stays meaningful.
             if (row === A[1] || row === B[1]) {
                 row =
                     row + BOUNDARY_MARGIN <= gapEnd
@@ -395,9 +354,6 @@ function corridorCandidates(A, B, obstacles) {
 }
 
 /**
- * Try every shape, simplest (fewest bends) first, and return the first one
- * that survives full validation.
- *
  * @param {FlowPoint} startPoint
  * @param {FlowPoint} endPoint
  * @param {FlowPoint} A
@@ -422,14 +378,6 @@ function findValidRoute(startPoint, endPoint, A, B, obstacles) {
 }
 
 /**
- * Last-resort route for the pathological case where an obstacle sits astride
- * one port's own column, defeating every fixed-shape candidate above. Clears
- * one blocking obstacle at a time — each hop permanently gets past whichever
- * obstacle triggered it, so the walk is bounded by the obstacle count and
- * always terminates. This should never trigger on a hand-drawn flow
- * diagram; it exists only so "never overlap a node" holds unconditionally,
- * even if that means exceeding 4 bends in this one residual case.
- *
  * @param {FlowPoint} A
  * @param {FlowPoint} B
  * @param {import("./nodes").FlowRect[]} obstacles
@@ -466,8 +414,6 @@ export function staircaseRoute(A, B, obstacles) {
         }
         points.push(current);
     }
-    // The guard should never be exhausted in practice; keep the result
-    // orthogonal even here rather than closing with a diagonal segment.
     if (current[0] !== B[0] && current[1] !== B[1]) {
         points.push([current[0], B[1]]);
     }
@@ -475,25 +421,9 @@ export function staircaseRoute(A, B, obstacles) {
     return points;
 }
 
-/**
- * Vertical clearances tried, closest to the node first, before falling back
- * to the smallest one unconditionally.
- */
 const SELF_LOOP_MARGINS = [40, 72, 104];
 
 /**
- * Build the route for a connection whose source and target are the same
- * node.
- *
- * `buildOrthogonalPath`'s obstacle math treats an anchor sitting on an
- * obstacle's own boundary as instantly blocked - necessary so every *other*
- * connection stops right at its port - which means the node a self-loop
- * belongs to can never be included in its own `obstacles`. Routed with that
- * exclusion, the direct output->input path cuts straight across the node's
- * body, hidden behind it since connections render under nodes. This instead
- * drops the loop below (or above, whichever side the output port already
- * leans toward) the node's own bounding box, clearing it by construction.
- *
  * @param {Object} params
  * @param {import("../flow_types").FlowPosition} params.start
  * @param {import("../flow_types").FlowPosition} params.end
@@ -562,16 +492,6 @@ export function buildSelfLoopPath({
 }
 
 /**
- * Build an orthogonal route between two anchors that never crosses an
- * obstacle and never reverses direction on an axis it just travelled.
- *
- * Ports always sit on a node's left (input) or right (output) edge, so the
- * mandatory lead in/out of an anchor is always horizontal. A bounded set of
- * shapes is tried in order of visual simplicity — a straight line, a single
- * elbow, a row corridor — each fully validated (every segment, leads
- * included, against every obstacle); a deterministic, terminating sweep is
- * used only if none of them can be made to work.
- *
  * @param {Object} params
  * @param {import("../flow_types").FlowPosition} params.start
  * @param {import("../flow_types").FlowPosition} params.end

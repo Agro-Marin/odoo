@@ -50,9 +50,6 @@ function trapFocus(e) {
 }
 
 /**
- * Claims the UI for the referenced element: it becomes the scope hotkeys and
- * commands are dispatched to, and it traps the focus.
- *
  * @param {string} refName
  */
 export function useActiveElement(refName) {
@@ -67,9 +64,6 @@ export function useActiveElement(refName) {
         (el) => {
             if (el) {
                 const [firstTabableEl] = getFirstAndLastTabableElements(el);
-                // Claiming the scope and moving the focus are two decisions.
-                // An element with nothing to focus still owns its hotkeys and
-                // commands; it just must not steal the focus to say so.
                 const takesFocus = Boolean(firstTabableEl) || isFocusable(el);
                 const oldActiveElement = document.activeElement;
                 scope.el = el;

@@ -8,9 +8,6 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
 /**
- * A 2xx that landed on another path is the login page, the session having
- * expired between the click and the request.
- *
  * @param {XMLHttpRequest} xhr
  * @param {string} route
  * @returns {boolean}
@@ -90,9 +87,6 @@ class FileUploadService {
     }
 
     /**
-     * An empty stand-in that keeps the file's identity, so a controller can
-     * create the record and sign a direct upload for it without the bytes.
-     *
      * @param {File} file
      * @returns {File}
      */
@@ -196,8 +190,6 @@ class FileUploadService {
     }
 
     /**
-     * Take the upload off the books in its final state.
-     *
      * @param {Record<string, any>} upload
      * @param {"loaded" | "error" | "abort"} state
      */
@@ -226,11 +218,6 @@ class FileUploadService {
     }
 
     /**
-     * Send a file's bytes straight to a storage URL a controller signed for
-     * it, outside the Odoo server. Resolves on the status the signer declared
-     * and rejects with an Error carrying `status` otherwise; the browser
-     * reports a CORS refusal as a network error, which arrives as status 0.
-     *
      * @param {{url: string, method: string, response_status: number, headers?: Record<string, string>}} uploadInfo
      * @param {File | Blob} file
      * @param {{ onProgress?: (loaded: number, total: number) => void }} [options]

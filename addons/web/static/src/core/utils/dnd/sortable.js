@@ -66,9 +66,6 @@ function acceptsElement(ctx, element) {
 }
 
 /**
- * The siblings a placeholder can move among: the placeholder itself and the
- * sortable elements around it, the dragged one excluded.
- *
  * @param {Record<string, any>} ctx
  * @param {HTMLElement} element
  * @returns {Element[]}
@@ -83,9 +80,6 @@ function placeholderSiblings(ctx, element) {
 }
 
 /**
- * Cloned placeholder: it takes the dragged element's size, so entering an
- * element is enough to know which side of it the placeholder goes.
- *
  * @param {Record<string, any>} ctx
  * @param {HTMLElement} element
  * @returns {boolean} whether the consumer's onElementEnter fires
@@ -103,11 +97,6 @@ function onElementPointerEnter(ctx, element) {
 }
 
 /**
- * Thin placeholder: crossing a direct sibling swaps with it, crossing a
- * farther one lands the placeholder on the near side, once per pointer move.
- * Once it has moved, later enters of the same pointer move are silent to the
- * consumer as well; that asymmetry with the cloned strategy is preserved.
- *
  * @param {Record<string, any>} ctx
  * @param {HTMLElement} element
  * @returns {boolean} whether the consumer's onElementEnter fires
@@ -143,9 +132,6 @@ function onElementComplexPointerEnter(ctx, element) {
 }
 
 /**
- * Thin placeholder, leaving the list past its first or last element: the
- * placeholder follows to that end.
- *
  * @param {Record<string, any>} ctx
  * @param {HTMLElement} element
  * @param {EventTarget | null} relatedTarget

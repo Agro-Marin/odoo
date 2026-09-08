@@ -326,9 +326,6 @@ test("dispose runs every teardown step even when one throws", async () => {
     expect(controller.isOpen()).toBe(true);
     expect(dateTimePickerList.has(controller.picker)).toBe(true);
 
-    // A popover that refuses to close must not strand the listeners or the
-    // registration: the picker would stay in the "close every other picker"
-    // sweep forever, holding a detached input.
     patchWithCleanup(getPopover(), {
         close() {
             throw new Error("popover close blew up");

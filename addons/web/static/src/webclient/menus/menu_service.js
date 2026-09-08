@@ -185,9 +185,6 @@ class MenuService {
                     if (!res?.menus) {
                         return;
                     }
-                    // A hash the server sent answers the question without
-                    // re-serialising the whole payload; only a server that sends
-                    // none is compared by content.
                     const changed =
                         res.hash && this.storedHash
                             ? res.hash !== this.storedHash

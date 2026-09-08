@@ -73,9 +73,6 @@ function buildButtonContext(clickParams, params) {
 }
 
 /**
- * Run one view button click end to end: the before hooks, the action, the
- * after hook, then the dialog it may close.
- *
  * @param {Object} deps
  * @param {any} deps.action
  * @param {any} deps.comp

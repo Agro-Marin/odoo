@@ -201,11 +201,6 @@ class Binary(http.Controller):
         debug_assets: bool,
         assets_params: dict[str, Any],
     ) -> tuple[Any, Response | None]:
-        """Build the bundle `filename` names, on a read-write cursor.
-
-        Returns `(stream, redirect)`: the redirect is set instead of the stream
-        when `unique` names a version other than the one the bundle now has.
-        """
         env = request.env
         stream = None
         if env.cr.readonly:
@@ -214,16 +209,6 @@ class Binary(http.Controller):
         else:
             cursor_manager = nullcontext(env.cr)
         with cursor_manager as rw_cr:
-            # Serialize concurrent regenerations of the same bundle: without
-            # this, many simultaneous cache misses for the same
-            # filename/unique (e.g. right after a deploy) each independently
-            # rebuild and write the same attachment. pg_advisory_xact_lock is
-            # held for the lifetime of this transaction and released
-            # automatically on commit/rollback, so a losing request simply
-            # waits, then finds the bundle already regenerated. Same idiom as
-            # api_doc.py's _doc_index_cache: blake2b rather than hash(), the
-            # lock key must be stable across processes, which PYTHONHASHSEED
-            # makes str.__hash__ not.
             digest = hashlib.blake2b(filename.encode(), digest_size=8).digest()
             rw_cr.execute(
                 "SELECT pg_advisory_xact_lock(%s)",
@@ -287,9 +272,6 @@ class Binary(http.Controller):
         readonly=True,
     )
     def content_esm_lib(self, unique: str, path: str) -> Response:
-        # The minified copy of a vendored library file, at the URL the page's
-        # import map names; the render that built the map persisted it, so a
-        # missing row is a 404 like any other content-addressed artifact.
         return self._serve_generated_esm(f"/web/assets/lib/{unique}/{path}")
 
     @staticmethod

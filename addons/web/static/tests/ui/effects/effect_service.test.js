@@ -181,8 +181,6 @@ test("add() still returns a callable for an unknown effect type", async () => {
 });
 
 test("effect.add names the options it will not act on, like its siblings do", async () => {
-    // It was the one route to the overlay that validated nothing and passed no
-    // options object at all -- no rootId, no sequence, no onRemove.
     patchWithCleanup(odoo, { debug: "" });
     await makeMockEnv();
     /** @type {string[]} */

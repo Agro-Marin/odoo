@@ -29,9 +29,6 @@ favoriteMenuRegistry.addValidation(MENU_REGISTRY_VALIDATION);
 
 export class SearchBarMenu extends Component {
     /**
-     * Assigned in setup() and read from other methods, a sequence TypeScript
-     * cannot follow, so the field is declared.
-     *
      * @type {import("@web/core/action_port").ActionPort}
      */
     actionService;
@@ -60,9 +57,6 @@ export class SearchBarMenu extends Component {
     otherItems = [];
 
     /**
-     * Assigned in setup() and read from other methods, a sequence TypeScript
-     * cannot follow, so the field is declared.
-     *
      * @type {{ sharedFavoritesExpanded: boolean }}
      */
     state;

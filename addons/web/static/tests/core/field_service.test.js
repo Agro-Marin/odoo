@@ -505,9 +505,6 @@ test("a properties field whose definition_record_field the server cannot serve f
         },
         holder_id: { type: "many2one", relation: "properties.base.definition" },
     }));
-    // get_properties_base_definition hardcodes its specification, so a field
-    // named anything else can never be answered. Before, this read `undefined`
-    // and died in a for..of two lines later.
     await expect(
         getService("field").loadPropertyDefinitions("holder", "my_props"),
     ).rejects.toThrow(

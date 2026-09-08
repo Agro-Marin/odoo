@@ -85,9 +85,6 @@ test("nothing saved touches storage at all", () => {
 });
 
 test("a localStorage that throws does not take the backend boot down with it", async () => {
-    // resumeClickbotRun() runs at module scope in web.assets_backend, so an
-    // unguarded read here throws while the bundle is evaluating. Storage is
-    // absent or throwing in private mode and under policies that disable it.
     patchWithCleanup(browser.localStorage, {
         getItem() {
             throw new Error("SecurityError: storage is disabled");

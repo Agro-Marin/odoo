@@ -142,7 +142,6 @@ async function renderCounts(workload) {
     return g.__renderStats();
 }
 
-/** Five committed edits of an unrelated char field on the same record. */
 async function editUnrelatedFiveTimes() {
     for (const value of ["x", "xy", "xyz", "xyza", "xyzab"]) {
         await contains("[name='name'] input").edit(value);
@@ -151,11 +150,6 @@ async function editUnrelatedFiveTimes() {
 }
 
 /**
- * Mounts inside a traced window, so the caller can assert the counter it is
- * about to expect a zero from was non-zero here. Without that control, every
- * "renders 0 times" assertion below would also pass if the widget never mounted,
- * or if the counter were dropped from the component.
- *
  * @param {Parameters<typeof mountView>[0]} params
  * @returns {Promise<Record<string, number>>}
  */
@@ -166,9 +160,6 @@ function mountCounting(params) {
     });
 }
 
-// The char field renders because its own value changed; the tags field, whose
-// props are all stable now, is skipped entirely -- it does not even reach the
-// memo that used to hand back the same tag list.
 test("a widget with stable props does not render on an unrelated edit", async () => {
     await mountView({
         type: "form",
@@ -258,11 +249,6 @@ test("many2many_tags does not re-render its tag list on an unrelated edit", asyn
     expect(stats["components.TagsList"] || 0).toBe(0);
 });
 
-// `Field` used to build its `dynamicInfo` per render, so the `domain` thunk
-// widgets receive as a prop was a new function every time and every memo that
-// included it missed. The avatar variant is where it showed: its autocomplete
-// re-rendered on every unrelated edit, and the kanban tag list -- which takes
-// the whole prop bag as `popoverProps` -- re-rendered twice per toggle.
 test("many2many_tags_avatar does not re-render its autocomplete on an unrelated edit", async () => {
     const mounted = await mountCounting({
         type: "form",
@@ -307,9 +293,6 @@ test("kanban many2many_tags_avatar re-renders its tag list once per save, not pe
     expect(stats["components.TagsList"]).toBe(5);
 });
 
-// The whole registry at once. Every FieldComponent counts its renders under
-// its class name, so this is the sweep that says no widget -- not only the
-// ones the tests above name -- follows an edit of a field it does not read.
 test("no widget on a form renders on an unrelated edit", async () => {
     onRpc("has_access", () => true);
     const mounted = await mountCounting({
@@ -389,12 +372,6 @@ test("no widget on a form renders on an unrelated edit", async () => {
     const rendered = Object.keys(stats).filter((k) => k.startsWith("fields."));
     expect(rendered).toEqual([]);
 });
-// The Field wrapper too: it evaluates readonly, required and the decorations
-// on every render, and it used to render for every widget that takes a
-// context or a domain on any edit -- makeContext spread the whole evalContext,
-// which subscribed the wrapper to every field. The context expression is
-// evaluated against the evalContext as it is now, so the wrapper follows only
-// the fields the expression names.
 test("only the edited field's wrapper renders on an unrelated edit", async () => {
     onRpc("has_access", () => true);
     /** @type {Record<string, number>} */
@@ -510,13 +487,6 @@ test("a context expression still follows the field it names", async () => {
     expect.verifySteps(["search:first", "search:second"]);
 });
 
-// The x2many field itself re-renders with its record, which is expected; what
-// must not happen is that render reaching the sub-view. It did: `rendererProps`
-// bound `openRecord` afresh and built `nestedKeyOptionalFieldsData` (list) or
-// the draggable-patched `archInfo` (kanban) as a new object every render, so
-// OWL saw changed props and re-rendered the whole list -- every row -- for an
-// edit of an unrelated char field on the parent. The sub-view still follows its
-// own records through reactivity, so nothing it shows depends on this render.
 test("x2many list does not re-render its sub-view on an unrelated edit", async () => {
     const mounted = await mountCounting({
         type: "form",
@@ -564,10 +534,6 @@ test("x2many kanban does not re-render its sub-view on an unrelated edit", async
     expect(stats["kanban.KanbanRecord"] || 0).toBe(0);
 });
 
-// What the two tests above rely on: a sub-view modifier that reads `parent.*`
-// must still follow the parent, now that the parent's render no longer reaches
-// the sub-view. It does, through reactivity on the parent record's data; this
-// is the control that says the zeros above are not a sub-view frozen in place.
 test("x2many sub-view modifiers reading parent still follow the parent", async () => {
     await mountView({
         type: "form",
@@ -622,13 +588,6 @@ test("x2many kanban card modifiers reading parent still follow the parent", asyn
     expect(".o_kanban_record .o_probe").toHaveCount(0);
 });
 
-// Each toggle saves, and the save reloads the x2many, so its record objects are
-// new every time and the tag props genuinely change once per toggle. What the
-// memo removes is the *second* render per toggle: the card renders twice (the
-// optimistic value, then the reloaded one) and only one of those changes a tag.
-// The Many2ManyTagsField count is the control: the field renders once per
-// toggle (the reloaded record), so `TagsList: 5` says the list followed it and
-// is not an absence.
 test("kanban many2many_tags re-renders its tag list once per save, not per render", async () => {
     const mounted = await mountCounting({
         type: "kanban",
@@ -657,9 +616,6 @@ test("kanban many2many_tags re-renders its tag list once per save, not per rende
     expect(stats["components.TagsList"]).toBe(5);
 });
 
-// The tag list is keyed by `resId`, not by the datapoint id `getTagProps` puts
-// in `id`. Keyed on the latter, a save re-minted the key and OWL destroyed and
-// rebuilt every tag's DOM node although nothing about the tag had changed.
 test("a save does not rebuild the tag DOM nodes", async () => {
     await mountView({
         type: "kanban",

@@ -101,10 +101,6 @@ function useOverflowAdjust(component) {
         adjust();
     });
 
-    // The items are re-sorted when they changed, or on any render that is not
-    // the adjust pass's own. A render the adjust pass triggers while the items
-    // are what it sorted keeps its layout; one that arrives with new items --
-    // the relation data landing mid-adjust -- starts over.
     onWillRender(() => {
         component.allItems = component.getAllItems();
         const itemsChanged = !sameStatusBarItems(sortedFrom, component.allItems);

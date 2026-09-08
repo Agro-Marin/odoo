@@ -52,11 +52,6 @@ export class CharField extends TextInputFieldBase {
     }
 
     /**
-     * A widget may state whether it trims, overriding what the field declares:
-     * `char_emojis` must not, because a trailing space before an inserted emoji
-     * is what the user is still typing. Left unset, the field's own `trim`
-     * decides — which is the only thing that knows about the stored value.
-     *
      * @returns {boolean}
      */
     get shouldTrim() {

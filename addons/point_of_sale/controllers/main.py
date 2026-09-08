@@ -381,9 +381,6 @@ class PosController(PortalAccount):
             name: partner[name]
             for name in ("name", "email", "street", "street2", "city", "zip")
         }
-        # `phone` is the key the portal address form speaks; on the record it is
-        # a phone.number in `phone_ids`, which `_phone_to_address_values` turns
-        # it back into on the way in.
         values["phone"] = partner.phone_ids._primary().number or False
         values.update(country_id=partner.country_id.id, state_id=partner.state_id.id)
         return values

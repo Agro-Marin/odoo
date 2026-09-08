@@ -192,9 +192,6 @@ export class ListKeyboardNavigation {
     constructor(tableRef, ctx) {
         this.tableRef = tableRef;
         this.ctx = ctx;
-        // The members are a seam: a caller may capture one, replace it on the
-        // instance and call the captured original unbound. Own bound methods
-        // keep that contract; an assignment still replaces them.
         const proto = ListKeyboardNavigation.prototype;
         for (const name of Object.getOwnPropertyNames(proto)) {
             const descriptor = Object.getOwnPropertyDescriptor(proto, name);
@@ -232,23 +229,6 @@ export class ListKeyboardNavigation {
         }
     }
 
-    /**
-     * Land a focus that had to wait for virtualization to render its row.
-     *
-     * Two passes by design, and it is worth saying why rather than making
-     * it one. The first finds the row (or counts a retry, if the scroll has
-     * not painted it yet) and applies the focus; the *second* confirms the
-     * focus stuck -- `element === document.activeElement` -- and only then
-     * drops the pending state. Clearing on the first pass would trust a
-     * focus() call nothing has yet confirmed.
-     *
-     * That confirmation is only sound because `toFocus` cannot diverge from
-     * `element`: `_dispatchFutureCell` latches the move it was handed, and
-     * `findFocusFutureCell` returns the latched element when the cell,
-     * row-ness and direction all match. Without that latch the renderer's
-     * hook could hand back a different cell, the equality would never hold,
-     * and this would re-focus once per patch until MAX_VIRT_FOCUS_RETRIES.
-     */
     resolvePendingVirtFocus() {
         const pending = this._pendingVirtFocus;
         if (!pending) {
@@ -368,10 +348,6 @@ export class ListKeyboardNavigation {
     }
 
     /**
-     * The move the grid state resolves, when the row carries a grid index:
-     * an element when it is rendered, a pending marker when virtualization
-     * still has to render it, null when the grid has no next cell.
-     *
      * @param {import("./list_grid_state").ListGridState} gridState
      * @param {HTMLTableCellElement} cell
      * @param {HTMLElement} row
@@ -483,11 +459,6 @@ export class ListKeyboardNavigation {
     }
 
     /**
-     * An arrow in read-only mode: on a group row, left and right fold and
-     * unfold; on the x2many "add a line" cell they walk its links; otherwise
-     * they move focus, which may already be handled (a pending virtual row)
-     * or find nothing.
-     *
      * @param {"up" | "down" | "left" | "right"} direction
      * @param {HTMLTableCellElement} cell
      * @param {boolean} cellIsInGroupRow
@@ -527,10 +498,6 @@ export class ListKeyboardNavigation {
     }
 
     /**
-     * Enter in read-only mode: delete on the remove cell, the focused button
-     * or the fold on a group row, edition on an editable or multi-edited
-     * record, else the record itself.
-     *
      * @param {HTMLTableCellElement} cell
      * @param {boolean} cellIsInGroupRow
      * @param {object | null} group

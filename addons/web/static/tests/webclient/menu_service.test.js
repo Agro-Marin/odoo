@@ -641,8 +641,6 @@ test(`menu cache is scoped per user on a shared browser`, async () => {
         root: { id: "root", name: "root", appID: "root", children: [1] },
     });
     expect(menuStorage.read().menus).not.toBe(null);
-    // `session.uid` is deleted at module evaluation by core/user.js; the
-    // current user is `user.userId`, so that is what a shared browser sees.
     patchWithCleanup(user, { userId: 99 });
     patchWithCleanup(session, {
         menus_cache_version: `${CURRENT_REGISTRY_HASH}:99`,

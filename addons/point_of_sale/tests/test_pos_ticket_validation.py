@@ -53,8 +53,6 @@ class TestPosTicketValidation(TestPoSCommon):
         invoice_fields = self.env["ir.model.fields"]._get(
             "account.move", "invoice_source_email"
         )
-        # Any Char a localisation could mark required will do; `phone` stopped
-        # being one when a phone number became a record of its own.
         partner_fields = self.env["ir.model.fields"]._get("res.partner", "function")
         endpoint = main.PosController.show_ticket_validation_screen
         while hasattr(endpoint, "__wrapped__"):

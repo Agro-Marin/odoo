@@ -196,14 +196,6 @@ export const viewProps = {
 const FORWARDED_TO_CONTROLLER = ["noBreadcrumbs"];
 
 /**
- * The props of `props` that a component declares.
- *
- * `loadView` builds two prop bags. The controller's has always been
- * filter-then-build against STANDARD_PROPS; withSearch's was build-then-prune --
- * spread every prop, then delete each key WithSearch does not declare, ten lines
- * later. Two opposite strategies for one job, and the pruning one silently
- * decided the fate of every key assigned in between.
- *
  * @param {Record<string, any>} props
  * @param {Record<string, any>} declared
  * @returns {Record<string, any>}
@@ -248,10 +240,6 @@ const ACTIONS = [
  */
 
 /**
- * The `views` list the loader works from, with the requested view and search
- * view ids folded in: a view already listed takes the id from `props`, an
- * unlisted one is appended.
- *
  * @param {ViewProps} props
  * @param {any[]} configViews
  * @returns {ViewSelection}
@@ -279,9 +267,6 @@ function resolveViewSelection(props, configViews) {
 }
 
 /**
- * An action context that disables an action (`create: False`, ...) is written
- * onto the arch, where every parser reads it.
- *
  * @param {string | undefined} arch
  * @param {Record<string, any>} context
  * @returns {Element}
@@ -310,9 +295,6 @@ function resolveUseSampleModel(props, archXmlDoc) {
 }
 
 /**
- * A view's own `display` overrides the caller's key by key; a key both spell
- * as objects is merged, and a key the caller set to `false` stays `false`.
- *
  * @param {Record<string, any> | undefined} display
  * @param {Record<string, any>} viewDisplay
  * @returns {Record<string, any>}
@@ -455,9 +437,6 @@ export class View extends Component {
     }
 
     /**
-     * Fetch whatever `props` did not hand over: the view arch and fields, the
-     * action menus, the search view and its filters.
-     *
      * @param {ViewProps} props
      * @param {ViewSelection} selection
      * @param {ViewConfig & Record<string, any>} config

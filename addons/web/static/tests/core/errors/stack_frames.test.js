@@ -242,7 +242,6 @@ describe("reading the sourceMappingURL directive", () => {
 
     test("a server that ignores Range and sends the whole body still works", async () => {
         clearSourceMapCache();
-        // 200 with the full file: the directive is found by cutting the tail off
         const body = "y".repeat(50_000) + "\n//# sourceMappingURL=c.js.map\n";
         serve(body, () => {});
 

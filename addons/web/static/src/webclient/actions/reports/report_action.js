@@ -13,9 +13,6 @@ export class ReportAction extends Component {
     static template = "web.ReportAction";
     static props = ["*"];
     /**
-     * Assigned in setup() and read from other methods, a sequence TypeScript
-     * cannot follow, so the field is declared.
-     *
      * @type {import("@web/core/action_port").ActionPort}
      */
     action;

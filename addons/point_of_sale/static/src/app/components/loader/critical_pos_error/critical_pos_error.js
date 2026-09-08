@@ -59,9 +59,7 @@ export class CriticalPOSError extends Component {
         const step = async (fn) => {
             try {
                 await fn();
-            } catch {
-                // keep going
-            }
+            } catch {}
         };
 
         try {

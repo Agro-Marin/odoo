@@ -168,7 +168,6 @@ describe("Cache", () => {
     });
 });
 
-/* --- merged from tests/core/cache.test.js: one module, one suite --- */
 test("do not call getValue if already cached", () => {
     const cache = new Cache((key) => {
         expect.step(key);

@@ -55,12 +55,6 @@ export class ResUsersSettings extends ServerModel {
         const [id] = ensureArray(idOrIds);
         const [oldSettings] = this.browse(id);
         if (!oldSettings) {
-            // `browse` answers with nothing for an id no record carries, and
-            // `user.setUserSettings` sends `session.user_settings.id`, which the
-            // mock session does not define -- so this arrives as `undefined`
-            // unless the test seeds one. Saying so beats the `Cannot use 'in'
-            // operator to search for '<key>' in undefined` that reading through
-            // it produced, which named neither the model nor the id.
             throw new Error(
                 `res.users.settings: no record with id ${JSON.stringify(id)}. ` +
                     `Seed one for the session, e.g. ` +

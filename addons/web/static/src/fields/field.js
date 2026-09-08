@@ -123,13 +123,6 @@ class DefaultField extends Component {
 const COUNTED_COMPONENTS = new WeakMap();
 
 /**
- * The widget class, counting its renders under its template name so a render
- * sweep (`field_prop_stability.test.js`) sees the whole registry and not only
- * the widgets that registered a counter themselves. A cached subclass per
- * widget class: a hook in `FieldComponent`'s constructor does not register
- * (OWL has no current node there), and subclasses override `setup()` without
- * calling `super`. Inert unless a test turns tracing on.
- *
  * @param {any} C
  * @returns {any}
  */
@@ -365,12 +358,6 @@ export class Field extends Component {
     _visualFeedback;
 
     /**
-     * The `domain` thunk handed to widgets through `extractProps`. Created
-     * once: it reaches widgets as a prop, and a fresh function per render made
-     * every memo that includes it miss. It evaluates against the record it is
-     * given, so a caller observing the record through its own reactive proxy
-     * (`useSpecialData`) is subscribed to the fields the domain reads.
-     *
      * @type {(record?: any) => any[] | undefined}
      */
     dynamicDomain;

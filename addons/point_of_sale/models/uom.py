@@ -16,8 +16,6 @@ class UomUom(models.Model):
             self.env["account.tax"]._check_company_domain(config.company_id.id)
         )
         product_uom_fields = taxes._eval_taxes_computation_prepare_product_uom_fields()
-        # sorted(): set iteration order is not stable between runs, and this
-        # list is the field order every POS client receives
         return sorted(
             product_uom_fields.union(
                 {"id", "name", "factor", "is_pos_groupable", "parent_path", "rounding"}

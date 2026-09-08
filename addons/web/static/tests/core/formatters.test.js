@@ -148,9 +148,6 @@ test("formatInteger", () => {
 });
 
 test("thousands_sep: false keeps a year from being grouped", () => {
-    // A number that identifies rather than counts -- a birth year, a reference
-    // -- reads as nonsense once grouped, and neither formatter offered a way
-    // out of it: extractOptions dropped thousandsSep, so the arch could not say so.
     patchWithCleanup(localization, { grouping: [3, 3, 3, 3], thousandsSep: "," });
 
     expect(formatInteger(1946)).toBe("1,946");
@@ -167,9 +164,6 @@ test("thousands_sep: false keeps a year from being grouped", () => {
 });
 
 test("extractOptions leaves the separator to the locale unless asked", () => {
-    // Passing an explicit `undefined` would NOT be a no-op: formatInteger reads
-    // `"thousandsSep" in options`, and insertThousandsSep's own default is a
-    // hardcoded ",", so the key has to stay absent for a locale to win.
     for (const format of [formatInteger, formatFieldFloat]) {
         for (const options of [{}, { thousands_sep: true }]) {
             expect(

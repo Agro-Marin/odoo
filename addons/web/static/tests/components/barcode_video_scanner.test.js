@@ -9,9 +9,6 @@ import { BarcodeVideoScanner } from "@web/components/barcode/barcode_video_scann
 import { browser } from "@web/core/browser/browser";
 
 /**
- * A camera whose frames are four times the preview: the preview below is
- * boxed at 100x100 while the track reports 400x400.
- *
  * @param {number} size
  */
 function mockCamera(size) {
@@ -77,14 +74,10 @@ test("the crop area follows the preview's size, in source pixels", async () => {
     await ready;
     await animationFrame();
 
-    // The overlay publishes its area in preview pixels; the detector crops the
-    // source, four times wider than the 100px preview.
     expect(cropAreas.length).toBe(1);
     expect(cropAreas[0].width).toBe(320);
     expect(cropAreas[0].height).toBe(80);
 
-    // Twice the preview is half the ratio: the source is unchanged, so the
-    // same overlay geometry must now map onto it through 2, not 4.
     host.state.size = 200;
     await animationFrame();
     await animationFrame();

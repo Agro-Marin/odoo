@@ -12,7 +12,6 @@ import {
 
 describe.current.tags("headless");
 
-/** The units that have a double: everything in the chain except the host. */
 const DOUBLED = SEARCH_COMPOSITION_ORDER.filter(
     (module) => module !== "search/search_model.js",
 );
@@ -56,12 +55,6 @@ describe("the composition doubles and the contract agree", () => {
     });
 
     test("no double invents a member the composition does not have", () => {
-        // Checked against the whole composition rather than the unit's own
-        // reach: a double has to carry the machinery its own stubs run on --
-        // favorites never touches `blockNotification` itself, but the
-        // `_withNotificationsBlocked` the double hands it does. What must not
-        // happen is a double modelling a member no unit declares at all, which
-        // is a double describing a composition that does not exist.
         const permitted = new Set(DOUBLE_ONLY_MEMBERS);
         const declared = new Set(
             SEARCH_COMPOSITION_ORDER.flatMap((module) => [
@@ -88,9 +81,6 @@ describe("the composition doubles and the contract agree", () => {
     });
 
     test("the notification channel a double supplies actually blocks", () => {
-        // The one behaviour every mixin suite leans on, so it is worth pinning
-        // rather than trusting: `_notify` is a no-op inside a blocked window
-        // and records a step outside one.
         const members = doubleMembersFor("search/search_favorites_mixin.js");
         const model = /** @type {any} */ ({ ...members });
         model._notify();

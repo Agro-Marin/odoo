@@ -404,11 +404,6 @@ const START_DATE_FIELD_OPTION = "start_date_field";
 const END_DATE_FIELD_OPTION = "end_date_field";
 
 /**
- * The list column width of a date field, shared with the widgets that fall back
- * to it. A plain function rather than a `listViewWidth` read off the registry
- * entry: that property is declared as a number, an array or a function, so a
- * sibling widget calling it had to assume which.
- *
  * @param {Record<string, any>} options
  * @returns {number}
  */

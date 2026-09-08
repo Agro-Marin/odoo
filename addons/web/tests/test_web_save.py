@@ -37,10 +37,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
             )
 
     def test_is_field_modified_concurrently_swallows_coercion_errors(self):
-        # "function" is a char field: a non-string baseline (e.g. a dict, as
-        # would arrive from a malformed client payload) makes
-        # _coerce_concurrency_value raise TypeError. This must be read as
-        # "cannot tell, so fail open" rather than propagate.
         self.assertFalse(
             self.partner._is_field_modified_concurrently(
                 "function", "f0", {"bad": "shape"}, "f1"
@@ -48,10 +44,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         )
 
     def test_is_field_modified_concurrently_propagates_unrelated_errors(self):
-        # Only TypeError/ValueError from value coercion are meant to be
-        # swallowed. Any other failure (here, a KeyError from an unknown
-        # field name) must still surface instead of silently reporting
-        # "not modified".
         with self.assertRaises(KeyError):
             self.partner._is_field_modified_concurrently(
                 "does_not_exist", "a", "a", "b"

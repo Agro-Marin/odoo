@@ -155,7 +155,6 @@ class Base(models.AbstractModel):
         enable_counters: Any,
         domain_image: dict | None,
     ) -> dict[int, dict]:
-        """One category entry per comodel record, keyed by id."""
         field_range = {}
         for record in comodel_records:
             record_id = record["id"]
@@ -173,7 +172,6 @@ class Base(models.AbstractModel):
         return field_range
 
     def _search_panel_get_group_id_name(self, Comodel: Any, group_by: str) -> Any:
-        """Return the `(id, name)` mapper for `group_by` values on `Comodel`."""
         group_by_field = Comodel._fields[group_by]
 
         if group_by_field.type == "many2one":
@@ -352,7 +350,6 @@ class Base(models.AbstractModel):
         extra_domain: list,
         **kwargs: Any,
     ) -> dict[str, dict]:
-        """One counter image per `group_by` group, keyed by its JSON group id."""
         group_by = kwargs.get("group_by")
         group_domain = kwargs.get("group_domain")
         group_count_images: dict[str, dict] = {}

@@ -406,10 +406,6 @@ test("every registry entry declares the types it supports", () => {
 });
 
 /**
- * Walks a component's own prototypes up to -- but not including -- the base's,
- * so an override declared anywhere in the subclass chain is found and the base's
- * own definition is not mistaken for one.
- *
  * @param {any} component
  * @param {string} name
  * @returns {boolean}
@@ -436,10 +432,6 @@ function numericEntries() {
     );
 }
 
-// The base wraps formatValue() in a formattedValue getter that is where
-// `formatNumber` and the native-number-input case are handled. A subclass that
-// overrides the getter instead of implementing the abstract silently loses both,
-// which is what float_time and percentage did.
 test("no numeric widget overrides formattedValue instead of implementing formatValue", () => {
     expect(numericEntries().length).toBeGreaterThan(0);
 

@@ -17,8 +17,6 @@ function parentAcrossRoots(el) {
         return el.parentElement;
     }
     const root = el.parentNode ?? el.getRootNode();
-    // `ShadowRoot.host` is typed `Element`; the other branch above returns an
-    // `HTMLElement`, and every shadow host this walks through is one.
     return (
         /** @type {HTMLElement | undefined} */ (
             /** @type {ShadowRoot} */ (root)?.host
@@ -89,9 +87,6 @@ export function closestScrollableY(el) {
 }
 
 /**
- * Resolves when the scroll has settled: on `scrollend` where the browser
- * supports it, and otherwise once the offset has held still for two
- * consecutive frames. Bounded either way by SCROLL_SETTLE_TIMEOUT.
  * @param {HTMLElement} scrollable
  * @returns {Promise<any>}
  */

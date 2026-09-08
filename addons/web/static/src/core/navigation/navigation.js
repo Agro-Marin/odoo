@@ -125,10 +125,6 @@ class NavigationItem {
     }
 
     setActive(focus = true) {
-        // Only scroll when the activation is moving focus. Hover activation
-        // passes focus=false, and scrolling the list under a stationary pointer
-        // is how a mouse-over turns into an unasked-for jump -- and then into a
-        // second mouseenter on whatever slid beneath the cursor.
         if (focus) {
             scrollTo(this.target);
         }
@@ -745,10 +741,6 @@ export function useNavigation(containerRef, options = {}) {
 
     const hotkeyService = useService("hotkey");
     const navigator = new Navigator(newOptions, hotkeyService);
-    // No re-entrancy guard: MutationObserver delivers in a microtask, so a
-    // synchronous flag can never be set when the callback runs, and update()
-    // writes only attributes (ariaSelected, id) that {childList, subtree} does
-    // not observe. The guard this replaced was measured never to fire.
     const observer = new MutationObserver(() => navigator.update());
 
     const onFocus = (/** @type {FocusEvent} */ { target }) =>

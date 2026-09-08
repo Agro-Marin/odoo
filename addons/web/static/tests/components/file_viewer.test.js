@@ -318,10 +318,6 @@ describe("createFileViewer", () => {
 });
 
 test("an audio recording is viewable, and is not a video", async () => {
-    // Every format below is one the speech layer transcribes. Before this was
-    // pinned, only audio/mpeg was viewable -- and it was viewable by sitting in
-    // the VIDEO set, so an mp3 opened as a full-screen black rectangle while a
-    // call recording, which is audio/webm, opened as nothing at all.
     for (const mimetype of [
         "audio/aac",
         "audio/flac",

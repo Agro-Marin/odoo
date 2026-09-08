@@ -257,9 +257,6 @@ class TestWebAssetsRegenerationLock(HttpCase):
         self.assertEqual(
             len(lock_calls), 1, "Expected exactly one advisory lock acquisition"
         )
-        # Same filename must always hash to the same lock key, so a second
-        # concurrent miss for the same bundle blocks on the first rather than
-        # taking an unrelated/no-op lock.
         digest = hashlib.blake2b(
             f"{bundle_name}.min.css".encode(), digest_size=8
         ).digest()

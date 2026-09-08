@@ -135,13 +135,6 @@ class Base(models.AbstractModel):
                 )
                 if query.is_empty():
                     continue
-                # MATERIALIZED forces Postgres to compute the ordered/limited
-                # inner query fully before ROW_NUMBER() reads it: without it,
-                # ROW_NUMBER() OVER () has no ORDER BY of its own, so nothing
-                # guarantees the wrapping SELECT preserves the inner query's
-                # row order under every plan (parallel workers, planner
-                # rewrites). Materializing pins __g to a concrete, ordered
-                # tuple set before the window function runs over it.
                 parts.append(
                     SQL(
                         "(WITH __g AS MATERIALIZED (%s)"
@@ -295,7 +288,6 @@ class Base(models.AbstractModel):
         return ", ".join(order_spec + groupby)
 
     def _web_read_group_get_order(self, order: str | None) -> dict[str, str]:
-        """`order` parsed into one direction (with NULLS clause) per field path."""
         dict_order: dict[str, str] = {}
         for order_part in order.split(",") if order else ():
             order_match = regex_order.match(order_part)
@@ -318,7 +310,6 @@ class Base(models.AbstractModel):
         dict_order: dict[str, str],
         unfold_read_specification: dict[str, dict] | None,
     ) -> None:
-        """Read the records of every opened group, in one batch, into `__records`."""
         if dict_order:
             order_specs = [
                 f"{fname} {direction}"
@@ -443,11 +434,6 @@ class Base(models.AbstractModel):
         budget: tuple[int, int],
         unfold_read_default_limit: int | None,
     ) -> dict[str, Any] | None:
-        """How `group` is to be opened, or None when it stays closed.
-
-        Consumes the group's own `__fold` marker on the way, as the caller's
-        loop did: every group is asked, whether or not it ends up opened.
-        """
         max_opened, max_restored = budget
         fold_info = "__fold" in group
         fold = group.pop("__fold", False)
@@ -491,7 +477,6 @@ class Base(models.AbstractModel):
         parent_group_domain: Domain,
         opening: dict[str, Any],
     ) -> None:
-        """Record the read `group`'s own records need, at the deepest groupby."""
         records_domain = parent_group_domain & Domain(group["__extra_domain"])
         offset = opening["offset"]
 
@@ -528,7 +513,6 @@ class Base(models.AbstractModel):
         read_group_order: str | None,
         opening: dict[str, Any],
     ) -> None:
-        """Read `group`'s own subgroups, and recurse into them."""
         subgroup_domain = parent_group_domain
         if group["__extra_domain"]:
             subgroup_domain &= Domain(group["__extra_domain"])

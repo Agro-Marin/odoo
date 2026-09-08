@@ -21,9 +21,6 @@ defineModels([Partner]);
 
 /** @param {Partial<any>} [overrides] */
 /**
- * A partial stand-in for a relational Record: `fieldVisualFeedback` reads
- * four members off it and the tests supply only those.
- *
  * @param {Record<string, any>} [overrides]
  * @returns {any}
  */

@@ -134,16 +134,6 @@ export function computeM2OProps(fieldProps) {
 }
 
 /**
- * The `{ id, display_name }` pair a `Many2One` takes as its `value`.
- *
- * `Many2OneField` hands over the record's own value object, whose identity only
- * changes when the value does -- which is what lets OWL's shallow prop
- * comparison skip the whole autocomplete subtree on an unrelated edit. A widget
- * that has to *build* the pair (`reference` and `many2one_reference` store the
- * id and the name under other keys) hands over a fresh object per render
- * instead, so the comparison sees a change every time and the memo above buys
- * nothing. Building it through here makes the pair as stable as the record's own.
- *
  * @param {Object} fieldProps the field component's props; `record` and `name`
  *  address the same per-field holder `computeM2OProps` uses
  * @param {{ id: number, display_name: string } | false | null | undefined} pair
@@ -212,9 +202,6 @@ export class Many2One extends Component {
         canWrite: true,
         context: {},
         domain: () => [],
-        // `openRecordInAction` calls this unconditionally. Every path through
-        // computeM2OProps supplies one, so only a direct <Many2One/> user can
-        // reach it unset -- and did so with a TypeError rather than a default.
         openActionContext: () => ({}),
         linkCssClass: "",
         nameCreateField: "name",
@@ -310,9 +297,6 @@ export class Many2One extends Component {
     }
 
     /**
-     * Read on every render and handed to the autocomplete as a prop, so its
-     * identity only changes when one of the three permissions does.
-     *
      * @returns {{ create: boolean, createEdit: boolean, write: boolean }}
      */
     get activeActions() {

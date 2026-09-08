@@ -52,10 +52,6 @@ export class ProductCard extends Component {
         );
     }
 
-    /**
-     * The sum over the card's variants; `undefined` while any is still
-     * pending and `null` when any fetch failed.
-     */
     get stockQuantity() {
         let total = 0;
         for (const id of this.stockProductIds) {

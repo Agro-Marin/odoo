@@ -8,10 +8,6 @@
  */
 
 /**
- * Validate a connection against the graph's structural rules.
- *
- * Cycles between different nodes are intentionally allowed.
- *
  * @param {import("./flow_types").FlowConnection} connection
  * @param {Object} graph
  * @param {import("./flow_types").FlowNode[]} graph.nodes
@@ -91,8 +87,6 @@ export function validateConnection(
 }
 
 /**
- * Normalize the result returned by a consumer's synchronous `canConnect` hook.
- *
  * @param {boolean | string | FlowConnectionValidation | undefined} result
  * @returns {FlowConnectionValidation}
  */

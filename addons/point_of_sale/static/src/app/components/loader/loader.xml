@@ -3,7 +3,6 @@
         <div class="pos-loader" t-att-style="props.loader.isShown ? '' : 'opacity: 0'">
             <CriticalPOSError t-if="props.loader.error" error="props.loader.error"/>
             <div class="loader-feedback">
-                <!-- spinner from https://loading.io/css/ -->
                 <div t-if="!props.loader.error" class="lds-ellipsis"><div></div><div></div><div></div><div></div></div>
             </div>
         </div>

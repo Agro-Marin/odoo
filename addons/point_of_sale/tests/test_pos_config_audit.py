@@ -129,8 +129,6 @@ class TestPosConfigAudit(TestPoSCommon):
             order.state = "paid"
             return order
 
-        # 0.01 + 0.09 accumulates to 0.09999999999999999, which is != 0.10 as a float
-        # and equal to it as money.
         order = make_order(0.10)
         make_order(-0.01, order.lines[0])
         make_order(-0.09, order.lines[0])
@@ -143,8 +141,6 @@ class TestPosConfigAudit(TestPoSCommon):
         )
 
     def test_partner_paging_returns_each_partner_exactly_once(self):
-        # Every partner ties on both sort keys, so only the id tiebreaker separates
-        # them; without it LIMIT/OFFSET repeats some rows and skips others.
         self.env["res.partner"].create(
             [
                 {"name": "Tied Partner", "company_id": self.env.company.id}
@@ -269,8 +265,6 @@ class TestPosConfigAudit(TestPoSCommon):
         )
         first = self.config.copy({"name": "pl-a", "pricelist_id": shared.id})
         second = self.config.copy({"name": "pl-b", "pricelist_id": owned.id})
-        # Each is valid, so the pair is valid; comparing the union of both records'
-        # values used to reject exactly this combination.
         (first | second)._check_pricelists()
 
     def test_the_removed_helpers_stay_removed(self):
@@ -292,7 +286,6 @@ class TestPosConfigAudit(TestPoSCommon):
             "generic_coa", company=company, install_demo=False
         )
         self.env.invalidate_all()
-        # The `default=` callables read env.company, which cannot see this company_id.
         config = self.env["pos.config"].create(
             {"name": "other-company-shop", "company_id": company.id}
         )
@@ -316,12 +309,9 @@ class TestPosConfigAudit(TestPoSCommon):
             [("company_id", "=", company.id)]
         )
         self.assertTrue(warehouse, "the second company got no warehouse")
-        # named from its own vals, not the batch's first
         self.assertEqual(warehouse.code.upper(), "BRA")
 
     def test_order_refs_survive_a_prefixed_sequence(self):
-        # A localisation may give the backend sequence a prefix; int() over the whole
-        # rendered string used to raise.
         self.config.order_backend_seq_id.sudo().prefix = "/AA"
         self.env.invalidate_all()
         reference, tracking_number = self.config._get_next_order_refs()

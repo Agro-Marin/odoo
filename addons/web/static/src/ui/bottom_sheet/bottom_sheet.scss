@@ -1,9 +1,3 @@
-// Every rule below is nested in this block, so the custom properties declared
-// here are always in scope: a `var()` fallback next to them is unreachable, and
-// the five that were there disagreed with the real durations (500ms/300ms
-// against 400ms/200ms). `slideOutFallbackDelay` in bottom_sheet.js reads the
-// declared duration to size its watchdog, so a fallback that lies is a number
-// waiting to be believed.
 .o_bottom_sheet {
     --BottomSheet-slideIn-duration: #{$o_BottomSheet_slideIn_duration};
     --BottomSheet-slideIn-easing: #{$o_BottomSheet_slideIn_easing};
