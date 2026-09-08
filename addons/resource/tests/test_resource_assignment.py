@@ -94,6 +94,60 @@ class TestResourceAssignment(TransactionCase):
             ),
         )
 
+    def test_holder_search_negative_operators(self):
+        idle = self.env["resource.resource"].create(
+            {"name": "Idle", "resource_type": "material", "tz": "UTC"}
+        )
+        self._assign()
+        Resource = self.env["resource.resource"]
+        self.assertEqual(
+            Resource.search(
+                [("id", "in", (self.truck | idle).ids), ("holder_id", "=", False)]
+            ),
+            idle,
+        )
+        self.assertEqual(
+            Resource.search(
+                [
+                    ("id", "in", (self.truck | idle).ids),
+                    ("holder_id", "!=", self.driver.id),
+                ]
+            ),
+            idle,
+        )
+        self.assertEqual(
+            Resource.search(
+                [
+                    ("id", "in", (self.truck | idle).ids),
+                    ("holder_id", "not in", [self.driver.id]),
+                ]
+            ),
+            idle,
+        )
+
+    def test_holder_search_agrees_with_the_compute(self):
+        self._assign(
+            role="manager",
+            assignee=self.other_driver,
+            date_start=self.now - timedelta(days=10),
+        )
+        self._assign(role="driver", date_start=self.now - timedelta(days=1))
+        self.truck.invalidate_recordset(["holder_id"])
+        self.assertEqual(self.truck.holder_id, self.driver)
+        Resource = self.env["resource.resource"]
+        self.assertNotIn(
+            self.truck,
+            Resource.search(
+                [("id", "=", self.truck.id), ("holder_id", "=", self.other_driver.id)]
+            ),
+        )
+        self.assertIn(
+            self.truck,
+            Resource.search(
+                [("id", "=", self.truck.id), ("holder_id", "=", self.driver.id)]
+            ),
+        )
+
     def test_holder_by_role_and_moment(self):
         self._assign(role="manager", assignee=self.other_driver)
         self._assign(role="driver")

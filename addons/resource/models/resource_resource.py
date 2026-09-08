@@ -147,12 +147,32 @@ class ResourceResource(models.Model):
         if operator not in ("=", "in", "!=", "not in"):
             return NotImplemented
         now = fields.Datetime.now()
-        held = self.env["resource.assignment"]._search(
-            Domain("assignee_id", operator, value)
-            & Domain("date_start", "<=", now)
+        live = self.env["resource.assignment"].search(
+            Domain("date_start", "<=", now)
             & (Domain("date_end", "=", False) | Domain("date_end", ">", now))
         )
-        return [("assignment_ids", "in", held)]
+        # Same tie-break as _compute_holder_id's _get_holder(): the live
+        # assignment with the latest date_start wins per resource.
+        current_assignee_id_by_resource_id = {}
+        for assignment in live.sorted("date_start", reverse=True):
+            current_assignee_id_by_resource_id.setdefault(
+                assignment.resource_id.id, assignment.assignee_id.id
+            )
+        values = list(value) if operator in ("in", "not in") else [value]
+        domain = Domain(
+            "id",
+            "in",
+            [
+                resource_id
+                for resource_id, assignee_id in current_assignee_id_by_resource_id.items()
+                if assignee_id in values
+            ],
+        )
+        if False in values:
+            domain |= Domain("id", "not in", list(current_assignee_id_by_resource_id))
+        if operator in ("!=", "not in"):
+            domain = ~domain
+        return domain
 
     def _default_color(self):
         return randint(1, 11)
