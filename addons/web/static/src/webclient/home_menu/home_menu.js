@@ -164,7 +164,7 @@ export class HomeMenu extends Component {
         this.rootRef = useRef("root");
 
         this.grid = new HomeMenuGrid({
-            apps: () => this.props.apps,
+            apps: () => this.displayedApps,
             query: () => this.search.query,
             editing: () => this.state.editing,
             badges: () => this.state.badges,

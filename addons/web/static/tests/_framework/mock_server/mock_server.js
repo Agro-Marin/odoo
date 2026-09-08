@@ -1646,7 +1646,7 @@ export function onRpc(...args) {
     );
 }
 
-const STEP_TRACKER_BOILERPLATE_METHODS = new Set(["lazy_session_info"]);
+const STEP_TRACKER_BOILERPLATE_METHODS = new Set(["lazy_session_info", "get_badges"]);
 const STEP_TRACKER_BOILERPLATE_ROUTES = new Set(["/mail/data", "/mail/action"]);
 
 /**

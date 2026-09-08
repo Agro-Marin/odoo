@@ -254,7 +254,7 @@ export const webModels = {
     ResUsersSettings,
 };
 
-setDefaultMockModels({ IrHttp });
+setDefaultMockModels({ IrHttp, HomeMenuBadge });
 
 setDefaultMockRoute("/mail/data", () => ({}));
 setDefaultMockRoute("/mail/action", () => ({}));
