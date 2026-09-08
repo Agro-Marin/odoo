@@ -4,6 +4,7 @@ from collections import defaultdict, deque
 from collections.abc import Iterable, Mapping
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
+from functools import partial
 from operator import attrgetter
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -236,8 +237,8 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         self.field_setup_dependents: Collector = Collector()
         self.many2one_company_dependents: Collector = Collector()
 
-        self.ormcache_lrus: defaultdict[str, LRU] = defaultdict(
-            lambda: LRU(REGISTRY_CACHES["default"]),
+        self.ormcache_lrus: dict[str, LRU] = defaultdict(
+            partial(LRU, REGISTRY_CACHES["default"]),
             {name: LRU(size) for name, size in REGISTRY_CACHES.items()},
         )
 
