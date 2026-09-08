@@ -899,7 +899,7 @@
                                                     widget="many2one_barcode"
                                                     context="{'partner_id': parent.partner_id}"
                                                     domain="[('purchase_ok', '=', True), '|', ('company_id', '=', False), ('company_id', 'parent_of', parent.company_id)]"
-                                                    readonly="state in ['done', 'cancel']"
+                                                    readonly="state in ['done', 'cancel'] or is_downpayment"
                                                     required="not display_type and not is_downpayment"
                                                     force_save="1" />
                                             </div>
@@ -909,6 +909,7 @@
                                                 <field
                                                     name="product_uom_id"
                                                     groups="uom.group_uom"
+                                                    readonly="state in ['done', 'cancel'] or is_downpayment"
                                                     required="not display_type and not is_downpayment"
                                                     widget="many2one_uom" />
                                             </div>
@@ -932,20 +933,27 @@
                                                 invisible="parent.state != 'done'">
                                                 <field name="qty_invoiced" />
                                             </div>
-                                            <field name="price_unit" />
+                                            <field
+                                                name="price_unit"
+                                                readonly="qty_invoiced != 0" />
                                             <field
                                                 name="tax_ids"
                                                 widget="many2many_tax_tags"
                                                 domain="[('type_tax_use', '=', 'purchase'), ('company_ids', 'parent_of', parent.company_id)]"
-                                                options="{'no_create': True}" />
+                                                options="{'no_create': True}"
+                                                readonly="is_downpayment" />
                                             <label for="discount" />
                                             <div name="discount">
-                                                <field name="discount" class="oe_inline" /> % </div>
+                                                <field
+                                                    name="discount"
+                                                    class="oe_inline"
+                                                    readonly="qty_invoiced != 0" /> % </div>
                                         </group>
                                         <group invisible="display_type">
                                             <field
                                                 name="date_commitment"
-                                                required="not display_type and not is_downpayment" />
+                                                required="not display_type and not is_downpayment"
+                                                readonly="is_downpayment" />
                                             <field
                                                 name="analytic_distribution"
                                                 widget="analytic_distribution"
