@@ -212,6 +212,19 @@ test("formatText", () => {
     expect(formatText({ a: 1, b: 2 })).toBe("[object Object]");
 });
 
+test("formatX2many counts correctly where a locale's singular is not only one", () => {
+    const records = (/** @type {number} */ n) => ({
+        currentIds: Array.from({ length: n }, (_, i) => i),
+    });
+    patchWithCleanup(localization, { code: "ru_RU" });
+    expect(String(formatX2many(records(1)))).toBe("1 record");
+    expect(String(formatX2many(records(21)))).toBe("21 record", {
+        message: "the count survives, whichever form the locale selects",
+    });
+    expect(String(formatX2many(records(31)))).toBe("31 record");
+    expect(String(formatX2many(records(2)))).toBe("2 records");
+});
+
 test("formatX2many", () => {
     expect(String(formatX2many({ currentIds: [] }))).toBe("No records");
     expect(String(formatX2many({ currentIds: [1] }))).toBe("1 record");

@@ -277,7 +277,7 @@ export function formatX2many(value) {
         return _t("No records");
     }
     return _pl(count, {
-        one: _t("1 record"),
+        one: _t("%s record", count),
         other: _t("%s records", count),
     });
 }
