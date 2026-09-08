@@ -320,7 +320,11 @@ export class CommandPalette extends Component {
 
     /** @returns {string} */
     get truncationMessage() {
-        return _t("%s more results — refine your search", this.state.hiddenCount);
+        // One over the limit is one result, and the limit is a round number a
+        // provider lands on exactly often enough to matter.
+        return this.state.hiddenCount === 1
+            ? _t("1 more result — refine your search")
+            : _t("%s more results — refine your search", this.state.hiddenCount);
     }
 
     /** @returns {Array<{commands: DisplayedCommand[], name: string, keyId: string}>} */

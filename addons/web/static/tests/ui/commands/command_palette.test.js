@@ -24,7 +24,10 @@ import {
 import { browser } from "@web/core/browser/browser";
 import { CommandPaletteEvent } from "@web/core/events";
 import { useCommand } from "@web/ui/commands/command_hook";
-import { CommandPalette } from "@web/ui/commands/command_palette";
+import {
+    CommandPalette,
+    MAX_DISPLAYED_COMMANDS,
+} from "@web/ui/commands/command_palette";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 class FooterComponent extends Component {
@@ -2054,4 +2057,40 @@ test("a command that cannot render is dropped, and its namesake is not", async (
     });
     await animationFrame();
     expect.verifyErrors(["cannot render"]);
+});
+
+/**
+ * @param {number} n
+ * @returns {Promise<string[]>} the truncation notice, if the palette shows one
+ */
+async function truncationNoticeFor(n) {
+    const commands = Array.from({ length: n }, (_, i) => ({
+        name: `Command ${i}`,
+        action: () => {},
+    }));
+    await mountWithCleanup(MainComponentsContainer);
+    getService("dialog").add(CommandPalette, {
+        config: { providers: [{ provide: () => commands }] },
+    });
+    await animationFrame();
+    return queryAllTexts(".o_command_palette_truncated");
+}
+
+test("nothing is hidden at the display limit, so nothing is said", async () => {
+    expect(await truncationNoticeFor(MAX_DISPLAYED_COMMANDS)).toEqual([]);
+});
+
+test("one result over the limit is one result, not '1 more results'", async () => {
+    // MAX_DISPLAYED_COMMANDS is a round number, which is exactly the kind a
+    // provider lands one past. Nothing showed at the limit and the plural was
+    // only true again from two, so this was the single count that read wrong.
+    expect(await truncationNoticeFor(MAX_DISPLAYED_COMMANDS + 1)).toEqual([
+        "1 more result — refine your search",
+    ]);
+});
+
+test("two or more over the limit reads in the plural", async () => {
+    expect(await truncationNoticeFor(MAX_DISPLAYED_COMMANDS + 2)).toEqual([
+        "2 more results — refine your search",
+    ]);
 });
