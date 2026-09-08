@@ -262,3 +262,13 @@ class StockWarehouseLocation(models.Model):
             seen.add(current.id)
             current = current.location_id
         return False
+
+    def action_open_internal_locations(self):
+        self.check_singleton()
+        return {
+            "name": _("Locations"),
+            "domain": [("id", "child_of", self.view_location_id.id)],
+            "res_model": "stock.location",
+            "type": "ir.actions.act_window",
+            "view_mode": "list,form",
+        }
