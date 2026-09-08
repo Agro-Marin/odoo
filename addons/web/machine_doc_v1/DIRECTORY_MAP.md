@@ -247,7 +247,7 @@
 | `webclient/debug/` | pages | 7 | Debug menu: the menu component, its basic variant, registered items and providers, field-widgets dialog |
 | `webclient/debug/profiling/` | pages | 4 | Profiling: the `profiling` service, systray item, menu item, QWeb view |
 | `webclient/density/` | pages | 2 | `density` service (default/compact/condensed) and its systray control |
-| `webclient/home_menu/` | pages | 10 | Home menu (app launcher): `HomeMenu`, the `home_menu` service and its `menu` client action, `QuickLauncher` (the popover the navbar opens on hover intent over its home toggle, with pinned and recent tiles and a search box), the `home_menu_badges` loader, the `enterprise_subscription` service, expiration and sysadmin banners, the home-menu background shared with the login page |
+| `webclient/home_menu/` | pages | 11 | Home menu (app launcher): `HomeMenu`, the `home_menu` service and its `menu` client action, `QuickLauncher` (the popover the navbar opens on hover intent over its home toggle, with pinned and recent tiles and a search box), the `home_menu_badges` loader, the `enterprise_subscription` service, expiration and sysadmin banners, the home-menu background shared with the login page |
 | `webclient/errors/` | pages | 2 | Webclient error handlers: offline "Failed to fetch", visitor-facing errors |
 | `webclient/install_scoped_app/` | pages | 1 | Public page component for installing scoped PWAs |
 | `webclient/loading_indicator/` | pages | 1 | Counts active RPCs and blocks the UI after a 3 s delay |

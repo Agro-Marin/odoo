@@ -1,7 +1,7 @@
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 
-@tagged("post_install", "-at_install")
+@tagged("web_unit", "web_menu", "post_install", "-at_install")
 class TestHomeMenuBadge(TransactionCase):
     def test_an_empty_registry_answers_nothing(self):
         self.assertEqual(

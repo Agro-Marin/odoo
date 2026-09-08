@@ -78,10 +78,10 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 |------|----------|-----|
 | `controllers/` | 24 `.py` — HTTP endpoints (22 Controller classes, 76 route handlers) | `ROUTE_MAP.md` |
 | `models/` | 25 `.py` — ORM extensions (24 model classes: web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
-| `static/src/` | 858 JavaScript/OWL source files across 249 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `static/src/` | 859 JavaScript/OWL source files across 249 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 18 directories (17 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
 | `static/tests/` | 782 `.js` (incl. 719 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
-| `tests/` | 61 Python test files (`test_*.py`) | `TEST_TAGS.md` |
+| `tests/` | 62 Python test files (`test_*.py`) | `TEST_TAGS.md` |
 | `machine_doc_v1/` | This directory: `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) · `LAZY_VIEW_LOADING.md` · `VIEW_TEARDOWN_COST.md` (both decision records: investigated, not pursued) · `LIST_EDIT_RENDER_COST.md` (decision record: row-level waste fixed, renderer-level amplification measured and not pursued) · the maps below · `factcheck.sh` | — |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 
@@ -99,7 +99,7 @@ Layered organization under `static/src/`:
 | **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 46 JS |
 | **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 116 fork-wide `registerField` / `registerFallbackField` sites | 128 JS |
 | **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 178 JS |
-| **Webclient** | `webclient/` | App shell: home menu, navbar, menus, actions, user menu, colour scheme, density, debug/profiling, Studio upsell | 93 JS |
+| **Webclient** | `webclient/` | App shell: home menu, navbar, menus, actions, user menu, colour scheme, density, debug/profiling, Studio upsell | 94 JS |
 | **Search** | `search/` | Search model and mixins, search bar, facets, filters, group-by, favorites, embedded actions bar | 38 JS |
 | **Model** | `model/` | Client-side relational data model (`RelationalRecord`, `StaticList`, groups, save orchestration) | 51 JS |
 | **Public** | `public/` | Public (anonymous) page features; all run on `public.interactions`. Frontend app boot is `public/public_boot.js` (+ `public_boot_instance.js`, kept out of the test bundles via a `remove` directive); early-boot `lazyloader.js` / `minimal_dom.js` also live here. | 17 JS |
@@ -136,7 +136,13 @@ root-crossing helper steps over in silence),
 `js_context_narrowing.py` (a `Pick<>` over a context bag names exactly what its
 file reaches — over-declaring is invisible to tsc, so a consumer otherwise keeps
 claiming a dependency it dropped) and
-`js_function_length.py`, `js_layer_check.py` (the Feature-Sliced layering above),
+`js_function_length.py`, `js_class_length.py` (the mass a per-function budget
+cannot see: `flow_editor.js` carries a 1,267-line component over 63 methods and
+not one of them is a `jsfunclen` offender), `js_unreached_assertions.py` (an
+assertion inside a callback the test never proves ran, which is
+`js_vacuous_assertions.py`'s defect one level down: that gate catches an
+assertion that cannot fail, this one an assertion that may never execute),
+`js_layer_check.py` (the Feature-Sliced layering above),
 `js_registry_layering.py` (the same contract for dependencies mediated by a
 registry rather than an import), `js_deployment_layers.py` (which bundle a module
 may be reached from), `js_extension_surface.py` (the methods downstream
@@ -448,8 +454,8 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 |----------|-------|
 | Python (controllers) | 24 (22 Controller classes across 20 route-bearing files + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 25 (24 model files + `__init__.py`) |
-| Python (tests) | 61 (`test_*.py`; 62 files incl. `__init__.py`) |
-| JavaScript (src) | 858 (856 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
+| Python (tests) | 62 (`test_*.py`; 63 files incl. `__init__.py`) |
+| JavaScript (src) | 859 (857 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
 | JavaScript (tests) | 782 (incl. 719 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 94 |
 | SCSS/CSS | 213 (34 in `static/src/scss/` shared base; remaining 179 co-located with JS components) |

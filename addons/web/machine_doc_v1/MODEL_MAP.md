@@ -171,13 +171,32 @@ Webclient user preferences.
 - `embedded_actions_config_ids` (One2many → `res.users.settings.embedded.action`)
 - `density` (Selection, `default='default'`, `required=True`): UI density — `default` / `compact` / `condensed`
 - `color_scheme` (Selection, `default='system'`, `required=True`): `system` / `light` / `dark`. `system` defers to the OS preference; `ir_http.color_scheme()` is the server-side override point
-- `homemenu_config` (Json, `readonly=True`): the user's home menu layout, written through `set_res_users_settings` from the home menu's drag, pin, hide and reset actions. Version 2 is a JSON object `{version, order, pinned, hidden}` of menu xml ids; version 1 was the bare `order` array and still reads. Both are parsed and serialised only by `webclient/menus/menu_utils.js` (`parseHomeMenuConfig`, `serializeHomeMenuConfig`). What the user *opens* is `homemenu_usage`, below
-- `homemenu_usage` (Json, `readonly=True`): which menus this user opens and when, as the app launcher's recents rank them. Server-side rather than in localStorage so a second device does not start blank
+- `homemenu_config` (Json, `readonly=True`): the user's home menu layout, written through `set_res_users_settings` from the home menu's drag, pin, hide and reset actions. Version 2 is a JSON object `{version, order, pinned, hidden}` of menu xml ids; version 1 was the bare `order` array and still reads. Both are parsed and serialised only by `webclient/menus/menu_utils.js` (`parseHomeMenuConfig`, `serializeHomeMenuConfig`). What the user *opens* is `homemenu_usage` below
+- `homemenu_usage` (Json, `readonly=True`): what this user opens and when, as `{xmlid: {n, t}}` — a count and a last-use timestamp, at most fifty entries, ranked by a frecency whose count halves weekly. It backs the launcher's Recents row and the command palette's empty query. Held here rather than in the browser so a second device does not start blank; `webclient/menus/menu_usage.js` keeps a `localStorage` copy as the other half, merges the two per read taking the higher count and later use, and writes back debounced. The merge never sums, because the merged table is written back to the place half of it was read from
 
 **Key Methods:**
 - `_format_settings(fields_to_format)` (`@api.model`) — `super()` + replaces `embedded_actions_config_ids` with its formatted payload when requested. This is what puts `user_settings` into `session_info`.
 - `get_embedded_actions_settings()` — Current user's embedded action config.
 - `set_embedded_actions_setting(action_id, res_id, ...)` — Create/update embedded action visibility and order.
+
+### models/home_menu_badge.py — HomeMenuBadge (`_name = 'home.menu.badge'`)
+
+An `AbstractModel` and a collection point, not a table: the counts the app
+launcher puts on its tiles, gathered in one call for the whole grid. An addon
+with something waiting for the user extends `_get_badges` and adds its own count
+under its app's xml id; `sale`, `purchase`, `stock`, `project` and `project_todo`
+do. The client reads it through one `home_menu_badges` registry provider
+(`webclient/home_menu/server_badges.js`), which is why five contributing addons
+cost one request rather than five.
+
+Server-side rather than a provider per addon because a domain belongs where its
+vocabulary lives — a confirmed order is `state = 'done'` on this fork — and the
+web client has no business carrying that.
+
+**Key Methods:**
+- `get_badges()` (`@api.model`) — the public entry: `_get_badges()` with the zeroes dropped, since a tile shows nothing rather than a `0`.
+- `_get_badges()` (`@api.model`) — `{xmlid: count}`, empty here; the seam addons extend.
+- `_count_for(xmlid, model, domain)` (`@api.model`) — one contribution, or `{}` when the model is absent or the reader cannot read it. `search_count` runs as the user, so a count already respects record rules, but a user with no access raises rather than answering zero — and one raising provider costs the client every count it carries, not just the one.
 
 ### models/res_users_settings_embedded_action.py — ResUsersSettingsEmbeddedAction (`_name`)
 
@@ -405,6 +424,7 @@ Quick lookup — file → model → primary role:
 | `ir_qweb_fields.py` | ir.qweb.field.image + ir.qweb.field.image_url | QWeb image rendering (2 classes: `IrQwebFieldImage`, `IrQwebFieldImage_Url`) |
 | `ir_asset.py` | ir.asset | HOOT `&module_scope=` bundle narrowing |
 | `res_users.py` | res.users | User search priority, bootstrap hook |
+| `home_menu_badge.py` | home.menu.badge | App launcher tile counts (abstract; addons extend `_get_badges`) |
 | `res_users_settings.py` | res.users.settings | UI density, embedded actions |
 | `res_users_settings_embedded_action.py` | res.users.settings.embedded.action | Per-user action config storage |
 | `base_document_layout.py` | base.document.layout | Report layout wizard |
