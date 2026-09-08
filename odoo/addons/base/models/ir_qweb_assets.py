@@ -1,7 +1,7 @@
 import hashlib
 import logging
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -1120,20 +1120,30 @@ class IrQweb(models.AbstractModel):
             )
 
         if include_names:
-            self._add_import_map_parent_self_bridges(asset_bundle, import_map)
+            self._add_import_map_parent_self_bridges(
+                asset_bundle, import_map, served_by_children=child_specifiers
+            )
         return import_map, dynamic_bundles, include_names
 
     @staticmethod
     def _add_import_map_parent_self_bridges(
-        asset_bundle: AssetsBundle, import_map: dict[str, str]
+        asset_bundle: AssetsBundle,
+        import_map: dict[str, str],
+        served_by_children: Collection[str] = (),
     ) -> None:
-        self_bridges = asset_bundle._bridges._prepare_parent_self_bridge()
+        self_bridges = {
+            spec: shim
+            for spec, shim in asset_bundle._bridges._prepare_parent_self_bridge().items()
+            if spec not in served_by_children
+        }
         import_map.update(self_bridges)
         for asset in asset_bundle.native_modules:
             header = asset.parsed_header
             if not (header and header["alias"]):
                 continue
             alias = header["alias"]
+            if alias in served_by_children:
+                continue
             if import_map.get(alias, "").startswith("/web/assets/esm/bridges/"):
                 continue
             shim = self_bridges.get(asset.module_path)

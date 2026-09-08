@@ -432,10 +432,7 @@ def xml_term_adapter(term_en: str) -> Callable[[str], str | None]:
             for orig_n, new_n in same_struct_iter(orig_node, new_node):
                 for k in [k for k in new_n.attrib if k in MODIFIER_ATTRS]:
                     del new_n.attrib[k]
-                keep_attrs = {
-                    k: v for k, v in orig_n.attrib.items() if k in MODIFIER_ATTRS
-                }
-                new_n.attrib.update(keep_attrs)
+                new_n.attrib.update(orig_n.attrib)
         except ValueError:
             return None
 

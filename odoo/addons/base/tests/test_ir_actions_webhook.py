@@ -171,6 +171,10 @@ class TestWebhookNeverLogsItsSecret(WebhookCase):
         self.assertIn("hooks.slack.com", output)
         self.assertIn("notify", output, "the action is what identifies it now")
         self.assertEqual(
+            # A MagicMock is not a descriptor, so patching the class attribute
+            # with one leaves it unbound and the call arrives as mock(url, ...)
+            # with no `self`. Where the replacement is a plain function it binds
+            # and the url is args[1]; test_ir_actions.py does that instead.
             post.call_args.args[0],
             _URL,
             "the full URL must still reach requests -- only the log is trimmed",

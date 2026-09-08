@@ -117,6 +117,7 @@ class TestPartnerFormatAddress(FormatAddressCase):
                 "priority": 900,
             }
         )
+        self.env.company.country_id = self.env.ref("base.us")
         self.env.company.country_id.address_view_id = address_view
 
         form_arch = (
@@ -147,6 +148,7 @@ class TestPartnerFormatAddress(FormatAddressCase):
                 "priority": 900,
             }
         )
+        self.env.company.country_id = self.env.ref("base.us")
         self.env.company.country_id.address_view_id = address_view
 
         form_arch = (
