@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { advanceFrame, advanceTime } from "@odoo/hoot-mock";
 import { FlowEditor } from "@web/core/flow_editor/flow_editor";
 import { FlowEditorStore } from "@web/core/flow_editor/flow_editor_store";
 import { patch } from "@web/core/utils/patch";
@@ -293,7 +294,6 @@ describe("FlowEditor: node dragging", () => {
         });
         editor.onPointerMove(pointerEvent({ clientX: 34, clientY: 6 }));
 
-        // gridSize is 20: (34, 6) snaps to the nearest multiple of 20.
         expect(editor.store.getNode("a").position).toEqual({ x: 40, y: 0 });
     });
 
@@ -333,7 +333,6 @@ describe("FlowEditor: node resizing", () => {
         expect(editor.store.interaction.origin).toEqual(DEFAULT_NODE_SIZE);
 
         editor.onPointerMove(pointerEvent({ clientX: 260, clientY: 170 }));
-        // width grows by 60, height would shrink by 30 but is clamped to minNodeSize.height.
         expect(editor.store.getNode("a").size).toEqual({ width: 280, height: 90 });
 
         editor.onPointerUp(pointerEvent({ clientX: 260, clientY: 170 }));
@@ -372,7 +371,6 @@ describe("FlowEditor: zoom controls", () => {
 
         editor.zoomIn();
 
-        // Computed rather than hardcoded: 400 * 1.1 is not bit-exact in IEEE 754.
         expect(editor.store.viewport).toEqual({
             x: 400 - 400 * scale,
             y: 300 - 300 * scale,
@@ -442,6 +440,62 @@ describe("FlowEditor: fit to content", () => {
         editor.fitToContent();
 
         expect(editor.store.viewport).toEqual({ x: 200, y: 75, scale: 1 });
+    });
+});
+
+describe("FlowEditor: viewport animation", () => {
+    test("setViewport reports the resulting viewport to the consumer", () => {
+        const seen = [];
+        const editor = makeEditor({
+            props: { onViewportChange: (v) => seen.push({ ...v }) },
+        });
+
+        editor.setViewport({ x: 10, y: 20 });
+
+        expect(seen).toEqual([{ x: 10, y: 20, scale: 1 }]);
+    });
+
+    test("clicking the location indicator animates the viewport toward the content", async () => {
+        const editor = makeEditor({
+            nodes: [node("far", { position: { x: 4000, y: 4000 } })],
+        });
+        expect(editor.store.viewport).toEqual({ x: 0, y: 0, scale: 1 });
+
+        editor.onFlowLocationClick(pointerEvent());
+        // The first frame only records the start timestamp: progress is 0 and
+        // the easing moves nothing. Asserting after one frame would pass over a
+        // cancelled animation just as happily.
+        await advanceFrame();
+        expect(editor.store.viewport).toEqual({ x: 0, y: 0, scale: 1 });
+
+        await advanceTime(200);
+        const halfway = { ...editor.store.viewport };
+        expect(halfway.x).toBeLessThan(0);
+        expect(halfway.y).toBeLessThan(0);
+        expect(halfway.scale).toBe(1);
+
+        await advanceTime(400);
+        expect(editor.store.viewport.x).toBeLessThan(halfway.x);
+        expect(editor.store.viewport.y).toBeLessThan(halfway.y);
+    });
+
+    test("cancelling the animation stops the viewport where it stood", async () => {
+        const editor = makeEditor({
+            nodes: [node("far", { position: { x: 4000, y: 4000 } })],
+        });
+
+        editor.onFlowLocationClick(pointerEvent());
+        await advanceFrame();
+        await advanceTime(200);
+        const stopped = { ...editor.store.viewport };
+        // The animation must have MOVED before cancelling proves anything: a
+        // still viewport that never started stays still for the wrong reason.
+        expect(stopped.x).toBeLessThan(0);
+
+        editor.cancelViewportAnimation();
+        await advanceTime(400);
+
+        expect(editor.store.viewport).toEqual(stopped);
     });
 });
 
@@ -677,10 +731,6 @@ describe("FlowEditor: connecting ports", () => {
         ]);
         expect(editor.suppressNodeClick).toBe(true);
 
-        // Source and target ports share the same node <article>, so the
-        // browser's own click-target resolution would otherwise synthesize
-        // a click on that node right after the drag ends (see onPointerUp)
-        // - it must be swallowed instead of opening the node's configuration.
         editor.onNodeClick({ node: editor.store.getNode("a"), originalEvent: {} });
         expect(clicks).toEqual([]);
     });
