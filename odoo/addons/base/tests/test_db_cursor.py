@@ -3505,6 +3505,31 @@ class TestExecutemanyGeneratorParams(BaseCase):
             cr.execute("SELECT count(*) FROM _test_em_empty")
             self.assertEqual(cr.fetchone()[0], 0)
 
+    def test_copy_from_empty_generator_short_circuits(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_copy_empty_gen (v int)")
+            rows_before = cr.sql_log_count
+            statements_before = cr.sql_statement_count
+            cr.copy_from("_test_copy_empty_gen", ["v"], (x for x in ()))
+            self.assertEqual(
+                cr.sql_statement_count,
+                statements_before,
+                "an empty generator must not pay a COPY round trip; a length "
+                "test cannot see one, so the first row is peeled instead",
+            )
+            self.assertEqual(cr.sql_log_count, rows_before)
+
+    def test_copy_from_a_generator_still_copies(self):
+        with registry().cursor() as cr:
+            cr.execute("CREATE TEMP TABLE _test_copy_gen (v int)")
+            cr.copy_from("_test_copy_gen", ["v"], ((i,) for i in range(3)))
+            cr.execute("SELECT count(*) FROM _test_copy_gen")
+            self.assertEqual(
+                cr.fetchone()[0],
+                3,
+                "peeling the first row must put it back, not drop it",
+            )
+
 
 class TestRecoverableErrorLogLevel(BaseCase):
     def test_readonly_write_logged_as_warning_not_error(self):

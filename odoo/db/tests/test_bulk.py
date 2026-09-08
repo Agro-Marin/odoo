@@ -117,10 +117,21 @@ class TestCopyFromMetrics(unittest.TestCase):
         cursor.copy_from("t", ["a"], [(i,) for i in range(5000)])
         self.assertEqual(cursor.statement_done_calls, [5000])
 
-    def test_zero_written_rows_reports_zero(self):
+    def test_an_empty_iterator_issues_no_statement_to_report(self):
         cursor = _FakeCursorForCopyMetrics()
         cursor.copy_from("t", ["a"], iter(()))
-        self.assertEqual(cursor.statement_done_calls, [0])
+        self.assertEqual(
+            cursor.statement_done_calls,
+            [],
+            "an empty iterator must not reach the server, so there is no "
+            "statement to record; this asserted a recorded count of 0 while "
+            "the COPY was still being issued",
+        )
+
+    def test_a_generator_keeps_the_row_that_was_peeled_to_test_it(self):
+        cursor = _FakeCursorForCopyMetrics()
+        cursor.copy_from("t", ["a"], iter([(1,), (2,), (3,)]))
+        self.assertEqual(cursor.statement_done_calls, [3])
 
 
 class TestExecuteValuesValidation(unittest.TestCase):

@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from contextlib import nullcontext as _nullcontext
 from decimal import Decimal as _Decimal
+from itertools import chain
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
@@ -19,6 +20,8 @@ from .errors import CURSOR_LOGGER_NAME, has_reached_server
 from .utils import get_value_marker_positions
 
 _logger = logging.getLogger(CURSOR_LOGGER_NAME)
+
+_NO_ROWS = object()
 
 _TEXT_OID = 25
 _NUMERIC_OID = 1700
@@ -296,8 +299,17 @@ class _BulkAccessMixin:
             rows = [(id_, *row) for id_, row in zip(ids, rows, strict=True)]
         else:
             ids = None
-            if hasattr(rows, "__len__") and len(rows) == 0:
-                return None
+            if hasattr(rows, "__len__"):
+                if len(rows) == 0:
+                    return None
+            else:
+                # Peeled rather than materialised: this branch exists to stream,
+                # and a generator has no length to test before the round trip.
+                iterator = iter(rows)
+                first = next(iterator, _NO_ROWS)
+                if first is _NO_ROWS:
+                    return None
+                rows = chain((first,), iterator)
 
         col_types = self._get_column_type_oids(table, columns) if binary else None
         if col_types is not None and not self._is_binary_copy_worthwhile(col_types):
