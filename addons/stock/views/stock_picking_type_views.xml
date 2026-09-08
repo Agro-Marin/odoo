@@ -303,7 +303,7 @@
                                         groups="base.group_multi_company"
                                         options="{'no_create': True}" />
                                     <field
-                                        invisible="code not in ['incoming', 'outgoing', 'internal']"
+                                        invisible="not show_picking_type"
                                         name="return_picking_type_id"
                                         string="Returns Type" />
                                     <field name="create_backorder" />

@@ -1,11 +1,13 @@
 from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
+from lxml import etree
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import tagged
 from odoo.tools import mute_logger
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.stock.tests.common import TestStockCommon
 
@@ -825,6 +827,39 @@ class TestPickingTypeTransferCodes(TestStockCommon):
         for code in outsiders:
             with self.subTest(code=code):
                 self.assertFalse(model.new({"code": code}).show_picking_type)
+
+    def test_the_returns_type_follows_the_declared_transfer_codes(self):
+        """Every declared transfer code must be able to carry a Returns Type.
+
+        The form hardcoded the three base codes in the field's `invisible`,
+        while `_transfer_codes()` is a hook satellite modules extend --
+        stock_dropshipping adds `dropship` to it. A Dropship operation type
+        therefore had a return_picking_type_id it could never be shown, so its
+        returns could not be routed to their own operation type.
+        """
+        model = self.env["stock.picking.type"]
+        arch = etree.fromstring(
+            model.get_view(
+                self.env.ref("stock.view_stock_picking_type_form").id, "form"
+            )["arch"],
+        )
+        nodes = arch.xpath("//field[@name='return_picking_type_id']")
+        self.assertEqual(len(nodes), 1, "fixture: the field must be on the form once")
+        expression = nodes[0].get("invisible")
+
+        for code in sorted(model._transfer_codes()):
+            picking_type = model.new({"code": code})
+            with self.subTest(code=code):
+                self.assertFalse(
+                    safe_eval(
+                        expression,
+                        {
+                            "code": picking_type.code,
+                            "show_picking_type": picking_type.show_picking_type,
+                        },
+                    ),
+                    f"the Returns Type is hidden for the transfer code {code}",
+                )
 
 
 @tagged("post_install", "-at_install")
