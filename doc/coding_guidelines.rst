@@ -1138,9 +1138,9 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   315
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 25,908
+§2.4.3   Non-test methods declared on a model class                 25,914
 §2.4.3   Stems spelled with two or more verbs of one family              3
-§2.4.3   Groups of methods sharing a byte-identical body               101
+§2.4.3   Groups of methods sharing a byte-identical body               100
 §2.4.4   Model methods with an abolished verb behind a noun            137
 §2.4.4   ``fields`` family: definitions spelled head-first             208
 §2.4.4   ``fields`` family: distinct names spelled head-first           97
@@ -1150,7 +1150,7 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   157
 §2.4.5   ``X_to_Y`` converter definitions                               97
 §2.4.5   … distinct names                                               55
-§2.4.7   ``_get_*`` definitions                                      5,952
+§2.4.7   ``_get_*`` definitions                                      5,958
 §2.4.7   Abolished payload verbs, the four between them                 16
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  7
@@ -1169,7 +1169,7 @@ Section  Population                                                  Count
 §2.4.11  ``_get_or_create_*`` methods                                   30
 §2.4.11  ``_resolve_*`` definitions                                     39
 §2.4.12  ``_set_*`` definitions                                        124
-§2.4.12  ``_update_*`` definitions                                     354
+§2.4.12  ``_update_*`` definitions                                     355
 §2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             249
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
 §2.4.12  ``_sync_*`` definitions                                        69
