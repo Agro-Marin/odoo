@@ -107,27 +107,34 @@ export function getRecordsToRecompute(renderer, record, targetId) {
  * leaving it (with qty still 0) gets reset to 1.
  *
  * Shared between the same two renderers as `getRecordsToRecompute` above.
+ * The two renderers write the quantity through a different field —
+ * `renderer.optionalQuantityField` lets each one say which (default
+ * `product_uom_qty`, `sale.order.template.line`'s own writable quantity
+ * field; `SaleOrderLineListRenderer` overrides it to `product_qty`, the
+ * writable field on `sale.order.line` — its own `product_uom_qty` is a
+ * computed, guarded reference-UoM projection).
  *
  * @param {Object} renderer - The list renderer instance (`this` of the caller).
  * @param {Map<number|string, boolean>} recordMap - As returned by `getRecordsToRecompute`.
  */
 export async function handleQuantityAdjustment(renderer, recordMap) {
+    const qtyField = renderer.optionalQuantityField ?? "product_uom_qty";
     const commands = [];
 
     for (const [recordId, wasOptional] of recordMap.entries()) {
         const record = renderer.props.list.records.find((r) => r.id === recordId);
         const isOptional = renderer.shouldCollapse(record, "is_optional");
 
-        if (wasOptional && !isOptional && !record.data.product_uom_qty) {
+        if (wasOptional && !isOptional && !record.data[qtyField]) {
             commands.push(
                 x2ManyCommands.update(listId(record), {
-                    product_uom_qty: 1,
+                    [qtyField]: 1,
                 }),
             );
         } else if (!wasOptional && isOptional) {
             commands.push(
                 x2ManyCommands.update(listId(record), {
-                    product_uom_qty: 0,
+                    [qtyField]: 0,
                 }),
             );
         }

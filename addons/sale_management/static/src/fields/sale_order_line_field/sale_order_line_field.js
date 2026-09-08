@@ -17,6 +17,16 @@ patch(SaleOrderLineListRenderer.prototype, {
     },
 
     /**
+     * @see handleQuantityAdjustment in section_optional_line_utils.js —
+     * `sale.order.line`'s own `product_uom_qty` is a computed, guarded
+     * reference-UoM projection (`mixin_order_line_amount.py`); the writable
+     * quantity field here is `product_qty`.
+     */
+    get optionalQuantityField() {
+        return "product_qty";
+    },
+
+    /**
      * Disable "Hide Composition" and "Hide Prices" buttons for optional sections and their
      * subsections.
      */
@@ -87,7 +97,7 @@ patch(SaleOrderLineListRenderer.prototype, {
     },
 
     /**
-     * Override to set the default `product_uom_qty` to 0 for new lines created under an optional
+     * Override to set the default quantity to 0 for new lines created under an optional
      * section.
      */
     add(params) {
@@ -102,20 +112,23 @@ patch(SaleOrderLineListRenderer.prototype, {
             !evaluatedContext[`default_display_type`] &&
             this.isCurrentSectionOptional
         ) {
-            return { ...evaluatedContext, default_product_uom_qty: 0 };
+            return {
+                ...evaluatedContext,
+                [`default_${this.optionalQuantityField}`]: 0,
+            };
         }
         return params.context;
     },
 
     /**
-     * Override to set the default `product_uom_qty` to 0 for new lines inserted by optional
+     * Override to set the default quantity to 0 for new lines inserted by optional
      * sections from dropdown.
      */
     getInsertLineContext(record, addSubSection) {
         if (this.shouldCollapse(record, "is_optional", true) && !addSubSection) {
             return {
                 ...super.getInsertLineContext(record, addSubSection),
-                default_product_uom_qty: 0,
+                [`default_${this.optionalQuantityField}`]: 0,
             };
         }
         return super.getInsertLineContext(record, addSubSection);
@@ -162,6 +175,7 @@ patch(SaleOrderLineListRenderer.prototype, {
      */
     async toggleIsOptional(record) {
         const setOptional = !record.data.is_optional;
+        const qtyField = this.optionalQuantityField;
 
         const commands = [
             x2ManyCommands.update(listId(record), {
@@ -175,11 +189,11 @@ patch(SaleOrderLineListRenderer.prototype, {
 
             if (!sectionRecord.data.display_type) {
                 if (setOptional) {
-                    changes = { product_uom_qty: 0, price_total: 0, price_subtotal: 0 };
+                    changes = { [qtyField]: 0, price_total: 0, price_subtotal: 0 };
                 } else {
                     proms.push(
                         sectionRecord.update({
-                            product_uom_qty: sectionRecord.data.product_uom_qty || 1,
+                            [qtyField]: sectionRecord.data[qtyField] || 1,
                         }),
                     );
                 }
@@ -264,11 +278,12 @@ patch(SaleOrderLineListRenderer.prototype, {
         await super.moveCombo(record, direction);
 
         const isOptional = this.shouldCollapse(record, "is_optional");
+        const qtyField = this.optionalQuantityField;
 
-        if (wasOptional && !isOptional && !record.data.product_uom_qty) {
-            await record.update({ product_uom_qty: 1 });
+        if (wasOptional && !isOptional && !record.data[qtyField]) {
+            await record.update({ [qtyField]: 1 });
         } else if (!wasOptional && isOptional) {
-            await record.update({ product_uom_qty: 0 });
+            await record.update({ [qtyField]: 0 });
         }
     },
 });

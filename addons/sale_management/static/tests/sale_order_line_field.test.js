@@ -16,7 +16,7 @@ class SaleOrderLine extends saleModels.SaleOrderLine {
     price_unit = fields.Float({ default: 3.0 });
     price_total = fields.Float({ default: 3.0 });
     price_subtotal = fields.Float({ default: 3.5 });
-    product_uom_qty = fields.Float({ default: 1.0 });
+    product_qty = fields.Float({ default: 1.0 });
 
     _records = [
         { id: 1, name: "r1", sequence: 1 },
@@ -26,7 +26,7 @@ class SaleOrderLine extends saleModels.SaleOrderLine {
             name: "Sec1",
             sequence: 3,
             display_type: "line_section",
-            product_uom_qty: 0,
+            product_qty: 0,
             price_unit: 0,
             price_total: 0,
             price_subtotal: 0,
@@ -37,7 +37,7 @@ class SaleOrderLine extends saleModels.SaleOrderLine {
             name: "Sec2",
             sequence: 4,
             display_type: "line_section",
-            product_uom_qty: 0,
+            product_qty: 0,
             price_unit: 0,
             price_total: 0,
             price_subtotal: 0,
@@ -48,7 +48,7 @@ class SaleOrderLine extends saleModels.SaleOrderLine {
             name: "Sec3",
             sequence: 5,
             display_type: "line_section",
-            product_uom_qty: 0,
+            product_qty: 0,
             price_unit: 0,
             price_total: 0,
             price_subtotal: 0,
@@ -60,7 +60,7 @@ class SaleOrderLine extends saleModels.SaleOrderLine {
             name: "Sec3-sub1",
             sequence: 8,
             display_type: "line_subsection",
-            product_uom_qty: 0,
+            product_qty: 0,
             price_unit: 0,
             price_total: 0,
         },
@@ -70,7 +70,7 @@ class SaleOrderLine extends saleModels.SaleOrderLine {
             name: "Sec3-sub2",
             sequence: 10,
             display_type: "line_subsection",
-            product_uom_qty: 0,
+            product_qty: 0,
             price_unit: 0,
             price_total: 0,
         },
@@ -80,7 +80,7 @@ class SaleOrderLine extends saleModels.SaleOrderLine {
             name: "Sec4",
             sequence: 12,
             display_type: "line_section",
-            product_uom_qty: 0,
+            product_qty: 0,
             price_unit: 0,
             price_total: 0,
             price_subtotal: 0,
@@ -91,7 +91,7 @@ class SaleOrderLine extends saleModels.SaleOrderLine {
             name: "Sec4-sub1",
             sequence: 14,
             display_type: "line_subsection",
-            product_uom_qty: 0,
+            product_qty: 0,
             price_unit: 0,
             price_total: 0,
             collapse_composition: true,
@@ -125,7 +125,7 @@ class SaleOrder extends saleModels.SaleOrder {
                         </control>
                         <field name="sequence" widget="handle"/>
                         <field name="name"/>
-                        <field name="product_uom_qty"/>
+                        <field name="product_qty"/>
                         <field name="price_unit"/>
                         <field name="price_total"/>
                         <field name="price_subtotal"/>
@@ -190,10 +190,10 @@ test("Setting section optional should reset some fields", async () => {
                     [1, 10, { collapse_composition: false, collapse_prices: false }],
                     [1, 8, { collapse_composition: false, collapse_prices: false }],
                     [1, 5, { is_optional: true }],
-                    [1, 6, { product_uom_qty: 0, price_total: 0, price_subtotal: 0 }],
-                    [1, 7, { product_uom_qty: 0, price_total: 0, price_subtotal: 0 }],
-                    [1, 9, { product_uom_qty: 0, price_total: 0, price_subtotal: 0 }],
-                    [1, 11, { product_uom_qty: 0, price_total: 0, price_subtotal: 0 }],
+                    [1, 6, { product_qty: 0, price_total: 0, price_subtotal: 0 }],
+                    [1, 7, { product_qty: 0, price_total: 0, price_subtotal: 0 }],
+                    [1, 9, { product_qty: 0, price_total: 0, price_subtotal: 0 }],
+                    [1, 11, { product_qty: 0, price_total: 0, price_subtotal: 0 }],
                 ],
             },
             {
@@ -230,17 +230,17 @@ test("Setting section optional should reset some fields", async () => {
 
 test("Unsetting optional section should reset some fields", async () => {
     SaleOrderLine._records.find((record) => record.name === "Sec3").is_optional = true;
-    SaleOrderLine._records.find((record) => record.name === "Sec3-r1").product_uom_qty =
+    SaleOrderLine._records.find((record) => record.name === "Sec3-r1").product_qty =
         0;
-    SaleOrderLine._records.find((record) => record.name === "Sec3-r2").product_uom_qty =
+    SaleOrderLine._records.find((record) => record.name === "Sec3-r2").product_qty =
         0;
     SaleOrderLine._records.find(
         (record) => record.name === "Sec3-sub1-r1",
-    ).product_uom_qty = 0;
+    ).product_qty = 0;
     // This line should not be reset
     SaleOrderLine._records.find(
         (record) => record.name === "Sec3-sub2-r1",
-    ).product_uom_qty = 5;
+    ).product_qty = 5;
 
     onRpc("web_save", ({ args }) => {
         expect.step("web_save");
@@ -248,10 +248,10 @@ test("Unsetting optional section should reset some fields", async () => {
             {
                 line_ids: [
                     [1, 5, { is_optional: false }],
-                    [1, 6, { product_uom_qty: 1 }],
-                    [1, 7, { product_uom_qty: 1 }],
-                    [1, 9, { product_uom_qty: 1 }],
-                    [1, 11, { product_uom_qty: 5 }],
+                    [1, 6, { product_qty: 1 }],
+                    [1, 7, { product_qty: 1 }],
+                    [1, 9, { product_qty: 1 }],
+                    [1, 11, { product_qty: 5 }],
                 ],
             },
             {
@@ -291,42 +291,42 @@ test("drag and drop regular line inside optional section resets some fields", as
     SaleOrderLine._records.find((record) => record.name === "Sec3").is_optional = true;
     SaleOrderLine._records.find(
         (record) => record.name === "Sec3-sub2-r1",
-    ).product_uom_qty = 0;
+    ).product_qty = 0;
     SaleOrderLine._records.find(
         (record) => record.name === "Sec3-sub1-r1",
-    ).product_uom_qty = 1;
+    ).product_qty = 1;
 
     onRpc("web_save", ({ args }) => {
         expect.step("web_save");
 
         expect(
-            args[1].line_ids.find((commands) => commands[1] === 13)[2].product_uom_qty,
+            args[1].line_ids.find((commands) => commands[1] === 13)[2].product_qty,
         ).toEqual(
             // Sec4-r1
             0,
             {
                 message:
-                    "Drag and drop inside optional section should reset product_uom_qty to 0",
+                    "Drag and drop inside optional section should reset product_qty to 0",
             },
         );
         expect(
-            args[1].line_ids.find((commands) => commands[1] === 11)[2].product_uom_qty,
+            args[1].line_ids.find((commands) => commands[1] === 11)[2].product_qty,
         ).toEqual(
             // Sec3-sub2-r1
             1,
             {
                 message:
-                    "Drag and drop line with 0 quantity outside optional section should reset product_uom_qty to 1",
+                    "Drag and drop line with 0 quantity outside optional section should reset product_qty to 1",
             },
         );
         expect(
-            args[1].line_ids.find((commands) => commands[1] === 9)?.[2].product_uom_qty,
+            args[1].line_ids.find((commands) => commands[1] === 9)?.[2].product_qty,
         ).toEqual(
             // Sec3-sub1-r1
             undefined,
             {
                 message:
-                    "Drag and drop line with non-zero quantity outside optional section shouldn't reset product_uom_qty",
+                    "Drag and drop line with non-zero quantity outside optional section shouldn't reset product_qty",
             },
         );
     });
@@ -358,39 +358,39 @@ test("Moving Optional Sections to include some lines should set quantity to 0", 
     // keep sec4-r1's quantity 1 so that we can check that it doesn't reset
     SaleOrderLine._records.find(
         (record) => record.name === "Sec4-sub1-r1",
-    ).product_uom_qty = 0;
+    ).product_qty = 0;
     onRpc("web_save", ({ args }) => {
         expect.step("web_save");
 
         expect(
-            args[1].line_ids.find((commands) => commands[1] === 7)[2].product_uom_qty,
+            args[1].line_ids.find((commands) => commands[1] === 7)[2].product_qty,
         ).toEqual(
             // Sec3-r2
             0,
             {
                 message:
-                    "New lines added to an optional section should have product_uom_qty set to 0",
+                    "New lines added to an optional section should have product_qty set to 0",
             },
         );
         expect(
-            args[1].line_ids.find((commands) => commands[1] === 9)[2].product_uom_qty,
+            args[1].line_ids.find((commands) => commands[1] === 9)[2].product_qty,
         ).toEqual(
             // Sec3-sub1-r1
             0,
             {
                 message:
-                    "New lines added to a subsection of an optional section should also have product_uom_qty set to 0",
+                    "New lines added to a subsection of an optional section should also have product_qty set to 0",
             },
         );
         expect(
             args[1].line_ids.find((commands) => commands[1] === 13)?.[2]
-                .product_uom_qty,
+                .product_qty,
         ).toEqual(
             // Sec4-r1
             undefined,
             {
                 message:
-                    "Existing optional lines should keep their current product_uom_qty",
+                    "Existing optional lines should keep their current product_qty",
             },
         );
     });
@@ -412,52 +412,52 @@ test("Moving Optional Sections to include some lines should set quantity to 0", 
 
 test("Moving Optional Sections to exclude some lines should set quantity to 1", async () => {
     SaleOrderLine._records.find((record) => record.name === "Sec3").is_optional = true;
-    SaleOrderLine._records.find((record) => record.name === "Sec3-r1").product_uom_qty =
+    SaleOrderLine._records.find((record) => record.name === "Sec3-r1").product_qty =
         0;
     SaleOrderLine._records.find(
         (record) => record.name === "Sec3-sub1-r1",
-    ).product_uom_qty = 0;
+    ).product_qty = 0;
     onRpc("web_save", ({ args }) => {
         expect.step("web_save");
 
         expect(
-            args[1].line_ids.find((command) => command[1] === 6)[2].product_uom_qty,
+            args[1].line_ids.find((command) => command[1] === 6)[2].product_qty,
         ).toEqual(
             // Sec3-r1
             1,
             {
                 message:
-                    "Non-optional lines should reset product_uom_qty to 1 when it was previously 0.",
+                    "Non-optional lines should reset product_qty to 1 when it was previously 0.",
             },
         );
         expect(
-            args[1].line_ids.find((command) => command[1] === 7)?.[2].product_uom_qty,
+            args[1].line_ids.find((command) => command[1] === 7)?.[2].product_qty,
         ).toEqual(
             // Sec3-r2
             undefined,
             {
                 message:
-                    "Non-optional lines should keep their existing product_uom_qty when it was already non-zero.",
+                    "Non-optional lines should keep their existing product_qty when it was already non-zero.",
             },
         );
         expect(
-            args[1].line_ids.find((command) => command[1] === 9)[2].product_uom_qty,
+            args[1].line_ids.find((command) => command[1] === 9)[2].product_qty,
         ).toEqual(
             // Sec3-sub1-r1
             1,
             {
                 message:
-                    "Lines moved out of an optional subsection should reset product_uom_qty to 1 when it was 0.",
+                    "Lines moved out of an optional subsection should reset product_qty to 1 when it was 0.",
             },
         );
         expect(
-            args[1].line_ids.find((command) => command[1] === 11)?.[2].product_uom_qty,
+            args[1].line_ids.find((command) => command[1] === 11)?.[2].product_qty,
         ).toEqual(
             // Sec3-sub2-r1
             undefined,
             {
                 message:
-                    "Lines moved out of an optional subsection should keep their existing product_uom_qty when it was already non-zero.",
+                    "Lines moved out of an optional subsection should keep their existing product_qty when it was already non-zero.",
             },
         );
     });
