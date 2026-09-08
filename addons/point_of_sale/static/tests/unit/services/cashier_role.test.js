@@ -31,9 +31,25 @@ describe("cashierIsMinimal", () => {
     test("an unset cashier reads as not minimal instead of throwing", async () => {
         const store = await setupPosEnv();
 
-        // The navbar renders before LoginScreen has run, when the field has
-        // never been assigned at all -- a shape `false` does not cover.
         store.cashier = undefined;
         expect(store.cashierIsMinimal).toBe(false);
+    });
+});
+
+describe("getCashier() does not read pos.cashier", () => {
+    test("logging out clears one cashier and leaves the other in place", async () => {
+        const store = await setupPosEnv();
+        store.config.restrict_price_control = true;
+        store.user._role = "manager";
+
+        store.resetCashier();
+
+        expect(store.cashier).toBe(false);
+        expect(store.cashierIsMinimal).toBe(false);
+
+        // `utils/cashier.js` defines getCashier as `pos.user`, which
+        // `resetCashier` never touches, so the two disagree from here on.
+        expect(store.getCashier()).toBe(store.user);
+        expect(store.cashierHasPriceControlRights()).toBe(true);
     });
 });
