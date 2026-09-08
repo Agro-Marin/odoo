@@ -133,6 +133,8 @@ class StockPickingBatch(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
+        if "picking_ids" in vals:
+            self.order_on_zip()
         if "dock_id" in vals:
             self._set_moves_destination_to_dock()
         return res
