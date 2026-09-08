@@ -1,0 +1,6 @@
+{
+  "count": 0,
+  "measured_at": "8b98c48c98f4ab170a585939983938b0d66239b1",
+  "measured_root": "",
+  "note": "Hard zero over repo-wide .d.ts format drift, the sibling of prettier_scss for declaration files.\n\nnpx prettier --list-different \"**/*.d.ts\" | grep -c . , measured in a clean detached worktree with node_modules symlinked in, since a worktree carries none.\n\n36 -> 0. Every .d.ts prettier would rewrite, rewritten: 36 of 79 files across 12 addons, led by web 12 and spreadsheet 5.\n\nTHE FLOOR IS NEW BECAUSE THE GATE IS NEW, AND THE GATE IS NEW BECAUSE NOTHING WATCHED THESE FILES. Every files: glob in eslint.config.mjs is *.js, so a .d.ts matched no config block and eslint reported 'File ignored because no matching configuration was supplied' -- a WARNING that reads like a finding and means eslint formed no opinion. It cannot: espree does not parse TypeScript and no TS parser is a dependency. Prettier can parse them, but runs here only as an eslint rule, so eslint declining the file took prettier with it, and the standalone prettier gate covered **/*.scss alone.\n\nVerified by tsc rather than by a byte comparison: 1484 = floor, error set identical to the parent's ignoring line numbers. esbuild is NOT a sound comparator here -- it erases types to zero bytes, so a before/after minify of a .d.ts compares two empty strings and reports identical."
+}
