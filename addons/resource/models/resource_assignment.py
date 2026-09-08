@@ -135,7 +135,7 @@ class ResourceAssignment(models.Model):
                 "date_start": self.date_start,
                 "date_end": self.date_end,
                 "resource_id": self.resource_id.id,
-                "allocated_percentage": 100.0,
+                "allocated_percentage": 100.0 / (self.resource_id.capacity or 1),
                 "enforcement_mode": "soft",
             }
         ]
