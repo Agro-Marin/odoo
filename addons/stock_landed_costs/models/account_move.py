@@ -19,6 +19,17 @@ class AccountMove(models.Model):
                     line.is_landed_costs_line for line in account_move.line_ids
                 )
 
+    def _get_landed_cost_pickings(self):
+        """The transfers a landed cost created from this bill should start with.
+
+        The bill reaches its purchase orders through its own lines, and those
+        orders already know their receipts. Only a transfer that actually valued
+        something can carry a landed cost, so the rest are left out.
+        """
+        self.check_singleton()
+        pickings = self.invoice_line_ids.purchase_line_ids.order_id.picking_ids
+        return pickings.filtered(lambda picking: picking.move_ids.filtered("is_valued"))
+
     def button_create_landed_costs(self):
         self.check_singleton()
         landed_costs_lines = self.line_ids.filtered(
@@ -32,6 +43,7 @@ class AccountMove(models.Model):
             .create(
                 {
                     "vendor_bill_id": self.id,
+                    "picking_ids": self._get_landed_cost_pickings().ids,
                     "cost_lines": [
                         (
                             0,

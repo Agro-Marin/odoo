@@ -42,6 +42,7 @@ class StockLandedCost(models.Model):
         copy=False,
     )
     picking_ids = fields.Many2many("stock.picking", string="Transfers", copy=False)
+    pickings_count = fields.Count("picking_ids", "Transfers")
     cost_lines = fields.One2many(
         "stock.landed.cost.lines", "cost_id", "Cost Lines", copy=True
     )
@@ -277,6 +278,10 @@ class StockLandedCost(models.Model):
         for key, value in towrite_dict.items():
             AdjustementLines.browse(key).write({"additional_landed_cost": value})
         return True
+
+    def action_view_pickings(self):
+        self.check_singleton()
+        return self.picking_ids._get_records_action(name=self.env._("Transfers"))
 
     def _get_targeted_move_ids(self):
         return self.picking_ids.move_ids
