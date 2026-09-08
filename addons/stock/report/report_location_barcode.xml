@@ -59,4 +59,20 @@
         <t t-call="stock.report_generic_barcode" />
     </template>
 
+    <template id="label_location_template_view">
+        <t t-foreach="docs" t-as="location">
+            <t t-translation="off">
+        ^XA^CI28
+        ^FO100,50
+        ^A0N,44,33^FD<t t-out="location.complete_name" />^FS
+        <t t-if="location.barcode">
+        ^FO100,150^BY3
+        ^BCN,100,Y,N,N
+        ^FD<t t-out="location.barcode" />^FS
+        </t>
+        ^XZ
+            </t>
+        </t>
+    </template>
+
 </odoo>
