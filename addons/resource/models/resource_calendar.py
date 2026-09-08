@@ -1213,6 +1213,8 @@ class ResourceCalendar(models.Model):
         compute_leaves: bool = True,
         domain: list | None = None,
     ) -> float:
+        # domain filters resource.calendar.leaves; it only applies when
+        # compute_leaves=True, since compute_leaves=False never reads leaves.
         self.check_singleton()
         if not start_dt.tzinfo:
             start_dt = start_dt.replace(tzinfo=UTC)
@@ -1237,6 +1239,8 @@ class ResourceCalendar(models.Model):
         compute_leaves: bool = True,
         domain: list | None = None,
     ) -> dict[str, float]:
+        # domain filters resource.calendar.leaves; it only applies when
+        # compute_leaves=True, since compute_leaves=False never reads leaves.
         from_datetime = localized(from_datetime)
         to_datetime = localized(to_datetime)
 
@@ -1245,9 +1249,9 @@ class ResourceCalendar(models.Model):
                 from_datetime, to_datetime, domain=domain
             )[False]
         else:
-            intervals = self._attendance_intervals_batch(
-                from_datetime, to_datetime, domain=domain
-            )[False]
+            intervals = self._attendance_intervals_batch(from_datetime, to_datetime)[
+                False
+            ]
 
         return self._get_attendance_intervals_days_data(intervals)
 
