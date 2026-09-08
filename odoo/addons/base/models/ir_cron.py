@@ -55,6 +55,23 @@ MIN_DELTA_BEFORE_DEACTIVATION = timedelta(days=7)
 TRIGGER_RETENTION_PERIOD = timedelta(weeks=1)
 PROGRESS_RETENTION_PERIOD = timedelta(weeks=1)
 
+# The cron cursor holds its transaction open for the whole job: the body runs on
+# its own cursor, so the server sees this one idle in transaction for as long as
+# the job takes. `idle_in_transaction_session_timeout` then terminates it, the
+# commit that follows raises, and -- because the rollback raises too, the
+# connection being gone -- the whole pass is abandoned with `nextcall` never
+# advanced. The job stays ready, is picked again at the head of the queue on the
+# next wake, and starves every cron behind it. Production ran one job for three
+# hours with 38 others due.
+#
+# So the transaction says how long it is entitled to sit idle, in Odoo's own
+# terms: deriving it from the cron budget is what stops the database's patience
+# and `limit_time_real_cron` from contradicting each other again. The grace
+# covers the acquire and the commit that bracket the job. Odoo's own deadline
+# fires first, so what remains here only ever catches a worker that has stopped
+# enforcing it.
+IDLE_IN_TRANSACTION_GRACE = 60  # seconds
+
 NOTIFY_PENDING_KEY = "ir.cron.notify"
 
 ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
@@ -463,9 +480,30 @@ class IrCron(models.Model):
         return list(starmap(ReadyJob, cr.fetchall()))
 
     @staticmethod
+    def _grant_idle_transaction_budget(cr: BaseCursor) -> None:
+        """Let this transaction sit idle for as long as a job may legitimately run.
+
+        `set_config(..., is_local => true)` rather than `SET LOCAL` because the
+        value is computed and `SET` takes no parameters. Being transaction-scoped
+        is the point twice over: it reverts on commit, so no other session
+        inherits it, and it survives a transaction-pooling connection pooler,
+        whose reset between statements would discard a session-level setting.
+        """
+        budget = get_cron_real_time_budget()
+        # 0 is "no limit" to Odoo and to Postgres alike, so it carries across.
+        timeout = int((budget + IDLE_IN_TRANSACTION_GRACE) * 1000) if budget else 0
+        cr.execute(
+            SQL(
+                "SELECT set_config('idle_in_transaction_session_timeout', %s, true)",
+                str(timeout),
+            )
+        )
+
+    @staticmethod
     def _acquire_job(
         cr: BaseCursor, job_id: int, *, include_not_ready: bool = False
     ) -> CronJob | None:
+        IrCron._grant_idle_transaction_budget(cr)
         where_clause = SQL("id = %s", job_id)
         if not include_not_ready:
             where_clause = SQL(
