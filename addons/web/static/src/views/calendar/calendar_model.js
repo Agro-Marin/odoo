@@ -47,7 +47,7 @@ export class CalendarModel extends Model {
         this.notification = notification;
 
         const formViewFromConfig = (this.env.config.views || []).find(
-            (view) => view[1] === "form",
+            (/** @type {[number | false, string]} */ view) => view[1] === "form",
         );
         const formViewIdFromConfig = formViewFromConfig ? formViewFromConfig[0] : false;
         const fieldNodes = params.popoverFieldNodes;
@@ -240,7 +240,7 @@ export class CalendarModel extends Model {
         return _t("Undefined");
     }
 
-    async createFilter(fieldName, filterValue) {
+    async createFilter(/** @type {string} */ fieldName, filterValue) {
         const info = this.meta.filtersInfo[fieldName];
         if (!info || !info.writeFieldName || !info.writeResModel) {
             return;
@@ -336,7 +336,7 @@ export class CalendarModel extends Model {
         return [];
     }
 
-    async unlinkFilter(fieldName, recordId) {
+    async unlinkFilter(/** @type {string} */ fieldName, recordId) {
         const info = this.meta.filtersInfo[fieldName];
         const section = this.data.filterSections[fieldName];
         if (section) {
@@ -365,7 +365,7 @@ export class CalendarModel extends Model {
         }
     }
 
-    async updateFilters(fieldName, filters, active) {
+    async updateFilters(/** @type {string} */ fieldName, filters, active) {
         this.keepLast.cancel();
         for (const filter of filters) {
             filter.active = active;
@@ -696,7 +696,7 @@ export class CalendarModel extends Model {
     /**
      * @protected
      */
-    fetchFilters(resModel, fieldNames) {
+    fetchFilters(/** @type {string} */ resModel, /** @type {string[]} */ fieldNames) {
         return this.orm.searchRead(
             resModel,
             [["user_id", "=", user.userId]],
@@ -738,7 +738,11 @@ export class CalendarModel extends Model {
     /**
      * @protected
      */
-    async loadFilterSection(fieldName, filterInfo, previousSection) {
+    async loadFilterSection(
+        /** @type {string} */ fieldName,
+        filterInfo,
+        previousSection,
+    ) {
         const { filterFieldName, writeFieldName, writeResModel } = filterInfo;
         const fields = [writeFieldName, filterFieldName].filter(Boolean);
         const rawFilters = await this.fetchFilters(writeResModel, fields);
@@ -814,7 +818,12 @@ export class CalendarModel extends Model {
     /**
      * @protected
      */
-    async loadDynamicFilterSection(data, fieldName, filterInfo, previousSection) {
+    async loadDynamicFilterSection(
+        data,
+        /** @type {string} */ fieldName,
+        filterInfo,
+        previousSection,
+    ) {
         const previousFilters = previousSection ? previousSection.filters : [];
         const rawFilters = this.collectDynamicRawFilters(data, fieldName, filterInfo);
         const rawColors = await this.fetchDynamicFilterColors(
@@ -859,7 +868,7 @@ export class CalendarModel extends Model {
     /**
      * @protected
      */
-    collectDynamicRawFilters(data, fieldName, filterInfo) {
+    collectDynamicRawFilters(data, /** @type {string} */ fieldName, filterInfo) {
         const field = this.meta.fields[fieldName];
         const rawFiltersById = new Map();
         for (const record of Object.values(data.records)) {
@@ -887,7 +896,11 @@ export class CalendarModel extends Model {
      * @protected
      * @returns {Promise<Record<string, any>[]>}
      */
-    async fetchDynamicFilterColors(rawFilters, fieldName, filterInfo) {
+    async fetchDynamicFilterColors(
+        rawFilters,
+        /** @type {string} */ fieldName,
+        filterInfo,
+    ) {
         const { fields, fieldMapping } = this.meta;
         const field = fields[fieldName];
         const relatedIds = rawFilters.map((f) => f.id).filter((id) => id);
@@ -934,7 +947,13 @@ export class CalendarModel extends Model {
     /**
      * @protected
      */
-    makeFilterDynamic(filterInfo, previousFilter, fieldName, rawFilter, rawColors) {
+    makeFilterDynamic(
+        filterInfo,
+        previousFilter,
+        /** @type {string} */ fieldName,
+        rawFilter,
+        rawColors,
+    ) {
         const { fieldMapping, fields } = this.meta;
         const rawValue = rawFilter[fieldName];
         const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
@@ -1014,7 +1033,12 @@ export class CalendarModel extends Model {
     /**
      * @protected
      */
-    makeFilterUser(filterInfo, previousFilter, fieldName, rawRecords) {
+    makeFilterUser(
+        filterInfo,
+        previousFilter,
+        /** @type {string} */ fieldName,
+        rawRecords,
+    ) {
         const field = this.meta.fields[fieldName];
         const userFieldName = field.relation === "res.partner" ? "partnerId" : "userId";
         const value = user[userFieldName];

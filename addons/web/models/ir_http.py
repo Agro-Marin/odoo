@@ -264,6 +264,25 @@ class IrHttp(models.AbstractModel):
             },
         }
 
+    def _get_home_menu_default(self) -> dict[str, Any] | None:
+        """Match the browser's active company, filtering the untrusted cookie."""
+        user = self.env.user
+        allowed = set(user._get_company_ids())
+        selected = (
+            request.httprequest.cookies.get("cids", "").replace(",", "-").split("-")
+        )
+        company_id = next(
+            (
+                int(value)
+                for value in selected
+                if value.isascii() and value.isdigit() and int(value) in allowed
+            ),
+            user.company_id.id,
+        )
+        return (
+            self.env["res.company"].browse(company_id).homemenu_default_config or None
+        )
+
     def session_info(self) -> dict[str, Any]:
         user = self.env.user
         session_uid = request.session.uid
@@ -293,7 +312,7 @@ class IrHttp(models.AbstractModel):
                 ._get_or_create_for_user(user)
                 ._res_users_settings_format()
             ),
-            homemenu_default_config=self.env.company.homemenu_default_config or None,
+            homemenu_default_config=self._get_home_menu_default(),
             support_url="https://www.odoo.com/help",
             name=user.name,
             username=user.login,

@@ -4,7 +4,7 @@
 import { registry } from "@web/core/registry";
 
 /**
- * @typedef {"list" | "form" | "kanban" | "calendar" | "hierarchy" | "base_settings"} FieldViewPrefix
+ * @typedef {"list" | "form" | "kanban" | "calendar" | "hierarchy" | "base_settings" | (string & {})} FieldViewPrefix
  */
 
 /**

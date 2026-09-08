@@ -2725,7 +2725,10 @@ test("onchange rewriting a many2many property updates tags and save payload", as
     onRpc("has_access", () => true);
     onRpc("web_save", ({ args }) => {
         expect.step("web_save");
-        const prop = args[1].properties.find((p) => p.name === "property_m2m");
+        const prop = args[1].properties.find(
+            (/** @type {{name: string, value: unknown}} */ p) =>
+                p.name === "property_m2m",
+        );
         expect(prop.value).toEqual([[2, "Bob"]]);
     });
 
@@ -3341,7 +3344,10 @@ test.tags("desktop");
 test("properties: clearing a many2one property writes false", async () => {
     onRpc("has_access", () => true);
     onRpc("web_save", ({ args }) => {
-        const property = args[1].properties.find((p) => p.name === "property_m2o");
+        const property = args[1].properties.find(
+            (/** @type {{name: string, value: unknown}} */ p) =>
+                p.name === "property_m2o",
+        );
         expect.step(`value:${JSON.stringify(property.value)}`);
     });
     ResCompany._records[0].definitions.push({
@@ -3371,7 +3377,10 @@ test("properties: clearing a many2one property writes false", async () => {
 test("properties: clearing a selection property writes false", async () => {
     onRpc("has_access", () => true);
     onRpc("web_save", ({ args }) => {
-        const property = args[1].properties.find((p) => p.name === "property_2");
+        const property = args[1].properties.find(
+            (/** @type {{name: string, value: unknown}} */ p) =>
+                p.name === "property_2",
+        );
         expect.step(`value:${JSON.stringify(property.value)}`);
     });
 

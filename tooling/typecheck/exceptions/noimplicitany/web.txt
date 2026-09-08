@@ -172,9 +172,7 @@ addons/web/static/src/webclient/debug/field_widgets_dialog.js
 addons/web/static/src/webclient/debug/profiling/profiling_item.js
 addons/web/static/src/webclient/debug/profiling/profiling_qweb.js
 addons/web/static/src/webclient/loading_indicator/loading_indicator.js
-addons/web/static/src/webclient/menus/menu_providers.js
 addons/web/static/src/webclient/menus/menu_service.js
-addons/web/static/src/webclient/menus/menu_utils.js
 addons/web/static/src/webclient/navbar/navbar.js
 addons/web/static/src/webclient/switch_company_menu/company_selector.js
 addons/web/static/src/webclient/switch_company_menu/switch_company_menu.js
@@ -184,7 +182,6 @@ addons/web/static/tests/_framework/env_test_helpers.js
 addons/web/static/tests/_framework/mock_indexed_db.hoot.js
 addons/web/static/tests/_framework/mock_server/mock_fields.js
 addons/web/static/tests/_framework/mock_server/mock_model.js
-addons/web/static/tests/_framework/mock_server/mock_models/res_users_settings.js
 addons/web/static/tests/_framework/mock_server/mock_server.js
 addons/web/static/tests/_framework/mock_server_state.hoot.js
 addons/web/static/tests/_framework/mock_session.hoot.js
@@ -483,7 +480,6 @@ addons/web/static/tests/webclient/clickbot.test.js
 addons/web/static/tests/webclient/debug/debug_manager.test.js
 addons/web/static/tests/webclient/install_scoped_app/install_scoped_app.test.js
 addons/web/static/tests/webclient/menu_service.test.js
-addons/web/static/tests/webclient/menu_utils.test.js
 addons/web/static/tests/webclient/mobile/burger_user_menu.test.js
 addons/web/static/tests/webclient/mobile/mobile_switch_company.test.js
 addons/web/static/tests/webclient/navbar.test.js

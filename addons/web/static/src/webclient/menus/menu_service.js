@@ -265,7 +265,7 @@ class MenuService {
             clearBreadcrumbs: true,
             onActionReady: () => {
                 this.setCurrentMenu(menu);
-                menuUsage.record(menu);
+                menuUsage.record(/** @type {{xmlid?: string}} */ (menu));
             },
         });
     }

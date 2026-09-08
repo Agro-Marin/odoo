@@ -41,6 +41,7 @@ const ARCH = `
         <field name="tag_ids" widget="many2many_tags"/>
     </list>`;
 
+/** @param {() => Promise<void>} workload */
 async function renderCounts(workload) {
     const g = /** @type {any} */ (globalThis);
     g.__renderTrace = true;

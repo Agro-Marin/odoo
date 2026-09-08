@@ -42,6 +42,7 @@
     }
 
     .o_home_menu_search_wrapper {
+        min-width: 12rem;
         max-width: $o-home-menu-search-max-width;
     }
 
@@ -155,6 +156,13 @@
         }
 
         .o_caption {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            overflow-wrap: anywhere;
+            min-height: 2.8em;
+            line-height: 1.4;
             color: var(
                 --homeMenuCaption-color,
                 #{o-token(--o-text, $o-home-menu-caption-color)}
@@ -180,7 +188,9 @@
 
     @include media-breakpoint-down(md) {
         &.o_ios_app {
-            .o_apps {
+            .o_apps,
+            .o_pinned_apps > .row,
+            .o_recent_apps {
                 flex-direction: column;
                 font-size: $o-home-menu-font-size-base * 1.25;
                 margin-top: map-get($spacers, 1);
@@ -202,10 +212,11 @@
             .o_app_icon {
                 width: $o-home-menu-app-icon-max-width * 0.75;
                 height: $o-home-menu-app-icon-max-width * 0.75;
-                margin-right: map-get($spacers, 4);
+                margin-inline-end: map-get($spacers, 4);
             }
 
             .o_caption {
+                min-height: auto;
                 text-align: start !important;
             }
         }
@@ -248,5 +259,19 @@
             0 1px 2px rgba(0, 0, 0, 0.75),
             0 2px 5px rgba(0, 0, 0, 0.05),
             0 0 5px rgba(0, 0, 0, 0.05);
+    }
+}
+
+.o_home_menu .o_app_edit_actions button {
+    min-width: 2rem;
+    min-height: 2rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .o_home_menu .o_app,
+    .o_home_menu .o_app_icon,
+    .o_home_menu .o_dragged_app {
+        transition: none;
+        transform: none;
     }
 }

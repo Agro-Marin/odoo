@@ -69,6 +69,7 @@ export class ReferenceField extends FieldComponent {
         };
 
         if (this._isCharField(this.props)) {
+            /** @type {string | false | undefined} */
             let currentValue = undefined;
             useRecordObserver(async (record, props) => {
                 if (currentValue !== record.data[props.name]) {

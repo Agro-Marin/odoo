@@ -26,6 +26,7 @@ class SyntheticCounter extends Component {
     static template = xml`<button t-on-click.synthetic="() => this.props.onClick()">go</button>`;
 }
 
+/** @type {string[]} */
 const syntheticClicks = [];
 
 async function clickSyntheticButton() {

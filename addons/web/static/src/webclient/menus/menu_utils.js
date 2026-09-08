@@ -4,9 +4,13 @@
 import { normalize } from "@web/core/l10n/utils";
 
 /**
- * @param {Object} tree
- * @param {Function} cb
- * @param {Object[]} [parents]
+ * @typedef {{childrenTree: MenuTreeNode[], actionPath?: string, actionID?: number | string, [key: string]: any}} MenuTreeNode
+ */
+
+/**
+ * @param {MenuTreeNode} tree
+ * @param {(node: MenuTreeNode, parents: MenuTreeNode[]) => void} cb
+ * @param {MenuTreeNode[]} [parents]
  */
 function traverseMenuTree(tree, cb, parents = []) {
     cb(tree, parents);
@@ -25,9 +29,6 @@ export function menuHref(menu) {
 }
 
 /**
- * One entry of the app grid or of the command palette's menu list, as built
- * from a menu tree node.
- *
  * @typedef MenuEntry
  * @property {string} parents the names of its ancestors, " / " joined
  * @property {string} label
@@ -36,7 +37,7 @@ export function menuHref(menu) {
  * @property {number|string} [actionID]
  * @property {string} href
  * @property {number} [appID]
- * @property {string} [module] the addon whose icon the app carries, for an app
+ * @property {string} [module] the app external ID namespace; legacy icon fallback
  * @property {string[]} [models] the models the app's menus open, for an app
  * @property {string} [category] the heading it sits under, for an app
  * @property {string[]} [keywords] the vocabulary its menu declares, for an app
@@ -62,14 +63,6 @@ export function menuHref(menu) {
  * }} AppEntry
  */
 
-/**
- * A model names its app only when it belongs to one. Measured over a 22-app
- * database, 108 of 127 models reach exactly one app, and the whole of the
- * noise is a short head that every app carries -- `res.config.settings` in
- * fourteen of them, `product.template` in seven, `res.partner` in six. Taking
- * only the models nothing else claims keeps "picking" pointing at Inventory
- * and stops "product" pointing at eight apps at once.
- */
 const MAX_APPS_PER_SEARCHABLE_MODEL = 1;
 
 /**
@@ -107,7 +100,7 @@ export function computeAppsAndMenuItems(menuTree) {
     const modelsByApp = new Map();
     /** @type {Map<string, number>} */
     const appsByModel = new Map();
-    traverseMenuTree(menuTree, (menuItem, parents) => {
+    traverseMenuTree(/** @type {MenuTreeNode} */ (menuTree), (menuItem, parents) => {
         if (menuItem.actionResModel && menuItem.appID) {
             let models = modelsByApp.get(menuItem.appID);
             if (!models) {
@@ -126,6 +119,7 @@ export function computeAppsAndMenuItems(menuTree) {
             return;
         }
         const isApp = menuItem.id === menuItem.appID;
+        /** @type {AppEntry} */
         const item = {
             parents: parents
                 .slice(1)
@@ -144,8 +138,12 @@ export function computeAppsAndMenuItems(menuTree) {
         }
         const iconParts =
             typeof menuItem.webIcon === "string" ? menuItem.webIcon.split(",") : [];
-        if (iconParts.length === 2 && iconParts[0]) {
-            item.module = iconParts[0];
+        const module =
+            typeof menuItem.xmlid === "string" && menuItem.xmlid.includes(".")
+                ? menuItem.xmlid.split(".")[0]
+                : undefined;
+        if (module || (iconParts.length === 2 && iconParts[0])) {
+            item.module = module || iconParts[0];
         }
         if (menuItem.webCategory) {
             item.category = menuItem.webCategory;
@@ -181,14 +179,6 @@ export function computeAppsAndMenuItems(menuTree) {
 const flattenedTrees = new WeakMap();
 
 /**
- * `computeAppsAndMenuItems` over a tree, cached on the tree object itself.
- * `menuService.getMenuAsTree` hands back the same object until the menus
- * change and a fresh one after, so the cache needs no invalidating of its own
- * and a tree is walked once for all of its consumers rather than once each.
- *
- * The two arrays are shared with every other caller: reorder a copy, never
- * what this returns.
- *
  * @param {Object} menuTree
  * @returns {{ apps: AppEntry[], menuItems: MenuEntry[] }}
  */
@@ -285,14 +275,16 @@ export const HOME_MENU_CONFIG_VERSION = 2;
 
 /** @param {unknown} list */
 function xmlids(list) {
-    return Array.isArray(list) ? list.filter((item) => typeof item === "string") : [];
+    return Array.isArray(list)
+        ? [...new Set(list.filter((item) => typeof item === "string" && item))]
+        : [];
 }
 
 /**
  * @param {unknown} raw the stored value, a JSON string or already parsed
- * @returns {HomeMenuConfig}
+ * @returns {HomeMenuConfig | null}
  */
-export function parseHomeMenuConfig(raw) {
+export function readHomeMenuConfig(raw) {
     let value = raw;
     if (typeof raw === "string") {
         try {
@@ -304,15 +296,28 @@ export function parseHomeMenuConfig(raw) {
     if (Array.isArray(value)) {
         return { order: xmlids(value), pinned: [], hidden: [] };
     }
-    if (value && typeof value === "object") {
+    if (
+        value &&
+        typeof value === "object" &&
+        (!Object.hasOwn(value, "version") ||
+            /** @type {Record<string, unknown>} */ (value).version ===
+                HOME_MENU_CONFIG_VERSION)
+    ) {
         const config = /** @type {Record<string, unknown>} */ (value);
         return {
             order: xmlids(config.order),
-            pinned: xmlids(config.pinned),
+            pinned: xmlids(config.pinned).filter(
+                (id) => !xmlids(config.hidden).includes(id),
+            ),
             hidden: xmlids(config.hidden),
         };
     }
-    return { order: [], pinned: [], hidden: [] };
+    return null;
+}
+
+/** @param {unknown} raw @returns {HomeMenuConfig} */
+export function parseHomeMenuConfig(raw) {
+    return readHomeMenuConfig(raw) ?? { order: [], pinned: [], hidden: [] };
 }
 
 /**

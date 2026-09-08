@@ -95,6 +95,8 @@ export class SearchModel extends SearchQueryMixin(
      * @type {string}
      */
     resModel;
+    /** @type {boolean | undefined} */
+    blockNotification;
 
     /** @type {any[]} */
     globalDomain;
@@ -871,6 +873,7 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {T}
      */
     _withNotificationsBlocked(fn) {
+        /** @type {boolean | undefined} */
         const wasBlocked = this.blockNotification;
         this.blockNotification = true;
         try {
@@ -886,6 +889,7 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {Promise<T>}
      */
     async _withNotificationsBlockedAsync(fn) {
+        /** @type {boolean | undefined} */
         const wasBlocked = this.blockNotification;
         this.blockNotification = true;
         try {

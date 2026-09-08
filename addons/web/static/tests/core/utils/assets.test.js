@@ -511,19 +511,33 @@ const makeCrossDocTarget = (modules) => {
     document.body.appendChild(iframe);
     const targetDoc = iframe.contentDocument;
     const targetWin = iframe.contentWindow;
-    targetWin.odoo = { loader: { modules } };
+    if (!targetDoc || !targetWin) {
+        throw new Error("Test iframe is unavailable");
+    }
+    Object.assign(targetWin, { odoo: { loader: { modules } } });
+    /** @type {HTMLScriptElement[]} */
     const captured = [];
-    patchWithCleanup(targetDoc.head, { appendChild: (node) => captured.push(node) });
+    patchWithCleanup(targetDoc.head, {
+        appendChild: (node) => {
+            captured.push(/** @type {HTMLScriptElement} */ (node));
+            return node;
+        },
+    });
     return { iframe, targetDoc, targetWin, captured };
 };
 
+/** @param {Node[]} captured */
 const getInjectedImports = (captured) => {
-    const mapNode = captured.find((n) => n.type === "importmap");
-    return mapNode ? JSON.parse(mapNode.textContent).imports : null;
+    const mapNode = captured.find(
+        (n) =>
+            n.nodeName === "SCRIPT" &&
+            /** @type {HTMLScriptElement} */ (n).type === "importmap",
+    );
+    return mapNode ? JSON.parse(mapNode.textContent || "{}").imports : null;
 };
 
 test("loadESMBundle: cross-document builds bridge import map, reusing server bridges", async () => {
-    const { iframe, targetWin, captured } = makeCrossDocTarget(
+    const { iframe, targetDoc, targetWin, captured } = makeCrossDocTarget(
         new Map([
             ["@web/foo", { bar: 1, default: {} }],
             ["@web/served", { baz: 2 }],
@@ -538,7 +552,7 @@ test("loadESMBundle: cross-document builds bridge import map, reusing server bri
     };
 
     const promise = assets.loadESMBundle(["@web/served"], {
-        targetDoc: iframe.contentDocument,
+        targetDoc,
         importMap: serverMap,
     });
     const imports = getInjectedImports(captured);
@@ -563,8 +577,13 @@ test("loadESMBundle: cross-document builds bridge import map, reusing server bri
     expect(imports["@web/extra"]).toBe("/web/assets/esm/bridges/def.js");
 
     const scriptNode = captured.find((n) => n.type === "module");
+    if (!scriptNode) {
+        throw new Error("No module script was injected");
+    }
     expect(Boolean(scriptNode)).toBe(true);
-    const token = scriptNode.textContent.match(/__odoo_esm_bundle_loaded_(\d+)/)[1];
+    const token = (scriptNode.textContent || "").match(
+        /__odoo_esm_bundle_loaded_(\d+)/,
+    )?.[1];
     targetWin.dispatchEvent(new Event(`__odoo_esm_bundle_loaded_${token}`));
     await expect(promise).resolves.toBe(undefined);
 
@@ -572,8 +591,7 @@ test("loadESMBundle: cross-document builds bridge import map, reusing server bri
 });
 
 test("loadESMBundle: a specifier the document already maps is imported by URL", async () => {
-    const { iframe, captured } = makeCrossDocTarget(new Map());
-    const targetDoc = iframe.contentDocument;
+    const { iframe, targetDoc, targetWin, captured } = makeCrossDocTarget(new Map());
     targetDoc.head.innerHTML =
         '<script type="importmap">' +
         JSON.stringify({
@@ -595,22 +613,27 @@ test("loadESMBundle: a specifier the document already maps is imported by URL", 
     expect(imports["@web/free"]).toBe("/web/static/src/free.js");
 
     const scriptNode = captured.find((n) => n.type === "module");
+    if (!scriptNode) {
+        throw new Error("No module script was injected");
+    }
     const pairs = JSON.parse(
-        scriptNode.textContent.match(/const specs = (\[[\s\S]*\]);/)[1],
+        (scriptNode.textContent || "").match(/const specs = (\[[\s\S]*\]);/)?.[1] ||
+            "null",
     );
     const bySpec = Object.fromEntries(pairs);
     expect(bySpec["@web/claimed"].endsWith("/web/static/src/claimed.js")).toBe(true);
     expect(bySpec["@web/free"]).toBe("@web/free");
 
-    const token = scriptNode.textContent.match(/__odoo_esm_bundle_loaded_(\d+)/)[1];
-    iframe.contentWindow.dispatchEvent(new Event(`__odoo_esm_bundle_loaded_${token}`));
+    const token = (scriptNode.textContent || "").match(
+        /__odoo_esm_bundle_loaded_(\d+)/,
+    )?.[1];
+    targetWin.dispatchEvent(new Event(`__odoo_esm_bundle_loaded_${token}`));
     await expect(promise).resolves.toBe(undefined);
     iframe.remove();
 });
 
 test("loadESMBundle: re-declaring the same target is not a conflict", async () => {
-    const { iframe, captured } = makeCrossDocTarget(new Map());
-    const targetDoc = iframe.contentDocument;
+    const { iframe, targetDoc, targetWin, captured } = makeCrossDocTarget(new Map());
     targetDoc.head.innerHTML =
         '<script type="importmap">' +
         JSON.stringify({ imports: { "@web/same": "/web/static/src/same.js" } }) +
@@ -623,26 +646,37 @@ test("loadESMBundle: re-declaring the same target is not a conflict", async () =
     });
 
     const scriptNode = captured.find((n) => n.type === "module");
+    if (!scriptNode) {
+        throw new Error("No module script was injected");
+    }
     const pairs = JSON.parse(
-        scriptNode.textContent.match(/const specs = (\[[\s\S]*\]);/)[1],
+        (scriptNode.textContent || "").match(/const specs = (\[[\s\S]*\]);/)?.[1] ||
+            "null",
     );
     expect(Object.fromEntries(pairs)["@web/same"]).toBe("@web/same");
 
-    const token = scriptNode.textContent.match(/__odoo_esm_bundle_loaded_(\d+)/)[1];
-    iframe.contentWindow.dispatchEvent(new Event(`__odoo_esm_bundle_loaded_${token}`));
+    const token = (scriptNode.textContent || "").match(
+        /__odoo_esm_bundle_loaded_(\d+)/,
+    )?.[1];
+    targetWin.dispatchEvent(new Event(`__odoo_esm_bundle_loaded_${token}`));
     await expect(promise).resolves.toBe(undefined);
     iframe.remove();
 });
 
 test("loadESMBundle: cross-document rejects with the injected script's error detail", async () => {
-    const { iframe, targetWin, captured } = makeCrossDocTarget(new Map());
+    const { iframe, targetDoc, targetWin, captured } = makeCrossDocTarget(new Map());
 
     const promise = assets.loadESMBundle(["@web/x"], {
-        targetDoc: iframe.contentDocument,
+        targetDoc,
         importMap: { "@web/x": "data:text/javascript,export default 1" },
     });
     const scriptNode = captured.find((n) => n.type === "module");
-    const token = scriptNode.textContent.match(/__odoo_esm_bundle_error_(\d+)/)[1];
+    if (!scriptNode) {
+        throw new Error("No module script was injected");
+    }
+    const token = (scriptNode.textContent || "").match(
+        /__odoo_esm_bundle_error_(\d+)/,
+    )?.[1];
     targetWin.dispatchEvent(
         new CustomEvent(`__odoo_esm_bundle_error_${token}`, {
             detail: new Error("boom in iframe"),

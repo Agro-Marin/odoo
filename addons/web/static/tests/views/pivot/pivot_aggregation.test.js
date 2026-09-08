@@ -5,6 +5,7 @@ import { findGroup } from "@web/views/pivot/pivot_group_tree";
 
 describe.current.tags("headless");
 
+/** @returns {{root: {labels: string[], values: any[]}, directSubTrees: Map<any, any>}} */
 function makeTree() {
     return { root: { labels: [], values: [] }, directSubTrees: new Map() };
 }
@@ -14,21 +15,24 @@ function makeConfig(metaData = {}) {
         data: {
             rowGroupTree: makeTree(),
             colGroupTree: makeTree(),
-            measurements: {},
+            measurements: /** @type {Record<string, Record<string, number>>} */ ({}),
             currencyIds: {},
-            counts: {},
-            groupDomains: {},
+            counts: /** @type {Record<string, number>} */ ({}),
+            groupDomains: /** @type {Record<string, any[]>} */ ({}),
         },
         metaData: {
             activeMeasures: ["__count"],
             fields: {},
             measures: { __count: { type: "integer" } },
-            sortedColumn: null,
+            sortedColumn: /** @type {{groupId: any[][], measure: string} | null} */ (
+                null
+            ),
             ...metaData,
         },
     };
 }
 
+/** @type {import("@web/views/pivot/pivot_aggregation").PivotAggregateDeps} */
 const deps = {
     sortRows: () => expect.step("sortRows"),
     buildGroupLabels: (subGroup, groupBys) => groupBys.map((gb) => `${subGroup[gb]}!`),
@@ -36,6 +40,7 @@ const deps = {
     buildMeasurements: (subGroup) => ({ __count: subGroup.__count }),
 };
 
+/** @type {Parameters<typeof aggregateSubdivisions>[1]} */
 const subdivisions = [
     {
         rowGroupBy: ["a"],
@@ -62,7 +67,7 @@ test("row-only and column-only subgroups grow their tree, cells grow neither", (
     aggregateSubdivisions({ rowValues: [], colValues: [] }, subdivisions, config, deps);
     const { data } = config;
     expect([...data.rowGroupTree.directSubTrees.keys()]).toEqual([1, 2]);
-    expect(findGroup(data.rowGroupTree, [1]).root).toEqual({
+    expect(findGroup(data.rowGroupTree, [1])?.root).toEqual({
         labels: ["1!"],
         values: [1],
     });
@@ -95,7 +100,7 @@ test("a nested group prefixes its ancestors' values and labels", () => {
         deps,
     );
     const nested = findGroup(config.data.rowGroupTree, [1, true]);
-    expect(nested.root).toEqual({ labels: ["1!", "true!"], values: [1, true] });
+    expect(nested?.root).toEqual({ labels: ["1!", "true!"], values: [1, true] });
     expect(config.data.counts["[[1,true],[]]"]).toBe(1);
 });
 

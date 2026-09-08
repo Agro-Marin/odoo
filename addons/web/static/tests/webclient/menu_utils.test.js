@@ -41,9 +41,10 @@ test("reorderApps: a newly installed app does not scramble the customized order"
 });
 
 /**
- * @param {Object} spec
+ * @param {any[]} spec
  */
 function makeTree(spec) {
+    /** @param {any} node @param {number | undefined} appID @returns {any} */
     const build = (node, appID) => {
         const id = node.id;
         const ownAppID = appID ?? id;
@@ -56,7 +57,7 @@ function makeTree(spec) {
             actionPath: node.actionPath,
             webIcon: node.webIcon,
             webIconData: node.webIconData,
-            childrenTree: (node.children || []).map((c) =>
+            childrenTree: (node.children || []).map((/** @type {any} */ c) =>
                 build(c, id === ownAppID && appID === undefined ? id : ownAppID),
             ),
         };
@@ -220,7 +221,7 @@ test("computeAppsAndMenuItems names the addon an app's icon comes from", () => {
                 actionID: 10,
                 webIcon: "crm,static/description/icon.png",
                 webIconData: "data:image/png;base64,AAA",
-                childrenTree: [],
+                childrenTree: /** @type {any[]} */ ([]),
             },
             {
                 id: 2,
@@ -228,7 +229,7 @@ test("computeAppsAndMenuItems names the addon an app's icon comes from", () => {
                 appID: 2,
                 actionID: 20,
                 webIcon: "fa fa-leaf,#fff,#123456",
-                childrenTree: [],
+                childrenTree: /** @type {any[]} */ ([]),
             },
         ],
     };
@@ -257,7 +258,7 @@ test("computeAppsAndMenuItems lists the models an app's menus open", () => {
                         appID: 1,
                         actionID: 11,
                         actionResModel: "res.partner",
-                        childrenTree: [],
+                        childrenTree: /** @type {any[]} */ ([]),
                     },
                     {
                         id: 3,
@@ -272,7 +273,7 @@ test("computeAppsAndMenuItems lists the models an app's menus open", () => {
                                 appID: 1,
                                 actionID: 13,
                                 actionResModel: "sale.order",
-                                childrenTree: [],
+                                childrenTree: /** @type {any[]} */ ([]),
                             },
                         ],
                     },
@@ -350,4 +351,35 @@ test("a launcher's stored order never reaches the command palette, which shares 
     expect(names).toEqual(["Alpha", "Beta", "Gamma"], {
         message: "the palette lists apps in menu order regardless",
     });
+});
+
+test("layout normalization deduplicates IDs, rejects unknown versions, and excludes hidden pins", () => {
+    expect(
+        parseHomeMenuConfig({
+            version: 2,
+            order: ["a", "a", "", 7],
+            pinned: ["a", "b", "b"],
+            hidden: ["a", "a"],
+        }),
+    ).toEqual({ order: ["a"], pinned: ["b"], hidden: ["a"] });
+    expect(parseHomeMenuConfig({ version: 99, pinned: ["a"] })).toEqual({
+        order: [],
+        pinned: [],
+        hidden: [],
+    });
+});
+
+test("app ownership and search terms survive icon customization", () => {
+    const app = {
+        id: 1,
+        appID: 1,
+        name: "Inventory",
+        actionID: 1,
+        xmlid: "stock.menu_stock_root",
+        webIcon: "fa fa-cubes,#ffffff,#000000",
+        childrenTree: /** @type {any[]} */ ([]),
+    };
+    const { apps } = computeAppsAndMenuItems({ childrenTree: [app] });
+    expect(apps[0].module).toBe("stock");
+    expect(apps[0].searchTerms).toInclude("stock");
 });

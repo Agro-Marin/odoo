@@ -12,7 +12,13 @@ import {
 
 describe.current.tags("headless");
 
-const dt = (/** @type {string} */ iso) => DateTime.fromISO(iso);
+const dt = (/** @type {string} */ iso) => {
+    const date = DateTime.fromISO(iso);
+    if (!date.isValid) {
+        throw new Error(`Invalid test date: ${iso}`);
+    }
+    return date;
+};
 
 test("getColor: css colours pass through, numbers cycle over 55, strings hash to 24", () => {
     expect(getColor(false)).toBe(false);

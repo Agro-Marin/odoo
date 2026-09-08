@@ -13,18 +13,13 @@ import {
 } from "@web/webclient/home_menu/home_menu_layout";
 import { parseHomeMenuConfig } from "@web/webclient/menus/menu_utils";
 
-/** @type {{ key: string, value: unknown, def: InstanceType<typeof Deferred> }[]} */
+/** @type {{ changes: unknown, def: InstanceType<typeof Deferred> }[]} */
 let writes;
 
 beforeEach(() => {
     writes = [];
     patchWithCleanup(user, {
         settings: { id: 1 },
-        setUserSettings(key, value) {
-            const def = new Deferred();
-            writes.push({ key, value, def });
-            return def;
-        },
     });
 });
 
@@ -36,7 +31,18 @@ function makeLayout(raw, defaultRaw) {
     return new HomeMenuLayout({
         config: parseHomeMenuConfig(raw),
         defaultConfig: parseHomeMenuConfig(defaultRaw ?? null),
-        orm: /** @type {any} */ ({ write: () => true }),
+        orm: /** @type {any} */ ({
+            write: () => true,
+            call(
+                /** @type {string} */ model,
+                /** @type {string} */ method,
+                /** @type {any[]} */ args,
+            ) {
+                const def = new Deferred();
+                writes.push({ changes: args[1], def });
+                return def;
+            },
+        }),
     });
 }
 
@@ -99,8 +105,7 @@ test("reset stores nothing rather than a copy, so the company's next change is f
     layout.reset();
     await animationFrame();
     expect(writes).toHaveLength(1);
-    expect(writes[0].key).toBe("homemenu_config");
-    expect(writes[0].value).toBe(null, {
+    expect(writes[0].changes).toEqual([{ operation: "reset" }], {
         message: "nothing stored, so the company's next change is picked up",
     });
 });
@@ -114,12 +119,16 @@ test("quick changes become one write carrying the finished layout, not one per c
     expect(writes).toHaveLength(1, {
         message: "one request in flight, never two layouts racing",
     });
-    expect(writes[0].value).toBe(
-        '{"version":2,"order":[],"pinned":["sale","crm"],"hidden":["stock"]}',
+    expect(writes[0].changes).toEqual(
+        [
+            { operation: "pin", xmlid: "sale", value: true },
+            { operation: "pin", xmlid: "crm", value: true },
+            { operation: "hide", xmlid: "stock", value: true },
+        ],
         { message: "and it carries every change, so none is lost" },
     );
 
-    writes[0].def.resolve({});
+    writes[0].def.resolve({ homemenu_config: { version: 2, pinned: ["sale"] } });
     await animationFrame();
     expect(writes).toHaveLength(1, {
         message: "the queued duplicates had nothing left to say",
@@ -133,12 +142,12 @@ test("a change made while a write is in flight still gets written", async () => 
     expect(writes).toHaveLength(1);
 
     layout.togglePinned(crm);
-    writes[0].def.resolve({});
+    writes[0].def.resolve({ homemenu_config: { version: 2, pinned: ["sale"] } });
     await animationFrame();
     expect(writes).toHaveLength(2);
-    expect(writes[1].value).toBe(
-        '{"version":2,"order":[],"pinned":["sale","crm"],"hidden":[]}',
-    );
+    expect(writes[1].changes).toEqual([
+        { operation: "pin", xmlid: "crm", value: true },
+    ]);
 });
 
 test("shownApps leaves out what the layout hides, and keeps what it cannot name", () => {
@@ -171,4 +180,45 @@ test("orderAfterDrag moves one app and leaves the rest in place", () => {
 test("orderAfterDrag refuses an app the order does not hold, rather than moving the last one", () => {
     expect(orderAfterDrag(["a", "b", "c"], "gone", "a")).toBe(null);
     expect(orderAfterDrag(["a", "b", "c"], "c", "gone")).toEqual(["c", "a", "b"]);
+});
+
+test("a failed write stays unsaved and retries the same operations", async () => {
+    const layout = makeLayout();
+    const save = Promise.resolve(layout.togglePinned(sale)).catch(
+        (error) => error.message,
+    );
+    await animationFrame();
+    expect(layout.state.status).toBe("saving");
+    writes[0].def.reject(new Error("offline"));
+    expect(await save).toBe("offline");
+    expect(layout.unsaved).toBe(true);
+    expect(layout.state.status).toBe("error");
+    expect(layout.config.pinned).toEqual(["sale"]);
+    const retry = layout.persist();
+    await animationFrame();
+    expect(writes[1].changes).toEqual(writes[0].changes);
+    writes[1].def.resolve({
+        homemenu_config: { version: 2, pinned: ["sale", "other-tab"] },
+    });
+    await retry;
+    expect(layout.unsaved).toBe(false);
+    expect(layout.state.status).toBe("saved");
+    expect(layout.config.pinned).toEqual(["sale", "other-tab"]);
+});
+
+test("a post-save callback failure cannot replay committed changes", async () => {
+    const layout = makeLayout();
+    layout.onSaved = () => {
+        throw new Error("render failed");
+    };
+    const save = Promise.resolve(layout.togglePinned(sale)).catch(
+        (error) => error.message,
+    );
+    await animationFrame();
+    writes[0].def.resolve({ homemenu_config: { pinned: ["sale"] } });
+    expect(await save).toBe("render failed");
+    expect(layout.state.status).toBe("saved");
+    expect(layout.unsaved).toBe(false);
+    await layout.persist();
+    expect(writes).toHaveLength(1);
 });

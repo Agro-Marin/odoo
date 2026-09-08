@@ -22,7 +22,7 @@ export class PivotArchParser extends ViewArchParser {
      * activeMeasures: string[],
      * colGroupBys: string[],
      * defaultOrder: string | null,
-     * fieldAttrs: Object,
+     * fieldAttrs: Record<string, Record<string, any>>,
      * rowGroupBys: string[],
      * widgets: Object,
      * title?: string,

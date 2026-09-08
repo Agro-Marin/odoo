@@ -129,3 +129,26 @@ class TestSessionInfo(common.HttpCase):
             "/web/session/get_session_info", data=self.payload, headers=self.headers
         )
         self.assertEqual(response.json()["result"]["homemenu_default_config"], layout)
+
+    def test_home_menu_default_uses_only_an_allowed_cookie_company(self):
+        self.authenticate(self.user.login, self.user_password)
+        self.company_a.homemenu_default_config = {"pinned": ["app.a"]}
+        self.company_c.homemenu_default_config = {"pinned": ["app.c"]}
+        self.company_b.homemenu_default_config = {"pinned": ["private.app"]}
+        for cookie, expected in (
+            (str(self.company_c.id), "app.c"),
+            (str(self.company_b.id), "app.a"),
+            ("invalid", "app.a"),
+            (f"{self.company_b.id}-{self.company_c.id}", "app.c"),
+        ):
+            with self.subTest(cookie=cookie):
+                self.opener.cookies.set("cids", cookie)
+                response = self.url_open(
+                    "/web/session/get_session_info",
+                    data=self.payload,
+                    headers=self.headers,
+                )
+                self.assertEqual(
+                    response.json()["result"]["homemenu_default_config"]["pinned"],
+                    [expected],
+                )

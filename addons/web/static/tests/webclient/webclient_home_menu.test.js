@@ -25,6 +25,7 @@ import { registry } from "@web/core/registry";
 import { config as transitionConfig } from "@web/core/transition";
 import { user } from "@web/core/user";
 import { redirect } from "@web/core/utils/urls";
+import { HomeMenu } from "@web/webclient/home_menu/home_menu";
 import { shareUrlMenuItem } from "@web/webclient/share_url/share_url";
 import { UserMenu } from "@web/webclient/user_menu/user_menu";
 import { WebClient } from "@web/webclient/webclient";
@@ -541,7 +542,7 @@ test("url state is well handled when going in and out of the HomeMenu", async ()
     });
     expect(browser.history.length).toBe(1);
 
-    await contains(".o_apps > .o_draggable:eq(1) > .o_app").click();
+    await contains(".o_apps > .o_draggable:eq(1) .o_app").click();
     await animationFrame();
     expect(router.current).toEqual({
         action: 1002,
@@ -582,7 +583,7 @@ test("url state is well handled when going in and out of the HomeMenu", async ()
             "despite the actionStack being in the router state, the url shouldn't have any path",
     });
 
-    await contains(".o_apps > .o_draggable:eq(0) > .o_app").click();
+    await contains(".o_apps > .o_draggable:eq(0) .o_app").click();
     await animationFrame();
     expect(router.current).toEqual(
         {
@@ -681,7 +682,7 @@ test("go back to home menu using browser back button", async () => {
     expect(".o_home_menu").toHaveCount(1);
     expect(".o_main_navbar .o_menu_toggle").not.toBeVisible();
 
-    await contains(".o_apps > .o_draggable:nth-child(2) > .o_app").click();
+    await contains(".o_apps > .o_draggable:nth-child(2) .o_app").click();
     expect(".test_client_action").toHaveCount(0);
     await animationFrame();
     expect(".test_client_action").toHaveCount(1);
@@ -787,7 +788,7 @@ test("Navigate to an application from the HomeMenu should generate only one push
     });
     await mountWebClient({ WebClient: WebClient });
 
-    await contains(".o_apps > .o_draggable:nth-child(2) > .o_app").click();
+    await contains(".o_apps > .o_draggable:nth-child(2) .o_app").click();
     await animationFrame();
     expect(".test_client_action").toHaveCount(1);
     expect(".test_client_action").toHaveText("ClientAction_Id 2");
@@ -795,7 +796,7 @@ test("Navigate to an application from the HomeMenu should generate only one push
     await goToHomeMenu();
     expect(".o_home_menu").toHaveCount(1);
 
-    await contains(".o_apps > .o_draggable:nth-child(1) > .o_app").click();
+    await contains(".o_apps > .o_draggable:nth-child(1) .o_app").click();
     await animationFrame();
     expect(".test_client_action").toHaveCount(1);
     expect(".test_client_action").toHaveText("ClientAction_Id 1");
@@ -913,9 +914,49 @@ test("the home menu service state never proxies the action service it drives", a
     await homeMenu.toggle(true);
     await homeMenu.toggle(false);
     const { currentController } = getService("action");
-    expect(() => structuredClone(currentController.state)).not.toThrow({
-        message:
-            "a controller state with a proxy inside cannot reach history.pushState",
-    });
+    expect(currentController).not.toBe(null);
+    // A proxy in controller state cannot reach history.pushState.
+    expect(() => structuredClone(currentController?.state)).not.toThrow();
     expect(() => structuredClone(browser.history.state)).not.toThrow();
+});
+
+test("app navigation keeps Home alive until all layout edits finish saving", async () => {
+    patchWithCleanup(user, { settings: { id: 1 } });
+    /** @type {HomeMenu | undefined} */
+    let home;
+    patchWithCleanup(HomeMenu.prototype, {
+        setup() {
+            super.setup(...arguments);
+            home = this;
+        },
+    });
+    const requests = [new Deferred(), new Deferred(), new Deferred()];
+    let calls = 0;
+    onRpc("res.users.settings", "update_homemenu_config", () => requests[calls++]);
+    await mountWebClient();
+    await getService("action").doAction("menu");
+    if (!home) {
+        throw new Error("Home did not mount");
+    }
+    const first = home.layout.togglePinned({ xmlid: "app.first" });
+    await animationFrame();
+    const navigate = getService("action").doAction(1);
+    await animationFrame();
+    const second = home.layout.togglePinned({ xmlid: "app.second" });
+    requests[0].resolve({ homemenu_config: { pinned: ["app.first"] } });
+    await animationFrame();
+    expect(calls).toBe(2);
+    const third = home.layout.togglePinned({ xmlid: "app.third" });
+    requests[1].resolve({ homemenu_config: { pinned: ["app.first", "app.second"] } });
+    await animationFrame();
+    expect(".o_home_menu").toHaveCount(1);
+    expect(calls).toBe(3);
+    requests[2].resolve({
+        homemenu_config: { pinned: ["app.first", "app.second", "app.third"] },
+    });
+    await Promise.all([first, second, third, navigate]);
+    await animationFrame();
+    expect(".o_home_menu").toHaveCount(0);
+    expect(home.layout.config.pinned).toEqual(["app.first", "app.second", "app.third"]);
+    expect(home.layout.unsaved).toBe(false);
 });

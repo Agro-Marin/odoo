@@ -262,7 +262,9 @@ export const SearchQueryMixin = (Base) =>
                         `combined with a month, quarter or year; keeping the periods and ignoring`,
                     customIds,
                 );
-                return generatorIds.filter((gid) => !isCustom(gid));
+                return generatorIds.filter(
+                    (/** @type {string} */ gid) => !isCustom(gid),
+                );
             }
             if (customIds.length > 1) {
                 console.warn(

@@ -1,31 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
+import { onWillUnmount, reactive, useExternalListener } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { user } from "@web/core/user";
 import { Mutex } from "@web/core/utils/concurrency";
+import { useService } from "@web/core/utils/hooks";
 import { session } from "@web/session";
 import {
     parseHomeMenuConfig,
+    readHomeMenuConfig,
     serializeHomeMenuConfig,
 } from "@web/webclient/menus/menu_utils";
 
-/**
- * The launcher's layout: which apps are pinned, which are hidden, what order
- * they sit in, and where that is written down. The grid itself only reads it.
- *
- * Its own writer, and the reason it is an object rather than a handful of
- * methods on the component: `res.users.settings` writes are not serialised,
- * so two pins in quick succession put two whole layouts in flight at once —
- * `{pinned:[a]}` and `{pinned:[a,b]}` — and whichever reaches the server last
- * wins. The second pin is then lost with nothing to show for it.
- *
- * Every write goes through one mutex, so a later layout can never be overtaken
- * by an earlier one, and a write serialises the layout when its turn comes
- * rather than when it was asked for. That second part makes the queued writes
- * redundant with each other, so all but the first are dropped: tidying a
- * launcher with six clicks is one request carrying the finished layout, not
- * six carrying six prefixes of it.
- */
 /**
  * The apps a layout shows: everything it does not hide. An app the layout
  * cannot name is always shown, since nothing can have hidden it.
@@ -90,38 +77,81 @@ export function orderAfterDrag(order, movedId, afterId) {
     return next;
 }
 
-export class HomeMenuLayout {
-    /** @type {import("@web/webclient/menus/menu_utils").HomeMenuConfig} */
-    config;
-    /**
-     * What this user falls back to, their company's or the empty layout. Held
-     * rather than derived: publishing the current layout as the company's
-     * moves it, and a getter minting a fresh object per call would move a copy
-     * nobody reads.
-     *
-     * @type {import("@web/webclient/menus/menu_utils").HomeMenuConfig}
-     */
-    defaultConfig;
+/** Database/user isolation also applies when several databases share an origin. */
+export function homeMenuLayoutStorageKey() {
+    return `webclient_home_layout:${session.db}:${user.userId}`;
+}
 
+/** @param {() => void} onChange */
+export function useHomeMenuLayoutSync(onChange) {
+    const orm = useService("orm");
+    let generation = 0;
+    onWillUnmount(() => {
+        generation++;
+    });
+    useExternalListener(window, "storage", async (event) => {
+        if (event.key !== homeMenuLayoutStorageKey() || !event.newValue) {
+            return;
+        }
+        const request = ++generation;
+        try {
+            // A hint may arrive after a later commit. Read the authoritative row.
+            const [settings] = await orm.read(
+                "res.users.settings",
+                [user.settings.id],
+                ["homemenu_config"],
+            );
+            if (request !== generation) {
+                return;
+            }
+            user.updateUserSettings("homemenu_config", settings.homemenu_config);
+            onChange();
+        } catch {
+            // A failed background refresh does not discard the local layout.
+        }
+    });
+}
+
+/** @typedef {{ operation: string, xmlid?: string, value?: boolean | string[] }} LayoutChange */
+
+export class HomeMenuLayout {
     /**
      * @param {{
-     *  config: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
-     *  defaultConfig: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
-     *  orm: import("services").ServiceFactories["orm"],
+     * config: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
+     * defaultConfig: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
+     * orm: import("services").ServiceFactories["orm"],
+     * personal?: boolean,
+     * onSaved?: () => void,
      * }} params
      */
-    constructor({ config, defaultConfig, orm }) {
+    constructor({ config, defaultConfig, orm, personal, onSaved = () => {} }) {
         this.config = config;
         this.defaultConfig = defaultConfig;
         this.orm = orm;
+        this.onSaved = onSaved;
         this.mutex = new Mutex();
-        /** Whether a change is waiting to be written. */
-        this.unsaved = false;
+        /** @type {LayoutChange[]} */
+        this.pending = [];
+        this.state = reactive({
+            status: "saved",
+            personal:
+                personal ??
+                serializeHomeMenuConfig(config) !==
+                    serializeHomeMenuConfig(defaultConfig),
+        });
+    }
+
+    get unsaved() {
+        return this.pending.length > 0 || this.state.status === "saving";
     }
 
     /** @param {import("@web/webclient/menus/menu_utils").HomeMenuConfig} config */
     setConfig(config) {
-        this.config = config;
+        if (!this.unsaved) {
+            this.config = config;
+            this.state.personal =
+                readHomeMenuConfig(user.settings?.homemenu_config) !== null;
+        }
     }
 
     /** @param {{ xmlid?: string }} app */
@@ -134,7 +164,6 @@ export class HomeMenuLayout {
         return app.xmlid !== undefined && this.config.hidden.includes(app.xmlid);
     }
 
-    /** @returns {boolean} */
     get isCustomised() {
         return (
             serializeHomeMenuConfig(this.config) !==
@@ -142,64 +171,101 @@ export class HomeMenuLayout {
         );
     }
 
-    /** @returns {boolean} */
+    get canReset() {
+        return this.state.personal || this.isCustomised;
+    }
+
     get canSetCompanyDefault() {
         return user.isAdmin;
     }
 
-    /** @param {{ xmlid?: string }} app */
-    togglePinned(app) {
-        if (app.xmlid === undefined) {
+    /** @param {LayoutChange} change */
+    apply(change) {
+        const { operation, xmlid, value } = change;
+        if (operation === "reset") {
+            Object.assign(this.config, parseHomeMenuConfig(this.defaultConfig));
+            this.state.personal = false;
             return;
         }
-        const index = this.config.pinned.indexOf(app.xmlid);
-        if (index === -1) {
-            this.config.pinned.push(app.xmlid);
-        } else {
-            this.config.pinned.splice(index, 1);
+        this.state.personal = true;
+        if (operation === "order" || operation === "pinned_order") {
+            const key = operation === "order" ? "order" : "pinned";
+            const requested = [...new Set(/** @type {string[]} */ (value))].filter(
+                (id) => key === "order" || this.config.pinned.includes(id),
+            );
+            this.config[key] = [
+                ...requested,
+                ...this.config[key].filter((id) => !requested.includes(id)),
+            ];
+        } else if (xmlid) {
+            const key = operation === "pin" ? "pinned" : "hidden";
+            if (!value) {
+                this.config[key] = this.config[key].filter((id) => id !== xmlid);
+            }
+            if (value) {
+                if (!this.config[key].includes(xmlid)) {
+                    this.config[key].push(xmlid);
+                }
+                const other = key === "pinned" ? "hidden" : "pinned";
+                this.config[other] = this.config[other].filter((id) => id !== xmlid);
+            }
         }
+    }
+
+    /** @param {LayoutChange} change */
+    queue(change) {
+        this.apply(change);
+        this.pending.push(change);
         return this.persist();
+    }
+
+    /** @param {{ xmlid?: string }} app */
+    togglePinned(app) {
+        if (app.xmlid) {
+            return this.queue({
+                operation: "pin",
+                xmlid: app.xmlid,
+                value: !this.isPinned(app),
+            });
+        }
     }
 
     /** @param {{ xmlid?: string }} app */
     toggleHidden(app) {
-        if (app.xmlid === undefined) {
-            return;
+        if (app.xmlid) {
+            return this.queue({
+                operation: "hide",
+                xmlid: app.xmlid,
+                value: !this.isHidden(app),
+            });
         }
-        const index = this.config.hidden.indexOf(app.xmlid);
-        if (index === -1) {
-            this.config.hidden.push(app.xmlid);
-            const pinnedIndex = this.config.pinned.indexOf(app.xmlid);
-            if (pinnedIndex !== -1) {
-                this.config.pinned.splice(pinnedIndex, 1);
-            }
-        } else {
-            this.config.hidden.splice(index, 1);
-        }
-        return this.persist();
     }
 
     /** @param {string[]} order */
     setOrder(order) {
-        this.config.order = order;
-        return this.persist();
+        return this.queue({ operation: "order", value: order });
     }
 
-    /**
-     * @returns {{ order: string[], saved: Promise<unknown> }}
-     */
+    /** @param {string[]} order */
+    setPinnedOrder(order) {
+        return this.queue({ operation: "pinned_order", value: order });
+    }
+
     reset() {
-        const defaults = this.defaultConfig;
-        this.config.order = [...defaults.order];
-        this.config.pinned = [...defaults.pinned];
-        this.config.hidden = [...defaults.hidden];
         return {
-            order: defaults.order,
-            saved: this.mutex.exec(() => user.setUserSettings("homemenu_config", null)),
+            order: this.defaultConfig.order,
+            saved: this.queue({ operation: "reset" }),
         };
     }
 
+    async flush() {
+        do {
+            await this.persist();
+        } while (this.unsaved);
+    }
+
     async setCompanyDefault() {
+        await this.flush();
         const config = JSON.parse(serializeHomeMenuConfig(this.config));
         await this.orm.write("res.company", [user.activeCompany.id], {
             homemenu_default_config: config,
@@ -209,16 +275,44 @@ export class HomeMenuLayout {
     }
 
     persist() {
-        this.unsaved = true;
-        return this.mutex.exec(() => {
-            if (!this.unsaved) {
+        return this.mutex.exec(async () => {
+            if (!this.pending.length) {
                 return;
             }
-            this.unsaved = false;
-            return user.setUserSettings(
-                "homemenu_config",
-                serializeHomeMenuConfig(this.config),
-            );
+            const changes = this.pending.splice(0);
+            this.state.status = "saving";
+            try {
+                const settings = await this.orm.call(
+                    "res.users.settings",
+                    "update_homemenu_config",
+                    [[user.settings.id], changes],
+                );
+                const raw = settings.homemenu_config;
+                user.updateUserSettings("homemenu_config", raw);
+                Object.assign(
+                    this.config,
+                    readHomeMenuConfig(raw) ?? parseHomeMenuConfig(this.defaultConfig),
+                );
+                this.state.personal = readHomeMenuConfig(raw) !== null;
+                for (const change of this.pending) {
+                    this.apply(change);
+                }
+                this.state.status = this.pending.length ? "saving" : "saved";
+                try {
+                    browser.localStorage.setItem(
+                        homeMenuLayoutStorageKey(),
+                        JSON.stringify({ config: raw, at: Date.now() }),
+                    );
+                } catch {
+                    // Storage is only a cross-tab hint; the RPC already saved.
+                }
+            } catch (error) {
+                this.pending.unshift(...changes);
+                this.state.status = "error";
+                throw error;
+            }
+            // A UI callback cannot turn a committed operation into a retry.
+            this.onSaved();
         });
     }
 }

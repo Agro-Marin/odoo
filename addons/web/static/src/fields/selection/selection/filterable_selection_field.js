@@ -26,7 +26,8 @@ export class FilterableSelectionField extends SelectionField {
         }
         const current = this.value;
         return super.options.filter(
-            (option) => option[0] === current || isAllowed(option[0]),
+            (/** @type {[string, string]} */ option) =>
+                option[0] === current || isAllowed(option[0]),
         );
     }
 

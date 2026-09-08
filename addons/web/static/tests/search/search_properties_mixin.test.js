@@ -135,7 +135,7 @@ test("a property whose definition record has no name is described the same on ev
     model._fetchPropertiesDefinition = async () => [
         {
             definitionRecordId: 1,
-            definitionRecordName: undefined,
+            definitionRecordName: /** @type {string | undefined} */ (undefined),
             definitions: [{ name: "p1", string: "P1", type: "char" }],
         },
     ];

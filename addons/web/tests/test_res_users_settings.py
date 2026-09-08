@@ -1,4 +1,6 @@
-from odoo.exceptions import ValidationError
+from unittest.mock import patch
+
+from odoo.exceptions import AccessError, ConcurrencyError, LockError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -229,3 +231,82 @@ class TestResUsersSettings(TransactionCase):
         )
         self.assertEqual(config.user_setting_id, self.user_settings)
         self.assertFalse(other_settings.embedded_actions_config_ids)
+
+    def test_launcher_empty_override_and_operation_merging(self):
+        settings = self.user_settings.with_user(self.user)
+        self.user.company_id.homemenu_default_config = {"pinned": ["app.a"]}
+        settings.update_homemenu_config(
+            [{"operation": "pin", "xmlid": "app.a", "value": False}]
+        )
+        self.assertEqual(
+            settings.homemenu_config,
+            {"version": 2, "order": [], "pinned": [], "hidden": []},
+        )
+        settings.update_homemenu_config(
+            [{"operation": "pin", "xmlid": "app.a", "value": True}]
+        )
+        # The second tab sends its intention, not its stale empty layout.
+        settings.update_homemenu_config(
+            [{"operation": "pin", "xmlid": "app.b", "value": True}]
+        )
+        self.assertEqual(settings.homemenu_config["pinned"], ["app.a", "app.b"])
+        settings.update_homemenu_config(
+            [{"operation": "pin", "xmlid": "app.b", "value": True}]
+        )
+        self.assertEqual(settings.homemenu_config["pinned"], ["app.a", "app.b"])
+
+    def test_launcher_hide_reset_and_stale_pinned_order(self):
+        settings = self.user_settings.with_user(self.user)
+        settings.update_homemenu_config(
+            [
+                {"operation": "pin", "xmlid": "app.a", "value": True},
+                {"operation": "pin", "xmlid": "app.b", "value": True},
+                {"operation": "pin", "xmlid": "app.c", "value": True},
+            ]
+        )
+        settings.update_homemenu_config(
+            [{"operation": "pinned_order", "value": ["app.b", "app.a"]}]
+        )
+        self.assertEqual(
+            settings.homemenu_config["pinned"], ["app.b", "app.a", "app.c"]
+        )
+        settings.update_homemenu_config(
+            [{"operation": "hide", "xmlid": "app.a", "value": True}]
+        )
+        self.assertNotIn("app.a", settings.homemenu_config["pinned"])
+        self.assertEqual(settings.homemenu_config["hidden"], ["app.a"])
+        settings.update_homemenu_config([{"operation": "reset"}])
+        self.assertFalse(settings.homemenu_config)
+
+    def test_launcher_rejects_foreign_settings_and_invalid_changes(self):
+        with self.assertRaises(AccessError):
+            self.user_settings.update_homemenu_config([{"operation": "reset"}])
+        settings = self.user_settings.with_user(self.user)
+        for changes in (
+            {},
+            [None],
+            [{"operation": "unknown"}],
+            [{"operation": "pin", "xmlid": "app.a", "value": "yes"}],
+        ):
+            with self.subTest(changes=changes), self.assertRaises(ValidationError):
+                settings.update_homemenu_config(changes)
+
+    def test_launcher_normalizes_legacy_duplicate_and_conflicting_entries(self):
+        normalize = self.user_settings._normalize_homemenu_config
+        self.assertEqual(normalize('["app.a", "app.a"]')["order"], ["app.a"])
+        self.assertEqual(
+            normalize({"pinned": ["app.a", "app.a"], "hidden": ["app.a"]})["pinned"], []
+        )
+        self.assertIsNone(normalize({"version": 999}))
+        self.assertIsNone(normalize("invalid"))
+
+    def test_home_menu_lock_conflict_requests_transaction_retry(self):
+        settings = self.user_settings.with_user(self.user)
+        with patch.object(
+            type(settings), "lock_for_update", side_effect=LockError("busy")
+        ):
+            with self.assertRaises(ConcurrencyError):
+                settings.update_homemenu_config(
+                    [{"operation": "pin", "xmlid": "app.a", "value": True}]
+                )
+        self.assertFalse(settings.homemenu_config)

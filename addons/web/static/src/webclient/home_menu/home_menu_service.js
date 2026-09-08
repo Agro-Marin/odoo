@@ -15,12 +15,13 @@ import {
 } from "@web/webclient/actions";
 import {
     flattenMenuTree,
-    isDefaultHomeMenuConfig,
     parseHomeMenuConfig,
+    readHomeMenuConfig,
     reorderApps,
 } from "@web/webclient/menus/menu_utils";
 
 import { HomeMenu } from "./home_menu.js";
+import { useHomeMenuLayoutSync } from "./home_menu_layout.js";
 
 export class HomeMenuState {
     hasHomeMenu = false;
@@ -28,6 +29,8 @@ export class HomeMenuState {
 
     /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
+        // Services must stay raw: proxying their controller state breaks
+        // structured cloning when the action service writes browser history.
         this.action = markRaw(env.services.action);
         this.mutex = markRaw(new Mutex());
     }
@@ -59,24 +62,19 @@ export class HomeMenuState {
 }
 
 /**
- * The apps in the order a launcher shows them and the layout that ordered
- * them: what both the home menu and the quick launcher start from, without the
- * reactivity and the callbacks only the home menu needs.
- *
  * @param {import("services").ServiceFactories["menu"]} menus
  * @returns {{
  *  apps: import("./home_menu.js").HomeMenuApp[],
  *  config: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
  *  defaultConfig: import("@web/webclient/menus/menu_utils").HomeMenuConfig,
  *  defaultOrder: string[],
+ *  personal: boolean,
  * }}
  */
 export function computeHomeMenuLayout(menus) {
     const defaultConfig = parseHomeMenuConfig(session.homemenu_default_config);
-    const own = parseHomeMenuConfig(user.settings?.homemenu_config);
-    const config = isDefaultHomeMenuConfig(own)
-        ? parseHomeMenuConfig(defaultConfig)
-        : own;
+    const own = readHomeMenuConfig(user.settings?.homemenu_config);
+    const config = own ?? parseHomeMenuConfig(defaultConfig);
     const apps = [...flattenMenuTree(menus.getMenuAsTree("root")).apps];
     const defaultOrder = apps.flatMap((app) =>
         app.xmlid === undefined ? [] : [app.xmlid],
@@ -84,7 +82,7 @@ export function computeHomeMenuLayout(menus) {
     if (config.order.length) {
         reorderApps(apps, config.order);
     }
-    return { apps, config, defaultConfig, defaultOrder };
+    return { apps, config, defaultConfig, defaultOrder, personal: own !== null };
 }
 
 /**
@@ -100,6 +98,7 @@ export function computeHomeMenuProps(menus) {
         apps,
         config,
         defaultConfig,
+        personal: layout.personal,
         reorderApps: (/** @type {string[]} */ order) => reorderApps(apps, order),
         resetApps: (/** @type {string[]} */ order) => {
             reorderApps(apps, defaultOrder);
@@ -128,10 +127,12 @@ export class HomeMenuAction extends Component {
         this.homeMenuProps = computeHomeMenuProps(this.menus);
         onMounted(() => this.onMounted());
         onWillUnmount(() => this.onWillUnmount());
-        useBus(this.env.bus, AppEvent.MENUS_APP_CHANGED, () => {
+        const refresh = () => {
             this.homeMenuProps = computeHomeMenuProps(this.menus);
             this.render();
-        });
+        };
+        useBus(this.env.bus, AppEvent.MENUS_APP_CHANGED, refresh);
+        useHomeMenuLayoutSync(refresh);
     }
     onMounted() {
         const { breadcrumbs } = this.env.config;

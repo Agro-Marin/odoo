@@ -700,6 +700,7 @@ export class DynamicList extends EditableListDataPoint {
         this.isDomainSelected = value;
     }
 
+    /** @param {boolean} isSelected @param {boolean} state */
     async _toggleArchive(isSelected, state) {
         const method = state ? "action_archive" : "action_unarchive";
         const context = this.context;

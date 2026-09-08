@@ -42,6 +42,7 @@ function mockSourceCroppingDetector(cropAreas) {
         setCropArea(area) {
             cropAreas.push(area);
         }
+        /** @returns {Promise<never[]>} */
         async detect() {
             return [];
         }
@@ -65,6 +66,8 @@ test("the crop area follows the preview's size, in source pixels", async () => {
                     onReady="() => this.ready.resolve()"
                     onResult="() => {}" onError="() => {}"/>
             </div>`;
+        /** @type {{size: number}} */
+        state;
         setup() {
             this.ready = ready;
             this.state = useState({ size: 100 });

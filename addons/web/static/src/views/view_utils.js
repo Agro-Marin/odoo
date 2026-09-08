@@ -487,9 +487,9 @@ export function buildActionMenuItems(staticItems, actionMenus) {
 
 /**
  * @param {Object} services
- * @param {Object} services.action
- * @param {Object} services.dialog
- * @param {Object} services.notification
+ * @param {Pick<import("services").ServiceFactories["action"], "doAction">} services.action
+ * @param {import("services").ServiceFactories["dialog"]} services.dialog
+ * @param {import("services").ServiceFactories["notification"]} services.notification
  * @param {() => boolean} [services.isAlive]
  * @returns {Object}
  */

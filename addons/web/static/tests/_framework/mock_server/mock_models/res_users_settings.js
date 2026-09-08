@@ -1,6 +1,11 @@
 // @ts-check
 
 import { ensureArray } from "@web/core/utils/collections/arrays";
+import { session } from "@web/session";
+import {
+    parseHomeMenuConfig,
+    readHomeMenuConfig,
+} from "@web/webclient/menus/menu_utils";
 
 import { ServerModel } from "../mock_model.js";
 
@@ -35,6 +40,7 @@ export class ResUsersSettings extends ServerModel {
      */
     res_users_settings_format(id, fields_to_format) {
         const [settings] = this.browse(id);
+        /** @type {(entry: [string, unknown]) => boolean} */
         const filterPredicate = fields_to_format
             ? ([fieldName]) => fields_to_format.includes(fieldName)
             : ([fieldName]) => !ORM_AUTOMATIC_FIELDS.has(fieldName);
@@ -47,9 +53,48 @@ export class ResUsersSettings extends ServerModel {
         return res;
     }
 
+    /** @param {number | number[]} ids @param {{operation: string, xmlid?: string, value?: any}[]} changes */
+    update_homemenu_config(ids, changes) {
+        const [id] = ensureArray(ids);
+        const [settings] = this.browse(id);
+        let config = readHomeMenuConfig(settings.homemenu_config);
+        for (const { operation, xmlid, value } of changes) {
+            if (operation === "reset") {
+                config = null;
+                continue;
+            }
+            config ??= parseHomeMenuConfig(session.homemenu_default_config);
+            if (operation === "order" || operation === "pinned_order") {
+                const key = operation === "order" ? "order" : "pinned";
+                const requested = [...new Set(/** @type {string[]} */ (value))].filter(
+                    (item) => key === "order" || config?.pinned.includes(item),
+                );
+                config[key] = [
+                    ...requested,
+                    ...config[key].filter((item) => !requested.includes(item)),
+                ];
+            } else if (xmlid) {
+                const key = operation === "pin" ? "pinned" : "hidden";
+                if (!value) {
+                    config[key] = config[key].filter((item) => item !== xmlid);
+                }
+                if (value) {
+                    if (!config[key].includes(xmlid)) {
+                        config[key].push(xmlid);
+                    }
+                    const other = key === "pinned" ? "hidden" : "pinned";
+                    config[other] = config[other].filter((item) => item !== xmlid);
+                }
+            }
+        }
+        const homemenu_config = config && { version: 2, ...config };
+        this.write(id, { homemenu_config });
+        return { id, homemenu_config };
+    }
+
     /**
      * @param {number | Iterable<number>} idOrIds
-     * @param {Object} new_settings
+     * @param {Record<string, unknown>} new_settings
      */
     set_res_users_settings(idOrIds, new_settings) {
         const [id] = ensureArray(idOrIds);
@@ -62,6 +107,7 @@ export class ResUsersSettings extends ServerModel {
                     `together with a matching record on the model.`,
             );
         }
+        /** @type {Record<string, unknown>} */
         const changedSettings = {};
         for (const setting in new_settings) {
             if (

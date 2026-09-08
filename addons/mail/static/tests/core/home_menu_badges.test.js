@@ -1,7 +1,13 @@
-import { provideMailBadges } from "@mail/core/web/home_menu_badges";
+import { defineMailModels, start } from "@mail/../tests/mail_test_helpers";
+import {
+    provideMailBadges,
+    subscribeMailBadges,
+} from "@mail/core/web/home_menu_badges";
+import { animationFrame } from "@odoo/hoot";
 import { describe, expect, test } from "@odoo/hoot";
 
 describe.current.tags("desktop");
+defineMailModels();
 
 const apps = [
     { xmlid: "mail.menu_mail_root", module: "mail", models: ["discuss.channel"] },
@@ -15,8 +21,11 @@ const apps = [
     { xmlid: "studio.app_1" },
 ];
 
+/** @param {any} store @returns {import("@web/env").OdooEnv} */
 function envWith(store) {
-    return { services: { "mail.store": store } };
+    return /** @type {import("@web/env").OdooEnv} */ ({
+        services: { "mail.store": store },
+    });
 }
 
 test("the inbox counter lands on Discuss, activities due on their module's app", () => {
@@ -83,4 +92,35 @@ test("a model no addon-app owns lands on the first app whose menus open it", () 
 test("no counts, no badges; a store without groups is fine", () => {
     expect(provideMailBadges(envWith({ inbox: { counter: 0 } }), apps)).toEqual({});
     expect(provideMailBadges(envWith({}), [])).toEqual({});
+});
+
+test("shared model ownership stays stable when launcher order changes", () => {
+    const store = { activityGroups: [{ model: "shared.model", today_count: 2 }] };
+    const owners = [
+        { xmlid: "z.app", models: ["shared.model"] },
+        { xmlid: "a.app", models: ["shared.model"] },
+    ];
+    expect(provideMailBadges(envWith(store), owners)).toEqual({ "a.app": 2 });
+    expect(provideMailBadges(envWith(store), owners.reverse())).toEqual({ "a.app": 2 });
+});
+
+test("mail badge subscriptions follow live inbox and activity changes and detach", async () => {
+    const env = await start();
+    let updates = 0;
+    const stop = subscribeMailBadges(env, () => {
+        updates++;
+    });
+    const store = env.services["mail.store"];
+    store.inbox.counter = 42;
+    await animationFrame();
+    expect(updates).toBeGreaterThan(0);
+    const afterInbox = updates;
+    store.activityGroups = [{ model: "res.partner", today_count: 7 }];
+    await animationFrame();
+    expect(updates).toBeGreaterThan(afterInbox);
+    stop();
+    const beforeDetached = updates;
+    store.inbox.counter = 12;
+    await animationFrame();
+    expect(updates).toBe(beforeDetached);
 });

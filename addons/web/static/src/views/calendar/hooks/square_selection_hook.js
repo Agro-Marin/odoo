@@ -219,7 +219,7 @@ export function useSquareSelection(params = {}) {
     const state = { allSelectedCells: new Set(), prevSelectedCell: null, action: null };
 
     const highlight = (cells) => {
-        ref.el.querySelectorAll(`.${highlightClass}`).forEach((node) => {
+        ref.el?.querySelectorAll(`.${highlightClass}`).forEach((node) => {
             node.classList.remove(highlightClass);
         });
         cells.forEach((node) => {

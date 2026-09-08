@@ -1,101 +1,162 @@
 // @ts-check
 /** @odoo-module native */
 
+import { onMounted, onWillUnmount, useExternalListener } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
 const badgeProviders = registry.category("home_menu_badges");
-badgeProviders.addValidation({ provide: Function });
-
+badgeProviders.addValidation({
+    provide: Function,
+    subscribe: { type: Function, optional: true },
+    timeoutMs: { type: Number, optional: true },
+});
 const BADGE_TTL = 20_000;
+/** @typedef {{ xmlid?: string, module?: string, models?: string[] }} BadgeApp */
+/** @type {WeakMap<object, {key: string, at: number, badges: Promise<Record<string, number>>}>} */
+let cache = new WeakMap();
 
-/**
- * @type {{
- *  key: string,
- *  at: number,
- *  badges: Promise<Record<string, number>>,
- * } | null}
- */
-let cached = null;
-
-/**
- * @param {{ xmlid?: string }[]} apps
- */
-function badgeCacheKey(apps) {
-    return apps
-        .map((app) => app.xmlid ?? "")
-        .sort()
-        .join("\u0000");
+/** @param {import("@web/env").OdooEnv} [env] */
+export function invalidateHomeMenuBadges(env) {
+    if (env) {
+        cache.delete(env.services ?? env);
+    } else {
+        cache = new WeakMap();
+    }
 }
+badgeProviders.addEventListener("UPDATE", () => invalidateHomeMenuBadges());
 
-/**
- * Drop the counts, so the next launcher to open asks again. For a caller that
- * knows the numbers moved.
- */
-export function invalidateHomeMenuBadges() {
-    cached = null;
-}
-
-badgeProviders.addEventListener("UPDATE", invalidateHomeMenuBadges);
-
-/**
+/** Subscribe only while a launcher is mounted; providers own their data sources.
  * @param {import("@web/env").OdooEnv} env
- * @param {{ xmlid?: string }[]} apps
- * @param {{ refresh?: boolean }} [options] `refresh` for a caller the user
- *  asked for by name -- opening the home menu is a request for the counts as
- *  they are now, where crossing the navbar is not. It refills the cache, so
- *  the hover behind it costs nothing.
+ * @param {() => void} onChange
+ */
+export function useHomeMenuBadgeUpdates(env, onChange) {
+    /** @type {(() => void)[]} */
+    let stops = [];
+    const stopAll = () => {
+        for (const stop of stops) {
+            try {
+                stop();
+            } catch (error) {
+                console.warn("Home menu badge subscription cleanup failed", error);
+            }
+        }
+        stops = [];
+    };
+    const subscribe = () => {
+        stopAll();
+        for (const provider of badgeProviders.getAll()) {
+            if (provider.subscribe) {
+                try {
+                    const stop = provider.subscribe(env, () => {
+                        invalidateHomeMenuBadges(env);
+                        onChange();
+                    });
+                    if (typeof stop === "function") {
+                        stops.push(stop);
+                    }
+                } catch (error) {
+                    console.warn("Home menu badge subscription failed", error);
+                }
+            }
+        }
+    };
+    onMounted(subscribe);
+    useExternalListener(badgeProviders, "UPDATE", () => {
+        subscribe();
+        onChange();
+    });
+    onWillUnmount(stopAll);
+}
+
+/**
+ * Counts are computed against the complete accessible catalog, in stable order.
+ * Metadata participates in the key because it determines model ownership.
+ * @param {import("@web/env").OdooEnv} env
+ * @param {BadgeApp[]} apps
+ * @param {{ refresh?: boolean }} [options]
  * @returns {Promise<Record<string, number>>}
  */
 export function loadHomeMenuBadges(env, apps, { refresh = false } = {}) {
-    const key = badgeCacheKey(apps);
+    const catalog = [...apps].sort((a, b) =>
+        (a.xmlid ?? "").localeCompare(b.xmlid ?? ""),
+    );
+    const key = JSON.stringify(
+        catalog.map(({ xmlid, module, models }) => [xmlid, module, models]),
+    );
+    const owner = env.services ?? env;
+    const previous = cache.get(owner);
     const now = Date.now();
-    if (!refresh && cached && cached.key === key && now - cached.at < BADGE_TTL) {
-        return cached.badges;
+    if (!refresh && previous?.key === key && now - previous.at < BADGE_TTL) {
+        return previous.badges;
     }
-    const badges = countHomeMenuBadges(env, apps);
-    cached = { key, at: now, badges };
-    badges.catch(() => {
-        if (cached?.badges === badges) {
-            cached = null;
-        }
-    });
+    const badges = countHomeMenuBadges(env, catalog);
+    cache.set(owner, { key, at: now, badges });
     return badges;
 }
 
-/**
- * @param {import("@web/env").OdooEnv} env
- * @param {{ xmlid?: string }[]} apps
- * @returns {Promise<Record<string, number>>}
- */
+/** @param {any} provider @param {import("@web/env").OdooEnv} env @param {BadgeApp[]} apps */
+async function runProvider(provider, env, apps) {
+    let timer;
+    const timeoutMs =
+        Number.isFinite(provider.timeoutMs) && provider.timeoutMs > 0
+            ? Math.min(provider.timeoutMs, 5000)
+            : 5000;
+    try {
+        return await Promise.race([
+            Promise.resolve().then(() => provider.provide(env, apps)),
+            new Promise((_, reject) => {
+                timer = browser.setTimeout(
+                    () => reject(new Error("Home menu badge provider timed out")),
+                    timeoutMs,
+                );
+            }),
+        ]);
+    } finally {
+        browser.clearTimeout(timer);
+    }
+}
+
+/** @param {import("@web/env").OdooEnv} env @param {BadgeApp[]} apps */
 async function countHomeMenuBadges(env, apps) {
-    const providers = badgeProviders.getAll();
     /** @type {Record<string, number>} */
     const badges = {};
-    if (!providers.length) {
-        return badges;
-    }
     const settled = await Promise.allSettled(
-        providers.map((provider) => provider.provide(env, apps)),
+        badgeProviders.getAll().map((provider) => runProvider(provider, env, apps)),
     );
     for (const result of settled) {
         if (result.status === "rejected") {
             console.warn("Home menu badge provider failed", result.reason);
             continue;
         }
-        for (const [xmlid, value] of Object.entries(result.value || {})) {
+        if (
+            !result.value ||
+            typeof result.value !== "object" ||
+            Array.isArray(result.value)
+        ) {
+            continue;
+        }
+        for (const [xmlid, value] of Object.entries(result.value)) {
             const count = Number(value);
-            if (count > 0) {
-                badges[xmlid] = (badges[xmlid] || 0) + count;
+            if (Number.isSafeInteger(count) && count > 0) {
+                badges[xmlid] = Math.min(
+                    Number.MAX_SAFE_INTEGER,
+                    (badges[xmlid] || 0) + count,
+                );
             }
         }
     }
     return badges;
 }
 
+/** Above this a tile shows "99+": a four-digit count does not fit an icon. */
 const BADGE_CEILING = 99;
 
 /**
+ * A tile's count, and how to show it. One value rather than three calls, so
+ * the ceiling and the wording live here instead of in each launcher.
+ *
  * @param {Record<string, number>} badges
  * @param {{ xmlid?: string }} app
  * @returns {{ count: number, text: string, label: string }} count 0 for an app
@@ -106,6 +167,7 @@ export function appBadge(badges, app) {
     return {
         count,
         text: count > BADGE_CEILING ? `${BADGE_CEILING}+` : String(count),
+        // The reader is told the real number, not the shortened one.
         label: _t("%s pending", count),
     };
 }

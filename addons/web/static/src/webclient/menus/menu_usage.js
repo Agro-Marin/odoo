@@ -4,6 +4,7 @@
 import { browser } from "@web/core/browser/browser";
 import { user } from "@web/core/user";
 import { debounce } from "@web/core/utils/timing";
+import { session } from "@web/session";
 
 const KEY_PREFIX = "webclient_menu_usage";
 const MAX_ENTRIES = 50;
@@ -16,7 +17,7 @@ const SYNC_DELAY_MS = 10_000;
  */
 
 function storageKey() {
-    return `${KEY_PREFIX}:${user.userId}`;
+    return `${KEY_PREFIX}:${session.db}:${user.userId}`;
 }
 
 /** @param {unknown} value @returns {UsageTable} */
@@ -29,7 +30,7 @@ function asTable(value) {
     for (const [xmlid, entry] of Object.entries(value)) {
         const count = Number(/** @type {any} */ (entry)?.n);
         const at = Number(/** @type {any} */ (entry)?.t);
-        if (count > 0) {
+        if (Number.isSafeInteger(count) && count > 0 && Number.isFinite(at)) {
             table[xmlid] = { n: count, t: at > 0 ? at : 0 };
         }
     }

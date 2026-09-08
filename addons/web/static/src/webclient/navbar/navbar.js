@@ -82,6 +82,9 @@ export class NavBar extends Component {
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     appSubMenus;
 
+    /** @type {import("@web/ui/popover/popover_hook").PopoverHookReturnType} */
+    quickLauncher;
+
     setup() {
         this.currentAppSectionsExtra = [];
         this.failedSystrayKeys = new Set();

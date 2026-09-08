@@ -92,7 +92,7 @@ test("leaving the toggle before the delay, or clicking it, opens no launcher", a
 
     await hover(".o_menu_toggle");
     await advanceTime(200);
-    await leave(".o_menu_toggle");
+    await leave();
     await advanceTime(400);
     expect(".o_quick_launcher").toHaveCount(0);
 
@@ -113,7 +113,9 @@ test("typing in the quick launcher hands off to the palette's menu search", asyn
     await advanceTime(400);
     await animationFrame();
 
-    const input = document.querySelector(".o_quick_launcher_search");
+    const input = /** @type {HTMLInputElement} */ (
+        document.querySelector(".o_quick_launcher_search")
+    );
     input.value = "app";
     input.dispatchEvent(new InputEvent("input", { bubbles: true }));
     await animationFrame();

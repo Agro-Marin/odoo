@@ -404,16 +404,16 @@ export function _makeUser(session) {
         get settings() {
             return { ...settings };
         },
-        updateContext(update) {
+        updateContext(/** @type {Record<string, any>} */ update) {
             Object.assign(context, update);
         },
-        hasGroup(group) {
+        hasGroup(/** @type {string} */ group) {
             return groups_.has(group, this.context);
         },
         checkAccessRight(
-            model,
-            operation,
-            ids = [],
+            /** @type {string} */ model,
+            /** @type {"read" | "write" | "create" | "unlink"} */ operation,
+            /** @type {number | number[]} */ ids = [],
             { context } = /** @type {{ context?: object }} */ ({}),
         ) {
             return accessRights.check(
@@ -424,10 +424,10 @@ export function _makeUser(session) {
                 { cached: !context },
             );
         },
-        setUserSettings(key, value) {
+        setUserSettings(/** @type {string} */ key, /** @type {any} */ value) {
             return writeUserSetting(settings, key, value, this.context);
         },
-        updateUserSettings(key, value) {
+        updateUserSettings(/** @type {string} */ key, /** @type {any} */ value) {
             settings[key] = value;
         },
     };

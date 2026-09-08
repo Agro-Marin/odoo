@@ -9,17 +9,23 @@ function makeRenderer(overrides = {}) {
     return {
         ...listStylingMixin,
         fields: { foo: { type: "char" }, qty: { type: "integer" } },
-        cellClassByColumn: {},
-        _readonlyCache: null,
-        editedRecord: null,
+        cellClassByColumn: /** @type {Record<string, string>} */ ({}),
+        _readonlyCache: /** @type {Map<string, boolean> | null} */ (null),
+        editedRecord: /** @type {ReturnType<typeof makeRecord> | null} */ (null),
         canResequenceRows: false,
         props: {
-            list: { orderBy: [], evalContext: {} },
-            archInfo: { decorations: [] },
+            list: {
+                orderBy: /** @type {{name: string, asc: boolean}[]} */ ([]),
+                evalContext: {},
+            },
+            archInfo: {
+                decorations: /** @type {{condition: string, class: string}[]} */ ([]),
+            },
             activeActions: { edit: true },
         },
         isSortable: () => true,
-        isNumericColumn: (column) => column.name === "qty",
+        isNumericColumn: (/** @type {{name: string}} */ column) =>
+            column.name === "qty",
         isInlineEditable: () => true,
         ...overrides,
     };

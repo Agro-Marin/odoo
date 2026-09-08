@@ -14,7 +14,7 @@ export class FormArchParser extends ViewArchParser {
      * @param {Element} xmlDoc
      * @param {Object} models
      * @param {string} modelName
-     * @returns {{ activeActions: Object, autofocusFieldIds: string[], disableAutofocus: boolean, fieldNodes: Object, widgetNodes: Object, xmlDoc: Element }}
+     * @returns {{ activeActions: Record<string, any>, autofocusFieldIds: string[], disableAutofocus: boolean, fieldNodes: Object, widgetNodes: Object, xmlDoc: Element }}
      */
     parse(xmlDoc, models, modelName) {
         const jsClass = xmlDoc.getAttribute("js_class");

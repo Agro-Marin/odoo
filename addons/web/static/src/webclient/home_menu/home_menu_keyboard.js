@@ -12,7 +12,7 @@ import { nextFocusedIndex } from "./grid_navigation.js";
  *  activate: (index: number) => unknown,
  *  fallback: () => unknown,
  *  escape: () => unknown,
- *  isAvailable: () => boolean,
+ *  isAvailable: (target: EventTarget | null) => boolean,
  *  enterTarget: () => EventTarget | null,
  * }} params
  */
@@ -29,6 +29,14 @@ export function useHomeMenuKeyboard({
     let followSelection = false;
 
     const move = (/** @type {string} */ cmd) => {
+        if (rootRef.el && getComputedStyle(rootRef.el).direction === "rtl") {
+            cmd =
+                cmd === "nextColumn"
+                    ? "previousColumn"
+                    : cmd === "previousColumn"
+                      ? "nextColumn"
+                      : cmd;
+        }
         const next = nextFocusedIndex(rows(), state.focusedIndex, cmd);
         if (next === null) {
             return;
@@ -43,22 +51,22 @@ export function useHomeMenuKeyboard({
         ["ArrowRight", () => move("nextColumn")],
         ["ArrowUp", () => move("previousLine")],
         ["ArrowLeft", () => move("previousColumn")],
-        ["Escape", () => escape()],
     ];
     for (const [hotkey, callback] of arrows) {
         useHotkey(hotkey, callback, { allowRepeat: true, isAvailable });
     }
+    useHotkey("Escape", () => escape());
     useHotkey(
         "Enter",
         () => (state.focusedIndex === null ? fallback() : activate(state.focusedIndex)),
         {
             allowRepeat: true,
-            isAvailable: (target) => isAvailable() && target === enterTarget(),
+            isAvailable: (target) => target === enterTarget(),
         },
     );
 
     onPatched(() => {
-        if (!followSelection || !isAvailable()) {
+        if (!followSelection) {
             return;
         }
         const selected = /** @type {HTMLElement | null} */ (

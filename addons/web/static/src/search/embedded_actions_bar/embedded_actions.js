@@ -230,7 +230,7 @@ export class EmbeddedActions {
      * @returns {EmbeddedAction}
      */
     get currentEmbeddedAction() {
-        const { currentEmbeddedActionId } = this.env.config;
+        const { currentEmbeddedActionId } = this.env.config ?? {};
         return (
             this.defaultEmbeddedActions?.find(
                 ({ id }) => id === currentEmbeddedActionId,

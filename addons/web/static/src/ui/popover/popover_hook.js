@@ -17,7 +17,7 @@ import { useService } from "@web/core/utils/hooks";
 
 /**
  * @param {PopoverServiceAddFunction} addFn
- * @param {import("@odoo/owl").ComponentConstructor} component
+ * @param {import("@odoo/owl").ComponentConstructor<any, any>} component
  * @param {PopoverServiceAddOptions} options
  * @returns {PopoverHookReturnType}
  */
@@ -45,7 +45,7 @@ export function makePopover(addFn, component, options) {
 }
 
 /**
- * @param {import("@odoo/owl").ComponentConstructor} component
+ * @param {import("@odoo/owl").ComponentConstructor<any, any>} component
  * @param {PopoverServiceAddOptions} [options]
  * @returns {PopoverHookReturnType}
  */

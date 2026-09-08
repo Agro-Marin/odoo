@@ -174,9 +174,11 @@ export function setupTestEnvironment() {
         return read;
     }
 
+    /** @param {EventTarget} target */
     function trackTestListeners(target) {
         const origAdd = target.addEventListener;
         const origRemove = target.removeEventListener;
+        /** @type {{type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions}[] | null} */
         let trackedListeners = null;
         target.addEventListener = function (type, listener, options) {
             if (trackedListeners && !isOwlSyntheticListener(type, listener, options)) {

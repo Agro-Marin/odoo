@@ -1,18 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
+import { Record as MailRecord } from "@mail/core/common/record";
 import { registry } from "@web/core/registry";
 
 const DISCUSS_APP = "mail.menu_mail_root";
 
 /**
- * Two counts the store already holds at boot, so no request is made: the
- * inbox counter on the Discuss tile, and the activities due today or overdue
- * on one app's tile per model: the app of the addon that owns the model when
- * it has one, else the app that opens on the model (`res.partner` lands on
- * Contacts this way), else the first app with a menu on it. A model no app
- * opens stays in the systray only.
- *
  * @param {import("@web/env").OdooEnv} env
  * @param {{ xmlid?: string, module?: string, models?: string[] }[]} apps
  * @returns {Record<string, number>}
@@ -31,20 +25,23 @@ export function provideMailBadges(env, apps) {
     const appByRootModel = new Map();
     /** @type {Map<string, string>} */
     const appByModel = new Map();
-    for (const app of apps) {
+    for (const app of [...apps].sort((a, b) =>
+        (a.xmlid || "").localeCompare(b.xmlid || ""),
+    )) {
         if (!app.xmlid) {
             continue;
         }
         if (app.module && !appByModule.has(app.module)) {
             appByModule.set(app.module, app.xmlid);
         }
+        const xmlid = app.xmlid;
         // An app's first model is the one its root menu opens.
         (app.models || []).forEach((model, index) => {
             if (index === 0 && !appByRootModel.has(model)) {
-                appByRootModel.set(model, app.xmlid);
+                appByRootModel.set(model, xmlid);
             }
             if (!appByModel.has(model)) {
-                appByModel.set(model, app.xmlid);
+                appByModel.set(model, xmlid);
             }
         });
     }
@@ -52,8 +49,6 @@ export function provideMailBadges(env, apps) {
     const groups = store.activityGroups || [];
     for (const group of groups) {
         if (group.model === "mail.activity") {
-            // The "other activities" bucket: records the user cannot open,
-            // which no tile stands for.
             continue;
         }
         const due = (group.today_count || 0) + (group.overdue_count || 0);
@@ -61,8 +56,8 @@ export function provideMailBadges(env, apps) {
             typeof group.icon === "string" ? group.icon.split("/")[1] : undefined;
         const xmlid =
             (module && appByModule.get(module)) ||
-            appByRootModel.get(group.model) ||
-            appByModel.get(group.model);
+            appByRootModel.get(group.model ?? "") ||
+            appByModel.get(group.model ?? "");
         if (due > 0 && xmlid) {
             badges[xmlid] = (badges[xmlid] || 0) + due;
         }
@@ -70,4 +65,28 @@ export function provideMailBadges(env, apps) {
     return badges;
 }
 
-registry.category("home_menu_badges").add("mail", { provide: provideMailBadges });
+/** @param {import("@web/env").OdooEnv} env @param {() => void} changed */
+export function subscribeMailBadges(env, changed) {
+    const store = env.services["mail.store"];
+    let stopInbox = () => {};
+    const watchInbox = () => {
+        stopInbox();
+        stopInbox = store.inbox
+            ? MailRecord.onChange(store.inbox, "counter", changed)
+            : () => {};
+    };
+    watchInbox();
+    const stopStore = MailRecord.onChange(store, ["activityGroups", "inbox"], () => {
+        watchInbox();
+        changed();
+    });
+    return () => {
+        stopStore();
+        stopInbox();
+    };
+}
+
+registry.category("home_menu_badges").add("mail", {
+    provide: provideMailBadges,
+    subscribe: subscribeMailBadges,
+});

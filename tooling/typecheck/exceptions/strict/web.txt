@@ -7,7 +7,6 @@ addons/web/static/src/components/datetime/datetime_picker.js
 addons/web/static/src/components/file_viewer/file_viewer.js
 addons/web/static/src/components/model_field_selector/model_field_selector_popover.js
 addons/web/static/src/components/select_menu/select_menu.js
-addons/web/static/src/core/file_upload/file_upload_service.js
 addons/web/static/src/core/hotkeys/hotkey_service.js
 addons/web/static/src/core/navigation/navigation.js
 addons/web/static/src/core/tree/tree_processor_service.js

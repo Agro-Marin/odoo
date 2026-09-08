@@ -11,6 +11,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { hasTouch, isIosApp } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/translation";
@@ -18,7 +19,7 @@ import { useSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { parseHomeMenuConfig } from "@web/webclient/menus/menu_utils";
 
-import { loadHomeMenuBadges } from "./badges.js";
+import { loadHomeMenuBadges, useHomeMenuBadgeUpdates } from "./badges.js";
 import { ExpirationPanel } from "./expiration_panel.js";
 import { gridRows } from "./grid_navigation.js";
 import { HomeMenuGrid } from "./home_menu_grid.js";
@@ -27,9 +28,11 @@ import { HomeMenuLayout, orderAfterDrag } from "./home_menu_layout.js";
 import { useHomeMenuSearch } from "./home_menu_search.js";
 import { SysAdminPanel } from "./sysadmin_panel.js";
 
-/** @param {{ xmlid?: string }[]} apps */
+/** @param {{ xmlid?: string, module?: string, models?: string[] }[]} apps */
 function homeMenuAppsKey(apps) {
-    return apps.map((app) => app.xmlid ?? "").join("\u0000");
+    return JSON.stringify(
+        apps.map(({ xmlid, module, models }) => [xmlid, module, models]),
+    );
 }
 
 const APPS_PER_ROW = 6;
@@ -83,6 +86,7 @@ export class HomeMenu extends Component {
             },
         },
         reorderApps: { type: Function },
+        personal: { type: Boolean, optional: true },
         config: {
             type: Object,
             optional: true,
@@ -101,6 +105,7 @@ export class HomeMenu extends Component {
      *  isIosApp: boolean;
      *  editing: boolean;
      *  badges: Record<string, number>;
+     *  layoutAnnouncement: string;
      * }}
      */
     state;
@@ -132,6 +137,7 @@ export class HomeMenu extends Component {
             isIosApp: isIosApp(),
             editing: false,
             badges: {},
+            layoutAnnouncement: "",
         });
         this.search = useHomeMenuSearch({
             onQueryChanged: () => this.keyboard.clear(),
@@ -140,7 +146,21 @@ export class HomeMenu extends Component {
             config: useState(this.props.config ?? reactive(parseHomeMenuConfig(null))),
             defaultConfig: this.props.defaultConfig ?? parseHomeMenuConfig(null),
             orm: useService("orm"),
+            personal: this.props.personal,
+            onSaved: () => this.props.reorderApps(this.layout.config.order),
         });
+        this.layout.state = useState(this.layout.state);
+        useSetupAction({
+            beforeLeave: () => this.layout.flush(),
+            beforeUnload: (/** @type {BeforeUnloadEvent} */ event) => {
+                if (this.layout.unsaved) {
+                    event.preventDefault();
+                    event.returnValue = "";
+                }
+            },
+        });
+        this.badgeRequest = 0;
+        useHomeMenuBadgeUpdates(this.env, () => this._loadBadges());
         this.rootRef = useRef("root");
 
         this.grid = new HomeMenuGrid({
@@ -158,18 +178,28 @@ export class HomeMenu extends Component {
             activate: (index) => this._activate(index),
             fallback: () => this._openFirstMatch(),
             escape: () => this._onEscape(),
-            isAvailable: () => !this.env.isSmall,
+            isAvailable: (target) => !target?.closest?.(".o_app_edit_actions"),
             enterTarget: () => this.search.inputEl,
         });
 
         useSortable({
             enable: () => this._enableAppsSorting(),
             ref: this.rootRef,
-            elements: ".o_draggable",
+            elements: ".o_apps .o_draggable",
             ignore: ".o_app_edit_actions",
             cursor: "move",
             onWillStartDrag: (params) => this._sortStart(params),
             onDrop: (params) => this._sortAppDrop(params),
+        });
+
+        useSortable({
+            enable: () => this._enableAppsSorting(),
+            ref: this.rootRef,
+            elements: ".o_pinned_apps .o_draggable",
+            ignore: ".o_app_edit_actions",
+            cursor: "move",
+            onWillStartDrag: (params) => this._sortStart(params),
+            onDrop: (params) => this._sortPinnedDrop(params),
         });
 
         this.appsKey = homeMenuAppsKey(this.props.apps);
@@ -201,7 +231,10 @@ export class HomeMenu extends Component {
             this.badgeTimer = browser.setTimeout(() => this._loadBadges(), BADGE_DELAY);
         });
 
-        onWillUnmount(() => browser.clearTimeout(this.badgeTimer));
+        onWillUnmount(() => {
+            browser.clearTimeout(this.badgeTimer);
+            this.badgeRequest++;
+        });
     }
 
     /** @returns {HomeMenuApp[]} */
@@ -253,13 +286,17 @@ export class HomeMenu extends Component {
      * @param {HomeMenuApp[]} [apps] the apps to count for, when the ones on
      */
     async _loadBadges(apps) {
-        this.state.badges = await loadHomeMenuBadges(
+        const request = ++this.badgeRequest;
+        const badges = await loadHomeMenuBadges(
             /** @type {import("@web/env").OdooEnv} */ (
                 /** @type {unknown} */ (this.env)
             ),
             apps ?? this.displayedApps,
             { refresh: true },
         );
+        if (request === this.badgeRequest) {
+            this.state.badges = badges;
+        }
     }
 
     /** @param {HomeMenuApp} app */
@@ -344,9 +381,64 @@ export class HomeMenu extends Component {
     get keyboardRows() {
         return gridRows(
             this.grid.keyboardRows,
-            APPS_PER_ROW,
+            this.appsPerRow,
             this.grid.menuMatches.length,
         );
+    }
+
+    get appsPerRow() {
+        const row = this.rootRef.el?.querySelector(".o_apps.row, .o_pinned_apps .row");
+        const tile = row?.firstElementChild;
+        if (row && tile && tile.getBoundingClientRect().width) {
+            return Math.max(
+                1,
+                Math.round(
+                    row.getBoundingClientRect().width /
+                        tile.getBoundingClientRect().width,
+                ),
+            );
+        }
+        return this.env.isSmall ? (this.state.isIosApp ? 1 : 4) : APPS_PER_ROW;
+    }
+
+    /** @param {HomeMenuApp} app */
+    appOrder(app) {
+        return this.layout.isPinned(app)
+            ? this.layout.config.pinned
+            : this.displayedApps
+                  .filter((item) => !this.layout.isPinned(item))
+                  .flatMap((item) => (item.xmlid ? [item.xmlid] : []));
+    }
+
+    /** @param {HomeMenuApp} app @param {number} delta */
+    canMoveApp(app, delta) {
+        const order = this.appOrder(app);
+        const index = order.indexOf(app.xmlid ?? "");
+        return index >= 0 && index + delta >= 0 && index + delta < order.length;
+    }
+
+    /** @param {HomeMenuApp} app @param {number} delta */
+    moveApp(app, delta) {
+        if (!this.canMoveApp(app, delta)) {
+            return;
+        }
+        const order = [...this.appOrder(app)];
+        const from = order.indexOf(app.xmlid ?? "");
+        [order[from], order[from + delta]] = [order[from + delta], order[from]];
+        this.keyboard.clear();
+        this.state.layoutAnnouncement = _t("%(app)s moved to position %(position)s", {
+            app: app.label,
+            position: from + delta + 1,
+        });
+        if (this.layout.isPinned(app)) {
+            return this.layout.setPinnedOrder(order);
+        }
+        this.props.reorderApps(order);
+        return this.layout.setOrder(order);
+    }
+
+    showAllMenuResults() {
+        this.search.openPalette();
     }
 
     _enableAppsSorting() {
@@ -355,8 +447,8 @@ export class HomeMenu extends Component {
 
     /** @param {import("@web/core/utils/dnd/sortable").DropParams} params */
     _sortAppDrop({ element, previous }) {
-        const movedId = /** @type {HTMLElement} */ (element.children[0]).dataset
-            .menuXmlid;
+        const movedId = /** @type {HTMLElement} */ (element.querySelector(".o_app"))
+            .dataset.menuXmlid;
         if (movedId === undefined) {
             return;
         }
@@ -365,18 +457,36 @@ export class HomeMenu extends Component {
                 app.xmlid === undefined ? [] : [app.xmlid],
             ),
             movedId,
-            /** @type {HTMLElement} */ (previous?.children[0])?.dataset.menuXmlid,
+            /** @type {HTMLElement} */ (previous?.querySelector(".o_app"))?.dataset
+                .menuXmlid,
         );
         if (!order) {
             return;
         }
         this.props.reorderApps(order);
-        this.layout.setOrder(order);
+        return this.layout.setOrder(order);
+    }
+
+    /** @param {import("@web/core/utils/dnd/sortable").DropParams} params */
+    _sortPinnedDrop({ element, previous }) {
+        const moved = /** @type {HTMLElement | null} */ (
+            element.querySelector(".o_app")
+        )?.dataset.menuXmlid;
+        const after = /** @type {HTMLElement | undefined} */ (
+            previous?.querySelector(".o_app")
+        )?.dataset.menuXmlid;
+        const order = moved && orderAfterDrag(this.layout.config.pinned, moved, after);
+        if (order) {
+            return this.layout.setPinnedOrder(order);
+        }
     }
 
     /** @param {import("@web/core/utils/dnd/sortable").SortableHandlerParams} params */
     _sortStart({ element, addClass }) {
-        addClass(/** @type {HTMLElement} */ (element.children[0]), "o_dragged_app");
+        addClass(
+            /** @type {HTMLElement} */ (element.querySelector(".o_app")),
+            "o_dragged_app",
+        );
     }
 
     /** @param {HomeMenuApp} app */

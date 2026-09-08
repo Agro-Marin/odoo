@@ -8,7 +8,7 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { DefaultCommandItem } from "@web/ui/commands/command_palette";
 
 import { menuUsage } from "./menu_usage.js";
-import { flattenMenuTree, menuSearchKey } from "./menu_utils.js";
+import { appSearchKey, flattenMenuTree, menuSearchKey } from "./menu_utils.js";
 
 const RECENT_MENU_ITEMS = 5;
 
@@ -36,6 +36,7 @@ const commandProviderRegistry = registry.category("command_provider");
 commandProviderRegistry.add("menu", {
     namespace: "/",
     async provide(env, options) {
+        /** @type {import("@web/ui/commands/command_palette").CommandItem[]} */
         const result = [];
         const menuService = env.services.menu;
         const computed = flattenMenuTree(menuService.getMenuAsTree("root"));
@@ -48,7 +49,9 @@ commandProviderRegistry.add("menu", {
             apps = [...recentApps, ...apps.filter((app) => !recentApps.includes(app))];
             matchingItems = menuUsage.rank(menuItems, RECENT_MENU_ITEMS);
         } else {
-            apps = fuzzyLookup(options.searchValue, apps, (menu) => menu.label);
+            apps = fuzzyLookup(options.searchValue, apps, appSearchKey, {
+                preNormalized: true,
+            });
             matchingItems = fuzzyLookup(options.searchValue, menuItems, menuSearchKey, {
                 preNormalized: true,
             });

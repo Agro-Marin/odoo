@@ -12,6 +12,18 @@ function makeStorage() {
     const store = {};
     return {
         store,
+        get length() {
+            return Object.keys(store).length;
+        },
+        clear: () => {
+            for (const key of Object.keys(store)) {
+                delete store[key];
+            }
+        },
+        key: (/** @type {number} */ index) => Object.keys(store)[index] ?? null,
+        removeItem: (/** @type {string} */ key) => {
+            delete store[key];
+        },
         getItem: (/** @type {string} */ k) => (k in store ? store[k] : null),
         setItem: (/** @type {string} */ k, /** @type {string} */ v) => {
             store[k] = String(v);

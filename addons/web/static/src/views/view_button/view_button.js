@@ -53,7 +53,7 @@ function iconFromString(iconString) {
 }
 
 /**
- * @param {Object} record
+ * @param {Record<string, any>} record
  */
 export function recordResParams(record) {
     return pick(record, "context", "evalContext", "resModel", "resId", "resIds");

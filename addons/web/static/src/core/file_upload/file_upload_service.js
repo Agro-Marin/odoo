@@ -28,7 +28,7 @@ function wasRedirected(xhr, route) {
 /**
  * @param {XMLHttpRequest} xhr
  * @param {string} route
- * @returns {Object|undefined} the parsed JSON body, when it is one
+ * @returns {Record<string, any>|undefined} the parsed JSON body, when it is one
  * @throws {Error} carrying the most specific message the response offers
  */
 function parseUploadResponse(xhr, route) {
@@ -41,6 +41,7 @@ function parseUploadResponse(xhr, route) {
         errorMessage = _t("Your session expired. Please log in again.");
     }
     if (resp) {
+        /** @type {any} Parsed JSON or an HTML error document. */
         let content = resp;
         if (typeof content === "string") {
             try {

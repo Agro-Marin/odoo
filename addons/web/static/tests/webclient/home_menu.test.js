@@ -23,6 +23,8 @@ import { Deferred } from "@odoo/hoot-mock";
 import { Component, onRendered, reactive, useState, xml } from "@odoo/owl";
 import {
     defineMenus,
+    defineModels,
+    fields,
     getService,
     makeMockEnv,
     mockService,
@@ -30,7 +32,9 @@ import {
     mountWithCleanup,
     onRpc,
     patchWithCleanup,
+    webModels,
 } from "@web/../tests/web_test_helpers";
+import { CallbackRecorder } from "@web/core/action_hook";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { session } from "@web/session";
@@ -42,6 +46,13 @@ import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 import { parseHomeMenuConfig, reorderApps } from "@web/webclient/menus/menu_utils";
 import { WebClient } from "@web/webclient/webclient";
+
+class ResUsersSettings extends webModels.ResUsersSettings {
+    homemenu_config = fields.Json();
+    /** @type {{ id: number, homemenu_config: unknown }[]} */
+    _records = [{ id: 1, homemenu_config: null }];
+}
+defineModels([ResUsersSettings]);
 
 /**
  * @param {Iterable<{
@@ -120,6 +131,8 @@ test("Click on an app", async () => {
     });
     mockService("menu", {
         async selectMenu(menu) {
+            // The service takes a menu or a bare id; the tests always pass the
+            // menu, and saying so keeps the step readable either way.
             expect.step(
                 `selectMenu ${typeof menu === "number" ? menu : /** @type {any} */ (menu).id}`,
             );
@@ -150,6 +163,7 @@ test("Display Expiration Panel (no module installed)", async () => {
         { message: "There should be an expiration panel displayed" },
     );
 
+    // Close the expiration panel
     await click(".database_expiration_panel .oe_instance_hide_panel");
     await animationFrame();
     expect(".database_expiration_panel").toHaveCount(0);
@@ -240,11 +254,14 @@ test("Navigation and open an app in the home menu", async () => {
     });
     mockService("menu", {
         async selectMenu(menu) {
+            // The service takes a menu or a bare id; the tests always pass the
+            // menu, and saying so keeps the step readable either way.
             expect.step(
                 `selectMenu ${typeof menu === "number" ? menu : /** @type {any} */ (menu).id}`,
             );
         },
     });
+    // No app selected so nothing to open
     await press("enter");
     expect.verifySteps([]);
 
@@ -255,6 +272,7 @@ test("Navigation and open an app in the home menu", async () => {
         { key: "ArrowLeft", index: 1 },
     ]);
 
+    // open first app (Calendar)
     await press("enter");
 
     expect.verifySteps(["selectMenu 2"]);
@@ -275,8 +293,8 @@ test("Reorder apps in home menu using drag and drop", async () => {
     }
     defineMenus(apps);
 
-    onRpc("set_res_users_settings", () => {
-        expect.step(`set_res_users_settings`);
+    onRpc("update_homemenu_config", () => {
+        expect.step(`update_homemenu_config`);
         return {
             id: 1,
             homemenu_config:
@@ -296,7 +314,7 @@ test("Reorder apps in home menu using drag and drop", async () => {
     });
     await drop(".o_draggable:not(.o_dragged):eq(3)");
     await animationFrame();
-    expect.verifySteps(["set_res_users_settings"]);
+    expect.verifySteps(["update_homemenu_config"]);
     expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.1", {
         message: "first displayed app has app.1 xmlid",
     });
@@ -313,6 +331,7 @@ test("The HomeMenu input takes the focus when you press a key only if no other e
 
     const activeElement = document.createElement("div");
     getService("ui").activateElement(activeElement);
+    // remove the focus from the input
     const otherInput = document.createElement("input");
     queryOne(".o_home_menu").appendChild(otherInput);
     await pointerDown(otherInput);
@@ -501,7 +520,7 @@ test("a namespace character typed in the search reaches the palette as such", as
     });
     mockService("command", {
         openMainPalette(config) {
-            expect.step(config.searchValue);
+            expect.step(config?.searchValue);
         },
     });
     patchWithCleanup(registry.category("command_setup"), {
@@ -518,9 +537,25 @@ test("a namespace character typed in the search reaches the palette as such", as
     expect.verifySteps(["@bob"], { message: "a plain query never opens the palette" });
 });
 
-/** @param {unknown} [raw] */
+/** @param {unknown} [raw] @returns {ReturnType<typeof getDefaultHomeMenuProps> & {config: import("@web/webclient/menus/menu_utils").HomeMenuConfig, defaultConfig?: import("@web/webclient/menus/menu_utils").HomeMenuConfig, personal?: boolean, resetApps: () => void}} */
 function getLayoutProps(raw) {
     const props = getDefaultHomeMenuProps();
+    patchWithCleanup(user, {
+        settings: {
+            ...user.settings,
+            id: user.settings?.id || 1,
+            homemenu_config: raw,
+        },
+    });
+    let seeded = false;
+    onRpc("update_homemenu_config", function ({ args }) {
+        if (!seeded) {
+            this.env["res.users.settings"].write(args[0], {
+                homemenu_config: raw || null,
+            });
+            seeded = true;
+        }
+    });
     const config = reactive(parseHomeMenuConfig(raw));
     const defaultOrder = props.apps.map((app) => app.xmlid);
     return {
@@ -531,9 +566,8 @@ function getLayoutProps(raw) {
 }
 
 test("pinning an app moves it first and persists the versioned layout", async () => {
-    onRpc("set_res_users_settings", ({ kwargs }) => {
-        expect.step(kwargs.new_settings.homemenu_config);
-        return {};
+    onRpc("update_homemenu_config", ({ args }) => {
+        expect.step(JSON.stringify(args[1]));
     });
     await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
     expect(".o_app_edit_actions").toHaveCount(0);
@@ -543,31 +577,30 @@ test("pinning an app moves it first and persists the versioned layout", async ()
     await animationFrame();
     expect(".o_app_edit_actions").toHaveCount(3);
 
-    await click(".o_app[data-menu-xmlid='app.3'] .o_app_pin");
+    await click(".o_app[data-menu-xmlid='app.3'] + .o_app_edit_actions .o_app_pin");
     await animationFrame();
     expect(".o_pinned_apps .o_app").toHaveCount(1);
     expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.3");
     expect(".o_app:eq(0)").toHaveClass("o_app_pinned");
     expect(".o_app:eq(0)").toHaveAttribute("id", "result_app_0");
     expect(".o_app:eq(1)").toHaveAttribute("id", "result_app_1");
-    expect.verifySteps(['{"version":2,"order":[],"pinned":["app.3"],"hidden":[]}']);
+    expect.verifySteps(['[{"operation":"pin","xmlid":"app.3","value":true}]']);
 
-    await click(".o_app[data-menu-xmlid='app.3'] .o_app_pin");
+    await click(".o_app[data-menu-xmlid='app.3'] + .o_app_edit_actions .o_app_pin");
     await animationFrame();
     expect(".o_pinned_apps").toHaveCount(0);
     expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.1");
-    expect.verifySteps(['{"version":2,"order":[],"pinned":[],"hidden":[]}']);
+    expect.verifySteps(['[{"operation":"pin","xmlid":"app.3","value":false}]']);
 });
 
 test("hiding an app removes it from the grid and shows it dimmed while editing", async () => {
-    onRpc("set_res_users_settings", () => ({}));
     await mountWithCleanup(HomeMenu, { props: getLayoutProps('{"pinned":["app.2"]}') });
     expect(".o_app").toHaveCount(3);
     expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.2");
 
     await click(".o_home_menu_customize");
     await animationFrame();
-    await click(".o_app[data-menu-xmlid='app.2'] .o_app_hide");
+    await click(".o_app[data-menu-xmlid='app.2'] + .o_app_edit_actions .o_app_hide");
     await animationFrame();
     expect(".o_app[data-menu-xmlid='app.2']").toHaveClass("o_app_hidden");
     expect(".o_app[data-menu-xmlid='app.2']").not.toHaveClass("o_app_pinned", {
@@ -582,9 +615,8 @@ test("hiding an app removes it from the grid and shows it dimmed while editing",
 });
 
 test("reset layout clears the order, the pins and the hidden apps", async () => {
-    onRpc("set_res_users_settings", ({ kwargs }) => {
-        expect.step(String(kwargs.new_settings.homemenu_config));
-        return {};
+    onRpc("update_homemenu_config", ({ args }) => {
+        expect.step(args[1][0].operation);
     });
     const props = getLayoutProps(
         '{"order":["app.3","app.1","app.2"],"pinned":["app.2"],"hidden":["app.1"]}',
@@ -604,7 +636,7 @@ test("reset layout clears the order, the pins and the hidden apps", async () => 
         "Contacts",
     ]);
     expect(".o_home_menu_reset").toHaveCount(0);
-    expect.verifySteps(["null"]);
+    expect.verifySteps(["reset"]);
 });
 
 test("Escape leaves the edit mode before it closes the home menu", async () => {
@@ -625,12 +657,12 @@ test("Escape leaves the edit mode before it closes the home menu", async () => {
 });
 
 test("the company default applies until the user customises, and reset returns to it", async () => {
-    onRpc("set_res_users_settings", ({ kwargs }) => {
-        expect.step(`settings ${kwargs.new_settings.homemenu_config}`);
-        return {};
+    onRpc("update_homemenu_config", ({ args }) => {
+        expect.step(JSON.stringify(args[1]));
     });
     const props = getLayoutProps('{"pinned":["app.2"]}');
     props.defaultConfig = parseHomeMenuConfig('{"pinned":["app.2"]}');
+    patchWithCleanup(session, { homemenu_default_config: props.defaultConfig });
     await mountWithCleanup(HomeMenu, { props });
     expect(".o_app:eq(0)").toHaveAttribute("data-menu-xmlid", "app.2");
 
@@ -640,27 +672,25 @@ test("the company default applies until the user customises, and reset returns t
         message: "the company layout, untouched, is nothing to reset",
     });
 
-    await click(".o_app[data-menu-xmlid='app.3'] .o_app_pin");
+    await click(".o_app[data-menu-xmlid='app.3'] + .o_app_edit_actions .o_app_pin");
     await animationFrame();
     expect(".o_home_menu_reset").toHaveCount(1);
     expect(queryAllTexts(".o_pinned_apps .o_caption")).toEqual([
         "Calendar",
         "Contacts",
     ]);
-    expect.verifySteps([
-        'settings {"version":2,"order":[],"pinned":["app.2","app.3"],"hidden":[]}',
-    ]);
+    expect.verifySteps(['[{"operation":"pin","xmlid":"app.3","value":true}]']);
 
     await click(".o_home_menu_reset");
     await animationFrame();
     expect(queryAllTexts(".o_pinned_apps .o_caption")).toEqual(["Calendar"]);
     expect(".o_home_menu_reset").toHaveCount(0);
-    expect.verifySteps(["settings null"]);
+    expect.verifySteps(['[{"operation":"reset"}]']);
 });
 
 test("an admin can make the current layout the company default", async () => {
     patchWithCleanup(user, { isAdmin: true });
-    onRpc("set_res_users_settings", () => ({}));
+
     onRpc("res.company", "write", ({ args }) => {
         expect.step(
             `company ${args[0]} ${JSON.stringify(args[1].homemenu_default_config)}`,
@@ -675,7 +705,7 @@ test("an admin can make the current layout the company default", async () => {
     await animationFrame();
     expect(".o_home_menu_company_default").toHaveCount(0);
 
-    await click(".o_app[data-menu-xmlid='app.3'] .o_app_hide");
+    await click(".o_app[data-menu-xmlid='app.3'] + .o_app_edit_actions .o_app_hide");
     await animationFrame();
     await click(".o_home_menu_company_default");
     await animationFrame();
@@ -688,15 +718,19 @@ test("an admin can make the current layout the company default", async () => {
         pinned: [],
         hidden: ["app.3"],
     });
-    expect(".o_home_menu_reset").toHaveCount(0, {
-        message: "the layout is the company default now, so there is nothing to reset",
+    expect(".o_home_menu_reset").toHaveCount(1, {
+        message:
+            "a personal copy still needs an explicit reset to follow future company changes",
     });
     expect(".o_home_menu_company_default").toHaveCount(0);
 });
 
-test("setting the company default with no default passed in still clears the reset", async () => {
+test("publishing without a default prop keeps Reset available for the personal copy", async () => {
+    // `defaultConfig` is an optional prop, and the fallback used to be minted
+    // fresh per read: the layout was written to a copy nobody read, so the
+    // launcher went on offering to reset a layout that was now the default.
     patchWithCleanup(user, { isAdmin: true });
-    onRpc("set_res_users_settings", () => ({}));
+
     onRpc("res.company", "write", () => true);
     const props = getLayoutProps();
     delete props.defaultConfig;
@@ -704,7 +738,7 @@ test("setting the company default with no default passed in still clears the res
 
     await click(".o_home_menu_customize");
     await animationFrame();
-    await click(".o_app[data-menu-xmlid='app.3'] .o_app_hide");
+    await click(".o_app[data-menu-xmlid='app.3'] + .o_app_edit_actions .o_app_hide");
     await animationFrame();
     expect(".o_home_menu_reset").toHaveCount(1);
     expect(".o_home_menu_company_default").toHaveCount(1);
@@ -712,8 +746,8 @@ test("setting the company default with no default passed in still clears the res
     await click(".o_home_menu_company_default");
     await animationFrame();
     expect(homeMenu.layout.defaultConfig.hidden).toEqual(["app.3"]);
-    expect(".o_home_menu_reset").toHaveCount(0, {
-        message: "this layout is the company's now, so there is nothing to reset",
+    expect(".o_home_menu_reset").toHaveCount(1, {
+        message: "publishing does not remove personal ownership",
     });
     expect(".o_home_menu_company_default").toHaveCount(0);
 });
@@ -833,8 +867,14 @@ test("with a pinned row the arrows follow the rows on screen, not one flat grid"
     ]);
 });
 
-const EMPTY_TREE = { id: "root", name: "root", appID: "root", childrenTree: [] };
+const EMPTY_TREE = {
+    id: "root",
+    name: "root",
+    appID: "root",
+    childrenTree: /** @type {any[]} */ ([]),
+};
 
+/** @param {string} text */
 function searchFor(text) {
     const input = /** @type {HTMLInputElement} */ (queryOne(".o_home_menu_search"));
     input.value = text;
@@ -860,7 +900,7 @@ test("the search box filters the tiles in place and lists the matching menus", a
                             name: "Channels",
                             appID: 1,
                             actionID: 122,
-                            childrenTree: [],
+                            childrenTree: /** @type {any[]} */ ([]),
                         },
                     ],
                 },
@@ -875,7 +915,7 @@ test("the search box filters the tiles in place and lists the matching menus", a
                             name: "Calls",
                             appID: 2,
                             actionID: 123,
-                            childrenTree: [],
+                            childrenTree: /** @type {any[]} */ ([]),
                         },
                     ],
                 },
@@ -936,7 +976,7 @@ test("Enter in the search box opens the first matching app, or the first menu", 
                             name: "Vendors",
                             appID: 3,
                             actionID: 124,
-                            childrenTree: [],
+                            childrenTree: /** @type {any[]} */ ([]),
                         },
                     ],
                 },
@@ -975,14 +1015,14 @@ test("with a query on, the arrows walk the tiles and then the matching menus", a
                             name: "Calls",
                             appID: 2,
                             actionID: 123,
-                            childrenTree: [],
+                            childrenTree: /** @type {any[]} */ ([]),
                         },
                         {
                             id: 22,
                             name: "Calc",
                             appID: 2,
                             actionID: 124,
-                            childrenTree: [],
+                            childrenTree: /** @type {any[]} */ ([]),
                         },
                     ],
                 },
@@ -1042,19 +1082,27 @@ function menuTreeOf(xmlids, childrenPerApp = 0) {
                 name: `App submenu ${c}`,
                 actionID: childId,
                 xmlid: `${xmlid}.sub${c}`,
-                childrenTree: [],
+                childrenTree: /** @type {any[]} */ ([]),
             })),
         })),
     };
 }
 
 test("reset after publishing a company default returns the TILES to it, not only the config", async () => {
-    patchWithCleanup(user, { isAdmin: true, settings: {} });
+    // resetApps used to close over the layout read at mount, so publishing a
+    // new company default left it resetting to the old one: the config said
+    // one order and the grid showed another.
+    patchWithCleanup(user, { isAdmin: true, settings: { ...user.settings, id: 1 } });
     patchWithCleanup(session, { homemenu_default_config: null });
-    onRpc("set_res_users_settings", () => ({}));
+
     onRpc("res.company", "write", () => true);
     const tree = menuTreeOf(["a", "b", "c"]);
-    const menus = { getMenuAsTree: () => tree, selectMenu: () => {} };
+    const menus = /** @type {import("services").ServiceFactories["menu"]} */ (
+        /** @type {unknown} */ ({
+            getMenuAsTree: () => tree,
+            selectMenu: async () => {},
+        })
+    );
     mockService("menu", menus);
     const props = computeHomeMenuProps(menus);
     const homeMenu = await mountWithCleanup(HomeMenu, { props });
@@ -1083,6 +1131,15 @@ test("reset after publishing a company default returns the TILES to it, not only
 });
 
 test("a keystroke evaluates each derived list once per render, not once per result row", async () => {
+    // The matching-menu rows used to ask for the app grid's length one row at
+    // a time, so eight rows rebuilt the pinned map and the fuzzy-matched list
+    // eight times over, per render, per character typed.
+    //
+    // Counted on the computations, not on the reads: the getters are now memo
+    // readers over one cache per render, and the whole point of that cache is
+    // that reading a list twice is free. What must stay at one per render is
+    // the walk over every app and every menu, which is `_<name>()`.
+    /** @type {Record<string, number>} */
     const counts = { shownApps: 0, pinnedApps: 0, unpinnedApps: 0, menuMatches: 0 };
     let renders = 0;
     class Counted extends HomeMenu {
@@ -1102,7 +1159,7 @@ test("a keystroke evaluates each derived list once per render, not once per resu
     }
     const xmlids = Array.from({ length: 20 }, (_, i) => `app${i}`);
     const tree = menuTreeOf(xmlids, 5);
-    mockService("menu", { getMenuAsTree: () => tree, selectMenu: () => {} });
+    mockService("menu", { getMenuAsTree: () => tree, selectMenu: async () => {} });
     const apps = xmlids.map((xmlid, i) => ({
         actionID: 100 + i,
         href: `/odoo/action-${100 + i}`,
@@ -1114,7 +1171,10 @@ test("a keystroke evaluates each derived list once per render, not once per resu
         xmlid,
     }));
     await mountWithCleanup(Counted, {
-        props: { apps, reorderApps: (o) => reorderApps(apps, o) },
+        props: {
+            apps,
+            reorderApps: (/** @type {string[]} */ o) => reorderApps(apps, o),
+        },
     });
     await animationFrame();
     renders = 0;
@@ -1132,18 +1192,26 @@ test("a keystroke evaluates each derived list once per render, not once per resu
             message: `${name}: at most once per render`,
         });
     }
+    // `shownApps` is not one of them under a query: a query searches every app
+    // the user has, hidden ones included, so the layout filter never runs.
     expect(counts.shownApps).toBe(0);
     expect(counts.unpinnedApps).toBe(renders);
     expect(counts.menuMatches).toBe(renders);
 });
 
 test("two quick pins are written one after the other, so neither can be lost", async () => {
+    // res.users.settings writes are not serialised, so this used to put two
+    // whole layouts in flight at once -- {pinned:[a]} and {pinned:[a,b]} --
+    // and whichever reached the server last won. Losing the second pin left
+    // nothing behind to show it had happened. Two clicks are two writes,
+    // being a tick apart; what changed is that the second waits.
     patchWithCleanup(user, { settings: { id: 1 } });
+    /** @type {InstanceType<typeof Deferred>[]} */
     const pending = [];
-    onRpc("set_res_users_settings", ({ kwargs }) => {
+    onRpc("update_homemenu_config", ({ args }) => {
         const def = new Deferred();
         pending.push(def);
-        expect.step(kwargs.new_settings.homemenu_config);
+        expect.step(JSON.stringify(args[1]));
         return def;
     });
     const apps = ["a", "b"].map((xmlid, i) => ({
@@ -1160,24 +1228,24 @@ test("two quick pins are written one after the other, so neither can be lost", a
         props: {
             apps,
             config: reactive(parseHomeMenuConfig(null)),
-            reorderApps: (order) => reorderApps(apps, order),
+            reorderApps: (/** @type {string[]} */ order) => reorderApps(apps, order),
         },
     });
     await click(".o_home_menu_customize");
     await animationFrame();
 
-    await click(".o_app[data-menu-xmlid='a'] .o_app_pin");
-    await click(".o_app[data-menu-xmlid='b'] .o_app_pin");
+    await click(".o_app[data-menu-xmlid='a'] + .o_app_edit_actions .o_app_pin");
+    await click(".o_app[data-menu-xmlid='b'] + .o_app_edit_actions .o_app_pin");
     await animationFrame();
     expect(pending).toHaveLength(1, {
         message: "one request in flight: the second waits for the first",
     });
-    expect.verifySteps(['{"version":2,"order":[],"pinned":["a"],"hidden":[]}']);
+    expect.verifySteps(['[{"operation":"pin","xmlid":"a","value":true}]']);
 
-    pending[0].resolve({});
+    pending[0].resolve({ homemenu_config: { version: 2, pinned: ["a"] } });
     await animationFrame();
     expect(pending).toHaveLength(2);
-    expect.verifySteps(['{"version":2,"order":[],"pinned":["a","b"],"hidden":[]}'], {
+    expect.verifySteps(['[{"operation":"pin","xmlid":"b","value":true}]'], {
         message: "and the later layout goes out last, carrying both pins",
     });
 });
@@ -1201,8 +1269,10 @@ test("a count too wide for an icon is shown as 99+, by the same rule in both lau
 });
 
 test("a menu reload that changes the apps re-counts their badges", async () => {
+    /** @type {(string | undefined)[]} */
     let counted = [];
     registry.category("home_menu_badges").add("recount", {
+        /** @param {any} env @param {{xmlid?: string}[]} apps */
         provide: (env, apps) => {
             counted = apps.map((app) => app.xmlid);
             return {};
@@ -1219,10 +1289,14 @@ test("a menu reload that changes the apps re-counts their badges", async () => {
         webIcon: false,
         xmlid: "app.4",
     };
+    // A parent that can hand the launcher a different app list, which is what
+    // HomeMenuAction does on MENUS_APP_CHANGED.
     class Parent extends Component {
         static components = { HomeMenu };
         static props = {};
         static template = xml`<HomeMenu t-props="state.props"/>`;
+        /** @type {any} */
+        state;
         setup() {
             this.state = useState({ props: base });
         }
@@ -1239,6 +1313,8 @@ test("a menu reload that changes the apps re-counts their badges", async () => {
         message: "the new app is counted, not left blank until the next visit",
     });
 
+    // A re-render that changes no app must not re-count: MENUS_APP_CHANGED
+    // also fires for a plain navigation, and a provider may cost a request.
     counted = [];
     parent.state.props = { ...base, apps: [...base.apps, newApp] };
     await animationFrame();
@@ -1247,11 +1323,16 @@ test("a menu reload that changes the apps re-counts their badges", async () => {
 });
 
 test("a re-render that leaves the grid alone keeps the keyboard selection", async () => {
+    // MENUS_APP_CHANGED fires for a plain navigation too, and HomeMenuAction
+    // answers it by recomputing props -- a fresh array and a fresh layout
+    // holding exactly the same apps. That used to drop the user's selection.
     const base = getDefaultHomeMenuProps();
     class Parent extends Component {
         static components = { HomeMenu };
         static props = {};
         static template = xml`<HomeMenu t-props="state.props"/>`;
+        /** @type {any} */
+        state;
         setup() {
             this.state = useState({ props: base });
         }
@@ -1261,12 +1342,15 @@ test("a re-render that leaves the grid alone keeps the keyboard selection", asyn
     await animationFrame();
     expect(".o_menuitem:eq(0)").toHaveClass("o_focused");
 
+    // Same apps, new array: what a navigation hands down.
     parent.state.props = { ...base, apps: [...base.apps] };
     await animationFrame();
     expect(".o_menuitem:eq(0)").toHaveClass("o_focused", {
         message: "nothing about the grid changed, so the selection stands",
     });
 
+    // A different app list is a different grid, and the index no longer means
+    // what it meant.
     parent.state.props = { ...base, apps: base.apps.slice(0, 2) };
     await animationFrame();
     expect(".o_menuitem.o_focused").toHaveCount(0, {
@@ -1275,6 +1359,9 @@ test("a re-render that leaves the grid alone keeps the keyboard selection", asyn
 });
 
 test("the grid scrolls to follow an arrow key, and stays put for anything else", async () => {
+    // scrollIntoView used to run on every patch while a tile was selected, so
+    // a badge provider answering -- or any unrelated render -- dragged the
+    // grid back to a centred tile under a user who had scrolled away from it.
     let scrolls = 0;
     patchWithCleanup(Element.prototype, {
         scrollIntoView() {
@@ -1292,7 +1379,10 @@ test("the grid scrolls to follow an arrow key, and stays put for anything else",
         xmlid: `app${i}`,
     }));
     const homeMenu = await mountWithCleanup(HomeMenu, {
-        props: { apps, reorderApps: (order) => reorderApps(apps, order) },
+        props: {
+            apps,
+            reorderApps: (/** @type {string[]} */ order) => reorderApps(apps, order),
+        },
     });
     await animationFrame();
 
@@ -1319,7 +1409,10 @@ test("the grid scrolls to follow an arrow key, and stays put for anything else",
 });
 
 test("an app is found by a word it is not named after", async () => {
-    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    mockService("menu", {
+        getMenuAsTree: () => EMPTY_TREE,
+        selectMenu: async () => {},
+    });
     const apps = [
         {
             actionID: 121,
@@ -1349,9 +1442,12 @@ test("an app is found by a word it is not named after", async () => {
         },
     ];
     await mountWithCleanup(HomeMenu, {
-        props: { apps, reorderApps: (o) => reorderApps(apps, o) },
+        props: {
+            apps,
+            reorderApps: (/** @type {string[]} */ o) => reorderApps(apps, o),
+        },
     });
-    const found = async (query) => {
+    const found = async (/** @type {string} */ query) => {
         await searchFor(query);
         return queryAllTexts(".o_apps_listbox .o_caption");
     };
@@ -1369,8 +1465,10 @@ test("an app is found by a word it is not named after", async () => {
 });
 
 test("a hidden app is decluttered from the grid, not hidden from the search", async () => {
-    onRpc("set_res_users_settings", () => ({}));
-    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    mockService("menu", {
+        getMenuAsTree: () => EMPTY_TREE,
+        selectMenu: async () => {},
+    });
     await mountWithCleanup(HomeMenu, { props: getLayoutProps('{"hidden":["app.3"]}') });
     expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual([
         "Discuss",
@@ -1394,7 +1492,7 @@ test("a hidden app is decluttered from the grid, not hidden from the search", as
 });
 
 test("the grid takes category headings once it stops fitting on a screen", async () => {
-    const make = (count) =>
+    const make = (/** @type {number} */ count) =>
         Array.from({ length: count }, (_, i) => ({
             actionID: 100 + i,
             href: `/odoo/action-${100 + i}`,
@@ -1406,16 +1504,24 @@ test("the grid takes category headings once it stops fitting on a screen", async
             xmlid: `app.${i}`,
             category: i % 2 ? "Sales" : "Supply Chain",
         }));
-    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    mockService("menu", {
+        getMenuAsTree: () => EMPTY_TREE,
+        selectMenu: async () => {},
+    });
 
     const thirteen = make(13);
     const big = await mountWithCleanup(HomeMenu, {
-        props: { apps: thirteen, reorderApps: (o) => reorderApps(thirteen, o) },
+        props: {
+            apps: thirteen,
+            reorderApps: (/** @type {string[]} */ o) => reorderApps(thirteen, o),
+        },
     });
     expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual(
         ["SUPPLY CHAIN", "SALES"],
         { message: "in the order their first app sits in, not alphabetical" },
     );
+    // The running index is the display order, so alt+n and the arrows agree
+    // with what is on screen.
     expect(queryAllAttributes(".o_apps_section .o_app", "id").slice(0, 3)).toEqual([
         "result_app_0",
         "result_app_1",
@@ -1454,9 +1560,15 @@ test("a grid that fits on a screen is the overview, and takes no headings", asyn
         xmlid: `app.${i}`,
         category: i % 2 ? "Sales" : "Supply Chain",
     }));
-    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    mockService("menu", {
+        getMenuAsTree: () => EMPTY_TREE,
+        selectMenu: async () => {},
+    });
     const menu = await mountWithCleanup(HomeMenu, {
-        props: { apps, reorderApps: (o) => reorderApps(apps, o) },
+        props: {
+            apps,
+            reorderApps: (/** @type {string[]} */ o) => reorderApps(apps, o),
+        },
     });
     expect(".o_apps_section").toHaveCount(1);
     expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual([], {
@@ -1477,10 +1589,18 @@ test("the arrows walk the sections in the order they are shown", async () => {
         xmlid: `app.${i}`,
         category: i < 7 ? "Sales" : "Supply Chain",
     }));
-    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
-    const menu = await mountWithCleanup(HomeMenu, {
-        props: { apps, reorderApps: (o) => reorderApps(apps, o) },
+    mockService("menu", {
+        getMenuAsTree: () => EMPTY_TREE,
+        selectMenu: async () => {},
     });
+    const menu = await mountWithCleanup(HomeMenu, {
+        props: {
+            apps,
+            reorderApps: (/** @type {string[]} */ o) => reorderApps(apps, o),
+        },
+    });
+    // Sales holds seven, so it wraps after six; Supply Chain starts a row of
+    // its own rather than filling the tail of the last Sales row.
     expect(menu.keyboardRows).toEqual([
         [0, 1, 2, 3, 4, 5],
         [6],
@@ -1510,13 +1630,13 @@ test("the launcher tells a screen reader what the query left on screen", async (
                             name: "Calls",
                             appID: 2,
                             actionID: 123,
-                            childrenTree: [],
+                            childrenTree: /** @type {any[]} */ ([]),
                         },
                     ],
                 },
             ],
         }),
-        selectMenu: () => {},
+        selectMenu: async () => {},
     });
     await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
     expect(".o_home_menu_search_status").toHaveText("", {
@@ -1551,10 +1671,10 @@ test("three hovers over the navbar are one run of the providers", async () => {
                 appID: id,
                 actionID: 120 + id,
                 xmlid: `app.${id}`,
-                childrenTree: [],
+                childrenTree: /** @type {any[]} */ ([]),
             })),
         }),
-        selectMenu: () => {},
+        selectMenu: async () => {},
     });
     for (let i = 0; i < 3; i++) {
         await mountWithCleanup(QuickLauncher, { props: { close: () => {} } });
@@ -1654,4 +1774,273 @@ test("no counts, no section", async () => {
     expect(".o_home_menu_attention").toHaveCount(0, {
         message: "and none while arranging the grid, where the tiles hide it anyway",
     });
+});
+
+test("customize controls are separate buttons and move pinned apps without dragging", async () => {
+    const home = await mountWithCleanup(HomeMenu, {
+        props: getLayoutProps({ pinned: ["app.1", "app.2"] }),
+    });
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    expect("a button, a a").toHaveCount(0);
+    expect(home.canMoveApp(home.grid.pinnedApps[0], -1)).toBe(false);
+    await home.moveApp(home.grid.pinnedApps[1], -1);
+    await animationFrame();
+    expect(queryAllTexts(".o_pinned_apps .o_caption")).toEqual(["Calendar", "Discuss"]);
+    expect(home.state.layoutAnnouncement).toInclude("position 1");
+    expect(home.layout.state.status).toBe("saved");
+    expect(home.layout.unsaved).toBe(false);
+});
+
+test("a personal layout equal to the company still offers Follow company layout", async () => {
+    const props = getLayoutProps({ pinned: ["app.2"] });
+    props.personal = true;
+    props.defaultConfig = parseHomeMenuConfig({ pinned: ["app.2"] });
+    await mountWithCleanup(HomeMenu, { props });
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    expect(".o_home_menu_reset").toHaveCount(1);
+});
+
+test("Home search defers filtering throughout composition and commits on compositionend", async () => {
+    await mountWithCleanup(HomeMenu, { props: getDefaultHomeMenuProps() });
+    const input = /** @type {HTMLInputElement} */ (queryOne(".o_home_menu_search"));
+    input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    input.value = "cal";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, isComposing: true }));
+    await animationFrame();
+    expect(".o_apps_listbox .o_app").toHaveCount(3);
+    input.dispatchEvent(
+        new CompositionEvent("compositionend", { bubbles: true, data: "cal" }),
+    );
+    await animationFrame();
+    expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual(["Calendar"]);
+});
+
+test("the quick launcher preserves an IME composition before handing the committed query over", async () => {
+    mockService("menu", {
+        getMenuAsTree: () => menuTreeOf(["a", "b"]),
+        selectMenu: async () => {},
+    });
+    mockService("command", {
+        openMainPalette: (config) => expect.step(config?.searchValue),
+    });
+    await mountWithCleanup(QuickLauncher, {
+        props: { close: () => expect.step("closed") },
+    });
+    const input = /** @type {HTMLInputElement} */ (
+        queryOne(".o_quick_launcher_search")
+    );
+    input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    input.value = "ni";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, isComposing: true }));
+    await animationFrame();
+    expect.verifySteps([]);
+    input.value = "你";
+    input.dispatchEvent(
+        new CompositionEvent("compositionend", { bubbles: true, data: "你" }),
+    );
+    expect.verifySteps(["closed", "/你"]);
+});
+
+test("quick launcher badge ownership sees the full catalog even with only twelve tiles", async () => {
+    mockService("menu", {
+        getMenuAsTree: () =>
+            menuTreeOf(Array.from({ length: 16 }, (_, i) => `app${i}`)),
+        selectMenu: async () => {},
+    });
+    registry.category("home_menu_badges").add("full-catalog", {
+        provide: (/** @type {any} */ env, /** @type {any[]} */ apps) => {
+            expect.step(String(apps.length));
+            return {};
+        },
+    });
+    await mountWithCleanup(QuickLauncher, { props: { close: () => {} } });
+    await animationFrame();
+    expect(".o_quick_launcher .o_app").toHaveCount(12);
+    expect.verifySteps(["16"]);
+});
+
+test("an older badge response cannot overwrite a newer refresh", async () => {
+    /** @type {InstanceType<typeof Deferred>[]} */
+    const replies = [];
+    registry.category("home_menu_badges").add("delayed", {
+        provide: () => {
+            const d = new Deferred();
+            replies.push(d);
+            return d;
+        },
+    });
+    const home = await mountWithCleanup(HomeMenu, { props: getDefaultHomeMenuProps() });
+    await runAllTimers();
+    const latest = home._loadBadges();
+    await animationFrame();
+    replies[1].resolve({ "app.1": 8 });
+    await latest;
+    replies[0].resolve({ "app.1": 2 });
+    await animationFrame();
+    expect(home.state.badges["app.1"]).toBe(8);
+});
+
+test("badge providers isolate synchronous failures, malformed results and stalled responses", async () => {
+    const env = await makeMockEnv();
+    patchWithCleanup(console, { warn: () => {} });
+    const providers = registry.category("home_menu_badges");
+    providers.add("sync-error", {
+        provide() {
+            throw new Error("broken extension");
+        },
+    });
+    providers.add("malformed", {
+        provide: () => ({ "app.1": Infinity, "app.2": 1.5 }),
+    });
+    providers.add("stalled", { timeoutMs: 30, provide: () => new Promise(() => {}) });
+    providers.add("healthy", { provide: () => ({ "app.1": 3 }) });
+    const loading = loadHomeMenuBadges(env, getDefaultHomeMenuProps().apps);
+    await advanceTime(30);
+    expect(await loading).toEqual({ "app.1": 3 });
+});
+
+test("badge cache separates service environments and invalidates for changed app metadata", async () => {
+    let calls = 0;
+    registry
+        .category("home_menu_badges")
+        .add("metadata", { provide: () => ({ a: ++calls }) });
+    const env = await makeMockEnv();
+    expect(await loadHomeMenuBadges(env, [{ xmlid: "a", module: "sale" }])).toEqual({
+        a: 1,
+    });
+    expect(await loadHomeMenuBadges(env, [{ xmlid: "a", module: "sale" }])).toEqual({
+        a: 1,
+    });
+    expect(await loadHomeMenuBadges(env, [{ xmlid: "a", module: "crm" }])).toEqual({
+        a: 2,
+    });
+    const other = { ...env, services: { ...env.services } };
+    expect(await loadHomeMenuBadges(other, [{ xmlid: "a", module: "crm" }])).toEqual({
+        a: 3,
+    });
+});
+
+test("an explicit empty personal layout does not restore the company's last pin", () => {
+    patchWithCleanup(user, {
+        settings: {
+            ...user.settings,
+            homemenu_config: { version: 2, order: [], pinned: [], hidden: [] },
+        },
+    });
+    patchWithCleanup(session, { homemenu_default_config: { pinned: ["a"] } });
+    const menus = /** @type {import("services").ServiceFactories["menu"]} */ (
+        /** @type {unknown} */ ({
+            getMenuAsTree: () => menuTreeOf(["a", "b"]),
+        })
+    );
+    const props = computeHomeMenuProps(menus);
+    expect(props.config.pinned).toEqual([]);
+    expect(props.personal).toBe(true);
+});
+
+test("pinned apps can be dragged within their own row", async () => {
+    const home = await mountWithCleanup(HomeMenu, {
+        props: getLayoutProps({ pinned: ["app.1", "app.2", "app.3"] }),
+    });
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    const { moveTo, drop } = await drag(".o_pinned_apps .o_draggable:first-child");
+    await moveTo(".o_pinned_apps .o_draggable:first-child", {
+        position: { x: 70, y: 35 },
+        relative: true,
+    });
+    await moveTo('.o_pinned_apps .o_draggable:has([data-menu-xmlid="app.2"])');
+    await drop('.o_pinned_apps .o_draggable:has([data-menu-xmlid="app.3"])');
+    await animationFrame();
+    expect(home.layout.config.pinned).toEqual(["app.2", "app.3", "app.1"]);
+    expect(queryAllTexts(".o_pinned_apps .o_caption")).toEqual([
+        "Calendar",
+        "Contacts",
+        "Discuss",
+    ]);
+    expect(home.layout.state.status).toBe("saved");
+});
+
+test("the capped menu list offers the complete query in the command palette", async () => {
+    mockService("menu", {
+        getMenuAsTree: () => menuTreeOf(["a", "b"], 6),
+        selectMenu: async () => {},
+    });
+    mockService("command", {
+        openMainPalette: (config) => expect.step(config?.searchValue),
+    });
+    await mountWithCleanup(HomeMenu, { props: getDefaultHomeMenuProps() });
+    await searchFor("submenu");
+    expect(".o_menu_result").toHaveCount(8);
+    await click(".o_home_menu_all_results");
+    expect.verifySteps(["/submenu"]);
+});
+
+test("metadata-only menu reload refreshes badge ownership", async () => {
+    registry.category("home_menu_badges").add("metadata", {
+        /** @param {any} env @param {import("@web/webclient/home_menu/badges").BadgeApp[]} apps */
+        provide: (env, apps) => ({ "app.1": apps[0].models?.length || 0 }),
+    });
+    const base = getDefaultHomeMenuProps();
+    class Parent extends Component {
+        static components = { HomeMenu };
+        static props = {};
+        static template = xml`<HomeMenu t-props="state.props"/>`;
+        /** @type {any} */
+        state;
+        setup() {
+            this.state = useState({ props: base });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await animationFrame();
+    expect(".o_app_badge").toHaveCount(0);
+    parent.state.props = {
+        ...base,
+        apps: base.apps.map((app) => ({ ...app, models: ["res.partner"] })),
+    };
+    await animationFrame();
+    expect(".o_app[data-menu-xmlid='app.1'] .o_app_badge").toHaveText("1");
+});
+
+test("leaving Home waits for queued saves and unloading warns while unsaved", async () => {
+    patchWithCleanup(user, { settings: { id: 1 } });
+    const first = new Deferred();
+    const second = new Deferred();
+    let calls = 0;
+    onRpc("res.users.settings", "update_homemenu_config", () =>
+        ++calls === 1 ? first : second,
+    );
+    const recorder = new CallbackRecorder();
+    const home = await mountWithCleanup(HomeMenu, {
+        props: getDefaultHomeMenuProps(),
+        componentEnv: { __beforeLeave__: recorder },
+    });
+    const saveFirst = home.layout.togglePinned({ xmlid: "app.1" });
+    await animationFrame();
+    const saveSecond = home.layout.togglePinned({ xmlid: "app.2" });
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    expect(recorder.callbacks).toHaveLength(1);
+    let left = false;
+    const leave = Promise.all(recorder.callbacks.map((callback) => callback())).then(
+        () => {
+            left = true;
+        },
+    );
+    await animationFrame();
+    expect(left).toBe(false);
+    first.resolve({ homemenu_config: { pinned: ["app.1"] } });
+    await animationFrame();
+    expect(calls).toBe(2);
+    expect(left).toBe(false);
+    second.resolve({ homemenu_config: { pinned: ["app.1", "app.2"] } });
+    await Promise.all([saveFirst, saveSecond, leave]);
+    expect(left).toBe(true);
+    const savedUnload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(savedUnload);
+    expect(savedUnload.defaultPrevented).toBe(false);
 });

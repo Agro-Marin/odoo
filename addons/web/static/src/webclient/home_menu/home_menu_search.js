@@ -45,7 +45,7 @@ export function useHomeMenuSearch({ onQueryChanged }) {
 
         focus() {
             const el = inputEl();
-            if (el && !ui.isSmall) {
+            if (el && !hasTouch()) {
                 el.focus({ preventScroll: true });
             }
         },
@@ -60,8 +60,10 @@ export function useHomeMenuSearch({ onQueryChanged }) {
         },
 
         onInput() {
-            const typed = composing ? "" : (inputEl()?.value.trim() ?? "");
-            composing = false;
+            if (composing) {
+                return;
+            }
+            const typed = inputEl()?.value.trim() ?? "";
             const namespaced =
                 typed.length > 0 &&
                 registry.category("command_setup").contains(typed[0]);
@@ -73,6 +75,16 @@ export function useHomeMenuSearch({ onQueryChanged }) {
             search.clear();
             command.openMainPalette(
                 /** @type {any} */ ({ searchValue: typed, FooterComponent }),
+                () => search.focus(),
+            );
+        },
+
+        openPalette() {
+            command.openMainPalette(
+                /** @type {any} */ ({
+                    searchValue: `/${state.query}`,
+                    FooterComponent,
+                }),
                 () => search.focus(),
             );
         },
@@ -94,6 +106,10 @@ export function useHomeMenuSearch({ onQueryChanged }) {
         onCompositionStart() {
             composing = true;
         },
+        onCompositionEnd() {
+            composing = false;
+            search.onInput();
+        },
     };
 
     useExternalListener(window, "keydown", (/** @type {KeyboardEvent} */ ev) => {
@@ -103,7 +119,10 @@ export function useHomeMenuSearch({ onQueryChanged }) {
             printable &&
             document.activeElement !== inputRef.el &&
             ui.activeElement === document &&
-            !["TEXTAREA", "INPUT"].includes(document.activeElement?.tagName ?? "")
+            !["TEXTAREA", "INPUT", "SELECT"].includes(
+                document.activeElement?.tagName ?? "",
+            ) &&
+            !document.activeElement?.closest("[contenteditable=true]")
         ) {
             search.focus();
         }

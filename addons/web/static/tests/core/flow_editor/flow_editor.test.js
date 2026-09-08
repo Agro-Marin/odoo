@@ -445,9 +445,14 @@ describe("FlowEditor: fit to content", () => {
 
 describe("FlowEditor: viewport animation", () => {
     test("setViewport reports the resulting viewport to the consumer", () => {
+        /** @type {{x: number, y: number, scale: number}[]} */
         const seen = [];
         const editor = makeEditor({
-            props: { onViewportChange: (v) => seen.push({ ...v }) },
+            props: {
+                onViewportChange: (
+                    /** @type {{x: number, y: number, scale: number}} */ v,
+                ) => seen.push({ ...v }),
+            },
         });
 
         editor.setViewport({ x: 10, y: 20 });
@@ -606,7 +611,9 @@ describe("FlowEditor: connecting ports", () => {
             originalEvent: pointerEvent(),
         });
         expect(disconnected).toEqual([]);
-        expect(editor.store.connections.map((c) => c.id)).toEqual(["c1"]);
+        expect(
+            editor.store.connections.map((/** @type {{id: string}} */ c) => c.id),
+        ).toEqual(["c1"]);
         expect(editor.draftConnectionGeometry).toBe(null);
 
         const targetPort = portElement({
@@ -683,7 +690,9 @@ describe("FlowEditor: connecting ports", () => {
         }
 
         expect(disconnected).toEqual([]);
-        expect(editor.store.connections.map((c) => c.id)).toEqual(["c1"]);
+        expect(
+            editor.store.connections.map((/** @type {{id: string}} */ c) => c.id),
+        ).toEqual(["c1"]);
     });
 
     test("connecting an output to its own node's input does not open the node afterward", async () => {

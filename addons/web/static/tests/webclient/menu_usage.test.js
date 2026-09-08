@@ -2,6 +2,7 @@ import { beforeEach, expect, mockDate, runAllTimers, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { user } from "@web/core/user";
+import { session } from "@web/session";
 import { menuUsage, mergeUsage } from "@web/webclient/menus/menu_usage";
 
 const apps = [
@@ -49,7 +50,7 @@ test("the table is bounded, dropping the least valuable entries", () => {
 });
 
 test("a corrupt or foreign table reads as empty, a malformed entry as unused", () => {
-    const key = `webclient_menu_usage:${user.userId}`;
+    const key = `webclient_menu_usage:${session.db}:${user.userId}`;
     for (const raw of ["[1,2]", "{", "null", '{"app.sale":"x"}']) {
         browser.localStorage.setItem(key, raw);
         expect(menuUsage.rank(apps)).toEqual([], { message: `table ${raw}` });
@@ -73,7 +74,7 @@ test("the table follows the user, and the browser's copy is merged back in", () 
         },
     });
     browser.localStorage.setItem(
-        `webclient_menu_usage:${user.userId}`,
+        `webclient_menu_usage:${session.db}:${user.userId}`,
         JSON.stringify({
             "app.crm": { n: 4, t: 9000 },
             "app.stock": { n: 2, t: 2000 },
@@ -100,10 +101,11 @@ test("merging takes the higher count and the later use, and never sums", () => {
 });
 
 test("a burst of navigation is one write, not one per menu", async () => {
+    /** @type {unknown[][]} */
     const writes = [];
     patchWithCleanup(user, {
         settings: {},
-        setUserSettings: (key, value) => {
+        setUserSettings: async (key, value) => {
             writes.push([key, value && Object.keys(value).length]);
         },
     });
@@ -119,7 +121,7 @@ test("a burst of navigation is one write, not one per menu", async () => {
 
 test("rank keeps the caller's order when frecency ties, so the input order is part of the answer", () => {
     browser.localStorage.setItem(
-        `webclient_menu_usage:${user.userId}`,
+        `webclient_menu_usage:${session.db}:${user.userId}`,
         JSON.stringify({
             "app.sale": { n: 3, t: 1000 },
             "app.crm": { n: 3, t: 1000 },
@@ -137,4 +139,14 @@ test("rank keeps the caller's order when frecency ties, so the input order is pa
         "app.sale",
         "app.crm",
     ]);
+});
+
+test("browser usage is isolated by database even for the same user ID", () => {
+    patchWithCleanup(session, { db: "launcher_database_a" });
+    menuUsage.record(apps[0]);
+    patchWithCleanup(session, { db: "launcher_database_b" });
+    expect(menuUsage.rank(apps)).toEqual([]);
+    menuUsage.record(apps[1]);
+    patchWithCleanup(session, { db: "launcher_database_a" });
+    expect(menuUsage.rank(apps).map((app) => app.xmlid)).toEqual(["app.sale"]);
 });

@@ -854,7 +854,7 @@ export const assets = {
             const cacheMap = getAssetCache(document);
             if (!cacheMap.has(url)) {
                 const promise = runInBundleTransaction(() =>
-                    import(absoluteTarget(url, document)).then(() => undefined),
+                    import(absoluteTarget(url, document)).then(() => {}),
                 ).catch((reason) => {
                     evictIfCurrent(cacheMap, url, () => promise);
                     throw new AssetsLoadingError(`The loading of ${url} failed`, {

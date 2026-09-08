@@ -271,8 +271,9 @@ export class X2ManyField extends FieldComponent {
         if (memo && shallowEqual(memo, this.activeActions)) {
             return memo;
         }
-        this._rendererActiveActions = { ...this.activeActions };
-        return this._rendererActiveActions;
+        const actions = { ...this.activeActions };
+        this._rendererActiveActions = actions;
+        return actions;
     }
 
     /**
