@@ -57,7 +57,8 @@
                         data-hotkey="x" />
                     <!-- No rewards -->
                     <button
-                        special="cancel"
+                        type="object"
+                        name="action_cancel"
                         string="Discard"
                         class="btn btn-primary"
                         invisible="reward_ids"
