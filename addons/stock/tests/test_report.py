@@ -182,6 +182,46 @@ class TestReports(TestReportsCommon):
         )
         self.assertEqual(qweb_type, "text", "the report type is not good")
 
+    def test_reports_location_barcode_zpl(self):
+        """A barcoded location prints on the Zebra, not only on a label sheet."""
+        location = self.env["stock.location"].create(
+            {
+                "name": "R1F05N1",
+                "usage": "internal",
+                "location_id": self.stock_location.id,
+                "barcode": "CDGR1F05N1",
+            }
+        )
+        report = self.env.ref("stock.label_location_template")
+        target = b"\n\n^XA^CI28\n^FO100,50\n^A0N,44,33^FDWH/Stock/R1F05N1^FS\n^FO100,150^BY3\n^BCN,100,Y,N,N\n^FDCDGR1F05N1^FS\n^XZ\n"
+        rendering, qweb_type = report._render_qweb_text(
+            "stock.label_location_template_view", location.id
+        )
+        self._check_closure_commands(rendering)
+        self.assertEqual(
+            target,
+            rendering.replace(b" ", b""),
+            "The label must carry the full location path and its barcode",
+        )
+        self.assertEqual(qweb_type, "text", "the report type is not good")
+
+    def test_reports_location_barcode_zpl_without_barcode(self):
+        """No barcode on the location means no barcode block, as on the PDF."""
+        location = self.env["stock.location"].create(
+            {
+                "name": "R1F05N2",
+                "usage": "internal",
+                "location_id": self.stock_location.id,
+            }
+        )
+        report = self.env.ref("stock.label_location_template")
+        rendering, _qweb_type = report._render_qweb_text(
+            "stock.label_location_template_view", location.id
+        )
+        self._check_closure_commands(rendering)
+        self.assertIn(b"^FDWH/Stock/R1F05N2^FS", rendering.replace(b" ", b""))
+        self.assertNotIn(b"^BCN", rendering)
+
     def test_report_quantity_1(self):
         product_form = Form(self.env["product.product"])
         product_form.is_storable = True

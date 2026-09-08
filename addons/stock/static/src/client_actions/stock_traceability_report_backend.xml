@@ -7,6 +7,10 @@
  <t t-set-slot="layout-buttons">
  <div class="o_cp_buttons" role="toolbar" aria-label="Control panel buttons" t-ref="buttons">
  <button type="button" class="btn btn-primary" t-on-click="() => this.onClickPrint()">Print</button>
+ <t t-if="hasUnfoldableLines">
+ <button t-if="hasFoldedLines" type="button" class="btn btn-secondary ms-1" t-on-click="() => this.onClickUnfold()">Unfold</button>
+ <button t-else="" type="button" class="btn btn-secondary ms-1" t-on-click="() => this.onClickFold()">Fold</button>
+ </t>
  </div>
  </t>
 

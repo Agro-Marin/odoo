@@ -2424,6 +2424,69 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(move_done.product_uom_qty, 10)
         self.assertEqual(move_done.state, "done")
 
+    def test_80_partial_picking_without_backorder_logs_dropped_demand(self):
+        """No backorder means the missing demand is gone; say so in the chatter.
+
+        The unpicked moves are cancelled by
+        `_drop_unpicked_lines_and_cancel_empty`, so nothing on the transfer
+        records that 6 of Product A and all 5 of Product B were demanded and
+        never transferred.
+        """
+        picking = self.PickingObj.create(
+            {
+                "picking_type_id": self.picking_type_in.id,
+                "location_id": self.supplier_location.id,
+                "state": "draft",
+                "location_dest_id": self.stock_location.id,
+            }
+        )
+        move_a = self.MoveObj.create(
+            {
+                "product_id": self.productA.id,
+                "product_uom_qty": 10,
+                "product_uom_id": self.productA.uom_id.id,
+                "picking_id": picking.id,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.stock_location.id,
+            }
+        )
+        self.MoveObj.create(
+            {
+                "product_id": self.productB.id,
+                "product_uom_qty": 5,
+                "product_uom_id": self.productB.uom_id.id,
+                "picking_id": picking.id,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.stock_location.id,
+            }
+        )
+        picking.action_confirm()
+        move_a.move_line_ids.quantity = 4
+        move_a.picked = True
+
+        res_dict = picking.button_validate()
+        backorder_wizard = Form(
+            self.env["stock.backorder.confirmation"].with_context(res_dict["context"])
+        ).save()
+        backorder_wizard.action_cancel_backorder()
+
+        self.assertFalse(picking.backorder_ids)
+        self.assertEqual(picking.state, "done")
+
+        bodies = [body for body in picking.message_ids.mapped("body") if body]
+        dropped = [
+            body
+            for body in bodies
+            if self.productA.display_name in body and self.productB.display_name in body
+        ]
+        self.assertEqual(
+            len(dropped),
+            1,
+            f"expected one message naming the dropped demand, bodies were: {bodies}",
+        )
+        self.assertIn("4 of 10", dropped[0])
+        self.assertIn("0 of 5", dropped[0])
+
     def test_backorder_setting(self):
         self.picking_type_in.create_backorder = "ask"
         picking_type_always = self.picking_type_in.copy(

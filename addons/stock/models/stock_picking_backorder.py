@@ -1,3 +1,5 @@
+from markupsafe import Markup
+
 from odoo import models
 from odoo.tools.translate import _
 
@@ -6,6 +8,45 @@ from .stock_picking import DONE_CANCEL_STATES
 
 class StockPickingBackorder(models.Model):
     _inherit = "stock.picking"
+
+    def _action_done(self):
+        res = super()._action_done()
+        if self.env.context.get("cancel_backorder"):
+            validated = self.filtered(lambda picking: picking.state == "done")
+            validated._post_dropped_demand()
+        return res
+
+    def _post_dropped_demand(self):
+        """Record, per transfer, the demand that no backorder will ever carry.
+
+        `_drop_unpicked_lines_and_cancel_empty` cancels the untransferred moves
+        in place, so without this the quantities simply stop existing.
+        """
+
+        def is_short(move):
+            uom = move.product_uom_id
+            return uom.compare(move.quantity, move.product_uom_qty) < 0
+
+        for picking in self:
+            dropped = picking.move_ids.filtered(is_short)
+            if dropped:
+                picking.message_post(
+                    body=picking._prepare_dropped_demand_body(dropped),
+                )
+
+    def _prepare_dropped_demand_body(self, moves):
+        body = Markup("<p><b>%s</b></p><ul>") % self.env._(
+            "Validated without a backorder, so this demand was dropped:",
+        )
+        for move in moves:
+            body += Markup("<li>%s</li>") % self.env._(
+                "%(product)s: %(quantity)s of %(demand)s %(uom)s transferred",
+                product=move.product_id.display_name,
+                quantity=f"{move.quantity:g}",
+                demand=f"{move.product_uom_qty:g}",
+                uom=move.product_uom_id.name,
+            )
+        return body + Markup("</ul>")
 
     def _split_backorder_pickings(self):
         not_to_backorder = self.filtered(
