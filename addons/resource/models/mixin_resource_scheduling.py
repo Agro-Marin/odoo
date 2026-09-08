@@ -26,6 +26,10 @@ class MixinResourceScheduling(models.AbstractModel):
     def _get_fields_reservation_date(self):
         return (None, None)
 
+    def _is_scheduling_dated(self):
+        start_field, end_field = self._get_fields_reservation_date()
+        return bool(start_field and end_field and self[start_field] and self[end_field])
+
     def _get_reservation_vals_list(self):
         self.check_singleton()
         return []

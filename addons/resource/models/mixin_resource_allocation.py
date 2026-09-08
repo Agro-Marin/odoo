@@ -51,3 +51,6 @@ class MixinResourceAllocation(models.AbstractModel):
                 record.allocated_hours = sum(
                     reservations.filtered("active").mapped("allocated_hours")
                 )
+            elif record._is_scheduling_dated():
+                # Has its own start/end but no matching reservation: stale, not a manual estimate.
+                record.allocated_hours = 0.0
