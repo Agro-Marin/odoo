@@ -593,6 +593,34 @@ class TestSchedulingMixin(TransactionCase):
         self.assertFalse(record.reservation_ids)
         self.assertEqual(record.allocated_hours, 16.0)
 
+    def test_allocated_hours_resets_when_reservations_are_unlinked(self):
+        record = self.Model.create(
+            {
+                "name": "Cleared by unlink",
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 17, 0),
+                "resource_id": self.resource.id,
+            }
+        )
+        self.assertEqual(record.allocated_hours, 8.0)
+        record.reservation_ids.unlink()
+        record.invalidate_recordset(["allocated_hours"])
+        self.assertEqual(record.allocated_hours, 0.0)
+
+    def test_allocated_hours_resets_when_dates_are_cleared(self):
+        record = self.Model.create(
+            {
+                "name": "Cleared by unscheduling",
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 17, 0),
+                "resource_id": self.resource.id,
+            }
+        )
+        self.assertEqual(record.allocated_hours, 8.0)
+        record.write({"date_start": False, "date_end": False})
+        self.assertFalse(record.reservation_ids)
+        self.assertEqual(record.allocated_hours, 8.0)
+
     def test_allocated_hours_are_fresh_right_after_create(self):
         records = self.Model.create(
             [
