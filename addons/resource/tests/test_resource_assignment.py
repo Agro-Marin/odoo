@@ -138,6 +138,28 @@ class TestResourceAssignment(TransactionCase):
         self.assertEqual(first.schedule_overlap_count, 1)
         self.assertEqual(second.schedule_overlap_count, 1)
 
+    def test_capacity_above_one_divides_the_booked_share(self):
+        room = self.env["resource.resource"].create(
+            {"name": "Room 4", "resource_type": "material", "tz": "UTC", "capacity": 4}
+        )
+        assignments = self.Assignment.create(
+            [
+                {
+                    "resource_id": room.id,
+                    "assignee_id": assignee.id,
+                    "role": "custodian",
+                    "date_start": self.now - timedelta(days=1),
+                    "date_end": self.now + timedelta(days=3),
+                }
+                for assignee in (self.driver, self.other_driver)
+            ]
+        )
+        self.assertEqual(
+            assignments.reservation_ids.mapped("allocated_percentage"), [25.0, 25.0]
+        )
+        assignments.invalidate_recordset(["schedule_overlap_count"])
+        self.assertEqual(assignments.mapped("schedule_overlap_count"), [0, 0])
+
     def test_a_loan_conflicts_with_a_planned_shift_on_the_ledger(self):
         loan = self._assign(date_end=self.now + timedelta(days=3))
         self.Reservation.create(
