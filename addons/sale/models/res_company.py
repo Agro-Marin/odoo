@@ -5,6 +5,7 @@ from odoo.tools.translate import _
 
 class ResCompany(models.Model):
     _inherit = "res.company"
+    _check_company_auto = True
 
     order_lock_so = fields.Selection(
         selection=[
