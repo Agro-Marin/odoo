@@ -1132,10 +1132,10 @@ Section  Population                                                  Count
 §2.4.2   … spelled ``_onchange_<field>``                               277
 §2.4.2   ``@api.ondelete`` hooks                                       168
 §2.4.2   … spelled ``_unlink_except_*``                                109
-§2.4.2   ``@api.constrains`` hooks                                     681
-§2.4.2   … spelled ``_check_*``                                        629
+§2.4.2   ``@api.constrains`` hooks                                     682
+§2.4.2   … spelled ``_check_*``                                        630
 §2.4.2   … with a first token carrying no rule                          47
-§2.4.2   … binding exactly one field                                   314
+§2.4.2   … binding exactly one field                                   315
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
 §2.4.3   Non-test methods declared on a model class                 25,874
@@ -1156,7 +1156,7 @@ Section  Population                                                  Count
 §2.4.7   ``_calculate_*`` model methods                                  7
 §2.4.7   ``_prepare_*`` definitions                                    841
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            39
-§2.4.8   ``_check_*`` definitions                                    1,191
+§2.4.8   ``_check_*`` definitions                                    1,193
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     177
@@ -1170,7 +1170,7 @@ Section  Population                                                  Count
 §2.4.11  ``_resolve_*`` definitions                                     39
 §2.4.12  ``_set_*`` definitions                                        124
 §2.4.12  ``_update_*`` definitions                                     354
-§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             248
+§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             249
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
 §2.4.12  ``_sync_*`` definitions                                        69
 §2.4.12  ``_synchronize_*`` definitions                                 13
@@ -1827,7 +1827,7 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 22.9 % of every method in this repository's
+**``_get_`` is not a default.** It is 23.0 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
 deriving and computing. The split that matters is against ``_prepare_``: 678
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
@@ -4489,7 +4489,7 @@ user sees. No linter reads it -- ``test_translated_unique`` checks the *column* 
 so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
-tail -- the tree spells that tail ``_uniq`` **98** times against ``_unique``'s
+tail -- the tree spells that tail ``_uniq`` **99** times against ``_unique``'s
 **52**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**
