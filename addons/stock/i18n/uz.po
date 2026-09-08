@@ -2743,12 +2743,6 @@ msgid "Control panel buttons"
 msgstr "Boshqaruv paneli tugmalari"
 
 #. module: stock
-#: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_move_ready
-#, fuzzy
-msgid "Count Move Ready"
-msgstr "Ko‘chirish tayyor soni"
-
-#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_picking
 #, fuzzy
 msgid "Count Picking"
@@ -9122,12 +9116,6 @@ msgstr "Reytinglar"
 #, fuzzy
 msgid "Ready"
 msgstr "Tayyor"
-
-#. module: stock
-#: model:ir.actions.act_window,name:stock.action_get_picking_type_ready_moves
-#, fuzzy
-msgid "Ready Moves"
-msgstr "Tayyor harakatlar"
 
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_move__product_qty

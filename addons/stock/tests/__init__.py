@@ -87,3 +87,4 @@ from . import test_request_count_wizard
 from . import test_picking_form_decorations
 from . import test_lot_list_columns
 from . import test_inventory_menu_names
+from . import test_dashboard_cards

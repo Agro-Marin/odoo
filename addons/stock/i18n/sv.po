@@ -2336,11 +2336,6 @@ msgid "Control panel buttons"
 msgstr "Kontrollpanelens knappar"
 
 #. module: stock
-#: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_move_ready
-msgid "Count Move Ready"
-msgstr "Räkna flytta redo"
-
-#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_picking
 msgid "Count Picking"
 msgstr "Antal Plock"
@@ -7822,11 +7817,6 @@ msgstr "Betyg"
 #: model_terms:ir.ui.view,arch_db:stock.view_picking_internal_search
 msgid "Ready"
 msgstr "Redo"
-
-#. module: stock
-#: model:ir.actions.act_window,name:stock.action_get_picking_type_ready_moves
-msgid "Ready Moves"
-msgstr "Ready Moves"
 
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_move__product_qty

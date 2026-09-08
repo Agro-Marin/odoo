@@ -2430,11 +2430,6 @@ msgid "Control panel buttons"
 msgstr "Tombol panel kendali"
 
 #. module: stock
-#: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_move_ready
-msgid "Count Move Ready"
-msgstr "Hitung Pergerakkan Siap"
-
-#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_picking
 msgid "Count Picking"
 msgstr "Count Picking"
@@ -7968,11 +7963,6 @@ msgstr "Rating-Rating"
 #: model_terms:ir.ui.view,arch_db:stock.view_picking_internal_search
 msgid "Ready"
 msgstr "Siap"
-
-#. module: stock
-#: model:ir.actions.act_window,name:stock.action_get_picking_type_ready_moves
-msgid "Ready Moves"
-msgstr "Pergerakkan Siap"
 
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_move__product_qty
