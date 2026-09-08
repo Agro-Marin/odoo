@@ -397,6 +397,12 @@ class TestProductMerge(ProductVariantsCommon):
             "Both products are proposed as one group",
         )
 
+    def test_maximum_group_defaults_to_a_bounded_scan(self):
+        wizard = self.env["product.merge.wizard"].create({})
+        self.assertEqual(wizard.maximum_group, 100)
+        query = wizard._generate_query(["name"], wizard.maximum_group)
+        self.assertIn("LIMIT", query.code)
+
     def test_duplicate_search_ignores_products_without_the_criterion(self):
         uncategorised = [
             self._create_template(f"No Category {index}", categ_id=False)

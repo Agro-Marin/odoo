@@ -90,7 +90,7 @@ class ProductMergeWizard(models.TransientModel):
     )
 
     number_group = fields.Integer(string="Group of Products", readonly=True)
-    maximum_group = fields.Integer(string="Maximum of Group of Products")
+    maximum_group = fields.Integer(string="Maximum of Group of Products", default=100)
     current_line_id = fields.Many2one(
         comodel_name="product.merge.line", string="Current Line"
     )
