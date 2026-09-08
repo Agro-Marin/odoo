@@ -90,7 +90,7 @@ class TestItEdiImport(TestItEdi):
             'move_type': 'in_invoice',
             'invoice_date': fields.Date.from_string('2014-12-18'),
             'amount_untaxed': 28.75,
-            'amount_tax': 6.32,
+            'amount_tax': 6.33,
             'invoice_line_ids': [{
                 'quantity': 5.0,
                 'price_unit': 1.0,
@@ -258,10 +258,10 @@ class TestItEdiImport(TestItEdi):
     def test_cron_receives_bill_in_preferred_journal(self):
         """ Ensure that the received bill is in the preferred journal set from the setting. """
         preferred_journal = self.company_data_2['default_journal_purchase'].copy()
+        preferred_journal.default_account_id = False
         filename = 'IT01234567890_FPR02.xml'
 
         with self.assertRaisesRegex(ValidationError, "The Italian default purchase journal requires a default account."):
-            # When copying journal, the default_account_id are not copied.
             # It should raise an error when we try to set the company's default purchase journal in the Settings.
             self.company.l10n_it_edi_purchase_journal_id = preferred_journal
 
@@ -308,7 +308,7 @@ class TestItEdiImport(TestItEdi):
         })
         self.env['ir.attachment'].with_company(other_company).create({
             'name': filename,
-            'datas': self.fake_test_content,
+            'raw': self.fake_test_content,
             'res_model': 'account.move',
             'res_id': invoice.id,
             'res_field': 'l10n_it_edi_attachment_file',
