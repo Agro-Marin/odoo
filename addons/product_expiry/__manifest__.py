@@ -40,6 +40,9 @@ Also implements the removal strategy First Expiry First Out (FEFO) widely used, 
         "web.assets_backend": [
             "product_expiry/static/src/**/*",
         ],
+        "web.assets_unit_tests": [
+            "product_expiry/static/tests/*.test.js",
+        ],
     },
     "post_init_hook": "_enable_tracking_numbers",
 }

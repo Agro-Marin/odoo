@@ -76,7 +76,7 @@ export class ForecastedDetails extends Component {
         this._outDocsByProductCategory = new Map();
         for (const line of this._lines) {
             const productId = line.product.id;
-            const category = classifyLine(line);
+            const category = this._classifyLine(line);
             this._categoryByLine.set(line, category);
             push(this._linesByProduct, productId, line);
             if (!category) {
@@ -94,6 +94,14 @@ export class ForecastedDetails extends Component {
                 docs.add(outKey);
             }
         }
+    }
+
+    /**
+     * @param {object} line
+     * @returns {string | null}
+     */
+    _classifyLine(line) {
+        return classifyLine(line);
     }
 
     _dropEmptyFreeStockLine() {
