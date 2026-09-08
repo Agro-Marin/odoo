@@ -15,3 +15,4 @@ from . import test_resource_challenge
 from . import test_resource_calendar_integrity
 from . import test_resource_party
 from . import test_resource_assignment
+from . import test_resource_acl_coverage
