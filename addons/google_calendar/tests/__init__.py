@@ -5,3 +5,4 @@ from . import test_sync_odoo2google
 from . import test_sync_odoo2google_mail
 from . import test_token_access
 from . import test_credential_storage
+from . import test_sync_candidates

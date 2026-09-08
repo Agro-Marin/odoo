@@ -204,24 +204,52 @@ class ResUsers(models.Model):
         }
 
     @api.model
+    def _google_sync_candidates(self):
+        """The users worth asking about, narrowed in SQL as far as the data allows.
+
+        None of the token chain is searchable in this fork. The tokens rest in
+        ``credential.credential``'s encrypted JSON, so ``oauth_refresh_token``
+        is a compute, ``res.users.settings.google_calendar_rtoken`` is a compute
+        onto that, and ``res.users.google_calendar_rtoken`` is a related through
+        ``res_users_settings_id`` -- itself a compute with no column. Searching
+        ``res.users`` on any of it raised ``Cannot convert
+        res.users.res_users_settings_id to SQL because it is not stored``, which
+        failed the cron on every run, twice a day, whether or not anybody had
+        connected a calendar.
+
+        What is stored is the link to the credential and the stop flag. Narrow
+        on those and let the caller settle the token itself in Python: a
+        credential with no refresh token in it is a superset, never a miss.
+        """
+        settings = (
+            self.env["res.users.settings"]
+            .sudo()
+            .search(
+                [
+                    ("google_calendar_credential_id", "!=", False),
+                    ("google_synchronization_stopped", "=", False),
+                ]
+            )
+        )
+        return settings.user_id.sudo()
+
+    @api.model
     def _sync_all_google_calendar(self):
         """Cron job"""
         domain = [
             ("google_calendar_rtoken", "!=", False),
             ("google_synchronization_stopped", "=", False),
         ]
-        # google_calendar_token_validity is not stored on res.users
+        # Settled in Python in both branches: both leaves are relateds through a
+        # computed Many2one, so no part of this domain can reach SQL.
+        # google_calendar_token_validity is not stored on res.users either.
         if not self:
-            users = (
-                self.env["res.users"]
-                .sudo()
-                .search(domain)
-                .sorted("google_calendar_token_validity")
-            )
+            candidates = self._google_sync_candidates()
         else:
-            users = self.filtered_domain(domain).sorted(
-                "google_calendar_token_validity"
-            )
+            candidates = self
+        users = candidates.filtered_domain(domain).sorted(
+            "google_calendar_token_validity"
+        )
         google = GoogleCalendarService(self.env["google.service"])
         for user in users:
             _logger.info("Calendar Synchro - Starting synchronization for %s", user)
