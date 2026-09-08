@@ -511,6 +511,17 @@ class TestProductAuditFixes(ProductCommon):
                 }
             )
 
+    def test_pricelist_report_rejects_oversized_product_by_quantity_combo(self):
+        Report = self.env["report.product.report_pricelist"]
+        templates = self.env["product.template"].create(
+            [{"name": f"ComboProbe{i}"} for i in range(100)]
+        )
+        quantities = list(range(1, 52))  # 100 * 51 > MAX_PRICE_COMPUTATIONS (5000)
+        self.assertLessEqual(len(templates), Report.MAX_PRODUCTS)
+        self.assertLessEqual(len(quantities), Report.MAX_QUANTITIES)
+        with self.assertRaises(UserError):
+            Report._get_products_data(True, templates, self.pricelist, quantities)
+
     def test_pricelist_report_batches_price_computation(self):
         Report = self.env["report.product.report_pricelist"]
         pricelist = self.env["product.pricelist"].create({"name": "ReportPL"})

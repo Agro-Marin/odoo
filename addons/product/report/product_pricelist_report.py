@@ -10,6 +10,7 @@ class ReportProductReport_Pricelist(models.AbstractModel):
 
     MAX_QUANTITIES = 100
     MAX_PRODUCTS = 1000
+    MAX_PRICE_COMPUTATIONS = 5000
 
     def _get_report_values(self, docids, data):
         return self._get_report_data(data, "pdf")
@@ -96,6 +97,14 @@ class ReportProductReport_Pricelist(models.AbstractModel):
     def _get_products_data(self, is_product_tmpl, products, pricelist, quantities):
         if not products:
             return []
+
+        if len(products) * len(quantities) > self.MAX_PRICE_COMPUTATIONS:
+            raise UserError(
+                _(
+                    "Too many products and quantity columns requested together."
+                    " Reduce either to print this report."
+                )
+            )
 
         variants_by_tmpl = {}
         if is_product_tmpl:
