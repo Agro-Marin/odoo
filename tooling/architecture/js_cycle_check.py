@@ -20,26 +20,7 @@ class KnownCycle:
     reason: str
 
 
-KNOWN_CYCLES: tuple[KnownCycle, ...] = (
-    KnownCycle(
-        modules=frozenset(
-            {
-                "point_of_sale/app/utils/order_change_receipts",
-                "point_of_sale/app/services/pos_store",
-            }
-        ),
-        reason=(
-            "`order_change_receipts` imports the `CONSOLE_COLOR` constant from "
-            "`pos_store`, which imports six receipt helpers back. Safe under "
-            "every entry order: all seven cycle-internal bindings were "
-            "enumerated and every reference sits inside a function or method "
-            "body — `CONSOLE_COLOR` in a `catch` inside `getStrNotes`, and the "
-            "six helpers only in the `PosStore` methods that delegate to them "
-            "(`pos_store.js:2326-2411`). Tolerated, not endorsed: moving "
-            "`CONSOLE_COLOR` to a leaf module removes the cycle outright."
-        ),
-    ),
-)
+KNOWN_CYCLES: tuple[KnownCycle, ...] = ()
 
 
 @dataclass

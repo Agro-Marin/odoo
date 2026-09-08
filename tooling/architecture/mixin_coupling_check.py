@@ -158,7 +158,7 @@ CURSOR_BASELINE = {
     "max_scc": 1,
     "cyclic_edges": 0,
     "scc_without_base": 1,
-    "unowned_shared_state": 6,
+    "unowned_shared_state": 5,
 }
 
 REQUEST_COMPOSITION = Composition(

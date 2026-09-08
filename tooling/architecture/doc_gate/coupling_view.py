@@ -246,7 +246,6 @@ class TestCompositionTable(unittest.TestCase):
                 "_thread",
                 "_schema_cache",
                 "_before_statement",
-                "_savepoint_depth",
             },
         }
         self.assertTrue(

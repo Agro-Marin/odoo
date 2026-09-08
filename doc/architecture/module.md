@@ -398,7 +398,7 @@ per composition. Measured by a live run of that gate:
 | `Field` (`orm/fields/`) | 5 | 8 | 0 | 1 | **yes** |
 | `Registry` (`orm/runtime/`) | 7 | 10 | 0 | 0 | no |
 | `Request` (`http/request_class.py`) | 4 | 1 | 0 | 8 | no |
-| `Cursor` (`db/cursor.py`) | 3 | 3 | 0 | 6 | **yes** |
+| `Cursor` (`db/cursor.py`) | 3 | 3 | 0 | 5 | **yes** |
 
 The last column is the shape claim, not a line count: a root larger than all its
 leaves put together is a composition that has not actually been decomposed.
@@ -426,7 +426,7 @@ numbers move in opposite directions, so hiding an edge fails the ratchet twice.
 | `BaseModel` | 4 | `env`, `_ids`, `_prefetch_ids`, `_log_access` — the recordset's identity, assigned by `IterationMixin.__init__` |
 | `Field` | 1 | `description_attrs` |
 | `Request` | 8 | the request's identity, declared on `RequestState` |
-| `Cursor` | 6 | `_cnx`, `_obj`, `_thread`, `_schema_cache`, `_before_statement`, `_savepoint_depth` — the depth is the ledger key `savepoint.py` and `bulk.py` share with `_schema_cache`, declared on `BaseCursor` and so owned by no unit |
+| `Cursor` | 5 | `_cnx`, `_obj`, `_thread`, `_schema_cache`, `_before_statement` |
 
 Under assignment-site ownership `BaseModel` still shows a 2-cycle,
 `_metadata` ⇄ `iteration`; that one is open.

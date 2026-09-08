@@ -143,8 +143,15 @@ may be reached from), `js_extension_surface.py` (the methods downstream
 subclasses override, and the members they `patch()`), `js_forced_render.py` (core
 must not sweep a subtree with `render(true)` — a forced render hides reads that
 subscribe to nothing), `js_patch_blind_facade.py` (a service's own callers go
-through its facade) and `js_service_shape.py` (a service hands back an instance,
-not a literal). Each gate ships an empty-tree refusal test, so a gate
+through its facade), `js_service_shape.py` (a service hands back an instance,
+not a literal), `js_class_length.py` (the mass a per-function budget cannot see:
+a class of short methods is invisible to `js_function_length.py`, and the unit is
+excess lines above 400 rather than offender count, so splitting one huge class
+into two large ones registers as the improvement it is) and
+`js_unreached_assertions.py` (an assertion that may never EXECUTE, one level down
+from the vacuous assertion `js_vacuous_assertions.py` catches: an `expect()`
+inside a handler the test never invokes stays green through the whole life of the
+defect it names). Each gate ships an empty-tree refusal test, so a gate
 that scanned nothing fails instead of reporting a pass.
 
 ## The contracts this module declares

@@ -46,7 +46,7 @@ export class CredentialSecretFields extends Component {
             delete this.revealed[entry.code];
             return;
         }
-        const [id] = this.props.record.resIds ?? [this.props.record.resId];
+        const id = this.props.record.resId;
         if (!id) {
             return;
         }
