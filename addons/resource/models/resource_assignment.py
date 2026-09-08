@@ -25,6 +25,7 @@ class ResourceAssignment(models.Model):
         required=True,
         index=True,
         ondelete="restrict",
+        check_company=True,
         domain="[('resource_type', '=', 'user')]",
         help="Who holds it.",
     )
