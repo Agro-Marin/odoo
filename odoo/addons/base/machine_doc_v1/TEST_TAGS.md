@@ -5,7 +5,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 ## Quick Reference
 
 ```bash
-# All base tests (3990 methods, 822 classes, 135 files)
+# All base tests (4009 methods, 827 classes, 136 files)
 --test-tags '/base' -u base
 
 # Only post_install tests
@@ -104,7 +104,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 
 ## Test File Reference
 
-### Tagged Files (74 files, 498 classes)
+### Tagged Files (75 files, 499 classes)
 
 | File | Tags | Classes | Tests | Base Class |
 |------|------|---------|-------|------------|
@@ -133,7 +133,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 | `test_ir_actions_webhook.py` | `post_install`, `-at_install` | 4 | 20 | WebhookCase, TransactionCase |
 | `test_ir_asset.py` | `-at_install`, `post_install` | 1 | 1 | TransactionCase |
 | `test_ir_asset_audit.py` | `post_install`, `-at_install` | 20 | 67 | TransactionCase |
-| `test_ir_attachment.py` | `post_install`, `-at_install` | 10 | 160 | TransactionCaseWithUserDemo, TransactionCaseWithUserPortal, TransactionCase |
+| `test_ir_attachment.py` | `post_install`, `-at_install` | 10 | 161 | TransactionCaseWithUserDemo, TransactionCaseWithUserPortal, TransactionCase |
 | `test_ir_autovacuum_audit.py` | `post_install`, `-at_install` | 2 | 8 | TransactionCase |
 | `test_ir_binary.py` | `post_install`, `-at_install` | 6 | 13 | TransactionCase, TransactionCaseWithUserDemo |
 | `test_ir_cron.py` | `post_install`, `-at_install` | 13 | 90 | TransactionCase, CronMixinCase, TransactionCaseWithUserDemo, TestIrCron, BaseCase |
@@ -170,7 +170,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 | `test_res_partner.py` | `res_partner`, `res_partner_address`, `post_install`, `-at_install` | 12 | 80 | TransactionCaseWithUserDemo, TransactionCase |
 | `test_res_partner_identifier.py` | `post_install`, `-at_install` | 1 | 18 | TransactionCase |
 | `test_res_partner_main_channels.py` | `post_install`, `-at_install` | 1 | 7 | TransactionCase |
-| `test_res_partner_merge.py` | `post_install`, `-at_install`, `res_partner_merge` | 10 | 30 | TransactionCase |
+| `test_res_partner_merge.py` | `post_install`, `-at_install`, `res_partner_merge` | 10 | 31 | TransactionCase |
 | `test_res_partner_sync.py` | `res_partner`, `res_partner_sync` | 1 | 10 | TransactionCase |
 | `test_res_users.py` | `post_install`, `-at_install`, `groups` | 29 | 97 | UsersCommonCase, TransactionCase, HttpCase |
 | `test_res_users_apikeys.py` | `post_install`, `-at_install` | 1 | 23 | TransactionCase |
@@ -254,14 +254,14 @@ These run in **both** at_install and post_install phases by default.
 
 | Metric | Value |
 |--------|-------|
-| Total test files | 135 |
-| Total test classes | 822 |
-| Total test methods | 3990 |
-| Files with @tagged | 74 (55%) |
+| Total test files | 136 |
+| Total test classes | 827 |
+| Total test methods | 4009 |
+| Files with @tagged | 75 (55%) |
 | Files without @tagged | 61 (45%) |
-| Classes using post_install | 296 |
+| Classes using post_install | 297 |
 | Unique tags | 30 |
-| Largest test file | test_db_cursor.py (114 classes, 379 tests) |
+| Largest test file | test_db_cursor.py (114 classes, 381 tests) |
 
 Counted as unittest collects them: a method whose name starts with `test`, not
 `test_` — a `testCamelCase` method would run too, so it is counted. A class with

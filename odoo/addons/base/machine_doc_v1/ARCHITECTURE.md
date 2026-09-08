@@ -70,7 +70,7 @@ access control, and ORM extensions that those controllers depend on.
 odoo/addons/base/
 ├── __manifest__.py              # Module metadata + asset/data file declarations
 ├── __init__.py                  # Imports models, report, wizard + post_init hook
-├── models/                      # 94 Python model files (core ORM infrastructure)
+├── models/                      # 97 Python model files (core ORM infrastructure)
 │   ├── assetsbundle/            #   Asset compilation package (bundle, JS/CSS/XML pipelines, store)
 │   ├── decimal_precision.py         #   Configurable decimal precision
 │   ├── ir_actions_act_url.py        #   URL action
@@ -117,6 +117,9 @@ odoo/addons/base/
 │   ├── ir_qweb.py                   #   QWeb template engine (compile + render)
 │   ├── ir_qweb_assets.py            #   ir.qweb extension: asset nodes, ESM bundles
 │   ├── ir_qweb_assets_esbuild.py    #   ir.qweb extension: esbuild circuit, advisory lock, compile
+│   ├── ir_qweb_assets_esbuild_circuit.py #   esbuild failure circuit breaker
+│   ├── ir_qweb_assets_import_map.py #   ir.qweb extension: the page's ESM import map
+│   ├── ir_qweb_assets_served_libs.py #   ir.qweb extension: vendored libraries served to the page
 │   ├── ir_qweb_fields.py            #   QWeb field widgets (~20 type formatters)
 │   ├── ir_rule.py                   #   Record-level access rules (domain-based)
 │   ├── ir_sequence.py               #   Auto-incrementing sequences (standard/no-gap)
@@ -268,7 +271,7 @@ Derived by `factcheck.sh`, which re-measures every row against the tree.
 
 | Category | Count |
 |----------|-------|
-| Python (models) | 94 |
+| Python (models) | 97 |
 | Python (wizards) | 11 |
 | Python (tests) | 136 |
 | XML (views) | 38 |

@@ -51,12 +51,24 @@ database, and `test_checkers.py` does exactly that.
 | `_checker_pep649.py` | annotation resolution, used by `test_pep649` |
 | `_checker_tax_company.py` | `tax-company-singular` |
 | `_checker_http_json.py` | `http-json-string` |
+| `_checker_row_counter.py` | `row-counter-in-test` |
 
 `tax-company-singular` (E8514) catches `.tax_ids.filtered(lambda t: t.company_id)`
 and the five other tax field names. `account.tax` carries `company_ids`, a
 many2many, so the singular reads `AttributeError` at runtime rather than an empty
 recordset — the checker only fires inside a `filtered` lambda over a tax field,
 where the parameter is known to be a tax.
+
+`row-counter-in-test` (E8516) catches a read of `cr.sql_log_count` in a test file.
+That counter is incremented by the ROW count (`odoo/db/metrics.py`, `count=` from the COPY
+path) beside `sql_statement_count += 1`, so a correctly batched insert of N rows scores
+N and a per-record budget measured with it carries headroom proportional to the rows
+each record writes -- which is the regression the budget exists to catch. The rule is
+syntactic on purpose: an AST predicate for "measures a batch write" missed the case that
+matters, because the write is usually inside the method under measurement rather than in
+the test body. Stores are skipped, so a fake cursor defining the attribute is not a
+finding, and the five tests that assert the counter itself carry
+`# noqa: E8516`.
 
 `http-json-string` (E8515) catches `return json.dumps(...)` inside a route whose
 `type` is `"http"` or absent. The string goes out as `text/html`, and the client's

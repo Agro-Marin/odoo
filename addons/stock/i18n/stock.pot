@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-05 08:54+0000\n"
-"PO-Revision-Date: 2026-09-05 08:54+0000\n"
+"POT-Creation-Date: 2026-09-08 07:22+0000\n"
+"PO-Revision-Date: 2026-09-08 07:22+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -65,7 +65,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_done.py:0
 msgid ""
 "\n"
 "Package: %s"
@@ -177,8 +177,8 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/product_product.py:0
-#: code:addons/stock/models/product_template.py:0
+#: code:addons/stock/models/product_product_quantity.py:0
+#: code:addons/stock/models/product_template_quantity.py:0
 msgid ""
 "%(product)s does not track inventory, so it cannot have a quantity on hand. "
 "Enable Track Inventory first."
@@ -186,7 +186,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/product_template.py:0
+#: code:addons/stock/models/product_template_quantity.py:0
 msgid ""
 "%(product)s has no active variant, so there is nothing to hold a quantity on"
 " hand. Unarchive a variant first."
@@ -194,7 +194,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/product_template.py:0
+#: code:addons/stock/models/product_template_quantity.py:0
 msgid ""
 "%(product)s has several variants: update the quantity of each variant "
 "instead."
@@ -210,8 +210,8 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/product_product.py:0
-#: code:addons/stock/models/product_template.py:0
+#: code:addons/stock/models/product_product_quantity.py:0
+#: code:addons/stock/models/product_template_quantity.py:0
 msgid ""
 "%(product)s is tracked by lot/serial number: set its quantity through an "
 "inventory adjustment so lot/serial numbers can be assigned."
@@ -225,7 +225,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid ""
 "%(quantities)s are currently reserved. A hard block prevents completing "
 "these reservations — consider unreserving the stock or using a soft block "
@@ -234,7 +234,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid ""
 "%(quantities)s are currently reserved. Existing reservations will be allowed"
 " to complete."
@@ -248,7 +248,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking_type.py:0
+#: code:addons/stock/models/stock_picking_type_dashboard.py:0
 msgid "%(warehouse)s Sequence %(code)s"
 msgstr ""
 
@@ -262,7 +262,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_route.py:0
 msgid "%(warehouse)s: Supply Product from %(supplier)s"
 msgstr ""
 
@@ -288,6 +288,12 @@ msgstr ""
 #. odoo-python
 #: code:addons/stock/models/stock_location.py:0
 msgid "%s still holds stock, so its type cannot be changed."
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_picking_batch.py:0
+msgid "%s was removed from the batch, no quantity processed"
 msgstr ""
 
 #. module: stock
@@ -970,6 +976,20 @@ msgid ""
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__batch_max_lines
+msgid ""
+"A transfer will not be automatically added to batches that will exceed this number of lines if the transfer is added to it.\n"
+"Leave this value as '0' if no line limit."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__batch_max_pickings
+msgid ""
+"A transfer will not be automatically added to batches that will exceed this number of transfers.\n"
+"Leave this value as '0' if no transfer limit."
+msgstr ""
+
+#. module: stock
 #. odoo-python
 #: code:addons/stock/models/stock_location.py:0
 msgid ""
@@ -979,6 +999,12 @@ msgstr ""
 #. module: stock
 #: model:res.groups,name:stock.group_warning_stock
 msgid "A warning can be set on a partner (Stock)"
+msgstr ""
+
+#. module: stock
+#: model:res.groups,comment:stock.group_stock_readonly
+msgid ""
+"Access to all Inventory data but in read-only mode, no actions allowed."
 msgstr ""
 
 #. module: stock
@@ -996,6 +1022,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__message_needaction
 #: model:ir.model.fields,field_description:stock.field_stock_lot__message_needaction
 #: model:ir.model.fields,field_description:stock.field_stock_picking__message_needaction
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__message_needaction
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__message_needaction
 msgid "Action Needed"
 msgstr ""
@@ -1016,6 +1043,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__activity_ids
 #: model:ir.model.fields,field_description:stock.field_stock_lot__activity_ids
 #: model:ir.model.fields,field_description:stock.field_stock_picking__activity_ids
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__activity_ids
 msgid "Activities"
 msgstr ""
 
@@ -1028,6 +1056,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__activity_exception_decoration
 #: model:ir.model.fields,field_description:stock.field_stock_lot__activity_exception_decoration
 #: model:ir.model.fields,field_description:stock.field_stock_picking__activity_exception_decoration
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__activity_exception_decoration
 msgid "Activity Exception Decoration"
 msgstr ""
 
@@ -1035,6 +1064,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__activity_state
 #: model:ir.model.fields,field_description:stock.field_stock_lot__activity_state
 #: model:ir.model.fields,field_description:stock.field_stock_picking__activity_state
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__activity_state
 msgid "Activity State"
 msgstr ""
 
@@ -1042,6 +1072,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__activity_type_icon
 #: model:ir.model.fields,field_description:stock.field_stock_lot__activity_type_icon
 #: model:ir.model.fields,field_description:stock.field_stock_picking__activity_type_icon
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__activity_type_icon
 msgid "Activity Type Icon"
 msgstr ""
 
@@ -1211,7 +1242,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "All reservations in this location have been cleared."
 msgstr ""
 
@@ -1240,6 +1271,11 @@ msgstr ""
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_warehouse_orderpoint__allowed_location_ids
 msgid "Allowed Location"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__allowed_picking_ids
+msgid "Allowed Picking"
 msgstr ""
 
 #. module: stock
@@ -1418,7 +1454,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid ""
 "Archiving the hard-blocked location %(locations)s requires the \"Unlock "
 "Locations: All (Hard)\" permission."
@@ -1492,6 +1528,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__message_attachment_count
 #: model:ir.model.fields,field_description:stock.field_stock_lot__message_attachment_count
 #: model:ir.model.fields,field_description:stock.field_stock_picking__message_attachment_count
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__message_attachment_count
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__message_attachment_count
 msgid "Attachment Count"
 msgstr ""
@@ -1553,6 +1590,11 @@ msgid "Auto Print Return Slip"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__batch_auto_confirm
+msgid "Auto-confirm"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_warehouse_orderpoint__is_autogenerated
 msgid "Autogenerated"
 msgstr ""
@@ -1568,6 +1610,11 @@ msgid "Automatic"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__auto_batch
+msgid "Automatic Batches"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_rule__auto
 msgid "Automatic Move"
 msgstr ""
@@ -1578,9 +1625,35 @@ msgid "Automatic No Step Added"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__batch_group_by_partner
+msgid "Automatically group batches by contacts."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__batch_group_by_destination
+msgid "Automatically group batches by destination country."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__batch_group_by_dest_loc
+msgid "Automatically group batches by their destination location."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__batch_group_by_src_loc
+msgid "Automatically group batches by their source location."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__auto_batch
+msgid ""
+"Automatically put pickings into batches as they are confirmed when possible."
+msgstr ""
+
+#. module: stock
 #. odoo-javascript
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_availability.py:0
 #: code:addons/stock/static/src/stock_forecasted/forecasted_details.xml:0
 #: code:addons/stock/static/src/widgets/forecast_widget.xml:0
 #: model:ir.model.fields.selection,name:stock.selection__stock_move__state__assigned
@@ -1708,6 +1781,31 @@ msgid "Based on"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__batch_properties_definition
+msgid "Batch Properties"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_picking_batch.py:0
+#: model:ir.model,name:stock.model_stock_picking_batch
+#: model:ir.model.fields,field_description:stock.field_stock_picking__batch_id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__name
+msgid "Batch Transfer"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking__batch_id
+msgid "Batch associated to this transfer"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_picking_type.py:0
+msgid "Batch limits cannot be negative. Leave a limit at '0' to disable it."
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,field_description:stock.field_res_config_settings__module_stock_picking_batch
 msgid "Batch, Wave & Cluster Transfers"
 msgstr ""
@@ -1746,7 +1844,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_done.py:0
 msgid "Blocked Location Operation"
 msgstr ""
 
@@ -1762,7 +1860,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_done.py:0
 msgid "Blocked location operation by %(user)s"
 msgstr ""
 
@@ -1859,13 +1957,13 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_route.py:0
 msgid "Can't find any generic route %s."
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_location.py:0
 msgid "Can't find any production location."
 msgstr ""
 
@@ -1877,7 +1975,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_package.py:0
+#: code:addons/stock/models/stock_package_content.py:0
 msgid ""
 "Can't move a container having packages in another location "
 "(%(old_location)s) to a different location (%(new_location)s)."
@@ -1902,12 +2000,13 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_picking__is_cancelled
 #: model:ir.model.fields.selection,name:stock.selection__stock_move__state__cancel
 #: model:ir.model.fields.selection,name:stock.selection__stock_picking__state__cancel
+#: model:ir.model.fields.selection,name:stock.selection__stock_picking_batch__state__cancel
 msgid "Cancelled"
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Cannot add stock to %(location)s: the location is set to %(block)s."
 msgstr ""
 
@@ -1925,7 +2024,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Cannot move stock from %(location)s: the location is set to %(block)s."
 msgstr ""
 
@@ -1960,6 +2059,11 @@ msgstr ""
 #. module: stock
 #: model:ir.ui.menu,name:stock.menu_product_category_config_stock
 msgid "Categories"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__wave_category_ids
+msgid "Categories to consider when grouping waves."
 msgstr ""
 
 #. module: stock
@@ -2033,14 +2137,16 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_batch.py:0
+#: code:addons/stock/models/stock_picking_report.py:0
 #: code:addons/stock/wizard/stock_label_type.py:0
 msgid "Choose Labels Layout"
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_batch.py:0
+#: code:addons/stock/models/stock_picking_report.py:0
 msgid "Choose Type of Labels To Print"
 msgstr ""
 
@@ -2088,7 +2194,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid ""
 "Clearing the reservations of the hard-blocked location %(location)s requires"
 " the \"Unlock Locations: All (Hard)\" permission."
@@ -2133,6 +2239,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_package_history__company_id
 #: model:ir.model.fields,field_description:stock.field_stock_package_type__company_id
 #: model:ir.model.fields,field_description:stock.field_stock_picking__company_id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__company_id
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__company_id
 #: model:ir.model.fields,field_description:stock.field_stock_putaway_rule__company_id
 #: model:ir.model.fields,field_description:stock.field_stock_quant__company_id
@@ -2148,6 +2255,11 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_lot_search
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_quant_search
 msgid "Company"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_move__completion_sequence
+msgid "Completion Order"
 msgstr ""
 
 #. module: stock
@@ -2295,7 +2407,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 msgid "Conflict in Inventory Adjustment"
 msgstr ""
 
@@ -2319,6 +2431,7 @@ msgstr ""
 #: model:ir.model,name:stock.model_res_partner
 #: model:ir.model.fields,field_description:stock.field_stock_move_line__picking_partner_id
 #: model:ir.model.fields,field_description:stock.field_stock_picking__partner_id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__batch_group_by_partner
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_form
 msgid "Contact"
 msgstr ""
@@ -2450,7 +2563,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_backorder.py:0
 msgid "Create Backorder?"
 msgstr ""
 
@@ -2531,6 +2644,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_package_history__create_uid
 #: model:ir.model.fields,field_description:stock.field_stock_package_type__create_uid
 #: model:ir.model.fields,field_description:stock.field_stock_picking__create_uid
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__create_uid
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__create_uid
 #: model:ir.model.fields,field_description:stock.field_stock_put_in_pack__create_uid
 #: model:ir.model.fields,field_description:stock.field_stock_putaway_rule__create_uid
@@ -2577,6 +2691,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_package_history__create_date
 #: model:ir.model.fields,field_description:stock.field_stock_package_type__create_date
 #: model:ir.model.fields,field_description:stock.field_stock_picking__create_date
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__create_date
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__create_date
 #: model:ir.model.fields,field_description:stock.field_stock_put_in_pack__create_date
 #: model:ir.model.fields,field_description:stock.field_stock_putaway_rule__create_date
@@ -2631,7 +2746,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_picking_type.py:0
 msgid "Cross Dock"
 msgstr ""
 
@@ -3011,7 +3126,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid ""
 "Deleting the hard-blocked location %(locations)s requires the \"Unlock "
 "Locations: All (Hard)\" permission."
@@ -3082,13 +3197,13 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking_type.py:0
+#: code:addons/stock/models/stock_picking_type_dashboard.py:0
 msgid "Delivery Note"
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_picking_type.py:0
 #: model:stock.picking.type,name:stock.picking_type_out
 msgid "Delivery Orders"
 msgstr ""
@@ -3119,7 +3234,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_lot.py:0
+#: code:addons/stock/models/stock_lot_name.py:0
 msgid "Delivery orders of %s"
 msgstr ""
 
@@ -3174,6 +3289,7 @@ msgstr ""
 
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_lot__note
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__description
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_lot_form
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_form
 msgid "Description"
@@ -3274,6 +3390,7 @@ msgid "Destination Container Name"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__batch_group_by_destination
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_search_internal
 msgid "Destination Country"
 msgstr ""
@@ -3343,8 +3460,8 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_move_picking.py:0
+#: code:addons/stock/models/stock_picking_report.py:0
 msgid "Detailed Operations"
 msgstr ""
 
@@ -3436,6 +3553,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_mixin_date_category__display_name
 #: model:ir.model.fields,field_description:stock.field_mixin_product_catalog__display_name
 #: model:ir.model.fields,field_description:stock.field_mixin_stock_activity__display_name
+#: model:ir.model.fields,field_description:stock.field_mixin_stock_consignment__display_name
 #: model:ir.model.fields,field_description:stock.field_mixin_stock_replenish__display_name
 #: model:ir.model.fields,field_description:stock.field_mixin_stock_warn_insufficient_qty__display_name
 #: model:ir.model.fields,field_description:stock.field_picking_label_type__display_name
@@ -3471,6 +3589,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_package_history__display_name
 #: model:ir.model.fields,field_description:stock.field_stock_package_type__display_name
 #: model:ir.model.fields,field_description:stock.field_stock_picking__display_name
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__display_name
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__display_name
 #: model:ir.model.fields,field_description:stock.field_stock_put_in_pack__display_name
 #: model:ir.model.fields,field_description:stock.field_stock_putaway_rule__display_name
@@ -3530,6 +3649,7 @@ msgstr ""
 #. module: stock
 #: model:ir.model.fields.selection,name:stock.selection__stock_move__state__done
 #: model:ir.model.fields.selection,name:stock.selection__stock_picking__state__done
+#: model:ir.model.fields.selection,name:stock.selection__stock_picking_batch__state__done
 #: model:ir.model.fields.selection,name:stock.selection__stock_scrap__state__done
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_move_line_search
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_move_search
@@ -3544,6 +3664,7 @@ msgstr ""
 
 #. module: stock
 #: model:ir.model.fields.selection,name:stock.selection__stock_picking__state__draft
+#: model:ir.model.fields.selection,name:stock.selection__stock_picking_batch__state__draft
 #: model:ir.model.fields.selection,name:stock.selection__stock_scrap__state__draft
 #: model_terms:ir.ui.view,arch_db:stock.report_picking_document
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_search_internal
@@ -3590,13 +3711,13 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_orderpoint.py:0
+#: code:addons/stock/models/stock_orderpoint_replenish.py:0
 msgid "Edit Product"
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 msgid ""
 "Editing quantities in an Inventory Adjustment location is forbidden,those "
 "locations are used as counterpart when correcting the quantities."
@@ -3709,6 +3830,16 @@ msgid ""
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__estimated_shipping_volume
+msgid "Estimated Shipping Volume"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__estimated_shipping_weight
+msgid "Estimated Shipping Weight"
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.actions.act_window,help:stock.action_location_form
 msgid ""
 "Every stock operation in Odoo moves the products from one\n"
@@ -3736,7 +3867,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_availability.py:0
 msgid "Exp %s"
 msgstr ""
 
@@ -3830,6 +3961,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__message_follower_ids
 #: model:ir.model.fields,field_description:stock.field_stock_lot__message_follower_ids
 #: model:ir.model.fields,field_description:stock.field_stock_picking__message_follower_ids
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__message_follower_ids
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__message_follower_ids
 msgid "Followers"
 msgstr ""
@@ -3838,6 +3970,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__message_partner_ids
 #: model:ir.model.fields,field_description:stock.field_stock_lot__message_partner_ids
 #: model:ir.model.fields,field_description:stock.field_stock_picking__message_partner_ids
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__message_partner_ids
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__message_partner_ids
 msgid "Followers (Partners)"
 msgstr ""
@@ -4097,8 +4230,18 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking_type.py:0
+#: code:addons/stock/models/stock_picking_type_dashboard.py:0
 msgid "Goods Receipt Note"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__batch_group_by_dest_loc
+msgid "Group by Destination Location"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__batch_group_by_src_loc
+msgid "Group by Source Location"
 msgstr ""
 
 #. module: stock
@@ -4115,13 +4258,13 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Hard Block Auto-Unreserve:"
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_done.py:0
 msgid "Hard Block override"
 msgstr ""
 
@@ -4144,6 +4287,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__has_message
 #: model:ir.model.fields,field_description:stock.field_stock_lot__has_message
 #: model:ir.model.fields,field_description:stock.field_stock_picking__has_message
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__has_message
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__has_message
 msgid "Has Message"
 msgstr ""
@@ -4197,7 +4341,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 #: model_terms:ir.ui.view,arch_db:stock.product_product_stock_tree
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_quant_list_editable
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_quant_list_inventory_editable
@@ -4222,6 +4366,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_mixin_date_category__id
 #: model:ir.model.fields,field_description:stock.field_mixin_product_catalog__id
 #: model:ir.model.fields,field_description:stock.field_mixin_stock_activity__id
+#: model:ir.model.fields,field_description:stock.field_mixin_stock_consignment__id
 #: model:ir.model.fields,field_description:stock.field_mixin_stock_replenish__id
 #: model:ir.model.fields,field_description:stock.field_mixin_stock_warn_insufficient_qty__id
 #: model:ir.model.fields,field_description:stock.field_picking_label_type__id
@@ -4257,6 +4402,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_package_history__id
 #: model:ir.model.fields,field_description:stock.field_stock_package_type__id
 #: model:ir.model.fields,field_description:stock.field_stock_picking__id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__id
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__id
 #: model:ir.model.fields,field_description:stock.field_stock_put_in_pack__id
 #: model:ir.model.fields,field_description:stock.field_stock_putaway_rule__id
@@ -4290,6 +4436,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__activity_exception_icon
 #: model:ir.model.fields,field_description:stock.field_stock_lot__activity_exception_icon
 #: model:ir.model.fields,field_description:stock.field_stock_picking__activity_exception_icon
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__activity_exception_icon
 msgid "Icon"
 msgstr ""
 
@@ -4297,6 +4444,7 @@ msgstr ""
 #: model:ir.model.fields,help:stock.field_stock_location__activity_exception_icon
 #: model:ir.model.fields,help:stock.field_stock_lot__activity_exception_icon
 #: model:ir.model.fields,help:stock.field_stock_picking__activity_exception_icon
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__activity_exception_icon
 msgid "Icon to indicate an exception activity."
 msgstr ""
 
@@ -4318,6 +4466,7 @@ msgstr ""
 #: model:ir.model.fields,help:stock.field_stock_location__message_needaction
 #: model:ir.model.fields,help:stock.field_stock_lot__message_needaction
 #: model:ir.model.fields,help:stock.field_stock_picking__message_needaction
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__message_needaction
 #: model:ir.model.fields,help:stock.field_stock_scrap__message_needaction
 msgid "If checked, new messages require your attention."
 msgstr ""
@@ -4329,6 +4478,8 @@ msgstr ""
 #: model:ir.model.fields,help:stock.field_stock_lot__message_has_sms_error
 #: model:ir.model.fields,help:stock.field_stock_picking__message_has_error
 #: model:ir.model.fields,help:stock.field_stock_picking__message_has_sms_error
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__message_has_error
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__message_has_sms_error
 #: model:ir.model.fields,help:stock.field_stock_scrap__message_has_error
 #: model:ir.model.fields,help:stock.field_stock_scrap__message_has_sms_error
 msgid "If checked, some messages have a delivery error."
@@ -4342,6 +4493,14 @@ msgstr ""
 #. module: stock
 #: model:ir.model.fields,help:stock.field_stock_move_line__result_package_id
 msgid "If set, the operations are packed into this package"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_picking_type.py:0
+msgid ""
+"If the Automatic Batches feature is enabled, at least one 'Group by' option "
+"must be selected."
 msgstr ""
 
 #. module: stock
@@ -4554,6 +4713,11 @@ msgid "In internal locations"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields.selection,name:stock.selection__stock_picking_batch__state__in_progress
+msgid "In progress"
+msgstr ""
+
+#. module: stock
 #. odoo-javascript
 #: code:addons/stock/static/src/stock_forecasted/forecasted_header.xml:0
 #: model:ir.model.fields,field_description:stock.field_product_product__qty_incoming
@@ -4599,7 +4763,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Info:"
 msgstr ""
 
@@ -4615,7 +4779,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_location.py:0
 msgid "Input"
 msgstr ""
 
@@ -4667,7 +4831,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking_type.py:0
+#: code:addons/stock/models/stock_picking_type_dashboard.py:0
 msgid "Internal Move"
 msgstr ""
 
@@ -4683,7 +4847,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_picking_type.py:0
 #: model:ir.actions.act_window,name:stock.action_picking_tree_internal
 #: model:stock.picking.type,name:stock.picking_type_internal
 msgid "Internal Transfers"
@@ -4720,7 +4884,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_done.py:0
 msgid "Into blocked locations:"
 msgstr ""
 
@@ -4767,7 +4931,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 #: code:addons/stock/report/stock_traceability.py:0
 msgid "Inventory Adjustment"
 msgstr ""
@@ -4887,6 +5051,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__message_is_follower
 #: model:ir.model.fields,field_description:stock.field_stock_lot__message_is_follower
 #: model:ir.model.fields,field_description:stock.field_stock_picking__message_is_follower
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__message_is_follower
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__message_is_follower
 msgid "Is Follower"
 msgstr ""
@@ -5129,6 +5294,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_package_history__write_uid
 #: model:ir.model.fields,field_description:stock.field_stock_package_type__write_uid
 #: model:ir.model.fields,field_description:stock.field_stock_picking__write_uid
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__write_uid
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__write_uid
 #: model:ir.model.fields,field_description:stock.field_stock_put_in_pack__write_uid
 #: model:ir.model.fields,field_description:stock.field_stock_putaway_rule__write_uid
@@ -5175,6 +5341,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_package_history__write_date
 #: model:ir.model.fields,field_description:stock.field_stock_package_type__write_date
 #: model:ir.model.fields,field_description:stock.field_stock_picking__write_date
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__write_date
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__write_date
 #: model:ir.model.fields,field_description:stock.field_stock_put_in_pack__write_date
 #: model:ir.model.fields,field_description:stock.field_stock_putaway_rule__write_date
@@ -5330,7 +5497,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid ""
 "Lifting a hard block on %(locations)s requires the \"Unlock Locations: All "
 "(Hard)\" permission."
@@ -5347,6 +5514,11 @@ msgstr ""
 #. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_move_form
 msgid "Linked Moves"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__picking_ids
+msgid "List of transfers associated to this batch"
 msgstr ""
 
 #. module: stock
@@ -5370,6 +5542,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_product_template__location_id
 #: model:ir.model.fields,field_description:stock.field_stock_lot__location_id
 #: model:ir.model.fields,field_description:stock.field_stock_package__location_id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__wave_group_by_location
 #: model:ir.model.fields,field_description:stock.field_stock_quant__location_id
 #: model:ir.model.fields,field_description:stock.field_stock_storage_category__location_ids
 #: model:ir.model.fields,field_description:stock.field_stock_warehouse_orderpoint__location_id
@@ -5396,7 +5569,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Location Blocked:"
 msgstr ""
 
@@ -5419,7 +5592,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Location Unblocked"
 msgstr ""
 
@@ -5448,6 +5621,11 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_view_stock_warehouse_orderpoint_search_report
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_warehouse_form
 msgid "Locations"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__wave_location_ids
+msgid "Locations to consider when grouping waves."
 msgstr ""
 
 #. module: stock
@@ -5719,6 +5897,11 @@ msgid "Max weight should be a positive number."
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__batch_max_lines
+msgid "Maximum lines"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,help:stock.field_stock_picking_type__reservation_days_before_priority
 msgid ""
 "Maximum number of days before scheduled date that priority picking products "
@@ -5730,6 +5913,11 @@ msgstr ""
 msgid ""
 "Maximum number of days before scheduled date that products should be "
 "reserved."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__batch_max_pickings
+msgid "Maximum transfers"
 msgstr ""
 
 #. module: stock
@@ -5753,6 +5941,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__message_has_error
 #: model:ir.model.fields,field_description:stock.field_stock_lot__message_has_error
 #: model:ir.model.fields,field_description:stock.field_stock_picking__message_has_error
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__message_has_error
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__message_has_error
 msgid "Message Delivery error"
 msgstr ""
@@ -5767,6 +5956,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__message_ids
 #: model:ir.model.fields,field_description:stock.field_stock_lot__message_ids
 #: model:ir.model.fields,field_description:stock.field_stock_picking__message_ids
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__message_ids
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__message_ids
 msgid "Messages"
 msgstr ""
@@ -5912,7 +6102,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid ""
 "Moving %(locations)s out from under a hard block requires the \"Unlock "
 "Locations: All (Hard)\" permission."
@@ -5940,7 +6130,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_package.py:0
+#: code:addons/stock/models/stock_package_content.py:0
 msgid "Multiple destinations"
 msgstr ""
 
@@ -5953,6 +6143,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__my_activity_date_deadline
 #: model:ir.model.fields,field_description:stock.field_stock_lot__my_activity_date_deadline
 #: model:ir.model.fields,field_description:stock.field_stock_picking__my_activity_date_deadline
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__my_activity_date_deadline
 msgid "My Activity Deadline"
 msgstr ""
 
@@ -6027,6 +6218,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__activity_date_deadline
 #: model:ir.model.fields,field_description:stock.field_stock_lot__activity_date_deadline
 #: model:ir.model.fields,field_description:stock.field_stock_picking__activity_date_deadline
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__activity_date_deadline
 msgid "Next Activity Deadline"
 msgstr ""
 
@@ -6034,6 +6226,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__activity_summary
 #: model:ir.model.fields,field_description:stock.field_stock_lot__activity_summary
 #: model:ir.model.fields,field_description:stock.field_stock_picking__activity_summary
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__activity_summary
 msgid "Next Activity Summary"
 msgstr ""
 
@@ -6041,6 +6234,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__activity_type_id
 #: model:ir.model.fields,field_description:stock.field_stock_lot__activity_type_id
 #: model:ir.model.fields,field_description:stock.field_stock_picking__activity_type_id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__activity_type_id
 msgid "Next Activity Type"
 msgstr ""
 
@@ -6057,7 +6251,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_report.py:0
 msgid "Next Transfers"
 msgstr ""
 
@@ -6140,7 +6334,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 msgid ""
 "No inventory loss location is configured for product %(product)s (company "
 "%(company)s). Set one on the product or in the company's default product "
@@ -6189,6 +6383,12 @@ msgid "No putaway rule found. Let's create one!"
 msgstr ""
 
 #. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_picking_batch.py:0
+msgid "No quantity was processed in any transfer of this batch."
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.help_message_template
 msgid "No receipt yet! Create a new one."
 msgstr ""
@@ -6200,7 +6400,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_route.py:0
 msgid "No route name is declared for the routing configuration %s."
 msgstr ""
 
@@ -6222,7 +6422,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_lot.py:0
+#: code:addons/stock/models/stock_lot_name.py:0
 msgid ""
 "No sequence can name a lot for %(product)s. Set a Serial/Lot Numbers "
 "Sequence on the product, or restore the default one."
@@ -6264,7 +6464,7 @@ msgstr ""
 #. module: stock
 #. odoo-javascript
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_availability.py:0
 #: code:addons/stock/static/src/stock_forecasted/forecasted_details.xml:0
 #: code:addons/stock/static/src/widgets/forecast_widget.xml:0
 msgid "Not Available"
@@ -6277,7 +6477,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Not a Hard Block"
 msgstr ""
 
@@ -6306,6 +6506,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__message_needaction_counter
 #: model:ir.model.fields,field_description:stock.field_stock_lot__message_needaction_counter
 #: model:ir.model.fields,field_description:stock.field_stock_picking__message_needaction_counter
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__message_needaction_counter
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__message_needaction_counter
 msgid "Number of Actions"
 msgstr ""
@@ -6331,6 +6532,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__message_has_error_counter
 #: model:ir.model.fields,field_description:stock.field_stock_lot__message_has_error_counter
 #: model:ir.model.fields,field_description:stock.field_stock_picking__message_has_error_counter
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__message_has_error_counter
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__message_has_error_counter
 msgid "Number of errors"
 msgstr ""
@@ -6345,6 +6547,7 @@ msgstr ""
 #: model:ir.model.fields,help:stock.field_stock_location__message_needaction_counter
 #: model:ir.model.fields,help:stock.field_stock_lot__message_needaction_counter
 #: model:ir.model.fields,help:stock.field_stock_picking__message_needaction_counter
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__message_needaction_counter
 #: model:ir.model.fields,help:stock.field_stock_scrap__message_needaction_counter
 msgid "Number of messages requiring action"
 msgstr ""
@@ -6353,6 +6556,7 @@ msgstr ""
 #: model:ir.model.fields,help:stock.field_stock_location__message_has_error_counter
 #: model:ir.model.fields,help:stock.field_stock_lot__message_has_error_counter
 #: model:ir.model.fields,help:stock.field_stock_picking__message_has_error_counter
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__message_has_error_counter
 #: model:ir.model.fields,help:stock.field_stock_scrap__message_has_error_counter
 msgid "Number of messages with delivery error"
 msgstr ""
@@ -6427,6 +6631,14 @@ msgid "On hand:"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__wave_location_id
+msgid ""
+"One of the operation type's wave locations. An empty wave declaring its "
+"grouping values here is filled by automatic waving; once it holds lines, the"
+" values are read from them."
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields.selection,name:stock.selection__lot_label_layout__label_quantity__lots
 msgid "One per lot/SN"
 msgstr ""
@@ -6451,6 +6663,7 @@ msgstr ""
 #: code:addons/stock/models/stock_rule.py:0
 #: model:ir.model.fields,field_description:stock.field_stock_move__picking_type_id
 #: model:ir.model.fields,field_description:stock.field_stock_picking__picking_type_id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__picking_type_id
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__name
 #: model:ir.model.fields,field_description:stock.field_stock_rule__picking_type_id
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_move_search
@@ -6569,13 +6782,13 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_report.py:0
 msgid "Order signed"
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_report.py:0
 msgid "Order signed by %s"
 msgstr ""
 
@@ -6665,7 +6878,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_done.py:0
 msgid "Out of blocked locations:"
 msgstr ""
 
@@ -6704,7 +6917,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_location.py:0
 msgid "Output"
 msgstr ""
 
@@ -6752,7 +6965,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_picking_type.py:0
 msgid "Pack"
 msgstr ""
 
@@ -6958,7 +7171,8 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_batch.py:0
+#: code:addons/stock/models/stock_picking_report.py:0
 #: model:ir.actions.act_window,name:stock.action_package_view
 #: model:ir.actions.report,name:stock.action_report_picking_packages
 #: model:ir.model.fields,field_description:stock.field_res_config_settings__group_stock_tracking_lot
@@ -6973,7 +7187,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_package.py:0
+#: code:addons/stock/models/stock_package_content.py:0
 msgid ""
 "Packages %(duplicate_names)s are moved to different locations while being in"
 " the same container %(container_name)s."
@@ -7035,7 +7249,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_location.py:0
 msgid "Packing Zone"
 msgstr ""
 
@@ -7094,7 +7308,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 #: model:ir.actions.act_window,name:stock.action_stock_inventory_adjustement_name
 #: model:ir.ui.menu,name:stock.menu_action_inventory_tree
 msgid "Physical Inventory"
@@ -7102,7 +7316,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_picking_type.py:0
 #: model:ir.model.fields,field_description:stock.field_stock_backorder_confirmation__pick_ids
 msgid "Pick"
 msgstr ""
@@ -7217,6 +7431,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__website_message_ids
 #: model:ir.model.fields,field_description:stock.field_stock_lot__website_message_ids
 #: model:ir.model.fields,field_description:stock.field_stock_picking__website_message_ids
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__website_message_ids
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__website_message_ids
 msgid "Portal Messages"
 msgstr ""
@@ -7225,8 +7440,17 @@ msgstr ""
 #: model:ir.model.fields,help:stock.field_stock_location__website_message_ids
 #: model:ir.model.fields,help:stock.field_stock_lot__website_message_ids
 #: model:ir.model.fields,help:stock.field_stock_picking__website_message_ids
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__website_message_ids
 #: model:ir.model.fields,help:stock.field_stock_scrap__website_message_ids
 msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_move__completion_sequence
+msgid ""
+"Position of this move among all moves that reached 'Done'. `date` has one-"
+"second resolution and a move's id is its creation order, so neither tells "
+"two moves done in the same second apart; this does."
 msgstr ""
 
 #. module: stock
@@ -7253,7 +7477,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 msgid ""
 "Press the \"New\" button to define the quantity for a product in your stock "
 "or import quantities from a spreadsheet via the Actions menu"
@@ -7360,6 +7584,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_move__product_id
 #: model:ir.model.fields,field_description:stock.field_stock_move_line__product_id
 #: model:ir.model.fields,field_description:stock.field_stock_picking__product_id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__wave_group_by_product
 #: model:ir.model.fields,field_description:stock.field_stock_putaway_rule__product_id
 #: model:ir.model.fields,field_description:stock.field_stock_quant__product_id
 #: model:ir.model.fields,field_description:stock.field_stock_replenishment_info__product_id
@@ -7412,6 +7637,7 @@ msgstr ""
 #: model:ir.model,name:stock.model_product_category
 #: model:ir.model.fields,field_description:stock.field_stock_move__product_category_id
 #: model:ir.model.fields,field_description:stock.field_stock_move_line__product_category_name
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__wave_group_by_category
 #: model:ir.model.fields,field_description:stock.field_stock_putaway_rule__category_id
 #: model:ir.model.fields,field_description:stock.field_stock_quant__product_categ_id
 #: model:ir.model.fields,field_description:stock.field_stock_warehouse_orderpoint__product_category_id
@@ -7608,6 +7834,7 @@ msgstr ""
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_lot__lot_properties
 #: model:ir.model.fields,field_description:stock.field_stock_picking__picking_properties
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__properties
 #: model:ir.model.fields,field_description:stock.field_stock_quant__lot_properties
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_lot_search
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_search_internal
@@ -7646,7 +7873,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_procurement.py:0
 msgid ""
 "Push rules recursion limit reached. Check for circular push rules in your "
 "warehouse configuration."
@@ -7716,7 +7943,8 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_location.py:0
+#: code:addons/stock/models/stock_warehouse_picking_type.py:0
 msgid "Quality Control"
 msgstr ""
 
@@ -7748,7 +7976,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 msgid "Quant's creation is restricted, you can't do this operation."
 msgstr ""
 
@@ -7760,13 +7988,13 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 msgid "Quantities Already Set"
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 msgid "Quantities To Reset"
 msgstr ""
 
@@ -7890,7 +8118,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_reservation.py:0
 msgid "Quantity or Reserved Quantity should be set."
 msgstr ""
 
@@ -7944,6 +8172,11 @@ msgid "RETURN OF"
 msgstr ""
 
 #. module: stock
+#: model:res.groups,name:stock.group_stock_readonly
+msgid "Read-only"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields.selection,name:stock.selection__stock_picking__state__assigned
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_move_search
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_search_internal
@@ -7973,7 +8206,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Reason:"
 msgstr ""
 
@@ -7989,7 +8222,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_picking_type.py:0
 #: model:ir.actions.act_window,name:stock.action_picking_tree_incoming
 #: model:ir.ui.menu,name:stock.menu_stock_picking_incoming
 #: model:stock.picking.type,name:stock.picking_type_in
@@ -8162,7 +8395,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_reservation.py:0
 msgid "Removal strategy %s not implemented."
 msgstr ""
 
@@ -8224,7 +8457,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_route.py:0
 #: model:ir.model.fields,field_description:stock.field_res_config_settings__replenish_on_order
 #: model:stock.route,name:stock.route_warehouse0_mto
 msgid "Replenish on Order (MTO)"
@@ -8263,7 +8496,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_orderpoint.py:0
+#: code:addons/stock/models/stock_orderpoint_replenish.py:0
 msgid "Replenishment Information for %(product)s in %(warehouse)s"
 msgstr ""
 
@@ -8385,6 +8618,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_product_product__responsible_id
 #: model:ir.model.fields,field_description:stock.field_product_template__responsible_id
 #: model:ir.model.fields,field_description:stock.field_stock_picking__user_id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__user_id
 msgid "Responsible"
 msgstr ""
 
@@ -8392,6 +8626,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__activity_user_id
 #: model:ir.model.fields,field_description:stock.field_stock_lot__activity_user_id
 #: model:ir.model.fields,field_description:stock.field_stock_picking__activity_user_id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__activity_user_id
 msgid "Responsible User"
 msgstr ""
 
@@ -8467,7 +8702,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_report.py:0
 #: model:ir.model.fields,field_description:stock.field_stock_picking__return_ids
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_form
 msgid "Returns"
@@ -8628,6 +8863,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_location__message_has_sms_error
 #: model:ir.model.fields,field_description:stock.field_stock_lot__message_has_sms_error
 #: model:ir.model.fields,field_description:stock.field_stock_picking__message_has_sms_error
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__message_has_sms_error
 #: model:ir.model.fields,field_description:stock.field_stock_scrap__message_has_sms_error
 msgid "SMS Delivery error"
 msgstr ""
@@ -8649,7 +8885,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking_type.py:0
+#: code:addons/stock/models/stock_picking_type_dashboard.py:0
 msgid "Sample data"
 msgstr ""
 
@@ -8660,7 +8896,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/product_template.py:0
+#: code:addons/stock/models/product_template_quantity.py:0
 msgid "Save the product form before updating the Quantity On Hand."
 msgstr ""
 
@@ -8673,6 +8909,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_product_replenish__date_planned
 #: model:ir.model.fields,field_description:stock.field_stock_move_line__date_planned
 #: model:ir.model.fields,field_description:stock.field_stock_picking__date_planned
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__date_planned
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_move_form
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_move_search
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_search_internal
@@ -8682,6 +8919,15 @@ msgstr ""
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_request_count__inventory_date
 msgid "Scheduled at"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__date_planned
+msgid ""
+"Scheduled date for the transfers to be processed.\n"
+"              - If manually set then scheduled date for all transfers in batch will automatically update to this date.\n"
+"              - If not manually changed and transfers are added/removed/updated then this will be their earliest scheduled date\n"
+"                but this scheduled date will not be set for all transfers in batch."
 msgstr ""
 
 #. module: stock
@@ -8866,6 +9112,7 @@ msgstr ""
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_move__sequence
 #: model:ir.model.fields,field_description:stock.field_stock_package_type__sequence
+#: model:ir.model.fields,field_description:stock.field_stock_picking__batch_sequence
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__sequence
 #: model:ir.model.fields,field_description:stock.field_stock_route__sequence
 #: model:ir.model.fields,field_description:stock.field_stock_rule__sequence
@@ -8878,7 +9125,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking_type.py:0
+#: code:addons/stock/models/stock_picking_type_dashboard.py:0
 msgid "Sequence %(code)s"
 msgstr ""
 
@@ -8956,6 +9203,11 @@ msgstr ""
 #. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.res_config_settings_view_form
 msgid "Set expiration dates on lots & serial numbers"
+msgstr ""
+
+#. module: stock
+#: model:ir.model,name:stock.model_mixin_stock_consignment
+msgid "Set of Moves Handled as One Shipment"
 msgstr ""
 
 #. module: stock
@@ -9057,7 +9309,13 @@ msgid "Show Allocation"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__show_allocation
+msgid "Show Allocation Button"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_picking__show_check_availability
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__show_check_availability
 msgid "Show Check Availability"
 msgstr ""
 
@@ -9084,6 +9342,7 @@ msgstr ""
 
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_picking__show_lots_text
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__show_lots_text
 msgid "Show Lots Text"
 msgstr ""
 
@@ -9234,7 +9493,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_done.py:0
 msgid "Soft Block override"
 msgstr ""
 
@@ -9323,6 +9582,32 @@ msgid "Split"
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__wave_group_by_location
+msgid ""
+"Split transfers by defined locations, then group transfers with the same "
+"location."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__wave_group_by_category
+msgid ""
+"Split transfers by product category, then group transfers that have the same"
+" product category."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,help:stock.field_stock_picking_type__wave_group_by_product
+msgid ""
+"Split transfers by product then group transfers that have the same product."
+msgstr ""
+
+#. module: stock
+#: model:mail.message.subtype,description:stock.mt_batch_state
+#: model:mail.message.subtype,name:stock.mt_batch_state
+msgid "Stage Changed"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,help:stock.field_stock_warehouse_orderpoint__actual_lead_time_stddev
 msgid ""
 "Standard deviation of actual procurement lead times. Higher values indicate "
@@ -9346,6 +9631,7 @@ msgstr ""
 
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_report_stock_quantity__state
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__state
 msgid "State"
 msgstr ""
 
@@ -9364,6 +9650,7 @@ msgstr ""
 #: model:ir.model.fields,help:stock.field_stock_location__activity_state
 #: model:ir.model.fields,help:stock.field_stock_lot__activity_state
 #: model:ir.model.fields,help:stock.field_stock_picking__activity_state
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__activity_state
 msgid ""
 "Status based on activities\n"
 "Overdue: Due date is already passed\n"
@@ -9373,7 +9660,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_location.py:0
 #: model:ir.actions.act_window,name:stock.action_product_stock_view
 #: model:ir.ui.menu,name:stock.menu_product_stock
 msgid "Stock"
@@ -9527,7 +9814,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Stock Unreserved"
 msgstr ""
 
@@ -9535,6 +9822,16 @@ msgstr ""
 #: model:ir.model.fields,help:stock.field_stock_replenishment_info__product_max_qty
 #: model:ir.model.fields,help:stock.field_stock_warehouse_orderpoint__product_max_qty
 msgid "Stock level to reach when replenishing."
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__move_line_ids
+msgid "Stock move lines"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__move_ids
+msgid "Stock moves"
 msgstr ""
 
 #. module: stock
@@ -9574,7 +9871,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_picking_type.py:0
 msgid "Storage"
 msgstr ""
 
@@ -9796,7 +10093,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_lot.py:0
+#: code:addons/stock/models/stock_lot_name.py:0
 msgid ""
 "The Lot/Serial Name Format on %(product)s cannot be used: %(error)s.\n"
 "Expected placeholders are %(placeholders)s."
@@ -9830,7 +10127,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_backorder.py:0
 msgid "The backorder %s has been created."
 msgstr ""
 
@@ -9877,7 +10174,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_route.py:0
 msgid ""
 "The delivery configuration of warehouse %s has no rule starting from its "
 "stock location, so its MTO rule can't be generated."
@@ -9916,13 +10213,22 @@ msgid ""
 msgstr ""
 
 #. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_picking_batch.py:0
+msgid ""
+"The following transfers cannot be added to batch transfer %(batch)s. Please check their states and operation types.\n"
+"\n"
+"Incompatibilities: %(incompatible_transfers)s"
+msgstr ""
+
+#. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_product_replenish
 msgid "The forecasted quantity of"
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_orderpoint.py:0
+#: code:addons/stock/models/stock_orderpoint_replenish.py:0
 msgid "The inter-warehouse transfers have been generated"
 msgstr ""
 
@@ -10052,7 +10358,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/product_product.py:0
+#: code:addons/stock/models/product_product_quantity.py:0
 msgid ""
 "The quantity on hand cannot be set while the view is scoped to %(count)s "
 "locations (%(locations)s): the value is a total over all of them, and there "
@@ -10062,7 +10368,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/product_product.py:0
+#: code:addons/stock/models/product_product_quantity.py:0
 msgid ""
 "The quantity on hand cannot be set while the view is scoped to %(location)s:"
 " it is not an internal location, so it holds no stock of its own. Scope the "
@@ -10071,8 +10377,8 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/product_product.py:0
-#: code:addons/stock/models/product_template.py:0
+#: code:addons/stock/models/product_product_quantity.py:0
+#: code:addons/stock/models/product_template_quantity.py:0
 msgid "The quantity on hand of %(product)s cannot be set to a negative value."
 msgstr ""
 
@@ -10192,6 +10498,11 @@ msgid ""
 msgstr ""
 
 #. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__is_wave
+msgid "This batch is a wave"
+msgstr ""
+
+#. module: stock
 #: model:ir.model.fields,help:stock.field_stock_move__picked
 msgid ""
 "This checkbox is just indicative, it doesn't validate or generate any "
@@ -10283,7 +10594,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_package.py:0
+#: code:addons/stock/models/stock_package_content.py:0
 msgid "This package is currently set to be sent in %(location_names_list)s."
 msgstr ""
 
@@ -10679,7 +10990,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking.py:0
+#: code:addons/stock/models/stock_picking_backorder.py:0
 msgid ""
 "Transfer trouble alert! Validating a zero quantity transfer? You're not moving invisible goods around are you?\n"
 "Set some quantities and let's get moving!"
@@ -10692,11 +11003,18 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_picking_type.py:0
+#: code:addons/stock/models/stock_picking_batch.py:0
+msgid "Transferred by"
+msgstr ""
+
+#. module: stock
+#. odoo-python
+#: code:addons/stock/models/stock_picking_type_dashboard.py:0
 #: model:ir.actions.act_window,name:stock.action_picking_tree_all
 #: model:ir.model.fields,field_description:stock.field_stock_lot__delivery_ids
 #: model:ir.model.fields,field_description:stock.field_stock_package__picking_ids
 #: model:ir.model.fields,field_description:stock.field_stock_package_history__picking_ids
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__picking_ids
 #: model:ir.model.fields,field_description:stock.field_stock_reference__picking_ids
 #: model:ir.ui.menu,name:stock.menu_stock_transfers
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_lot_form
@@ -10796,6 +11114,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_stock_move__picking_code
 #: model:ir.model.fields,field_description:stock.field_stock_move_line__picking_code
 #: model:ir.model.fields,field_description:stock.field_stock_picking__picking_type_code
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__picking_type_code
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__code
 #: model:ir.model.fields,field_description:stock.field_stock_return_picking__picking_type_code
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_type_search
@@ -10806,6 +11125,7 @@ msgstr ""
 #: model:ir.model.fields,help:stock.field_stock_location__activity_exception_decoration
 #: model:ir.model.fields,help:stock.field_stock_lot__activity_exception_decoration
 #: model:ir.model.fields,help:stock.field_stock_picking__activity_exception_decoration
+#: model:ir.model.fields,help:stock.field_stock_picking_batch__activity_exception_decoration
 msgid "Type of the exception activity on record."
 msgstr ""
 
@@ -10927,14 +11247,14 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid ""
 "Unreserved %(line_count)d stock move line(s) across %(move_count)d move(s)."
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Unreserving is only available for hard-blocked locations."
 msgstr ""
 
@@ -11172,6 +11492,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:stock.field_report_stock_quantity__warehouse_id
 #: model:ir.model.fields,field_description:stock.field_stock_location__warehouse_id
 #: model:ir.model.fields,field_description:stock.field_stock_move__warehouse_id
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__warehouse_id
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__warehouse_id
 #: model:ir.model.fields,field_description:stock.field_stock_quant__warehouse_id
 #: model:ir.model.fields,field_description:stock.field_stock_rule__warehouse_id
@@ -11236,7 +11557,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_warehouse.py:0
+#: code:addons/stock/models/stock_warehouse_route.py:0
 msgid "Warehouse's Routes"
 msgstr ""
 
@@ -11293,7 +11614,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_location.py:0
+#: code:addons/stock/models/stock_location_block.py:0
 msgid "Warning:"
 msgstr ""
 
@@ -11311,6 +11632,51 @@ msgstr ""
 #. module: stock
 #: model:ir.model.fields,field_description:stock.field_res_config_settings__group_warning_stock
 msgid "Warnings for Stock"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__wave_partner_id
+msgid "Wave Contact"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__wave_country_id
+msgid "Wave Destination Country"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__wave_dest_location_id
+msgid "Wave Destination Location"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__wave_location_id
+msgid "Wave Location"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__wave_location_ids
+msgid "Wave Locations"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__wave_product_id
+msgid "Wave Product"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_type__wave_category_ids
+msgid "Wave Product Categories"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__wave_category_id
+msgid "Wave Product Category"
+msgstr ""
+
+#. module: stock
+#: model:ir.model.fields,field_description:stock.field_stock_picking_batch__wave_source_location_id
+msgid "Wave Source Location"
 msgstr ""
 
 #. module: stock
@@ -11586,7 +11952,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 msgid ""
 "You can only move positive quantities stored in locations used by a single "
 "company per relocation."
@@ -11673,6 +12039,12 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
+#: code:addons/stock/models/stock_picking_batch.py:0
+msgid "You cannot delete Done batch transfers."
+msgstr ""
+
+#. module: stock
+#. odoo-python
 #: code:addons/stock/models/stock_scrap.py:0
 msgid "You cannot delete a scrap which is done."
 msgstr ""
@@ -11707,13 +12079,13 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 msgid "You cannot modify inventory loss quantity"
 msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_done.py:0
 msgid ""
 "You cannot move the same package content more than once in the same transfer"
 " or split the same package into two location."
@@ -11806,6 +12178,12 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
+#: code:addons/stock/models/stock_picking_batch.py:0
+msgid "You have to set some pickings to batch."
+msgstr ""
+
+#. module: stock
+#. odoo-python
 #: code:addons/stock/wizard/stock_picking_return.py:0
 msgid "You may only return Done pickings."
 msgstr ""
@@ -11871,7 +12249,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_quant.py:0
+#: code:addons/stock/models/stock_quant_inventory.py:0
 msgid "Your stock is currently empty"
 msgstr ""
 
@@ -12025,7 +12403,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_done.py:0
 msgid "completing a prior reservation"
 msgstr ""
 
@@ -12045,6 +12423,13 @@ msgstr ""
 #. module: stock
 #: model_terms:ir.ui.view,arch_db:stock.view_stock_picking_type_form
 msgid "days before/"
+msgstr ""
+
+#. module: stock
+#: model:ir.ui.menu,web_keywords:stock.menu_stock_root
+msgid ""
+"delivery, receipt, picking, transfer, warehouse, on hand, lot, serial, "
+"replenishment, inventory adjustment"
 msgstr ""
 
 #. module: stock
@@ -12175,7 +12560,7 @@ msgstr ""
 
 #. module: stock
 #. odoo-python
-#: code:addons/stock/models/stock_move.py:0
+#: code:addons/stock/models/stock_move_done.py:0
 msgid "scrap, correction or consumption"
 msgstr ""
 
