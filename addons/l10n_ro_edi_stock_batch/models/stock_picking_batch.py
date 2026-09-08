@@ -4,9 +4,10 @@ import requests
 
 from odoo import fields, models, api, _
 from odoo.exceptions import UserError
-from odoo.addons.l10n_ro_edi_stock.models.stock_picking import OPERATION_TYPES, OPERATION_SCOPES, OPERATION_TYPE_TO_ALLOWED_SCOPE_CODES, LOCATION_TYPES, LOCATION_TYPE_MAP, BORDER_CROSSING_POINTS, CUSTOMS_OFFICES, STATE_CODES
-from odoo.addons.l10n_ro_edi_stock.models.l10n_ro_edi_stock_document import DOCUMENT_STATES
 from odoo.addons.l10n_ro_edi_stock.models.etransport_api import ETransportAPI
+from odoo.addons.l10n_ro_edi_stock.models.mixin_stock_consignment import (
+    OPERATION_SCOPES, OPERATION_TYPE_TO_ALLOWED_SCOPE_CODES,
+)
 
 
 class StockPickingBatch(models.Model):
@@ -14,57 +15,6 @@ class StockPickingBatch(models.Model):
 
     # Document fields
     l10n_ro_edi_stock_document_ids = fields.One2many(comodel_name='l10n_ro_edi.document', inverse_name='batch_id')
-    l10n_ro_edi_stock_document_uit = fields.Char(compute='_compute_l10n_ro_edi_stock_current_document_uit', string="eTransport UIT")
-    l10n_ro_edi_stock_state = fields.Selection(
-        selection=DOCUMENT_STATES,
-        compute='_compute_l10n_ro_edi_stock_current_document_state',
-        string="eTransport Status",
-        store=True,
-    )
-
-    # Data fields
-    l10n_ro_edi_stock_operation_type = fields.Selection(selection=OPERATION_TYPES, string="eTransport Operation Type")
-    l10n_ro_edi_stock_available_operation_scopes = fields.Char(compute='_compute_l10n_ro_edi_stock_available_operation_scopes')
-    l10n_ro_edi_stock_operation_scope = fields.Selection(selection=OPERATION_SCOPES, string="Operation Scope")
-
-    l10n_ro_edi_stock_vehicle_number = fields.Char(string="Vehicle Number", size=20)
-    l10n_ro_edi_stock_trailer_1_number = fields.Char(string="Trailer 1 Number", size=20)
-    l10n_ro_edi_stock_trailer_2_number = fields.Char(string="Trailer 2 Number", size=20)
-
-    l10n_ro_edi_stock_available_start_loc_types = fields.Char(compute='_compute_l10n_ro_edi_stock_available_location_types')
-    l10n_ro_edi_stock_start_loc_type = fields.Selection(
-        selection=LOCATION_TYPES,
-        string="Start Location Type",
-        compute='_compute_l10n_ro_edi_stock_default_location_type',
-        store=True,
-        readonly=False,
-    )
-
-    l10n_ro_edi_stock_available_end_loc_types = fields.Char(compute='_compute_l10n_ro_edi_stock_available_location_types')
-    l10n_ro_edi_stock_end_loc_type = fields.Selection(
-        selection=LOCATION_TYPES,
-        string="End Location Type",
-        compute='_compute_l10n_ro_edi_stock_default_location_type',
-        store=True,
-        readonly=False,
-    )
-
-    # Data fields for every location type
-    l10n_ro_edi_stock_start_bcp = fields.Selection(selection=BORDER_CROSSING_POINTS, string="Start Border Crossing Point")
-    l10n_ro_edi_stock_start_customs_office = fields.Selection(selection=CUSTOMS_OFFICES, string="Start Customs Office")
-
-    l10n_ro_edi_stock_end_bcp = fields.Selection(selection=BORDER_CROSSING_POINTS, string="End Border Crossing Point")
-    l10n_ro_edi_stock_end_customs_office = fields.Selection(selection=CUSTOMS_OFFICES, string="End Customs Office")
-
-    l10n_ro_edi_stock_remarks = fields.Text(string="Remarks")
-
-    # View control fields
-    l10n_ro_edi_stock_enable = fields.Boolean(compute='_compute_l10n_ro_edi_stock_enable')
-    l10n_ro_edi_stock_enable_send = fields.Boolean(compute='_compute_l10n_ro_edi_stock_enable_send')
-    l10n_ro_edi_stock_enable_fetch = fields.Boolean(compute='_compute_l10n_ro_edi_stock_enable_fetch')
-    l10n_ro_edi_stock_enable_amend = fields.Boolean(compute='_compute_l10n_ro_edi_stock_enable_amend')
-
-    l10n_ro_edi_stock_fields_readonly = fields.Boolean(compute='_compute_l10n_ro_edi_stock_fields_readonly')
 
     ################################################################################
     # Onchange Methods
@@ -153,9 +103,9 @@ class StockPickingBatch(models.Model):
     def _compute_l10n_ro_edi_stock_enable_amend(self):
         for batch in self:
             batch.l10n_ro_edi_stock_enable_amend = (batch.l10n_ro_edi_stock_enable
-                                                    and batch.l10n_ro_edi_stock_state == 'stock_validated'
-                                                    or (batch.l10n_ro_edi_stock_state == 'stock_sending_failed'
-                                                        and batch._l10n_ro_edi_stock_get_last_document('stock_validated')))
+                                                    and (batch.l10n_ro_edi_stock_state == 'stock_validated'
+                                                         or (batch.l10n_ro_edi_stock_state == 'stock_sending_failed'
+                                                             and batch._l10n_ro_edi_stock_get_last_document('stock_validated'))))
 
     @api.depends('l10n_ro_edi_stock_state')
     def _compute_l10n_ro_edi_stock_fields_readonly(self):
