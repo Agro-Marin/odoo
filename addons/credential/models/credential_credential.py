@@ -931,8 +931,25 @@ class CredentialCredential(models.Model):
     def _inverse_credential_data(self):
         for record in self:
             if not record.credential_data or record.credential_data == "{}":
+                # This field owns the keys no named accessor claims. Emptying it
+                # must not destroy a username or a bearer token, which have their
+                # own visible field and are written by their own inverse: the
+                # form carries this one empty for every category that hides it,
+                # so a blanket clear here loses whatever the accessors wrote and
+                # the order the fields happen to arrive in decides whether the
+                # secret survives.
                 if record.storage_method == "json":
-                    record.credential_value_encrypted = False
+                    stored = record._read_credential_dict_raw()
+                    owned = {
+                        key: value
+                        for key, value in stored.items()
+                        if key in record._JSON_ACCESSOR_FIELDS
+                    }
+                    if owned != stored:
+                        if owned:
+                            record.set_credential_dict(owned)
+                        else:
+                            record.credential_value_encrypted = False
                 continue
             record._seal_storage_method("json")
 

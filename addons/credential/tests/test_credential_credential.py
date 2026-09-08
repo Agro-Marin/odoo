@@ -506,6 +506,43 @@ class TestCredentialSecurityValidations(TransactionCase):
 
         self.assertIn("exceeds maximum size", str(cm.exception))
 
+    def test_an_empty_json_field_does_not_erase_the_username_beside_it(self):
+        # credential_data is on the form for every category and empty for all but
+        # `custom`, so a plain basic-auth save carries it blank. It owns only the
+        # keys no named accessor claims: blanking it must leave the username and
+        # password alone, whichever order the two reach their inverses.
+        category = self.env.ref("credential.credential_category_basic_auth")
+        for label, vals in (
+            ("data last", {"username": "portal", "password": "s3cret", "credential_data": ""}),
+            ("data first", {"credential_data": "", "username": "portal", "password": "s3cret"}),
+        ):
+            credential = self.env["credential.credential"].create(
+                {"name": f"Basic {label}", "category_id": category.id, **vals}
+            )
+            credential.flush_recordset()
+            stored = credential.with_context(bin_size=False).credential_value_encrypted
+            self.assertTrue(stored, f"{label}: the payload was erased")
+            self.assertEqual(credential.username, "portal", label)
+            self.assertEqual(credential.password, "s3cret", label)
+
+    def test_blanking_the_json_field_still_clears_the_keys_it_owns(self):
+        credential = self.env["credential.credential"].create(
+            {
+                "name": "Custom with extra keys",
+                "category_id": self.category_custom.id,
+                "credential_data": '{"tenant": "acme"}',
+            }
+        )
+        credential.flush_recordset()
+        self.assertTrue(credential.with_context(bin_size=False).credential_value_encrypted)
+
+        credential.credential_data = "{}"
+        credential.flush_recordset()
+        self.assertFalse(
+            credential.with_context(bin_size=False).credential_value_encrypted,
+            "a payload of nothing but unclaimed keys is still cleared",
+        )
+
     def test_credential_data_size_limit(self):
         large_data = '{"key": "' + "x" * 70000 + '"}'
 
