@@ -118,6 +118,65 @@ class TestResourceCalendar(TransactionCase):
         self.assertGreater(data["hours"], 0.0)
         self.assertGreater(data["days"], 0.0)
 
+    def test_domain_is_ignored_without_compute_leaves(self):
+        calendar = self.env["resource.calendar"].create(
+            {
+                "name": "9-to-5",
+                "tz": "UTC",
+                "attendance_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Morning",
+                            "dayofweek": str(i),
+                            "hour_from": 8,
+                            "hour_to": 12,
+                            "day_period": "morning",
+                        },
+                    )
+                    for i in range(5)
+                ]
+                + [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": "Afternoon",
+                            "dayofweek": str(i),
+                            "hour_from": 13,
+                            "hour_to": 17,
+                            "day_period": "afternoon",
+                        },
+                    )
+                    for i in range(5)
+                ],
+            }
+        )
+        start_dt = datetime(2026, 6, 1, 0, 0, 0).astimezone(UTC)
+        end_dt = datetime(2026, 6, 5, 23, 59, 59).astimezone(UTC)
+        without_domain = calendar.get_work_hours_count(
+            start_dt, end_dt, compute_leaves=False
+        )
+        with_domain = calendar.get_work_hours_count(
+            start_dt,
+            end_dt,
+            compute_leaves=False,
+            domain=[("day_period", "=", "morning")],
+        )
+        self.assertEqual(without_domain, with_domain)
+        self.assertEqual(
+            calendar.get_work_duration_data(
+                start_dt,
+                end_dt,
+                compute_leaves=False,
+                domain=[("time_type", "=", "leave")],
+            )["hours"],
+            without_domain,
+            "A leave-shaped domain must not raise or silently filter"
+            " resource.calendar.attendance when compute_leaves=False.",
+        )
+
     def test_public_holiday_calendar_no_company(self):
         self.env["resource.calendar.leaves"].create(
             [
