@@ -696,9 +696,7 @@ class SaleOrderLine(models.Model):
                 line.qty_to_invoice = 0.0
                 continue
 
-            price_unit_discounted = line.price_unit * (
-                1 - (line.discount or 0.0) / 100.0
-            )
+            price_unit_discounted = line.price_unit_discounted_taxexc
             raw_subtotal = price_unit_discounted * qty_to_consider
             price_subtotal = (
                 line.currency_id.round(raw_subtotal)
