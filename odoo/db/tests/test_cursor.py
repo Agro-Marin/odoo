@@ -211,13 +211,13 @@ class TestMetricsMixin(unittest.TestCase):
         metrics.sql_counter = 0
         self.cur._record_metrics(0.01)
         self.cur._record_metrics(0.01, count=5)
-        self.assertEqual(self.cur.sql_log_count, 6)
+        self.assertEqual(self.cur.sql_log_count, 6)  # noqa: E8516  asserts the row counter itself
         self.assertEqual(metrics.sql_counter, 6)
 
     def test_statements_are_counted_apart_from_the_rows_they_moved(self):
         self.cur._record_metrics(0.01)
         self.cur._record_metrics(0.01, count=40)
-        self.assertEqual(self.cur.sql_log_count, 41)
+        self.assertEqual(self.cur.sql_log_count, 41)  # noqa: E8516  asserts the row counter itself
         self.assertEqual(
             self.cur.sql_statement_count,
             2,

@@ -831,11 +831,11 @@ class TestProfiling(TransactionCase):
 
     def test_default_recorders(self):
         with Profiler(db=None) as p:
-            queries_start = self.env.cr.sql_log_count
+            queries_start = self.env.cr.sql_log_count  # noqa: E8516  asserts the row counter itself
             for i in range(10):
                 self.env["res.partner"].create({"name": "snail%s" % i})
             self.env.flush_all()
-            total_queries = self.env.cr.sql_log_count - queries_start
+            total_queries = self.env.cr.sql_log_count - queries_start  # noqa: E8516  asserts the row counter itself
 
         rq = next(r for r in p.collectors if r.name == "sql").entries
         self.assertEqual(p.init_stack_trace[-1][2], "test_default_recorders")

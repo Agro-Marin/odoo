@@ -1255,10 +1255,12 @@ class TestCopyFrom(BaseCase):
     def test_copy_from_empty_nonreturning_short_circuits(self):
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_cpens (a int, b text)")
-            before = cr.sql_log_count
+            before = cr.sql_log_count  # noqa: E8516  asserts the row counter itself
             self.assertIsNone(cr.copy_from("_test_cpens", ["a", "b"], []))
             self.assertEqual(
-                cr.sql_log_count, before, "empty copy_from must not hit the server"
+                cr.sql_log_count,  # noqa: E8516  asserts the row counter itself
+                before,
+                "empty copy_from must not hit the server",
             )
             self.assertIsNone(cr.copy_from("_test_cpens", ["a", "b"], (x for x in ())))
             with self.assertRaises(ValueError):
@@ -3482,12 +3484,12 @@ class TestExecutemanyGeneratorParams(BaseCase):
     def test_loaded_generator_executes_and_counts_all_rows(self):
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_em_gen (v int)")
-            before = cr.sql_log_count
+            before = cr.sql_log_count  # noqa: E8516  asserts the row counter itself
             cr.executemany(
                 "INSERT INTO _test_em_gen(v) VALUES (%s)",
                 ((i,) for i in range(3)),
             )
-            counted = cr.sql_log_count - before
+            counted = cr.sql_log_count - before  # noqa: E8516  asserts the row counter itself
             cr.execute("SELECT count(*) FROM _test_em_gen")
             self.assertEqual(cr.fetchone()[0], 3)
             self.assertEqual(
@@ -3497,10 +3499,12 @@ class TestExecutemanyGeneratorParams(BaseCase):
     def test_empty_generator_short_circuits(self):
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_em_empty (v int)")
-            before = cr.sql_log_count
+            before = cr.sql_log_count  # noqa: E8516  asserts the row counter itself
             cr.executemany("INSERT INTO _test_em_empty(v) VALUES (%s)", (x for x in ()))
             self.assertEqual(
-                cr.sql_log_count, before, "empty generator must short-circuit"
+                cr.sql_log_count,  # noqa: E8516  asserts the row counter itself
+                before,
+                "empty generator must short-circuit",
             )
             cr.execute("SELECT count(*) FROM _test_em_empty")
             self.assertEqual(cr.fetchone()[0], 0)
@@ -3508,7 +3512,7 @@ class TestExecutemanyGeneratorParams(BaseCase):
     def test_copy_from_empty_generator_short_circuits(self):
         with registry().cursor() as cr:
             cr.execute("CREATE TEMP TABLE _test_copy_empty_gen (v int)")
-            rows_before = cr.sql_log_count
+            rows_before = cr.sql_log_count  # noqa: E8516  asserts the row counter itself
             statements_before = cr.sql_statement_count
             cr.copy_from("_test_copy_empty_gen", ["v"], (x for x in ()))
             self.assertEqual(
@@ -3517,7 +3521,7 @@ class TestExecutemanyGeneratorParams(BaseCase):
                 "an empty generator must not pay a COPY round trip; a length "
                 "test cannot see one, so the first row is peeled instead",
             )
-            self.assertEqual(cr.sql_log_count, rows_before)
+            self.assertEqual(cr.sql_log_count, rows_before)  # noqa: E8516  asserts the row counter itself
 
     def test_copy_from_a_generator_still_copies(self):
         with registry().cursor() as cr:
@@ -4781,10 +4785,10 @@ class TestFailedStatementsAreCounted(BaseCase):
         return cr
 
     def _delta(self, cr, fn):
-        before, before_global = cr.sql_log_count, odoo.db.sql_counter
+        before, before_global = cr.sql_log_count, odoo.db.sql_counter  # noqa: E8516  asserts the row counter itself
         with contextlib.suppress(Exception):
             fn()
-        delta = (cr.sql_log_count - before, odoo.db.sql_counter - before_global)
+        delta = (cr.sql_log_count - before, odoo.db.sql_counter - before_global)  # noqa: E8516  asserts the row counter itself
         with contextlib.suppress(Exception):
             cr.rollback()
         return delta
@@ -4919,11 +4923,11 @@ class TestFailedStatementsAreCounted(BaseCase):
     def test_copy_is_counted_like_every_other_statement_entry_point(self):
         cr = self._cr()
         try:
-            before = cr.sql_log_count
+            before = cr.sql_log_count  # noqa: E8516  asserts the row counter itself
             with cr.copy("COPY _test_count (a) FROM STDIN") as cp:
                 cp.write("7\n8\n")
             self.assertEqual(
-                cr.sql_log_count - before,
+                cr.sql_log_count - before,  # noqa: E8516  asserts the row counter itself
                 1,
                 "cr.copy() was the one marked statement entry point invisible "
                 "to query counting",

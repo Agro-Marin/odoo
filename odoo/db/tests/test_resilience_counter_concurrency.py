@@ -201,7 +201,7 @@ def test_the_process_wide_sql_counter_is_not_lost():
         f"modules/loading.py, service/lifecycle.py -- so a lost increment is a "
         f"query nobody was charged for."
     )
-    assert host.sql_log_count == EXPECTED
+    assert host.sql_log_count == EXPECTED  # noqa: E8516  asserts the row counter itself
 
 
 if __name__ == "__main__":

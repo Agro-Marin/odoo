@@ -10,6 +10,7 @@ from . import (
     _checker_noqa_rationale,
     _checker_onchange,
     _checker_orm_import,
+    _checker_row_counter,
     _checker_shadowed_def,
     _checker_sql,
     _checker_tax_company,
@@ -210,6 +211,14 @@ RULES: tuple[Rule, ...] = (
         "source term",
     ),
     Rule(
+        "row-counter-in-test",
+        "E8516",
+        "read cr.sql_statement_count: sql_log_count is incremented by the ROW "
+        "count (odoo/db/metrics.py) so a correctly batched insert of N rows "
+        "scores N, and a per-record budget measured with it has headroom "
+        "proportional to the rows each record writes",
+    ),
+    Rule(
         "noqa-rationale",
         "",
         "write the reason after the codes: `# noqa: F401  re-exported by __init__`",
@@ -259,6 +268,10 @@ def _onchange(unit: Unit) -> Iterable[object]:
     return _checker_onchange.check(unit.tree, unit.nodes)
 
 
+def _row_counter(unit: Unit) -> Iterable[object]:
+    return _checker_row_counter.check(unit.tree, unit.nodes)
+
+
 def _config_patch(unit: Unit) -> Iterable[object]:
     return _checker_config_patch.check(unit.tree, unit.nodes)
 
@@ -289,6 +302,10 @@ def _in_an_addon_outside_tests(unit: Unit) -> bool:
 
 def _in_an_addon(unit: Unit) -> bool:
     return unit.in_module
+
+
+def _in_tests(unit: Unit) -> bool:
+    return unit.is_test
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,6 +343,7 @@ CHECKERS: tuple[Checker, ...] = (
     Checker(_shadowed_def, _anywhere, frozenset({"shadowed-definition"})),
     Checker(_tax_company, _anywhere, frozenset({"tax-company-singular"})),
     Checker(_http_json, _in_an_addon_outside_tests, frozenset({"http-json-string"})),
+    Checker(_row_counter, _in_tests, frozenset({"row-counter-in-test"})),
 )
 
 CROSS_UNIT_RULES = frozenset({"unique-over-translated-column", "unreadable-source"})
