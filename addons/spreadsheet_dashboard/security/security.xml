@@ -11,6 +11,13 @@
         <field name="domain_force">[('group_ids', 'in', user.all_group_ids.ids)]</field>
     </record>
 
+    <record id="ir_rule_spreadsheet_dashboard_user" model="ir.rule">
+        <field name="name">Spreadsheet dashboard: allowed users</field>
+        <field name="model_id" ref="model_spreadsheet_dashboard" />
+        <field name="groups" eval="[(4, ref('base.group_user'))]" />
+        <field name="domain_force">[('allowed_user_ids', 'in', user.id)]</field>
+    </record>
+
     <record id="spreadsheet_dashboard_rule_company" model="ir.rule">
         <field name="name">Dashboard multi-company</field>
         <field name="model_id" ref="model_spreadsheet_dashboard" />
@@ -20,6 +27,7 @@
 
     <record id="res_groups_privilege_dashboard" model="res.groups.privilege">
         <field name="name">Dashboard</field>
+        <field name="placeholder">User</field>
         <field name="sequence">30</field>
         <field name="category_id" ref="base.module_category_productivity" />
     </record>
@@ -48,6 +56,15 @@
         <field name="model_id" ref="model_spreadsheet_dashboard_share" />
         <field name="groups" eval="[(4, ref('base.group_user'))]" />
         <field name="domain_force">[('create_uid', '=', user.id)]</field>
+    </record>
+
+    <record id="spreadsheet_dashboard_share_rule_manager" model="ir.rule">
+        <field name="name">spreadsheet.dashboard.share: manager</field>
+        <field name="model_id" ref="model_spreadsheet_dashboard_share" />
+        <field
+            name="groups"
+            eval="[(4, ref('spreadsheet_dashboard.group_dashboard_manager'))]" />
+        <field name="domain_force">[(1, '=', 1)]</field>
     </record>
 
 </odoo>

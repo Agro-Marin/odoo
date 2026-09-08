@@ -69,6 +69,14 @@ test("Fold/unfold the search panel", async function () {
     expect(".o_spreadsheet_dashboard_search_panel").toHaveCount(1);
 });
 
+test("The fold/unfold buttons carry an accessible name", async function () {
+    await createSpreadsheetDashboard();
+    expect(".o_spreadsheet_dashboard_search_panel button[aria-label='Close sidebar']").toHaveCount(1);
+
+    await contains(".o_spreadsheet_dashboard_search_panel button").click();
+    expect(".o_search_panel_sidebar button[aria-label='Open sidebar']").toHaveCount(1);
+});
+
 test("Folding dashboard from 'FAVORITES' group shows correct active dashboard group", async function () {
     await createSpreadsheetDashboard({
         mockRPC: async function (route, args) {
@@ -782,5 +790,28 @@ describe("Quick search bar", () => {
 
         filterValue = model.getters.getGlobalFilterValue(productFilter.id);
         expect(filterValue).toEqual(undefined);
+    });
+
+    test("Clicking the search box or a facet focuses the quick search input", async function () {
+        const filter = { ...productFilter, defaultValue: { operator: "in", ids: [37] } };
+        const serverData = getServerData({ globalFilters: [filter] });
+        await createSpreadsheetDashboard({ serverData });
+
+        // drop the autofocus so the click is what does the focusing
+        await contains(document.body).click();
+        expect(document.activeElement).toBe(document.body);
+        expect(".o_popover .o-filter-item").toHaveCount(0);
+
+        await contains(".o_searchview.form-control").click();
+        expect(document.activeElement).toHaveClass("o_searchview_input");
+        expect(".o_popover .o-filter-item").toHaveCount(1);
+
+        await contains(document.body).click();
+        expect(document.activeElement).toBe(document.body);
+        expect(".o_popover .o-filter-item").toHaveCount(0);
+
+        await contains(".o_searchview_facet_label").click();
+        expect(document.activeElement).toHaveClass("o_searchview_input");
+        expect(".o_popover .o-filter-item").toHaveCount(1);
     });
 });
