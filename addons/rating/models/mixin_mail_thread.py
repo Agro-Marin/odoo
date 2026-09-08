@@ -151,8 +151,10 @@ class MixinMailThread(models.AbstractModel):
                 )
             )
         if token:
-            rating = self.env["rating.rating"].search(
-                [("access_token", "=", token)], limit=1
+            rating = (
+                self.env["rating.rating"]
+                .sudo()
+                .search([("access_token", "=", token)], limit=1)
             )
         if not rating:
             raise ValueError(_("Invalid token or rating."))
