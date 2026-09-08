@@ -230,10 +230,8 @@ test("Setting section optional should reset some fields", async () => {
 
 test("Unsetting optional section should reset some fields", async () => {
     SaleOrderLine._records.find((record) => record.name === "Sec3").is_optional = true;
-    SaleOrderLine._records.find((record) => record.name === "Sec3-r1").product_qty =
-        0;
-    SaleOrderLine._records.find((record) => record.name === "Sec3-r2").product_qty =
-        0;
+    SaleOrderLine._records.find((record) => record.name === "Sec3-r1").product_qty = 0;
+    SaleOrderLine._records.find((record) => record.name === "Sec3-r2").product_qty = 0;
     SaleOrderLine._records.find(
         (record) => record.name === "Sec3-sub1-r1",
     ).product_qty = 0;
@@ -383,8 +381,7 @@ test("Moving Optional Sections to include some lines should set quantity to 0", 
             },
         );
         expect(
-            args[1].line_ids.find((commands) => commands[1] === 13)?.[2]
-                .product_qty,
+            args[1].line_ids.find((commands) => commands[1] === 13)?.[2].product_qty,
         ).toEqual(
             // Sec4-r1
             undefined,
@@ -412,8 +409,7 @@ test("Moving Optional Sections to include some lines should set quantity to 0", 
 
 test("Moving Optional Sections to exclude some lines should set quantity to 1", async () => {
     SaleOrderLine._records.find((record) => record.name === "Sec3").is_optional = true;
-    SaleOrderLine._records.find((record) => record.name === "Sec3-r1").product_qty =
-        0;
+    SaleOrderLine._records.find((record) => record.name === "Sec3-r1").product_qty = 0;
     SaleOrderLine._records.find(
         (record) => record.name === "Sec3-sub1-r1",
     ).product_qty = 0;
