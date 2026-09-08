@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 {
     "name": "POS QR Tests",
     "version": "1.0",

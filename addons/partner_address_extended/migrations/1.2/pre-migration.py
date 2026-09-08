@@ -46,7 +46,10 @@ def migrate(cr, version):
     repointed = cr.rowcount
 
     doomed = [dup for dup, _keeper in duplicates]
-    cr.execute("DELETE FROM ir_model_data WHERE model = 'res.city' AND res_id = ANY(%s)", (doomed,))
+    cr.execute(
+        "DELETE FROM ir_model_data WHERE model = 'res.city' AND res_id = ANY(%s)",
+        (doomed,),
+    )
     cr.execute("DELETE FROM res_city WHERE id = ANY(%s)", (doomed,))
 
     _logger.info(

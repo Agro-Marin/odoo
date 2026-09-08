@@ -316,9 +316,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
             "Total amount due (including sales orders and this document): $\xa01,100.00",
         )
 
-        invoice.invoice_line_ids[
-            0
-        ].price_unit = 2000
+        invoice.invoice_line_ids[0].price_unit = 2000
         self.assertEqual(
             invoice.partner_credit_warning,
             "partner_a has reached its credit limit of: $\xa01,000.00\n"

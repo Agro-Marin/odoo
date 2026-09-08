@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Microsoft Users",
     "version": "19.0.2.0.0",

@@ -5,7 +5,6 @@ from odoo.addons.portal.utils import get_portal_partner, resolve_message_thread
 
 
 class PortalMessageReactionController(MessageReactionController):
-
     def _get_reaction_author(self, message, **kwargs):
         partner, guest = super()._get_reaction_author(message, **kwargs)
         if not partner:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "POS Razorpay",
     "version": "1.0",

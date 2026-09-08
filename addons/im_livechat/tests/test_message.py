@@ -10,7 +10,7 @@ from odoo.addons.mail.tests.common import MailCommon
 from odoo.addons.mail.tools.discuss import Store
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestImLivechatMessage(ChatbotCase, MailCommon):
     @classmethod
     def setUpClass(cls):
@@ -19,41 +19,45 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
 
     def setUp(self):
         super().setUp()
-        self.password = 'Pl1bhD@2!kXZ'
-        self.users = self.env['res.users'].create([
-            {
-                'email': 'e.e@example.com',
-                'group_ids': [Command.link(self.env.ref('base.group_user').id)],
-                'login': 'emp',
-                'password': self.password,
-                'name': 'Ernest Employee',
-                'notification_type': 'inbox',
-                'odoobot_state': 'disabled',
-                'signature': '--\nErnest',
-            },
-            {
-                "email": "test1@example.com",
-                "login": "test1",
-                "name": "test1",
-                "password": self.password,
-            },
-        ])
+        self.password = "Pl1bhD@2!kXZ"
+        self.users = self.env["res.users"].create(
+            [
+                {
+                    "email": "e.e@example.com",
+                    "group_ids": [Command.link(self.env.ref("base.group_user").id)],
+                    "login": "emp",
+                    "password": self.password,
+                    "name": "Ernest Employee",
+                    "notification_type": "inbox",
+                    "odoobot_state": "disabled",
+                    "signature": "--\nErnest",
+                },
+                {
+                    "email": "test1@example.com",
+                    "login": "test1",
+                    "name": "test1",
+                    "password": self.password,
+                },
+            ]
+        )
         settings = self.env["res.users.settings"]._get_or_create_for_user(self.users[1])
         settings.livechat_username = "chuck"
         self.maxDiff = None
 
     def test_update_username(self):
-        user = self.env['res.users'].create({
-            'name': 'User',
-            'login': 'User',
-            'password': self.password,
-            'email': 'user@example.com',
-            'livechat_username': 'edit me'
-        })
+        user = self.env["res.users"].create(
+            {
+                "name": "User",
+                "login": "User",
+                "password": self.password,
+                "email": "user@example.com",
+                "livechat_username": "edit me",
+            }
+        )
         with self.assertRaises(AccessError):
-            self.env['res.users'].with_user(user).check_access('write')
-        user.with_user(user).livechat_username = 'New username'
-        self.assertEqual(user.livechat_username, 'New username')
+            self.env["res.users"].with_user(user).check_access("write")
+        user.with_user(user).livechat_username = "New username"
+        self.assertEqual(user.livechat_username, "New username")
 
     def test_chatbot_message_format(self):
         self.authenticate(self.users[0].login, self.password)
@@ -65,11 +69,11 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                 "persisted": True,
             },
         )
-        discuss_channel = self.env['discuss.channel'].browse(data["channel_id"])
+        discuss_channel = self.env["discuss.channel"].browse(data["channel_id"])
         self._post_answer_and_trigger_next_step(
             discuss_channel,
             self.step_dispatch_buy_software.name,
-            chatbot_script_answer=self.step_dispatch_buy_software
+            chatbot_script_answer=self.step_dispatch_buy_software,
         )
         chatbot_message = discuss_channel.chatbot_message_ids.mail_message_id[:1]
         self.assertEqual(
@@ -84,7 +88,9 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                         "message": chatbot_message.id,
                         "scriptStep": self.step_email.id,
                     },
-                    "create_date": fields.Datetime.to_string(chatbot_message.create_date),
+                    "create_date": fields.Datetime.to_string(
+                        chatbot_message.create_date
+                    ),
                     "date": fields.Datetime.to_string(chatbot_message.date),
                     "default_subject": "Testing Bot",
                     "email_from": False,
@@ -117,9 +123,13 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
             ],
         )
 
-    @users('emp')
+    @users("emp")
     def test_message_to_store(self):
-        im_livechat_channel = self.env['im_livechat.channel'].sudo().create({'name': 'support', 'user_ids': [Command.link(self.users[0].id)]})
+        im_livechat_channel = (
+            self.env["im_livechat.channel"]
+            .sudo()
+            .create({"name": "support", "user_ids": [Command.link(self.users[0].id)]})
+        )
         self.env["mail.presence"]._update_presence(self.users[0])
         self.authenticate(self.users[1].login, self.password)
         channel_livechat_1 = self.env["discuss.channel"].browse(
@@ -131,20 +141,30 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                 },
             )["channel_id"]
         )
-        record_rating = self.env['rating.rating'].create({
-            'res_model_id': self.env['ir.model']._get('discuss.channel').id,
-            'res_id': channel_livechat_1.id,
-            'parent_res_model_id': self.env['ir.model']._get('im_livechat.channel').id,
-            'parent_res_id': im_livechat_channel.id,
-            'rated_partner_id': self.users[0].partner_id.id,
-            'partner_id': self.users[1].partner_id.id,
-            'rating': 5,
-            'consumed': True,
-        })
+        record_rating = self.env["rating.rating"].create(
+            {
+                "res_model_id": self.env["ir.model"]._get("discuss.channel").id,
+                "res_id": channel_livechat_1.id,
+                "parent_res_model_id": self.env["ir.model"]
+                ._get("im_livechat.channel")
+                .id,
+                "parent_res_id": im_livechat_channel.id,
+                "rated_partner_id": self.users[0].partner_id.id,
+                "partner_id": self.users[1].partner_id.id,
+                "rating": 5,
+                "consumed": True,
+            }
+        )
         message = channel_livechat_1.message_post(
             author_id=record_rating.partner_id.id,
-            body=Markup("<img src='%s' alt=':%s/5' style='width:18px;height:18px;float:left;margin-right: 5px;'/>%s")
-            % (record_rating.rating_image_url, record_rating.rating, record_rating.feedback),
+            body=Markup(
+                "<img src='%s' alt=':%s/5' style='width:18px;height:18px;float:left;margin-right: 5px;'/>%s"
+            )
+            % (
+                record_rating.rating_image_url,
+                record_rating.rating,
+                record_rating.feedback,
+            ),
             rating_id=record_rating.id,
         )
         self.assertEqual(
@@ -170,7 +190,10 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                         "model": "discuss.channel",
                         "needaction": False,
                         "notification_ids": [],
-                        "thread": {"id": channel_livechat_1.id, "model": "discuss.channel"},
+                        "thread": {
+                            "id": channel_livechat_1.id,
+                            "model": "discuss.channel",
+                        },
                         "parent_id": False,
                         "partner_ids": [],
                         "pinned_at": False,
@@ -215,7 +238,9 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                         "is_company": False,
                         "main_user_id": self.users[1].id,
                         "user_livechat_username": "chuck",
-                        "write_date": fields.Datetime.to_string(self.users[1].write_date),
+                        "write_date": fields.Datetime.to_string(
+                            self.users[1].write_date
+                        ),
                     },
                 ),
                 "res.users": self._filter_users_fields(
@@ -231,8 +256,13 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
     @users("portal_test")
     @freeze_time("2020-03-22 10:42:06")
     def test_feedback_message(self):
-        livechat_channel_vals = {"name": "support", "user_ids": [Command.link(self.users[0].id)]}
-        im_livechat_channel = self.env["im_livechat.channel"].sudo().create(livechat_channel_vals)
+        livechat_channel_vals = {
+            "name": "support",
+            "user_ids": [Command.link(self.users[0].id)],
+        }
+        im_livechat_channel = (
+            self.env["im_livechat.channel"].sudo().create(livechat_channel_vals)
+        )
         self.env["mail.presence"]._update_presence(self.users[0])
         self.authenticate(self.env.user.login, self.env.user.login)
         channel = self.env["discuss.channel"].browse(
@@ -246,8 +276,12 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
         )
 
         def _get_feedback_bus():
-            message = self.env["mail.message"].sudo().search([], order="id desc", limit=1)
-            rating = self.env["rating.rating"].sudo().search([], order="id desc", limit=1)
+            message = (
+                self.env["mail.message"].sudo().search([], order="id desc", limit=1)
+            )
+            rating = (
+                self.env["rating.rating"].sudo().search([], order="id desc", limit=1)
+            )
             return (
                 [
                     (self.env.cr.dbname, "res.partner", self.env.user.partner_id.id),
@@ -285,13 +319,23 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                                         "res_id": channel.id,
                                         "scheduledDatetime": False,
                                         "subject": False,
-                                        "subtype_id": self.env.ref("mail.mt_comment").id,
-                                        "thread": {"id": channel.id, "model": "discuss.channel"},
-                                        "write_date": fields.Datetime.to_string(message.write_date),
+                                        "subtype_id": self.env.ref(
+                                            "mail.mt_comment"
+                                        ).id,
+                                        "thread": {
+                                            "id": channel.id,
+                                            "model": "discuss.channel",
+                                        },
+                                        "write_date": fields.Datetime.to_string(
+                                            message.write_date
+                                        ),
                                     },
                                 ),
                                 "mail.message.subtype": [
-                                    {"description": False, "id": self.env.ref("mail.mt_comment").id}
+                                    {
+                                        "description": False,
+                                        "id": self.env.ref("mail.mt_comment").id,
+                                    }
                                 ],
                                 "mixin.mail.thread": self._filter_threads_fields(
                                     {

@@ -70,9 +70,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
     def test_downpayment_amount_equals_link_amount_when_higher_than_prepayment_amount(
         self,
     ):
-        self.sale_order.prepayment_percent = (
-            0.5
-        )
+        self.sale_order.prepayment_percent = 0.5
         link_amount = self.sale_order.amount_total * 0.7
         with MockRequest(self.env):
             tx_values = CustomerPortal()._get_payment_values(
@@ -123,9 +121,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertEqual(tx_values["amount"], self.sale_order.amount_total)
 
     def test_full_amount_equals_order_total(self):
-        self.sale_order.prepayment_percent = (
-            0.5
-        )
+        self.sale_order.prepayment_percent = 0.5
         with MockRequest(self.env):
             tx_values = CustomerPortal()._get_payment_values(
                 self.sale_order,
@@ -161,9 +157,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         )
 
         self.amount = self.sale_order.amount_total
-        self.partner.email = (
-            "customer@example.com"
-        )
+        self.partner.email = "customer@example.com"
         tx = self._create_transaction(
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"
         )
@@ -197,9 +191,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         )
 
         self.amount = self.sale_order.amount_total
-        self.partner.email = (
-            "customer@example.com"
-        )
+        self.partner.email = "customer@example.com"
         tx = self._create_transaction(
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"
         )
@@ -236,9 +228,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         custom_template.unlink()
 
         self.amount = self.sale_order.amount_total
-        self.partner.email = (
-            "customer@example.com"
-        )
+        self.partner.email = "customer@example.com"
         tx = self._create_transaction(
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"
         )

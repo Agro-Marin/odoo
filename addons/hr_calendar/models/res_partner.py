@@ -20,9 +20,7 @@ class ResPartner(models.Model):
         return dict(
             self.env["hr.employee"]
             .sudo()
-            ._read_group(
-                domain, groupby=["partner_id"], aggregates=["id:recordset"]
-            )
+            ._read_group(domain, groupby=["partner_id"], aggregates=["id:recordset"])
         )
 
     def _get_schedule(self, start_period, stop_period, everybody=False, merge=True):

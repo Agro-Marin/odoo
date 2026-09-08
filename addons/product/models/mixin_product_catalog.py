@@ -3,7 +3,6 @@ from odoo.fields import Domain
 
 
 class MixinProductCatalog(models.AbstractModel):
-
     _name = "mixin.product.catalog"
     _description = "Product Catalog Mixin"
 

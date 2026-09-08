@@ -118,12 +118,8 @@ class TestWizardAudit(AccountTestInvoicingCommon):
         self.assertEqual(len(calls), before)
 
     def test_payment_register_does_not_redirect_to_unreadable_payments(self):
-        branch_a = self._create_company(
-            name="Audit B1", parent_id=self.env.company.id
-        )
-        branch_b = self._create_company(
-            name="Audit B2", parent_id=self.env.company.id
-        )
+        branch_a = self._create_company(name="Audit B1", parent_id=self.env.company.id)
+        branch_b = self._create_company(name="Audit B2", parent_id=self.env.company.id)
         invoices = self.env["account.move"]
         for branch in (branch_a, branch_b):
             self.env["account.journal"].create(

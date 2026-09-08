@@ -1,35 +1,40 @@
 from datetime import timedelta
 
-
-from odoo import api, fields, models, _
+from odoo import _, api, fields, models
 
 _UNSET = object()
 
 
 class ResUsers(models.Model):
-    _inherit = 'res.users'
+    _inherit = "res.users"
 
     microsoft_calendar_credential_id = fields.Many2one(
-        comodel_name='credential.credential',
+        comodel_name="credential.credential",
         string="Microsoft Credential",
-        ondelete='restrict',
+        ondelete="restrict",
         copy=False,
         groups="base.group_system",
         help="Holds this user's Microsoft OAuth tokens.",
     )
     microsoft_calendar_rtoken = fields.Char(
-        'Microsoft Refresh Token', copy=False, groups="base.group_system",
-        compute='_compute_microsoft_calendar_tokens',
-        inverse='_inverse_microsoft_calendar_rtoken',
+        "Microsoft Refresh Token",
+        copy=False,
+        groups="base.group_system",
+        compute="_compute_microsoft_calendar_tokens",
+        inverse="_inverse_microsoft_calendar_rtoken",
     )
     microsoft_calendar_token = fields.Char(
-        'Microsoft User token', copy=False, groups="base.group_system",
-        compute='_compute_microsoft_calendar_tokens',
-        inverse='_inverse_microsoft_calendar_token',
+        "Microsoft User token",
+        copy=False,
+        groups="base.group_system",
+        compute="_compute_microsoft_calendar_tokens",
+        inverse="_inverse_microsoft_calendar_token",
     )
-    microsoft_calendar_token_validity = fields.Datetime('Microsoft Token Validity', copy=False)
+    microsoft_calendar_token_validity = fields.Datetime(
+        "Microsoft Token Validity", copy=False
+    )
 
-    @api.depends('microsoft_calendar_credential_id')
+    @api.depends("microsoft_calendar_credential_id")
     def _compute_microsoft_calendar_tokens(self):
         for user in self:
             credential = user.microsoft_calendar_credential_id.sudo()
@@ -54,9 +59,9 @@ class ResUsers(models.Model):
         self.check_singleton()
         values = {}
         if access_token is not _UNSET:
-            values['oauth_access_token'] = access_token or False
+            values["oauth_access_token"] = access_token or False
         if refresh_token is not _UNSET:
-            values['oauth_refresh_token'] = refresh_token or False
+            values["oauth_refresh_token"] = refresh_token or False
 
         credential = self.microsoft_calendar_credential_id.sudo()
         if credential:
@@ -70,17 +75,28 @@ class ResUsers(models.Model):
             return
         if not any(values.values()):
             return
-        self.microsoft_calendar_credential_id = self.env['credential.credential'].sudo().create({
-            'name': _("Microsoft Calendar: %s", self.login),
-            'category_id': self.env.ref('credential.credential_category_oauth2').id,
-            'company_id': self.company_id.id,
-            # In the same create: the oauth2 constraint wants an access token or
-            # a client secret, and it runs there.
-            **values,
-        }).id
+        self.microsoft_calendar_credential_id = (
+            self.env["credential.credential"]
+            .sudo()
+            .create(
+                {
+                    "name": _("Microsoft Calendar: %s", self.login),
+                    "category_id": self.env.ref(
+                        "credential.credential_category_oauth2"
+                    ).id,
+                    "company_id": self.company_id.id,
+                    # In the same create: the oauth2 constraint wants an access token or
+                    # a client secret, and it runs there.
+                    **values,
+                }
+            )
+            .id
+        )
 
     def _set_microsoft_auth_tokens(self, access_token, refresh_token, ttl):
-        self.microsoft_calendar_token_validity = fields.Datetime.now() + timedelta(seconds=ttl) if ttl else False
+        self.microsoft_calendar_token_validity = (
+            fields.Datetime.now() + timedelta(seconds=ttl) if ttl else False
+        )
         for user in self:
             user._microsoft_store_tokens(
                 access_token=access_token, refresh_token=refresh_token

@@ -1,4 +1,4 @@
-from odoo import api, models, fields
+from odoo import api, fields, models
 
 
 class ProductTemplate(models.Model):
@@ -14,9 +14,11 @@ class ProductTemplate(models.Model):
         products = super().create(vals_list)
 
         for product in products:
-            if product.company_id.country_code == 'TR':
-                ChartTemplate = self.env['account.chart.template'].with_company(product.company_id)
-                return_account = ChartTemplate.ref('tr610', raise_if_not_found=False)
+            if product.company_id.country_code == "TR":
+                ChartTemplate = self.env["account.chart.template"].with_company(
+                    product.company_id
+                )
+                return_account = ChartTemplate.ref("tr610", raise_if_not_found=False)
                 product.l10n_tr_default_sales_return_account_id = return_account
 
         return products

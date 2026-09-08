@@ -384,9 +384,7 @@ class CustomerPortal(Controller):
         callback = _parse_callback_url(callback, "")
 
         current_partner = request.env["res.partner"]._get_current_partner(**kwargs)
-        commercial_partner = (
-            current_partner.commercial_partner_id
-        )
+        commercial_partner = current_partner.commercial_partner_id
 
         if partner_sudo:
             state_id = partner_sudo.state_id.id
@@ -521,7 +519,9 @@ class CustomerPortal(Controller):
                 partner_sudo.name or ""
             ).strip():
                 address_values.pop("name", None)
-            partner_sudo.write(self._phone_to_address_values(address_values, partner_sudo))
+            partner_sudo.write(
+                self._phone_to_address_values(address_values, partner_sudo)
+            )
 
         if company_name := (extra_form_data.get("company_name") or "").strip():
             commercial_partner = partner_sudo.commercial_partner_id
@@ -818,9 +818,7 @@ class CustomerPortal(Controller):
             if key == "phone":
                 val = partner.phone_ids._primary().number or False
             else:
-                val = ResPartner._fields[key].convert_to_cache(
-                    partner[key], ResPartner
-                )
+                val = ResPartner._fields[key].convert_to_cache(partner[key], ResPartner)
             if new_val != val and (val or new_val):
                 return False
         return True
@@ -893,7 +891,6 @@ class CustomerPortal(Controller):
 
         address_sudo.action_archive()
 
-
     @route(
         "/my/security", type="http", auth="user", website=True, methods=["GET", "POST"]
     )
@@ -919,7 +916,9 @@ class CustomerPortal(Controller):
         values = self._prepare_portal_layout_values()
         values["get_error"] = get_error
         values["allow_api_keys"] = str2bool(
-            request.env["ir.config_parameter"].sudo().get_param("portal.allow_api_keys"),
+            request.env["ir.config_parameter"]
+            .sudo()
+            .get_param("portal.allow_api_keys"),
             default=False,
         )
         values["open_deactivate_modal"] = False
@@ -982,9 +981,7 @@ class CustomerPortal(Controller):
             values["errors"] = {"deactivate": "validation"}
         else:
             try:
-                request.env.user._check_credentials(
-                    credential, {"interactive": True}
-                )
+                request.env.user._check_credentials(credential, {"interactive": True})
                 request.env.user.sudo()._deactivate_portal_user(**post)
                 request.session.logout()
                 return request.redirect(
@@ -1036,7 +1033,6 @@ class CustomerPortal(Controller):
             )
 
         return attachment_sudo.unlink()
-
 
     def _document_check_access(self, model_name, document_id, access_token=None):
         document = request.env[model_name].browse(document_id)

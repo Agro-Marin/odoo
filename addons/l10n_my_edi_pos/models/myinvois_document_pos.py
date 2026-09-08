@@ -21,7 +21,8 @@ class MyInvoisDocumentPoS(models.Model):
     Note that while the xml generation will be using custom python code, the template will be the same as for regular invoices.
     The API endpoints used will also be the same.
     """
-    _inherit = 'myinvois.document'
+
+    _inherit = "myinvois.document"
 
     # ------------------
     # Fields declaration
@@ -43,7 +44,7 @@ class MyInvoisDocumentPoS(models.Model):
     linked_order_count = fields.Count("pos_order_ids")
     pos_order_date_range = fields.Char(
         string="Date Range",
-        compute='_compute_pos_order_date_range',
+        compute="_compute_pos_order_date_range",
         store=True,
     )
 
@@ -51,19 +52,21 @@ class MyInvoisDocumentPoS(models.Model):
     # Compute, inverse, search methods
     # --------------------------------
 
-    @api.depends('pos_order_ids')
+    @api.depends("pos_order_ids")
     def _compute_pos_order_date_range(self):
-        for consolidated_invoice in self.filtered('pos_order_ids'):
+        for consolidated_invoice in self.filtered("pos_order_ids"):
             first_order = consolidated_invoice.pos_order_ids[-1]
             latest_order = consolidated_invoice.pos_order_ids[0]
-            consolidated_invoice.pos_order_date_range = f"{first_order.date_order.date()} to {latest_order.date_order.date()}"
+            consolidated_invoice.pos_order_date_range = (
+                f"{first_order.date_order.date()} to {latest_order.date_order.date()}"
+            )
 
     # -----------------------
     # CRUD, inherited methods
     # -----------------------
 
     def _get_starting_sequence(self):
-        """ In the PoS, a document represents a Consolidated INVoice. """
+        """In the PoS, a document represents a Consolidated INVoice."""
         self.check_singleton()
         if not self.pos_order_ids:
             return super()._get_starting_sequence()
@@ -75,24 +78,24 @@ class MyInvoisDocumentPoS(models.Model):
     # --------------
 
     def action_view_linked_orders(self):
-        """ Return the action used to open the order(s) linked to the selected consolidated invoice. """
+        """Return the action used to open the order(s) linked to the selected consolidated invoice."""
         self.check_singleton()
         if self.linked_order_count == 1:
             action_vals = {
-                'type': 'ir.actions.act_window',
-                'res_model': 'pos.order',
-                'view_mode': 'form',
-                'res_id': self.pos_order_ids.id,
-                'views': [(False, 'form')],
+                "type": "ir.actions.act_window",
+                "res_model": "pos.order",
+                "view_mode": "form",
+                "res_id": self.pos_order_ids.id,
+                "views": [(False, "form")],
             }
         else:
             action_vals = {
-                'name': self.env._("Point of Sale Orders"),
-                'type': 'ir.actions.act_window',
-                'res_model': 'pos.order',
-                'view_mode': 'list,form',
-                'views': [(False, 'list'), (False, 'form')],
-                'domain': [('id', 'in', self.pos_order_ids.ids)],
+                "name": self.env._("Point of Sale Orders"),
+                "type": "ir.actions.act_window",
+                "res_model": "pos.order",
+                "view_mode": "list,form",
+                "views": [(False, "list"), (False, "form")],
+                "domain": [("id", "in", self.pos_order_ids.ids)],
             }
 
         return action_vals
@@ -102,29 +105,37 @@ class MyInvoisDocumentPoS(models.Model):
         Open the wizard, and set a default date_from/date_to based on the current date as well as already existing
         consolidated invoices.
         """
-        latest_consolidated_invoice = self.env['myinvois.document'].search([
-            ('company_id', '=', self.env.company.id),
-            ('myinvois_state', 'in', ['in_progress', 'valid']),
-            ('pos_order_ids', '!=', False),
-        ], limit=1)
+        latest_consolidated_invoice = self.env["myinvois.document"].search(
+            [
+                ("company_id", "=", self.env.company.id),
+                ("myinvois_state", "in", ["in_progress", "valid"]),
+                ("pos_order_ids", "!=", False),
+            ],
+            limit=1,
+        )
         if latest_consolidated_invoice:
-            default_date_from = latest_consolidated_invoice.myinvois_issuance_date + relativedelta(days=1)
+            default_date_from = (
+                latest_consolidated_invoice.myinvois_issuance_date
+                + relativedelta(days=1)
+            )
         else:
-            default_date_from = date_utils.start_of(fields.Date.context_today(self) - relativedelta(months=1), 'month')
-        default_date_to = date_utils.end_of(default_date_from, 'month')
+            default_date_from = date_utils.start_of(
+                fields.Date.context_today(self) - relativedelta(months=1), "month"
+            )
+        default_date_to = date_utils.end_of(default_date_from, "month")
 
         return {
-            'name': self.env._('Create Consolidated Invoice'),
-            'res_model': 'myinvois.consolidate.invoice.wizard',
-            'view_mode': 'form',
-            'views': [[False, 'form']],
-            'target': 'new',
-            'context': {
-                'default_date_from': default_date_from,
-                'default_date_to': default_date_to,
-                'default_consolidation_type': 'pos',
+            "name": self.env._("Create Consolidated Invoice"),
+            "res_model": "myinvois.consolidate.invoice.wizard",
+            "view_mode": "form",
+            "views": [[False, "form"]],
+            "target": "new",
+            "context": {
+                "default_date_from": default_date_from,
+                "default_date_to": default_date_to,
+                "default_consolidation_type": "pos",
             },
-            'type': 'ir.actions.act_window',
+            "type": "ir.actions.act_window",
         }
 
     def action_show_myinvois_documents(self):
@@ -139,20 +150,40 @@ class MyInvoisDocumentPoS(models.Model):
 
         if len(self) == 1:
             action_vals = {
-                'type': 'ir.actions.act_window',
-                'res_model': 'myinvois.document',
-                'view_mode': 'form',
-                'res_id': self.id,
-                'views': [(self.env.ref('l10n_my_edi_pos.myinvois_document_pos_form_view').id, 'form')],
+                "type": "ir.actions.act_window",
+                "res_model": "myinvois.document",
+                "view_mode": "form",
+                "res_id": self.id,
+                "views": [
+                    (
+                        self.env.ref(
+                            "l10n_my_edi_pos.myinvois_document_pos_form_view"
+                        ).id,
+                        "form",
+                    )
+                ],
             }
         else:
             action_vals = {
-                'name': self.env._("Consolidated Invoices"),
-                'type': 'ir.actions.act_window',
-                'res_model': 'myinvois.document',
-                'view_mode': 'list,form',
-                'views': [(self.env.ref('l10n_my_edi_pos.myinvois_document_pos_list_view').id, 'list'), (self.env.ref('l10n_my_edi_pos.myinvois_document_pos_form_view').id, 'form')],
-                'domain': [('id', 'in', self.ids)],
+                "name": self.env._("Consolidated Invoices"),
+                "type": "ir.actions.act_window",
+                "res_model": "myinvois.document",
+                "view_mode": "list,form",
+                "views": [
+                    (
+                        self.env.ref(
+                            "l10n_my_edi_pos.myinvois_document_pos_list_view"
+                        ).id,
+                        "list",
+                    ),
+                    (
+                        self.env.ref(
+                            "l10n_my_edi_pos.myinvois_document_pos_form_view"
+                        ).id,
+                        "form",
+                    ),
+                ],
+                "domain": [("id", "in", self.ids)],
             }
         return action_vals
 
@@ -161,10 +192,12 @@ class MyInvoisDocumentPoS(models.Model):
     # ----------------
 
     def _check_taxes(self):
-        """ Makes use of account.edi.xml.ubl_myinvois_my to validate the taxes for the records in self."""
+        """Makes use of account.edi.xml.ubl_myinvois_my to validate the taxes for the records in self."""
         super()._check_taxes()
         if self.pos_order_ids:
-            self.env["account.edi.xml.ubl_myinvois_my"]._check_taxes(self.pos_order_ids.lines.tax_ids)
+            self.env["account.edi.xml.ubl_myinvois_my"]._check_taxes(
+                self.pos_order_ids.lines.tax_ids
+            )
 
     def _is_consolidated_invoice(self):
         """
@@ -186,7 +219,9 @@ class MyInvoisDocumentPoS(models.Model):
         # Additionally to the existing check in super(), we want to catch refunds for orders linked to PoS orders.
         if self._is_refund_document() and self.invoice_ids.pos_order_ids:
             refunded_order = self.invoice_ids.pos_order_ids[0].refunded_order_id
-            is_consolidated_invoice_refund = bool(refunded_order and refunded_order._get_active_consolidated_invoice())
+            is_consolidated_invoice_refund = bool(
+                refunded_order and refunded_order._get_active_consolidated_invoice()
+            )
         return is_consolidated_invoice_refund
 
     def _split_consolidated_invoice_record_in_lines(self):
@@ -220,7 +255,9 @@ class MyInvoisDocumentPoS(models.Model):
         # During the loop, we want to gather "lines".
         # One line can be comprised of any number of orders as long as they are continuous.
         continuous_orders = []
-        for config, orders in itertools.groupby(sorted_session_orders, key=lambda o: o["config_id"]):
+        for config, orders in itertools.groupby(
+            sorted_session_orders, key=lambda o: o["config_id"]
+        ):
             config_lines = []
             for order in orders:
                 if continuous_orders and order not in pos_order_ids:
@@ -244,7 +281,7 @@ class MyInvoisDocumentPoS(models.Model):
         :param record: The record from which to get the base lines.
         :return: The rounder base line for the provided record.
         """
-        if record and record._name == 'pos.order':
+        if record and record._name == "pos.order":
             AccountTax = self.env["account.tax"]
             base_lines = record._prepare_tax_base_line_values()
             AccountTax._add_tax_details_in_base_lines(base_lines, self.company_id)

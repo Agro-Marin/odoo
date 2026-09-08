@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Greece - Accounting",
     "category": "Accounting/Localizations/Account Charts",

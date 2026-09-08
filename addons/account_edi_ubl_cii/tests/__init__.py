@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from . import common
 from . import test_autopost_bills
 from . import test_partner_peppol_fields

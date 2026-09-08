@@ -143,8 +143,12 @@ class TestCurrencyRates(TransactionCase):
     def test_currency_with_company_id(self):
         usd = self.env.ref("base.USD")
         cad = self.env.ref("base.CAD")
-        company_eur = self.env["res.company"].create({"currency_id": usd.id, "name": "EUR"})
-        company_cad = self.env["res.company"].create({"currency_id": cad.id, "name": "GBP"})
+        company_eur = self.env["res.company"].create(
+            {"currency_id": usd.id, "name": "EUR"}
+        )
+        company_cad = self.env["res.company"].create(
+            {"currency_id": cad.id, "name": "GBP"}
+        )
         self.env["res.currency.rate"].create(
             [
                 {
@@ -161,9 +165,9 @@ class TestCurrencyRates(TransactionCase):
         )
 
         self.assertAlmostEqual(
-            self.env["res.currency.rate"].with_company(company_eur)._get_rate_for_spreadsheet(
-                "USD", "EUR", None, None
-            ),
+            self.env["res.currency.rate"]
+            .with_company(company_eur)
+            ._get_rate_for_spreadsheet("USD", "EUR", None, None),
             CURRENT_EUR / 0.5,
         )
         self.assertAlmostEqual(

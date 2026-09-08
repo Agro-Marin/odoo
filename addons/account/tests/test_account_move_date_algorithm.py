@@ -15,7 +15,6 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
         super().setUpClass()
         cls.other_currency = cls.setup_other_currency("EUR")
 
-
     def _create_invoice(self, move_type, date, **kwargs):
         return self.env["account.move"].create(
             {
@@ -67,7 +66,6 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
         )
         reversal = move_reversal.refund_moves()
         return self.env["account.move"].browse(reversal["res_id"])
-
 
     @freezegun.freeze_time("2017-01-12")
     def test_out_invoice_date_with_lock_date(self):

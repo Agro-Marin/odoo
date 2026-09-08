@@ -8,16 +8,20 @@ from odoo.http import request
 
 from odoo.addons.payment.logging import get_payment_logger
 
-
 _logger = get_payment_logger(__name__)
 
 
 class BuckarooController(http.Controller):
-    _return_url = '/payment/buckaroo/return'
-    _webhook_url = '/payment/buckaroo/webhook'
+    _return_url = "/payment/buckaroo/return"
+    _webhook_url = "/payment/buckaroo/webhook"
 
     @http.route(
-        _return_url, type='http', auth='public', methods=['POST'], csrf=False, save_session=False
+        _return_url,
+        type="http",
+        auth="public",
+        methods=["POST"],
+        csrf=False,
+        save_session=False,
     )
     def buckaroo_return_from_checkout(self, **raw_data):
         """Process the payment data sent by Buckaroo after redirection from checkout.
@@ -32,19 +36,24 @@ class BuckarooController(http.Controller):
 
         :param dict raw_data: The un-formatted payment data
         """
-        _logger.info("handling redirection from Buckaroo with data:\n%s", pprint.pformat(raw_data))
+        _logger.info(
+            "handling redirection from Buckaroo with data:\n%s",
+            pprint.pformat(raw_data),
+        )
         data = self._normalize_data_keys(raw_data)
 
-        received_signature = data.get('brq_signature')
-        tx_sudo = request.env['payment.transaction'].sudo()._search_by_reference(
-            'buckaroo', data
+        received_signature = data.get("brq_signature")
+        tx_sudo = (
+            request.env["payment.transaction"]
+            .sudo()
+            ._search_by_reference("buckaroo", data)
         )
         if tx_sudo:
             self._verify_signature(raw_data, received_signature, tx_sudo)
-            tx_sudo._process('buckaroo', data)
-        return request.redirect('/payment/status')
+            tx_sudo._process("buckaroo", data)
+        return request.redirect("/payment/status")
 
-    @http.route(_webhook_url, type='http', auth='public', methods=['POST'], csrf=False)
+    @http.route(_webhook_url, type="http", auth="public", methods=["POST"], csrf=False)
     def buckaroo_webhook(self, **raw_data):
         """Process the payment data sent by Buckaroo to the webhook.
 
@@ -54,21 +63,26 @@ class BuckarooController(http.Controller):
         :return: An empty string to acknowledge the notification
         :rtype: str
         """
-        _logger.info("notification received from Buckaroo with data:\n%s", pprint.pformat(raw_data))
+        _logger.info(
+            "notification received from Buckaroo with data:\n%s",
+            pprint.pformat(raw_data),
+        )
         data = self._normalize_data_keys(raw_data)
-        received_signature = data.get('brq_signature')
-        tx_sudo = request.env['payment.transaction'].sudo()._search_by_reference(
-            'buckaroo', data
+        received_signature = data.get("brq_signature")
+        tx_sudo = (
+            request.env["payment.transaction"]
+            .sudo()
+            ._search_by_reference("buckaroo", data)
         )
         if tx_sudo:
             # Check the integrity of the payment data
             self._verify_signature(raw_data, received_signature, tx_sudo)
-            tx_sudo._process('buckaroo', data)
-        return ''
+            tx_sudo._process("buckaroo", data)
+        return ""
 
     @staticmethod
     def _normalize_data_keys(data):
-        """ Set all keys of a dictionary to lower-case.
+        """Set all keys of a dictionary to lower-case.
 
         As Buckaroo parameters names are case insensitive, we can convert everything to lower-case
         to easily detected the presence of a parameter by checking the lower-case key only.

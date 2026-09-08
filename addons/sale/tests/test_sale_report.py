@@ -126,9 +126,7 @@ class TestSaleReportCurrencyRate(SaleCommon):
         )
 
         sale_orders = self.env["sale.order"]
-        expected_reported_amount = (
-            0
-        )
+        expected_reported_amount = 0
         qty = 0
 
         for company in companies:

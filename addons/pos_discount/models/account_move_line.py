@@ -9,7 +9,10 @@ class AccountMoveLine(models.Model):
         discount_line_ids = []
         for line in self - lines:
             pos_orders = line.move_id.sudo().pos_order_ids
-            if pos_orders and line.product_id in pos_orders.config_id.discount_product_id:
+            if (
+                pos_orders
+                and line.product_id in pos_orders.config_id.discount_product_id
+            ):
                 discount_line_ids.append(line.id)
         if discount_line_ids:
             lines |= self.browse(discount_line_ids)

@@ -1,7 +1,13 @@
 from odoo.db.schema import column_exists
 
 SOURCES = (
-    ("event_booth", "contact_phone", "landline", "event_booth_phone_number_rel", "booth_id"),
+    (
+        "event_booth",
+        "contact_phone",
+        "landline",
+        "event_booth_phone_number_rel",
+        "booth_id",
+    ),
 )
 
 SANITIZE = r"""

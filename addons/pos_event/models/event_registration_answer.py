@@ -2,13 +2,20 @@ from odoo import api, models
 
 
 class EventRegistrationAnswer(models.Model):
-    _name = 'event.registration.answer'
-    _inherit = ['event.registration.answer', 'mixin.pos.load']
+    _name = "event.registration.answer"
+    _inherit = ["event.registration.answer", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ['question_id', 'registration_id', 'value_answer_id', 'value_text_box', 'partner_id',
-                'write_date', 'event_id']
+        return [
+            "question_id",
+            "registration_id",
+            "value_answer_id",
+            "value_text_box",
+            "partner_id",
+            "write_date",
+            "event_id",
+        ]
 
     @api.model
     def _load_pos_data_domain(self, data, config):

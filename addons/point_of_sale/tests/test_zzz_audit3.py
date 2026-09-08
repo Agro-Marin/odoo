@@ -9,7 +9,6 @@ _logger = logging.getLogger(__name__)
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestAuditVerification3(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
         self.config = self.basic_config

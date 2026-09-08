@@ -4,7 +4,7 @@ from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestLoyaltyBatching(TransactionCase):
     """Work that used to cost one query per record.
 
@@ -16,23 +16,25 @@ class TestLoyaltyBatching(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.env['ir.config_parameter'].sudo().set_param(
-            'loyalty.compute_all_discount_product_ids', 'enabled'
+        cls.env["ir.config_parameter"].sudo().set_param(
+            "loyalty.compute_all_discount_product_ids", "enabled"
         )
-        cls.program = cls.env['loyalty.program'].create({'name': "Batching"})
-        cls.products = cls.env['product.product'].create(
-            [{'name': f"Batched {index}", 'type': 'consu'} for index in range(3)]
+        cls.program = cls.env["loyalty.program"].create({"name": "Batching"})
+        cls.products = cls.env["product.product"].create(
+            [{"name": f"Batched {index}", "type": "consu"} for index in range(3)]
         )
 
     def _rewards(self, count):
-        return self.env['loyalty.reward'].create([
-            {
-                'program_id': self.program.id,
-                'discount_applicability': 'specific',
-                'discount_product_ids': [Command.set(self.products.ids[:1])],
-            }
-            for _ in range(count)
-        ])
+        return self.env["loyalty.reward"].create(
+            [
+                {
+                    "program_id": self.program.id,
+                    "discount_applicability": "specific",
+                    "discount_product_ids": [Command.set(self.products.ids[:1])],
+                }
+                for _ in range(count)
+            ]
+        )
 
     def _queries(self, operation):
         self.env.flush_all()
@@ -45,13 +47,14 @@ class TestLoyaltyBatching(TransactionCase):
     def test_resolving_discounted_products_costs_one_search(self):
         """`all_discount_product_ids` used to search once per reward."""
         small, large = self._rewards(2), self._rewards(20)
-        self._queries(lambda: small.mapped('all_discount_product_ids'))
+        self._queries(lambda: small.mapped("all_discount_product_ids"))
 
-        cheap = self._queries(lambda: small.mapped('all_discount_product_ids'))
-        dear = self._queries(lambda: large.mapped('all_discount_product_ids'))
+        cheap = self._queries(lambda: small.mapped("all_discount_product_ids"))
+        dear = self._queries(lambda: large.mapped("all_discount_product_ids"))
 
         self.assertLess(
-            (dear - cheap) / 18, 0.5,
+            (dear - cheap) / 18,
+            0.5,
             f"18 more rewards should not cost 18 more searches ({cheap} for 2,"
             f" {dear} for 20)",
         )
@@ -63,33 +66,47 @@ class TestLoyaltyBatching(TransactionCase):
         reward's own domain in memory, so it has to agree with a per-reward search
         for every shape a reward can carry.
         """
-        category = self.env['product.category'].create({'name': "Batched cat"})
-        child = self.env['product.category'].create(
-            {'name': "Batched child", 'parent_id': category.id}
+        category = self.env["product.category"].create({"name": "Batched cat"})
+        child = self.env["product.category"].create(
+            {"name": "Batched child", "parent_id": category.id}
         )
-        tag = self.env['product.tag'].create({'name': "Batched tag"})
-        deep = self.env['product.product'].create(
-            {'name': "Deep", 'type': 'consu', 'categ_id': child.id}
+        tag = self.env["product.tag"].create({"name": "Batched tag"})
+        deep = self.env["product.product"].create(
+            {"name": "Deep", "type": "consu", "categ_id": child.id}
         )
         self.products[1].product_tag_ids = tag
 
-        rewards = self.env['loyalty.reward'].create([
-            {'program_id': self.program.id, 'discount_applicability': 'specific',
-             'discount_product_ids': [Command.set(self.products.ids[:1])]},
-            {'program_id': self.program.id, 'discount_applicability': 'specific',
-             'discount_product_category_id': category.id},
-            {'program_id': self.program.id, 'discount_applicability': 'specific',
-             'discount_product_tag_id': tag.id},
-            {'program_id': self.program.id, 'discount_applicability': 'specific',
-             'discount_product_domain': "[('name', 'like', 'Batched')]"},
-            {'program_id': self.program.id, 'discount_applicability': 'specific'},
-        ])
+        rewards = self.env["loyalty.reward"].create(
+            [
+                {
+                    "program_id": self.program.id,
+                    "discount_applicability": "specific",
+                    "discount_product_ids": [Command.set(self.products.ids[:1])],
+                },
+                {
+                    "program_id": self.program.id,
+                    "discount_applicability": "specific",
+                    "discount_product_category_id": category.id,
+                },
+                {
+                    "program_id": self.program.id,
+                    "discount_applicability": "specific",
+                    "discount_product_tag_id": tag.id,
+                },
+                {
+                    "program_id": self.program.id,
+                    "discount_applicability": "specific",
+                    "discount_product_domain": "[('name', 'like', 'Batched')]",
+                },
+                {"program_id": self.program.id, "discount_applicability": "specific"},
+            ]
+        )
 
         batched = rewards._get_discount_products()
 
         for reward in rewards:
             with self.subTest(reward=reward.id):
-                searched = self.env['product.product'].search(
+                searched = self.env["product.product"].search(
                     reward._get_discount_product_domain()
                 )
                 self.assertEqual(batched[reward], searched)
@@ -124,13 +141,14 @@ class TestLoyaltyBatching(TransactionCase):
         this batches.
         """
         small, large = self._rewards(2), self._rewards(20)
-        self._product_searches(lambda: small.write({'discount': 3}))
+        self._product_searches(lambda: small.write({"discount": 3}))
 
-        cheap = self._product_searches(lambda: small.write({'discount': 4}))
-        dear = self._product_searches(lambda: large.write({'discount': 4}))
+        cheap = self._product_searches(lambda: small.write({"discount": 4}))
+        dear = self._product_searches(lambda: large.write({"discount": 4}))
 
         self.assertEqual(
-            cheap, dear,
+            cheap,
+            dear,
             f"reading the discounted products must not grow with the number of"
             f" rewards ({cheap} reads for 2, {dear} for 20)",
         )
@@ -143,25 +161,30 @@ class TestLoyaltyBatching(TransactionCase):
         whose value this module computes, so each row's jsonb is written on its own.
         """
         small, large = self._rewards(2), self._rewards(20)
-        self._queries(lambda: small.write({'discount': 5}))
+        self._queries(lambda: small.write({"discount": 5}))
 
-        cheap = self._queries(lambda: small.write({'discount': 6}))
-        dear = self._queries(lambda: large.write({'discount': 6}))
+        cheap = self._queries(lambda: small.write({"discount": 6}))
+        dear = self._queries(lambda: large.write({"discount": 6}))
 
         self.assertLessEqual(
-            (dear - cheap) / 18, 1.1,
+            (dear - cheap) / 18,
+            1.1,
             f"one write per reward and no more ({cheap} for 2, {dear} for 20)",
         )
 
     def test_the_discount_product_switch_reads_one_vocabulary(self):
         """The parameter is an on/off flag, and its shipped value means off."""
-        Param = self.env['ir.config_parameter'].sudo()
+        Param = self.env["ir.config_parameter"].sudo()
         reward = self._rewards(1)
 
         for value, expanded in (
-            ('enabled', True), ('True', True), ('1', True),
-            ('False', False), ('', False), ('disabled', False),
+            ("enabled", True),
+            ("True", True),
+            ("1", True),
+            ("False", False),
+            ("", False),
+            ("disabled", False),
         ):
             with self.subTest(value=value):
-                Param.set_param('loyalty.compute_all_discount_product_ids', value)
+                Param.set_param("loyalty.compute_all_discount_product_ids", value)
                 self.assertEqual(reward._expands_discount_products(), expanded)

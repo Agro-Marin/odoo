@@ -1,22 +1,26 @@
-# -*- coding: utf-8 -*-
 import io
-from odoo import api, models
-from odoo.tools.pdf import OdooPdfFileReader, OdooPdfFileWriter
 from pathlib import Path
-from reportlab.graphics.shapes import Drawing as ReportLabDrawing, Image as ReportLabImage
+
+from reportlab.graphics.shapes import Drawing as ReportLabDrawing
+from reportlab.graphics.shapes import Image as ReportLabImage
 from reportlab.lib.units import mm
 
-CH_QR_CROSS_SIZE_RATIO = 0.1522 # Ratio between the side length of the Swiss QR-code cross image and the QR-code's
-CH_QR_CROSS_FILE = Path('../static/src/img/CH-Cross_7mm.png') # Image file containing the Swiss QR-code cross to add on top of the QR-code
+from odoo import api, models
+from odoo.tools.pdf import OdooPdfFileReader, OdooPdfFileWriter
+
+CH_QR_CROSS_SIZE_RATIO = 0.1522  # Ratio between the side length of the Swiss QR-code cross image and the QR-code's
+CH_QR_CROSS_FILE = Path(
+    "../static/src/img/CH-Cross_7mm.png"
+)  # Image file containing the Swiss QR-code cross to add on top of the QR-code
 
 
 class IrActionsReport(models.Model):
-    _inherit = 'ir.actions.report'
+    _inherit = "ir.actions.report"
 
     @api.model
     def _get_barcode_masks_available(self):
         rslt = super()._get_barcode_masks_available()
-        rslt['ch_cross'] = self.apply_qr_code_ch_cross_mask
+        rslt["ch_cross"] = self.apply_qr_code_ch_cross_mask
         return rslt
 
     @api.model
@@ -27,7 +31,13 @@ class IrActionsReport(models.Model):
         cross_width = CH_QR_CROSS_SIZE_RATIO * width
         cross_height = CH_QR_CROSS_SIZE_RATIO * height
         cross_path = Path(__file__).absolute().parent / CH_QR_CROSS_FILE
-        qr_cross = ReportLabImage((width/2 - cross_width/2) / zoom_x, (height/2 - cross_height/2) / zoom_y, cross_width / zoom_x, cross_height / zoom_y, cross_path.as_posix())
+        qr_cross = ReportLabImage(
+            (width / 2 - cross_width / 2) / zoom_x,
+            (height / 2 - cross_height / 2) / zoom_y,
+            cross_width / zoom_x,
+            cross_height / zoom_y,
+            cross_path.as_posix(),
+        )
         barcode_drawing.add(qr_cross)
 
     def _render_qweb_pdf_prepare_streams(self, report_ref, data, res_ids=None):
@@ -40,18 +50,18 @@ class IrActionsReport(models.Model):
             invoices = self.env[report.model].browse(res_ids)
 
             # Determine which invoices need a QR.
-            qr_inv_ids = invoices.filtered('l10n_ch_is_qr_valid').ids
+            qr_inv_ids = invoices.filtered("l10n_ch_is_qr_valid").ids
 
             if qr_inv_ids:
                 qr_res = self._render_qweb_pdf_prepare_streams(
-                    'l10n_ch.l10n_ch_qr_report',
+                    "l10n_ch.l10n_ch_qr_report",
                     data,
                     res_ids=qr_inv_ids,
                 )
 
                 for invoice_id, stream in qr_res.items():
-                    qr_pdf = OdooPdfFileReader(stream['stream'], strict=False)
-                    res_pdf = OdooPdfFileReader(res[invoice_id]['stream'], strict=False)
+                    qr_pdf = OdooPdfFileReader(stream["stream"], strict=False)
+                    res_pdf = OdooPdfFileReader(res[invoice_id]["stream"], strict=False)
 
                     output_pdf = OdooPdfFileWriter()
 
@@ -63,22 +73,24 @@ class IrActionsReport(models.Model):
                         output_pdf.add_page(res_pdf.pages[page_num])
 
                     last_page = output_pdf.pages[-1]
-                    last_page.merge_page(qr_pdf.pages[0])  # merge the QR code on the last page
+                    last_page.merge_page(
+                        qr_pdf.pages[0]
+                    )  # merge the QR code on the last page
                     last_page.compress_content_streams()  # bound memory/output size
 
                     new_pdf_stream = io.BytesIO()
                     output_pdf.write(new_pdf_stream)
                     new_pdf_stream.seek(0)
-                    res[invoice_id]['stream'].close()
-                    res[invoice_id]['stream'] = new_pdf_stream
-                    stream['stream'].close()
+                    res[invoice_id]["stream"].close()
+                    res[invoice_id]["stream"] = new_pdf_stream
+                    stream["stream"].close()
 
         return res
 
     def get_paperformat(self):
-        if self.env.context.get('snailmail_layout'):
-            if self.report_name == 'l10n_ch.qr_report_main':
-                return self.env.ref('l10n_ch.paperformat_euro_no_margin')
-            if self.report_name == 'l10n_ch.qr_report_header':
-                return self.env.ref('l10n_din5008.paperformat_euro_din')
-        return super(IrActionsReport, self).get_paperformat()
+        if self.env.context.get("snailmail_layout"):
+            if self.report_name == "l10n_ch.qr_report_main":
+                return self.env.ref("l10n_ch.paperformat_euro_no_margin")
+            if self.report_name == "l10n_ch.qr_report_header":
+                return self.env.ref("l10n_din5008.paperformat_euro_din")
+        return super().get_paperformat()

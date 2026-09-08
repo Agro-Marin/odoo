@@ -1,9 +1,7 @@
 import io
-import re
 
-from odoo.tools.misc import format_date
 from odoo.tools import html2plaintext
-
+from odoo.tools.misc import format_date
 
 COLUMN_HEADER_MAP = {
     "Reporting_Month": "invoice_date",
@@ -24,13 +22,16 @@ COLUMN_HEADER_MAP = {
 
 
 def _export_bir_2307(sheet_title, moves):
-    import xlsxwriter  # noqa: PLC0415
+    import xlsxwriter
 
     output = io.BytesIO()
-    with xlsxwriter.Workbook(output, {
-        'in_memory': True,
-        'strings_to_formulas': False,
-    }) as workbook:
+    with xlsxwriter.Workbook(
+        output,
+        {
+            "in_memory": True,
+            "strings_to_formulas": False,
+        },
+    ) as workbook:
         worksheet = workbook.add_worksheet(sheet_title)
         write_row = worksheet.write_row
 
@@ -38,35 +39,49 @@ def _export_bir_2307(sheet_title, moves):
         worksheet_row = 1
         for move in moves:
             partner = move.commercial_partner_id
-            partner_address_info = [partner.street, partner.street2, partner.city, partner.state_id.name, partner.country_id.name]
-            first_name = middle_name = last_name = ''
+            partner_address_info = [
+                partner.street,
+                partner.street2,
+                partner.city,
+                partner.state_id.name,
+                partner.country_id.name,
+            ]
+            first_name = middle_name = last_name = ""
             if not partner.is_company:
-                first_name = partner.first_name or ''
-                middle_name = partner.middle_name or ''
-                last_name = partner.last_name or ''
+                first_name = partner.first_name or ""
+                middle_name = partner.middle_name or ""
+                last_name = partner.last_name or ""
             values = {
-                'invoice_date': format_date(move.env, move.invoice_date, date_format="MM/dd/yyyy"),
-                'vat': re.sub(r'-', '', partner.vat)[:9] if partner.vat else '',
-                'branch_code': partner.branch_code or '000',
-                'company_name': partner.name if partner.is_company else '',
-                'first_name': first_name,
-                'middle_name': middle_name,
-                'last_name': last_name,
-                'address': ', '.join([val for val in partner_address_info if val]),
-                'zip': partner.zip or '',
+                "invoice_date": format_date(
+                    move.env, move.invoice_date, date_format="MM/dd/yyyy"
+                ),
+                "vat": partner.vat.replace(r"-", "")[:9] if partner.vat else "",
+                "branch_code": partner.branch_code or "000",
+                "company_name": partner.name if partner.is_company else "",
+                "first_name": first_name,
+                "middle_name": middle_name,
+                "last_name": last_name,
+                "address": ", ".join([val for val in partner_address_info if val]),
+                "zip": partner.zip or "",
             }
             aggregated_taxes = move._prepare_invoice_aggregated_taxes()
-            for invoice_line, tax_details_for_line in aggregated_taxes['tax_details_per_record'].items():
-                for tax, tax_detail in tax_details_for_line['tax_details'].items():
+            for invoice_line, tax_details_for_line in aggregated_taxes[
+                "tax_details_per_record"
+            ].items():
+                for tax, tax_detail in tax_details_for_line["tax_details"].items():
                     if not tax.l10n_ph_atc:
                         continue
 
-                    values['tax_description'] = html2plaintext(tax.description) or ''
-                    values['atc'] = tax.l10n_ph_atc
-                    values['price_subtotal'] = tax_detail['base_amount']
-                    values['amount'] = abs(tax.amount)
-                    values['tax_amount'] = abs(tax_detail['tax_amount'])
-                    write_row(worksheet_row, 0, [values[field] for field in COLUMN_HEADER_MAP.values()])
+                    values["tax_description"] = html2plaintext(tax.description) or ""
+                    values["atc"] = tax.l10n_ph_atc
+                    values["price_subtotal"] = tax_detail["base_amount"]
+                    values["amount"] = abs(tax.amount)
+                    values["tax_amount"] = abs(tax_detail["tax_amount"])
+                    write_row(
+                        worksheet_row,
+                        0,
+                        [values[field] for field in COLUMN_HEADER_MAP.values()],
+                    )
                     worksheet_row += 1
 
     output.seek(0)

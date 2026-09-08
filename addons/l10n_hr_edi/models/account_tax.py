@@ -1,15 +1,17 @@
-from odoo import models, fields
+from odoo import fields, models
 
 
 class AccountTax(models.Model):
-    _inherit = 'account.tax'
+    _inherit = "account.tax"
 
-    l10n_hr_tax_category_id = fields.Many2one('l10n.hr.tax.category', string="Croatian Tax Expence Category")
+    l10n_hr_tax_category_id = fields.Many2one(
+        "l10n.hr.tax.category", string="Croatian Tax Expence Category"
+    )
 
 
 class l10nHrTaxCategory(models.Model):
-    _name = 'l10n.hr.tax.category'
-    _description = 'Croatian tax expence categories'
+    _name = "l10n.hr.tax.category"
+    _description = "Croatian tax expence categories"
 
     name = fields.Char("Name/Mark", required=True)
     code_untdid = fields.Char("UNTDID code")

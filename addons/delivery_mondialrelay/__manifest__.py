@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "delivery_mondialrelay",
     "version": "0.1",

@@ -37,18 +37,26 @@ class PartnerCategory(models.Model):
     def _get_categories_from_xml_ids(self, xml_ids_list):
         categories = self.env["res.partner.tag"]
         for xml_id in xml_ids_list:
-            categories |= self.env.ref(f"l10n_tr_nilvera_einvoice.{xml_id}", raise_if_not_found=False)
+            categories |= self.env.ref(
+                f"l10n_tr_nilvera_einvoice.{xml_id}", raise_if_not_found=False
+            )
         return categories
 
     def _get_l10n_tr_official_categories(self):
         return self._get_categories_from_xml_ids(l10n_tr_official_code_categories)
 
     def _get_l10n_tr_official_mandatory_categories(self):
-        return self._get_categories_from_xml_ids(l10n_tr_official_mandatory_code_categories)
+        return self._get_categories_from_xml_ids(
+            l10n_tr_official_mandatory_code_categories
+        )
 
     @api.ondelete(at_uninstall=False)
     def _unlink_l10n_tr_official_category(self):
         """Prevent the deletion of Nilvera official TR categories"""
         official_categories = self._get_l10n_tr_official_categories()
         if any(rec in official_categories for rec in self):
-            raise UserError(_("The Contact Tag(s) cannot be deleted because it is used in Türkiye electronic integrations."))
+            raise UserError(
+                _(
+                    "The Contact Tag(s) cannot be deleted because it is used in Türkiye electronic integrations."
+                )
+            )

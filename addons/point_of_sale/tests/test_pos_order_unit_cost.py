@@ -5,7 +5,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @tagged("post_install", "-at_install", "pos_order_cost")
 class TestPosOrderLineCost(TestPoSCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

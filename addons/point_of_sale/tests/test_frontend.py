@@ -437,9 +437,7 @@ class TestPointOfSaleHttpCommon(AccountTestInvoicingHttpCommon):
             }
         )
 
-        fixed_pricelist = env[
-            "product.pricelist"
-        ].create(
+        fixed_pricelist = env["product.pricelist"].create(
             {
                 "name": "Fixed",
                 "item_ids": [
@@ -2546,7 +2544,9 @@ class TestUi(TestPointOfSaleHttpCommon):
                 "state_id": self.env.ref("base.state_us_30").id,
                 "country_id": self.env.ref("base.us").id,
                 "zip": "26432685463",
-                "phone_ids": [Command.create({"number": "9898989899", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "9898989899", "type": "landline"})
+                ],
                 "email": "john@doe.com",
             }
         )
@@ -2585,9 +2585,7 @@ class TestUi(TestPointOfSaleHttpCommon):
 
         setup_product_combo_items(self)
         self.office_combo.write({"list_price": 50, "taxes_id": [(6, 0, [tax_1.id])]})
-        for combo in (
-            self.office_combo.combo_ids
-        ):
+        for combo in self.office_combo.combo_ids:
             for item in combo.combo_item_ids:
                 item.product_id.taxes_id = [(6, 0, [tax_1.id])]
 
@@ -3377,7 +3375,6 @@ class TestUi(TestPointOfSaleHttpCommon):
             login="pos_admin",
         )
 
-
         frontend_created_product = self.env["product.product"].search_count(
             [("name", "=", "Test Frontend Product")]
         )
@@ -3752,9 +3749,13 @@ class TestUi(TestPointOfSaleHttpCommon):
         for p in product.product_variant_ids:
             p.write(
                 {
-                    "barcode": f"1234{''.join(p.product_template_attribute_value_ids.mapped(lambda ptav: (
-                                ptav.name[-1]
-                            )))}",
+                    "barcode": f"1234{
+                        ''.join(
+                            p.product_template_attribute_value_ids.mapped(
+                                lambda ptav: ptav.name[-1]
+                            )
+                        )
+                    }",
                 }
             )
         self.main_pos_config.with_user(self.pos_user).open_ui()

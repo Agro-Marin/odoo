@@ -157,9 +157,7 @@ class ProductPricelist(models.Model):
         target_uom_by_pid = {}
         for product in products:
             product_uom_id = product.uom_id
-            target_uom = (
-                uom or product_uom_id
-            )
+            target_uom = uom or product_uom_id
 
             if target_uom != product_uom_id:
                 qty_in_product_uom = target_uom._compute_quantity_estimate(

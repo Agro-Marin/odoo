@@ -66,9 +66,7 @@ class EventSponsor(models.Model):
     )
     partner_name = fields.Char("Name", related="partner_id.name")
     partner_email = fields.Char("Email", related="partner_id.email")
-    partner_phone_ids = fields.Many2many(
-        string="Phone", related="partner_id.phone_ids"
-    )
+    partner_phone_ids = fields.Many2many(string="Phone", related="partner_id.phone_ids")
     name = fields.Char(
         "Sponsor Name", compute="_compute_name", readonly=False, store=True
     )

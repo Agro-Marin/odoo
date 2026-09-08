@@ -21,6 +21,6 @@ class ResUsers(models.Model):
 
     @api.model
     def _get_mail_server_setup_end_action(self, smtp_server):
-        if smtp_server.smtp_authentication == 'outlook':
+        if smtp_server.smtp_authentication == "outlook":
             return smtp_server.sudo().open_microsoft_outlook_uri()
         return super()._get_mail_server_setup_end_action(smtp_server)

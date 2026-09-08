@@ -96,9 +96,7 @@ class TestProductCatalog(HttpCase, SaleCommon):
     def test_catalog_context(self):
         action_data = self.empty_order.action_add_from_catalog()
         catalog_context = action_data["context"]
-        self.assertEqual(
-            catalog_context["order_id"], self.empty_order.id
-        )
+        self.assertEqual(catalog_context["order_id"], self.empty_order.id)
         self.assertEqual(catalog_context["product_catalog_order_model"], self.res_model)
         self.assertEqual(
             catalog_context["product_catalog_currency_id"],

@@ -510,11 +510,9 @@ class TestMailThread(MailCommon, TestRecipients):
                 self.assertFalse(new_record.is_blacklisted)
 
                 # blacklist email should fail as void
-                if email_from in [pair[0] for pair in void_pairs]:
-                    with self.assertRaises(exceptions.UserError):
-                        bl_record = self.env["mail.blacklist"]._add(email_from)
-                # blacklist email currently fails but could not
-                elif email_from in [pair[0] for pair in multi_pairs]:
+                if email_from in [pair[0] for pair in void_pairs] or email_from in [
+                    pair[0] for pair in multi_pairs
+                ]:
                     with self.assertRaises(exceptions.UserError):
                         bl_record = self.env["mail.blacklist"]._add(email_from)
                 # blacklist email ok

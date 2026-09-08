@@ -4,7 +4,6 @@ from odoo import _, api, fields, models
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
-
     sales_count = fields.Float(
         string="Sold",
         digits="Product Unit",
@@ -14,7 +13,6 @@ class ProductProduct(models.Model):
         compute="_compute_is_in_sale_order",
         search="_search_is_in_sale_order",
     )
-
 
     def _compute_sales_count(self):
         self._compute_ordered_qty(
@@ -29,12 +27,10 @@ class ProductProduct(models.Model):
     def _compute_is_in_sale_order(self):
         self._compute_is_in_order("sale.order.line", "is_in_sale_order")
 
-
     def _search_is_in_sale_order(self, operator, value):
         if operator != "in":
             return NotImplemented
         return self._search_is_in_order("sale.order.line")
-
 
     @api.onchange("type")
     def _onchange_type(self):
@@ -48,7 +44,6 @@ class ProductProduct(models.Model):
                 }
             }
         return None
-
 
     @api.readonly
     def action_view_sales(self):
@@ -65,7 +60,6 @@ class ProductProduct(models.Model):
         ]
         action["display_name"] = _("Sales History for %s", self.display_name)
         return action
-
 
     def _filter_to_unlink(self):
         domain = [("product_id", "in", self.ids)]

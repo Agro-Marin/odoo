@@ -15,7 +15,11 @@ class ResCurrency(models.Model):
         :param int company_id: Id of the company
         :return: dict of the form `{ "code": str, "symbol": str, "decimalPlaces": int, "position":str }`
         """
-        company = self.env["res.company"].browse(company_id) if company_id else self.env.company
+        company = (
+            self.env["res.company"].browse(company_id)
+            if company_id
+            else self.env.company
+        )
         if not company.exists():
             return False
         currency = company.currency_id

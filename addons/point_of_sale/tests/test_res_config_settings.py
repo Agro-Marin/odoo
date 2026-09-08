@@ -6,7 +6,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestConfigureShops(TestPoSCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -21,7 +20,7 @@ class TestConfigureShops(TestPoSCommon):
     def _remove_on_payment_taxes(self):
         self.env["account.tax"].search(
             [
-                ('company_ids', 'in', [self.env.company.id]),
+                ("company_ids", "in", [self.env.company.id]),
                 ("tax_exigibility", "=", "on_payment"),
             ]
         ).unlink()

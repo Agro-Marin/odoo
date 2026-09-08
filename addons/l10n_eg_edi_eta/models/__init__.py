@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import eta_activity_type
 from . import uom_uom
 from . import res_company

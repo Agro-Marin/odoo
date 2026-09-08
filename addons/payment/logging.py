@@ -22,7 +22,9 @@ class SensitiveDataFilter(logging.Filter):
             # 1st group: "<key>" or '<key>'
             # 2nd group: The quote char for the value
             # `re.escape` the key so keys containing regex metacharacters can't break the pattern.
-            pattern = re.compile(rf'([\'"]{re.escape(key)}[\'"])\s*:\s*([\'"])([^\'"]+)\2')
+            pattern = re.compile(
+                rf'([\'"]{re.escape(key)}[\'"])\s*:\s*([\'"])([^\'"]+)\2'
+            )
             self._patterns.append(pattern)
 
     def filter(self, record):

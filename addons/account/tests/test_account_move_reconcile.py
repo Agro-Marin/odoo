@@ -103,7 +103,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "tax_1",
                 "amount": 33.3333,
-                "company_ids": [Command.set(cls.company_data['company'].ids)],
+                "company_ids": [Command.set(cls.company_data["company"].ids)],
                 "cash_basis_transition_account_id": cls.cash_basis_transfer_account.id,
                 "tax_exigibility": "on_payment",
                 "invoice_repartition_line_ids": [
@@ -151,7 +151,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "cash_basis_tax_tiny_amount",
                 "amount": 0.0001,
-                "company_ids": [Command.set(cls.company_data['company'].ids)],
+                "company_ids": [Command.set(cls.company_data["company"].ids)],
                 "cash_basis_transition_account_id": cls.cash_basis_transfer_account.id,
                 "tax_exigibility": "on_payment",
                 "invoice_repartition_line_ids": [
@@ -199,7 +199,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "cash_basis_tax_tiny_amount_2",
                 "amount": 0.005,
-                "company_ids": [Command.set(cls.company_data['company'].ids)],
+                "company_ids": [Command.set(cls.company_data["company"].ids)],
                 "cash_basis_transition_account_id": cls.cash_basis_transfer_account.id,
                 "tax_exigibility": "on_payment",
                 "invoice_repartition_line_ids": [
@@ -7808,7 +7808,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "tax 20%",
                 "type_tax_use": "purchase",
-                "company_ids": [Command.set(self.company_data['company'].ids)],
+                "company_ids": [Command.set(self.company_data["company"].ids)],
                 "amount": 20,
                 "tax_exigibility": "on_invoice",
                 "invoice_repartition_line_ids": [
@@ -8117,7 +8117,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "foreign tax_1",
                 "amount": 33.3333,
-                "company_ids": [Command.set(self.company_data['company'].ids)],
+                "company_ids": [Command.set(self.company_data["company"].ids)],
                 "cash_basis_transition_account_id": self.cash_basis_transfer_account.id,
                 "tax_exigibility": "on_payment",
                 "country_id": test_country.id,
@@ -8187,7 +8187,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             {
                 "name": "tax group",
                 "amount_type": "group",
-                "company_ids": [Command.set(self.company_data['company'].ids)],
+                "company_ids": [Command.set(self.company_data["company"].ids)],
                 "children_tax_ids": [Command.set([tax_a.id, tax_b.id])],
             }
         )
@@ -9059,9 +9059,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
     def test_partial_payments_auto_validation(self):
         self.company_data[
             "default_journal_bank"
-        ].inbound_payment_channel_ids += self.env[
-            "account.payment.channel"
-        ].create(
+        ].inbound_payment_channel_ids += self.env["account.payment.channel"].create(
             {
                 "name": "Manual without outstanding",
                 "payment_method_id": self.env.ref(

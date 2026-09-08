@@ -38,7 +38,9 @@ class TestSnippetFilterSecurity(TransactionCase):
             {
                 "name": "SECRET_UNPUBLISHED",
                 "email": "secret@hidden.example",
-                "phone_ids": [Command.create({"number": "555-SECRET", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "555-SECRET", "type": "landline"})
+                ],
                 "is_published": False,
             }
         )

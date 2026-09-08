@@ -320,9 +320,7 @@ class TestAccountTax(AccountTestInvoicingCommon):
         tax = self.env["account.tax"].create(
             {"name": "test_is_used_stale", "amount": "100"}
         )
-        self.assertFalse(
-            tax.is_used
-        )
+        self.assertFalse(tax.is_used)
 
         self.env["account.move"].create(
             {

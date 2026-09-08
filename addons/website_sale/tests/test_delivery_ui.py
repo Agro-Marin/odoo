@@ -25,7 +25,9 @@ class TestUi(odoo.tests.HttpCase):
                 "zip": "18503",
                 "country_id": self.env.ref("base.us").id,
                 "state_id": self.env.ref("base.state_us_39").id,
-                "phone_ids": [Command.create({"number": "+1 555-555-5555", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "+1 555-555-5555", "type": "landline"})
+                ],
                 "email": "admin@yourcompany.example.com",
             }
         )

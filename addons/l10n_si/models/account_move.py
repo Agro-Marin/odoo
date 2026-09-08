@@ -4,7 +4,7 @@ from odoo import models
 
 
 class AccountMove(models.Model):
-    _inherit = 'account.move'
+    _inherit = "account.move"
 
     def _get_invoice_reference_si_partner(self):
         """
@@ -34,8 +34,8 @@ class AccountMove(models.Model):
         :return: the formatted structured reference string (SI01...)
         """
         self.check_singleton()
-        match = re.search(r'(\d+)$', self.name or '')
-        p3 = str(int(match.group(1))) if match else '0'
+        match = re.search(r"(\d+)$", self.name or "")
+        p3 = str(int(match.group(1))) if match else "0"
         return self._prepare_invoice_reference(p3)
 
     def _prepare_invoice_reference(self, p3):
@@ -46,7 +46,7 @@ class AccountMove(models.Model):
 
         # Calculate check digit
         digits = [int(d) for d in reference_base if d.isdigit()]
-        weights = list(range(2, 14))[:len(digits)]
+        weights = list(range(2, 14))[: len(digits)]
         weighted_sum = sum(d * w for d, w in zip(reversed(digits), weights))
         check_digit = 11 - (weighted_sum % 11)
         check_digit = 0 if check_digit in (10, 11) else check_digit

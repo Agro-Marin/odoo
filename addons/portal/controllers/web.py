@@ -6,7 +6,6 @@ from odoo.addons.web.controllers.utils import is_user_internal
 
 
 class Home(WebHome):
-
     def _redirect_external_to_my(self):
         if request.session.uid and not is_user_internal(request.session.uid):
             return request.redirect_query("/my", query=request.params)

@@ -20,7 +20,9 @@ class TestEventExhibitorCommon(TestEventOnlineCommon):
                 "name": "EventSponsor",
                 "country_id": cls.env.ref("base.be").id,
                 "email": "event.sponsor@example.com",
-                "phone_ids": [Command.create({"number": "04856112233", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "04856112233", "type": "landline"})
+                ],
             }
         )
 

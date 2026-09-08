@@ -543,9 +543,7 @@ class SaleOrder(models.Model):
         }
 
     # hook to be overridden
-    def _get_updated_quantity(
-        self, order_line, product_id, new_qty, uom_id, **kwargs
-    ):
+    def _get_updated_quantity(self, order_line, product_id, new_qty, uom_id, **kwargs):
         return new_qty, ""
 
     def _cart_update_order_line(self, order_line, quantity, **kwargs):

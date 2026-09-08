@@ -3,11 +3,17 @@ from werkzeug.exceptions import BadRequest, NotFound
 
 from odoo import Command
 from odoo.http import request, route
+
 from odoo.addons.mail.controllers.discuss.channel import ChannelController
 
 
 class LivechatChannelController(ChannelController):
-    @route("/im_livechat/session/update_note", auth="user", methods=["POST"], type="jsonrpc")
+    @route(
+        "/im_livechat/session/update_note",
+        auth="user",
+        methods=["POST"],
+        type="jsonrpc",
+    )
     def livechat_session_update_note(self, channel_id, note):
         if self.env.user.share:
             raise NotFound()
@@ -16,7 +22,12 @@ class LivechatChannelController(ChannelController):
             raise NotFound()
         channel.sudo().livechat_note = Markup(note)
 
-    @route("/im_livechat/session/update_status", auth="user", methods=["POST"], type="jsonrpc")
+    @route(
+        "/im_livechat/session/update_status",
+        auth="user",
+        methods=["POST"],
+        type="jsonrpc",
+    )
     def livechat_session_update_status(self, channel_id, livechat_status):
         if self.env.user.share:
             raise NotFound()
@@ -25,7 +36,12 @@ class LivechatChannelController(ChannelController):
             raise NotFound()
         channel.sudo().livechat_status = livechat_status
 
-    @route("/im_livechat/conversation/update_tags", auth="user", methods=["POST"], type="jsonrpc")
+    @route(
+        "/im_livechat/conversation/update_tags",
+        auth="user",
+        methods=["POST"],
+        type="jsonrpc",
+    )
     def livechat_conversation_update_tags(self, channel_id, tag_ids, method="ADD"):
         if not self.env["im_livechat.conversation.tag"].has_access("write"):
             raise NotFound()
@@ -51,12 +67,17 @@ class LivechatChannelController(ChannelController):
             )
 
     @route(
-        "/im_livechat/conversation/write_expertises", auth="user", methods=["POST"], type="jsonrpc"
+        "/im_livechat/conversation/write_expertises",
+        auth="user",
+        methods=["POST"],
+        type="jsonrpc",
     )
     def livechat_conversation_write_expertises(self, channel_id, orm_commands):
         if any(cmd[0] not in (Command.LINK, Command.UNLINK) for cmd in orm_commands):
             raise BadRequest(
-                self.env._("Write expertises: Only LINK and UNLINK commands are allowed.")
+                self.env._(
+                    "Write expertises: Only LINK and UNLINK commands are allowed."
+                )
             )
         if not self.env.user.has_group("im_livechat.im_livechat_group_user"):
             return
@@ -71,14 +92,20 @@ class LivechatChannelController(ChannelController):
         methods=["POST"],
         type="jsonrpc",
     )
-    def livechat_conversation_create_and_link_expertise(self, channel_id, expertise_name):
+    def livechat_conversation_create_and_link_expertise(
+        self, channel_id, expertise_name
+    ):
         channel = request.env["discuss.channel"].search(
             [("id", "=", channel_id), ("channel_type", "=", "livechat")]
         )
         if not channel:
             return
         stripped_name = expertise_name.strip()
-        expertise = request.env["im_livechat.expertise"].search([("name", "=", stripped_name)])
+        expertise = request.env["im_livechat.expertise"].search(
+            [("name", "=", stripped_name)]
+        )
         if not expertise:
-            expertise = request.env["im_livechat.expertise"].create({"name": stripped_name})
+            expertise = request.env["im_livechat.expertise"].create(
+                {"name": stripped_name}
+            )
         channel.livechat_expertise_ids = [Command.link(expertise.id)]

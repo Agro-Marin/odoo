@@ -1,17 +1,17 @@
-from odoo import models, api
+from odoo import api, models
 
 
 class L10n_LatamIdentificationType(models.Model):
-    _name = 'l10n_latam.identification.type'
-    _inherit = ['l10n_latam.identification.type', 'mixin.pos.load']
+    _name = "l10n_latam.identification.type"
+    _inherit = ["l10n_latam.identification.type", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):
         if self.env.company.country_id.code == "AR":
-            return [('l10n_ar_afip_code', '!=', False), ('active', '=', True)]
+            return [("l10n_ar_afip_code", "!=", False), ("active", "=", True)]
         else:
             return super()._load_pos_data_domain(data, config)
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ['name']
+        return ["name"]

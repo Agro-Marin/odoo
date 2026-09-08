@@ -72,7 +72,6 @@ class TestPosCashInOut(CommonPosTest):
 
 @tagged("post_install", "-at_install")
 class TestPosSessionName(CommonPosTest):
-
     def test_session_is_named_on_creation(self):
         self.pos_config_usd.open_ui()
         session = self.pos_config_usd.current_session_id

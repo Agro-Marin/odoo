@@ -1,20 +1,24 @@
 from odoo import api, fields, models
-from odoo.tools import get_lang, Query, SQL
+from odoo.tools import SQL, Query, get_lang
 
 
 class Im_LivechatReportChannel(models.Model):
-    _name = 'im_livechat.report.channel'
+    _name = "im_livechat.report.channel"
     _description = "Livechat Support Channel Report"
-    _order = 'start_date, livechat_channel_id, channel_id'
+    _order = "start_date, livechat_channel_id, channel_id"
     _auto = False
 
-    uuid = fields.Char('UUID', readonly=True)
-    channel_id = fields.Many2one('discuss.channel', 'Conversation', readonly=True)
-    channel_name = fields.Char('Channel Name', readonly=True)
-    livechat_channel_id = fields.Many2one('im_livechat.channel', 'Channel', readonly=True)
-    start_date = fields.Datetime('Start Date of session', readonly=True)
-    start_hour = fields.Char('Start Hour of session', readonly=True)
-    start_date_minutes = fields.Char("Start Date of session, truncated to minutes", readonly=True)
+    uuid = fields.Char("UUID", readonly=True)
+    channel_id = fields.Many2one("discuss.channel", "Conversation", readonly=True)
+    channel_name = fields.Char("Channel Name", readonly=True)
+    livechat_channel_id = fields.Many2one(
+        "im_livechat.channel", "Channel", readonly=True
+    )
+    start_date = fields.Datetime("Start Date of session", readonly=True)
+    start_hour = fields.Char("Start Hour of session", readonly=True)
+    start_date_minutes = fields.Char(
+        "Start Date of session, truncated to minutes", readonly=True
+    )
     day_number = fields.Selection(
         selection=[
             ("0", "Sunday"),
@@ -28,22 +32,54 @@ class Im_LivechatReportChannel(models.Model):
         string="Day of the Week",
         readonly=True,
     )
-    time_to_answer = fields.Float("Response Time", digits=(16, 6), readonly=True, aggregator="avg", help="Average time in hours to give the first answer to the visitor")
-    start_date_hour = fields.Char('Hour of start Date of session', readonly=True)
-    duration = fields.Float("Duration (min)", digits=(16, 2), readonly=True, aggregator="avg", help="Duration of the conversation (in minutes)")
-    nbr_message = fields.Integer("Messages per Session", readonly=True, aggregator="avg", help="Number of message in the conversation")
-    country_id = fields.Many2one('res.country', 'Country of the visitor', readonly=True)
-    lang_id = fields.Many2one("res.lang", related="channel_id.livechat_lang_id", string="Language", readonly=True)
-    rating = fields.Integer('Rating', aggregator="avg", readonly=True)
-    rating_text = fields.Char('Satisfaction Rate', readonly=True)
+    time_to_answer = fields.Float(
+        "Response Time",
+        digits=(16, 6),
+        readonly=True,
+        aggregator="avg",
+        help="Average time in hours to give the first answer to the visitor",
+    )
+    start_date_hour = fields.Char("Hour of start Date of session", readonly=True)
+    duration = fields.Float(
+        "Duration (min)",
+        digits=(16, 2),
+        readonly=True,
+        aggregator="avg",
+        help="Duration of the conversation (in minutes)",
+    )
+    nbr_message = fields.Integer(
+        "Messages per Session",
+        readonly=True,
+        aggregator="avg",
+        help="Number of message in the conversation",
+    )
+    country_id = fields.Many2one("res.country", "Country of the visitor", readonly=True)
+    lang_id = fields.Many2one(
+        "res.lang",
+        related="channel_id.livechat_lang_id",
+        string="Language",
+        readonly=True,
+    )
+    rating = fields.Integer("Rating", aggregator="avg", readonly=True)
+    rating_text = fields.Char("Satisfaction Rate", readonly=True)
     partner_id = fields.Many2one("res.partner", "Agent", readonly=True)
     handled_by_bot = fields.Integer("Handled by Bot", readonly=True, aggregator="sum")
-    handled_by_agent = fields.Integer("Handled by Agent", readonly=True, aggregator="sum")
-    visitor_partner_id = fields.Many2one("res.partner", string="Customer", readonly=True)
-    call_duration_hour = fields.Float("Call Duration", digits=(16, 2), readonly=True, aggregator="avg")
+    handled_by_agent = fields.Integer(
+        "Handled by Agent", readonly=True, aggregator="sum"
+    )
+    visitor_partner_id = fields.Many2one(
+        "res.partner", string="Customer", readonly=True
+    )
+    call_duration_hour = fields.Float(
+        "Call Duration", digits=(16, 2), readonly=True, aggregator="avg"
+    )
     has_call = fields.Float("Whether the session had a call", readonly=True)
-    number_of_calls = fields.Float("# of Sessions with calls", readonly=True, related="has_call", aggregator="sum")
-    percentage_of_calls = fields.Float("Session with Calls (%)", readonly=True, related="has_call", aggregator="avg")
+    number_of_calls = fields.Float(
+        "# of Sessions with calls", readonly=True, related="has_call", aggregator="sum"
+    )
+    percentage_of_calls = fields.Float(
+        "Session with Calls (%)", readonly=True, related="has_call", aggregator="avg"
+    )
     session_outcome = fields.Selection(
         selection=[
             ("no_answer", "Never Answered"),
@@ -57,7 +93,9 @@ class Im_LivechatReportChannel(models.Model):
     chatbot_script_id = fields.Many2one("chatbot.script", "Chatbot", readonly=True)
     chatbot_answers_path = fields.Char("Chatbot Answers", readonly=True)
     chatbot_answers_path_str = fields.Char("Chatbot Answers (String)", readonly=True)
-    session_expertises = fields.Char("Expertises used in this session (String)", readonly=True)
+    session_expertises = fields.Char(
+        "Expertises used in this session (String)", readonly=True
+    )
     session_expertise_ids = fields.Many2many(
         "im_livechat.expertise",
         readonly=True,
@@ -234,9 +272,24 @@ class Im_LivechatReportChannel(models.Model):
         return SQL("WHERE C.channel_type = 'livechat'")
 
     @api.model
-    def formatted_read_group(self, domain, groupby=(), aggregates=(), having=(), offset=0, limit=None, order=None):
+    def formatted_read_group(
+        self,
+        domain,
+        groupby=(),
+        aggregates=(),
+        having=(),
+        offset=0,
+        limit=None,
+        order=None,
+    ):
         result = super().formatted_read_group(
-            domain, groupby, aggregates, having=having, offset=offset, limit=limit, order=order
+            domain,
+            groupby,
+            aggregates,
+            having=having,
+            offset=offset,
+            limit=limit,
+            order=order,
         )
         answer_ids = {
             int(answer_id.strip())
@@ -261,22 +314,34 @@ class Im_LivechatReportChannel(models.Model):
             )
         return result
 
-    def _read_group_orderby(self, order: str, groupby_terms: dict[str, SQL], query: Query) -> SQL:
+    def _read_group_orderby(
+        self, order: str, groupby_terms: dict[str, SQL], query: Query
+    ) -> SQL:
         if "day_number" not in groupby_terms:
             return super()._read_group_orderby(order, groupby_terms, query)
         if not order:
             order = ",".join(groupby_terms)
         order_parts = [part.strip() for part in order.split(",")]
-        day_number_part = next((part for part in order_parts if part.startswith("day_number")), None)
-        other_parts = [part for part in order_parts if not part.startswith("day_number")]
-        other_groupby_terms = {k: v for k, v in groupby_terms.items() if k != "day_number"}
+        day_number_part = next(
+            (part for part in order_parts if part.startswith("day_number")), None
+        )
+        other_parts = [
+            part for part in order_parts if not part.startswith("day_number")
+        ]
+        other_groupby_terms = {
+            k: v for k, v in groupby_terms.items() if k != "day_number"
+        }
         other_order = ",".join(other_parts) if other_parts else None
         other_orderby = None
         if other_order or other_groupby_terms:
-            other_orderby = super()._read_group_orderby(other_order, other_groupby_terms, query)
+            other_orderby = super()._read_group_orderby(
+                other_order, other_groupby_terms, query
+            )
             groupby_terms.update(other_groupby_terms)
             if query._order_groupby:
-                groupby_terms["day_number"] = SQL(", ").join([groupby_terms["day_number"], *query._order_groupby])
+                groupby_terms["day_number"] = SQL(", ").join(
+                    [groupby_terms["day_number"], *query._order_groupby]
+                )
                 query._order_groupby.clear()
         if not day_number_part:
             return other_orderby
@@ -296,14 +361,20 @@ class Im_LivechatReportChannel(models.Model):
             first_week_day,
             groupby_terms["day_number"],
             sql_direction,
-            sql_nulls
+            sql_nulls,
         )
-        return SQL(", ").join([day_number_orderby, other_orderby]) if other_orderby else day_number_orderby
+        return (
+            SQL(", ").join([day_number_orderby, other_orderby])
+            if other_orderby
+            else day_number_orderby
+        )
 
     @api.model
     def action_view_discuss_channel_view(self, domain=()):
         discuss_channels = self.search_fetch(domain, ["channel_id"]).channel_id
-        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("im_livechat.discuss_channel_action")
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
+            "im_livechat.discuss_channel_action"
+        )
         if len(discuss_channels) == 1:
             action["res_id"] = discuss_channels.id
             action["view_mode"] = "form"
@@ -313,5 +384,7 @@ class Im_LivechatReportChannel(models.Model):
         action["domain"] = [("id", "in", discuss_channels.ids)]
         action["mobile_view_mode"] = "list"
         action["view_mode"] = "list"
-        action["views"] = [view for view in action["views"] if view[1] in ("list", "form")]
+        action["views"] = [
+            view for view in action["views"] if view[1] in ("list", "form")
+        ]
         return action

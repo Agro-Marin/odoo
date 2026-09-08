@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Gulf Cooperation Council WMS Accounting",
     "version": "1.0",

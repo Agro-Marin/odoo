@@ -85,4 +85,6 @@ class TestMicrosoftCredentials(EncryptionKeyCase, TransactionCase):
         )
 
     def test_the_expiry_is_not_a_secret_and_stays_a_column(self):
-        self.assertTrue(self.env["res.users"]._fields["microsoft_calendar_token_validity"].store)
+        self.assertTrue(
+            self.env["res.users"]._fields["microsoft_calendar_token_validity"].store
+        )

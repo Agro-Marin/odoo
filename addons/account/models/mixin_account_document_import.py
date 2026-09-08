@@ -146,9 +146,7 @@ class MixinAccountDocumentImport(models.AbstractModel):
             self._add_attachment_to_group_of_different_type(file_data, groups)
 
         for file_data in files_data_with_origin_attachment:
-            self._add_attachment_to_group_with_same_origin_attachment(
-                file_data, groups
-            )
+            self._add_attachment_to_group_with_same_origin_attachment(file_data, groups)
 
         return groups
 

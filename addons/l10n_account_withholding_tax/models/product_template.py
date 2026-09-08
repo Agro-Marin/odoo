@@ -10,7 +10,7 @@ class ProductTemplate(models.Model):
     # -----------------------
 
     def _prepare_tax_string(self, price):
-        """ Updates the tax string computation to include the withheld amount when withholding taxes are involved. """
+        """Updates the tax string computation to include the withheld amount when withholding taxes are involved."""
         # OVERRIDE 'account'
         company_taxes = self.taxes_id._filter_taxes_by_company(self.env.company)
 
@@ -34,31 +34,46 @@ class ProductTemplate(models.Model):
                 base_line,
                 self.env.company,
             )
-            tax_details = base_line['tax_details']
+            tax_details = base_line["tax_details"]
             wth_total = 0.0
-            for tax_data in tax_details['taxes_data']:
-                if tax_data['tax'].is_withholding_tax_on_payment:
-                    wth_total -= tax_data['tax_amount_currency']
+            for tax_data in tax_details["taxes_data"]:
+                if tax_data["tax"].is_withholding_tax_on_payment:
+                    wth_total -= tax_data["tax_amount_currency"]
             return wth_total
 
         # Reimplement the tax string by taking into account the withholding taxes.
         # First step; compute the amounts excluding withholding taxes.
         res = company_taxes.compute_all(
-            price, product=self, partner=self.env['res.partner']
+            price, product=self, partner=self.env["res.partner"]
         )
         joined = []
-        included = res['total_included']
-        excluded = res['total_excluded']
+        included = res["total_included"]
+        excluded = res["total_excluded"]
         # Second step, compute the withholding tax amounts
         withheld_amount = _get_withheld_amount()
 
         currency = self.currency_id
         if currency.compare_amounts(included, price):
-            joined.append(self.env._('%(amount)s Incl. Taxes', amount=format_amount(self.env, included, currency)))
+            joined.append(
+                self.env._(
+                    "%(amount)s Incl. Taxes",
+                    amount=format_amount(self.env, included, currency),
+                )
+            )
         if currency.compare_amounts(excluded, price):
-            joined.append(self.env._('%(amount)s Excl. Taxes', amount=format_amount(self.env, excluded, currency)))
+            joined.append(
+                self.env._(
+                    "%(amount)s Excl. Taxes",
+                    amount=format_amount(self.env, excluded, currency),
+                )
+            )
         if not currency.is_zero(withheld_amount):
-            joined.append(self.env._('%(amount)s Tax Withheld', amount=format_amount(self.env, withheld_amount, currency)))
+            joined.append(
+                self.env._(
+                    "%(amount)s Tax Withheld",
+                    amount=format_amount(self.env, withheld_amount, currency),
+                )
+            )
         if joined:
             tax_string = f"(= {', '.join(joined)})"
         else:

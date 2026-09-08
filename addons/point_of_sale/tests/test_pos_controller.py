@@ -296,7 +296,6 @@ class TestPoSController(TestPointOfSaleHttpCommon):
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSControllerInput(TestPointOfSaleHttpCommon):
-
     def _post_ticket_form(self, **values):
         page = self.url_open("/pos/ticket")
         token = re.search(r'name="csrf_token"\s+value="([^"]+)"', page.text)

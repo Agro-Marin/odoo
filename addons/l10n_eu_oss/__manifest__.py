@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "EU One Stop Shop (OSS)",
     "category": "Accounting/Localizations",

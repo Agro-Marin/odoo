@@ -39,9 +39,7 @@ class TestPosAccessRights(CommonPosTest):
         )
         original = self.pos_config_usd.journal_id
         with self.assertRaises(AccessError):
-            self.pos_config_usd.with_user(self.cashier).write(
-                {"journal_id": sink.id}
-            )
+            self.pos_config_usd.with_user(self.cashier).write({"journal_id": sink.id})
         self.pos_config_usd.invalidate_recordset(["journal_id"])
         self.assertEqual(self.pos_config_usd.journal_id, original)
 

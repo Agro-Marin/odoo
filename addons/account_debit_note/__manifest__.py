@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Debit Notes",
     "version": "1.0",

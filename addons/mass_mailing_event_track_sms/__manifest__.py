@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Track Speakers SMS Marketing",
     "version": "1.0",

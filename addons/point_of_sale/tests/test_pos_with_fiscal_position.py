@@ -6,7 +6,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSWithFiscalPosition(TestPoSCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

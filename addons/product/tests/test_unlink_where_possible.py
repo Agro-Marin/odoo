@@ -2,7 +2,6 @@ from odoo.addons.product.tests.common import ProductCommon
 
 
 class SavepointCounter:
-
     def __init__(self, cr):
         self.cr = cr
         self.count = 0
@@ -23,7 +22,6 @@ class SavepointCounter:
 
 
 class TestUnlinkWherePossible(ProductCommon):
-
     def _template_with_values(self, name, count, create_variant="no_variant"):
         attribute = self.env["product.attribute"].create(
             {

@@ -6,7 +6,6 @@ from odoo.addons.product.tests.common import ProductCommon
 
 
 class TestPricelistRuleSelection(ProductCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

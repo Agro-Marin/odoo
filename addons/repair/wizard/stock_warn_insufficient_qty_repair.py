@@ -1,14 +1,13 @@
-# -*- coding: utf-8 -*-
 from odoo import fields, models
 from odoo.tools.misc import clean_context
 
 
 class StockWarnInsufficientQtyRepair(models.TransientModel):
-    _name = 'stock.warn.insufficient.qty.repair'
-    _inherit = ['mixin.stock.warn.insufficient.qty']
-    _description = 'Warn Insufficient Repair Quantity'
+    _name = "stock.warn.insufficient.qty.repair"
+    _inherit = ["mixin.stock.warn.insufficient.qty"]
+    _description = "Warn Insufficient Repair Quantity"
 
-    repair_id = fields.Many2one('repair.order', string='Repair')
+    repair_id = fields.Many2one("repair.order", string="Repair")
 
     def _get_reference_document_company_id(self):
         return self.repair_id.company_id

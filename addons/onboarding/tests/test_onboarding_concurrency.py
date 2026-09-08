@@ -9,9 +9,8 @@ from odoo.tests.common import BaseCase, get_db_name, tagged
 from odoo.tools import mute_logger
 
 
-@tagged('-standard', '-at_install', 'post_install')
+@tagged("-standard", "-at_install", "post_install")
 class TestOnboardingConcurrency(BaseCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -20,37 +19,45 @@ class TestOnboardingConcurrency(BaseCase):
 
         with cls.registry.cursor() as cr:
             env = api.Environment(cr, api.SUPERUSER_ID, {})
-            cls.onboarding_id = env['onboarding.onboarding'].create([
-                {
-                    'name': 'Test Onboarding Concurrent',
-                    'is_per_company': False,
-                    'route_name': 'onboarding_concurrent'
-                }
-            ]).id
+            cls.onboarding_id = (
+                env["onboarding.onboarding"]
+                .create(
+                    [
+                        {
+                            "name": "Test Onboarding Concurrent",
+                            "is_per_company": False,
+                            "route_name": "onboarding_concurrent",
+                        }
+                    ]
+                )
+                .id
+            )
 
     @classmethod
     def cleanUpClass(cls):
         with cls.registry.cursor() as cr:
             env = api.Environment(cr, api.SUPERUSER_ID, {})
-            env['onboarding.onboarding'].browse(cls.onboarding_id).unlink()
-            env['onboarding.progress'].search([
-                ('onboarding_id', '=', cls.onboarding_id)
-            ]).unlink()
+            env["onboarding.onboarding"].browse(cls.onboarding_id).unlink()
+            env["onboarding.progress"].search(
+                [("onboarding_id", "=", cls.onboarding_id)]
+            ).unlink()
 
-    @mute_logger('odoo.db')
+    @mute_logger("odoo.db")
     def test_concurrent_create_progress(self):
         barrier = threading.Barrier(2)
 
         def run():
             with self.registry.cursor() as cr:
                 env = api.Environment(cr, api.SUPERUSER_ID, {})
-                onboarding = env['onboarding.onboarding'].search([
-                    ('id', '=', self.onboarding_id)
-                ])
+                onboarding = env["onboarding.onboarding"].search(
+                    [("id", "=", self.onboarding_id)]
+                )
                 # There is no progress record
-                self.assertFalse(env['onboarding.progress'].search([
-                    ('onboarding_id', '=', self.onboarding_id)
-                ]))
+                self.assertFalse(
+                    env["onboarding.progress"].search(
+                        [("onboarding_id", "=", self.onboarding_id)]
+                    )
+                )
                 barrier.wait(timeout=2)
                 try:
                     onboarding._create_progress()
@@ -68,14 +75,18 @@ class TestOnboardingConcurrency(BaseCase):
         with self.registry.cursor() as cr:
             env = api.Environment(cr, api.SUPERUSER_ID, {})
             self.assertEqual(
-                len(env['onboarding.progress'].search([('onboarding_id', '=', self.onboarding_id)])),
+                len(
+                    env["onboarding.progress"].search(
+                        [("onboarding_id", "=", self.onboarding_id)]
+                    )
+                ),
                 1,
-                "Exactly one thread should have been able to create a record."
+                "Exactly one thread should have been able to create a record.",
             )
 
         self.assertEqual(
             raised_1 + raised_2,
             1,
             "Exactly one thread should have raised a UniqueViolation error even though "
-            "there was no progress record at the start of its transaction."
+            "there was no progress record at the start of its transaction.",
         )

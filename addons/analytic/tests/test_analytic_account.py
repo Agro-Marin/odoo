@@ -193,9 +193,7 @@ class TestAnalyticAccount(AnalyticCommon):
             "Distribution 2 should be given, for the partner",
         )
 
-        partner_category = self.env["res.partner.tag"].create(
-            {"name": "partner_categ"}
-        )
+        partner_category = self.env["res.partner.tag"].create({"name": "partner_categ"})
         self.partner_a.write({"tag_ids": [Command.set([partner_category.id])]})
 
         distribution_4 = self.env["account.analytic.distribution.model"].create(
@@ -564,9 +562,7 @@ class TestAnalyticAccount(AnalyticCommon):
         vals = {"partner_id": self.partner_a.id, "partner_tag_id": categories}
         for _ in range(3):
             Model._get_distribution(dict(vals))
-        self.assertEqual(
-            categories, [], "the caller's list must come back untouched"
-        )
+        self.assertEqual(categories, [], "the caller's list must come back untouched")
 
     def test_get_distribution_is_memoizable_on_a_frozendict_key(self):
         """The vals dict must stay usable as a cache key across calls.

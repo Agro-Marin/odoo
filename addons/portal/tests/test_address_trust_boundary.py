@@ -13,7 +13,9 @@ class TestAddressTrustBoundary(HttpCase):
             {
                 "name": "Trust Boundary Customer",
                 "email": "trust.boundary@example.com",
-                "phone_ids": [Command.create({"number": "+32 456 00 00 00", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "+32 456 00 00 00", "type": "landline"})
+                ],
                 "street": "Rue du Test 1",
                 "city": "Bruxelles",
                 "zip": "1000",
@@ -38,7 +40,9 @@ class TestAddressTrustBoundary(HttpCase):
                 "parent_id": cls.company_partner.id,
                 "type": "invoice",
                 "email": "billing@example.com",
-                "phone_ids": [Command.create({"number": "+32 456 00 00 01", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "+32 456 00 00 01", "type": "landline"})
+                ],
                 "street": "Rue du Test 2",
                 "city": "Bruxelles",
                 "zip": "1000",

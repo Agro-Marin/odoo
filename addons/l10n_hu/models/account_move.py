@@ -1,21 +1,24 @@
-# -*- coding: utf-8 -*-
 from odoo import api, models
 
 
 class AccountMove(models.Model):
-    _inherit = 'account.move'
+    _inherit = "account.move"
 
-    @api.depends('country_code', 'move_type')
+    @api.depends("country_code", "move_type")
     def _compute_show_delivery_date(self):
         # EXTENDS 'account'
         super()._compute_show_delivery_date()
         for move in self:
-            if move.country_code == 'HU':
+            if move.country_code == "HU":
                 move.show_delivery_date = move.is_sale_document()
 
     def _post_entries(self):
         res = super()._post_entries()
         for move in self:
-            if move.country_code == 'HU' and move.is_sale_document() and not move.delivery_date:
+            if (
+                move.country_code == "HU"
+                and move.is_sale_document()
+                and not move.delivery_date
+            ):
                 move.delivery_date = move.invoice_date
         return res

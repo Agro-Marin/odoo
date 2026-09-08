@@ -1,7 +1,8 @@
 from odoo import Command
 from odoo.tests import new_test_user
+from odoo.tests.common import tagged, users
+
 from odoo.addons.im_livechat.tests.common import TestImLivechatCommon
-from odoo.tests.common import users, tagged
 
 
 @tagged("-at_install", "post_install")
@@ -25,7 +26,9 @@ class TestImLivechatSessionViews(TestImLivechatCommon):
         channel = self.env["discuss.channel"].browse(data["channel_id"])
         channel.with_user(operator).message_post(body="Hello, how can I help you?")
         self._reset_bus()
-        action = self.env.ref("im_livechat.discuss_channel_action_from_livechat_channel")
+        action = self.env.ref(
+            "im_livechat.discuss_channel_action_from_livechat_channel"
+        )
         self.start_tour(
             f"/odoo/livechat/{self.livechat_channel.id}/action-{action.id}",
             "im_livechat_history_back_and_forth_tour",
@@ -39,7 +42,9 @@ class TestImLivechatSessionViews(TestImLivechatCommon):
             login="operator",
             groups="base.group_user,im_livechat.im_livechat_group_manager",
         )
-        [user_1, user_2] = self.env["res.partner"].create([{"name": "test 1"}, {"name": "test 2"}])
+        [user_1, user_2] = self.env["res.partner"].create(
+            [{"name": "test 1"}, {"name": "test 2"}]
+        )
         [channel1, channel2] = self.env["discuss.channel"].create(
             [
                 {
@@ -59,12 +64,18 @@ class TestImLivechatSessionViews(TestImLivechatCommon):
             ]
         )
         channel1.message_post(
-            body="Test Channel 1 Msg", message_type="comment", subtype_xmlid="mail.mt_comment"
+            body="Test Channel 1 Msg",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
         )
         channel2.message_post(
-            body="Test Channel 2 Msg", message_type="comment", subtype_xmlid="mail.mt_comment"
+            body="Test Channel 2 Msg",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
         )
-        action = self.env.ref("im_livechat.discuss_channel_action_from_livechat_channel")
+        action = self.env.ref(
+            "im_livechat.discuss_channel_action_from_livechat_channel"
+        )
         self.start_tour(
             f"/odoo/livechat/{self.livechat_channel.id}/action-{action.id}",
             "im_livechat_session_history_open",
@@ -73,10 +84,14 @@ class TestImLivechatSessionViews(TestImLivechatCommon):
 
     def test_partner_display_name(self):
         user = new_test_user(self.env, login="agent", name="john")
-        company = self.env["res.partner"].create({"name": "TestCompany", "is_company": True})
+        company = self.env["res.partner"].create(
+            {"name": "TestCompany", "is_company": True}
+        )
         user.partner_id.parent_id = company.id
         self.assertEqual(
-            user.with_context(im_livechat_hide_partner_company=True).partner_id.display_name,
+            user.with_context(
+                im_livechat_hide_partner_company=True
+            ).partner_id.display_name,
             "john",
         )
         self.assertEqual(user.partner_id.display_name, "TestCompany, john")
@@ -140,9 +155,15 @@ class TestImLivechatLookingForHelpViews(TestImLivechatSessionViews):
         )
 
     def test_looking_for_help_discuss_category(self):
-        self.env["discuss.channel"].search([("livechat_status", "=", "need_help")]).unlink()
-        agent = new_test_user(self.env, "agent", groups="im_livechat.im_livechat_group_user")
-        accounting_expertise, sales_expertise = self.env["im_livechat.expertise"].create(
+        self.env["discuss.channel"].search(
+            [("livechat_status", "=", "need_help")]
+        ).unlink()
+        agent = new_test_user(
+            self.env, "agent", groups="im_livechat.im_livechat_group_user"
+        )
+        accounting_expertise, sales_expertise = self.env[
+            "im_livechat.expertise"
+        ].create(
             [{"name": "Accounting"}, {"name": "Sales"}],
         )
         agent.livechat_expertise_ids = sales_expertise
@@ -152,5 +173,7 @@ class TestImLivechatLookingForHelpViews(TestImLivechatSessionViews):
         sales_chat.livechat_expertise_ids = sales_expertise
         self._reset_bus()
         self.start_tour(
-            "/odoo/discuss", "im_livechat.looking_for_help_discuss_category_tour", login="agent"
+            "/odoo/discuss",
+            "im_livechat.looking_for_help_discuss_category_tour",
+            login="agent",
         )

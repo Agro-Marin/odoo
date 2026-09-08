@@ -1,40 +1,43 @@
-from odoo import models, api, fields, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
 class L10n_LatamDocumentType(models.Model):
-    _inherit = 'l10n_latam.document.type'
+    _inherit = "l10n_latam.document.type"
 
     l10n_ar_letter = fields.Selection(
-        selection='_get_l10n_ar_letters',
-        string='Letters',
-        help='Letters defined by the ARCA that can be used to identify the'
-        ' documents presented to the government and that depends on the'
-        ' operation type, the responsibility of both the issuer and the'
-        ' receptor of the document')
+        selection="_get_l10n_ar_letters",
+        string="Letters",
+        help="Letters defined by the ARCA that can be used to identify the"
+        " documents presented to the government and that depends on the"
+        " operation type, the responsibility of both the issuer and the"
+        " receptor of the document",
+    )
     purchase_aliquots = fields.Selection(
-        [('not_zero', 'Not Zero'), ('zero', 'Zero')], help='Raise an error if a vendor bill is miss encoded. "Not Zero"'
+        [("not_zero", "Not Zero"), ("zero", "Zero")],
+        help='Raise an error if a vendor bill is miss encoded. "Not Zero"'
         ' means the VAT taxes are required for the invoices related to this document type, and those with "Zero" means'
-        ' that only "VAT Not Applicable" tax is allowed.')
+        ' that only "VAT Not Applicable" tax is allowed.',
+    )
 
     def _get_l10n_ar_letters(self):
-        """ Return the list of values of the selection field. """
+        """Return the list of values of the selection field."""
         return [
-            ('A', 'A'),
-            ('B', 'B'),
-            ('C', 'C'),
-            ('E', 'E'),
-            ('M', 'M'),
-            ('T', 'T'),
-            ('R', 'R'),
-            ('X', 'X'),
-            ('I', 'I'),  # used for mapping of imports
+            ("A", "A"),
+            ("B", "B"),
+            ("C", "C"),
+            ("E", "E"),
+            ("M", "M"),
+            ("T", "T"),
+            ("R", "R"),
+            ("X", "X"),
+            ("I", "I"),  # used for mapping of imports
         ]
 
     def _format_document_number(self, document_number):
-        """ Make validation of Import Dispatch Number
-          * making validations on the document_number. If it is wrong it should raise an exception
-          * format the document_number against a pattern and return it
+        """Make validation of Import Dispatch Number
+        * making validations on the document_number. If it is wrong it should raise an exception
+        * format the document_number against a pattern and return it
         """
         self.check_singleton()
         if self.country_id.code != "AR":
@@ -47,7 +50,7 @@ class L10n_LatamDocumentType(models.Model):
             return document_number
 
         # Import Dispatch Number Validator
-        if self.code in ['66', '67']:
+        if self.code in ["66", "67"]:
             if len(document_number) != 16:
                 raise UserError(
                     _(
@@ -60,16 +63,19 @@ class L10n_LatamDocumentType(models.Model):
 
         # Invoice Number Validator (For Eg: 123-123)
         failed = False
-        args = document_number.split('-')
+        args = document_number.split("-")
         if len(args) != 2:
             failed = True
         else:
             pos, number = args
-            if len(pos) > 5 or not pos.isdigit():
+            if (
+                len(pos) > 5
+                or not pos.isdigit()
+                or len(number) > 8
+                or not number.isdigit()
+            ):
                 failed = True
-            elif len(number) > 8 or not number.isdigit():
-                failed = True
-            document_number = '{:>05s}-{:>08s}'.format(pos, number)
+            document_number = f"{pos:>05s}-{number:>08s}"
         if failed:
             raise UserError(
                 _(

@@ -20,7 +20,10 @@ class MixinAccountMoveSend(models.AbstractModel):
             alerts["l10n_tr_non_eligible_products"] = {
                 "message": _(
                     "The following products are missing a CTSP Number:\n%(products)s\n",
-                    products="\n".join(f"- {product.display_name}" for product in non_eligible_tr_products),
+                    products="\n".join(
+                        f"- {product.display_name}"
+                        for product in non_eligible_tr_products
+                    ),
                 ),
                 "level": "warning",
                 "action_text": _("View Product(s)"),
@@ -33,10 +36,15 @@ class MixinAccountMoveSend(models.AbstractModel):
     def _get_l10n_tr_tax_partner_tax_office_alert(self, moves):
         # OVERRIDES l10n_tr_nilvera_einvoice.
         if tr_einvoice_partners_missing_ref := moves.partner_id.filtered(
-            lambda p: p.l10n_tr_nilvera_customer_status == "einvoice" and not p.l10n_tr_tax_office_id,
+            lambda p: (
+                p.l10n_tr_nilvera_customer_status == "einvoice"
+                and not p.l10n_tr_tax_office_id
+            ),
         ):
             return {
-                "message": _("The Tax Office is not set on the following TR Partner(s)."),
+                "message": _(
+                    "The Tax Office is not set on the following TR Partner(s)."
+                ),
                 "action_text": _("View Partner(s)"),
                 "action": tr_einvoice_partners_missing_ref._get_records_action(
                     name=_("Check reference on Partner(s)"),
@@ -48,10 +56,12 @@ class MixinAccountMoveSend(models.AbstractModel):
     def _get_l10n_tr_tax_company_tax_office_alert(self, moves):
         # OVERRIDES l10n_tr_nilvera_einvoice.
         if tr_companies_missing_tax_office := moves.company_id.filtered(
-            lambda c: (not c.l10n_tr_tax_office_id and c.country_code == "TR"),
+            lambda c: not c.l10n_tr_tax_office_id and c.country_code == "TR",
         ):
             return {
-                "message": _("The Tax Office is not set on the following TR Company(s)."),
+                "message": _(
+                    "The Tax Office is not set on the following TR Company(s)."
+                ),
                 "action_text": _("View Company(s)"),
                 "action": tr_companies_missing_tax_office._get_records_action(
                     name=_(" TR Company(s)"),
@@ -62,4 +72,6 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     def _get_l10n_tr_tax_partner_address_alert(self, moves):
         # EXTENDS l10n_tr_nilvera_einvoice.
-        return super()._get_l10n_tr_tax_partner_address_alert(moves.filtered(lambda move: not move.l10n_tr_is_export_invoice))
+        return super()._get_l10n_tr_tax_partner_address_alert(
+            moves.filtered(lambda move: not move.l10n_tr_is_export_invoice)
+        )

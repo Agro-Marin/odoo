@@ -1,11 +1,11 @@
-from odoo import models, fields
+from odoo import fields, models
 
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
     l10n_ar_partner_tax_ids = fields.One2many(
-        'l10n_ar.partner.tax',
-        'partner_id',
-        'Argentinean Withholding Taxes',
+        "l10n_ar.partner.tax",
+        "partner_id",
+        "Argentinean Withholding Taxes",
     )

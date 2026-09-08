@@ -38,7 +38,6 @@ class PortalHardeningCommon(TransactionCase):
 
 
 class TestDeletedThreadCredentials(PortalHardeningCommon):
-
     def setUp(self):
         super().setUp()
         self.patch(
@@ -49,7 +48,7 @@ class TestDeletedThreadCredentials(PortalHardeningCommon):
         from odoo.exceptions import MissingError
 
         with self.assertRaises(MissingError):
-            self._missing_thread().signup_type  # noqa: B018
+            self._missing_thread().signup_type
 
     def test_resolve_drops_a_phantom_record(self):
         self.assertFalse(resolve_thread_for_credentials(self._missing_thread()))
@@ -128,7 +127,6 @@ class TestDocumentCheckAccess(PortalHardeningCommon):
 
 
 class TestCounterNames(TransactionCase):
-
     def test_collections_keep_their_string_entries(self):
         self.assertEqual(
             _parse_counter_names(["a_count", "b_count"]), ["a_count", "b_count"]
@@ -152,7 +150,6 @@ class TestCounterNames(TransactionCase):
 
 
 class TestSearchbarOptionResolution(TransactionCase):
-
     def setUp(self):
         super().setUp()
         self.controller = CustomerPortal()
@@ -191,7 +188,6 @@ class TestSearchbarOptionResolution(TransactionCase):
 
 
 class TestPagerEmptyResultSet(TransactionCase):
-
     def test_empty_total_has_no_page_zero(self):
         result = pager("/my/things", total=0)
         self.assertEqual(result["page_count"], 1)
@@ -207,7 +203,6 @@ class TestPagerEmptyResultSet(TransactionCase):
 
 
 class TestMailRenderSlugWithoutRequest(TransactionCase):
-
     def test_slug_is_not_request_bound_in_render_context(self):
         record = self.env["res.partner"].create({"name": "Slug Target"})
         slug = self.env["mail.template"]._render_eval_context()["slug"]
@@ -244,7 +239,6 @@ class TestMailRenderSlugWithoutRequest(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestPortalRouteRobustness(HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

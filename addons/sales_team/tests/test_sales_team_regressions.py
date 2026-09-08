@@ -411,7 +411,9 @@ class TestFavorite(TestSalesCommon):
             self.env.invalidate_all()
             expected_first = first == self.user_sales_manager
             self.assertEqual(team.with_user(first).is_user_favorite, expected_first)
-            self.assertEqual(team.with_user(second).is_user_favorite, not expected_first)
+            self.assertEqual(
+                team.with_user(second).is_user_favorite, not expected_first
+            )
 
     def test_is_user_favorite_follows_favorite_user_ids(self):
         team = self.env["crm.team"].create({"name": "Favorite 2", "company_id": False})

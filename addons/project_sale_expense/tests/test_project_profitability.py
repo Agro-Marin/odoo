@@ -82,9 +82,7 @@ class TestProjectSaleExpenseProfitability(
                 "partner_id": self.partner_a.id,
                 "company_id": foreign_company.id,
                 "line_ids": [
-                    Command.create(
-                        {"product_id": self.product_a.id, "product_qty": 1}
-                    )
+                    Command.create({"product_id": self.product_a.id, "product_qty": 1})
                 ],
             }
         )

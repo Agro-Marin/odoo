@@ -746,7 +746,6 @@ class TestChainedCauseCarriesNoSecret(ClientLoggingCommon):
 
 @tagged("post_install", "-at_install")
 class TestRequestHeadersReachTheRow(ClientLoggingCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

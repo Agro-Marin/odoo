@@ -1,5 +1,7 @@
-from odoo.http import request
 from werkzeug.exceptions import NotFound
+
+from odoo.http import request
+
 
 def downgrade_to_public_user():
     public_user = request.env.ref("base.public_user")

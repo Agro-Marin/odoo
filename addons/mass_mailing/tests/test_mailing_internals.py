@@ -105,16 +105,18 @@ class TestMassMailValues(MassMailCommon):
         # two characters past the "=" padding: b64decode refuses this outright,
         # where a single one is silently tolerated
         broken = BASE_64_STRING + "10"
-        mailing = self.env["mailing.mailing"].create({
-            "name": "Test",
-            "subject": "Test",
-            "state": "draft",
-            "mailing_model_id": self.env["ir.model"]._get("res.partner").id,
-            "body_html": (
-                f'<div><img src="data:image/png;base64,0000{BASE_64_STRING}">'
-                f'<img src="data:image/png;base64,{broken}"></div>'
-            ),
-        })
+        mailing = self.env["mailing.mailing"].create(
+            {
+                "name": "Test",
+                "subject": "Test",
+                "state": "draft",
+                "mailing_model_id": self.env["ir.model"]._get("res.partner").id,
+                "body_html": (
+                    f'<div><img src="data:image/png;base64,0000{BASE_64_STRING}">'
+                    f'<img src="data:image/png;base64,{broken}"></div>'
+                ),
+            }
+        )
         body = str(mailing.body_html)
         self.assertIn(
             "/web/image/", body, "the image that does decode is still converted"

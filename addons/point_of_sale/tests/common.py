@@ -486,7 +486,6 @@ class CommonPosTest(ValuationReconciliationTestCommon):
 
 
 class TestPoSCommon(ValuationReconciliationTestCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -599,7 +598,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                 "location_id": cls.company_data["default_warehouse"].lot_stock_id.id,
             }
         )
-
 
     @classmethod
     def _create_basic_config(cls):
@@ -920,7 +918,6 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
             "tax_fixed012": tax_fixed012,
             "tax_group_7_10": tax_group_7_10,
         }
-
 
     def create_random_uid(self):
         return "%05d-%03d-%04d" % (randint(1, 99999), randint(1, 999), randint(1, 9999))

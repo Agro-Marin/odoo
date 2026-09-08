@@ -14,7 +14,9 @@ class PurchaseOrder(models.Model):
         return [
             (
                 "purchase.edi.xml.ubl_bis3",
-                findtext_equals(CUSTOMIZATION_ID, "urn:fdc:peppol.eu:poacc:trns:order:3"),
+                findtext_equals(
+                    CUSTOMIZATION_ID, "urn:fdc:peppol.eu:poacc:trns:order:3"
+                ),
             ),
             *super()._import_file_type_rules(),
         ]

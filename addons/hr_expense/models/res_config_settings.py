@@ -21,9 +21,7 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="hr_expense.use_mailgateway",
     )
     module_hr_payroll_expense = fields.Boolean(string="Reimburse Expenses in Payslip")
-    module_extract_hr_expense = fields.Boolean(
-        string="Read an expense's receipt"
-    )
+    module_extract_hr_expense = fields.Boolean(string="Read an expense's receipt")
     module_hr_expense_stripe = fields.Boolean(
         string="Link your stripe issuing account to manage company credit cards for your employees through Odoo"
     )

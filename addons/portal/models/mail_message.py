@@ -4,7 +4,6 @@ from odoo.tools import format_datetime, groupby
 
 
 class MailMessage(models.Model):
-
     _inherit = "mail.message"
 
     _PORTAL_AVATAR_SIZE = "50x50"

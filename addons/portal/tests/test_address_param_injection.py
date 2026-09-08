@@ -43,7 +43,6 @@ class TestAddressParamInjection(HttpCase):
             **extra,
         }
 
-
     def test_reserved_keys_are_dropped(self):
         controller = CustomerPortal()
         cleaned = controller._sanitize_client_address_params(
@@ -76,7 +75,6 @@ class TestAddressParamInjection(HttpCase):
             "kept",
             "sanitising reserved names must not break the extra-form-data hook",
         )
-
 
     def test_submit_rejects_reserved_keys_without_crashing(self):
         for key in sorted(CustomerPortal()._get_reserved_address_form_keys()):

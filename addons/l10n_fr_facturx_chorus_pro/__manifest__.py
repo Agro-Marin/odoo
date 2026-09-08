@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "France - BIS3 integration for Chorus Pro",
     "version": "1.0",

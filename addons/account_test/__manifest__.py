@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2011 CCI Connect asbl (http://www.cciconnect.be) All Rights Reserved.
 #                       Philmer <philmer@cciconnect.be>
 

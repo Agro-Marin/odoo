@@ -26,7 +26,6 @@ IMPORT_OPTIONS = {
 
 
 class ImportCase(TransactionCase):
-
     def setUp(self):
         super().setUp()
         if "base_import.import" not in self.env:
@@ -68,7 +67,6 @@ class ImportCase(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestImportBatching(ImportCase, ProductCommon):
-
     def test_interleaved_file_imports_completely(self):
         rows = [
             ["Mix T1", ""],
@@ -132,7 +130,6 @@ class TestImportBatching(ImportCase, ProductCommon):
 
 @tagged("post_install", "-at_install")
 class TestImportMessageRows(ImportCase, ProductCommon):
-
     def test_error_row_is_reported_against_the_imported_batch(self):
         rows = [
             ["Row T1", ""],
@@ -153,7 +150,6 @@ class TestImportMessageRows(ImportCase, ProductCommon):
 
 @tagged("post_install", "-at_install")
 class TestImportRowIsolation(ProductCommon):
-
     def test_rows_are_not_rewritten_in_place(self):
         rows = [
             {"name": "Iso Widget", "import_attribute_values": "IsoColor:Red"},

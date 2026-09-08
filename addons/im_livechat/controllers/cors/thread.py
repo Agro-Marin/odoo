@@ -1,15 +1,34 @@
 from odoo.http import route
-from odoo.addons.mail.controllers.thread import ThreadController
+
 from odoo.addons.im_livechat.tools.misc import force_guest_env
+from odoo.addons.mail.controllers.thread import ThreadController
 
 
 class LivechatThreadController(ThreadController):
-    @route("/im_livechat/cors/message/post", methods=["POST"], type="jsonrpc", auth="public", cors="*")
-    def livechat_message_post(self, guest_token, thread_model, thread_id, post_data, context=None, **kwargs):
+    @route(
+        "/im_livechat/cors/message/post",
+        methods=["POST"],
+        type="jsonrpc",
+        auth="public",
+        cors="*",
+    )
+    def livechat_message_post(
+        self, guest_token, thread_model, thread_id, post_data, context=None, **kwargs
+    ):
         force_guest_env(guest_token)
-        return self.mail_message_post(thread_model, thread_id, post_data, context, **kwargs)
+        return self.mail_message_post(
+            thread_model, thread_id, post_data, context, **kwargs
+        )
 
-    @route("/im_livechat/cors/message/update_content", methods=["POST"], type="jsonrpc", auth="public", cors="*")
-    def livechat_message_update_content(self, guest_token, message_id, update_data, **kwargs):
+    @route(
+        "/im_livechat/cors/message/update_content",
+        methods=["POST"],
+        type="jsonrpc",
+        auth="public",
+        cors="*",
+    )
+    def livechat_message_update_content(
+        self, guest_token, message_id, update_data, **kwargs
+    ):
         force_guest_env(guest_token)
         return self.mail_message_update_content(message_id, update_data, **kwargs)

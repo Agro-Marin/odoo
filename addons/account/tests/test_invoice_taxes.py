@@ -529,7 +529,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             lambda x: x.repartition_type == "tax"
         )
 
-
         move_form = Form(self.env["account.move"], view="account.view_move_form")
         move_form.ref = "azerty"
 
@@ -573,7 +572,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
                 },
             ],
         )
-
 
         move_form = Form(self.env["account.move"], view="account.view_move_form")
         move_form.ref = "azerty"
@@ -672,7 +670,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
             lambda x: x.repartition_type == "tax"
         )
 
-
         move_form = Form(self.env["account.move"])
         move_form.ref = "azerty"
 
@@ -716,7 +713,6 @@ class TestInvoiceTaxes(AccountTestInvoicingCommon):
                 },
             ],
         )
-
 
         move_form = Form(self.env["account.move"])
         move_form.ref = "azerty"

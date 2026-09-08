@@ -19,18 +19,24 @@ class AccountMoveReversal(models.TransientModel):
         super()._compute_from_moves()
         for record in self:
             move_ids = record.move_ids._origin
-            record.l10n_tw_edi_ecpay_invoice_id = len(move_ids) == 1 and move_ids.l10n_tw_edi_ecpay_invoice_id or False
-            record.l10n_tw_edi_is_b2b = len(move_ids) == 1 and move_ids.l10n_tw_edi_is_b2b or False
+            record.l10n_tw_edi_ecpay_invoice_id = (
+                len(move_ids) == 1 and move_ids.l10n_tw_edi_ecpay_invoice_id
+            ) or False
+            record.l10n_tw_edi_is_b2b = (
+                len(move_ids) == 1 and move_ids.l10n_tw_edi_is_b2b
+            ) or False
 
     def _prepare_default_reversal(self, move):
         res = super()._prepare_default_reversal(move)
-        res.update({
-            "l10n_tw_edi_ecpay_invoice_id": move.l10n_tw_edi_ecpay_invoice_id,
-            "l10n_tw_edi_invoice_create_date": move.l10n_tw_edi_invoice_create_date,
-            "l10n_tw_edi_refund_agreement_type": self.l10n_tw_edi_refund_agreement_type,
-            "l10n_tw_edi_allowance_notify_way": self.l10n_tw_edi_allowance_notify_way,
-            "l10n_tw_edi_invalidate_reason": self.reason,
-        })
+        res.update(
+            {
+                "l10n_tw_edi_ecpay_invoice_id": move.l10n_tw_edi_ecpay_invoice_id,
+                "l10n_tw_edi_invoice_create_date": move.l10n_tw_edi_invoice_create_date,
+                "l10n_tw_edi_refund_agreement_type": self.l10n_tw_edi_refund_agreement_type,
+                "l10n_tw_edi_allowance_notify_way": self.l10n_tw_edi_allowance_notify_way,
+                "l10n_tw_edi_invalidate_reason": self.reason,
+            }
+        )
         return res
 
     def reverse_moves(self, is_modify=False):

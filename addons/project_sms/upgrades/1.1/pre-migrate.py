@@ -1,4 +1,3 @@
-
 def migrate(cr, version):
     cr.execute("""
         UPDATE ir_rule r

@@ -1,9 +1,8 @@
-# -*- coding: utf-8 -*-
 from odoo import models
 
 
 class Base(models.AbstractModel):
-    _inherit = 'base'
+    _inherit = "base"
 
     def get_field_translations(self, field_name, langs=None):
         """
@@ -17,30 +16,34 @@ class Base(models.AbstractModel):
             translations:
                 list of dicts like::
 
-                    [{
-                        "lang": lang,
-                        "source": source_term,
-                        "value": value_term,
-                        "module": module,
-                        "transifexURL": transifex_url
-                    }]
+                    [
+                        {
+                            "lang": lang,
+                            "source": source_term,
+                            "value": value_term,
+                            "module": module,
+                            "transifexURL": transifex_url,
+                        }
+                    ]
 
             context:
                 dict like::
 
-                    {"translation_type": "text"/"char",
-                     "translation_show_source": True/False}
+                    {
+                        "translation_type": "text" / "char",
+                        "translation_show_source": True / False,
+                    }
         """
         translations, context = super().get_field_translations(field_name, langs=langs)
         external_id = self.get_external_id().get(self.id)
         if not external_id:
             return translations, context
 
-        module = external_id.split('.')[0]
+        module = external_id.split(".")[0]
         if module not in self.pool.loaded_modules:
             return translations, context
 
         for translation in translations:
-            translation['module'] = module
-        self.env['transifex.translation']._update_transifex_url(translations)
+            translation["module"] = module
+        self.env["transifex.translation"]._update_transifex_url(translations)
         return translations, context

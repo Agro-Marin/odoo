@@ -1,11 +1,13 @@
-import logging
-import serial
-import time
-import struct
 import json
+import logging
+import struct
+import time
 from functools import reduce
 
+import serial
+
 from odoo import http
+
 from odoo.addons.iot_drivers.iot_handlers.drivers.serial_base_driver import (
     SerialDriver,
     SerialProtocol,

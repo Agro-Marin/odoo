@@ -8,14 +8,12 @@ from odoo.addons.portal.controllers.portal import (
 
 
 class _ReportableModel:
-
     def _get_report_base_filename(self):
         return "Invoice INV/2024/0001"
 
 
 @tagged("-at_install", "post_install")
 class TestReportContentType(TransactionCase):
-
     def test_content_type_per_report_type(self):
         from odoo.addons.portal.controllers.portal import CustomerPortal
 
@@ -64,7 +62,6 @@ class TestReportContentType(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestPasswordFieldCoercion(TransactionCase):
-
     def test_text_is_stripped(self):
         self.assertEqual(_as_password_field("  hunter2  "), "hunter2")
 
@@ -79,7 +76,6 @@ class TestPasswordFieldCoercion(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestPagerTokenMinting(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -120,7 +116,6 @@ class TestPagerTokenMinting(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestBillingAddressDomain(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -164,7 +159,6 @@ class TestBillingAddressDomain(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestAddressCompleteness(TransactionCase):
-
     def test_id_is_no_longer_part_of_the_answer(self):
         from odoo.addons.portal.controllers.portal import CustomerPortal
 

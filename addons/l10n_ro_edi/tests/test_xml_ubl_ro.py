@@ -166,7 +166,9 @@ class TestUBLROCommon(TestUBLCommon):
                 "city": "SECTOR1",
                 "zip": "010101",
                 "vat": "RO1234567897",
-                "phone_ids": [Command.create({"number": "+40 123 456 789", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "+40 123 456 789", "type": "landline"})
+                ],
                 "street": "Strada Kunst, 3",
             }
         )
@@ -200,7 +202,9 @@ class TestUBLROCommon(TestUBLCommon):
                 "city": "SECTOR3",
                 "zip": "010101",
                 "vat": "RO1234567897",
-                "phone_ids": [Command.create({"number": "+40 123 456 780", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "+40 123 456 780", "type": "landline"})
+                ],
                 "street": "Rolling Roast, 88",
                 "bank_ids": [(0, 0, {"acc_number": "RO98RNCB1234567890123456"})],
                 "ref": "ref_partner_a",

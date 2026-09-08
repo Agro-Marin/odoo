@@ -129,7 +129,11 @@ class TestEventEvent(TestEventFullCommon):
                 [
                     {
                         "email": "test.customer.%02d@test.example.com" % x,
-                        "phone_ids": [Command.create({"number": "04560011%02d" % x, "type": "landline"})],
+                        "phone_ids": [
+                            Command.create(
+                                {"number": "04560011%02d" % x, "type": "landline"}
+                            )
+                        ],
                         "event_id": test_event.id,
                         "event_ticket_id": ticket_1.id,
                         "name": "Customer %d" % x,
@@ -154,7 +158,11 @@ class TestEventEvent(TestEventFullCommon):
                 [
                     {
                         "email": "additional.customer.%02d@test.example.com" % x,
-                        "phone_ids": [Command.create({"number": "04560011%02d" % x, "type": "landline"})],
+                        "phone_ids": [
+                            Command.create(
+                                {"number": "04560011%02d" % x, "type": "landline"}
+                            )
+                        ],
                         "event_id": test_event.id,
                         "event_ticket_id": ticket_1.id,
                         "name": "Additional Customer %d" % x,
@@ -169,7 +177,11 @@ class TestEventEvent(TestEventFullCommon):
                 [
                     {
                         "email": "other.customer.%02d@test.example.com" % x,
-                        "phone_ids": [Command.create({"number": "04560011%02d" % x, "type": "landline"})],
+                        "phone_ids": [
+                            Command.create(
+                                {"number": "04560011%02d" % x, "type": "landline"}
+                            )
+                        ],
                         "event_id": test_event.id,
                         "event_ticket_id": ticket_2.id,
                         "name": "Other Customer %d" % x,
@@ -192,7 +204,11 @@ class TestEventEvent(TestEventFullCommon):
                 [
                     {
                         "email": "additional.customer.%02d@test.example.com" % x,
-                        "phone_ids": [Command.create({"number": "04560011%02d" % x, "type": "landline"})],
+                        "phone_ids": [
+                            Command.create(
+                                {"number": "04560011%02d" % x, "type": "landline"}
+                            )
+                        ],
                         "event_id": test_event.id,
                         "event_ticket_id": ticket_2.id,
                         "name": "Additional Customer %d" % x,

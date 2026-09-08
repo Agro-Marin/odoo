@@ -587,7 +587,11 @@ class TestCheckoutAddress(WebsiteSaleCommon):
                     "zip": "18503",
                     "country_id": self.country_us.id,
                     "state_id": self.country_us_state_id,
-                    "phone_ids": [Command.create({"number": "+1 555-555-5555", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "+1 555-555-5555", "type": "landline"}
+                        )
+                    ],
                     "email": "admin@yourcompany.example.com",
                     "type": "invoice",
                     "parent_id": user_partner.id,
@@ -599,7 +603,11 @@ class TestCheckoutAddress(WebsiteSaleCommon):
                     "zip": "18503",
                     "country_id": self.country_us.id,
                     "state_id": self.country_us_state_id,
-                    "phone_ids": [Command.create({"number": "+1 555-555-5555", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "+1 555-555-5555", "type": "landline"}
+                        )
+                    ],
                     "email": "admin@yourcompany.example.com",
                     "type": "delivery",
                     "parent_id": user_partner.id,
@@ -611,7 +619,11 @@ class TestCheckoutAddress(WebsiteSaleCommon):
                     "zip": "18503",
                     "country_id": self.country_us.id,
                     "state_id": self.country_us_state_id,
-                    "phone_ids": [Command.create({"number": "+1 555-555-5555", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "+1 555-555-5555", "type": "landline"}
+                        )
+                    ],
                     "type": "invoice",
                     "parent_id": user_partner.id,
                 },

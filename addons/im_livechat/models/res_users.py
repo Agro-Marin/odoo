@@ -1,13 +1,18 @@
-from odoo import fields, models, api
-from odoo.addons.mail.tools.discuss import Store
+from odoo import api, fields, models
 from odoo.fields import Command
+
+from odoo.addons.mail.tools.discuss import Store
 
 
 class ResUsers(models.Model):
-    _inherit = 'res.users'
+    _inherit = "res.users"
 
     livechat_channel_ids = fields.Many2many(
-        "im_livechat.channel", "im_livechat_channel_im_user", "user_id", "channel_id", copy=False
+        "im_livechat.channel",
+        "im_livechat_channel_im_user",
+        "user_id",
+        "channel_id",
+        copy=False,
     )
     livechat_username = fields.Char(
         string="Livechat Username",
@@ -43,7 +48,12 @@ class ResUsers(models.Model):
         compute="_compute_livechat_is_in_call",
         groups="im_livechat.im_livechat_group_user",
     )
-    has_access_livechat = fields.Boolean(compute='_compute_has_access_livechat', string='Has access to Livechat', store=False, readonly=True)
+    has_access_livechat = fields.Boolean(
+        compute="_compute_has_access_livechat",
+        string="Has access to Livechat",
+        store=False,
+        readonly=True,
+    )
 
     @property
     def SELF_READABLE_FIELDS(self):
@@ -65,7 +75,9 @@ class ResUsers(models.Model):
     @api.depends("livechat_channel_ids", "is_in_call")
     def _compute_livechat_is_in_call(self):
         for user in self:
-            user.livechat_is_in_call = user.sudo().is_in_call if user.livechat_channel_ids else None
+            user.livechat_is_in_call = (
+                user.sudo().is_in_call if user.livechat_channel_ids else None
+            )
 
     @api.depends_context("im_livechat_channel_id")
     @api.depends("livechat_channel_ids.channel_ids.livechat_end_dt", "partner_id")
@@ -76,40 +88,46 @@ class ResUsers(models.Model):
             ("partner_id", "in", self.partner_id.ids),
             ("channel_id.last_interest_dt", ">=", "-15M"),
         ]
-        if channel_id := self.env.context.get('im_livechat_channel_id'):
+        if channel_id := self.env.context.get("im_livechat_channel_id"):
             domain.append(("session_livechat_channel_id", "=", channel_id))
         count_by_partner = dict(
             self.env["im_livechat.channel.member.history"]._read_group(
-                domain, ["partner_id"], ["__count"],
+                domain,
+                ["partner_id"],
+                ["__count"],
             ),
         )
         for user in self:
-            user.livechat_ongoing_session_count = count_by_partner.get(user.partner_id, 0)
+            user.livechat_ongoing_session_count = count_by_partner.get(
+                user.partner_id, 0
+            )
 
-    @api.depends('res_users_settings_id.livechat_username')
+    @api.depends("res_users_settings_id.livechat_username")
     def _compute_livechat_username(self):
         for user in self:
             user.livechat_username = user.sudo().res_users_settings_id.livechat_username
 
     def _inverse_livechat_username(self):
         for user in self:
-            settings = self.env['res.users.settings']._get_or_create_for_user(user)
+            settings = self.env["res.users.settings"]._get_or_create_for_user(user)
             settings.livechat_username = user.livechat_username
 
-    @api.depends('res_users_settings_id.livechat_lang_ids')
+    @api.depends("res_users_settings_id.livechat_lang_ids")
     def _compute_livechat_lang_ids(self):
         for user in self:
             user.livechat_lang_ids = user.sudo().res_users_settings_id.livechat_lang_ids
 
     def _inverse_livechat_lang_ids(self):
         for user in self:
-            settings = self.env['res.users.settings']._get_or_create_for_user(user)
+            settings = self.env["res.users.settings"]._get_or_create_for_user(user)
             settings.livechat_lang_ids = user.livechat_lang_ids
 
     @api.depends("res_users_settings_id.livechat_expertise_ids")
     def _compute_livechat_expertise_ids(self):
         for user in self:
-            user.livechat_expertise_ids = user.sudo().res_users_settings_id.livechat_expertise_ids
+            user.livechat_expertise_ids = (
+                user.sudo().res_users_settings_id.livechat_expertise_ids
+            )
 
     def _inverse_livechat_expertise_ids(self):
         for user in self:
@@ -119,7 +137,9 @@ class ResUsers(models.Model):
     @api.depends("group_ids")
     def _compute_has_access_livechat(self):
         for user in self.sudo():
-            user.has_access_livechat = user.has_group('im_livechat.im_livechat_group_user')
+            user.has_access_livechat = user.has_group(
+                "im_livechat.im_livechat_group_user"
+            )
 
     def write(self, vals):
         if vals.get("group_ids"):
@@ -132,9 +152,15 @@ class ResUsers(models.Model):
                 lost_operators = operators.filtered(
                     lambda user: operator_group not in user.all_group_ids
                 )
-                self.env["im_livechat.channel"].sudo() \
-                    .search([("user_ids", "in", lost_operators.ids)]) \
-                    .write({"user_ids": [Command.unlink(operator.id) for operator in lost_operators]})
+                self.env["im_livechat.channel"].sudo().search(
+                    [("user_ids", "in", lost_operators.ids)]
+                ).write(
+                    {
+                        "user_ids": [
+                            Command.unlink(operator.id) for operator in lost_operators
+                        ]
+                    }
+                )
                 return result
         return super().write(vals)
 

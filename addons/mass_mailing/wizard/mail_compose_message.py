@@ -70,7 +70,9 @@ class MailComposeMessage(models.TransientModel):
         send, that was 78ms of a 1043ms generation, and the whole of it was the
         preparation `_render` redoes on every call.
         """
-        with file_open("mass_mailing/static/src/scss/mass_mailing_mail.scss", "r") as fd:
+        with file_open(
+            "mass_mailing/static/src/scss/mass_mailing_mail.scss", "r"
+        ) as fd:
             styles = fd.read()
         with_body = [
             res_id

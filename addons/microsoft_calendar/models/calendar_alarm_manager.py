@@ -3,7 +3,7 @@ from odoo.tools import SQL
 
 
 class AlarmManager(models.AbstractModel):
-    _inherit = 'calendar.alarm_manager'
+    _inherit = "calendar.alarm_manager"
 
     @api.model
     def _get_notify_alert_extra_conditions(self):

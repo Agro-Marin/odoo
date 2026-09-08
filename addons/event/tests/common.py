@@ -100,7 +100,9 @@ class EventCase(common.TransactionCase):
                 "country_id": cls.env.ref("base.be").id,
                 "email": "organizer@example.com",
                 "name": "Organizer",
-                "phone_ids": [Command.create({"number": "+32455123456", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "+32455123456", "type": "landline"})
+                ],
                 "street": "Organizer Street",
             }
         )
@@ -109,7 +111,9 @@ class EventCase(common.TransactionCase):
                 "name": "Constantin Customer",
                 "email": "constantin@test.example.com",
                 "country_id": cls.env.ref("base.be").id,
-                "phone_ids": [Command.create({"number": "0485112233", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "0485112233", "type": "landline"})
+                ],
             }
         )
         cls.event_customer2 = cls.env["res.partner"].create(
@@ -117,7 +121,9 @@ class EventCase(common.TransactionCase):
                 "name": "Constantin Customer 2",
                 "email": "constantin2@test.example.com",
                 "country_id": cls.env.ref("base.be").id,
-                "phone_ids": [Command.create({"number": "0456987654", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "0456987654", "type": "landline"})
+                ],
             }
         )
         cls.reference_now = fields.Datetime.from_string("2022-09-05 15:11:34")
@@ -176,7 +182,11 @@ class EventCase(common.TransactionCase):
                     "event_id": event.id,
                     "name": f"Test Registration {idx}",
                     "email": f"_test_reg_{idx}@example.com",
-                    "phone_ids": [Command.create({"number": f"04560000{idx}{idx}", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create(
+                            {"number": f"04560000{idx}{idx}", "type": "landline"}
+                        )
+                    ],
                 }
                 for idx in range(reg_count)
             ]

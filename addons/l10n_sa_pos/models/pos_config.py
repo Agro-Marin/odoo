@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
 from odoo import api, models
 from odoo.exceptions import UserError
 from odoo.tools.translate import _
 
 
 class PosConfig(models.Model):
-    _inherit = 'pos.config'
+    _inherit = "pos.config"
 
     def open_ui(self):
         for config in self:
@@ -17,10 +16,12 @@ class PosConfig(models.Model):
     def _load_pos_data_read(self, records, config):
         data = super()._load_pos_data_read(records, config)
 
-        if data and self.env.company.country_id.code == 'SA':
-            l10n_sa_reason_field = self.env['ir.model.fields']._get('account.move', 'l10n_sa_reason')
-            data[0]['_zatca_refund_reasons'] = [
-                {'value': refund_reason.value, 'name': refund_reason.name}
+        if data and self.env.company.country_id.code == "SA":
+            l10n_sa_reason_field = self.env["ir.model.fields"]._get(
+                "account.move", "l10n_sa_reason"
+            )
+            data[0]["_zatca_refund_reasons"] = [
+                {"value": refund_reason.value, "name": refund_reason.name}
                 for refund_reason in l10n_sa_reason_field.selection_ids
             ]
 

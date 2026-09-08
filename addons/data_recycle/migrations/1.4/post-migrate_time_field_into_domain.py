@@ -18,7 +18,7 @@ import logging
 _logger = logging.getLogger(__name__)
 
 # `relativedelta` keyword -> the suffix Odoo's relative-date values use.
-UNIT_SUFFIXES = {'days': 'd', 'weeks': 'w', 'months': 'm', 'years': 'y'}
+UNIT_SUFFIXES = {"days": "d", "weeks": "w", "months": "m", "years": "y"}
 
 
 def migrate(cr, version):
@@ -45,28 +45,38 @@ def migrate(cr, version):
             _logger.warning(
                 "data_recycle 1.4: rule %r (id=%s) had a time field but delta=%r unit=%r, "
                 "which never filtered anything; its filter is left as it is.",
-                rule_name, rule_id, delta, unit)
+                rule_name,
+                rule_id,
+                delta,
+                unit,
+            )
             continue
 
         try:
             conditions = list(ast.literal_eval(domain) if domain else [])
-        except (ValueError, SyntaxError):
+        except ValueError, SyntaxError:
             _logger.warning(
                 "data_recycle 1.4: rule %r (id=%s) has an unparseable filter %r; "
                 "its age condition could not be folded in and is lost.",
-                rule_name, rule_id, domain)
+                rule_name,
+                rule_id,
+                domain,
+            )
             continue
 
         # A trailing condition is ANDed with everything before it, whatever
         # operators that part uses, so appending is safe for any domain.
-        base = 'today' if ttype == 'date' else 'now'
-        conditions.append((field_name, '<=', '%s -%d%s' % (base, delta, suffix)))
+        base = "today" if ttype == "date" else "now"
+        conditions.append((field_name, "<=", "%s -%d%s" % (base, delta, suffix)))
         cr.execute(
             "UPDATE data_recycle_model SET domain = %s WHERE id = %s",
             (repr(conditions), rule_id),
         )
         _logger.info(
             "data_recycle 1.4: rule %r (id=%s) age condition folded into its filter: %r",
-            rule_name, rule_id, conditions)
+            rule_name,
+            rule_id,
+            conditions,
+        )
 
     _logger.info("data_recycle 1.4: %d rule(s) examined", len(rows))

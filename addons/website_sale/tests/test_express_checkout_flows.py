@@ -201,7 +201,9 @@ class TestWebsiteSaleExpressCheckoutFlows(WebsiteSaleCommon, HttpCase):
         child_partner = self.env["res.partner"].create(
             dict(
                 **child_partner_address,
-                phone_ids=[Command.create({"number": child_partner_phone, "type": "mobile"})]
+                phone_ids=[
+                    Command.create({"number": child_partner_phone, "type": "mobile"})
+                ]
                 if child_partner_phone
                 else [],
                 parent_id=self.user_demo.partner_id.id,

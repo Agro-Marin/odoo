@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import test_microsoft_event
 from . import test_microsoft_service
 from . import test_create_events

@@ -895,7 +895,11 @@ class TestMailSchedule(EventMailCommon):
                         "email": "test@email.com",
                         "event_id": self.test_event.id,
                         "name": "Mitchell Admin",
-                        "phone_ids": [Command.create({"number": "(255)-595-8393", "type": "landline"})],
+                        "phone_ids": [
+                            Command.create(
+                                {"number": "(255)-595-8393", "type": "landline"}
+                            )
+                        ],
                     }
                 )
             )

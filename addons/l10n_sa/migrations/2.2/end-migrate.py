@@ -1,27 +1,27 @@
 # (rec_name_regex, name_en, desc_en, desc_ar, notes_en, tax_scope)
 TAX_VALUES_MAPPING = [
     (
-        r'^\d+_sa_local_sales_tax_0$',
-        '0%',
-        'Not Subject to VAT',
-        'غير خاضعة لضريبة القيمة المضافة.',
-        'Not Subject to VAT.',
+        r"^\d+_sa_local_sales_tax_0$",
+        "0%",
+        "Not Subject to VAT",
+        "غير خاضعة لضريبة القيمة المضافة.",
+        "Not Subject to VAT.",
         None,
     ),
     (
-        r'^\d+_sa_export_sales_tax_0$',
-        '0% EX G',
-        'Zero-rated exports - Export of Goods',
-        'تصدير البضائع.',
-        'Export of Goods.',
-        'consu',
+        r"^\d+_sa_export_sales_tax_0$",
+        "0% EX G",
+        "Zero-rated exports - Export of Goods",
+        "تصدير البضائع.",
+        "Export of Goods.",
+        "consu",
     ),
     (
-        r'^\d+_sa_exempt_sales_tax_0$',
-        '0% EXT FS',
-        'Exempt - Financial services mentioned in Article 29 of the VAT Regulations',
-        'الخدمات المالية المذكورة في القانون 29 في لوائح ضريبة القيمة المضافة.',
-        'Financial services mentioned in Article 29 of the VAT Regulations.',
+        r"^\d+_sa_exempt_sales_tax_0$",
+        "0% EXT FS",
+        "Exempt - Financial services mentioned in Article 29 of the VAT Regulations",
+        "الخدمات المالية المذكورة في القانون 29 في لوائح ضريبة القيمة المضافة.",
+        "Financial services mentioned in Article 29 of the VAT Regulations.",
         None,
     ),
 ]
@@ -29,7 +29,8 @@ TAX_VALUES_MAPPING = [
 
 def migrate(cr, version):
     # Update names, descriptions, legal notes and JSONB translations
-    cr.execute_values("""
+    cr.execute_values(
+        """
         WITH data(rec_name, name_en, desc_en, desc_ar, notes_en, tax_scope) AS (
             VALUES %s
         )
@@ -43,4 +44,6 @@ def migrate(cr, version):
         JOIN data ON imd.name ~ data.rec_name
         WHERE imd.model = 'account.tax'
         AND imd.res_id = t.id;
-    """, TAX_VALUES_MAPPING)
+    """,
+        TAX_VALUES_MAPPING,
+    )

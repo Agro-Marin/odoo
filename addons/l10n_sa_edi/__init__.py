@@ -1,10 +1,11 @@
-# -*- coding: utf-8 -*-
 from . import models, wizard
 
 
 def _l10n_sa_edi_post_init(env):
-    for company in env['res.company'].search([('chart_template', '=', 'sa'), ('parent_id', '=', False)]):
-        Template = env['account.chart.template'].with_company(company)
+    for company in env["res.company"].search(
+        [("chart_template", "=", "sa"), ("parent_id", "=", False)]
+    ):
+        Template = env["account.chart.template"].with_company(company)
         tax_data = Template._get_sa_edi_account_tax()
 
         tax_data = {
@@ -14,6 +15,8 @@ def _l10n_sa_edi_post_init(env):
         }
         # Update existing taxes only
         if tax_data:
-            Template._load_data({
-                'account.tax': tax_data,
-            })
+            Template._load_data(
+                {
+                    "account.tax": tax_data,
+                }
+            )

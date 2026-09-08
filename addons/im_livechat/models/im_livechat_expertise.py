@@ -44,5 +44,7 @@ class Im_LivechatExpertise(models.Model):
             for expertise in user_setting.livechat_expertise_ids:
                 users_by_expertise[expertise] |= user_setting.user_id
         for expertise, users in users_by_expertise.items():
-            users_by_expertise[expertise] = users.with_prefetch(user_settings.user_id.ids)
+            users_by_expertise[expertise] = users.with_prefetch(
+                user_settings.user_id.ids
+            )
         return users_by_expertise

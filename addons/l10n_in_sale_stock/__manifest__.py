@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "India Sales and Warehouse Management",
     "version": "0.1",

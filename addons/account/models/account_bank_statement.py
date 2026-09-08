@@ -143,9 +143,7 @@ class AccountBankStatement(models.Model):
 
     def _get_balance_start(self, stmt):
         journal_id = stmt.journal_id.id or stmt.line_ids.journal_id.id
-        previous_line_with_statement = self.env[
-            "account.bank.statement.line"
-        ].search(
+        previous_line_with_statement = self.env["account.bank.statement.line"].search(
             [
                 ("internal_index", "<", stmt.first_line_index),
                 ("journal_id", "=", journal_id),
@@ -171,9 +169,9 @@ class AccountBankStatement(models.Model):
             )
             balance_start -= sum(lines_in_common.mapped("amount"))
 
-        [(amount_in_between,)] = self.env[
-            "account.bank.statement.line"
-        ]._read_group(lines_in_between_domain, aggregates=["amount:sum"])
+        [(amount_in_between,)] = self.env["account.bank.statement.line"]._read_group(
+            lines_in_between_domain, aggregates=["amount:sum"]
+        )
         return balance_start + (amount_in_between or 0.0)
 
     @api.depends("create_date")

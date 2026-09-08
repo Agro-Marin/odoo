@@ -6,7 +6,7 @@ class AccountEdiXmlUBL21Zatca(models.AbstractModel):
 
     def _l10n_sa_get_payment_means_code(self, invoice):
         """
-            Return payment means code to be used to set the value on the XML file
+        Return payment means code to be used to set the value on the XML file
         """
         res = super()._l10n_sa_get_payment_means_code(invoice)
         if invoice._l10n_sa_is_simplified() and invoice.pos_order_ids.payment_ids:

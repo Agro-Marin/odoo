@@ -8,12 +8,15 @@ from markupsafe import Markup
 from odoo import fields
 from odoo.tests.common import HttpCase
 
-from odoo.addons.microsoft_calendar.models.mixin_microsoft_calendar_sync import MixinMicrosoftCalendarSync
+from odoo.addons.microsoft_calendar.models.mixin_microsoft_calendar_sync import (
+    MixinMicrosoftCalendarSync,
+)
 from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
 def mock_get_token(user):
     return f"TOKEN_FOR_USER_{user.id}"
+
 
 def _modified_date_in_the_future(event):
     """
@@ -22,13 +25,16 @@ def _modified_date_in_the_future(event):
     """
     return (event.write_date + timedelta(seconds=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+
 def patch_api(func):
-    @patch.object(MixinMicrosoftCalendarSync, '_microsoft_insert', MagicMock())
-    @patch.object(MixinMicrosoftCalendarSync, '_microsoft_delete', MagicMock())
-    @patch.object(MixinMicrosoftCalendarSync, '_microsoft_patch', MagicMock())
+    @patch.object(MixinMicrosoftCalendarSync, "_microsoft_insert", MagicMock())
+    @patch.object(MixinMicrosoftCalendarSync, "_microsoft_delete", MagicMock())
+    @patch.object(MixinMicrosoftCalendarSync, "_microsoft_patch", MagicMock())
     def patched(self, *args, **kwargs):
         return func(self, *args, **kwargs)
+
     return patched
+
 
 # By inheriting from TransactionCase, postcommit hooks (so methods tagged with `@after_commit` in MixinMicrosoftCalendarSync),
 # are not called because no commit is done.
@@ -41,34 +47,47 @@ class TestCommon(EncryptionKeyCase, HttpCase):
     installed for the rest of the process.
     """
 
-
     @patch_api
     def setUp(self):
-        super(TestCommon, self).setUp()
+        super().setUp()
         self.env.user.unpause_microsoft_synchronization()
 
         # prepare users
-        self.organizer_user = self.env["res.users"].search([("name", "=", "Mike Organizer")])
+        self.organizer_user = self.env["res.users"].search(
+            [("name", "=", "Mike Organizer")]
+        )
         if not self.organizer_user:
-            partner = self.env['res.partner'].create({'name': 'Mike Organizer', 'email': 'mike@organizer.com'})
-            self.organizer_user = self.env['res.users'].create({
-                'name': 'Mike Organizer',
-                'login': 'mike@organizer.com',
-                'partner_id': partner.id,
-            })
+            partner = self.env["res.partner"].create(
+                {"name": "Mike Organizer", "email": "mike@organizer.com"}
+            )
+            self.organizer_user = self.env["res.users"].create(
+                {
+                    "name": "Mike Organizer",
+                    "login": "mike@organizer.com",
+                    "partner_id": partner.id,
+                }
+            )
 
-        self.attendee_user = self.env["res.users"].search([("name", "=", "John Attendee")])
+        self.attendee_user = self.env["res.users"].search(
+            [("name", "=", "John Attendee")]
+        )
         if not self.attendee_user:
-            partner = self.env['res.partner'].create({'name': 'John Attendee', 'email': 'john@attendee.com'})
-            self.attendee_user = self.env['res.users'].create({
-                'name': 'John Attendee',
-                'login': 'john@attendee.com',
-                'partner_id': partner.id,
-            })
+            partner = self.env["res.partner"].create(
+                {"name": "John Attendee", "email": "john@attendee.com"}
+            )
+            self.attendee_user = self.env["res.users"].create(
+                {
+                    "name": "John Attendee",
+                    "login": "john@attendee.com",
+                    "partner_id": partner.id,
+                }
+            )
 
         # Add token validity with one hour of time window for properly checking the sync status.
         for user in [self.organizer_user, self.attendee_user]:
-            user.microsoft_calendar_token_validity = fields.Datetime.now() + timedelta(hours=1)
+            user.microsoft_calendar_token_validity = fields.Datetime.now() + timedelta(
+                hours=1
+            )
 
         # -----------------------------------------------------------------------------------------
         # To create Odoo events
@@ -88,27 +107,30 @@ class TestCommon(EncryptionKeyCase, HttpCase):
             "active": True,
             "start": self.start_date,
             "stop": self.end_date,
-            "partner_ids": [(4, self.organizer_user.partner_id.id), (4, self.attendee_user.partner_id.id)],
+            "partner_ids": [
+                (4, self.organizer_user.partner_id.id),
+                (4, self.attendee_user.partner_id.id),
+            ],
         }
         self.recurrent_event_values = {
-            'name': 'recurring_event',
-            'description': 'a recurring event',
+            "name": "recurring_event",
+            "description": "a recurring event",
             "partner_ids": [(4, self.attendee_user.partner_id.id)],
-            'recurrency': True,
-            'follow_recurrence': True,
-            'start': self.start_date.strftime("%Y-%m-%d %H:%M:%S"),
-            'stop': self.end_date.strftime("%Y-%m-%d %H:%M:%S"),
-            'event_tz': 'Europe/London',
-            'recurrence_update': 'self_only',
-            'rrule_type': 'daily',
-            'interval': self.recurrent_event_interval,
-            'count': self.recurrent_events_count,
-            'end_type': 'count',
-            'duration': 1,
-            'byday': '-1',
-            'day': 22,
-            'wed': True,
-            'weekday': 'WED'
+            "recurrency": True,
+            "follow_recurrence": True,
+            "start": self.start_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "stop": self.end_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "event_tz": "Europe/London",
+            "recurrence_update": "self_only",
+            "rrule_type": "daily",
+            "interval": self.recurrent_event_interval,
+            "count": self.recurrent_events_count,
+            "end_type": "count",
+            "duration": 1,
+            "byday": "-1",
+            "day": 22,
+            "wed": True,
+            "weekday": "WED",
         }
 
         # -----------------------------------------------------------------------------------------
@@ -119,22 +141,26 @@ class TestCommon(EncryptionKeyCase, HttpCase):
         self.simple_event_ms_values = {
             "subject": self.simple_event_values["name"],
             "body": {
-                'content': self.simple_event_values["description"],
-                'contentType': "text",
+                "content": self.simple_event_values["description"],
+                "contentType": "text",
             },
             "start": {
-                'dateTime': self.simple_event_values["start"].replace(tzinfo=UTC).isoformat(),
-                'timeZone': 'Europe/London'
+                "dateTime": self.simple_event_values["start"]
+                .replace(tzinfo=UTC)
+                .isoformat(),
+                "timeZone": "Europe/London",
             },
             "end": {
-                'dateTime': self.simple_event_values["stop"].replace(tzinfo=UTC).isoformat(),
-                'timeZone': 'Europe/London'
+                "dateTime": self.simple_event_values["stop"]
+                .replace(tzinfo=UTC)
+                .isoformat(),
+                "timeZone": "Europe/London",
             },
             "isAllDay": False,
             "organizer": {
-                'emailAddress': {
-                    'address': self.organizer_user.email,
-                    'name': self.organizer_user.display_name,
+                "emailAddress": {
+                    "address": self.organizer_user.email,
+                    "name": self.organizer_user.display_name,
                 }
             },
             "isOrganizer": True,
@@ -142,61 +168,67 @@ class TestCommon(EncryptionKeyCase, HttpCase):
             "showAs": "busy",
             "attendees": [
                 {
-                    'emailAddress': {
-                        'address': self.attendee_user.email,
-                        'name': self.attendee_user.display_name
+                    "emailAddress": {
+                        "address": self.attendee_user.email,
+                        "name": self.attendee_user.display_name,
                     },
-                    'status': {'response': "notresponded"}
+                    "status": {"response": "notresponded"},
                 }
             ],
             "isReminderOn": False,
-            "location": {'displayName': ''},
+            "location": {"displayName": ""},
             "reminderMinutesBeforeStart": 0,
         }
 
         self.recurrent_event_ms_values = {
-            'subject': self.recurrent_event_values["name"],
+            "subject": self.recurrent_event_values["name"],
             "body": {
-                'content': Markup('<p>%s</p>' % self.recurrent_event_values["description"]),
-                'contentType': "html",
+                "content": Markup(
+                    "<p>%s</p>" % self.recurrent_event_values["description"]
+                ),
+                "contentType": "html",
             },
-            'start': {
-                'dateTime': self.start_date.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
-                'timeZone': 'Europe/London'
+            "start": {
+                "dateTime": self.start_date.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+                "timeZone": "Europe/London",
             },
-            'end': {
-                'dateTime': self.end_date.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
-                'timeZone': 'Europe/London'
+            "end": {
+                "dateTime": self.end_date.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+                "timeZone": "Europe/London",
             },
-            'isAllDay': False,
-            'isOrganizer': True,
-            'isReminderOn': False,
-            'reminderMinutesBeforeStart': 0,
-            'sensitivity': 'normal',
-            'showAs': 'busy',
-            'type': 'seriesMaster',
+            "isAllDay": False,
+            "isOrganizer": True,
+            "isReminderOn": False,
+            "reminderMinutesBeforeStart": 0,
+            "sensitivity": "normal",
+            "showAs": "busy",
+            "type": "seriesMaster",
             "attendees": [
                 {
-                    'emailAddress': {
-                        'address': self.attendee_user.email,
-                        'name': self.attendee_user.display_name
+                    "emailAddress": {
+                        "address": self.attendee_user.email,
+                        "name": self.attendee_user.display_name,
                     },
-                    'status': {'response': "notresponded"}
+                    "status": {"response": "notresponded"},
                 }
             ],
-            'location': {'displayName': ''},
-            'organizer': {
-                'emailAddress': {
-                    'address': self.organizer_user.email,
-                    'name': self.organizer_user.display_name,
+            "location": {"displayName": ""},
+            "organizer": {
+                "emailAddress": {
+                    "address": self.organizer_user.email,
+                    "name": self.organizer_user.display_name,
                 },
             },
-            'recurrence': {
-                'pattern': {'dayOfMonth': 22, 'interval': self.recurrent_event_interval, 'type': 'daily'},
-                'range': {
-                    'numberOfOccurrences': self.recurrent_events_count,
-                    'startDate': self.start_date.strftime("%Y-%m-%d"),
-                    'type': 'numbered'
+            "recurrence": {
+                "pattern": {
+                    "dayOfMonth": 22,
+                    "interval": self.recurrent_event_interval,
+                    "type": "daily",
+                },
+                "range": {
+                    "numberOfOccurrences": self.recurrent_events_count,
+                    "startDate": self.start_date.strftime("%Y-%m-%d"),
+                    "type": "numbered",
                 },
             },
         }
@@ -206,43 +238,59 @@ class TestCommon(EncryptionKeyCase, HttpCase):
         # -----------------------------------------------------------------------------------------
 
         self.simple_event_from_outlook_organizer = {
-            'type': 'singleInstance',
-            'seriesMasterId': None,
-            'id': '123',
-            'iCalUId': '456',
-            'subject': 'simple_event',
-            'body': {
-                'content': "my simple event",
-                'contentType': "text",
+            "type": "singleInstance",
+            "seriesMasterId": None,
+            "id": "123",
+            "iCalUId": "456",
+            "subject": "simple_event",
+            "body": {
+                "content": "my simple event",
+                "contentType": "text",
             },
-            'start': {'dateTime': self.start_date.strftime("%Y-%m-%dT%H:%M:%S.0000000"), 'timeZone': 'UTC'},
-            'end': {'dateTime': self.end_date.strftime("%Y-%m-%dT%H:%M:%S.0000000"), 'timeZone': 'UTC'},
-            'attendees': [{
-                'type': 'required',
-                'status': {'response': 'none', 'time': '0001-01-01T00:00:00Z'},
-                'emailAddress': {'name': self.attendee_user.display_name, 'address': self.attendee_user.email}
-            }],
-            'isAllDay': False,
-            'isCancelled': False,
-            'sensitivity': 'normal',
-            'showAs': 'busy',
-            'isOnlineMeeting': False,
-            'onlineMeetingUrl': None,
-            'isOrganizer': True,
-            'isReminderOn': True,
-            'location': {'displayName': ''},
-            'organizer': {
-                'emailAddress': {'address': self.organizer_user.email, 'name': self.organizer_user.display_name},
+            "start": {
+                "dateTime": self.start_date.strftime("%Y-%m-%dT%H:%M:%S.0000000"),
+                "timeZone": "UTC",
             },
-            'reminderMinutesBeforeStart': 15,
-            'responseRequested': True,
-            'responseStatus': {
-                'response': 'organizer',
-                'time': '0001-01-01T00:00:00Z',
+            "end": {
+                "dateTime": self.end_date.strftime("%Y-%m-%dT%H:%M:%S.0000000"),
+                "timeZone": "UTC",
+            },
+            "attendees": [
+                {
+                    "type": "required",
+                    "status": {"response": "none", "time": "0001-01-01T00:00:00Z"},
+                    "emailAddress": {
+                        "name": self.attendee_user.display_name,
+                        "address": self.attendee_user.email,
+                    },
+                }
+            ],
+            "isAllDay": False,
+            "isCancelled": False,
+            "sensitivity": "normal",
+            "showAs": "busy",
+            "isOnlineMeeting": False,
+            "onlineMeetingUrl": None,
+            "isOrganizer": True,
+            "isReminderOn": True,
+            "location": {"displayName": ""},
+            "organizer": {
+                "emailAddress": {
+                    "address": self.organizer_user.email,
+                    "name": self.organizer_user.display_name,
+                },
+            },
+            "reminderMinutesBeforeStart": 15,
+            "responseRequested": True,
+            "responseStatus": {
+                "response": "organizer",
+                "time": "0001-01-01T00:00:00Z",
             },
         }
 
-        self.simple_event_from_outlook_attendee = self.simple_event_from_outlook_organizer
+        self.simple_event_from_outlook_attendee = (
+            self.simple_event_from_outlook_organizer
+        )
         self.simple_event_from_outlook_attendee.update(isOrganizer=False)
 
         # -----------------------------------------------------------------------------------------
@@ -251,137 +299,177 @@ class TestCommon(EncryptionKeyCase, HttpCase):
 
         self.expected_odoo_event_from_outlook = {
             "name": "simple_event",
-            "description": Markup('<p>my simple event</p>'),
+            "description": Markup("<p>my simple event</p>"),
             "active": True,
             "start": self.start_date,
             "stop": self.end_date,
             "user_id": self.organizer_user,
             "microsoft_id": "123",
             "ms_universal_event_id": "456",
-            "partner_ids": [self.organizer_user.partner_id.id, self.attendee_user.partner_id.id],
+            "partner_ids": [
+                self.organizer_user.partner_id.id,
+                self.attendee_user.partner_id.id,
+            ],
         }
         self.expected_odoo_recurrency_from_outlook = {
-            'active': True,
-            'byday': '1',
-            'count': 0,
-            'day': 0,
-            'display_name': "Every %s Days until %s" % (
-                self.recurrent_event_interval, self.recurrence_end_date.strftime("%Y-%m-%d")
+            "active": True,
+            "byday": "1",
+            "count": 0,
+            "day": 0,
+            "display_name": "Every %s Days until %s"
+            % (
+                self.recurrent_event_interval,
+                self.recurrence_end_date.strftime("%Y-%m-%d"),
             ),
-            'dtstart': self.start_date,
-            'end_type': 'end_date',
-            'event_tz': False,
-            'fri': False,
-            'interval': self.recurrent_event_interval,
-            'month_by': 'date',
+            "dtstart": self.start_date,
+            "end_type": "end_date",
+            "event_tz": False,
+            "fri": False,
+            "interval": self.recurrent_event_interval,
+            "month_by": "date",
             "microsoft_id": "REC123",
             "ms_universal_event_id": "REC456",
-            'name': "Every %s Days until %s" % (
-                self.recurrent_event_interval, self.recurrence_end_date.strftime("%Y-%m-%d")
+            "name": "Every %s Days until %s"
+            % (
+                self.recurrent_event_interval,
+                self.recurrence_end_date.strftime("%Y-%m-%d"),
             ),
-            'need_sync_m': False,
-            'rrule': 'DTSTART:%s\nRRULE:FREQ=DAILY;INTERVAL=%s;UNTIL=%s' % (
+            "need_sync_m": False,
+            "rrule": "DTSTART:%s\nRRULE:FREQ=DAILY;INTERVAL=%s;UNTIL=%s"
+            % (
                 self.start_date.strftime("%Y%m%dT%H%M%S"),
                 self.recurrent_event_interval,
                 self.recurrence_end_date.strftime("%Y%m%dT235959"),
             ),
-            'rrule_type': 'daily',
-            'until': self.recurrence_end_date.date(),
-            'weekday': False,
+            "rrule_type": "daily",
+            "until": self.recurrence_end_date.date(),
+            "weekday": False,
         }
 
-        self.recurrent_event_from_outlook_organizer = [{
-            'attendees': [{
-                'emailAddress': {'address': self.attendee_user.email, 'name': self.attendee_user.display_name},
-                'status': {'response': 'none', 'time': '0001-01-01T00:00:00Z'},
-                'type': 'required'
-            }],
-            'body': {
-                'content': "my recurrent event",
-                'contentType': "text",
-            },
-            'start': {'dateTime': self.start_date.strftime("%Y-%m-%dT%H:%M:%S.0000000"), 'timeZone': 'UTC'},
-            'end': {'dateTime': self.end_date.strftime("%Y-%m-%dT%H:%M:%S.0000000"), 'timeZone': 'UTC'},
-            'id': 'REC123',
-            'iCalUId': 'REC456',
-            'isAllDay': False,
-            'isCancelled': False,
-            'isOnlineMeeting': False,
-            'isOrganizer': True,
-            'isReminderOn': True,
-            'location': {'displayName': ''},
-            'organizer': {'emailAddress': {
-                'address': self.organizer_user.email, 'name': self.organizer_user.display_name}
-            },
-            'recurrence': {
-                'pattern': {
-                    'dayOfMonth': 0,
-                    'firstDayOfWeek': 'sunday',
-                    'index': 'first',
-                    'interval': self.recurrent_event_interval,
-                    'month': 0,
-                    'type': 'daily'
+        self.recurrent_event_from_outlook_organizer = [
+            {
+                "attendees": [
+                    {
+                        "emailAddress": {
+                            "address": self.attendee_user.email,
+                            "name": self.attendee_user.display_name,
+                        },
+                        "status": {"response": "none", "time": "0001-01-01T00:00:00Z"},
+                        "type": "required",
+                    }
+                ],
+                "body": {
+                    "content": "my recurrent event",
+                    "contentType": "text",
                 },
-                'range': {
-                    'startDate': self.start_date.strftime("%Y-%m-%d"),
-                    'endDate': self.recurrence_end_date.strftime("%Y-%m-%d"),
-                    'numberOfOccurrences': 0,
-                    'recurrenceTimeZone': 'Romance Standard Time',
-                    'type': 'endDate'
-                }
-            },
-            'reminderMinutesBeforeStart': 15,
-            'responseRequested': True,
-            'responseStatus': {'response': 'organizer', 'time': '0001-01-01T00:00:00Z'},
-            'sensitivity': 'normal',
-            'seriesMasterId': None,
-            'showAs': 'busy',
-            'subject': "recurrent event",
-            'type': 'seriesMaster',
-        }]
+                "start": {
+                    "dateTime": self.start_date.strftime("%Y-%m-%dT%H:%M:%S.0000000"),
+                    "timeZone": "UTC",
+                },
+                "end": {
+                    "dateTime": self.end_date.strftime("%Y-%m-%dT%H:%M:%S.0000000"),
+                    "timeZone": "UTC",
+                },
+                "id": "REC123",
+                "iCalUId": "REC456",
+                "isAllDay": False,
+                "isCancelled": False,
+                "isOnlineMeeting": False,
+                "isOrganizer": True,
+                "isReminderOn": True,
+                "location": {"displayName": ""},
+                "organizer": {
+                    "emailAddress": {
+                        "address": self.organizer_user.email,
+                        "name": self.organizer_user.display_name,
+                    }
+                },
+                "recurrence": {
+                    "pattern": {
+                        "dayOfMonth": 0,
+                        "firstDayOfWeek": "sunday",
+                        "index": "first",
+                        "interval": self.recurrent_event_interval,
+                        "month": 0,
+                        "type": "daily",
+                    },
+                    "range": {
+                        "startDate": self.start_date.strftime("%Y-%m-%d"),
+                        "endDate": self.recurrence_end_date.strftime("%Y-%m-%d"),
+                        "numberOfOccurrences": 0,
+                        "recurrenceTimeZone": "Romance Standard Time",
+                        "type": "endDate",
+                    },
+                },
+                "reminderMinutesBeforeStart": 15,
+                "responseRequested": True,
+                "responseStatus": {
+                    "response": "organizer",
+                    "time": "0001-01-01T00:00:00Z",
+                },
+                "sensitivity": "normal",
+                "seriesMasterId": None,
+                "showAs": "busy",
+                "subject": "recurrent event",
+                "type": "seriesMaster",
+            }
+        ]
         self.recurrent_event_from_outlook_organizer += [
             {
-                'attendees': [{
-                    'emailAddress': {'address': self.attendee_user.email, 'name': self.attendee_user.display_name},
-                    'status': {'response': 'none', 'time': '0001-01-01T00:00:00Z'},
-                    'type': 'required'
-                }],
-                'body': {
-                    'content': "my recurrent event",
-                    'contentType': "text",
+                "attendees": [
+                    {
+                        "emailAddress": {
+                            "address": self.attendee_user.email,
+                            "name": self.attendee_user.display_name,
+                        },
+                        "status": {"response": "none", "time": "0001-01-01T00:00:00Z"},
+                        "type": "required",
+                    }
+                ],
+                "body": {
+                    "content": "my recurrent event",
+                    "contentType": "text",
                 },
-                'start': {
-                    'dateTime': (
-                        self.start_date + timedelta(days=i * self.recurrent_event_interval)
+                "start": {
+                    "dateTime": (
+                        self.start_date
+                        + timedelta(days=i * self.recurrent_event_interval)
                     ).strftime("%Y-%m-%dT%H:%M:%S.0000000"),
-                    'timeZone': 'UTC'
+                    "timeZone": "UTC",
                 },
-                'end': {
-                    'dateTime': (
-                        self.end_date + timedelta(days=i * self.recurrent_event_interval)
+                "end": {
+                    "dateTime": (
+                        self.end_date
+                        + timedelta(days=i * self.recurrent_event_interval)
                     ).strftime("%Y-%m-%dT%H:%M:%S.0000000"),
-                    'timeZone': 'UTC'
+                    "timeZone": "UTC",
                 },
-                'id': f'REC123_EVENT_{i+1}',
-                'iCalUId': f'REC456_EVENT_{i+1}',
-                'seriesMasterId': 'REC123',
-                'isAllDay': False,
-                'isCancelled': False,
-                'isOnlineMeeting': False,
-                'isOrganizer': True,
-                'isReminderOn': True,
-                'location': {'displayName': ''},
-                'organizer': {
-                    'emailAddress': {'address': self.organizer_user.email, 'name': self.organizer_user.display_name}
+                "id": f"REC123_EVENT_{i + 1}",
+                "iCalUId": f"REC456_EVENT_{i + 1}",
+                "seriesMasterId": "REC123",
+                "isAllDay": False,
+                "isCancelled": False,
+                "isOnlineMeeting": False,
+                "isOrganizer": True,
+                "isReminderOn": True,
+                "location": {"displayName": ""},
+                "organizer": {
+                    "emailAddress": {
+                        "address": self.organizer_user.email,
+                        "name": self.organizer_user.display_name,
+                    }
                 },
-                'recurrence': None,
-                'reminderMinutesBeforeStart': 15,
-                'responseRequested': True,
-                'responseStatus': {'response': 'organizer', 'time': '0001-01-01T00:00:00Z'},
-                'sensitivity': 'normal',
-                'showAs': 'busy',
-                'subject': "recurrent event",
-                'type': 'occurrence',
+                "recurrence": None,
+                "reminderMinutesBeforeStart": 15,
+                "responseRequested": True,
+                "responseStatus": {
+                    "response": "organizer",
+                    "time": "0001-01-01T00:00:00Z",
+                },
+                "sensitivity": "normal",
+                "showAs": "busy",
+                "subject": "recurrent event",
+                "type": "occurrence",
             }
             for i in range(self.recurrent_events_count)
         ]
@@ -391,16 +479,22 @@ class TestCommon(EncryptionKeyCase, HttpCase):
                 isOrganizer=False,
                 attendees=[
                     {
-                        'emailAddress': {'address': self.organizer_user.email, 'name': self.organizer_user.display_name},
-                        'status': {'response': 'none', 'time': '0001-01-01T00:00:00Z'},
-                        'type': 'required'
+                        "emailAddress": {
+                            "address": self.organizer_user.email,
+                            "name": self.organizer_user.display_name,
+                        },
+                        "status": {"response": "none", "time": "0001-01-01T00:00:00Z"},
+                        "type": "required",
                     },
                     {
-                        'emailAddress': {'address': self.attendee_user.email, 'name': self.attendee_user.display_name},
-                        'status': {'response': 'none', 'time': '0001-01-01T00:00:00Z'},
-                        'type': 'required'
+                        "emailAddress": {
+                            "address": self.attendee_user.email,
+                            "name": self.attendee_user.display_name,
+                        },
+                        "status": {"response": "none", "time": "0001-01-01T00:00:00Z"},
+                        "type": "required",
                     },
-                ]
+                ],
             )
             for d in self.recurrent_event_from_outlook_organizer
         ]
@@ -409,13 +503,18 @@ class TestCommon(EncryptionKeyCase, HttpCase):
             {
                 "name": "recurrent event",
                 "user_id": self.organizer_user,
-                "partner_ids": [self.organizer_user.partner_id.id, self.attendee_user.partner_id.id],
-                "start": self.start_date + timedelta(days=i * self.recurrent_event_interval),
-                "stop": self.end_date + timedelta(days=i * self.recurrent_event_interval),
+                "partner_ids": [
+                    self.organizer_user.partner_id.id,
+                    self.attendee_user.partner_id.id,
+                ],
+                "start": self.start_date
+                + timedelta(days=i * self.recurrent_event_interval),
+                "stop": self.end_date
+                + timedelta(days=i * self.recurrent_event_interval),
                 "until": self.recurrence_end_date.date(),
                 "microsoft_recurrence_master_id": "REC123",
-                "microsoft_id": f"REC123_EVENT_{i+1}",
-                "ms_universal_event_id": f"REC456_EVENT_{i+1}",
+                "microsoft_id": f"REC123_EVENT_{i + 1}",
+                "ms_universal_event_id": f"REC456_EVENT_{i + 1}",
                 "recurrency": True,
                 "follow_recurrence": True,
                 "active": True,
@@ -433,15 +532,18 @@ class TestCommon(EncryptionKeyCase, HttpCase):
         """
         # cr.now() is contractually a datetime; coerce a string so consumers
         # doing datetime arithmetic on it (e.g. ir.cron._now) don't break.
-        now_dt = fields.Datetime.to_datetime(mock_dt) if isinstance(mock_dt, str) else mock_dt
+        now_dt = (
+            fields.Datetime.to_datetime(mock_dt)
+            if isinstance(mock_dt, str)
+            else mock_dt
+        )
         # cr.now() is naive UTC in production; normalize a tz-aware freeze
         # point so it (and freeze_time) stay on that convention, else
         # naive/aware comparisons (e.g. ir.cron._now) crash. Mirrors mail
         # freeze_all_time.
         if now_dt.tzinfo is not None:
             now_dt = now_dt.astimezone(UTC).replace(tzinfo=None)
-        with freeze_time(now_dt), \
-                patch.object(self.env.cr, 'now', lambda: now_dt):
+        with freeze_time(now_dt), patch.object(self.env.cr, "now", lambda: now_dt):
             yield
 
     def sync_odoo_recurrences_with_outlook_feature(self):
@@ -459,28 +561,42 @@ class TestCommon(EncryptionKeyCase, HttpCase):
         # ---- create some events that will be updated during tests -----
 
         # a simple event
-        self.simple_event = self.env["calendar.event"].search([("name", "=", "simple_event")])
+        self.simple_event = self.env["calendar.event"].search(
+            [("name", "=", "simple_event")]
+        )
         if not self.simple_event:
-            self.simple_event = self.env["calendar.event"].with_user(self.organizer_user).create(
-                dict(
-                    self.simple_event_values,
-                    microsoft_id="123",
-                    ms_universal_event_id="456",
+            self.simple_event = (
+                self.env["calendar.event"]
+                .with_user(self.organizer_user)
+                .create(
+                    dict(
+                        self.simple_event_values,
+                        microsoft_id="123",
+                        ms_universal_event_id="456",
+                    )
                 )
             )
 
         # a group of events
-        self.several_events = self.env["calendar.event"].search([("name", "like", "event%")])
+        self.several_events = self.env["calendar.event"].search(
+            [("name", "like", "event%")]
+        )
         if not self.several_events:
-            self.several_events = self.env["calendar.event"].with_user(self.organizer_user).create([
-                dict(
-                    self.simple_event_values,
-                    name=f"event{i}",
-                    microsoft_id=f"e{i}",
-                    ms_universal_event_id=f"u{i}"
+            self.several_events = (
+                self.env["calendar.event"]
+                .with_user(self.organizer_user)
+                .create(
+                    [
+                        dict(
+                            self.simple_event_values,
+                            name=f"event{i}",
+                            microsoft_id=f"e{i}",
+                            ms_universal_event_id=f"u{i}",
+                        )
+                        for i in range(1, 4)
+                    ]
                 )
-                for i in range(1, 4)
-            ])
+            )
 
         # a recurrent event with 7 occurrences
         self.recurrent_base_event = self.env["calendar.event"].search(
@@ -496,27 +612,37 @@ class TestCommon(EncryptionKeyCase, HttpCase):
         self.env.user.microsoft_synchronization_stopped = False
 
         if not already_created:
-            self.recurrent_base_event = self.env["calendar.event"].with_context(dont_notify=True).with_user(self.organizer_user).create(
-                self.recurrent_event_values
+            self.recurrent_base_event = (
+                self.env["calendar.event"]
+                .with_context(dont_notify=True)
+                .with_user(self.organizer_user)
+                .create(self.recurrent_event_values)
             )
-        self.recurrence = self.env["calendar.recurrence"].search([("base_event_id", "=", self.recurrent_base_event.id)])
+        self.recurrence = self.env["calendar.recurrence"].search(
+            [("base_event_id", "=", self.recurrent_base_event.id)]
+        )
 
         # set ids set by Outlook
         if not already_created:
-            self.recurrence.with_context(dont_notify=True).write({
-                "microsoft_id": "REC123",
-                "ms_universal_event_id": "REC456"
-            })
-            for i, e in enumerate(self.recurrence.calendar_event_ids.sorted(key=lambda r: r.start)):
-                e.with_context(dont_notify=True).write({
-                    "microsoft_id": f"REC123_EVENT_{i+1}",
-                    "ms_universal_event_id": f"REC456_EVENT_{i+1}",
-                    "microsoft_recurrence_master_id": "REC123",
-                })
+            self.recurrence.with_context(dont_notify=True).write(
+                {"microsoft_id": "REC123", "ms_universal_event_id": "REC456"}
+            )
+            for i, e in enumerate(
+                self.recurrence.calendar_event_ids.sorted(key=lambda r: r.start)
+            ):
+                e.with_context(dont_notify=True).write(
+                    {
+                        "microsoft_id": f"REC123_EVENT_{i + 1}",
+                        "ms_universal_event_id": f"REC456_EVENT_{i + 1}",
+                        "microsoft_recurrence_master_id": "REC123",
+                    }
+                )
             self.recurrence.invalidate_recordset()
             self.recurrence.calendar_event_ids.invalidate_recordset()
 
-            self.recurrent_events = self.recurrence.calendar_event_ids.sorted(key=lambda r: r.start)
+            self.recurrent_events = self.recurrence.calendar_event_ids.sorted(
+                key=lambda r: r.start
+            )
             self.recurrent_events_count = len(self.recurrent_events)
 
         # Rollback the synchronization status after setup.
@@ -535,7 +661,9 @@ class TestCommon(EncryptionKeyCase, HttpCase):
                 v = (v.id, v.name) if v else False
 
             if isinstance(v, list):
-                self.assertListEqual(sorted(v), sorted(odoo_event_values.get(k)), msg=f"'{k}' mismatch")
+                self.assertListEqual(
+                    sorted(v), sorted(odoo_event_values.get(k)), msg=f"'{k}' mismatch"
+                )
             else:
                 self.assertEqual(v, odoo_event_values.get(k), msg=f"'{k}' mismatch")
 
@@ -553,7 +681,9 @@ class TestCommon(EncryptionKeyCase, HttpCase):
 
         # check missing keys
         keys = set(dict1.keys()) ^ set(dict2.keys())
-        self.assertFalse(keys, msg="Following keys are not in both dicts: %s" % ", ".join(keys))
+        self.assertFalse(
+            keys, msg="Following keys are not in both dicts: %s" % ", ".join(keys)
+        )
 
         # compare key by key
         for k, v in dict1.items():

@@ -2004,14 +2004,10 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
         }
         yield 1, document, expected_values
 
-        self.tax_groups[
-            3
-        ].preceding_subtotal = "PRE GROUP 1"
+        self.tax_groups[3].preceding_subtotal = "PRE GROUP 1"
         tax_10.tax_group_id = self.tax_groups[3]
         tax_42.tax_group_id = self.tax_groups[1]
-        tax_minus_25 = self.percent_tax(
-            -25.0, tax_group_id=self.tax_groups[2].id
-        )
+        tax_minus_25 = self.percent_tax(-25.0, tax_group_id=self.tax_groups[2].id)
         tax_30 = self.percent_tax(30.0, tax_group_id=self.tax_groups[0].id)
 
         document = self.populate_document(

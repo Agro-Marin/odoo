@@ -24,7 +24,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             }
         )
 
-
     def assert_sale_order_down_payment(
         self,
         sale_order,
@@ -88,7 +87,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                 },
             ],
         )
-
 
     def test_taxes_l10n_in_sale_orders(self):
         for (
@@ -172,7 +170,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         self.assert_sale_order_down_payment(
             sale_order, amount_type, amount, expected_values
         )
-
 
     @freeze_time("2017-01-01")
     def test_down_payment_invoice_multiple_taxes_and_accounts(self):

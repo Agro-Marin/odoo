@@ -1,17 +1,18 @@
 from odoo import models
+
 from odoo.addons.account.models.chart_template import template
 
 
 class AccountChartTemplate(models.AbstractModel):
-    _inherit = 'account.chart.template'
+    _inherit = "account.chart.template"
 
-    @template('xi')
+    @template("xi")
     def _get_mc_template_data(self):
         return {
-            'parent': 'uk',
+            "parent": "uk",
         }
 
     def _deref_account_tags(self, template_code, tax_data):
-        if template_code == 'xi':
-            template_code = 'uk'
+        if template_code == "xi":
+            template_code = "uk"
         return super()._deref_account_tags(template_code, tax_data)

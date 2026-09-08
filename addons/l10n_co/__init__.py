@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) David Arnold (devCO).
 # Author        David Arnold (devCO), dar@devco.co
 # Co-Authors    Juan Pablo Aries (devCO), jpa@devco.co

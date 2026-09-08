@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Mass Mailing Themes",
     "version": "1.2",

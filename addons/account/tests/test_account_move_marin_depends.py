@@ -168,7 +168,6 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
             "posting a partially-deductible bill still reveals the feature",
         )
 
-
     def test_display_state_query_sees_unflushed_state(self):
         invoice = self.init_invoice(
             "out_invoice", partner=self.partner_a, amounts=[100.0], post=True
@@ -211,9 +210,10 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
         )
         self.env.flush_all()
         payment_states = [
-            value for value, _label in self.env["account.move"]._fields[
-                "payment_state"
-            ].selection
+            value
+            for value, _label in self.env["account.move"]
+            ._fields["payment_state"]
+            .selection
         ]
         mismatches = []
         for state in ("draft", "posted", "cancel"):
@@ -232,11 +232,8 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
                             ("display_state", "=", computed),
                         ]
                     ):
-                        mismatches.append(
-                            (state, payment_state, is_sent, computed)
-                        )
+                        mismatches.append((state, payment_state, is_sent, computed))
         self.assertFalse(mismatches, "compute and SQL disagree for: %s" % mismatches)
-
 
     def test_payment_term_early_discount_rules_hold_on_write(self):
         term = self.env["account.payment.term"].create(
@@ -252,11 +249,15 @@ class TestAccountMoveMarinDepends(AccountTestInvoicingCommon):
                 ],
             }
         )
-        with self.assertRaises(ValidationError, msg="a negative discount must be refused"):
+        with self.assertRaises(
+            ValidationError, msg="a negative discount must be refused"
+        ):
             term.discount_percentage = -50.0
             self.env.flush_all()
         term.invalidate_recordset()
-        with self.assertRaises(ValidationError, msg="a zero-day discount must be refused"):
+        with self.assertRaises(
+            ValidationError, msg="a zero-day discount must be refused"
+        ):
             term.discount_days = 0
             self.env.flush_all()
 

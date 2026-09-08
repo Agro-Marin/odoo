@@ -3,7 +3,6 @@ from odoo.tools import is_html_empty, lazy
 
 
 class IrQweb(models.AbstractModel):
-
     _inherit = "ir.qweb"
 
     def _prepare_frontend_environment(self, values):

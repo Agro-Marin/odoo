@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import test_edi_tbai_send_bill_bizkaia
 from . import test_edi_tbai_send_invoice_bizkaia
 from . import test_edi_tbai_send_invoice

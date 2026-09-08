@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Argentina - Payment Withholdings",
     "version": "1.0",

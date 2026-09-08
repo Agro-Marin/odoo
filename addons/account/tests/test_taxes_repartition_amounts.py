@@ -79,7 +79,9 @@ class TestTaxesRepartitionAmounts(AccountTestInvoicingCommon):
             tax = self._make_tax(factors)
             for price_unit in self.PRICES:
                 for rate in self.RATES:
-                    with self.subTest(factors=factors, price_unit=price_unit, rate=rate):
+                    with self.subTest(
+                        factors=factors, price_unit=price_unit, rate=rate
+                    ):
                         tax_data = self._tax_data(tax, price_unit, rate, rounded=True)
                         reps = tax_data["tax_reps_data"]
                         self.assertEqual(
@@ -109,7 +111,9 @@ class TestTaxesRepartitionAmounts(AccountTestInvoicingCommon):
             tax = self._make_tax(factors)
             for price_unit in self.PRICES:
                 for rate in self.RATES:
-                    with self.subTest(factors=factors, price_unit=price_unit, rate=rate):
+                    with self.subTest(
+                        factors=factors, price_unit=price_unit, rate=rate
+                    ):
                         tax_data = self._tax_data(tax, price_unit, rate, rounded=False)
                         reps = tax_data["tax_reps_data"]
                         self.assertEqual(
@@ -138,7 +142,9 @@ class TestTaxesRepartitionAmounts(AccountTestInvoicingCommon):
         for price_unit in self.PRICES:
             for rate in self.RATES:
                 for rounded in (True, False):
-                    with self.subTest(price_unit=price_unit, rate=rate, rounded=rounded):
+                    with self.subTest(
+                        price_unit=price_unit, rate=rate, rounded=rounded
+                    ):
                         tax_data = self._tax_data(tax, price_unit, rate, rounded)
                         rep = tax_data["tax_reps_data"][0]
                         prefix = "" if rounded else "raw_"

@@ -4,24 +4,25 @@ from odoo.tools import mute_logger
 from odoo.addons.link_tracker.tests.common import MockLinkTracker
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestTrackerHttpRequests(MockLinkTracker, common.HttpCase):
-
     @mute_logger("odoo.addons.http_routing.models.ir_http", "odoo.http")
     def test_no_preview_tracking(self):
         """Ensure that requests with a user agent matching known preview user agents will not be registered as a click"""
-        link_tracker = self.env['link.tracker'].create({
-                'url': '/',
-                'title': 'Odoo',
-            })
+        link_tracker = self.env["link.tracker"].create(
+            {
+                "url": "/",
+                "title": "Odoo",
+            }
+        )
         self.assertEqual(len(link_tracker.link_click_ids), 0)
-        link = '/r/' + link_tracker.code
+        link = "/r/" + link_tracker.code
 
         # Check that no click is registered for a MicrosoftPreview agent
         self.url_open(
             link,
             headers={
-                'User-Agent': 'Mozilla/5.0 MicrosoftPreview/2.0 +https://aka.ms/MicrosoftPreview',
+                "User-Agent": "Mozilla/5.0 MicrosoftPreview/2.0 +https://aka.ms/MicrosoftPreview",
             },
             allow_redirects=False,
         )
@@ -31,7 +32,7 @@ class TestTrackerHttpRequests(MockLinkTracker, common.HttpCase):
         self.url_open(
             link,
             headers={
-                'User-Agent': 'Mozilla/5.0 Google-PageRenderer Google (+https://developers.google.com/+/web/snippet/)'
+                "User-Agent": "Mozilla/5.0 Google-PageRenderer Google (+https://developers.google.com/+/web/snippet/)"
             },
             allow_redirects=False,
         )
@@ -41,7 +42,7 @@ class TestTrackerHttpRequests(MockLinkTracker, common.HttpCase):
         self.url_open(
             link,
             headers={
-                'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0'
+                "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0"
             },
             allow_redirects=False,
         )

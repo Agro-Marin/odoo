@@ -7,14 +7,19 @@ from odoo.addons.sales_team.tests.common import TestSalesCommon
 
 
 class TestEventSaleCommon(TestEventProductCommon, TestSalesCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.event_0 = cls.env['event.event'].create({
-            'name': 'TestEvent',
-            'date_begin': fields.Datetime.to_string(datetime.today() + timedelta(days=1)),
-            'date_end': fields.Datetime.to_string(datetime.today() + timedelta(days=15)),
-            'date_tz': 'Europe/Brussels',
-        })
+        cls.event_0 = cls.env["event.event"].create(
+            {
+                "name": "TestEvent",
+                "date_begin": fields.Datetime.to_string(
+                    datetime.today() + timedelta(days=1)
+                ),
+                "date_end": fields.Datetime.to_string(
+                    datetime.today() + timedelta(days=15)
+                ),
+                "date_tz": "Europe/Brussels",
+            }
+        )

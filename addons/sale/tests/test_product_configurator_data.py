@@ -301,7 +301,6 @@ class TestProductConfiguratorData(
     def test_dropped_attribute_value_custom_no_variant(self):
         product_template = self.create_product_template_with_2_attribute_no_variant()
 
-
         self.empty_order.line_ids = [
             Command.create(
                 {

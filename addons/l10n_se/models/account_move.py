@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
-from odoo import api, fields, models, _
-from odoo.exceptions import UserError, ValidationError
 from stdnum import luhn
+
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 
 
 class AccountMove(models.Model):
-    _inherit = 'account.move'
+    _inherit = "account.move"
 
     def _get_invoice_reference_se_ocr2(self, reference):
         self.check_singleton()
@@ -22,11 +22,15 @@ class AccountMove(models.Model):
         ocr_length = self.journal_id.l10n_se_invoice_ocr_length
 
         if len(reference) + 1 > ocr_length:
-            raise UserError(_("OCR Reference Number length is greater than allowed. Allowed length in invoice journal setting is %s.", ocr_length))
+            raise UserError(
+                _(
+                    "OCR Reference Number length is greater than allowed. Allowed length in invoice journal setting is %s.",
+                    ocr_length,
+                )
+            )
 
-        reference = reference.rjust(ocr_length - 1, '0')
+        reference = reference.rjust(ocr_length - 1, "0")
         return reference + luhn.calc_check_digit(reference)
-
 
     def _get_invoice_reference_se_ocr2_invoice(self):
         self.check_singleton()
@@ -42,34 +46,54 @@ class AccountMove(models.Model):
 
     def _get_invoice_reference_se_ocr2_partner(self):
         self.check_singleton()
-        return self._get_invoice_reference_se_ocr2(self.partner_id.ref if str(self.partner_id.ref).isdecimal() else str(self.partner_id.id))
+        return self._get_invoice_reference_se_ocr2(
+            self.partner_id.ref
+            if str(self.partner_id.ref).isdecimal()
+            else str(self.partner_id.id)
+        )
 
     def _get_invoice_reference_se_ocr3_partner(self):
         self.check_singleton()
-        return self._get_invoice_reference_se_ocr3(self.partner_id.ref if str(self.partner_id.ref).isdecimal() else str(self.partner_id.id))
+        return self._get_invoice_reference_se_ocr3(
+            self.partner_id.ref
+            if str(self.partner_id.ref).isdecimal()
+            else str(self.partner_id.id)
+        )
 
     def _get_invoice_reference_se_ocr4_partner(self):
         self.check_singleton()
-        return self._get_invoice_reference_se_ocr4(self.partner_id.ref if str(self.partner_id.ref).isdecimal() else str(self.partner_id.id))
+        return self._get_invoice_reference_se_ocr4(
+            self.partner_id.ref
+            if str(self.partner_id.ref).isdecimal()
+            else str(self.partner_id.id)
+        )
 
-    @api.onchange('partner_id')
+    @api.onchange("partner_id")
     def _onchange_partner_id(self):
-        """ If Vendor Bill and Vendor OCR is set, add it. """
-        if self.partner_id and self.move_type == 'in_invoice' and self.partner_id.l10n_se_default_vendor_payment_ref:
+        """If Vendor Bill and Vendor OCR is set, add it."""
+        if (
+            self.partner_id
+            and self.move_type == "in_invoice"
+            and self.partner_id.l10n_se_default_vendor_payment_ref
+        ):
             self.payment_reference = self.partner_id.l10n_se_default_vendor_payment_ref
-        return super(AccountMove, self)._onchange_partner_id()
+        return super()._onchange_partner_id()
 
-    @api.constrains('payment_reference', 'state')
+    @api.constrains("payment_reference", "state")
     def _l10n_se_check_payment_reference(self):
         for invoice in self:
             if (
-                (invoice.payment_reference or invoice.state == 'posted')
+                (invoice.payment_reference or invoice.state == "posted")
                 and invoice.partner_id
-                and invoice.move_type == 'in_invoice'
+                and invoice.move_type == "in_invoice"
                 and invoice.partner_id.l10n_se_check_vendor_ocr
-                and invoice.country_code == 'SE'
+                and invoice.country_code == "SE"
             ):
                 try:
                     luhn.validate(invoice.payment_reference)
                 except Exception:
-                    raise ValidationError(_("Vendor require OCR Number as payment reference. Payment reference isn't a valid OCR Number."))
+                    raise ValidationError(
+                        _(
+                            "Vendor require OCR Number as payment reference. Payment reference isn't a valid OCR Number."
+                        )
+                    )

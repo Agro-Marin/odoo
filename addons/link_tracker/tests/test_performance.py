@@ -3,7 +3,7 @@
 from odoo.tests import common, tagged
 
 
-@tagged('link_tracker', 'post_install', '-at_install')
+@tagged("link_tracker", "post_install", "-at_install")
 class TestLinkTrackerCost(common.TransactionCase):
     """Marginal-cost tests.
 
@@ -15,8 +15,10 @@ class TestLinkTrackerCost(common.TransactionCase):
 
     def setUp(self):
         super().setUp()
-        self.env['ir.config_parameter'].sudo().set_param('web.base.url', 'https://test.odoo.com')
-        self.render = self.env['mixin.mail.render']
+        self.env["ir.config_parameter"].sudo().set_param(
+            "web.base.url", "https://test.odoo.com"
+        )
+        self.render = self.env["mixin.mail.render"]
         # Warm whatever the first call would pay for once (config parameters,
         # registry lookups), so it is not counted as slope.
         self.render._shorten_links('<a href="https://warm.example.com">w</a>', {})
@@ -44,9 +46,12 @@ class TestLinkTrackerCost(common.TransactionCase):
         is the order of magnitude: this was 109 queries when `_compute_code` ran a
         search per record.
         """
-        count = self._queries(lambda: self.render._shorten_links(self._body(100, 'html-many'), {}))
+        count = self._queries(
+            lambda: self.render._shorten_links(self._body(100, "html-many"), {})
+        )
         self.assertLessEqual(
-            count, 30,
+            count,
+            30,
             f"shortening 100 new links cost {count} queries -- that is per-link work",
         )
 
@@ -56,23 +61,28 @@ class TestLinkTrackerCost(common.TransactionCase):
         `_action_send_mail_mass_mail` invalidates once per batch of recipients, so
         this is the cold cost each batch repeats. It is flat, and must stay flat.
         """
-        small_body, large_body = self._body(2, 'again-small'), self._body(100, 'again-large')
+        small_body, large_body = (
+            self._body(2, "again-small"),
+            self._body(100, "again-large"),
+        )
         self.render._shorten_links(small_body, {})
         self.render._shorten_links(large_body, {})
         small = self._queries(lambda: self.render._shorten_links(small_body, {}))
         large = self._queries(lambda: self.render._shorten_links(large_body, {}))
         self.assertLessEqual(
-            large - small, 1,
+            large - small,
+            1,
             f"re-shortening 98 further known links cost {large - small} extra queries "
             f"({small} for 2, {large} for 100)",
         )
 
     def test_shortening_a_text_body_is_not_priced_per_link(self):
         """`search_or_create` is a batch API; it was called once per URL."""
-        text = " ".join(f'https://txt-many-{i}.example.com' for i in range(100))
+        text = " ".join(f"https://txt-many-{i}.example.com" for i in range(100))
         count = self._queries(lambda: self.render._shorten_links_text(text, {}))
         self.assertLessEqual(
-            count, 30,
+            count,
+            30,
             f"shortening 100 new links cost {count} queries -- that is per-link work",
         )
 
@@ -82,37 +92,49 @@ class TestLinkTrackerCost(common.TransactionCase):
         Two queries per record here is two queries per row of any list showing a
         link tracker, and of any list showing a click.
         """
-        trackers = self.env['link.tracker'].create(
-            [{'url': f'https://code-{i}.example.com'} for i in range(20)])
+        trackers = self.env["link.tracker"].create(
+            [{"url": f"https://code-{i}.example.com"} for i in range(20)]
+        )
         small, large = trackers[:2], trackers
-        small_count = self._queries(lambda: small.mapped('code'))
-        large_count = self._queries(lambda: large.mapped('code'))
+        small_count = self._queries(lambda: small.mapped("code"))
+        large_count = self._queries(lambda: large.mapped("code"))
         self.assertLessEqual(
-            large_count - small_count, 1,
+            large_count - small_count,
+            1,
             f"reading `code` on 18 further records cost {large_count - small_count} extra "
             f"queries ({small_count} for 2, {large_count} for 20)",
         )
-        display_small = self._queries(lambda: small.mapped('display_name'))
-        display_large = self._queries(lambda: large.mapped('display_name'))
+        display_small = self._queries(lambda: small.mapped("display_name"))
+        display_large = self._queries(lambda: large.mapped("display_name"))
         self.assertLessEqual(
-            display_large - display_small, 1,
+            display_large - display_small,
+            1,
             f"reading `display_name` on 18 further records cost "
             f"{display_large - display_small} extra queries",
         )
 
     def test_finding_known_trackers_does_not_scale_with_the_batch(self):
         """`search_or_create` resolves a whole batch through one indexed lookup."""
+
         def vals(count, tag):
-            return [{'url': f'https://soc-{tag}-{i}.example.com'} for i in range(count)]
-        small_vals, large_vals = vals(2, 'small'), vals(20, 'large')
-        self.env['link.tracker'].search_or_create([dict(v) for v in small_vals])
-        self.env['link.tracker'].search_or_create([dict(v) for v in large_vals])
+            return [{"url": f"https://soc-{tag}-{i}.example.com"} for i in range(count)]
+
+        small_vals, large_vals = vals(2, "small"), vals(20, "large")
+        self.env["link.tracker"].search_or_create([dict(v) for v in small_vals])
+        self.env["link.tracker"].search_or_create([dict(v) for v in large_vals])
         small = self._queries(
-            lambda: self.env['link.tracker'].search_or_create([dict(v) for v in small_vals]))
+            lambda: self.env["link.tracker"].search_or_create(
+                [dict(v) for v in small_vals]
+            )
+        )
         large = self._queries(
-            lambda: self.env['link.tracker'].search_or_create([dict(v) for v in large_vals]))
+            lambda: self.env["link.tracker"].search_or_create(
+                [dict(v) for v in large_vals]
+            )
+        )
         self.assertLessEqual(
-            large - small, 1,
+            large - small,
+            1,
             f"resolving 18 further known keys cost {large - small} extra queries "
             f"({small} for 2, {large} for 20)",
         )

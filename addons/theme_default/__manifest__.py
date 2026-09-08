@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 {
     "name": "Default Theme",
     "version": "1.0",

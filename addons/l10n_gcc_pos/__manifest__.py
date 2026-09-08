@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Gulf Cooperation Council - Point of Sale",
     "category": "Accounting/Localizations/Point of Sale",

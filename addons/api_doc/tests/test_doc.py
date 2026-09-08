@@ -27,125 +27,154 @@ class TestDoc(HttpCaseWithUserDemo):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user_demo.write({
-            'group_ids': [Command.link(cls.env.ref('api_doc.group_allow_doc').id)],
-        })
+        cls.user_demo.write(
+            {
+                "group_ids": [Command.link(cls.env.ref("api_doc.group_allow_doc").id)],
+            }
+        )
 
     def test_doc_access(self):
         e = "This page is only accessible to Technical Documentation users."
-        new_test_user(self.env, login='test_doc_access')
-        self.authenticate('test_doc_access', 'test_doc_access')
-        for path in ('/doc', '/doc/index.json', '/doc/res.company.json'):
+        new_test_user(self.env, login="test_doc_access")
+        self.authenticate("test_doc_access", "test_doc_access")
+        for path in ("/doc", "/doc/index.json", "/doc/res.company.json"):
             with self.subTest(path=path):
-                with self.assertLogs('odoo.http') as capture:
+                with self.assertLogs("odoo.http") as capture:
                     res = self.url_open(path)
                 self.assertEqual(res.status_code, 403)
                 self.assertIn(e, res.text)
                 # dispatch-error logging lives in the odoo.http.application
                 # submodule since the http package split
-                self.assertEqual(
-                    capture.output, [f'WARNING:odoo.http.application:{e}']
-                )
+                self.assertEqual(capture.output, [f"WARNING:odoo.http.application:{e}"])
 
     def test_doc_web_client(self):
-        self.authenticate('demo', 'demo')
-        res = self.url_open('/doc', allow_redirects=False)
+        self.authenticate("demo", "demo")
+        res = self.url_open("/doc", allow_redirects=False)
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.headers.get('Content-Type'), 'text/html; charset=utf-8')
+        self.assertEqual(res.headers.get("Content-Type"), "text/html; charset=utf-8")
         self.assertTrue(res.content, "There must be a rich web client")
 
     def test_doc_index_user(self):
-        self.authenticate('demo', 'demo')
-        self._doc_index('doc')
+        self.authenticate("demo", "demo")
+        self._doc_index("doc")
 
     def test_doc_index_bearer(self):
-        key = self.env['res.users.apikeys'].with_user(self.user_demo)._generate(
-            scope='rpc', name='test', expiration_date=datetime.now() + timedelta(days=0.5))
-        self._doc_index('doc-bearer', headers={"Authorization": f"Bearer {key}"})
+        key = (
+            self.env["res.users.apikeys"]
+            .with_user(self.user_demo)
+            ._generate(
+                scope="rpc",
+                name="test",
+                expiration_date=datetime.now() + timedelta(days=0.5),
+            )
+        )
+        self._doc_index("doc-bearer", headers={"Authorization": f"Bearer {key}"})
 
     def _doc_index(self, prefix, headers=None):
-        res = self.url_open(f'/{prefix}/index.json', allow_redirects=False, headers=headers)
+        res = self.url_open(
+            f"/{prefix}/index.json", allow_redirects=False, headers=headers
+        )
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.headers.get('Content-Type'), 'application/json; charset=utf-8')
+        self.assertEqual(
+            res.headers.get("Content-Type"), "application/json; charset=utf-8"
+        )
 
         json = res.json()
-        self.assertEqual(set(json), {'models'})
+        self.assertEqual(set(json), {"models"})
 
         res_partner = next(
-            (model for model in json['models'] if model['model'] == 'res.partner'),
+            (model for model in json["models"] if model["model"] == "res.partner"),
             None,
         )
         self.assertTrue(res_partner, "res.partner not found in json['models']")
-        res_partner_fields = res_partner.pop('fields')
-        res_partner_methods = res_partner.pop('methods')
-        self.assertEqual(res_partner, {'name': "Contact", 'model': 'res.partner'})
-        self.assertGreater(set(res_partner_methods), {'search', 'open_commercial_entity'})
-        self.assertGreater(set(res_partner_fields), {'id', 'create_uid', 'lang', 'tz'})
+        res_partner_fields = res_partner.pop("fields")
+        res_partner_methods = res_partner.pop("methods")
+        self.assertEqual(res_partner, {"name": "Contact", "model": "res.partner"})
+        self.assertGreater(
+            set(res_partner_methods), {"search", "open_commercial_entity"}
+        )
+        self.assertGreater(set(res_partner_fields), {"id", "create_uid", "lang", "tz"})
 
     def test_doc_model_user(self):
-        self.authenticate('demo', 'demo')
-        self._doc_model('doc')
+        self.authenticate("demo", "demo")
+        self._doc_model("doc")
 
     def test_doc_model_bearer(self):
-        key = self.env['res.users.apikeys'].with_user(self.user_demo)._generate(
-            scope='rpc', name='test', expiration_date=datetime.now() + timedelta(days=0.5))
-        self._doc_model('doc-bearer', headers={"Authorization": f"Bearer {key}"})
+        key = (
+            self.env["res.users.apikeys"]
+            .with_user(self.user_demo)
+            ._generate(
+                scope="rpc",
+                name="test",
+                expiration_date=datetime.now() + timedelta(days=0.5),
+            )
+        )
+        self._doc_model("doc-bearer", headers={"Authorization": f"Bearer {key}"})
 
     def _doc_model(self, prefix, headers=None):
-        res = self.url_open(f'/{prefix}/res.partner.json', allow_redirects=False, headers=headers)
+        res = self.url_open(
+            f"/{prefix}/res.partner.json", allow_redirects=False, headers=headers
+        )
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.headers.get('Content-Type'), 'application/json; charset=utf-8')
+        self.assertEqual(
+            res.headers.get("Content-Type"), "application/json; charset=utf-8"
+        )
 
         json = res.json()
-        fields = json.pop('fields', None)
-        methods = json.pop('methods', None)
+        fields = json.pop("fields", None)
+        methods = json.pop("methods", None)
         self.maxDiff = None
-        self.assertEqual(json.pop('model'), 'res.partner')
-        self.assertEqual(json.pop('name'), 'Contact')
-        self.assertEqual(set(json), {'doc'}, "no other top-level key is published")
+        self.assertEqual(json.pop("model"), "res.partner")
+        self.assertEqual(json.pop("name"), "Contact")
+        self.assertEqual(set(json), {"doc"}, "no other top-level key is published")
 
-        self.assertGreater(set(fields), {'id', 'create_uid', 'lang', 'tz'})
-        fields['id'].pop('ai', None)
-        self.assertEqual(fields['id'], {
-            'change_default': False,
-            'company_dependent': False,
-            'default_export_compatible': False,
-            'depends': [],
-            'exportable': True,
-            'groupable': True,
-            'manual': False,
-            'module': None,
-            'name': 'id',
-            'readonly': True,
-            'required': False,
-            'searchable': True,
-            'sortable': True,
-            'store': True,
-            'string': 'ID',
-            'type': 'integer',
-        })
+        self.assertGreater(set(fields), {"id", "create_uid", "lang", "tz"})
+        fields["id"].pop("ai", None)
+        self.assertEqual(
+            fields["id"],
+            {
+                "change_default": False,
+                "company_dependent": False,
+                "default_export_compatible": False,
+                "depends": [],
+                "exportable": True,
+                "groupable": True,
+                "manual": False,
+                "module": None,
+                "name": "id",
+                "readonly": True,
+                "required": False,
+                "searchable": True,
+                "sortable": True,
+                "store": True,
+                "string": "ID",
+                "type": "integer",
+            },
+        )
 
         # `search` is pinned for its *shape*, not for the prose of a core
         # docstring: pinning the rendered docstring of an ORM method makes this
         # module's suite fail whenever the ORM edits a sentence, which is what
         # it did until this was rewritten.
-        self.assertGreater(set(methods), {'search', 'open_commercial_entity'})
-        search = methods['search']
-        self.assertEqual(search['model'], 'core')
-        self.assertEqual(search['module'], 'core')
+        self.assertGreater(set(methods), {"search", "open_commercial_entity"})
+        search = methods["search"]
+        self.assertEqual(search["model"], "core")
+        self.assertEqual(search["module"], "core")
         self.assertEqual(
-            search['signature'],
-            '(domain, offset=0, limit=None, order=None) -> list[int]',
+            search["signature"],
+            "(domain, offset=0, limit=None, order=None) -> list[int]",
             "Self must be published as what RPC really returns",
         )
-        self.assertEqual(set(search['parameters']), {'domain', 'offset', 'limit', 'order'})
-        self.assertEqual(search['parameters']['domain']['annotation'], 'DomainType')
-        self.assertEqual(search['parameters']['offset']['default'], 0)
-        self.assertEqual(search['api'], ['model', 'readonly'])
-        self.assertEqual(search['return']['annotation'], 'list[int]')
+        self.assertEqual(
+            set(search["parameters"]), {"domain", "offset", "limit", "order"}
+        )
+        self.assertEqual(search["parameters"]["domain"]["annotation"], "DomainType")
+        self.assertEqual(search["parameters"]["offset"]["default"], 0)
+        self.assertEqual(search["api"], ["model", "readonly"])
+        self.assertEqual(search["return"]["annotation"], "list[int]")
 
     def test_doc_model_publishes_no_unreflectable_method(self):
         """Every documented method reflects: none falls back to the stub.
@@ -154,49 +183,50 @@ class TestDoc(HttpCaseWithUserDemo):
         a whole class of ORM methods instead, because their annotations name
         types imported under ``if TYPE_CHECKING:``.
         """
-        self.authenticate('demo', 'demo')
-        res = self.url_open('/doc/res.partner.json', allow_redirects=False)
+        self.authenticate("demo", "demo")
+        res = self.url_open("/doc/res.partner.json", allow_redirects=False)
         res.raise_for_status()
         stubbed = [
-            name for name, method in res.json()['methods'].items()
-            if method['signature'] == '(...)'
+            name
+            for name, method in res.json()["methods"].items()
+            if method["signature"] == "(...)"
         ]
         self.assertEqual(stubbed, [], "these methods could not be reflected")
 
     def test_doc_model_signatures_keep_their_markers(self):
         """A published signature is one a reader can copy into a call."""
-        self.authenticate('demo', 'demo')
-        res = self.url_open('/doc/res.partner.json', allow_redirects=False)
+        self.authenticate("demo", "demo")
+        res = self.url_open("/doc/res.partner.json", allow_redirects=False)
         res.raise_for_status()
-        methods = res.json()['methods']
+        methods = res.json()["methods"]
         for name, method in methods.items():
-            for param_name, param in method['parameters'].items():
-                if param.get('kind') == 'VAR_KEYWORD':
+            for param_name, param in method["parameters"].items():
+                if param.get("kind") == "VAR_KEYWORD":
                     with self.subTest(method=name):
-                        self.assertIn(f'**{param_name}', method['signature'])
-                elif param.get('kind') == 'VAR_POSITIONAL':
+                        self.assertIn(f"**{param_name}", method["signature"])
+                elif param.get("kind") == "VAR_POSITIONAL":
                     with self.subTest(method=name):
-                        self.assertIn(f'*{param_name}', method['signature'])
+                        self.assertIn(f"*{param_name}", method["signature"])
 
     def test_doc_cache(self):
-        self.authenticate('demo', 'demo')
+        self.authenticate("demo", "demo")
 
         # request the document first
-        res = self.url_open('/doc/index.json', allow_redirects=False)
+        res = self.url_open("/doc/index.json", allow_redirects=False)
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.content, "We should have downloaded the document")
 
         # ensure the necessary is there to cache the document
-        cache_control = sorted(res.headers.get('Cache-Control', '').split(', '))
-        self.assertEqual(cache_control, ['no-cache', 'private'])
-        etag_demo = res.headers.get('ETag', '')
+        cache_control = sorted(res.headers.get("Cache-Control", "").split(", "))
+        self.assertEqual(cache_control, ["no-cache", "private"])
+        etag_demo = res.headers.get("ETag", "")
         self.assertTrue(etag_demo)
 
         # request the document again, this time using the cache
         res = self.url_open(
-            '/doc/index.json',
-            headers={'If-None-Match': etag_demo},
+            "/doc/index.json",
+            headers={"If-None-Match": etag_demo},
             allow_redirects=False,
         )
         res.raise_for_status()
@@ -204,20 +234,20 @@ class TestDoc(HttpCaseWithUserDemo):
         self.assertFalse(res.content, "We should not have downloaded the document")
 
         # request the document again, this time as admin
-        self.authenticate('admin', 'admin')
-        res = self.url_open('/doc/index.json', allow_redirects=False)
+        self.authenticate("admin", "admin")
+        res = self.url_open("/doc/index.json", allow_redirects=False)
         res.raise_for_status()
         self.assertEqual(res.status_code, 200, "It must not be 304 - Not Modified")
-        etag_admin = res.headers.get('ETag', '')
+        etag_admin = res.headers.get("ETag", "")
         self.assertTrue(etag_admin)
         self.assertNotEqual(etag_demo, etag_admin)
 
     def test_doc_model_etag_is_a_quoted_entity_tag(self):
         """RFC 9110 wants an ETag quoted; a cache in front of us may insist."""
-        self.authenticate('demo', 'demo')
-        res = self.url_open('/doc/res.partner.json', allow_redirects=False)
+        self.authenticate("demo", "demo")
+        res = self.url_open("/doc/res.partner.json", allow_redirects=False)
         res.raise_for_status()
-        etag = res.headers['ETag']
+        etag = res.headers["ETag"]
         self.assertTrue(
             etag.startswith('"') and etag.endswith('"'),
             f"ETag is not a quoted-string: {etag}",
@@ -229,30 +259,35 @@ class TestDoc(HttpCaseWithUserDemo):
         freshly computed index, even if a (possibly stale) server-side
         attachment already exists under the same cache key.
         """
-        self.authenticate('demo', 'demo')
+        self.authenticate("demo", "demo")
 
         # Prime the server-side attachment cache.
-        res = self.url_open('/doc/index.json', allow_redirects=False)
+        res = self.url_open("/doc/index.json", allow_redirects=False)
         res.raise_for_status()
         self.assertEqual(res.status_code, 200)
 
         # Corrupt the cached attachment in place: this must never be served
         # again once a client asks for a non-cached response.
-        index_attach = self.env['ir.attachment'].sudo().search(
-            [('name', 'like', 'odoo-doc-index-%')], limit=1)
+        index_attach = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search([("name", "like", "odoo-doc-index-%")], limit=1)
+        )
         self.assertTrue(index_attach, "the /doc/index.json cache attachment must exist")
         index_attach.raw = b'{"models": [{"model": "__stale__"}]}'
 
         res = self.url_open(
-            '/doc/index.json',
-            headers={'Cache-Control': 'no-cache'},
+            "/doc/index.json",
+            headers={"Cache-Control": "no-cache"},
             allow_redirects=False,
         )
         res.raise_for_status()
         json = res.json()
         self.assertNotEqual(
-            [m['model'] for m in json['models']], ['__stale__'],
-            "no-cache must bypass the stale server-side attachment cache")
+            [m["model"] for m in json["models"]],
+            ["__stale__"],
+            "no-cache must bypass the stale server-side attachment cache",
+        )
 
     def test_doc_index_is_cached_once_per_audience(self):
         """A second request reuses the attachment instead of storing another.
@@ -260,12 +295,12 @@ class TestDoc(HttpCaseWithUserDemo):
         Without that, every concurrent first request stores a duplicate row
         under the same name and nothing ever collects them.
         """
-        Attachment = self.env['ir.attachment'].sudo()
-        Attachment.search([('name', 'like', 'odoo-doc-index-%')]).unlink()
-        self.authenticate('demo', 'demo')
+        Attachment = self.env["ir.attachment"].sudo()
+        Attachment.search([("name", "like", "odoo-doc-index-%")]).unlink()
+        self.authenticate("demo", "demo")
         for _ in range(3):
-            self.url_open('/doc/index.json', allow_redirects=False).raise_for_status()
-        names = Attachment.search([('name', 'like', 'odoo-doc-index-%')]).mapped('name')
+            self.url_open("/doc/index.json", allow_redirects=False).raise_for_status()
+        names = Attachment.search([("name", "like", "odoo-doc-index-%")]).mapped("name")
         self.assertEqual(len(names), len(set(names)), f"duplicate cache rows: {names}")
         self.assertEqual(len(names), 1)
 
@@ -277,9 +312,9 @@ class TestDoc(HttpCaseWithUserDemo):
         a model keeps being served a document that still lists it.
         """
         self.env.registry.cache_invalidated.clear()
-        self.env['ir.model.access'].sudo().search(
-            [('model_id.model', '=', 'res.country')], limit=1
-        ).write({'perm_read': False})
+        self.env["ir.model.access"].sudo().search(
+            [("model_id.model", "=", "res.country")], limit=1
+        ).write({"perm_read": False})
         self.env.flush_all()
         self.assertTrue(
             set(self.env.registry.cache_invalidated) & set(ACCESS_CACHE_SEQUENCES),
@@ -304,25 +339,31 @@ class TestDoc(HttpCaseWithUserDemo):
             moved = dict(sequences, **{name: sequences[name] + 1})
             with (
                 self.subTest(sequence=name),
-                patch.object(type(self.env.registry), 'get_sequences', frozen(moved)),
+                patch.object(type(self.env.registry), "get_sequences", frozen(moved)),
             ):
                 self.assertNotEqual(
-                    doc_cache_generation(self.env), baseline,
-                    f"moving the {name!r} sequence must invalidate the documents")
+                    doc_cache_generation(self.env),
+                    baseline,
+                    f"moving the {name!r} sequence must invalidate the documents",
+                )
 
-        noisy = dict(sequences, default=sequences['default'] + 1)
-        with patch.object(type(self.env.registry), 'get_sequences', frozen(noisy)):
+        noisy = dict(sequences, default=sequences["default"] + 1)
+        with patch.object(type(self.env.registry), "get_sequences", frozen(noisy)):
             self.assertEqual(
-                doc_cache_generation(self.env), baseline,
-                "the 'default' sequence must not rebuild the index")
+                doc_cache_generation(self.env),
+                baseline,
+                "the 'default' sequence must not rebuild the index",
+            )
 
     def test_parse_signature(self):
         def clean_doc(d):
-            return dict(d, doc=inspect.cleandoc(d.get('doc', '')).replace('\n', '').strip())
+            return dict(
+                d, doc=inspect.cleandoc(d.get("doc", "")).replace("\n", "").strip()
+            )
 
         methods = inspect.getmembers(DummyMethods, predicate=inspect.isroutine)
         for name, method in methods:
-            if name.startswith('__') or not hasattr(method, 'expected'):
+            if name.startswith("__") or not hasattr(method, "expected"):
                 continue
             with self.subTest(method=name):
                 self.assertEqual(
@@ -333,32 +374,38 @@ class TestDoc(HttpCaseWithUserDemo):
     def test_ghost_model_robustness(self):
         """/doc/index.json skips ir.model rows that are absent from the registry."""
 
-        ghost_model_name = 'ir.min.cron.mixin.test.ghost'
-        self.env['ir.model'].create({
-            'model': ghost_model_name,
-            'name': 'Ghost Model',
-            'state': 'base',
-        })
+        ghost_model_name = "ir.min.cron.mixin.test.ghost"
+        self.env["ir.model"].create(
+            {
+                "model": ghost_model_name,
+                "name": "Ghost Model",
+                "state": "base",
+            }
+        )
 
-        self.authenticate('demo', 'demo')
-        res = self.url_open('/doc/index.json')
+        self.authenticate("demo", "demo")
+        res = self.url_open("/doc/index.json")
         res.raise_for_status()
 
     def test_private_methods(self):
-        FakeCls = type('ModelDummyMethods', (DummyMethods, Model), {
-            '_name': 'model.dummy.methods',
-            '_register': False,
-            '__module__': 'odoo.addons.api_doc',
-        })
+        FakeCls = type(
+            "ModelDummyMethods",
+            (DummyMethods, Model),
+            {
+                "_name": "model.dummy.methods",
+                "_register": False,
+                "__module__": "odoo.addons.api_doc",
+            },
+        )
         FakeModel = FakeCls(self.env, (), ())
-        assert is_public_method(FakeModel, 'one_arg')
-        self.assertIn('one_arg', public_method_names(FakeModel))
+        assert is_public_method(FakeModel, "one_arg")
+        self.assertIn("one_arg", public_method_names(FakeModel))
 
         for method_name in (
-            'class_method',
-            'static_method',
-            'private_method',
-            '_underscope_method',
+            "class_method",
+            "static_method",
+            "private_method",
+            "_underscope_method",
         ):
             with self.subTest(method_name=method_name):
                 assert hasattr(FakeModel, method_name)
@@ -372,21 +419,21 @@ class TestDoc(HttpCaseWithUserDemo):
         is documented and the mixin that introduced the name is not, and before
         this the documented one was the one thrown away.
         """
-        described = describe_method(self.env['res.users'], 'name_search')
-        self.assertIn('doc', described, "name_search must publish a docstring")
+        described = describe_method(self.env["res.users"], "name_search")
+        self.assertIn("doc", described, "name_search must publish a docstring")
         # provenance stays with whoever introduced the name, so the module
         # filter keeps meaning "what does this layer add"
-        self.assertEqual(described['module'], 'core')
+        self.assertEqual(described["module"], "core")
 
     def test_describe_method_keeps_the_introducing_signature(self):
         """The signature comes from the base, which is the complete one.
 
         An override narrowed to ``(*args, **kwargs)`` documents nothing useful.
         """
-        described = describe_method(self.env['res.partner'], 'search')
+        described = describe_method(self.env["res.partner"], "search")
         self.assertEqual(
-            described['signature'],
-            '(domain, offset=0, limit=None, order=None) -> list[int]',
+            described["signature"],
+            "(domain, offset=0, limit=None, order=None) -> list[int]",
         )
 
     def test_model_doc_is_the_model_s_own(self):
@@ -398,10 +445,10 @@ class TestDoc(HttpCaseWithUserDemo):
         """
         from odoo.addons.api_doc.tools.registry import describe_model_doc
 
-        Partner = self.env['res.partner']
+        Partner = self.env["res.partner"]
         doc = describe_model_doc(Partner)
         if doc is not None:
-            for mixin in ('mixin.mail.thread', 'mixin.avatar', 'mixin.image'):
+            for mixin in ("mixin.mail.thread", "mixin.avatar", "mixin.image"):
                 if mixin in self.env:
                     mixin_doc = type(self.env[mixin]).__doc__
                     if mixin_doc:
@@ -413,14 +460,18 @@ class TestDoc(HttpCaseWithUserDemo):
 
         # A throwaway model class carrying a docstring: that is the prose the
         # page must publish.
-        FakeCls = type('DocumentedDummy', (Model,), {
-            '_name': 'documented.dummy',
-            '_register': False,
-            '__module__': 'odoo.addons.api_doc',
-            '__doc__': 'A documented dummy model.',
-        })
+        FakeCls = type(
+            "DocumentedDummy",
+            (Model,),
+            {
+                "_name": "documented.dummy",
+                "_register": False,
+                "__module__": "odoo.addons.api_doc",
+                "__doc__": "A documented dummy model.",
+            },
+        )
         self.assertIn(
-            'A documented dummy model.',
+            "A documented dummy model.",
             describe_model_doc(FakeCls(self.env, (), ())),
         )
 
@@ -428,13 +479,15 @@ class TestDoc(HttpCaseWithUserDemo):
 @tagged("-at_install", "post_install")
 class TestDocIndexGeneration(HttpCaseWithUserDemo):
     def test_stale_domain_matches_other_generations_only(self):
-        Attachment = self.env['ir.attachment'].sudo()
-        Attachment.search([('name', 'like', 'odoo-doc-index-%')]).unlink()
+        Attachment = self.env["ir.attachment"].sudo()
+        Attachment.search([("name", "like", "odoo-doc-index-%")]).unlink()
         generation = doc_cache_generation(self.env)
-        current = Attachment.create({
-            'name': f'odoo-doc-index-{generation}-deadbeef.json', 'raw': b'{}'})
-        stale = Attachment.create({
-            'name': 'odoo-doc-index-0000000000-deadbeef.json', 'raw': b'{}'})
+        current = Attachment.create(
+            {"name": f"odoo-doc-index-{generation}-deadbeef.json", "raw": b"{}"}
+        )
+        stale = Attachment.create(
+            {"name": "odoo-doc-index-0000000000-deadbeef.json", "raw": b"{}"}
+        )
 
         matched = Attachment.search(stale_index_domain(generation))
         self.assertIn(stale, matched)

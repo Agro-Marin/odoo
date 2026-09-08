@@ -1,19 +1,19 @@
 """
-    Italian E-invoice signed files content extraction.
+Italian E-invoice signed files content extraction.
 
-    A '.xml.p7m' FatturaPA file is an XML invoice inside a PKCS#7 (CMS)
-    SignedData envelope. Two strategies unwrap it, in order:
+A '.xml.p7m' FatturaPA file is an XML invoice inside a PKCS#7 (CMS)
+SignedData envelope. Two strategies unwrap it, in order:
 
-    - CMS: parse the envelope with asn1crypto and return the encapsulated
-      content exactly. Handles every conforming file.
-    - Fallback: walk the ASN.1 tree and concatenate the OctetStrings that follow
-      the pkcs7-data OID. For issuers (e.g. Servizio Elettrico Nazionale) whose
-      envelopes no conforming parser accepts.
+- CMS: parse the envelope with asn1crypto and return the encapsulated
+  content exactly. Handles every conforming file.
+- Fallback: walk the ASN.1 tree and concatenate the OctetStrings that follow
+  the pkcs7-data OID. For issuers (e.g. Servizio Elettrico Nazionale) whose
+  envelopes no conforming parser accepts.
 
-    Neither verifies the signature; both only unwrap. The fallback can return
-    MORE than the content -- on the malformed fixture in tests it appends 2779
-    bytes of certificate DER past the closing tag -- so the caller's
-    `recover=True` XML parser is load-bearing, not incidental.
+Neither verifies the signature; both only unwrap. The fallback can return
+MORE than the content -- on the malformed fixture in tests it appends 2779
+bytes of certificate DER past the closing tag -- so the caller's
+`recover=True` XML parser is load-bearing, not incidental.
 """
 
 import logging
@@ -25,7 +25,7 @@ _logger = logging.getLogger(__name__)
 
 
 def remove_signature(content, target=None):
-    """ Takes a bytestring supposedly PKCS7 signed and returns its PKCS7-data only """
+    """Takes a bytestring supposedly PKCS7 signed and returns its PKCS7-data only"""
     for removal_strategy in (remove_signature_cms, remove_signature_fallback):
         if target:
             target.remove_signature_method = removal_strategy.__name__
@@ -37,10 +37,12 @@ def remove_signature(content, target=None):
             # strategy declined and why -- this used to be a bare suppress(), which
             # is how remove_signature_openssl went on raising AttributeError from
             # its first line for releases without anyone noticing.
-            _logger.info("%s could not extract the p7m content: %s",
-                         removal_strategy.__name__, e)
+            _logger.info(
+                "%s could not extract the p7m content: %s", removal_strategy.__name__, e
+            )
     _logger.warning("No strategy could extract the content of this p7m file.")
     return None
+
 
 # --------------------------------------------------------------------------------
 # UTILS
@@ -48,12 +50,12 @@ def remove_signature(content, target=None):
 
 
 def byte_to_bit_array(val):
-    """ Convert a byte to an array of zeros and ones """
+    """Convert a byte to an array of zeros and ones"""
     return [((val & (1 << pos)) and 1) or 0 for pos in range(7, -1, -1)]
 
 
 def bit_array_to_byte(val):
-    """ Convert an array of zeros and ones to byte """
+    """Convert an array of zeros and ones to byte"""
     value = 0
     max_idx = len(val) - 1
     for i in range(max_idx, -1, -1):
@@ -65,36 +67,43 @@ def bit_array_to_byte(val):
 # CMS (PKCS#7 envelope)
 # --------------------------------------------------------------------------------
 def remove_signature_cms(content):
-    """ Remove the PKCS#7 envelope from given content, making a '.xml.p7m' file content readable as it was '.xml'.
+    """Remove the PKCS#7 envelope from given content, making a '.xml.p7m' file content readable as it was '.xml'.
 
-        Parses the DER envelope as CMS and returns the encapsulated content
-        verbatim. `strict=True` rejects trailing bytes after the structure, so a
-        file that parses here yields exactly the content and nothing else --
-        unlike the fallback below.
+    Parses the DER envelope as CMS and returns the encapsulated content
+    verbatim. `strict=True` rejects trailing bytes after the structure, so a
+    file that parses here yields exactly the content and nothing else --
+    unlike the fallback below.
 
-        This replaced an OpenSSL implementation that had stopped working: it
-        called `OpenSSL.crypto.load_pkcs7_data` and `OpenSSL._util.lib.PKCS7_verify`,
-        neither of which exists any more -- pyOpenSSL dropped the loader and
-        cryptography no longer compiles the PKCS7_* CFFI bindings. It raised
-        AttributeError on its first line for every input, and the caller's
-        suppress() sent every file to the fallback. asn1crypto is a direct
-        dependency of this fork already (odoo/tools/pdf/signature.py), so this
-        adds nothing to install.
+    This replaced an OpenSSL implementation that had stopped working: it
+    called `OpenSSL.crypto.load_pkcs7_data` and `OpenSSL._util.lib.PKCS7_verify`,
+    neither of which exists any more -- pyOpenSSL dropped the loader and
+    cryptography no longer compiles the PKCS7_* CFFI bindings. It raised
+    AttributeError on its first line for every input, and the caller's
+    suppress() sent every file to the fallback. asn1crypto is a direct
+    dependency of this fork already (odoo/tools/pdf/signature.py), so this
+    adds nothing to install.
     """
     info = cms.ContentInfo.load(content, strict=True)
-    if info['content_type'].native != 'signed_data':
-        raise ValueError(f"Not a PKCS#7 SignedData envelope: {info['content_type'].native}")
+    if info["content_type"].native != "signed_data":
+        raise ValueError(
+            f"Not a PKCS#7 SignedData envelope: {info['content_type'].native}"
+        )
 
-    encapsulated = info['content']['encap_content_info']
-    if encapsulated['content_type'].native != 'data':
-        raise ValueError(f"Encapsulated content is {encapsulated['content_type'].native}, not pkcs7-data")
+    encapsulated = info["content"]["encap_content_info"]
+    if encapsulated["content_type"].native != "data":
+        raise ValueError(
+            f"Encapsulated content is {encapsulated['content_type'].native}, not pkcs7-data"
+        )
 
     # A detached signature carries no content at all; returning None here would
     # look like a successful extraction of an empty invoice.
-    if (data := encapsulated['content'].native) is None:
-        raise ValueError("Detached signature: the envelope carries no encapsulated content")
+    if (data := encapsulated["content"].native) is None:
+        raise ValueError(
+            "Detached signature: the envelope carries no encapsulated content"
+        )
 
     return data
+
 
 # --------------------------------------------------------------------------------
 # FALLBACK REMOVE SIGNATURE (ASN1 parse)
@@ -102,26 +111,26 @@ def remove_signature_cms(content):
 
 
 def remove_signature_fallback(content):
-    """ The invoice content is inside an ASN1 node identified by PKCS7_DATA_OID (pkcs7-data).
-        The node is defined as an OctectString, which can be composed of an arbitrary
-        sequence of octects of string data.
-        We visit in-order the ASN1 tree nodes until we find the pkcs7-data, then we look for content.
-        Once we found it, we read all OctectString that get yielded by the in-order visit..
-        When there are no more OctectStrings, then another object will follow
-        with its header and identifier, so we stop exploring and just return the content.
+    """The invoice content is inside an ASN1 node identified by PKCS7_DATA_OID (pkcs7-data).
+    The node is defined as an OctectString, which can be composed of an arbitrary
+    sequence of octects of string data.
+    We visit in-order the ASN1 tree nodes until we find the pkcs7-data, then we look for content.
+    Once we found it, we read all OctectString that get yielded by the in-order visit..
+    When there are no more OctectStrings, then another object will follow
+    with its header and identifier, so we stop exploring and just return the content.
 
-        See also:
-        https://datatracker.ietf.org/doc/html/rfc2315
-        https://www.oss.com/asn1/resources/asn1-made-simple/asn1-quick-reference/octetstring.html
+    See also:
+    https://datatracker.ietf.org/doc/html/rfc2315
+    https://www.oss.com/asn1/resources/asn1-made-simple/asn1-quick-reference/octetstring.html
     """
-    PKCS7_DATA_OID = '1.2.840.113549.1.7.1'
+    PKCS7_DATA_OID = "1.2.840.113549.1.7.1"
     result, header_found, data_found = None, False, False
     for node in Reader().build_from_stream(content):
-        if node.kind == 'ObjectIdentifier' and node.content == PKCS7_DATA_OID:
+        if node.kind == "ObjectIdentifier" and node.content == PKCS7_DATA_OID:
             header_found = True
-        if header_found and node.kind == 'OctetString':
+        if header_found and node.kind == "OctetString":
             data_found = True
-            result = (result or b'') + node.content
+            result = (result or b"") + node.content
         elif data_found:
             break
 
@@ -131,41 +140,42 @@ def remove_signature_fallback(content):
         raise Exception("ASN1 Content not found")
     return result
 
+
 # --------------------------------------------------------------------------------
 # ASN1 DATA
 # --------------------------------------------------------------------------------
 
 
 universal_tags = {
-    0: 'Zero',
-    1: 'Boolean',
-    2: 'Integer',
-    3: 'BitString',
-    4: 'OctetString',
-    5: 'Null',
-    6: 'ObjectIdentifier',
-    7: 'ObjectDescriptor',
-    8: 'External',
-    9: 'Real',
-    10: 'Enumerated',
-    11: 'EmbeddedPDV',
-    12: 'UTF8String',
-    13: 'RelativeOid',
-    16: 'Sequence',
-    17: 'Set',
-    18: 'NumericString',
-    19: 'PrintableString',
-    20: 'TeletexString',
-    21: 'VideotexString',
-    22: 'IA5String',
-    23: 'UTCTime',
-    24: 'GeneralizedTime',
-    25: 'GraphicString',
-    26: 'VisibleString',
-    27: 'GeneralString',
-    28: 'UniversalString',
-    29: 'CharacterString',
-    30: 'BMPString',
+    0: "Zero",
+    1: "Boolean",
+    2: "Integer",
+    3: "BitString",
+    4: "OctetString",
+    5: "Null",
+    6: "ObjectIdentifier",
+    7: "ObjectDescriptor",
+    8: "External",
+    9: "Real",
+    10: "Enumerated",
+    11: "EmbeddedPDV",
+    12: "UTF8String",
+    13: "RelativeOid",
+    16: "Sequence",
+    17: "Set",
+    18: "NumericString",
+    19: "PrintableString",
+    20: "TeletexString",
+    21: "VideotexString",
+    22: "IA5String",
+    23: "UTCTime",
+    24: "GeneralizedTime",
+    25: "GraphicString",
+    26: "VisibleString",
+    27: "GeneralString",
+    28: "UniversalString",
+    29: "CharacterString",
+    30: "BMPString",
 }
 
 # --------------------------------------------------------------------------------
@@ -174,11 +184,12 @@ universal_tags = {
 
 
 class Asn1Node:
-    """ Base class for Asn1 nodes """
+    """Base class for Asn1 nodes"""
+
     _content = None
 
     def __init__(self, kind, start_offset, node_len, cls, parent=None):
-        """ Initialization of the Asn1 node """
+        """Initialization of the Asn1 node"""
 
         if not (parent is None or issubclass(Asn1Node, parent.__class__)):
             raise TypeError("parent must be an Asn1Node or None")
@@ -193,18 +204,18 @@ class Asn1Node:
         self.children = []
         self.cls = cls
         self.finalized = False
-        self.name = self.__class__.__name__.replace('Node', '')
+        self.name = self.__class__.__name__.replace("Node", "")
         self.length = node_len
 
     def finalize(self, end_offset, content=None):
-        """ Closes the initialization of the Asn1 node, giving it content and finished length """
+        """Closes the initialization of the Asn1 node, giving it content and finished length"""
         self.content = content
         self.length = end_offset - self.start_offset
         self.end_offset = end_offset
         self.finalized = True
 
     def total_length(self):
-        """ Get the total length of the node if defined. The definition and length bytes must be considered. """
+        """Get the total length of the node if defined. The definition and length bytes must be considered."""
         return self.length + 2 if self.length != "?" else "?"
 
     @property
@@ -219,22 +230,25 @@ class Asn1Node:
 
 
 class PrimitiveNode(Asn1Node):
-    """ Primitive Asn1 nodes contain pure data """
+    """Primitive Asn1 nodes contain pure data"""
+
     pass
 
 
 class OctetStringNode(PrimitiveNode):
-    """ Octet String Asn1 node """
+    """Octet String Asn1 node"""
+
     pass
 
 
 class ObjectIdentifierNode(PrimitiveNode):
-    """ Asn1 Object Identifier, i.e. 1.3.6.1.5.5.7.48.1 """
+    """Asn1 Object Identifier, i.e. 1.3.6.1.5.5.7.48.1"""
+
     @Asn1Node.content.setter
     def content(self, content):
         # Run through the content's bytes
         calc = 0
-        result = ''
+        result = ""
         for idx, octet in enumerate(content):
             # The first position is treated differently
             if idx == 0:
@@ -251,13 +265,13 @@ class ObjectIdentifierNode(PrimitiveNode):
 
         self._content = result
 
+
 # --------------------------------------------------------------------------------
 # READER (ASN1 parse)
 # --------------------------------------------------------------------------------
 
 
 class Reader:
-
     def __init__(self, *args, **kwargs):
         self.clear()
 
@@ -270,26 +284,29 @@ class Reader:
         self.last_open_node = None
 
     def finalize_last_open_node(self):
-        """ Whenever a node is complete, it is finalized, and the references are updated """
+        """Whenever a node is complete, it is finalized, and the references are updated"""
         self.last_open_node = self.open_nodes_stack.pop()
         self.last_open_node.finalize(self.offset, None)
         self.parent_node = self.last_open_node.parent
         self.current_node = None
         finalized_node = self.last_open_node
-        self.last_open_node = self.open_nodes_stack[-1] if self.open_nodes_stack else None
+        self.last_open_node = (
+            self.open_nodes_stack[-1] if self.open_nodes_stack else None
+        )
         return finalized_node
 
     def build_from_stream(self, stream):
-        """ Build an Asn1 tree starting from a byte string from a p7m file """
+        """Build an Asn1 tree starting from a byte string from a p7m file"""
 
         self.clear()
         while self.offset < len(stream):
-
             start_offset = self.offset
-            self.last_open_node = self.open_nodes_stack[-1] if self.open_nodes_stack else None
+            self.last_open_node = (
+                self.open_nodes_stack[-1] if self.open_nodes_stack else None
+            )
 
             # Read the definition and length bytes
-            definition_byte, self.offset = self.consume('B', stream, self.offset)
+            definition_byte, self.offset = self.consume("B", stream, self.offset)
             node_len, _bytes_read, self.offset = self.read_length(stream, self.offset)
 
             if definition_byte == 0 and node_len == 0 and self.open_nodes_stack:
@@ -297,7 +314,9 @@ class Reader:
                 continue
 
             # Create the current Node
-            self.current_node = self.create_node(definition_byte, node_len, start_offset, parent=self.parent_node)
+            self.current_node = self.create_node(
+                definition_byte, node_len, start_offset, parent=self.parent_node
+            )
             if not self.root:
                 self.root = self.current_node
 
@@ -307,7 +326,9 @@ class Reader:
                 self.last_open_node = self.current_node
                 self.parent_node = self.current_node
             else:
-                data, self.offset = self.consume('%ss' % self.current_node.length, stream, self.offset)
+                data, self.offset = self.consume(
+                    "%ss" % self.current_node.length, stream, self.offset
+                )
                 self.current_node.finalize(self.offset, data)
                 yield self.current_node
 
@@ -315,26 +336,28 @@ class Reader:
             while (
                 self.last_open_node
                 and not self.last_open_node.finalized
-                and self.last_open_node.length != '?'
-                and self.last_open_node.start_offset + self.last_open_node.total_length() <= self.offset
+                and self.last_open_node.length != "?"
+                and self.last_open_node.start_offset
+                + self.last_open_node.total_length()
+                <= self.offset
             ):
                 yield self.finalize_last_open_node()
 
         return self.root
 
     def consume(self, _format, stream, offset):
-        """ Read from a bytes stream to get data out """
+        """Read from a bytes stream to get data out"""
         size = struct.calcsize(_format)
         value = struct.unpack_from(_format, stream, offset)[0]
         offset += size
         return value, offset
 
     def read_length(self, stream, offset):
-        """ Returns: (length of the node, bytes read, updated offset) """
+        """Returns: (length of the node, bytes read, updated offset)"""
 
         # Read the first byte: if it is zero, it's a special entry.
         # Probably it's the second byte of a closing tag of a node (\x00 \x00 <--)
-        first_byte, offset = self.consume('B', stream, offset)
+        first_byte, offset = self.consume("B", stream, offset)
         if first_byte == 0:
             return 0, 1, offset
 
@@ -348,7 +371,7 @@ class Reader:
         # If it's the only bit being set, the length is indefinite,
         # and the node will terminate with a double \x00
         if not any(bits[1:]):
-            return '?', 1, offset
+            return "?", 1, offset
 
         # We turn off the first bit, and the rest is the number of bytes we have to read
         bytes_read = bit_array_to_byte([0] + bits[1:])
@@ -357,27 +380,27 @@ class Reader:
         # value we already read and increment by the current byte
         node_len = 0
         for _dummy in range(1, bytes_read + 1):
-            current_byte, offset = self.consume('B', stream, offset)
+            current_byte, offset = self.consume("B", stream, offset)
             node_len = (node_len << 8) + current_byte
 
         return node_len, bytes_read, offset
 
     def create_node(self, definition_byte, node_len, start_offset, parent=None):
-        """ Method to create new Asn1 nodes, given the definition bytes and the offset """
+        """Method to create new Asn1 nodes, given the definition bytes and the offset"""
 
         target_class = Asn1Node
         kind = "Indefinite" if node_len == "?" else "Container"
 
         node_classes = {
-            (0, 0): 'Universal',
-            (0, 1): 'Application',
-            (1, 0): 'Context-specific',
-            (1, 1): 'Private'
+            (0, 0): "Universal",
+            (0, 1): "Application",
+            (1, 0): "Context-specific",
+            (1, 1): "Private",
         }
         bits = byte_to_bit_array(definition_byte)
         cls_bits = tuple(bits[0:2])
         cls = node_classes[cls_bits]
-        if cls == 'Universal':
+        if cls == "Universal":
             is_primitive = not bool(bits[2])
             if is_primitive:
                 tag = definition_byte % (1 << 5)

@@ -5,7 +5,6 @@ from odoo.addons.portal.utils import get_portal_partner, resolve_message_thread
 
 
 class PortalThreadController(ThreadController):
-
     def _prepare_message_data(self, post_data, *, thread, from_create=True, **kwargs):
         post_data = super()._prepare_message_data(
             post_data, thread=thread, from_create=from_create, **kwargs

@@ -44,7 +44,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
             soft_checking=soft_checking,
         )
 
-
     def test_taxes_l10n_in_sale_orders(self):
         for (
             test_mode,
@@ -104,7 +103,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
                     expected_values,
                     soft_checking=soft_checking,
                 )
-
 
     def test_global_discount_with_sol_discount(self):
         product = self.company_data["product_order_cost"]

@@ -18,7 +18,9 @@ class TestWebsiteFormEditor(HttpCaseWithUserPortal):
         cls.env.ref("base.user_admin").write(
             {
                 "name": "Mitchell Admin",
-                "phone_ids": [Command.create({"number": "+1 555-555-5555", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "+1 555-555-5555", "type": "landline"})
+                ],
             }
         )
 

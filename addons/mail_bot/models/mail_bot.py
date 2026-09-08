@@ -31,25 +31,82 @@ ODOOBOT_XMLID = "base.partner_root"
 # `web/static/src/components/emoji_picker/emoji_data.js`, so the two cannot
 # drift apart again.
 _EMOJI_BMP_RANGES = (
-    (0x231A, 0x231B), (0x2328, 0x2328), (0x23CF, 0x23CF), (0x23E9, 0x23F3),
-    (0x23F8, 0x23FA), (0x24C2, 0x24C2), (0x25AA, 0x25AB), (0x25B6, 0x25B6),
-    (0x25C0, 0x25C0), (0x25FB, 0x25FE), (0x2600, 0x2604), (0x260E, 0x260E),
-    (0x2611, 0x2611), (0x2614, 0x2615), (0x2618, 0x2618), (0x261D, 0x261D),
-    (0x2620, 0x2620), (0x2622, 0x2623), (0x2626, 0x2626), (0x262A, 0x262A),
-    (0x262E, 0x262F), (0x2638, 0x263A), (0x2640, 0x2640), (0x2642, 0x2642),
-    (0x2648, 0x2653), (0x265F, 0x2660), (0x2663, 0x2663), (0x2665, 0x2666),
-    (0x2668, 0x2668), (0x267B, 0x267B), (0x267E, 0x267F), (0x2692, 0x2697),
-    (0x2699, 0x2699), (0x269B, 0x269C), (0x26A0, 0x26A1), (0x26AA, 0x26AB),
-    (0x26B0, 0x26B1), (0x26BD, 0x26BE), (0x26C4, 0x26C5), (0x26C8, 0x26C8),
-    (0x26CE, 0x26CF), (0x26D1, 0x26D1), (0x26D3, 0x26D4), (0x26E9, 0x26EA),
-    (0x26F0, 0x26FA), (0x26FD, 0x26FD), (0x2702, 0x2702), (0x2705, 0x2705),
-    (0x2708, 0x270D), (0x270F, 0x270F), (0x2712, 0x2712), (0x2714, 0x2714),
-    (0x2716, 0x2716), (0x271D, 0x271D), (0x2721, 0x2721), (0x2728, 0x2728),
-    (0x2733, 0x2734), (0x2744, 0x2744), (0x2747, 0x2747), (0x274C, 0x274C),
-    (0x274E, 0x274E), (0x2753, 0x2755), (0x2757, 0x2757), (0x2763, 0x2764),
-    (0x2795, 0x2797), (0x27A1, 0x27A1), (0x27B0, 0x27B0), (0x27BF, 0x27BF),
-    (0x2934, 0x2935), (0x2B05, 0x2B07), (0x2B1B, 0x2B1C), (0x2B50, 0x2B50),
-    (0x2B55, 0x2B55), (0x3030, 0x3030), (0x303D, 0x303D), (0x3297, 0x3297),
+    (0x231A, 0x231B),
+    (0x2328, 0x2328),
+    (0x23CF, 0x23CF),
+    (0x23E9, 0x23F3),
+    (0x23F8, 0x23FA),
+    (0x24C2, 0x24C2),
+    (0x25AA, 0x25AB),
+    (0x25B6, 0x25B6),
+    (0x25C0, 0x25C0),
+    (0x25FB, 0x25FE),
+    (0x2600, 0x2604),
+    (0x260E, 0x260E),
+    (0x2611, 0x2611),
+    (0x2614, 0x2615),
+    (0x2618, 0x2618),
+    (0x261D, 0x261D),
+    (0x2620, 0x2620),
+    (0x2622, 0x2623),
+    (0x2626, 0x2626),
+    (0x262A, 0x262A),
+    (0x262E, 0x262F),
+    (0x2638, 0x263A),
+    (0x2640, 0x2640),
+    (0x2642, 0x2642),
+    (0x2648, 0x2653),
+    (0x265F, 0x2660),
+    (0x2663, 0x2663),
+    (0x2665, 0x2666),
+    (0x2668, 0x2668),
+    (0x267B, 0x267B),
+    (0x267E, 0x267F),
+    (0x2692, 0x2697),
+    (0x2699, 0x2699),
+    (0x269B, 0x269C),
+    (0x26A0, 0x26A1),
+    (0x26AA, 0x26AB),
+    (0x26B0, 0x26B1),
+    (0x26BD, 0x26BE),
+    (0x26C4, 0x26C5),
+    (0x26C8, 0x26C8),
+    (0x26CE, 0x26CF),
+    (0x26D1, 0x26D1),
+    (0x26D3, 0x26D4),
+    (0x26E9, 0x26EA),
+    (0x26F0, 0x26FA),
+    (0x26FD, 0x26FD),
+    (0x2702, 0x2702),
+    (0x2705, 0x2705),
+    (0x2708, 0x270D),
+    (0x270F, 0x270F),
+    (0x2712, 0x2712),
+    (0x2714, 0x2714),
+    (0x2716, 0x2716),
+    (0x271D, 0x271D),
+    (0x2721, 0x2721),
+    (0x2728, 0x2728),
+    (0x2733, 0x2734),
+    (0x2744, 0x2744),
+    (0x2747, 0x2747),
+    (0x274C, 0x274C),
+    (0x274E, 0x274E),
+    (0x2753, 0x2755),
+    (0x2757, 0x2757),
+    (0x2763, 0x2764),
+    (0x2795, 0x2797),
+    (0x27A1, 0x27A1),
+    (0x27B0, 0x27B0),
+    (0x27BF, 0x27BF),
+    (0x2934, 0x2935),
+    (0x2B05, 0x2B07),
+    (0x2B1B, 0x2B1C),
+    (0x2B50, 0x2B50),
+    (0x2B55, 0x2B55),
+    (0x3030, 0x3030),
+    (0x303D, 0x303D),
+    (0x3297, 0x3297),
     (0x3299, 0x3299),
 )
 _EMOJI_RE = re.compile(
@@ -71,12 +128,17 @@ _STYLE = {
     "bold_end": Markup("</b>"),
     "command_start": Markup("<span class='o_odoobot_command'>"),
     "command_end": Markup("</span>"),
-    "document_link_start": Markup("<a href='https://www.odoo.com/documentation' target='_blank'>"),
+    "document_link_start": Markup(
+        "<a href='https://www.odoo.com/documentation' target='_blank'>"
+    ),
     "document_link_end": Markup("</a>"),
-    "slides_link_start": Markup("<a href='https://www.odoo.com/slides' target='_blank'>"),
+    "slides_link_start": Markup(
+        "<a href='https://www.odoo.com/slides' target='_blank'>"
+    ),
     "slides_link_end": Markup("</a>"),
     "paperclip_icon": Markup("<i class='fa-solid fa-paperclip' aria-hidden='true'/>"),
 }
+
 
 # One row per onboarding step, in order.
 #
@@ -92,6 +154,7 @@ class _Step(NamedTuple):
     trigger: Callable[..., bool]
     success: Callable[..., Any]
     retry: Callable[..., Any]
+
 
 _ONBOARDING_STEPS = (
     _Step(
@@ -131,8 +194,9 @@ _ONBOARDING_STEPS = (
     _Step(
         state="onboarding_ping",
         next_state="onboarding_attachment",
-        trigger=lambda self, body, values, command: self._get_odoobot().id
-        in (values.get("partner_ids") or []),
+        trigger=lambda self, body, values, command: (
+            self._get_odoobot().id in (values.get("partner_ids") or [])
+        ),
         success=lambda self: self.env._(
             "Yep, I am here! 🎉 %(new_line)sNow, try %(bold_start)ssending an "
             "attachment%(bold_end)s, like a picture of your cute dog...",
@@ -178,8 +242,8 @@ _RESTARTABLE_STATES = (False, "idle", "not_initialized")
 
 
 class MailBot(models.AbstractModel):
-    _name = 'mail.bot'
-    _description = 'Mail Bot'
+    _name = "mail.bot"
+    _description = "Mail Bot"
 
     def _get_odoobot(self):
         """The OdooBot partner. One lookup, one spelling, for every call site."""
@@ -222,7 +286,9 @@ class MailBot(models.AbstractModel):
         rules below could only ever fire for a caller that passed a bare
         string -- a test -- and never for a real user.
         """
-        return html2plaintext(body or "").replace("\xa0", " ").strip().lower().strip(".!")
+        return (
+            html2plaintext(body or "").replace("\xa0", " ").strip().lower().strip(".!")
+        )
 
     def _get_answer(self, channel, values, command=False):
         # Cheapest and most selective tests first: outside a chat odoobot is a
@@ -248,14 +314,21 @@ class MailBot(models.AbstractModel):
         if step and step.trigger(self, body, values, command):
             return self._advance_to(step.next_state, step.success)
 
-        if odoobot_state == "idle" and body in ["❤️", self.env._("i love you"), self.env._("love")]:
+        if odoobot_state == "idle" and body in [
+            "❤️",
+            self.env._("i love you"),
+            self.env._("love"),
+        ]:
             return self.env._(
                 "Aaaaaw that's really cute but, you know, bots don't work that way. "
                 "You're too human for me! Let's keep it professional ❤️"
             )
         if self.env._("fuck") in body or "fuck" in body:
             return self.env._("That's not nice! I'm a bot but I have feelings... 💔")
-        if odoobot_state in _RESTARTABLE_STATES and self.env._("start the tour") in body:
+        if (
+            odoobot_state in _RESTARTABLE_STATES
+            and self.env._("start the tour") in body
+        ):
             user.sudo().odoobot_state = "onboarding_emoji"
             return self.env._("To start, try to send me an emoji :)")
         if self._is_help_requested(body) or odoobot_state == "idle":
@@ -295,16 +368,20 @@ class MailBot(models.AbstractModel):
     def _advance_to(self, next_state, success):
         """Move the user to `next_state` and return that step's answer."""
         answer = success(self)
-        self.env.user.sudo().write({"odoobot_state": next_state, "odoobot_failed": False})
+        self.env.user.sudo().write(
+            {"odoobot_state": next_state, "odoobot_failed": False}
+        )
         return answer
 
     def _begin_canned_response_step(self):
         """Create the throw-away canned response the next step asks the user to use."""
         user = self.env.user
-        canned_response = self.env["mail.canned.response"].create({
-            "source": self.env._("Thanks"),
-            "substitution": self.env._("Thanks for your feedback. Goodbye!"),
-        })
+        canned_response = self.env["mail.canned.response"].create(
+            {
+                "source": self.env._("Thanks"),
+                "substitution": self.env._("Thanks for your feedback. Goodbye!"),
+            }
+        )
         # Remember which record we made. Matching on the translated source later
         # deleted whatever else the user happened to abbreviate "Thanks", and
         # missed our own record entirely once their language had changed.

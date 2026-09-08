@@ -17,9 +17,7 @@ class SaleOrder(models.Model):
             if not order.warehouse_id:
                 order.warehouse_id = self.env.user._get_default_warehouse_id()
 
-    def _get_updated_quantity(
-        self, order_line, product_id, new_qty, uom_id, **kwargs
-    ):
+    def _get_updated_quantity(self, order_line, product_id, new_qty, uom_id, **kwargs):
         self.check_singleton()
         product = self.env["product.product"].browse(product_id)
         if product.is_storable and not product.allow_out_of_stock_order:

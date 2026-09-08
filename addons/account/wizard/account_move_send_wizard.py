@@ -91,7 +91,6 @@ class AccountMoveSendWizard(models.TransientModel):
     )
     template_name = fields.Char("Template Name")
 
-
     @api.model
     def default_get(self, fields_list):
         results = super().default_get(fields_list)
@@ -99,7 +98,6 @@ class AccountMoveSendWizard(models.TransientModel):
         if "move_id" in fields_list and "move_id" not in results and active_ids:
             results["move_id"] = active_ids[0]
         return results
-
 
     @api.depends("sending_methods", "extra_edis", "mail_partner_ids")
     def _compute_alerts(self):
@@ -207,7 +205,9 @@ class AccountMoveSendWizard(models.TransientModel):
     @api.depends("move_id")
     def _compute_available_pdf_report_ids(self):
         for wizard in self:
-            wizard.available_pdf_report_ids = wizard.move_id._get_available_action_reports()
+            wizard.available_pdf_report_ids = (
+                wizard.move_id._get_available_action_reports()
+            )
 
     @api.depends("move_id")
     def _compute_display_pdf_report_id(self):
@@ -359,12 +359,10 @@ class AccountMoveSendWizard(models.TransientModel):
         for wizard in self:
             wizard.attachments_not_supported = {}
 
-
     @api.constrains("move_id")
     def _check_move_id_constraints(self):
         for wizard in self:
             self._check_move_constraints(wizard.move_id)
-
 
     @api.model
     def _get_selected_checkboxes(self, json_checkboxes):
@@ -375,7 +373,6 @@ class AccountMoveSendWizard(models.TransientModel):
             for checkbox_key, checkbox_vals in json_checkboxes.items()
             if checkbox_vals["checked"]
         ]
-
 
     def _get_sending_settings(self):
         self.check_singleton()
@@ -410,7 +407,6 @@ class AccountMoveSendWizard(models.TransientModel):
             self.move_id.partner_id.sudo().invoice_template_pdf_report_id = (
                 self.pdf_report_id
             )
-
 
     @api.model
     def _action_download(self, attachments):

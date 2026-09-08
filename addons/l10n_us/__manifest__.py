@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "United States - Localizations",
     "version": "1.1",

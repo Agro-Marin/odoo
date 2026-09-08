@@ -539,8 +539,7 @@ class Cart(PaymentPortal):
                     # `_get_displayed_unit_price` is what every other
                     # website_sale price display goes through.
                     "price_total": (
-                        line._get_displayed_unit_price()
-                        * added_qty_per_line[line.id]
+                        line._get_displayed_unit_price() * added_qty_per_line[line.id]
                     ),
                     **self._get_additional_cart_notification_information(line),
                 }

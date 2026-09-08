@@ -117,9 +117,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
             ).method_direct_trigger()
-            self.assertEqual(
-                self.test_move.state, "draft"
-            )
+            self.assertEqual(self.test_move.state, "draft")
         with (
             freeze_time(self.test_move.date + relativedelta(days=1)),
             self.enter_registry_test_mode(),
@@ -127,9 +125,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
             ).method_direct_trigger()
-            self.assertEqual(
-                self.test_move.state, "posted"
-            )
+            self.assertEqual(self.test_move.state, "posted")
         self.assertEqual(nb_invoices, self.env["account.move"].search_count(domain=[]))
 
     def test_autopost_failure_keeps_entry_scheduled(self):
@@ -209,9 +205,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         self.assertEqual(new_invoices_1.state, "posted")
         self.assertEqual(1, len(new_invoices_2))
         self.assertEqual("monthly", new_invoices_2.auto_post)
-        self.assertEqual(
-            new_date_2, new_invoices_2.date
-        )
+        self.assertEqual(new_date_2, new_invoices_2.date)
         self.assertEqual(
             new_date_2 + relativedelta(days=1), new_invoices_2.invoice_date_due
         )
@@ -1553,24 +1547,34 @@ class TestAccountMove(AccountTestInvoicingCommon):
 
         def post_entry(company, amount, ref):
             data = self.company_data if company == self.env.company else other
-            move = self.env["account.move"].with_company(company).create({
-                "move_type": "entry",
-                "journal_id": data["default_journal_misc"].id,
-                "date": "2026-02-01",
-                "ref": ref,
-                "line_ids": [
-                    Command.create({
-                        "account_id": data["default_account_receivable"].id,
-                        "balance": amount,
-                        "name": ref,
-                    }),
-                    Command.create({
-                        "account_id": data["default_account_expense"].id,
-                        "balance": -amount,
-                        "name": ref,
-                    }),
-                ],
-            })
+            move = (
+                self.env["account.move"]
+                .with_company(company)
+                .create(
+                    {
+                        "move_type": "entry",
+                        "journal_id": data["default_journal_misc"].id,
+                        "date": "2026-02-01",
+                        "ref": ref,
+                        "line_ids": [
+                            Command.create(
+                                {
+                                    "account_id": data["default_account_receivable"].id,
+                                    "balance": amount,
+                                    "name": ref,
+                                }
+                            ),
+                            Command.create(
+                                {
+                                    "account_id": data["default_account_expense"].id,
+                                    "balance": -amount,
+                                    "name": ref,
+                                }
+                            ),
+                        ],
+                    }
+                )
+            )
             move.action_post()
             return move.line_ids.filtered(lambda line: line.balance > 0)
 
@@ -1578,15 +1582,22 @@ class TestAccountMove(AccountTestInvoicingCommon):
         foreign_line = post_entry(other_company, 777.0, "cb_foreign")
         domain = [("id", "in", (own_line + foreign_line).ids)]
 
-        restricted = self.env["res.users"].create({
-            "name": "cumulated balance, one company",
-            "login": "cumulated_balance_one_company",
-            "company_id": self.env.company.id,
-            "company_ids": [Command.set(self.env.company.ids)],
-            "group_ids": [Command.set(self.env.ref("account.group_account_readonly").ids)],
-        })
+        restricted = self.env["res.users"].create(
+            {
+                "name": "cumulated balance, one company",
+                "login": "cumulated_balance_one_company",
+                "company_id": self.env.company.id,
+                "company_ids": [Command.set(self.env.company.ids)],
+                "group_ids": [
+                    Command.set(self.env.ref("account.group_account_readonly").ids)
+                ],
+            }
+        )
         self.assertFalse(
-            self.env["account.move.line"].with_user(restricted).browse(foreign_line.id)._filtered_access("read"),
+            self.env["account.move.line"]
+            .with_user(restricted)
+            .browse(foreign_line.id)
+            ._filtered_access("read"),
             "fixture is wrong: the restricted user must not be able to read the other company's line",
         )
 
@@ -1606,13 +1617,17 @@ class TestAccountMove(AccountTestInvoicingCommon):
             "cumulated_balance must sum only the lines the user is allowed to read",
         )
 
-        wide = self.env["res.users"].create({
-            "name": "cumulated balance, both companies",
-            "login": "cumulated_balance_both_companies",
-            "company_id": self.env.company.id,
-            "company_ids": [Command.set((self.env.company + other_company).ids)],
-            "group_ids": [Command.set(self.env.ref("account.group_account_readonly").ids)],
-        })
+        wide = self.env["res.users"].create(
+            {
+                "name": "cumulated balance, both companies",
+                "login": "cumulated_balance_both_companies",
+                "company_id": self.env.company.id,
+                "company_ids": [Command.set((self.env.company + other_company).ids)],
+                "group_ids": [
+                    Command.set(self.env.ref("account.group_account_readonly").ids)
+                ],
+            }
+        )
         self.assertEqual(
             cumulated(wide, self.env.company + other_company),
             {own_line.id: 877.0, foreign_line.id: 777.0},
@@ -1629,19 +1644,21 @@ class TestAccountMove(AccountTestInvoicingCommon):
         journal = self.company_data["default_journal_misc"]
         debit = self.company_data["default_account_receivable"]
         credit = self.company_data["default_account_expense"]
-        move = self.env["account.move"].create({
-            "move_type": "entry",
-            "journal_id": journal.id,
-            "date": "2026-02-01",
-            "line_ids": [
-                Command.create(
-                    {"account_id": debit.id, "balance": 50.0, "name": "tracked"}
-                ),
-                Command.create(
-                    {"account_id": credit.id, "balance": -50.0, "name": "other"}
-                ),
-            ],
-        })
+        move = self.env["account.move"].create(
+            {
+                "move_type": "entry",
+                "journal_id": journal.id,
+                "date": "2026-02-01",
+                "line_ids": [
+                    Command.create(
+                        {"account_id": debit.id, "balance": 50.0, "name": "tracked"}
+                    ),
+                    Command.create(
+                        {"account_id": credit.id, "balance": -50.0, "name": "other"}
+                    ),
+                ],
+            }
+        )
         move.action_post()
         move.action_draft()
         self.assertTrue(move.posted_before)
@@ -1650,12 +1667,14 @@ class TestAccountMove(AccountTestInvoicingCommon):
             return move.message_ids - before
 
         before = move.message_ids
-        added = self.env["account.move.line"].create({
-            "move_id": move.id,
-            "account_id": debit.id,
-            "balance": 0.0,
-            "name": "added later",
-        })
+        added = self.env["account.move.line"].create(
+            {
+                "move_id": move.id,
+                "account_id": debit.id,
+                "balance": 0.0,
+                "name": "added later",
+            }
+        )
         created_logs = new_messages(before)
         self.assertTrue(
             created_logs.tracking_value_ids,
@@ -1724,20 +1743,24 @@ class TestAccountMove(AccountTestInvoicingCommon):
         }
         lines = {}
         for label, (discount_date, date_maturity) in cases.items():
-            move = self.env["account.move"].create({
-                "move_type": "entry",
-                "journal_id": journal.id,
-                "date": today,
-                "line_ids": [
-                    Command.create({
-                        "account_id": receivable.id,
-                        "balance": 10.0,
-                        "name": label,
-                        "date_maturity": date_maturity or False,
-                    }),
-                    Command.create({"account_id": expense.id, "balance": -10.0}),
-                ],
-            })
+            move = self.env["account.move"].create(
+                {
+                    "move_type": "entry",
+                    "journal_id": journal.id,
+                    "date": today,
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "account_id": receivable.id,
+                                "balance": 10.0,
+                                "name": label,
+                                "date_maturity": date_maturity or False,
+                            }
+                        ),
+                        Command.create({"account_id": expense.id, "balance": -10.0}),
+                    ],
+                }
+            )
             line = move.line_ids.filtered(lambda x, label=label: x.name == label)
             if discount_date:
                 self.env.cr.execute(
@@ -2164,9 +2187,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         for move in moves:
             expected.setdefault(move.display_state, set()).add(move.id)
 
-        selection = dict(
-            self.env["account.move"]._fields["display_state"].selection
-        )
+        selection = dict(self.env["account.move"]._fields["display_state"].selection)
         for value in selection:
             found = set(
                 self.env["account.move"]

@@ -22,7 +22,9 @@ class HttpCaseWithWebsiteUser(HttpCase):
             "country_id": country.id,
             "tz": "America/New_York",
             "email": "rafe.cameron23@example.com",
-            "phone_ids": [Command.create({"number": "+1(492)-563-3759", "type": "landline"})],
+            "phone_ids": [
+                Command.create({"number": "+1(492)-563-3759", "type": "landline"})
+            ],
         }
         cls.partner_website_user = cls.env["res.partner"].create(partner_vals)
         cls.user_website_user = cls.env["res.users"].create(

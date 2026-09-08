@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from odoo import models
 
 
@@ -8,11 +7,15 @@ class EventEvent(models.Model):
     def action_mass_mailing_attendees(self):
         # Minimal override: set form view being the one mixing sms and mail (not prioritized one)
         action = super().action_mass_mailing_attendees()
-        action['view_id'] = self.env.ref('mass_mailing_sms.mailing_mailing_view_form_mixed').id
+        action["view_id"] = self.env.ref(
+            "mass_mailing_sms.mailing_mailing_view_form_mixed"
+        ).id
         return action
 
     def action_invite_contacts(self):
         # Minimal override: set form view being the one mixing sms and mail (not prioritized one)
         action = super().action_invite_contacts()
-        action['view_id'] = self.env.ref('mass_mailing_sms.mailing_mailing_view_form_mixed').id
+        action["view_id"] = self.env.ref(
+            "mass_mailing_sms.mailing_mailing_view_form_mixed"
+        ).id
         return action

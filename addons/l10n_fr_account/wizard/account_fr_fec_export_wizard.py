@@ -1,52 +1,76 @@
-# -*- coding: utf-8 -*-
 # Copyright (C) 2013-2015 Akretion (http://www.akretion.com)
 import csv
 import io
-from odoo.tools import float_is_zero, SQL
-from odoo import fields, models, api
-from odoo.tools.misc import get_lang
+
 from stdnum.fr import siren
+
+from odoo import api, fields, models
+from odoo.tools import SQL, float_is_zero
+from odoo.tools.misc import get_lang
 
 
 class L10n_FrFecExportWizard(models.TransientModel):
-    _name = 'l10n_fr.fec.export.wizard'
-    _description = 'Fichier Echange Informatise'
+    _name = "l10n_fr.fec.export.wizard"
+    _description = "Fichier Echange Informatise"
 
-    date_from = fields.Date(string='Start Date', required=True, default=lambda self: self.env.context.get('report_dates', {}).get('date_from'))
-    date_to = fields.Date(string='End Date', required=True, default=lambda self: self.env.context.get('report_dates', {}).get('date_to'))
-    filename = fields.Char(string='Filename', size=256, readonly=True)
+    date_from = fields.Date(
+        string="Start Date",
+        required=True,
+        default=lambda self: self.env.context.get("report_dates", {}).get("date_from"),
+    )
+    date_to = fields.Date(
+        string="End Date",
+        required=True,
+        default=lambda self: self.env.context.get("report_dates", {}).get("date_to"),
+    )
+    filename = fields.Char(string="Filename", size=256, readonly=True)
     test_file = fields.Boolean()
-    export_type = fields.Selection([
-        ('official', 'Official FEC report (posted entries only)'),
-        ('nonofficial', 'Non-official FEC report (posted and unposted entries)'),
-    ], string='Export Type', required=True, default='official')
-    excluded_journal_ids = fields.Many2many('account.journal', string="Excluded Journals",
-                                            domain="[('company_id', 'parent_of', current_company_id)]")
+    export_type = fields.Selection(
+        [
+            ("official", "Official FEC report (posted entries only)"),
+            ("nonofficial", "Non-official FEC report (posted and unposted entries)"),
+        ],
+        string="Export Type",
+        required=True,
+        default="official",
+    )
+    excluded_journal_ids = fields.Many2many(
+        "account.journal",
+        string="Excluded Journals",
+        domain="[('company_id', 'parent_of', current_company_id)]",
+    )
 
-    @api.onchange('test_file')
+    @api.onchange("test_file")
     def _onchange_export_file(self):
         if not self.test_file:
-            self.export_type = 'official'
+            self.export_type = "official"
 
     def _get_base_domain(self):
-        domain = [('company_id', 'in', tuple(self.env.company._accessible_branches().ids)), ('balance', '!=', 0.0)]
+        domain = [
+            ("company_id", "in", tuple(self.env.company._accessible_branches().ids)),
+            ("balance", "!=", 0.0),
+        ]
         # For official report: only use posted entries
         if self.export_type == "official":
-            domain.append(('parent_state', '=', 'posted'))
+            domain.append(("parent_state", "=", "posted"))
         if self.excluded_journal_ids:
-            domain.append(('journal_id', 'not in', self.excluded_journal_ids.ids))
+            domain.append(("journal_id", "not in", self.excluded_journal_ids.ids))
         return domain
 
     def _do_query_unaffected_earnings(self):
-        """ Compute the sum of ending balances for all accounts that are of a type that does not bring forward the balance in new fiscal years.
-            This is needed because we have to display only one line for the initial balance of all expense/revenue accounts in the FEC.
+        """Compute the sum of ending balances for all accounts that are of a type that does not bring forward the balance in new fiscal years.
+        This is needed because we have to display only one line for the initial balance of all expense/revenue accounts in the FEC.
         """
-        query = self.env['account.move.line']._search(self._get_base_domain() + [
-            ('date', '<', self.date_from),
-            ('account_id.include_initial_balance', '=', False),
-        ])
-        sql_query = query.select(SQL(
-            """
+        query = self.env["account.move.line"]._search(
+            self._get_base_domain()
+            + [
+                ("date", "<", self.date_from),
+                ("account_id.include_initial_balance", "=", False),
+            ]
+        )
+        sql_query = query.select(
+            SQL(
+                """
                 'OUV' AS JournalCode,
                 'Balance initiale' AS JournalLib,
                 'OUVERTURE/' || %(formatted_date_year)s AS EcritureNum,
@@ -66,9 +90,12 @@ class L10n_FrFecExportWizard(models.TransientModel):
                 '' AS Montantdevise,
                 '' AS Idevise
             """,
-            formatted_date_year=self.date_from.year,
-            formatted_date_from=fields.Date.to_string(self.date_from).replace('-', ''),
-        ))
+                formatted_date_year=self.date_from.year,
+                formatted_date_from=fields.Date.to_string(self.date_from).replace(
+                    "-", ""
+                ),
+            )
+        )
         self.env.flush_all()
         self.env.cr.execute(sql_query)
         return list(self.env.cr.fetchone())
@@ -84,10 +111,17 @@ class L10n_FrFecExportWizard(models.TransientModel):
         * Returns the siren if the company is french or an empty siren for dom-tom
         * For non-french companies -> returns the complete vat number
         """
-        is_dom_tom = company.account_fiscal_country_id and 'DOM-TOM' in company.account_fiscal_country_id.country_group_codes
+        is_dom_tom = (
+            company.account_fiscal_country_id
+            and "DOM-TOM" in company.account_fiscal_country_id.country_group_codes
+        )
         if not company.vat or is_dom_tom:
-            return ''
-        elif company.country_id.code == 'FR' and len(company.vat) >= 13 and siren.is_valid(company.vat[4:13]):
+            return ""
+        elif (
+            company.country_id.code == "FR"
+            and len(company.vat) >= 13
+            and siren.is_valid(company.vat[4:13])
+        ):
             return company.vat[4:13]
         else:
             return company.vat
@@ -102,48 +136,63 @@ class L10n_FrFecExportWizard(models.TransientModel):
         company_legal_data = self._get_company_legal_data(company)
 
         header = [
-            u'JournalCode',    # 0
-            u'JournalLib',     # 1
-            u'EcritureNum',    # 2
-            u'EcritureDate',   # 3
-            u'CompteNum',      # 4
-            u'CompteLib',      # 5
-            u'CompAuxNum',     # 6  We use partner.id
-            u'CompAuxLib',     # 7
-            u'PieceRef',       # 8
-            u'PieceDate',      # 9
-            u'EcritureLib',    # 10
-            u'Debit',          # 11
-            u'Credit',         # 12
-            u'EcritureLet',    # 13
-            u'DateLet',        # 14
-            u'ValidDate',      # 15
-            u'Montantdevise',  # 16
-            u'Idevise',        # 17
-            ]
+            "JournalCode",  # 0
+            "JournalLib",  # 1
+            "EcritureNum",  # 2
+            "EcritureDate",  # 3
+            "CompteNum",  # 4
+            "CompteLib",  # 5
+            "CompAuxNum",  # 6  We use partner.id
+            "CompAuxLib",  # 7
+            "PieceRef",  # 8
+            "PieceDate",  # 9
+            "EcritureLib",  # 10
+            "Debit",  # 11
+            "Credit",  # 12
+            "EcritureLet",  # 13
+            "DateLet",  # 14
+            "ValidDate",  # 15
+            "Montantdevise",  # 16
+            "Idevise",  # 17
+        ]
 
         rows_to_write = [header]
         # INITIAL BALANCE
-        unaffected_earnings_account = self.env['account.account'].search([
-            *self.env['account.account']._check_company_domain(company),
-            ('account_type', '=', 'equity_unaffected'),
-        ], limit=1)
+        unaffected_earnings_account = self.env["account.account"].search(
+            [
+                *self.env["account.account"]._check_company_domain(company),
+                ("account_type", "=", "equity_unaffected"),
+            ],
+            limit=1,
+        )
         unaffected_earnings_line = True  # used to make sure that we add the unaffected earning initial balance only once
         if unaffected_earnings_account:
-            #compute the benefit/loss of last year to add in the initial balance of the current year earnings account
+            # compute the benefit/loss of last year to add in the initial balance of the current year earnings account
             unaffected_earnings_results = self._do_query_unaffected_earnings()
             unaffected_earnings_line = False
 
-        aa_name = self.env['account.account']._field_to_sql('account_move_line__account_id', 'name')
+        aa_name = self.env["account.account"]._field_to_sql(
+            "account_move_line__account_id", "name"
+        )
 
-        query = self.env['account.move.line']._search(self._get_base_domain() + [
-            ('date', '<', self.date_from),
-            ('account_id.include_initial_balance', '=', True),
-            ('account_id.account_type', 'not in', ['asset_receivable', 'liability_payable']),
-        ])
-        aa_code = self.env['account.account']._field_to_sql('account_move_line__account_id', 'code', query)
-        sql_query = query.select(SQL(
-            """
+        query = self.env["account.move.line"]._search(
+            self._get_base_domain()
+            + [
+                ("date", "<", self.date_from),
+                ("account_id.include_initial_balance", "=", True),
+                (
+                    "account_id.account_type",
+                    "not in",
+                    ["asset_receivable", "liability_payable"],
+                ),
+            ]
+        )
+        aa_code = self.env["account.account"]._field_to_sql(
+            "account_move_line__account_id", "code", query
+        )
+        sql_query = query.select(
+            SQL(
+                """
                 'OUV' AS JournalCode,
                 'Balance initiale' AS JournalLib,
                 'OUVERTURE/' || %(formatted_date_year)s AS EcritureNum,
@@ -164,59 +213,84 @@ class L10n_FrFecExportWizard(models.TransientModel):
                 '' AS Idevise,
                 MIN(account_move_line__account_id.id) AS CompteID
             """,
-            formatted_date_year=self.date_from.year,
-            formatted_date_from=fields.Date.to_string(self.date_from).replace('-', ''),
-            aa_code=aa_code,
-            aa_name=aa_name,
-        ))
-        self.env.cr.execute(SQL('%s GROUP BY account_move_line__account_id.id', sql_query))
+                formatted_date_year=self.date_from.year,
+                formatted_date_from=fields.Date.to_string(self.date_from).replace(
+                    "-", ""
+                ),
+                aa_code=aa_code,
+                aa_name=aa_name,
+            )
+        )
+        self.env.cr.execute(
+            SQL("%s GROUP BY account_move_line__account_id.id", sql_query)
+        )
 
         currency_digits = 2
         for row in self.env.cr.fetchall():
             listrow = list(row)
             account_id = listrow.pop()
             if not unaffected_earnings_line:
-                account = self.env['account.account'].browse(account_id)
-                if account.account_type == 'equity_unaffected':
-                    #add the benefit/loss of previous fiscal year to the first unaffected earnings account found.
+                account = self.env["account.account"].browse(account_id)
+                if account.account_type == "equity_unaffected":
+                    # add the benefit/loss of previous fiscal year to the first unaffected earnings account found.
                     unaffected_earnings_line = True
-                    current_amount = float(listrow[11].replace(',', '.')) - float(listrow[12].replace(',', '.'))
-                    unaffected_earnings_amount = float(unaffected_earnings_results[11].replace(',', '.')) - float(unaffected_earnings_results[12].replace(',', '.'))
+                    current_amount = float(listrow[11].replace(",", ".")) - float(
+                        listrow[12].replace(",", ".")
+                    )
+                    unaffected_earnings_amount = float(
+                        unaffected_earnings_results[11].replace(",", ".")
+                    ) - float(unaffected_earnings_results[12].replace(",", "."))
                     listrow_amount = current_amount + unaffected_earnings_amount
                     if float_is_zero(listrow_amount, precision_digits=currency_digits):
                         continue
                     if listrow_amount > 0:
-                        listrow[11] = str(listrow_amount).replace('.', ',')
-                        listrow[12] = '0,00'
+                        listrow[11] = str(listrow_amount).replace(".", ",")
+                        listrow[12] = "0,00"
                     else:
-                        listrow[11] = '0,00'
-                        listrow[12] = str(-listrow_amount).replace('.', ',')
+                        listrow[11] = "0,00"
+                        listrow[12] = str(-listrow_amount).replace(".", ",")
             rows_to_write.append(listrow)
 
-        #if the unaffected earnings account wasn't in the selection yet: add it manually
-        if (not unaffected_earnings_line
+        # if the unaffected earnings account wasn't in the selection yet: add it manually
+        if (
+            not unaffected_earnings_line
             and unaffected_earnings_results
-            and (unaffected_earnings_results[11] != '0,00'
-                 or unaffected_earnings_results[12] != '0,00')):
-            #search an unaffected earnings account
-            unaffected_earnings_account = self.env['account.account'].search([
-                ('account_type', '=', 'equity_unaffected')
-            ], limit=1)
+            and (
+                unaffected_earnings_results[11] != "0,00"
+                or unaffected_earnings_results[12] != "0,00"
+            )
+        ):
+            # search an unaffected earnings account
+            unaffected_earnings_account = self.env["account.account"].search(
+                [("account_type", "=", "equity_unaffected")], limit=1
+            )
             if unaffected_earnings_account:
                 unaffected_earnings_results[4] = unaffected_earnings_account.code
                 unaffected_earnings_results[5] = unaffected_earnings_account.name
             rows_to_write.append(unaffected_earnings_results)
 
         # INITIAL BALANCE - receivable/payable
-        query = self.env['account.move.line']._search(self._get_base_domain() + [
-            ('date', '<', self.date_from),
-            ('account_id.include_initial_balance', '=', True),
-            ('account_id.account_type', 'in', ['asset_receivable', 'liability_payable']),
-        ])
-        query.left_join('account_move_line', 'partner_id', 'res_partner', 'id', 'partner_id')
-        aa_code = self.env['account.account']._field_to_sql('account_move_line__account_id', 'code', query)
-        sql_query = query.select(SQL(
-            """
+        query = self.env["account.move.line"]._search(
+            self._get_base_domain()
+            + [
+                ("date", "<", self.date_from),
+                ("account_id.include_initial_balance", "=", True),
+                (
+                    "account_id.account_type",
+                    "in",
+                    ["asset_receivable", "liability_payable"],
+                ),
+            ]
+        )
+        query.left_join(
+            "account_move_line", "partner_id", "res_partner", "id", "partner_id"
+        )
+        aa_code = self.env["account.account"]._field_to_sql(
+            "account_move_line__account_id", "code", query
+        )
+        sql_query = query.select(
+            SQL(
+                """
                 'OUV' AS JournalCode,
                 'Balance initiale' AS JournalLib,
                 'OUVERTURE/' || %(formatted_date_year)s AS EcritureNum,
@@ -237,12 +311,20 @@ class L10n_FrFecExportWizard(models.TransientModel):
                 '' AS Idevise,
                 MIN(account_move_line__account_id.id) AS CompteID
             """,
-            formatted_date_year=self.date_from.year,
-            formatted_date_from=fields.Date.to_string(self.date_from).replace('-', ''),
-            aa_code=aa_code,
-            aa_name=aa_name,
-        ))
-        self.env.cr.execute(SQL('%s GROUP BY account_move_line__partner_id.id, account_move_line__account_id.id', sql_query))
+                formatted_date_year=self.date_from.year,
+                formatted_date_from=fields.Date.to_string(self.date_from).replace(
+                    "-", ""
+                ),
+                aa_code=aa_code,
+                aa_name=aa_name,
+            )
+        )
+        self.env.cr.execute(
+            SQL(
+                "%s GROUP BY account_move_line__partner_id.id, account_move_line__account_id.id",
+                sql_query,
+            )
+        )
 
         for row in self.env.cr.fetchall():
             listrow = list(row)
@@ -250,19 +332,30 @@ class L10n_FrFecExportWizard(models.TransientModel):
             rows_to_write.append(listrow)
 
         # LINES
-        query_limit = int(self.env['ir.config_parameter'].sudo().get_param('l10n_fr_fec.batch_size', 500000)) # To prevent memory errors when fetching the results
-        query = self.env['account.move.line']._search(
-            domain=self._get_base_domain() + [
-                ('date', '>=', self.date_from),
-                ('date', '<=', self.date_to),
+        query_limit = int(
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param("l10n_fr_fec.batch_size", 500000)
+        )  # To prevent memory errors when fetching the results
+        query = self.env["account.move.line"]._search(
+            domain=self._get_base_domain()
+            + [
+                ("date", ">=", self.date_from),
+                ("date", "<=", self.date_to),
             ],
             limit=query_limit + 1,
-            order='date, move_name, id',
+            order="date, move_name, id",
         )
-        account_alias = query.join('account_move_line', 'account_id', 'account_account', 'id', 'account_id')
-        aa_code = self.env['account.account']._field_to_sql(account_alias, 'code', query)
+        account_alias = query.join(
+            "account_move_line", "account_id", "account_account", "id", "account_id"
+        )
+        aa_code = self.env["account.account"]._field_to_sql(
+            account_alias, "code", query
+        )
 
-        aj_name = self.env['account.journal']._field_to_sql('account_move_line__journal_id', 'name')
+        aj_name = self.env["account.journal"]._field_to_sql(
+            "account_move_line__journal_id", "name"
+        )
         columns = SQL(
             """
                 REGEXP_REPLACE(replace(%(journal_alias)s.code, '|', '/'), '[\\t\\r\\n]', ' ', 'g') AS JournalCode,
@@ -303,18 +396,50 @@ class L10n_FrFecExportWizard(models.TransientModel):
                 END AS Montantdevise,
                 CASE WHEN account_move_line.currency_id IS NULL THEN '' ELSE %(currency_alias)s.name END AS Idevise
             """,
-            currency_alias=SQL.identifier(query.left_join('account_move_line', 'currency_id', 'res_currency', 'id', 'currency_id')),
-            full_alias=SQL.identifier(query.left_join('account_move_line', 'full_reconcile_id', 'account_full_reconcile', 'id', 'full_reconcile_id')),
-            journal_alias=SQL.identifier(query.left_join('account_move_line', 'journal_id', 'account_journal', 'id', 'journal_id')),
-            move_alias=SQL.identifier(query.left_join('account_move_line', 'move_id', 'account_move', 'id', 'move_id')),
-            partner_alias=SQL.identifier(query.left_join('account_move_line', 'partner_id', 'res_partner', 'id', 'partner_id')),
+            currency_alias=SQL.identifier(
+                query.left_join(
+                    "account_move_line",
+                    "currency_id",
+                    "res_currency",
+                    "id",
+                    "currency_id",
+                )
+            ),
+            full_alias=SQL.identifier(
+                query.left_join(
+                    "account_move_line",
+                    "full_reconcile_id",
+                    "account_full_reconcile",
+                    "id",
+                    "full_reconcile_id",
+                )
+            ),
+            journal_alias=SQL.identifier(
+                query.left_join(
+                    "account_move_line",
+                    "journal_id",
+                    "account_journal",
+                    "id",
+                    "journal_id",
+                )
+            ),
+            move_alias=SQL.identifier(
+                query.left_join(
+                    "account_move_line", "move_id", "account_move", "id", "move_id"
+                )
+            ),
+            partner_alias=SQL.identifier(
+                query.left_join(
+                    "account_move_line", "partner_id", "res_partner", "id", "partner_id"
+                )
+            ),
             account_alias=SQL.identifier(account_alias),
             aj_name=aj_name,
             aa_code=aa_code,
             aa_name=aa_name,
         )
         with io.StringIO() as fecfile:
-            csv_writer = csv.writer(fecfile, delimiter='|', lineterminator='\r\n')
+            csv_writer = csv.writer(fecfile, delimiter="|", lineterminator="\r\n")
 
             # Write header and initial balances
             csv_writer.writerows(rows_to_write)
@@ -324,25 +449,29 @@ class L10n_FrFecExportWizard(models.TransientModel):
             while has_more_results:
                 self.env.cr.execute(query.select(columns))
                 query.offset += query_limit
-                has_more_results = self.env.cr.rowcount > query_limit  # we load one more result than the limit to check if there is more
+                has_more_results = (
+                    self.env.cr.rowcount > query_limit
+                )  # we load one more result than the limit to check if there is more
                 query_results = self.env.cr.fetchall()
                 csv_writer.writerows(query_results[:query_limit])
             content = fecfile.getvalue()[:-2].encode()
 
-        end_date = fields.Date.to_string(self.date_to).replace('-', '')
-        suffix = ''
+        end_date = fields.Date.to_string(self.date_to).replace("-", "")
+        suffix = ""
         if self.export_type == "nonofficial":
-            suffix = '-NONOFFICIAL'
+            suffix = "-NONOFFICIAL"
 
         # Set fiscal year lock date to the end date (not in test)
         fiscalyear_lock_date = self.env.company.fiscalyear_lock_date
-        if not self.test_file and (not fiscalyear_lock_date or fiscalyear_lock_date < self.date_to):
-            self.env.company.write({'fiscalyear_lock_date': self.date_to})
+        if not self.test_file and (
+            not fiscalyear_lock_date or fiscalyear_lock_date < self.date_to
+        ):
+            self.env.company.write({"fiscalyear_lock_date": self.date_to})
 
         return {
-            'file_name': f"{company_legal_data}FEC{end_date}{suffix}.txt",
-            'file_content': content,
-            'file_type': 'txt'
+            "file_name": f"{company_legal_data}FEC{end_date}{suffix}.txt",
+            "file_content": content,
+            "file_type": "txt",
         }
 
     def create_fec_report_action(self):

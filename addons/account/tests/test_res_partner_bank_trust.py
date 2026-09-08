@@ -33,7 +33,6 @@ class TestResPartnerBankTrust(TransactionCase):
             }
         )
 
-
     def test_money_transfer_belgian_account_detected(self):
         acc = self.RPB.create(
             {"acc_number": "BE40967000000063", "partner_id": self.partner_be.id}
@@ -65,13 +64,11 @@ class TestResPartnerBankTrust(TransactionCase):
         acc.invalidate_recordset()
         self.assertEqual(acc.money_transfer_service, before)
 
-
     def test_display_name_transient_record_has_no_literal_false(self):
         new_rec = self.RPB.with_context(display_account_trust=True).new(
             {"partner_id": self.partner_fr.id}
         )
         self.assertNotIn("False", new_rec.display_name or "")
-
 
     def test_lock_trust_fields(self):
         new_rec = self.RPB.new({"partner_id": self.partner_be.id})
@@ -83,7 +80,6 @@ class TestResPartnerBankTrust(TransactionCase):
         self.assertFalse(acc.lock_trust_fields, "untrusted persisted account unlocked")
         acc.allow_out_payment = True
         self.assertTrue(acc.lock_trust_fields, "trusted persisted account locked")
-
 
     def test_clerk_cannot_trust(self):
         acc = self.RPB.create(
@@ -99,7 +95,6 @@ class TestResPartnerBankTrust(TransactionCase):
         acc.allow_out_payment = True
         with self.assertRaises(UserError):
             acc.with_user(self.clerk).write({"allow_out_payment": False})
-
 
     def test_create_rejects_archived_duplicate(self):
         acc = self.RPB.create(

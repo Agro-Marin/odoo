@@ -1,12 +1,14 @@
-from odoo import api, models, _
+from odoo import _, api, models
 from odoo.exceptions import UserError
 
 
 class AccountTax(models.Model):
-    _inherit = 'account.tax'
+    _inherit = "account.tax"
 
     @api.ondelete(at_uninstall=False)
     def _never_unlink_declaration_of_intent_tax(self):
         for tax in self:
             if tax in tax.company_ids.l10n_it_edi_doi_tax_id:
-                raise UserError(_('You cannot delete the special tax for Declarations of Intent.'))
+                raise UserError(
+                    _("You cannot delete the special tax for Declarations of Intent.")
+                )

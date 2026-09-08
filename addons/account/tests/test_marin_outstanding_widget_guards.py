@@ -55,7 +55,6 @@ class TestOutstandingWidgetGuards(AccountTestInvoicingCommon):
         self.assertFalse(line.reconciled, "fixture: it must still be outstanding")
         return line
 
-
     def test_add_accepts_a_genuine_outstanding_line(self):
         invoice = self._posted_invoice()
         invoice.js_add_outstanding_line(self._outstanding_credit(300.0).id)
@@ -104,7 +103,6 @@ class TestOutstandingWidgetGuards(AccountTestInvoicingCommon):
         self.assertNotEqual(foreign_line.company_id, invoice.company_id)
         with self.assertRaisesRegex(UserError, "cannot be reconciled"):
             invoice.js_add_outstanding_line(foreign_line.id)
-
 
     def test_remove_accepts_a_partial_of_this_move(self):
         invoice = self._posted_invoice(amount=500.0)

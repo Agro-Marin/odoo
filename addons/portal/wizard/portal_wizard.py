@@ -5,7 +5,6 @@ from odoo.tools.translate import _
 
 
 class PortalWizard(models.TransientModel):
-
     _name = "portal.wizard"
     _description = "Grant Portal Access"
 
@@ -70,7 +69,6 @@ class PortalWizard(models.TransientModel):
 
 
 class PortalWizardUser(models.TransientModel):
-
     _name = "portal.wizard.user"
     _description = "Portal User Config"
 

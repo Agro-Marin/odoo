@@ -76,7 +76,12 @@ class TestCallRecording(MailCommon):
 
     def test_a_call_history_gained_the_timeline_without_declaring_it(self):
         history = self.env["discuss.call.history"]
-        for field in ("segment_ids", "media_transcript", "media_duration_ms", "has_media"):
+        for field in (
+            "segment_ids",
+            "media_transcript",
+            "media_duration_ms",
+            "has_media",
+        ):
             self.assertIn(field, history._fields)
 
     def test_a_chunk_that_overlaps_the_one_before_it_is_refused(self):

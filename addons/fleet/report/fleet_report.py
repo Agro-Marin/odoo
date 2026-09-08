@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.libs.sql import SQL

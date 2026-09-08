@@ -1,38 +1,47 @@
-# -*- coding: utf-8 -*-
-from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError
 import stdnum.de.stnr
 import stdnum.exceptions
 
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+
 
 class ResCompany(models.Model):
-    _inherit = 'res.company'
+    _inherit = "res.company"
 
     l10n_de_stnr = fields.Char(
         string="St.-Nr.",
         help="Tax number. Scheme: ??FF0BBBUUUUP, e.g.: 2893081508152 https://de.wikipedia.org/wiki/Steuernummer",
         tracking=True,
     )
-    l10n_de_widnr = fields.Char(string="W-IdNr.", help="Business identification number.", tracking=True)
+    l10n_de_widnr = fields.Char(
+        string="W-IdNr.", help="Business identification number.", tracking=True
+    )
 
     def write(self, vals):
         if (
-            'account_fiscal_country_id' in vals
-            and (german_companies := self.filtered(lambda c: c.account_fiscal_country_id.code == 'DE'))
-            and self.env['res.country'].browse(vals['account_fiscal_country_id']).code != 'DE'
-            and self.env['account.move'].search_count([('company_id', 'in', german_companies.ids)], limit=1)
+            "account_fiscal_country_id" in vals
+            and (
+                german_companies := self.filtered(
+                    lambda c: c.account_fiscal_country_id.code == "DE"
+                )
+            )
+            and self.env["res.country"].browse(vals["account_fiscal_country_id"]).code
+            != "DE"
+            and self.env["account.move"].search_count(
+                [("company_id", "in", german_companies.ids)], limit=1
+            )
         ):
             raise ValidationError(_("You cannot change the fiscal country."))
 
         return super().write(vals)
 
-    @api.depends('country_code')
+    @api.depends("country_code")
     def _compute_force_restrictive_audit_trail(self):
         super()._compute_force_restrictive_audit_trail()
         for company in self:
-            company.force_restrictive_audit_trail |= company.country_code == 'DE'
+            company.force_restrictive_audit_trail |= company.country_code == "DE"
 
-    @api.constrains('state_id', 'l10n_de_stnr')
+    @api.constrains("state_id", "l10n_de_stnr")
     def _check_l10n_de_stnr(self):
         for record in self:
             record.get_l10n_de_stnr_national()
@@ -41,11 +50,15 @@ class ResCompany(models.Model):
         self.check_singleton()
         national_steuer_nummer = None
 
-        if self.l10n_de_stnr and self.country_code == 'DE':
+        if self.l10n_de_stnr and self.country_code == "DE":
             try:
-                national_steuer_nummer = stdnum.de.stnr.to_country_number(self.l10n_de_stnr, self.state_id.name)
+                national_steuer_nummer = stdnum.de.stnr.to_country_number(
+                    self.l10n_de_stnr, self.state_id.name
+                )
             except stdnum.exceptions.InvalidComponent:
-                raise ValidationError(_("Your company's SteuerNummer is not compatible with your state"))
+                raise ValidationError(
+                    _("Your company's SteuerNummer is not compatible with your state")
+                )
             except stdnum.exceptions.InvalidFormat:
                 if stdnum.de.stnr.is_valid(self.l10n_de_stnr, self.state_id.name):
                     national_steuer_nummer = self.l10n_de_stnr

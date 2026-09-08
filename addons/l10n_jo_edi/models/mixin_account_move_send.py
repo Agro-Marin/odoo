@@ -2,16 +2,26 @@ from odoo import _, api, models
 
 
 class MixinAccountMoveSend(models.AbstractModel):
-    _inherit = 'mixin.account.move.send'
+    _inherit = "mixin.account.move.send"
 
     @api.model
     def _l10n_jo_is_edi_applicable(self, move):
-        return move.l10n_jo_edi_is_needed and move.l10n_jo_edi_state not in ['sent', 'demo']
+        return move.l10n_jo_edi_is_needed and move.l10n_jo_edi_state not in [
+            "sent",
+            "demo",
+        ]
 
     def _get_all_extra_edis(self) -> dict:
         # EXTENDS 'account'
         res = super()._get_all_extra_edis()
-        res.update({'jo_edi': {'label': _("JoFotara (Jordan EDI)"), 'is_applicable': self._l10n_jo_is_edi_applicable}})
+        res.update(
+            {
+                "jo_edi": {
+                    "label": _("JoFotara (Jordan EDI)"),
+                    "is_applicable": self._l10n_jo_is_edi_applicable,
+                }
+            }
+        )
         return res
 
     # -------------------------------------------------------------------------
@@ -22,18 +32,27 @@ class MixinAccountMoveSend(models.AbstractModel):
         # EXTENDS 'account'
         alerts = super()._get_alerts(moves, moves_data)
         if self.env.company.l10n_jo_edi_demo_mode:
-            alerts['l10n_jo_edi_demo_mode'] = {
-                'level': 'info',
-                'message': _("Demo mode is enabled."),
+            alerts["l10n_jo_edi_demo_mode"] = {
+                "level": "info",
+                "message": _("Demo mode is enabled."),
             }
-        if non_eligible_jo_moves := moves.filtered(lambda m: 'jo_edi' in moves_data[m]['extra_edis'] and not self._l10n_jo_is_edi_applicable(m)):
-            alerts['l10n_jo_edi_non_eligible_moves'] = {
-                'message': _(
+        if non_eligible_jo_moves := moves.filtered(
+            lambda m: (
+                "jo_edi" in moves_data[m]["extra_edis"]
+                and not self._l10n_jo_is_edi_applicable(m)
+            )
+        ):
+            alerts["l10n_jo_edi_non_eligible_moves"] = {
+                "message": _(
                     "JoFotara e-invoicing was enabled but the following invoices cannot be e-invoiced:\n%(moves)s\n",
-                    moves="\n".join(f"- {move.display_name}" for move in non_eligible_jo_moves),
+                    moves="\n".join(
+                        f"- {move.display_name}" for move in non_eligible_jo_moves
+                    ),
                 ),
-                'action_text': _("View Invoice(s)"),
-                'action': non_eligible_jo_moves._get_records_action(name=_("Check Invoice(s)")),
+                "action_text": _("View Invoice(s)"),
+                "action": non_eligible_jo_moves._get_records_action(
+                    name=_("Check Invoice(s)")
+                ),
             }
         return alerts
 
@@ -43,13 +62,23 @@ class MixinAccountMoveSend(models.AbstractModel):
 
     def _get_invoice_extra_attachments(self, move):
         # EXTENDS 'account'
-        return super()._get_invoice_extra_attachments(move) + move.l10n_jo_edi_xml_attachment_id
+        return (
+            super()._get_invoice_extra_attachments(move)
+            + move.l10n_jo_edi_xml_attachment_id
+        )
 
-    def _get_placeholder_mail_attachments_data(self, move, invoice_edi_format=None, extra_edis=None, pdf_report=None):
+    def _get_placeholder_mail_attachments_data(
+        self, move, invoice_edi_format=None, extra_edis=None, pdf_report=None
+    ):
         # EXTENDS 'account'
-        res = super()._get_placeholder_mail_attachments_data(move, invoice_edi_format=invoice_edi_format, extra_edis=extra_edis, pdf_report=pdf_report)
+        res = super()._get_placeholder_mail_attachments_data(
+            move,
+            invoice_edi_format=invoice_edi_format,
+            extra_edis=extra_edis,
+            pdf_report=pdf_report,
+        )
 
-        if not move.l10n_jo_edi_xml_attachment_id and 'jo_edi' in extra_edis:
+        if not move.l10n_jo_edi_xml_attachment_id and "jo_edi" in extra_edis:
             attachment_name = move._l10n_jo_edi_get_xml_attachment_name()
             res.append(
                 {
@@ -70,10 +99,14 @@ class MixinAccountMoveSend(models.AbstractModel):
         super()._call_web_service_before_invoice_pdf_render(invoices_data)
 
         for invoice, invoice_data in invoices_data.items():
-            if 'jo_edi' in invoice_data['extra_edis']:
-                if error_message := invoice.with_company(invoice.company_id)._l10n_jo_edi_send():
+            if "jo_edi" in invoice_data["extra_edis"]:
+                if error_message := invoice.with_company(
+                    invoice.company_id
+                )._l10n_jo_edi_send():
                     invoice_data["error"] = {
-                        "error_title": _("Errors when submitting the JoFotara e-invoice:"),
+                        "error_title": _(
+                            "Errors when submitting the JoFotara e-invoice:"
+                        ),
                         "errors": [error_message],
                     }
 

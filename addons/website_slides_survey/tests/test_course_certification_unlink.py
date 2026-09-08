@@ -1,4 +1,3 @@
-
 from odoo.exceptions import ValidationError
 from odoo.tests.common import users
 

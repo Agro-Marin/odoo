@@ -1,4 +1,4 @@
-from odoo.tests import tagged, HttpCase, JsonRpcException
+from odoo.tests import HttpCase, JsonRpcException, tagged
 
 
 @tagged("post_install", "-at_install")
@@ -27,7 +27,9 @@ class TestCorsLivechat(HttpCase):
             },
         )
         channel = self.env["discuss.channel"].browse(data["channel_id"])
-        self.assertEqual(channel.channel_member_ids[0].partner_id, self.operator.partner_id)
+        self.assertEqual(
+            channel.channel_member_ids[0].partner_id, self.operator.partner_id
+        )
         self.assertFalse(channel.channel_member_ids[1].partner_id)
         self.assertTrue(channel.channel_member_ids[1].guest_id)
 
@@ -39,10 +41,14 @@ class TestCorsLivechat(HttpCase):
                 "channel_id": self.livechat_channel.id,
                 "persisted": True,
             },
-            cookies={guest._cookie_name: f'{guest.id}{guest._cookie_separator}{guest.access_token}'}
+            cookies={
+                guest._cookie_name: f"{guest.id}{guest._cookie_separator}{guest.access_token}"
+            },
         )
         channel = self.env["discuss.channel"].browse(data["channel_id"])
-        channel_guest = channel.channel_member_ids.filtered(lambda member: member.guest_id).guest_id
+        channel_guest = channel.channel_member_ids.filtered(
+            lambda member: member.guest_id
+        ).guest_id
         self.assertNotEqual(channel_guest, guest)
 
     def test_access_routes_with_valid_guest_token(self):

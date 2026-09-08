@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-from odoo import models, fields
+from odoo import fields, models
 
 
 class ResPartner(models.Model):
@@ -9,9 +8,12 @@ class ResPartner(models.Model):
 
     def _compute_l10n_th_branch_name(self):
         for partner in self:
-            if not partner.is_company or partner.country_code != 'TH':
+            if not partner.is_company or partner.country_code != "TH":
                 partner.l10n_th_branch_name = ""
             else:
                 code = partner.company_registry
-                partner.l10n_th_branch_name = partner.env._("Branch %(code)s", code=code) if code else partner.env._(
-                    "Headquarter")
+                partner.l10n_th_branch_name = (
+                    partner.env._("Branch %(code)s", code=code)
+                    if code
+                    else partner.env._("Headquarter")
+                )

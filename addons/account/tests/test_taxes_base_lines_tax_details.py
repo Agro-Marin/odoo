@@ -167,9 +167,7 @@ class TestTaxesBaseLinesTaxDetails(TestTaxCommon):
                 }
                 for price in (1068, 46, 46, 298, 5)
             ]
-            lines_vals.append(
-                {"price_unit": -4096.4, "tax_ids": tax_7}
-            )
+            lines_vals.append({"price_unit": -4096.4, "tax_ids": tax_7})
             document = self.populate_document(self.init_document(lines_vals))
 
             base_expected_values = [

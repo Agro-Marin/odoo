@@ -358,9 +358,7 @@ class TaxReportTest(AccountTestInvoicingCommon):
         )
 
     def test_unlink_report_line_tags_used_by_other_expression(self):
-        tag_name = (
-            self.tax_report_line_1_1.expression_ids.formula
-        )
+        tag_name = self.tax_report_line_1_1.expression_ids.formula
         tags_before = self._get_tax_tags(
             self.test_country_1, tag_name=tag_name, active_test=False
         )

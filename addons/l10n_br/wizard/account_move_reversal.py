@@ -5,7 +5,7 @@ class AccountMoveReversal(models.TransientModel):
     _inherit = "account.move.reversal"
 
     def _compute_document_type(self):
-        """ If a l10n_latam_document_type_id was set, change it in the case of Brazil to be
+        """If a l10n_latam_document_type_id was set, change it in the case of Brazil to be
         the same as the move that is being reversed.
         """
         res = super()._compute_document_type()

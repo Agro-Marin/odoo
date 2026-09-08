@@ -1,13 +1,16 @@
-from odoo import fields, models, api, _
+from odoo import _, api, fields, models
 
 
 class AccountFiscalPosition(models.Model):
-    _inherit = 'account.fiscal.position'
+    _inherit = "account.fiscal.position"
 
     l10n_ar_afip_responsibility_type_ids = fields.Many2many(
-        'l10n_ar.afip.responsibility.type', 'l10n_ar_afip_reponsibility_type_fiscal_pos_rel',
-        string='ARCA Responsibility Types', help='List of ARCA responsibilities where this fiscal position '
-        'should be auto-detected')
+        "l10n_ar.afip.responsibility.type",
+        "l10n_ar_afip_reponsibility_type_fiscal_pos_rel",
+        string="ARCA Responsibility Types",
+        help="List of ARCA responsibilities where this fiscal position "
+        "should be auto-detected",
+    )
 
     def _get_fpos_validation_functions(self, partner, company=None):
         functions = super()._get_fpos_validation_functions(partner, company=company)
@@ -23,6 +26,7 @@ class AccountFiscalPosition(models.Model):
             # template ships and expects to be picked for domestic customers.
             lambda fpos: (
                 not fpos.l10n_ar_afip_responsibility_type_ids
-                or partner.l10n_ar_afip_responsibility_type_id in fpos.l10n_ar_afip_responsibility_type_ids
+                or partner.l10n_ar_afip_responsibility_type_id
+                in fpos.l10n_ar_afip_responsibility_type_ids
             ),
         ] + functions

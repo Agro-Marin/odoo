@@ -9,7 +9,6 @@ from odoo.addons.mail.controllers import mail
 
 
 class MailController(mail.MailController):
-
     @classmethod
     def _redirect_to_generic_fallback(cls, model, res_id, access_token=None, **kwargs):
         if request.session.uid and request.env.user.share:

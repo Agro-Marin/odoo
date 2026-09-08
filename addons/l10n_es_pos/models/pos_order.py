@@ -5,7 +5,10 @@ class PosOrder(models.Model):
     _inherit = "pos.order"
 
     is_l10n_es_simplified_invoice = fields.Boolean("Simplified invoice")
-    l10n_es_simplified_invoice_number = fields.Char("Simplified invoice number", compute="_compute_l10n_es_simplified_invoice_number")
+    l10n_es_simplified_invoice_number = fields.Char(
+        "Simplified invoice number",
+        compute="_compute_l10n_es_simplified_invoice_number",
+    )
 
     @api.depends("account_move")
     def _compute_l10n_es_simplified_invoice_number(self):
@@ -21,7 +24,11 @@ class PosOrder(models.Model):
         if not self.config_id.is_spanish:
             return super()._generate_pos_order_invoice()
         for order in self:
-            if order.account_move or not order.to_invoice or not order.is_l10n_es_simplified_invoice:
+            if (
+                order.account_move
+                or not order.to_invoice
+                or not order.is_l10n_es_simplified_invoice
+            ):
                 continue
             if not order.partner_id:
                 order.partner_id = self.config_id.simplified_partner_id

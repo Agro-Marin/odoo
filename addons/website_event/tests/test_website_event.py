@@ -218,9 +218,7 @@ class TestUi(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
             lambda reg: reg.email == "attendee-b@gmail.com"
         )
         self.assertEqual(first_registration.name, "Attendee A")
-        self.assertEqual(
-            first_registration._phone_get_number().number, "+32499123456"
-        )
+        self.assertEqual(first_registration._phone_get_number().number, "+32499123456")
         self.assertEqual(second_registration.name, "Attendee B")
         self.assertEqual(second_registration.company_name, "My Company")
 

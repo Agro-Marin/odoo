@@ -11,44 +11,106 @@ from odoo.addons.mail.tools.discuss import Store
 
 @tagged("post_install", "-at_install")
 class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
-
     def test_chatbot_duplicate(self):
         chatbot_copy = self.chatbot_script.copy()
 
         step_pricing_contact_us_copy = chatbot_copy.script_step_ids.filtered(
-            lambda step: 'For any pricing question, feel free ton contact us at pricing@mycompany.com' in step.message)
+            lambda step: (
+                "For any pricing question, feel free ton contact us at pricing@mycompany.com"
+                in step.message
+            )
+        )
 
         self.assertNotEqual(step_pricing_contact_us_copy, self.step_pricing_contact_us)
         self.assertEqual(len(step_pricing_contact_us_copy.triggering_answer_ids), 1)
-        self.assertEqual(step_pricing_contact_us_copy.triggering_answer_ids.name, 'Pricing Question')
-        self.assertNotEqual(step_pricing_contact_us_copy.triggering_answer_ids, self.step_dispatch_pricing)
+        self.assertEqual(
+            step_pricing_contact_us_copy.triggering_answer_ids.name, "Pricing Question"
+        )
+        self.assertNotEqual(
+            step_pricing_contact_us_copy.triggering_answer_ids,
+            self.step_dispatch_pricing,
+        )
 
         step_email_copy = chatbot_copy.script_step_ids.filtered(
-            lambda step: 'Can you give us your email please' in step.message)
+            lambda step: "Can you give us your email please" in step.message
+        )
 
         self.assertNotEqual(step_email_copy, self.step_email)
         self.assertEqual(len(step_email_copy.triggering_answer_ids), 1)
-        self.assertEqual(step_email_copy.triggering_answer_ids.name, 'I\'d like to buy the software')
-        self.assertNotEqual(step_email_copy.triggering_answer_ids, self.step_dispatch_buy_software)
+        self.assertEqual(
+            step_email_copy.triggering_answer_ids.name, "I'd like to buy the software"
+        )
+        self.assertNotEqual(
+            step_email_copy.triggering_answer_ids, self.step_dispatch_buy_software
+        )
 
     def test_chatbot_is_forward_operator_child(self):
-        self.assertEqual([step.is_forward_operator_child for step in self.chatbot_script.script_step_ids],
-                         [False, False, False, False, False, False, False, True, True, False, True, False, False, False, False],
-                         "Steps 'step_no_one_available', 'step_no_operator_dispatch', 'step_just_leaving'"
-                         "should be flagged as forward operator child.")
+        self.assertEqual(
+            [
+                step.is_forward_operator_child
+                for step in self.chatbot_script.script_step_ids
+            ],
+            [
+                False,
+                False,
+                False,
+                False,
+                False,
+                False,
+                False,
+                True,
+                True,
+                False,
+                True,
+                False,
+                False,
+                False,
+                False,
+            ],
+            "Steps 'step_no_one_available', 'step_no_operator_dispatch', 'step_just_leaving'"
+            "should be flagged as forward operator child.",
+        )
 
-        self.step_no_operator_dispatch.write({'triggering_answer_ids': [(6, 0, [self.step_dispatch_pricing.id])]})
-        self.chatbot_script.script_step_ids.invalidate_recordset(['is_forward_operator_child'])
+        self.step_no_operator_dispatch.write(
+            {"triggering_answer_ids": [(6, 0, [self.step_dispatch_pricing.id])]}
+        )
+        self.chatbot_script.script_step_ids.invalidate_recordset(
+            ["is_forward_operator_child"]
+        )
 
-        self.assertEqual([step.is_forward_operator_child for step in self.chatbot_script.script_step_ids],
-                         [False, False, False, False, False, False, False, True, False, False, False, False, False, False, False],
-                         "Only step 'step_no_one_available' should be flagged as forward operator child.")
+        self.assertEqual(
+            [
+                step.is_forward_operator_child
+                for step in self.chatbot_script.script_step_ids
+            ],
+            [
+                False,
+                False,
+                False,
+                False,
+                False,
+                False,
+                False,
+                True,
+                False,
+                False,
+                False,
+                False,
+                False,
+                False,
+                False,
+            ],
+            "Only step 'step_no_one_available' should be flagged as forward operator child.",
+        )
 
     def test_chatbot_steps(self):
-        data = self.call_jsonrpc("/im_livechat/get_session", {
-            'chatbot_script_id': self.chatbot_script.id,
-            'channel_id': self.livechat_channel.id,
-        })
+        data = self.call_jsonrpc(
+            "/im_livechat/get_session",
+            {
+                "chatbot_script_id": self.chatbot_script.id,
+                "channel_id": self.livechat_channel.id,
+            },
+        )
         discuss_channel = self.env["discuss.channel"].browse(data["channel_id"])
 
         self.assertEqual(discuss_channel.chatbot_current_step_id, self.step_dispatch)
@@ -58,39 +120,57 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
         )
         self.assertEqual(discuss_channel.chatbot_current_step_id, self.step_email)
 
-        with self.assertRaises(JsonRpcException, msg='odoo.exceptions.ValidationError'), mute_logger("odoo.http"):
+        with (
+            self.assertRaises(JsonRpcException, msg="odoo.exceptions.ValidationError"),
+            mute_logger("odoo.http"),
+        ):
             self._post_answer_and_trigger_next_step(discuss_channel, email="test")
 
-        self._post_answer_and_trigger_next_step(discuss_channel, email="test@example.com")
-        self.assertEqual(discuss_channel.chatbot_current_step_id, self.step_email_validated)
+        self._post_answer_and_trigger_next_step(
+            discuss_channel, email="test@example.com"
+        )
+        self.assertEqual(
+            discuss_channel.chatbot_current_step_id, self.step_email_validated
+        )
 
     def test_chatbot_steps_sequence(self):
-        chatbot_1, chatbot_2 = self.env['chatbot.script'].create([{
-            'title': 'Chatbot 1',
-            'script_step_ids': [
-                (0, 0, {'step_type': 'text', 'message': '1'}),
-                (0, 0, {'step_type': 'text', 'message': '2'}),
-                (0, 0, {'step_type': 'text', 'message': '3'}),
-                (0, 0, {'step_type': 'text', 'message': '4'}),
-                (0, 0, {'step_type': 'text', 'message': '5'}),
+        chatbot_1, chatbot_2 = self.env["chatbot.script"].create(
+            [
+                {
+                    "title": "Chatbot 1",
+                    "script_step_ids": [
+                        (0, 0, {"step_type": "text", "message": "1"}),
+                        (0, 0, {"step_type": "text", "message": "2"}),
+                        (0, 0, {"step_type": "text", "message": "3"}),
+                        (0, 0, {"step_type": "text", "message": "4"}),
+                        (0, 0, {"step_type": "text", "message": "5"}),
+                    ],
+                },
+                {
+                    "title": "Chatbot 2",
+                    "script_step_ids": [
+                        (0, 0, {"step_type": "text", "message": "1"}),
+                        (0, 0, {"step_type": "text", "message": "2"}),
+                        (0, 0, {"step_type": "text", "message": "3"}),
+                    ],
+                },
             ]
-        }, {
-            'title': 'Chatbot 2',
-            'script_step_ids': [
-                (0, 0, {'step_type': 'text', 'message': '1'}),
-                (0, 0, {'step_type': 'text', 'message': '2'}),
-                (0, 0, {'step_type': 'text', 'message': '3'}),
-            ]
-        }])
+        )
 
-        self.assertEqual([0, 1, 2, 3, 4], chatbot_1.script_step_ids.mapped('sequence'))
-        self.assertEqual([0, 1, 2], chatbot_2.script_step_ids.mapped('sequence'))
+        self.assertEqual([0, 1, 2, 3, 4], chatbot_1.script_step_ids.mapped("sequence"))
+        self.assertEqual([0, 1, 2], chatbot_2.script_step_ids.mapped("sequence"))
 
-        chatbot_1.write({'script_step_ids': [
-            (0, 0, {'step_type': 'text', 'message': '6'}),
-            (0, 0, {'step_type': 'text', 'message': '7'}),
-        ]})
-        self.assertEqual([0, 1, 2, 3, 4, 5, 6], chatbot_1.script_step_ids.mapped('sequence'))
+        chatbot_1.write(
+            {
+                "script_step_ids": [
+                    (0, 0, {"step_type": "text", "message": "6"}),
+                    (0, 0, {"step_type": "text", "message": "7"}),
+                ]
+            }
+        )
+        self.assertEqual(
+            [0, 1, 2, 3, 4, 5, 6], chatbot_1.script_step_ids.mapped("sequence")
+        )
 
     def test_chatbot_welcome_steps(self):
         welcome_steps = self.chatbot_script._get_welcome_steps()
@@ -114,13 +194,20 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
             discuss_channel = (
                 self.env["discuss.channel"].sudo().browse(data["channel_id"])
             )
-            self.assertEqual(discuss_channel.livechat_operator_id, self.chatbot_script.operator_partner_id)
+            self.assertEqual(
+                discuss_channel.livechat_operator_id,
+                self.chatbot_script.operator_partner_id,
+            )
             discuss_channel._add_members(users=self.env.user)
-            self_member = discuss_channel.channel_member_ids.filtered(lambda m: m.is_self)
+            self_member = discuss_channel.channel_member_ids.filtered(
+                lambda m: m.is_self
+            )
             bot_member = discuss_channel.channel_member_ids.filtered(
                 lambda m: m.partner_id == self.chatbot_script.operator_partner_id
             )
-            guest_member = discuss_channel.channel_member_ids.filtered(lambda m: bool(m.guest_id))
+            guest_member = discuss_channel.channel_member_ids.filtered(
+                lambda m: bool(m.guest_id)
+            )
             self.env["mail.presence"]._update_presence(guest_member.guest_id)
             self_member._rtc_join_call()
             self.assertTrue(guest_member.rtc_inviting_session_id)
@@ -135,12 +222,11 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                 "chatbot_script_id": self.chatbot_script.id,
             },
         )
-        discuss_channel = (
-            self.env["discuss.channel"].sudo().browse(data["channel_id"])
-        )
+        discuss_channel = self.env["discuss.channel"].sudo().browse(data["channel_id"])
         discuss_channel._forward_human_operator(self.step_forward_operator)
         self.assertEqual(
-            discuss_channel.livechat_operator_id, self.chatbot_script.operator_partner_id
+            discuss_channel.livechat_operator_id,
+            self.chatbot_script.operator_partner_id,
         )
         self.assertEqual(discuss_channel.name, "Testing Bot")
 
@@ -160,7 +246,9 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
 
         def get_forward_op_bus_params():
             messages = self.env["mail.message"].search([], order="id desc", limit=3)
-            transfer_message_data = Store(bus_channel=discuss_channel).add(messages[1]).get_result()
+            transfer_message_data = (
+                Store(bus_channel=discuss_channel).add(messages[1]).get_result()
+            )
             transfer_message_data["mail.message"][0].update(
                 {
                     "author_id": self.chatbot_script.operator_partner_id.id,
@@ -169,8 +257,12 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                     "record_name": "Testing Bot",
                 }
             )
-            transfer_message_data["mixin.mail.thread"][0]["display_name"] = "Testing Bot"
-            joined_message_data = Store(bus_channel=discuss_channel).add(messages[0]).get_result()
+            transfer_message_data["mixin.mail.thread"][0]["display_name"] = (
+                "Testing Bot"
+            )
+            joined_message_data = (
+                Store(bus_channel=discuss_channel).add(messages[0]).get_result()
+            )
             joined_message_data["mail.message"][0].update(
                 {
                     "author_id": self.chatbot_script.operator_partner_id.id,
@@ -190,14 +282,24 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                 lambda m: m.partner_id == self.partner_employee
             )
             channel_data_join = (
-                Store(bus_channel=member_emp._bus_channel()).add(discuss_channel).get_result()
+                Store(bus_channel=member_emp._bus_channel())
+                .add(discuss_channel)
+                .get_result()
             )
-            channel_data_join["discuss.channel"][0]["invited_member_ids"] = [["ADD", []]]
+            channel_data_join["discuss.channel"][0]["invited_member_ids"] = [
+                ["ADD", []]
+            ]
             channel_data_join["discuss.channel"][0]["rtc_session_ids"] = [["ADD", []]]
             channel_data_join["discuss.channel"][0]["livechat_outcome"] = "no_agent"
-            channel_data_join["discuss.channel"][0]["chatbot"]["currentStep"]["message"] = messages[1].id
-            channel_data_join["discuss.channel"][0]["chatbot"]["steps"][0]["message"] = messages[1].id
-            channel_data_join["discuss.channel"][0]["livechat_operator_id"] = self.chatbot_script.operator_partner_id.id
+            channel_data_join["discuss.channel"][0]["chatbot"]["currentStep"][
+                "message"
+            ] = messages[1].id
+            channel_data_join["discuss.channel"][0]["chatbot"]["steps"][0][
+                "message"
+            ] = messages[1].id
+            channel_data_join["discuss.channel"][0]["livechat_operator_id"] = (
+                self.chatbot_script.operator_partner_id.id
+            )
             channel_data_join["discuss.channel"][0]["member_count"] = 3
             channel_data_join["discuss.channel"][0]["name"] = "Testing Bot"
             channel_data_join["discuss.channel.member"].insert(0, member_bot_data)
@@ -224,9 +326,15 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                     ),
                 },
             )
-            channel_data_emp = Store().add(discuss_channel.with_user(self.user_employee)).get_result()
-            channel_data_emp["discuss.channel"][0]["message_needaction_counter_bus_id"] = 0
-            channel_data_emp["discuss.channel.member"][1]["message_unread_counter_bus_id"] = 0
+            channel_data_emp = (
+                Store().add(discuss_channel.with_user(self.user_employee)).get_result()
+            )
+            channel_data_emp["discuss.channel"][0][
+                "message_needaction_counter_bus_id"
+            ] = 0
+            channel_data_emp["discuss.channel.member"][1][
+                "message_unread_counter_bus_id"
+            ] = 0
             channels, message_items = (
                 [
                     (self.cr.dbname, "discuss.channel", discuss_channel.id),
@@ -267,7 +375,9 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                     {
                         "type": "mail.record/insert",
                         "payload": {
-                            "discuss.channel": [{"id": discuss_channel.id, "member_count": 3}],
+                            "discuss.channel": [
+                                {"id": discuss_channel.id, "member_count": 3}
+                            ],
                             "discuss.channel.member": [
                                 {
                                     "create_date": fields.Datetime.to_string(
@@ -288,7 +398,11 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                                 }
                             ],
                             "res.country": [
-                                {"code": "BE", "id": self.env.ref("base.be").id, "name": "Belgium"}
+                                {
+                                    "code": "BE",
+                                    "id": self.env.ref("base.be").id,
+                                    "name": "Belgium",
+                                }
                             ],
                             "res.partner": self._filter_partners_fields(
                                 {
@@ -349,21 +463,28 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
             )
 
             return (channels, message_items)
+
         with self.assertBus(get_params=get_forward_op_bus_params):
-            discuss_channel._forward_human_operator(self.step_forward_operator, users=self.user_employee)
+            discuss_channel._forward_human_operator(
+                self.step_forward_operator, users=self.user_employee
+            )
         self.assertEqual(discuss_channel.name, "OdooBot Ernest Employee")
         self.assertEqual(discuss_channel.livechat_operator_id, self.partner_employee)
         self.assertEqual(discuss_channel.livechat_outcome, "no_answer")
         self.assertTrue(
             discuss_channel.channel_member_ids.filtered(
-                lambda m: m.partner_id == self.partner_employee
-                and m.livechat_member_type == "agent"
+                lambda m: (
+                    m.partner_id == self.partner_employee
+                    and m.livechat_member_type == "agent"
+                )
             )
         )
 
     def test_chatbot_multiple_rules_on_same_url(self):
         bob_user = new_test_user(
-            self.env, login="bob_user", groups="im_livechat.im_livechat_group_user,base.group_user"
+            self.env,
+            login="bob_user",
+            groups="im_livechat.im_livechat_group_user,base.group_user",
         )
         chatbot_no_operator = self.env["chatbot.script"].create(
             {
@@ -445,7 +566,9 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                 )
                 self.env["mail.presence"]._update_presence(operator_user)
                 self.livechat_channel.user_ids = operator_user
-            self.livechat_channel.rule_ids = self.env["im_livechat.channel.rule"].create(
+            self.livechat_channel.rule_ids = self.env[
+                "im_livechat.channel.rule"
+            ].create(
                 {
                     "channel_id": self.livechat_channel.id,
                     "chatbot_script_id": self.chatbot_script.id,
@@ -455,7 +578,9 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                 }
             )
             matching_rule = (
-                self.env["im_livechat.channel.rule"].match_rule(self.livechat_channel.id, "/")
+                self.env["im_livechat.channel.rule"].match_rule(
+                    self.livechat_channel.id, "/"
+                )
                 or self.env["im_livechat.channel.rule"]
             )
             self.assertEqual(
@@ -480,37 +605,53 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
         )
 
     def test_chatbot_clear_answers_on_step_type_change(self):
-        chatbot = self.env['chatbot.script'].create({
-            'title': 'Clear Answer Test Bot',
-            'script_step_ids': [Command.create({
-                'step_type': 'question_selection',
-                'message': 'What do you want to do?',
-                'answer_ids': [
-                    Command.create({'name': 'Buy'}),
-                    Command.create({'name': 'Support'}),
-                ]
-            })]
-        })
+        chatbot = self.env["chatbot.script"].create(
+            {
+                "title": "Clear Answer Test Bot",
+                "script_step_ids": [
+                    Command.create(
+                        {
+                            "step_type": "question_selection",
+                            "message": "What do you want to do?",
+                            "answer_ids": [
+                                Command.create({"name": "Buy"}),
+                                Command.create({"name": "Support"}),
+                            ],
+                        }
+                    )
+                ],
+            }
+        )
         step = chatbot.script_step_ids[0]
         answers = {a.name: a for a in step.answer_ids}
-        [step_2, step_3] = self.env['chatbot.script.step'].create([
-            {
-                'chatbot_script_id': chatbot.id,
-                'step_type': 'text',
-                'message': 'Great! Let me help you with buying.',
-                'sequence': 2,
-                'triggering_answer_ids': [Command.set(answers['Buy'].ids)],
-            },
-            {
-                'chatbot_script_id': chatbot.id,
-                'step_type': 'text',
-                'message': 'Sure! I can assist you with support.',
-                'sequence': 3,
-                'triggering_answer_ids': [Command.set(answers['Support'].ids)],
-            },
-        ])
-        action = self.env.ref('im_livechat.chatbot_script_action')
-        self.start_tour(f"/odoo/action-{action.id}", 'change_chatbot_step_type', login='admin')
-        self.assertFalse(step.answer_ids, "Answers were not cleared after step_type was changed.")
-        self.assertFalse(step_2.triggering_answer_ids, "Step 2 still has stale triggering answers.")
-        self.assertFalse(step_3.triggering_answer_ids, "Step 3 still has stale triggering answers.")
+        [step_2, step_3] = self.env["chatbot.script.step"].create(
+            [
+                {
+                    "chatbot_script_id": chatbot.id,
+                    "step_type": "text",
+                    "message": "Great! Let me help you with buying.",
+                    "sequence": 2,
+                    "triggering_answer_ids": [Command.set(answers["Buy"].ids)],
+                },
+                {
+                    "chatbot_script_id": chatbot.id,
+                    "step_type": "text",
+                    "message": "Sure! I can assist you with support.",
+                    "sequence": 3,
+                    "triggering_answer_ids": [Command.set(answers["Support"].ids)],
+                },
+            ]
+        )
+        action = self.env.ref("im_livechat.chatbot_script_action")
+        self.start_tour(
+            f"/odoo/action-{action.id}", "change_chatbot_step_type", login="admin"
+        )
+        self.assertFalse(
+            step.answer_ids, "Answers were not cleared after step_type was changed."
+        )
+        self.assertFalse(
+            step_2.triggering_answer_ids, "Step 2 still has stale triggering answers."
+        )
+        self.assertFalse(
+            step_3.triggering_answer_ids, "Step 3 still has stale triggering answers."
+        )

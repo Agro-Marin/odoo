@@ -53,9 +53,7 @@ class SurveyUser_Input(models.Model):
                 salesperson = survey.team_id.user_id or self.env["res.users"]
 
         return {
-            "medium_id": self.env["utm.medium"]
-            ._get_or_create_utm_medium("Survey")
-            .id,
+            "medium_id": self.env["utm.medium"]._get_or_create_utm_medium("Survey").id,
             "origin_survey_id": survey.id,
             "source_id": self.env["mixin.utm"]
             ._get_or_create_record("utm.source", survey.title)

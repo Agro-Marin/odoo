@@ -2,7 +2,7 @@ from odoo import SUPERUSER_ID, api
 
 
 def migrate(cr, version):
-    """ Remove the tags on these taxes to avoid having clearly misconfigured ones """
+    """Remove the tags on these taxes to avoid having clearly misconfigured ones"""
     tax_xmlid_regex = "_sa_(?:local_sales_tax_0|export_sales_tax_0|exempt_sales_tax_0|purchases_tax_0|exempt_purchases_tax|rcp_tax_15)$"
     cr.execute(
         """
@@ -32,5 +32,7 @@ def migrate(cr, version):
     )
 
     env = api.Environment(cr, SUPERUSER_ID, {})
-    for company in env["res.company"].search([("chart_template", "=", "sa")], order="parent_path"):
+    for company in env["res.company"].search(
+        [("chart_template", "=", "sa")], order="parent_path"
+    ):
         env["account.chart.template"].try_loading("sa", company)

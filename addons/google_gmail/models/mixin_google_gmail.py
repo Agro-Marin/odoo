@@ -12,47 +12,60 @@ GMAIL_TOKEN_REQUEST_TIMEOUT = OAUTH2_TOKEN_REQUEST_TIMEOUT
 GMAIL_TOKEN_VALIDITY_THRESHOLD = OAUTH2_TOKEN_VALIDITY_THRESHOLD
 
 GMAIL = Oauth2MailProvider(
-    prefix='google_gmail',
-    label='Gmail',
-    route='google_gmail',
-    csrf_scope='google_gmail_oauth',
-    iap_service='gmail',
-    iap_endpoint_param='mail.server.gmail.iap.endpoint',
-    iap_endpoint_default='https://gmail.api.odoo.com',
-    authorize_url='https://accounts.google.com/o/oauth2/v2/auth',
-    token_url='https://oauth2.googleapis.com/token',
+    prefix="google_gmail",
+    label="Gmail",
+    route="google_gmail",
+    csrf_scope="google_gmail_oauth",
+    iap_service="gmail",
+    iap_endpoint_param="mail.server.gmail.iap.endpoint",
+    iap_endpoint_default="https://gmail.api.odoo.com",
+    authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
+    token_url="https://oauth2.googleapis.com/token",
     # The scope `https://mail.google.com/` is needed for SMTP and IMAP
     # https://developers.google.com/workspace/gmail/imap/xoauth2-protocol
-    scope='https://mail.google.com/ https://www.googleapis.com/auth/userinfo.email',
+    scope="https://mail.google.com/ https://www.googleapis.com/auth/userinfo.email",
     # access_type and prompt needed to get a refresh token
-    authorize_extra_params={'access_type': 'offline', 'prompt': 'consent'},
+    authorize_extra_params={"access_type": "offline", "prompt": "consent"},
 )
 
 
 class MixinGoogleGmail(models.AbstractModel):
-    _name = 'mixin.google.gmail'
-    _inherit = ['mixin.oauth2.mail.provider']
+    _name = "mixin.google.gmail"
+    _inherit = ["mixin.oauth2.mail.provider"]
 
-    _description = 'Google Gmail Mixin'
+    _description = "Google Gmail Mixin"
 
     _SERVICE_SCOPE = GMAIL.scope
 
     # Doors onto `oauth2_credential_id`, not stores. The names stay: they are in
     # the views and in every caller.
     google_gmail_refresh_token = fields.Char(
-        string='Refresh Token', groups='base.group_system', copy=False,
-        compute='_compute_google_gmail_tokens',
-        inverse='_inverse_google_gmail_refresh_token',
+        string="Refresh Token",
+        groups="base.group_system",
+        copy=False,
+        compute="_compute_google_gmail_tokens",
+        inverse="_inverse_google_gmail_refresh_token",
     )
     google_gmail_access_token = fields.Char(
-        string='Access Token', groups='base.group_system', copy=False,
-        compute='_compute_google_gmail_tokens',
-        inverse='_inverse_google_gmail_access_token',
+        string="Access Token",
+        groups="base.group_system",
+        copy=False,
+        compute="_compute_google_gmail_tokens",
+        inverse="_inverse_google_gmail_access_token",
     )
-    google_gmail_access_token_expiration = fields.Integer(string='Access Token Expiration Timestamp', groups='base.group_system', copy=False)
-    google_gmail_uri = fields.Char(compute='_compute_gmail_uri', string='URI', help='The URL to generate the authorization code from Google', groups='base.group_system')
+    google_gmail_access_token_expiration = fields.Integer(
+        string="Access Token Expiration Timestamp",
+        groups="base.group_system",
+        copy=False,
+    )
+    google_gmail_uri = fields.Char(
+        compute="_compute_gmail_uri",
+        string="URI",
+        help="The URL to generate the authorization code from Google",
+        groups="base.group_system",
+    )
 
-    @api.depends('oauth2_credential_id')
+    @api.depends("oauth2_credential_id")
     def _compute_google_gmail_tokens(self):
         for record in self:
             access_token, refresh_token = record._oauth2_stored_tokens()
@@ -91,10 +104,10 @@ class MixinGoogleGmail(models.AbstractModel):
         if not client_id or not client_secret:
             return self._get_gmail_access_token_iap(refresh_token)
 
-        response = self._get_gmail_token('refresh_token', refresh_token=refresh_token)
+        response = self._get_gmail_token("refresh_token", refresh_token=refresh_token)
         return (
-            response['access_token'],
-            int(time.time()) + int(response['expires_in']),
+            response["access_token"],
+            int(time.time()) + int(response["expires_in"]),
         )
 
     def _get_gmail_token(self, grant_type, **values):
@@ -114,11 +127,15 @@ class MixinGoogleGmail(models.AbstractModel):
         return self._oauth2_generate_string(GMAIL, user, self._renew_gmail_access_token)
 
     def _renew_gmail_access_token(self):
-        access_token, expiration = self._get_gmail_access_token(self.google_gmail_refresh_token)
-        self.write({
-            'google_gmail_access_token': access_token,
-            'google_gmail_access_token_expiration': expiration,
-        })
+        access_token, expiration = self._get_gmail_access_token(
+            self.google_gmail_refresh_token
+        )
+        self.write(
+            {
+                "google_gmail_access_token": access_token,
+                "google_gmail_access_token_expiration": expiration,
+            }
+        )
 
     def _get_gmail_csrf_token(self):
         return self._oauth2_csrf_token(GMAIL)

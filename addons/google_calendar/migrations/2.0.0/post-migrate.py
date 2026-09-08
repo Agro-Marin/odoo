@@ -39,13 +39,15 @@ def migrate(cr, version):
         env = api.Environment(cr, SUPERUSER_ID, {})
         category = env.ref("credential.credential_category_oauth2")
         for settings_id, access_token, refresh_token, login, company_id in rows:
-            credential = env["credential.credential"].create({
-                "name": f"Google Calendar: {login}",
-                "category_id": category.id,
-                "company_id": company_id,
-                "oauth_access_token": access_token or False,
-                "oauth_refresh_token": refresh_token or False,
-            })
+            credential = env["credential.credential"].create(
+                {
+                    "name": f"Google Calendar: {login}",
+                    "category_id": category.id,
+                    "company_id": company_id,
+                    "oauth_access_token": access_token or False,
+                    "oauth_refresh_token": refresh_token or False,
+                }
+            )
             cr.execute(
                 "UPDATE res_users_settings SET google_calendar_credential_id = %s"
                 " WHERE id = %s",

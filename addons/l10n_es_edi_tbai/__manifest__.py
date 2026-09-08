@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Thanks to Landoo and the Spanish community
 # Specially among others Aritz Olea, Luis Salvatierra, Josean Soroa
 

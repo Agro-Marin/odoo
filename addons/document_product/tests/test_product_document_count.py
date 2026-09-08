@@ -2,7 +2,6 @@ from odoo.addons.product.tests.common import ProductCommon, ProductVariantsCommo
 
 
 class TestProductDocumentCount(ProductVariantsCommon):
-
     def test_p1_batch_template_document_count(self):
         template1 = self.product.product_tmpl_id
         template2 = self.service_product.product_tmpl_id
@@ -40,7 +39,6 @@ class TestProductDocumentCount(ProductVariantsCommon):
 
 
 class TestProductDocumentCountVariants(ProductCommon):
-
     def test_document_count_counts_active_variant_documents(self):
         tmpl = self.env["product.template"].create({"name": "WithDocs"})
         variant = tmpl.product_variant_ids

@@ -1,6 +1,11 @@
 from odoo import Command
-from odoo.addons.account_edi_ubl_cii.tests.common import TestUblBis3Common, TestUblCiiBECommon
 from odoo.exceptions import UserError
+
+from odoo.addons.account_edi_ubl_cii.tests.common import (
+    TestUblBis3Common,
+    TestUblCiiBECommon,
+)
+
 try:
     from odoo.addons.test_mimetypes.tests.test_guess_mimetypes import contents
 except ImportError:
@@ -9,18 +14,19 @@ except ImportError:
 from odoo.tests import tagged
 
 
-@tagged('post_install_l10n', 'post_install', '-at_install', *TestUblBis3Common.extra_tags)
+@tagged(
+    "post_install_l10n", "post_install", "-at_install", *TestUblBis3Common.extra_tags
+)
 class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
-
     def subfolder(self):
-        return super().subfolder().replace('export', 'export/bis3/invoice')
+        return super().subfolder().replace("export", "export/bis3/invoice")
 
     def test_invoice_item_description_name(self):
         tax_21 = self.percent_tax(21.0)
         product = self._create_product(
             lst_price=100.0,
-            default_code='P123',
-            barcode='1234567890123',
+            default_code="P123",
+            barcode="1234567890123",
             taxes_id=tax_21,
         )
         invoice = self._create_invoice_one_line(
@@ -30,13 +36,15 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_item_description_name')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_item_description_name")
 
     def test_invoice_payee_financial_account(self):
-        bank_kbc = self.env['res.bank'].create({
-            'name': 'KBC',
-            'bic': 'KREDBEBB',
-        })
+        bank_kbc = self.env["res.bank"].create(
+            {
+                "name": "KBC",
+                "bic": "KREDBEBB",
+            }
+        )
         self.env.company.bank_ids[0].bank_id = bank_kbc
 
         tax_21 = self.percent_tax(21.0)
@@ -48,10 +56,10 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_payee_financial_account')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_payee_financial_account")
 
     def test_invoice_negative_price_unit(self):
-        """ Ensure the price_unit and the quantity sign are inversed during the generation of the
+        """Ensure the price_unit and the quantity sign are inversed during the generation of the
         xml because 'PriceAmount' cannot be negative.
         """
         tax_21 = self.percent_tax(21.0)
@@ -66,7 +74,7 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_negative_price_unit')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_negative_price_unit")
 
     def test_invoice_price_unit_more_decimals(self):
         tax_21 = self.percent_tax(21.0)
@@ -79,10 +87,10 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_price_unit_more_decimals')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_price_unit_more_decimals")
 
     def test_invoice_BR_CO_10_line_extension_amount_sum_lines(self):
-        """ [BR_CO_10] Sum of Invoice line net amount (BT-106) = Σ Invoice line net amount (BT-131). """
+        """[BR_CO_10] Sum of Invoice line net amount (BT-106) = Σ Invoice line net amount (BT-131)."""
         tax_21 = self.percent_tax(21.0)
         product = self._create_product(lst_price=0.4567, taxes_id=tax_21)
         invoice = self._create_invoice(
@@ -100,10 +108,12 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_BR_CO_10_line_extension_amount_sum_lines')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_BR_CO_10_line_extension_amount_sum_lines"
+        )
 
     def test_invoice_price_amount_rounding_precision_with_price_included_taxes(self):
-        tax_21 = self.percent_tax(21.0, price_include_override='tax_included')
+        tax_21 = self.percent_tax(21.0, price_include_override="tax_included")
         product = self._create_product(lst_price=1039.99, taxes_id=tax_21)
         invoice = self._create_invoice_one_line(
             product_id=product,
@@ -112,24 +122,38 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_price_amount_rounding_precision_with_price_included_taxes')
+        self._assert_invoice_ubl_file(
+            invoice,
+            "test_invoice_price_amount_rounding_precision_with_price_included_taxes",
+        )
 
-    def test_invoice_price_amount_rounding_precision_with_price_included_taxes_plus_free_product(self):
-        tax_6 = self.percent_tax(6.0, price_include_override='tax_included')
-        tax_21 = self.percent_tax(21.0, price_include_override='tax_included')
+    def test_invoice_price_amount_rounding_precision_with_price_included_taxes_plus_free_product(
+        self,
+    ):
+        tax_6 = self.percent_tax(6.0, price_include_override="tax_included")
+        tax_21 = self.percent_tax(21.0, price_include_override="tax_included")
         product_1 = self._create_product(lst_price=0.0, taxes_id=tax_6)
         product_2 = self._create_product(lst_price=1.45, taxes_id=tax_21)
         invoice = self._create_invoice(
             partner_id=self.partner_be,
             invoice_line_ids=[
-                self._prepare_invoice_line(product_id=product_1, quantity=20.0, name="Miel des Cabanes - 250gr"),
-                self._prepare_invoice_line(product_id=product_2, quantity=50.0, name="Conditionnement spécial - pots de 50gr"),
+                self._prepare_invoice_line(
+                    product_id=product_1, quantity=20.0, name="Miel des Cabanes - 250gr"
+                ),
+                self._prepare_invoice_line(
+                    product_id=product_2,
+                    quantity=50.0,
+                    name="Conditionnement spécial - pots de 50gr",
+                ),
             ],
             post=True,
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_price_amount_rounding_precision_with_price_included_taxes_plus_free_product')
+        self._assert_invoice_ubl_file(
+            invoice,
+            "test_invoice_price_amount_rounding_precision_with_price_included_taxes_plus_free_product",
+        )
 
     def test_invoice_tax_exempt(self):
         tax_0 = self.percent_tax(0.0)
@@ -141,12 +165,14 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_tax_exempt')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_tax_exempt")
 
     def test_invoice_tax_reverse_charge(self):
         tax_21 = self.percent_tax(21.0)
         tax_minus_10_67 = self.percent_tax(-10.67)
-        product = self._create_product(lst_price=1000.0, taxes_id=tax_21 + tax_minus_10_67)
+        product = self._create_product(
+            lst_price=1000.0, taxes_id=tax_21 + tax_minus_10_67
+        )
         invoice = self._create_invoice_one_line(
             product_id=product,
             partner_id=self.partner_be,
@@ -154,10 +180,10 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_tax_reverse_charge')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_tax_reverse_charge")
 
     def test_invoice_BR_S_08_tax_subtotal_taxable_amount(self):
-        """ [BR-S-08] For each different value of VAT category rate (BT-119) where the VAT category code (BT-118) is "Standard rated",
+        """[BR-S-08] For each different value of VAT category rate (BT-119) where the VAT category code (BT-118) is "Standard rated",
         the VAT category taxable amount (BT-116) in a VAT breakdown (BG-23) shall equal the sum of Invoice line net amounts (BT-131)
         plus the sum of document level charge amounts (BT-99) minus the sum of document level allowance amounts (BT-92)
         where the VAT category code (BT-151, BT-102, BT-95) is "Standard rated" and the VAT rate (BT-152, BT-103, BT-96)
@@ -187,10 +213,12 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_BR_S_08_tax_subtotal_taxable_amount')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_BR_S_08_tax_subtotal_taxable_amount"
+        )
 
     def test_invoice_allowance_charge_fixed_tax_recycling_contribution(self):
-        """ Ensure the recycling contribution taxes are turned into allowance/charges at the document line level. """
+        """Ensure the recycling contribution taxes are turned into allowance/charges at the document line level."""
         tax_recupel = self.fixed_tax(1.0, name="RECUPEL", include_base_amount=True)
         tax_auvibel = self.fixed_tax(2.0, name="AUVIBEL", include_base_amount=True)
         tax_bebat = self.fixed_tax(3.0, name="BEBAT", include_base_amount=True)
@@ -220,12 +248,18 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_allowance_charge_fixed_tax_recycling_contribution')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_allowance_charge_fixed_tax_recycling_contribution"
+        )
 
     def test_invoice_allowance_charge_custom_tax_recycling_contribution(self):
-        """ Ensure the recycling contribution taxes are turned into allowance/charges at the document line level. """
-        tax_recupel = self.python_tax("quantity * 1.0", name="RECUPEL", include_base_amount=True)
-        tax_auvibel = self.python_tax("quantity * 2.0", name="AUVIBEL", include_base_amount=True)
+        """Ensure the recycling contribution taxes are turned into allowance/charges at the document line level."""
+        tax_recupel = self.python_tax(
+            "quantity * 1.0", name="RECUPEL", include_base_amount=True
+        )
+        tax_auvibel = self.python_tax(
+            "quantity * 2.0", name="AUVIBEL", include_base_amount=True
+        )
         tax_21 = self.percent_tax(21.0)
         invoice = self._create_invoice(
             partner_id=self.partner_be,
@@ -247,10 +281,12 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_allowance_charge_custom_tax_recycling_contribution')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_allowance_charge_custom_tax_recycling_contribution"
+        )
 
     def test_invoice_fixed_tax_emptying_turned_as_extra_invoice_lines(self):
-        """ Ensure the emptying taxes (a.k.a 'vidange') are turned into extra invoice lines inside the xml. """
+        """Ensure the emptying taxes (a.k.a 'vidange') are turned into extra invoice lines inside the xml."""
         tax_emptying = self.fixed_tax(0.10, name="Vidange")
         tax_21 = self.percent_tax(21.0)
         invoice = self._create_invoice(
@@ -273,7 +309,9 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_fixed_tax_emptying_turned_as_extra_invoice_lines')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_fixed_tax_emptying_turned_as_extra_invoice_lines"
+        )
 
     def test_invoice_multiple_fixed_tax_emptying_turned_as_extra_invoice_lines(self):
         tax_emptying_1 = self.fixed_tax(0.1, name="Vidange")
@@ -305,10 +343,13 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_multiple_fixed_tax_emptying_turned_as_extra_invoice_lines')
+        self._assert_invoice_ubl_file(
+            invoice,
+            "test_invoice_multiple_fixed_tax_emptying_turned_as_extra_invoice_lines",
+        )
 
     def test_invoice_custom_tax_emptying_turned_as_extra_invoice_lines(self):
-        """ Ensure the emptying taxes (a.k.a 'vidange') are turned into extra invoice lines inside the xml. """
+        """Ensure the emptying taxes (a.k.a 'vidange') are turned into extra invoice lines inside the xml."""
         tax_emptying = self.python_tax("quantity * 0.10", name="Vidange")
         tax_21 = self.percent_tax(21.0)
         invoice = self._create_invoice(
@@ -331,7 +372,9 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_custom_tax_emptying_turned_as_extra_invoice_lines')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_custom_tax_emptying_turned_as_extra_invoice_lines"
+        )
 
     def test_invoice_manual_tax_amount(self):
         tax_12 = self.percent_tax(12.0)
@@ -349,14 +392,24 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
         tax_line_21 = invoice.line_ids.filtered(lambda aml: aml.tax_line_id == tax_21)
         tax_line_12 = invoice.line_ids.filtered(lambda aml: aml.tax_line_id == tax_12)
-        invoice.write({'line_ids': [
-            Command.update(tax_line_21.id, {'amount_currency': tax_line_21.amount_currency + 0.01}),
-            Command.update(tax_line_12.id, {'amount_currency': tax_line_12.amount_currency - 0.01}),
-        ]})
+        invoice.write(
+            {
+                "line_ids": [
+                    Command.update(
+                        tax_line_21.id,
+                        {"amount_currency": tax_line_21.amount_currency + 0.01},
+                    ),
+                    Command.update(
+                        tax_line_12.id,
+                        {"amount_currency": tax_line_12.amount_currency - 0.01},
+                    ),
+                ]
+            }
+        )
         invoice.action_post()
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_manual_tax_amount')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_manual_tax_amount")
 
     def test_invoice_early_pay_discount_multiple_taxes(self):
         tax_6 = self.percent_tax(6.0)
@@ -366,14 +419,20 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
             partner_id=self.partner_be,
             invoice_payment_term_id=mixed_early_payment_term.id,
             invoice_line_ids=[
-                self._prepare_invoice_line(product_id=self.product_a, price_unit=200.0, tax_ids=tax_6),
-                self._prepare_invoice_line(product_id=self.product_a, price_unit=2400.0, tax_ids=tax_21),
+                self._prepare_invoice_line(
+                    product_id=self.product_a, price_unit=200.0, tax_ids=tax_6
+                ),
+                self._prepare_invoice_line(
+                    product_id=self.product_a, price_unit=2400.0, tax_ids=tax_21
+                ),
             ],
             post=True,
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_early_pay_discount_multiple_taxes')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_early_pay_discount_multiple_taxes"
+        )
 
     def test_invoice_early_pay_discount_with_recycling_contribution_tax(self):
         tax_recupel = self.fixed_tax(1.0, name="RECUPEL", include_base_amount=True)
@@ -388,7 +447,9 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_early_pay_discount_with_recycling_contribution_tax')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_early_pay_discount_with_recycling_contribution_tax"
+        )
 
     def test_invoice_early_pay_discount_with_discount_on_lines(self):
         tax_21 = self.percent_tax(21.0)
@@ -439,7 +500,9 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_early_pay_discount_with_discount_on_lines')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_early_pay_discount_with_discount_on_lines"
+        )
 
     def test_invoice_cash_rounding_add_invoice_line(self):
         tax_21 = self.percent_tax(21.0)
@@ -453,7 +516,9 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_cash_rounding_add_invoice_line')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_cash_rounding_add_invoice_line"
+        )
 
     def test_invoice_cash_rounding_biggest_tax(self):
         tax_21 = self.percent_tax(21.0)
@@ -467,12 +532,12 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_cash_rounding_biggest_tax')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_cash_rounding_biggest_tax")
 
     def test_invoice_tax_currency_code_tax_totals_foreign_currency(self):
         tax_21 = self.percent_tax(21.0)
         product = self._create_product(lst_price=1039.99, taxes_id=tax_21)
-        foreign_currency = self.setup_other_currency('RON')
+        foreign_currency = self.setup_other_currency("RON")
         invoice = self._create_invoice_one_line(
             product_id=product,
             partner_id=self.partner_be,
@@ -481,7 +546,9 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_tax_currency_code_tax_totals_foreign_currency')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_tax_currency_code_tax_totals_foreign_currency"
+        )
 
     def test_invoice_sent_to_luxembourg_dig(self):
         tax_21 = self.percent_tax(21.0)
@@ -493,10 +560,10 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_sent_to_luxembourg_dig')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_sent_to_luxembourg_dig")
 
     def test_invoice_sent_to_partner_with_gln(self):
-        self.ensure_installed('account_add_gln')
+        self.ensure_installed("account_add_gln")
         self.partner_be.global_location_number = "222222222222"
 
         tax_21 = self.percent_tax(21.0)
@@ -511,11 +578,11 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_sent_to_partner_with_gln')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_sent_to_partner_with_gln")
 
     def test_invoice_send_and_print_additional_documents(self):
-        """ Ensure an additional document is added to the UBL under AdditionalDocumentReference. """
-        self.ensure_installed('test_mimetypes')
+        """Ensure an additional document is added to the UBL under AdditionalDocumentReference."""
+        self.ensure_installed("test_mimetypes")
 
         tax_21 = self.percent_tax(21.0)
         product = self._create_product(lst_price=1039.99, taxes_id=tax_21)
@@ -526,41 +593,58 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         # Supported
-        xlsx_attachment = self.env['ir.attachment'].create({
-            'name': 'xlsx attachment',
-            'raw': contents('xlsx'),
-            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        })
+        xlsx_attachment = self.env["ir.attachment"].create(
+            {
+                "name": "xlsx attachment",
+                "raw": contents("xlsx"),
+                "mimetype": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            }
+        )
         # Not supported
-        docx_attachment = self.env['ir.attachment'].create({
-            'name': 'docx attachment',
-            'raw': contents('docx'),
-            'mimetype': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        })
-        xml_attachment = self.env['ir.attachment'].create({
-            'name': 'xml attachment',
-            'raw': "<?xml version='1.0' encoding='UTF-8'?><test/>",
-            'mimetype': 'application/xml',
-        })
-        txt_attachment = self.env['ir.attachment'].create({
-            'name': 'txt attachment',
-            'raw': b'txt attachment'
-        })
+        docx_attachment = self.env["ir.attachment"].create(
+            {
+                "name": "docx attachment",
+                "raw": contents("docx"),
+                "mimetype": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            }
+        )
+        xml_attachment = self.env["ir.attachment"].create(
+            {
+                "name": "xml attachment",
+                "raw": "<?xml version='1.0' encoding='UTF-8'?><test/>",
+                "mimetype": "application/xml",
+            }
+        )
+        txt_attachment = self.env["ir.attachment"].create(
+            {"name": "txt attachment", "raw": b"txt attachment"}
+        )
 
-        wizard = self._create_account_move_send_wizard_single(invoice, sending_methods=['manual'])
-        wizard.mail_attachments_widget = wizard.mail_attachments_widget + [{
-            'id': attachment.id,
-            'name': attachment.name,
-            'mimetype': attachment.mimetype,
-            'placeholder': False,
-            'manual': True,
-        } for attachment in [xlsx_attachment, docx_attachment, xml_attachment, txt_attachment]]
+        wizard = self._create_account_move_send_wizard_single(
+            invoice, sending_methods=["manual"]
+        )
+        wizard.mail_attachments_widget = wizard.mail_attachments_widget + [
+            {
+                "id": attachment.id,
+                "name": attachment.name,
+                "mimetype": attachment.mimetype,
+                "placeholder": False,
+                "manual": True,
+            }
+            for attachment in [
+                xlsx_attachment,
+                docx_attachment,
+                xml_attachment,
+                txt_attachment,
+            ]
+        ]
         wizard.action_send_and_print()
 
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_send_and_print_additional_documents')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_send_and_print_additional_documents"
+        )
 
     def test_invoice_negative_discount_upsell(self):
-        """ Ensure a negative discount (upsell) is correctly handled as a Charge
+        """Ensure a negative discount (upsell) is correctly handled as a Charge
         with the appropriate UNCL 7161 reason code (ADK) instead of an Allowance.
         """
         tax_21 = self.percent_tax(21.0)
@@ -575,15 +659,17 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_negative_discount_upsell')
+        self._assert_invoice_ubl_file(invoice, "test_invoice_negative_discount_upsell")
 
     def test_invoice_product_commodity_code_intrastat(self):
-        self.ensure_installed('account_intrastat')
+        self.ensure_installed("account_intrastat")
         tax_21 = self.percent_tax(21.0)
         product = self._create_product(
             lst_price=10.0,
             taxes_id=tax_21,
-            intrastat_code_id=self.env.ref('account_intrastat.commodity_code_2018_25309000'),
+            intrastat_code_id=self.env.ref(
+                "account_intrastat.commodity_code_2018_25309000"
+            ),
         )
         invoice = self._create_invoice_one_line(
             product_id=product,
@@ -592,15 +678,17 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_product_commodity_code_intrastat')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_product_commodity_code_intrastat"
+        )
 
     def test_invoice_product_commodity_code_unspsc(self):
-        self.ensure_installed('product_unspsc')
+        self.ensure_installed("product_unspsc")
         tax_21 = self.percent_tax(21.0)
         product = self._create_product(
             lst_price=10.0,
             taxes_id=tax_21,
-            unspsc_code_id=self.env.ref('product_unspsc.unspsc_code_12141906'),
+            unspsc_code_id=self.env.ref("product_unspsc.unspsc_code_12141906"),
         )
         invoice = self._create_invoice_one_line(
             product_id=product,
@@ -609,15 +697,17 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_product_commodity_code_unspsc')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_product_commodity_code_unspsc"
+        )
 
     def test_invoice_product_commodity_code_cpv(self):
-        self.ensure_installed('l10n_ro_cpv_code')
+        self.ensure_installed("l10n_ro_cpv_code")
         tax_21 = self.percent_tax(21.0)
         product = self._create_product(
             lst_price=10.0,
             taxes_id=tax_21,
-            cpv_code_id=self.env.ref('l10n_ro_cpv_code.351131100'),
+            cpv_code_id=self.env.ref("l10n_ro_cpv_code.351131100"),
         )
         invoice = self._create_invoice_one_line(
             product_id=product,
@@ -626,18 +716,24 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
         )
 
         self._generate_invoice_ubl_file(invoice)
-        self._assert_invoice_ubl_file(invoice, 'test_invoice_product_commodity_code_cpv')
+        self._assert_invoice_ubl_file(
+            invoice, "test_invoice_product_commodity_code_cpv"
+        )
 
-    def test_invoice_PEPPOL_EN16931_R010_R020_ensure_customer_supplier_endpoint_id(self):
+    def test_invoice_PEPPOL_EN16931_R010_R020_ensure_customer_supplier_endpoint_id(
+        self,
+    ):
         """
         [PEPPOL-EN16931-R010] Buyer electronic address MUST be provided.
         [PEPPOL-EN16931-R020] Seller electronic address MUST be provided.
         """
-        partner = self.env['res.partner'].create({
-            **self._create_partner_default_values(),
-            'name': "partner",
-            'country_id': self.env.ref('base.be').id,
-        })
+        partner = self.env["res.partner"].create(
+            {
+                **self._create_partner_default_values(),
+                "name": "partner",
+                "country_id": self.env.ref("base.be").id,
+            }
+        )
         tax_21 = self.percent_tax(21.0)
         product = self._create_product(lst_price=10.0, taxes_id=tax_21)
         invoice = self._create_invoice_one_line(
@@ -651,8 +747,8 @@ class TestUblExportBis3BE(TestUblBis3Common, TestUblCiiBECommon):
             self._generate_invoice_ubl_file(invoice)
 
         # Check supplier's endpoint.
-        partner.peppol_eas = '0208'
-        partner.peppol_endpoint = '0477472701'
+        partner.peppol_eas = "0208"
+        partner.peppol_endpoint = "0477472701"
         self.env.company.partner_id.vat = None
         self.env.company.partner_id.company_registry = None
         self.env.company.partner_id.peppol_eas = None

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Saudi Arabia - E-invoicing",
     "version": "0.3",

@@ -46,9 +46,7 @@ class AccountJournal(models.Model):
 
     @api.ondelete(at_uninstall=True)
     def _unlink_journal_cascade_pos_payment_methods(self):
-        if self.env.context.get(
-            MODULE_UNINSTALL_FLAG
-        ):
+        if self.env.context.get(MODULE_UNINSTALL_FLAG):
             self.pos_payment_method_ids.unlink()
             self.env["pos.config"].search([("journal_id", "in", self.ids)]).unlink()
 
@@ -59,7 +57,10 @@ class AccountJournal(models.Model):
     def _get_journal_inbound_outstanding_payment_accounts(self):
         res = super()._get_journal_inbound_outstanding_payment_accounts()
         account_ids = set(res.ids)
-        account_ids.update(payment_method.outstanding_account_id.id for payment_method in self.sudo().pos_payment_method_ids)
+        account_ids.update(
+            payment_method.outstanding_account_id.id
+            for payment_method in self.sudo().pos_payment_method_ids
+        )
         return self.env["account.account"].browse(account_ids)
 
     @api.model

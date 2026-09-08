@@ -10,7 +10,6 @@ class SaleReport(models.Model):
     _auto = False
     _order = "date_order desc"
 
-
     order_reference = fields.Reference(
         string="Order",
         selection=[("sale.order", "Sales Order")],
@@ -133,14 +132,12 @@ class SaleReport(models.Model):
         readonly=True,
     )
 
-
     @api.model
     def _get_done_states(self):
         return ["done"]
 
     def _case_value_or_one(self, value):
         return f"""CASE COALESCE({value}, 0) WHEN 0 THEN 1.0 ELSE {value} END"""
-
 
     def _get_fields_select(self) -> dict:
         currency_rate_o = self._case_value_or_one("o.currency_rate")

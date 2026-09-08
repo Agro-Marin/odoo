@@ -4,7 +4,7 @@ from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestLoyaltyCardBatchCost(TransactionCase):
     """What issuing N cards costs, measured as a marginal cost rather than a total.
 
@@ -17,21 +17,26 @@ class TestLoyaltyCardBatchCost(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.program = cls.env['loyalty.program'].create({
-            'name': "Batch cost", 'reward_ids': [Command.create({})],
-        })
+        cls.program = cls.env["loyalty.program"].create(
+            {
+                "name": "Batch cost",
+                "reward_ids": [Command.create({})],
+            }
+        )
 
     def _queries_to_issue(self, count):
-        partners = self.env['res.partner'].create(
-            [{'name': f"Holder {index}"} for index in range(count)]
+        partners = self.env["res.partner"].create(
+            [{"name": f"Holder {index}"} for index in range(count)]
         )
         self.env.flush_all()
         self.env.invalidate_all()
         before = self.env.cr.sql_statement_count
-        self.env['loyalty.card'].with_context(loyalty_no_mail=True).create([
-            {'program_id': self.program.id, 'partner_id': partner.id, 'points': 1}
-            for partner in partners
-        ])
+        self.env["loyalty.card"].with_context(loyalty_no_mail=True).create(
+            [
+                {"program_id": self.program.id, "partner_id": partner.id, "points": 1}
+                for partner in partners
+            ]
+        )
         self.env.flush_all()
         return self.env.cr.sql_statement_count - before
 
@@ -49,7 +54,8 @@ class TestLoyaltyCardBatchCost(TransactionCase):
 
         marginal = (large - small) / 18
         self.assertLess(
-            marginal, 1,
+            marginal,
+            1,
             f"issuing a card should cost well under one query each; measured"
             f" {marginal:.2f} ({small} queries for 2, {large} for 20)",
         )

@@ -8,7 +8,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSProductsWithTax(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
 

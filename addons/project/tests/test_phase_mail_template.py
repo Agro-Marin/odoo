@@ -74,6 +74,7 @@ class TestPhaseMailTemplateModel(TestProjectCommon):
         self.env.cr.flush()
         project.invalidate_recordset()
         self.assertEqual(
-            len(project.message_ids), before + 2,
+            len(project.message_ids),
+            before + 2,
             "one message for the tracking, one for the template",
         )

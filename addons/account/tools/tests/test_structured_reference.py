@@ -113,12 +113,8 @@ class StructuredReferenceTest(unittest.TestCase):
 
         self.assertTrue(is_valid_structured_reference_nl("5000056789012345"))
 
-        self.assertTrue(
-            is_valid_structured_reference_nl("0123456788")
-        )
-        self.assertTrue(
-            is_valid_structured_reference_nl("123456789107")
-        )
+        self.assertTrue(is_valid_structured_reference_nl("0123456788"))
+        self.assertTrue(is_valid_structured_reference_nl("123456789107"))
 
         self.assertTrue(is_valid_structured_reference_nl("5 000 0567 8901 2345"))
         self.assertTrue(is_valid_structured_reference_nl("   5000056789012345   "))
@@ -146,9 +142,7 @@ class StructuredReferenceTest(unittest.TestCase):
         self.assertTrue(is_valid_structured_reference("1234567897"))
         self.assertTrue(is_valid_structured_reference("  SI01 25  - 2 0-85  "))
         self.assertTrue(is_valid_structured_reference("5 000 0567 8901 2345"))
-        self.assertTrue(
-            is_valid_structured_reference("RF18000000000539007547034")
-        )
+        self.assertTrue(is_valid_structured_reference("RF18000000000539007547034"))
         self.assertTrue(is_valid_structured_reference("00000000002023000098"))
         self.assertTrue(is_valid_structured_reference("000001234567897"))
 

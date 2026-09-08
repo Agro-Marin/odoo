@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Mass mailing on track speakers",
     "version": "1.0",

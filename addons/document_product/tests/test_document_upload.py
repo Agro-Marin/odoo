@@ -7,7 +7,6 @@ from odoo.tests import HttpCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestProductDocumentUpload(HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

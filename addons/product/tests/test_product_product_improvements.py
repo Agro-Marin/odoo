@@ -6,7 +6,6 @@ from odoo.addons.product.tests.common import ProductCommon
 
 @tagged("post_install", "-at_install")
 class TestProductProductImprovements(ProductCommon):
-
     def test_name_search_unlimited_reaches_the_name_branch(self):
         template = self.env["product.template"].create(
             {

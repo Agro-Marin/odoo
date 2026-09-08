@@ -10,15 +10,12 @@ from odoo.addons.mail_bot.tests.common import MailBotCommon
 # The exact BMP set the module accepted before the table was replaced by a
 # regex. Narrowing it is a regression; widening it is a decision.
 _HISTORICAL_BMP = frozenset(
-    codepoint
-    for low, high in _EMOJI_BMP_RANGES
-    for codepoint in range(low, high + 1)
+    codepoint for low, high in _EMOJI_BMP_RANGES for codepoint in range(low, high + 1)
 )
 
 
 @tagged("odoobot")
 class TestEmojiDetection(MailBotCommon):
-
     def _picker_emojis(self):
         """Every emoji `web`'s picker can insert."""
         path = get_module_path("web")
@@ -42,7 +39,9 @@ class TestEmojiDetection(MailBotCommon):
         """
         bot = self.env["mail.bot"]
         unrecognised = [
-            emoji for emoji in self._picker_emojis() if not bot._body_contains_emoji(emoji)
+            emoji
+            for emoji in self._picker_emojis()
+            if not bot._body_contains_emoji(emoji)
         ]
         self.assertFalse(
             unrecognised,
@@ -63,10 +62,18 @@ class TestEmojiDetection(MailBotCommon):
     def test_plain_text_is_not_an_emoji(self):
         bot = self.env["mail.bot"]
         for body in (
-            "hello world", "cafés naïve", "日本語のテキスト", "x -> y",
-            "price is 100 EUR", "<p>a<b>c</b></p>", "item 1 two", "",
+            "hello world",
+            "cafés naïve",
+            "日本語のテキスト",
+            "x -> y",
+            "price is 100 EUR",
+            "<p>a<b>c</b></p>",
+            "item 1 two",
+            "",
         ):
-            self.assertFalse(bot._body_contains_emoji(body), f"{body!r} is not an emoji")
+            self.assertFalse(
+                bot._body_contains_emoji(body), f"{body!r} is not an emoji"
+            )
 
     def test_emoji_is_found_anywhere_in_the_body(self):
         bot = self.env["mail.bot"]

@@ -23,10 +23,11 @@ def patch_api(func):
     def patched(self, *args, **kwargs):
         with self.mock_google_sync():
             return func(self, *args, **kwargs)
+
     return patched
 
 
-@patch.object(ResUsers, '_get_google_calendar_token', lambda user: 'dummy-token')
+@patch.object(ResUsers, "_get_google_calendar_token", lambda user: "dummy-token")
 class TestSyncGoogle(EncryptionKeyCase, HttpCase):
     """`EncryptionKeyCase` first: a user's Google OAuth tokens rest in
     `credential.credential`, which refuses to store anything without
@@ -34,13 +35,12 @@ class TestSyncGoogle(EncryptionKeyCase, HttpCase):
     installed for the rest of the process.
     """
 
-
     def setUp(self):
         super().setUp()
-        self.google_service = GoogleCalendarService(self.env['google.service'])
+        self.google_service = GoogleCalendarService(self.env["google.service"])
         self.env.user.sudo().unpause_google_synchronization()
         self.organizer_user = mail_new_test_user(self.env, login="organizer_user")
-        self.attendee_user = mail_new_test_user(self.env, login='attendee_user')
+        self.attendee_user = mail_new_test_user(self.env, login="attendee_user")
 
     @contextmanager
     def mock_datetime_and_now(self, mock_dt):
@@ -51,15 +51,18 @@ class TestSyncGoogle(EncryptionKeyCase, HttpCase):
         """
         # cr.now() is contractually a datetime; coerce a string so consumers
         # doing datetime arithmetic on it (e.g. ir.cron._now) don't break.
-        now_dt = fields.Datetime.to_datetime(mock_dt) if isinstance(mock_dt, str) else mock_dt
+        now_dt = (
+            fields.Datetime.to_datetime(mock_dt)
+            if isinstance(mock_dt, str)
+            else mock_dt
+        )
         # cr.now() is naive UTC in production; normalize a tz-aware freeze
         # point so it (and freeze_time) stay on that convention, else
         # naive/aware comparisons (e.g. ir.cron._now) crash. Mirrors mail
         # freeze_all_time.
         if now_dt.tzinfo is not None:
             now_dt = now_dt.astimezone(UTC).replace(tzinfo=None)
-        with freeze_time(now_dt), \
-                patch.object(self.env.cr, 'now', lambda: now_dt):
+        with freeze_time(now_dt), patch.object(self.env.cr, "now", lambda: now_dt):
             yield
 
     @contextmanager
@@ -86,10 +89,30 @@ class TestSyncGoogle(EncryptionKeyCase, HttpCase):
                 if token:
                     self._gsync_patch_values[google_id].append((values, kwargs))
 
-        with self.env.cr.savepoint(), \
-             patch.object(MixinGoogleCalendarSync, '_google_insert', autospec=True, wraps=MixinGoogleCalendarSync, side_effect=_mock_insert), \
-             patch.object(MixinGoogleCalendarSync, '_google_delete', autospec=True, wraps=MixinGoogleCalendarSync, side_effect=_mock_delete), \
-             patch.object(MixinGoogleCalendarSync, '_google_patch', autospec=True, wraps=MixinGoogleCalendarSync, side_effect=_mock_patch):
+        with (
+            self.env.cr.savepoint(),
+            patch.object(
+                MixinGoogleCalendarSync,
+                "_google_insert",
+                autospec=True,
+                wraps=MixinGoogleCalendarSync,
+                side_effect=_mock_insert,
+            ),
+            patch.object(
+                MixinGoogleCalendarSync,
+                "_google_delete",
+                autospec=True,
+                wraps=MixinGoogleCalendarSync,
+                side_effect=_mock_delete,
+            ),
+            patch.object(
+                MixinGoogleCalendarSync,
+                "_google_patch",
+                autospec=True,
+                wraps=MixinGoogleCalendarSync,
+                side_effect=_mock_patch,
+            ),
+        ):
             yield
 
     @contextmanager
@@ -100,11 +123,19 @@ class TestSyncGoogle(EncryptionKeyCase, HttpCase):
             self._gservice_request_uris.append(uri)
             return (200, {}, datetime.now())
 
-        with patch.object(GoogleService, '_do_request', autospec=True, wraps=GoogleService, side_effect=_mock_do_request):
+        with patch.object(
+            GoogleService,
+            "_do_request",
+            autospec=True,
+            wraps=GoogleService,
+            side_effect=_mock_do_request,
+        ):
             yield
 
     def assertGoogleEventDeleted(self, google_id):
-        self.assertIn(google_id, self._gsync_deleted_ids, "Event should have been deleted")
+        self.assertIn(
+            google_id, self._gsync_deleted_ids, "Event should have been deleted"
+        )
 
     def assertGoogleEventNotDeleted(self):
         self.assertFalse(self._gsync_deleted_ids)
@@ -113,21 +144,29 @@ class TestSyncGoogle(EncryptionKeyCase, HttpCase):
         self.assertEqual(len(self._gsync_insert_values), 1)
         matching = []
         for insert_values, insert_kwargs in self._gsync_insert_values:
-            if all(insert_values.get(key, False) == value for key, value in values.items()):
+            if all(
+                insert_values.get(key, False) == value for key, value in values.items()
+            ):
                 matching.append((insert_values, insert_kwargs))
-        self.assertGreaterEqual(len(matching), 1, 'There must be at least 1 matching insert.')
+        self.assertGreaterEqual(
+            len(matching), 1, "There must be at least 1 matching insert."
+        )
         insert_values, insert_kwargs = matching[0]
-        self.assertDictEqual(insert_kwargs, {'timeout': timeout} if timeout else {})
+        self.assertDictEqual(insert_kwargs, {"timeout": timeout} if timeout else {})
 
     def assertGoogleEventInsertedMultiTime(self, values, timeout=None):
         self.assertGreaterEqual(len(self._gsync_insert_values), 1)
         matching = []
         for insert_values, insert_kwargs in self._gsync_insert_values:
-            if all(insert_values.get(key, False) == value for key, value in values.items()):
+            if all(
+                insert_values.get(key, False) == value for key, value in values.items()
+            ):
                 matching.append((insert_values, insert_kwargs))
-        self.assertGreaterEqual(len(matching), 1, 'There must be at least 1 matching insert.')
+        self.assertGreaterEqual(
+            len(matching), 1, "There must be at least 1 matching insert."
+        )
         insert_values, insert_kwargs = matching[0]
-        self.assertDictEqual(insert_kwargs, {'timeout': timeout} if timeout else {})
+        self.assertDictEqual(insert_kwargs, {"timeout": timeout} if timeout else {})
 
     def assertGoogleEventNotInserted(self):
         self.assertFalse(self._gsync_insert_values)
@@ -139,9 +178,11 @@ class TestSyncGoogle(EncryptionKeyCase, HttpCase):
         for patch_values, patch_kwargs in patch_values_all:
             if all(patch_values.get(key, False) == values[key] for key in values):
                 matching.append((patch_values, patch_kwargs))
-        self.assertGreaterEqual(len(matching), 1, 'There must be at least 1 matching patch.')
+        self.assertGreaterEqual(
+            len(matching), 1, "There must be at least 1 matching patch."
+        )
         patch_values, patch_kwargs = matching[0]
-        self.assertDictEqual(patch_kwargs, {'timeout': timeout} if timeout else {})
+        self.assertDictEqual(patch_kwargs, {"timeout": timeout} if timeout else {})
 
     def assertGoogleEventNotPatched(self):
         self.assertFalse(self._gsync_patch_values)

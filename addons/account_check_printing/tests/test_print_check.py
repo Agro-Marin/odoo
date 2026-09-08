@@ -18,10 +18,8 @@ class TestPrintCheck(AccountTestInvoicingCommon):
 
         bank_journal = cls.company_data["default_journal_bank"]
 
-        cls.payment_channel_check = (
-            bank_journal.outbound_payment_channel_ids.filtered(
-                lambda l: l.code == "check_printing"
-            )
+        cls.payment_channel_check = bank_journal.outbound_payment_channel_ids.filtered(
+            lambda l: l.code == "check_printing"
         )
         cls.payment_channel_check.payment_account_id = (
             cls.inbound_payment_channel.payment_account_id

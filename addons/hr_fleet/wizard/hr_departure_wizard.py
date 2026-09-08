@@ -17,8 +17,7 @@ class HrDepartureWizard(models.TransientModel):
 
     def _free_company_car(self):
         drivers = (
-            self.employee_ids.user_id.partner_id
-            | self.employee_ids.sudo().partner_id
+            self.employee_ids.user_id.partner_id | self.employee_ids.sudo().partner_id
         )
         assignations = self.env["fleet.vehicle.assignation.log"].search(
             [

@@ -5,38 +5,40 @@ from odoo.addons.account.tools.import_file_type import CUSTOMIZATION_ID, findtex
 
 
 class AccountMove(models.Model):
-    _inherit = 'account.move'
+    _inherit = "account.move"
 
-    nemhandel_message_uuid = fields.Char(string='Nemhandel message ID', copy=False)
+    nemhandel_message_uuid = fields.Char(string="Nemhandel message ID", copy=False)
     nemhandel_move_state = fields.Selection(
         selection=[
-            ('ready', 'Ready to send'),
-            ('to_send', 'Queued'),
-            ('processing', 'Pending Reception'),
-            ('done', 'Done'),
-            ('error', 'Error'),
+            ("ready", "Ready to send"),
+            ("to_send", "Queued"),
+            ("processing", "Pending Reception"),
+            ("done", "Done"),
+            ("error", "Error"),
         ],
-        compute='_compute_nemhandel_move_state',
+        compute="_compute_nemhandel_move_state",
         store=True,
-        string='Nemhandel status',
+        string="Nemhandel status",
         copy=False,
     )
 
-    @api.depends('state')
+    @api.depends("state")
     def _compute_nemhandel_move_state(self):
         for move in self:
-            if all([
-                move.company_id.l10n_dk_nemhandel_proxy_state == 'receiver',
-                move.commercial_partner_id.nemhandel_verification_state == 'valid',
-                move.state == 'posted',
-                move.is_sale_document(include_receipts=True),
-                not move.nemhandel_move_state,
-            ]):
-                move.nemhandel_move_state = 'ready'
+            if all(
+                [
+                    move.company_id.l10n_dk_nemhandel_proxy_state == "receiver",
+                    move.commercial_partner_id.nemhandel_verification_state == "valid",
+                    move.state == "posted",
+                    move.is_sale_document(include_receipts=True),
+                    not move.nemhandel_move_state,
+                ]
+            ):
+                move.nemhandel_move_state = "ready"
             elif (
-                move.state == 'draft'
+                move.state == "draft"
                 and move.is_sale_document(include_receipts=True)
-                and move.nemhandel_move_state not in {'processing', 'done'}
+                and move.nemhandel_move_state not in {"processing", "done"}
             ):
                 move.nemhandel_move_state = False
             else:
@@ -46,27 +48,34 @@ class AccountMove(models.Model):
     def _get_ubl_cii_builder_from_xml_tree(self, tree):
         # Deprecated
         # Extends account_edi_ubl_cii
-        customization_id = tree.find('{*}CustomizationID')
-        if customization_id is not None and 'OIOUBL-2' in customization_id.text:
-            return self.env['account.edi.xml.oioubl_21']
+        customization_id = tree.find("{*}CustomizationID")
+        if customization_id is not None and "OIOUBL-2" in customization_id.text:
+            return self.env["account.edi.xml.oioubl_21"]
         return super()._get_ubl_cii_builder_from_xml_tree(tree)
 
     def _import_file_type_rules(self):
         # EXTENDS 'account'
         return [
-            ('account.edi.xml.oioubl_21', findtext_equals(CUSTOMIZATION_ID, 'OIOUBL-2.1')),
+            (
+                "account.edi.xml.oioubl_21",
+                findtext_equals(CUSTOMIZATION_ID, "OIOUBL-2.1"),
+            ),
             *super()._import_file_type_rules(),
         ]
 
     def action_cancel_nemhandel_documents(self):
         # if the nemhandel_move_state is processing/done
         # then it means it has been already sent to nemhandel proxy and we can't cancel
-        if any(move.nemhandel_move_state in {'processing', 'done'} for move in self):
-            raise UserError(_("Cannot cancel an entry that has already been sent to Nemhandel"))
+        if any(move.nemhandel_move_state in {"processing", "done"} for move in self):
+            raise UserError(
+                _("Cannot cancel an entry that has already been sent to Nemhandel")
+            )
         self.nemhandel_move_state = False
         self.sending_data = False
 
     def action_send_and_print(self):
         for move in self:
-            move.commercial_partner_id.button_nemhandel_check_partner_endpoint(company=move.company_id)
+            move.commercial_partner_id.button_nemhandel_check_partner_endpoint(
+                company=move.company_id
+            )
         return super().action_send_and_print()

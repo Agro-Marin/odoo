@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 {
     "name": "POS HR Restaurant",
     "version": "1.0",

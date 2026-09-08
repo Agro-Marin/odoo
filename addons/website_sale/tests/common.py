@@ -111,7 +111,9 @@ class WebsiteSaleCommon(ProductCommon, DeliveryCommon):
             "zip": "18503",
             "country_id": cls.country_us.id,
             "state_id": cls.country_us_state_id,
-            "phone_ids": [Command.create({"number": "+1 555-555-5555", "type": "landline"})],
+            "phone_ids": [
+                Command.create({"number": "+1 555-555-5555", "type": "landline"})
+            ],
             "email": "admin@yourcompany.example.com",
         }
 

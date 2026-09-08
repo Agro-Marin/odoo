@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 {
     "name": "Uganda - Accounting",
     "version": "1.0.0",

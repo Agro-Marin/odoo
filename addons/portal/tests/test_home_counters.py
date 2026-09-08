@@ -9,7 +9,6 @@ PROBE_COUNTER = "probe_doc_count"
 
 @tagged("-at_install", "post_install")
 class TestPortalHomeCounters(HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -56,7 +55,6 @@ class TestPortalHomeCounters(HttpCase):
             CustomerPortal, "_prepare_home_portal_values", _prepare_home_portal_values
         )
 
-
     def _get_home(self):
         response = self.url_open("/my/home")
         self.assertEqual(response.status_code, 200)
@@ -79,7 +77,6 @@ class TestPortalHomeCounters(HttpCase):
 
     def _fetch_counters(self):
         return self.call_jsonrpc("/my/counters", {"counters": [PROBE_COUNTER]})
-
 
     def test_counter_card_stays_refreshable_after_being_cached(self):
         self.authenticate("portal_counters", "portal_counters")

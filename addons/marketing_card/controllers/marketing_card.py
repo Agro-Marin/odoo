@@ -1,5 +1,6 @@
 import base64
 from urllib.parse import quote
+
 from werkzeug.exceptions import BadRequest
 
 from odoo.http import Controller, content_disposition, request, route
@@ -7,17 +8,17 @@ from odoo.http import Controller, content_disposition, request, route
 # from https://github.com/monperrus/crawler-user-agents
 SOCIAL_NETWORK_USER_AGENTS = (
     # Facebook
-    'Facebot',
-    'facebookexternalhit',
+    "Facebot",
+    "facebookexternalhit",
     # Twitter
-    'Twitterbot',
+    "Twitterbot",
     # LinkedIn
-    'LinkedInBot',
+    "LinkedInBot",
     # Whatsapp
-    'WhatsApp',
+    "WhatsApp",
     # Pinterest
-    'Pinterest',
-    'Pinterestbot',
+    "Pinterest",
+    "Pinterestbot",
 )
 
 
@@ -32,56 +33,79 @@ def _is_crawler(request):
 def _get_card_from_url(card_id, card_slug):
     """Helper to support both legacy card id url and new slug urls"""
     if card_slug:
-        card_id = request.env['ir.http']._unslug(card_slug)[1]
+        card_id = request.env["ir.http"]._unslug(card_slug)[1]
     if not card_id:
         raise request.not_found()
-    card = request.env['card.card'].browse(card_id).exists()
+    card = request.env["card.card"].browse(card_id).exists()
     if not card:
         raise BadRequest()
     return card
 
 
 class MarketingCardController(Controller):
-
-    @route([
-        '/cards/<string:card_slug>/card.jpg',
-        '/cards/<int:card_id>/card.jpg',
-    ], type='http', auth='public', sitemap=False, website=True)
+    @route(
+        [
+            "/cards/<string:card_slug>/card.jpg",
+            "/cards/<int:card_id>/card.jpg",
+        ],
+        type="http",
+        auth="public",
+        sitemap=False,
+        website=True,
+    )
     def card_campaign_image(self, card_id=None, card_slug=None):
         card = _get_card_from_url(card_id, card_slug)
-        if _is_crawler(request) and card.share_status != 'shared':
-            card.sudo().share_status = 'shared'
+        if _is_crawler(request) and card.share_status != "shared":
+            card.sudo().share_status = "shared"
         if not card.image:
             raise request.not_found()
 
         image_bytes = base64.b64decode(card.image)
-        return request.prepare_response(image_bytes, [
-            ('Content-Type', ' image/jpeg'),
-            ('Content-Length', len(image_bytes)),
-            ('Content-Disposition', content_disposition('card.jpg')),
-        ])
+        return request.prepare_response(
+            image_bytes,
+            [
+                ("Content-Type", " image/jpeg"),
+                ("Content-Length", len(image_bytes)),
+                ("Content-Disposition", content_disposition("card.jpg")),
+            ],
+        )
 
-    @route([
-        '/cards/<string:card_slug>/preview',
-        '/cards/<int:card_id>/preview',
-    ], type='http', auth='public', sitemap=False, website=True)
+    @route(
+        [
+            "/cards/<string:card_slug>/preview",
+            "/cards/<int:card_id>/preview",
+        ],
+        type="http",
+        auth="public",
+        sitemap=False,
+        website=True,
+    )
     def card_campaign_preview(self, card_id=None, card_slug=None):
         """Route for users to preview their card and share it on their social platforms."""
         card = _get_card_from_url(card_id, card_slug)
         if not card.share_status:
-            card.sudo().share_status = 'visited'
+            card.sudo().share_status = "visited"
 
         campaign_sudo = card.sudo().campaign_id
-        return request.render('marketing_card.card_campaign_preview', {
-            'card': card,
-            'campaign': campaign_sudo,
-            'quote': quote,
-        })
+        return request.render(
+            "marketing_card.card_campaign_preview",
+            {
+                "card": card,
+                "campaign": campaign_sudo,
+                "quote": quote,
+            },
+        )
 
-    @route([
-        '/cards/<string:card_slug>/redirect',
-        '/cards/<int:card_id>/redirect',
-    ], type='http', auth='public', sitemap=False, website=True)
+    @route(
+        [
+            "/cards/<string:card_slug>/redirect",
+            "/cards/<int:card_id>/redirect",
+        ],
+        type="http",
+        auth="public",
+        sitemap=False,
+        website=True,
+    )
     def card_campaign_redirect(self, card_id=None, card_slug=None):
         """Route to redirect users to the target url, or display the opengraph embed text for web crawlers.
 
@@ -106,11 +130,14 @@ class MarketingCardController(Controller):
             redirect_url = campaign_sudo.link_tracker_id.short_url or redirect_url
 
         if _is_crawler(request):
-            return request.render('marketing_card.card_campaign_crawler', {
-                'image_url': card._get_card_url(),
-                'post_text': campaign_sudo.post_suggestion,
-                'post_suggestion': campaign_sudo.post_suggestion,
-                'target_name': card.display_name or '',
-            })
+            return request.render(
+                "marketing_card.card_campaign_crawler",
+                {
+                    "image_url": card._get_card_url(),
+                    "post_text": campaign_sudo.post_suggestion,
+                    "post_suggestion": campaign_sudo.post_suggestion,
+                    "target_name": card.display_name or "",
+                },
+            )
 
         return request.redirect(redirect_url)

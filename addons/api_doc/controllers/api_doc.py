@@ -30,18 +30,20 @@ class DocController(http.Controller):
     # Routes
     # ------------------------------------------------------------------
 
-    @http.route(['/doc', '/doc/<model_name>', '/doc/index.html'], type='http', auth='user')
+    @http.route(
+        ["/doc", "/doc/<model_name>", "/doc/index.html"], type="http", auth="user"
+    )
     def doc_client(self, **kwargs):
         self._check_doc_access()
-        res = request.render('api_doc.docclient')
-        res.headers['X-Frame-Options'] = 'deny'
+        res = request.render("api_doc.docclient")
+        res.headers["X-Frame-Options"] = "deny"
         return res
 
-    @http.route('/doc-bearer/index.json', type='json2', auth='bearer')
+    @http.route("/doc-bearer/index.json", type="json2", auth="bearer")
     def doc_bearer_index(self):
         return self.doc_index()
 
-    @http.route('/doc/index.json', type='json2', auth='user')
+    @http.route("/doc/index.json", type="json2", auth="user")
     def doc_index(self):
         """Get a listing of all models, methods and fields, limited to their
         technical name and translated "human" name.
@@ -68,28 +70,36 @@ class DocController(http.Controller):
         self._check_doc_access()
 
         generation = doc_cache_generation(self.env)
-        unique = self._doc_cache_key('/doc/index.json', generation)
+        unique = self._doc_cache_key("/doc/index.json", generation)
         use_cache = self._client_accepts_cache()
-        if use_cache and not is_resource_modified(request.httprequest.environ, etag=unique):
-            return request.prepare_response('', status=HTTPStatus.NOT_MODIFIED)
+        if use_cache and not is_resource_modified(
+            request.httprequest.environ, etag=unique
+        ):
+            return request.prepare_response("", status=HTTPStatus.NOT_MODIFIED)
 
         # Server cache: an attachment rather than an ormcache entry, because
         # the index runs to megabytes once many modules are installed.
         # TODO: gzip
         filename = index_attachment_name(generation, unique)
-        index_attach = self.env['ir.attachment'].sudo().search([('name', '=', filename)], limit=1)
+        index_attach = (
+            self.env["ir.attachment"].sudo().search([("name", "=", filename)], limit=1)
+        )
         if not index_attach or not use_cache:
-            index_attach = self._doc_index_cache(filename, generation, refresh=not use_cache)
+            index_attach = self._doc_index_cache(
+                filename, generation, refresh=not use_cache
+            )
 
         response = index_attach._to_http_stream().get_response(etag=unique)
-        response.headers['Content-Language'] = py_to_js_locale(self.env.lang)
+        response.headers["Content-Language"] = py_to_js_locale(self.env.lang)
         return response
 
-    @http.route('/doc-bearer/<model_name>.json', type='json2', auth='bearer', readonly=True)
+    @http.route(
+        "/doc-bearer/<model_name>.json", type="json2", auth="bearer", readonly=True
+    )
     def doc_bearer_model(self, model_name):
         return self.doc_model(model_name)
 
-    @http.route('/doc/<model_name>.json', type='json2', auth='user', readonly=True)
+    @http.route("/doc/<model_name>.json", type="json2", auth="user", readonly=True)
     def doc_model(self, model_name):
         """Get a complete listing of the fields and methods of one model: an
         enriched ``fields_get()`` plus, for each method, its signature,
@@ -117,27 +127,30 @@ class DocController(http.Controller):
             raise NotFound
 
         Model = self.env[model_name]
-        Model.check_access('read')
-        ir_model = self.env['ir.model']._get(model_name)
+        Model.check_access("read")
+        ir_model = self.env["ir.model"]._get(model_name)
 
         unique = self._doc_cache_key(
-            '/doc/<model_name>.json', doc_cache_generation(self.env))
+            "/doc/<model_name>.json", doc_cache_generation(self.env)
+        )
         use_cache = self._client_accepts_cache()
-        if use_cache and not is_resource_modified(request.httprequest.environ, etag=unique):
-            return request.prepare_response('', status=HTTPStatus.NOT_MODIFIED)
+        if use_cache and not is_resource_modified(
+            request.httprequest.environ, etag=unique
+        ):
+            return request.prepare_response("", status=HTTPStatus.NOT_MODIFIED)
 
         result = {
-            'model': model_name,
-            'name': ir_model.name,
-            'doc': describe_model_doc(Model),
-            'fields': {
-                field['name']: dict(
+            "model": model_name,
+            "name": ir_model.name,
+            "doc": describe_model_doc(Model),
+            "fields": {
+                field["name"]: dict(
                     field,
-                    module=next(iter(Model._fields[field['name']]._modules), None),
+                    module=next(iter(Model._fields[field["name"]]._modules), None),
                 )
                 for field in Model.fields_get().values()
             },
-            'methods': {
+            "methods": {
                 method_name: describe_method(Model, method_name)
                 for method_name in public_method_names(Model)
             },
@@ -145,8 +158,8 @@ class DocController(http.Controller):
 
         response = request.prepare_json_response(result)
         response.set_etag(unique)
-        response.headers['Cache-Control'] = 'no-cache, private'  # no-cache != no-store
-        response.headers['Content-Language'] = py_to_js_locale(self.env.lang)
+        response.headers["Cache-Control"] = "no-cache, private"  # no-cache != no-store
+        response.headers["Content-Language"] = py_to_js_locale(self.env.lang)
         return response
 
     # ------------------------------------------------------------------
@@ -158,10 +171,13 @@ class DocController(http.Controller):
 
         :raises AccessError: the user is not in ``api_doc.group_allow_doc``
         """
-        if not self.env.user.has_group('api_doc.group_allow_doc'):
-            raise AccessError(self.env._(
-                "This page is only accessible to %s users.",
-                self.env.ref('api_doc.group_allow_doc').sudo().name))
+        if not self.env.user.has_group("api_doc.group_allow_doc"):
+            raise AccessError(
+                self.env._(
+                    "This page is only accessible to %s users.",
+                    self.env.ref("api_doc.group_allow_doc").sudo().name,
+                )
+            )
 
     def _doc_cache_key(self, scope, generation):
         """The ETag for a ``/doc`` document.
@@ -191,7 +207,8 @@ class DocController(http.Controller):
     def _client_accepts_cache(self):
         """Whether the client is willing to be served a cached document."""
         cache_control = parse_cache_control_header(
-            request.httprequest.headers.get('Cache-Control'))
+            request.httprequest.headers.get("Cache-Control")
+        )
         return not cache_control.no_cache
 
     def _doc_index_cache(self, filename, generation, refresh):
@@ -210,20 +227,22 @@ class DocController(http.Controller):
         # blake2b rather than hash(): the lock key must be stable across
         # processes, which PYTHONHASHSEED makes str.__hash__ not.
         digest = hashlib.blake2b(filename.encode(), digest_size=8).digest()
-        self.env.cr.execute(SQL(
-            "SELECT pg_advisory_xact_lock(%s)",
-            int.from_bytes(digest, 'big', signed=True),
-        ))
+        self.env.cr.execute(
+            SQL(
+                "SELECT pg_advisory_xact_lock(%s)",
+                int.from_bytes(digest, "big", signed=True),
+            )
+        )
 
-        Attachment = self.env['ir.attachment'].sudo()
+        Attachment = self.env["ir.attachment"].sudo()
         # Re-read under the lock: whoever held it before us may have been here
         # for exactly this reason.
-        index_attach = Attachment.search([('name', '=', filename)], limit=1)
+        index_attach = Attachment.search([("name", "=", filename)], limit=1)
         if index_attach and not refresh:
             return index_attach
 
         payload = json.dumps(
-            {'models': self._doc_index()},
+            {"models": self._doc_index()},
             ensure_ascii=False,
             default=json_default,
         )
@@ -233,17 +252,19 @@ class DocController(http.Controller):
             index_attach.raw = payload
             logger.info("refreshed index attachment: %s", filename)
         else:
-            index_attach = Attachment.create({
-                'name': filename,
-                'description': (
-                    "Generated /doc/index.json document.\n\n"
-                    f"Lang: {self.env.lang}\n"
-                    f"Groups: {sorted(self.env.user.all_group_ids.ids)}"
-                ),
-                'mimetype': 'application/json; charset=utf-8',
-                'raw': payload,
-                'public': False,
-            })
+            index_attach = Attachment.create(
+                {
+                    "name": filename,
+                    "description": (
+                        "Generated /doc/index.json document.\n\n"
+                        f"Lang: {self.env.lang}\n"
+                        f"Groups: {sorted(self.env.user.all_group_ids.ids)}"
+                    ),
+                    "mimetype": "application/json; charset=utf-8",
+                    "raw": payload,
+                    "public": False,
+                }
+            )
             logger.info("new index attachment: %s", filename)
 
         # Building a new generation makes every older one unservable. The
@@ -252,7 +273,9 @@ class DocController(http.Controller):
         superseded = Attachment.search(stale_index_domain(generation))
         if superseded:
             superseded.unlink()
-            logger.info("dropped %s superseded /doc index attachment(s)", len(superseded))
+            logger.info(
+                "dropped %s superseded /doc index attachment(s)", len(superseded)
+            )
         return index_attach
 
     def _doc_index(self):
@@ -263,21 +286,21 @@ class DocController(http.Controller):
         """
         return [
             {
-                'model': ir_model.model,
-                'name': ir_model.name,
-                'fields': {
-                    field.name: {'string': field.field_description}
+                "model": ir_model.model,
+                "name": ir_model.name,
+                "fields": {
+                    field.name: {"string": field.field_description}
                     for field in ir_model.field_id
                     # Skip stale ir.model.fields rows whose Python field was
                     # removed without cleaning up the metadata (e.g. a refactor
                     # without a migration script). Crashing /doc on the first
                     # orphan would hide the rest of the registry.
                     if (python_field := Model._fields.get(field.name)) is not None
-                    and Model._has_field_access(python_field, 'read')
+                    and Model._has_field_access(python_field, "read")
                 },
-                'methods': public_method_names(Model),
+                "methods": public_method_names(Model),
             }
-            for ir_model in self.env['ir.model'].sudo().search([])
+            for ir_model in self.env["ir.model"].sudo().search([])
             if ir_model.model in self.env
-            if (Model := self.env[ir_model.model]).has_access('read')
+            if (Model := self.env[ir_model.model]).has_access("read")
         ]

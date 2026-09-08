@@ -6,7 +6,6 @@ from odoo.exceptions import AccessError
 
 
 class MixinPortal(models.AbstractModel):
-
     _name = "mixin.portal"
     _description = "Portal Mixin"
 

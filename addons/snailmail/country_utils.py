@@ -252,5 +252,5 @@ SNAILMAIL_COUNTRIES = {
     "YT": "Mayotte",
     "ZA": "South Africa",
     "ZM": "Zambia",
-    "ZW": "Zimbabwe"
+    "ZW": "Zimbabwe",
 }

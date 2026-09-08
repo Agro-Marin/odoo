@@ -1,13 +1,15 @@
 from odoo import http
-from odoo.tests.common import tagged, HttpCase
-from odoo.tools import mute_logger, file_open
+from odoo.tests.common import HttpCase, tagged
+from odoo.tools import file_open, mute_logger
 
 
 @tagged("post_install", "-at_install")
 class TestUploadAttachment(HttpCase):
     def test_visitor_cannot_upload_on_closed_livechat(self):
         self.authenticate(None, None)
-        operator = self.env["res.users"].create({"name": "Operator", "login": "operator"})
+        operator = self.env["res.users"].create(
+            {"name": "Operator", "login": "operator"}
+        )
         self.env["mail.presence"]._update_presence(operator)
         livechat_channel = self.env["im_livechat.channel"].create(
             {"name": "Test Livechat Channel", "user_ids": [operator.id]}

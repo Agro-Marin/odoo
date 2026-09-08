@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "POS Restaurant Adyen",
     "version": "1.0",

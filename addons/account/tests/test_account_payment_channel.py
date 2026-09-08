@@ -12,9 +12,7 @@ class TestAccountPaymentChannel(AccountTestInvoicingCommon):
         cls.bank_journal_1 = cls.company_data["default_journal_bank"]
         cls.bank_journal_2 = cls.company_data["default_journal_bank"].copy()
 
-        cls.inbound_payment_channel_1 = cls.env[
-            "account.payment.channel"
-        ].create(
+        cls.inbound_payment_channel_1 = cls.env["account.payment.channel"].create(
             {
                 "name": "new inbound payment method line 1",
                 "payment_method_id": cls.bank_journal_1.available_payment_method_ids[
@@ -24,9 +22,7 @@ class TestAccountPaymentChannel(AccountTestInvoicingCommon):
                 "journal_id": cls.bank_journal_1.id,
             }
         )
-        cls.inbound_payment_channel_2 = cls.env[
-            "account.payment.channel"
-        ].create(
+        cls.inbound_payment_channel_2 = cls.env["account.payment.channel"].create(
             {
                 "name": "new inbound payment method line 2",
                 "payment_method_id": cls.bank_journal_1.available_payment_method_ids[

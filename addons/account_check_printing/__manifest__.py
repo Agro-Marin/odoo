@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Check Printing Base",
     "version": "1.0",

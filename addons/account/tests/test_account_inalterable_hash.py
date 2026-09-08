@@ -144,37 +144,34 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
 
         self.company_data["default_journal_sale"].restrict_mode_hash_table = True
 
-        first_chain_moves = (
-            moves
-            | self._init_and_post(
-                [
-                    {
-                        "partner": self.partner_a,
-                        "date": "2023-01-03",
-                        "amounts": [1000, 2000],
-                    },
-                    {
-                        "partner": self.partner_b,
-                        "date": "2023-01-05",
-                        "amounts": [1000, 2000],
-                    },
-                    {
-                        "partner": self.partner_a,
-                        "date": "2023-01-04",
-                        "amounts": [1000, 2000],
-                    },
-                    {
-                        "partner": self.partner_b,
-                        "date": "2023-01-06",
-                        "amounts": [1000, 2000],
-                    },
-                    {
-                        "partner": self.partner_a,
-                        "date": "2023-01-07",
-                        "amounts": [1000, 2000],
-                    },
-                ]
-            )
+        first_chain_moves = moves | self._init_and_post(
+            [
+                {
+                    "partner": self.partner_a,
+                    "date": "2023-01-03",
+                    "amounts": [1000, 2000],
+                },
+                {
+                    "partner": self.partner_b,
+                    "date": "2023-01-05",
+                    "amounts": [1000, 2000],
+                },
+                {
+                    "partner": self.partner_a,
+                    "date": "2023-01-04",
+                    "amounts": [1000, 2000],
+                },
+                {
+                    "partner": self.partner_b,
+                    "date": "2023-01-06",
+                    "amounts": [1000, 2000],
+                },
+                {
+                    "partner": self.partner_a,
+                    "date": "2023-01-07",
+                    "amounts": [1000, 2000],
+                },
+            ]
         )
         moves = first_chain_moves
         self._verify_integrity(
@@ -402,9 +399,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         )
 
         fields_v2 = moves_v2._get_fields_integrity_hash()
-        self.assertNotEqual(
-            fields_v1, fields_v2
-        )
+        self.assertNotEqual(fields_v1, fields_v2)
 
         moves = moves_v1 | moves_v2
         self._verify_integrity(
@@ -659,9 +654,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             self.assertFalse(move.inalterable_hash)
 
         move7.button_hash()
-        self.assertFalse(
-            move5.inalterable_hash
-        )
+        self.assertFalse(move5.inalterable_hash)
         for move in (move4, move6, move7):
             self.assertNotEqual(move.inalterable_hash, False)
 
@@ -879,6 +872,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                 )
 
                 if lock_date_field == "hard_lock_date":
+
                     def _check_locks(*args, **kwargs):
                         pass
 
@@ -996,9 +990,7 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
             ]
         )
 
-        moves_v3_pre_restrict_mode[-1]._hash_moves(
-            raise_if_no_document=False
-        )
+        moves_v3_pre_restrict_mode[-1]._hash_moves(raise_if_no_document=False)
         self.assertFalse(moves_v3_pre_restrict_mode[-1].inalterable_hash)
 
         with self.assertRaisesRegex(
@@ -1016,7 +1008,6 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         self.company_data["company"].fiscalyear_lock_date = fields.Date.to_date(
             "2024-01-31"
         )
-
 
         for move in moves_v3_pre_restrict_mode:
             self.assertFalse(move.inalterable_hash)
@@ -1065,7 +1056,9 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
         for move in moves:
             self.assertNotEqual(move.inalterable_hash, False)
 
-        with patch("odoo.addons.account.models.res_company.INTEGRITY_HASH_BATCH_SIZE", 3):
+        with patch(
+            "odoo.addons.account.models.res_company.INTEGRITY_HASH_BATCH_SIZE", 3
+        ):
             self._verify_integrity(
                 moves,
                 "Entries are correctly hashed",
@@ -1074,7 +1067,9 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                 moves[0].journal_id.name,
             )
 
-        with patch("odoo.addons.account.models.res_company.INTEGRITY_HASH_BATCH_SIZE", 5):
+        with patch(
+            "odoo.addons.account.models.res_company.INTEGRITY_HASH_BATCH_SIZE", 5
+        ):
             self._verify_integrity(
                 moves,
                 "Entries are correctly hashed",
@@ -1083,7 +1078,9 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                 moves[0].journal_id.name,
             )
 
-        with patch("odoo.addons.account.models.res_company.INTEGRITY_HASH_BATCH_SIZE", 10):
+        with patch(
+            "odoo.addons.account.models.res_company.INTEGRITY_HASH_BATCH_SIZE", 10
+        ):
             self._verify_integrity(
                 moves,
                 "Entries are correctly hashed",
@@ -1092,7 +1089,9 @@ class TestAccountMoveInalterableHash(AccountTestInvoicingCommon):
                 moves[0].journal_id.name,
             )
 
-        with patch("odoo.addons.account.models.res_company.INTEGRITY_HASH_BATCH_SIZE", 12):
+        with patch(
+            "odoo.addons.account.models.res_company.INTEGRITY_HASH_BATCH_SIZE", 12
+        ):
             self._verify_integrity(
                 moves,
                 "Entries are correctly hashed",

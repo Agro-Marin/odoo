@@ -84,10 +84,14 @@ class TestPosOrderLookup(CommonPosTest):
             self._create_order()
         result = self._lookup()
         listed = [oid for oid, _d in result["ordersInfo"]]
-        expected = self.env["pos.order"].search(
-            [("config_id", "=", self.pos_config_usd.id), ("state", "=", "paid")],
-            order="create_date desc",
-        ).ids
+        expected = (
+            self.env["pos.order"]
+            .search(
+                [("config_id", "=", self.pos_config_usd.id), ("state", "=", "paid")],
+                order="create_date desc",
+            )
+            .ids
+        )
         self.assertEqual(listed, expected)
 
     def test_draft_and_cancelled_orders_are_excluded(self):

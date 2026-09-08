@@ -1,18 +1,23 @@
 from odoo import fields, http
 from odoo.http import request
-from odoo.addons.mail.tools.discuss import add_guest_to_context, Store
+
+from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 
 class LivechatChatbotScriptController(http.Controller):
     @http.route("/chatbot/restart", type="jsonrpc", auth="public")
     @add_guest_to_context
     def chatbot_restart(self, channel_id, chatbot_script_id):
-        discuss_channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
-        chatbot = request.env['chatbot.script'].browse(chatbot_script_id)
+        discuss_channel = request.env["discuss.channel"].search(
+            [("id", "=", channel_id)]
+        )
+        chatbot = request.env["chatbot.script"].browse(chatbot_script_id)
         if not discuss_channel or not chatbot.exists():
             return None
         chatbot_language = chatbot._get_chatbot_language()
-        message = discuss_channel.with_context(lang=chatbot_language)._chatbot_restart(chatbot)
+        message = discuss_channel.with_context(lang=chatbot_language)._chatbot_restart(
+            chatbot
+        )
         return {
             "message_id": message.id,
             "store_data": Store().add(message).get_result(),
@@ -21,26 +26,41 @@ class LivechatChatbotScriptController(http.Controller):
     @http.route("/chatbot/answer/save", type="jsonrpc", auth="public")
     @add_guest_to_context
     def chatbot_save_answer(self, channel_id, message_id, selected_answer_id):
-        discuss_channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
-        chatbot_message = request.env['chatbot.message'].sudo().search([
-            ('mail_message_id', '=', message_id),
-            ('discuss_channel_id', '=', discuss_channel.id),
-        ], limit=1)
-        selected_answer = request.env['chatbot.script.answer'].sudo().browse(selected_answer_id)
+        discuss_channel = request.env["discuss.channel"].search(
+            [("id", "=", channel_id)]
+        )
+        chatbot_message = (
+            request.env["chatbot.message"]
+            .sudo()
+            .search(
+                [
+                    ("mail_message_id", "=", message_id),
+                    ("discuss_channel_id", "=", discuss_channel.id),
+                ],
+                limit=1,
+            )
+        )
+        selected_answer = (
+            request.env["chatbot.script.answer"].sudo().browse(selected_answer_id)
+        )
 
         if not discuss_channel or not chatbot_message or not selected_answer.exists():
             return
 
         if selected_answer in chatbot_message.script_step_id.answer_ids:
-            chatbot_message.write({'user_script_answer_id': selected_answer_id})
+            chatbot_message.write({"user_script_answer_id": selected_answer_id})
 
     @http.route("/chatbot/step/trigger", type="jsonrpc", auth="public")
     @add_guest_to_context
     def chatbot_trigger_step(self, channel_id, chatbot_script_id=None, data_id=None):
         chatbot_language = self.env["chatbot.script"]._get_chatbot_language()
-        discuss_channel = request.env["discuss.channel"].with_context(lang=chatbot_language).search([("id", "=", channel_id)])
+        discuss_channel = (
+            request.env["discuss.channel"]
+            .with_context(lang=chatbot_language)
+            .search([("id", "=", channel_id)])
+        )
         if not discuss_channel:
-            return None
+            return
 
         next_step = False
         if current_step := discuss_channel.sudo().chatbot_current_step_id:
@@ -49,17 +69,24 @@ class LivechatChatbotScriptController(http.Controller):
                 and discuss_channel.livechat_operator_id
                 != current_step.chatbot_script_id.operator_partner_id
             ):
-                return None
+                return
             chatbot = current_step.chatbot_script_id
             domain = [
                 ("author_id", "!=", chatbot.operator_partner_id.id),
                 ("model", "=", "discuss.channel"),
                 ("res_id", "=", channel_id),
             ]
-            user_answer = self.env["mail.message"].sudo().search(domain, order="id desc", limit=1)
+            user_answer = (
+                self.env["mail.message"].sudo().search(domain, order="id desc", limit=1)
+            )
             next_step = current_step._process_answer(discuss_channel, user_answer.body)
         elif chatbot_script_id:
-            chatbot = request.env['chatbot.script'].sudo().browse(chatbot_script_id).with_context(lang=chatbot_language)
+            chatbot = (
+                request.env["chatbot.script"]
+                .sudo()
+                .browse(chatbot_script_id)
+                .with_context(lang=chatbot_language)
+            )
             if chatbot.exists():
                 next_step = chatbot.script_step_ids[:1]
         partner, guest = self.env["res.partner"]._get_current_persona()
@@ -69,7 +96,7 @@ class LivechatChatbotScriptController(http.Controller):
             discuss_channel.sudo().livechat_end_dt = fields.Datetime.now()
             store.resolve_data_request()
             store.bus_send()
-            return None
+            return
         discuss_channel.sudo().chatbot_current_step_id = next_step.id
         posted_message = next_step._process_step(discuss_channel)
         store.add(posted_message).add(next_step)
@@ -99,10 +126,17 @@ class LivechatChatbotScriptController(http.Controller):
                 "id": (chatbot.id, discuss_channel.id),
                 "script": chatbot.id,
                 "thread": Store.One(discuss_channel, [], as_thread=True),
-                "steps": [("ADD", [{
-                    "scriptStep": chatbot_next_step_id[0],
-                    "message": chatbot_next_step_id[1]
-                }])],
+                "steps": [
+                    (
+                        "ADD",
+                        [
+                            {
+                                "scriptStep": chatbot_next_step_id[0],
+                                "message": chatbot_next_step_id[1],
+                            }
+                        ],
+                    )
+                ],
             },
         )
         store.bus_send()
@@ -124,14 +158,17 @@ class LivechatChatbotScriptController(http.Controller):
             ("model", "=", "discuss.channel"),
             ("res_id", "=", channel_id),
         ]
-        last_user_message = self.env["mail.message"].sudo().search(domain, order="id desc", limit=1)
+        last_user_message = (
+            self.env["mail.message"].sudo().search(domain, order="id desc", limit=1)
+        )
         result = {}
         if last_user_message:
             result = chatbot._get_email_check(last_user_message.body, discuss_channel)
             if posted_message := result.pop("posted_message"):
                 store = Store().add(posted_message)
-                store.add(discuss_channel, {
-                    "messages": Store.Many(posted_message, mode="ADD")
-                })
+                store.add(
+                    discuss_channel,
+                    {"messages": Store.Many(posted_message, mode="ADD")},
+                )
                 result["data"] = store.get_result()
         return result

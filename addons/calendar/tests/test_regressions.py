@@ -66,7 +66,9 @@ class TestCalendarPrivacyLeaks(TransactionCase):
     def test_private_name_not_searchable(self):
         """A masked field must not be usable as a search oracle."""
         self.assertFalse(
-            self._as_snoop().search([("id", "=", self.event.id), ("name", "ilike", "NewCo")]),
+            self._as_snoop().search(
+                [("id", "=", self.event.id), ("name", "ilike", "NewCo")]
+            ),
             "the name of an uninvited user's private event must not be searchable",
         )
 
@@ -77,7 +79,10 @@ class TestCalendarPrivacyLeaks(TransactionCase):
         for _position in range(len(self.event.name)):
             for char in alphabet:
                 if self._as_snoop().search_count(
-                    [("id", "=", self.event.id), ("name", "=like", f"{recovered}{char}%")]
+                    [
+                        ("id", "=", self.event.id),
+                        ("name", "=like", f"{recovered}{char}%"),
+                    ]
                 ):
                     recovered += char
                     break
@@ -108,7 +113,10 @@ class TestCalendarPrivacyLeaks(TransactionCase):
     def test_private_attendees_not_searchable(self):
         self.assertFalse(
             self._as_snoop().search(
-                [("id", "=", self.event.id), ("partner_ids", "in", self.owner.partner_id.ids)]
+                [
+                    ("id", "=", self.event.id),
+                    ("partner_ids", "in", self.owner.partner_id.ids),
+                ]
             ),
             "the attendee list of an uninvited user's private event must not be searchable",
         )
@@ -138,7 +146,11 @@ class TestCalendarCreateOrdering(TransactionCase):
                 "end_type": "count",
                 "count": 2,
             },
-            {"name": "PLAIN-2", "start": "2026-10-06 10:00:00", "stop": "2026-10-06 11:00:00"},
+            {
+                "name": "PLAIN-2",
+                "start": "2026-10-06 10:00:00",
+                "stop": "2026-10-06 11:00:00",
+            },
             {
                 "name": "REC-3",
                 "start": "2026-10-07 10:00:00",
@@ -148,7 +160,11 @@ class TestCalendarCreateOrdering(TransactionCase):
                 "end_type": "count",
                 "count": 2,
             },
-            {"name": "PLAIN-4", "start": "2026-10-08 10:00:00", "stop": "2026-10-08 11:00:00"},
+            {
+                "name": "PLAIN-4",
+                "start": "2026-10-08 10:00:00",
+                "stop": "2026-10-08 11:00:00",
+            },
         ]
         events = self.env["calendar.event"].with_user(self.user).create(vals_list)
         self.assertEqual(
@@ -241,7 +257,10 @@ class TestCalendarNotificationAttachments(TransactionCase):
         # four partners can be mailed, four cannot (no email address)
         partners = self.env["res.partner"].create(
             [
-                {"name": f"P{index}", "email": f"p{index}@example.com" if index < 4 else False}
+                {
+                    "name": f"P{index}",
+                    "email": f"p{index}@example.com" if index < 4 else False,
+                }
                 for index in range(8)
             ]
         )
@@ -250,7 +269,11 @@ class TestCalendarNotificationAttachments(TransactionCase):
             (
                 0,
                 0,
-                {"name": "agenda.pdf", "datas": b"JVBERi0=", "mimetype": "application/pdf"},
+                {
+                    "name": "agenda.pdf",
+                    "datas": b"JVBERi0=",
+                    "mimetype": "application/pdf",
+                },
             )
         ]
         event = (
@@ -367,7 +390,13 @@ class TestCalendarPopoverDeleteWizard(TransactionCase):
             self.env["calendar.event"]
             .with_user(self.user)
             .with_context(no_mail_to_attendees=True)
-            .create({"name": "r", "start": "2027-01-04 10:00:00", "stop": "2027-01-04 11:00:00"})
+            .create(
+                {
+                    "name": "r",
+                    "start": "2027-01-04 10:00:00",
+                    "stop": "2027-01-04 11:00:00",
+                }
+            )
         )
         self.env.flush_all()
         event.write(
@@ -399,7 +428,11 @@ class TestCalendarPopoverDeleteWizard(TransactionCase):
 
     def test_future_events_deletes_from_form_vocabulary(self):
         started, remaining = self._delete_with("future_events")
-        self.assertLess(remaining, started, "'future_events' must delete the current and later occurrences")
+        self.assertLess(
+            remaining,
+            started,
+            "'future_events' must delete the current and later occurrences",
+        )
 
     def test_all_events_deletes_from_form_vocabulary(self):
         _started, remaining = self._delete_with("all_events")
@@ -407,7 +440,11 @@ class TestCalendarPopoverDeleteWizard(TransactionCase):
 
     def test_next_and_all_still_work(self):
         _, remaining_next = self._delete_with("next")
-        self.assertEqual(remaining_next, 0, "'next' on a daily-from-base recurrence removes all following")
+        self.assertEqual(
+            remaining_next,
+            0,
+            "'next' on a daily-from-base recurrence removes all following",
+        )
         _, remaining_all = self._delete_with("all")
         self.assertEqual(remaining_all, 0, "'all' must delete the whole recurrence")
 
@@ -427,14 +464,24 @@ class TestCalendarAttendeeCounts(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.organizer = new_test_user(cls.env, "count_organizer", groups="base.group_user")
+        cls.organizer = new_test_user(
+            cls.env, "count_organizer", groups="base.group_user"
+        )
         cls.guest = new_test_user(cls.env, "count_guest", groups="base.group_user")
-        cls.event = cls.env["calendar.event"].with_user(cls.organizer).create({
-            "name": "counted",
-            "start": "2035-04-01 10:00:00",
-            "stop": "2035-04-01 11:00:00",
-            "partner_ids": [(6, 0, [cls.organizer.partner_id.id, cls.guest.partner_id.id])],
-        })
+        cls.event = (
+            cls.env["calendar.event"]
+            .with_user(cls.organizer)
+            .create(
+                {
+                    "name": "counted",
+                    "start": "2035-04-01 10:00:00",
+                    "stop": "2035-04-01 11:00:00",
+                    "partner_ids": [
+                        (6, 0, [cls.organizer.partner_id.id, cls.guest.partner_id.id])
+                    ],
+                }
+            )
+        )
 
     def test_counts_add_up_for_a_normal_event(self):
         self.assertEqual(self.event.attendees_count, 2)
@@ -455,7 +502,8 @@ class TestCalendarAttendeeCounts(TransactionCase):
             "the headline count and the breakdown must describe the same people",
         )
         self.assertGreaterEqual(
-            self.event.awaiting_count, 0,
+            self.event.awaiting_count,
+            0,
             "awaiting is a count of unanswered attendees, not a subtraction",
         )
 
@@ -463,11 +511,13 @@ class TestCalendarAttendeeCounts(TransactionCase):
         # An attendee row with no partner link: the state the subtraction could
         # not survive.
         extra = new_test_user(self.env, "count_extra", groups="base.group_user")
-        self.env["calendar.attendee"].sudo().create({
-            "event_id": self.event.id,
-            "partner_id": extra.partner_id.id,
-            "state": "accepted",
-        })
+        self.env["calendar.attendee"].sudo().create(
+            {
+                "event_id": self.event.id,
+                "partner_id": extra.partner_id.id,
+                "state": "accepted",
+            }
+        )
         self.event.invalidate_recordset()
         self.assertEqual(self.event.attendees_count, 3)
         self.assertEqual(self.event.accepted_count, 2)
@@ -501,7 +551,7 @@ class TestCalendarAttendeeCounts(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAlarmNotifyResponsible(TransactionCase):
-    """"Notify Responsible" is only meaningful for channels that honour it.
+    """ "Notify Responsible" is only meaningful for channels that honour it.
 
     The base module used to force the flag off for `alarm_type in ('email',
     'notification')` -- a hardcoded list of its own two types, negated. It read
@@ -515,15 +565,22 @@ class TestAlarmNotifyResponsible(TransactionCase):
         # depends on which of calendar_sms / whatsapp_calendar is installed, and
         # a test that pinned the whole set would fail on a fuller database
         # rather than on a regression.
-        responsible_aware = self.env["calendar.alarm"]._get_responsible_aware_alarm_types()
+        responsible_aware = self.env[
+            "calendar.alarm"
+        ]._get_responsible_aware_alarm_types()
         self.assertNotIn("email", responsible_aware)
         self.assertNotIn("notification", responsible_aware)
 
     def test_the_flag_is_cleared_for_a_channel_that_does_not_honour_it(self):
-        alarm = self.env["calendar.alarm"].new({
-            "name": "a", "alarm_type": "email", "duration": 1, "interval": "hours",
-            "notify_responsible": True,
-        })
+        alarm = self.env["calendar.alarm"].new(
+            {
+                "name": "a",
+                "alarm_type": "email",
+                "duration": 1,
+                "interval": "hours",
+                "notify_responsible": True,
+            }
+        )
         alarm._onchange_duration_interval()
         self.assertFalse(alarm.notify_responsible)
         self.assertFalse(alarm.notify_responsible_available)
@@ -544,23 +601,31 @@ class TestCalendarOrganizerAnswerReset(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.org_a = new_test_user(cls.env, login="reset_org_a", groups="base.group_user")
-        cls.org_b = new_test_user(cls.env, login="reset_org_b", groups="base.group_user")
-        cls.mover = new_test_user(cls.env, login="reset_mover", groups="base.group_user")
+        cls.org_a = new_test_user(
+            cls.env, login="reset_org_a", groups="base.group_user"
+        )
+        cls.org_b = new_test_user(
+            cls.env, login="reset_org_b", groups="base.group_user"
+        )
+        cls.mover = new_test_user(
+            cls.env, login="reset_mover", groups="base.group_user"
+        )
 
     def _event_for(self, organizer):
         event = (
             self.env["calendar.event"]
             .with_context(no_mail_to_attendees=True)
-            .create({
-                "name": "m",
-                "start": "2030-03-01 10:00:00",
-                "stop": "2030-03-01 11:00:00",
-                "user_id": organizer.id,
-                "partner_ids": [
-                    (6, 0, (organizer.partner_id + self.mover.partner_id).ids)
-                ],
-            })
+            .create(
+                {
+                    "name": "m",
+                    "start": "2030-03-01 10:00:00",
+                    "stop": "2030-03-01 11:00:00",
+                    "user_id": organizer.id,
+                    "partner_ids": [
+                        (6, 0, (organizer.partner_id + self.mover.partner_id).ids)
+                    ],
+                }
+            )
         )
         self._organizer_attendee(event).state = "accepted"
         self.env.flush_all()
@@ -573,9 +638,9 @@ class TestCalendarOrganizerAnswerReset(TransactionCase):
 
     def test_reset_on_a_single_event(self):
         event = self._event_for(self.org_a)
-        event.with_user(self.mover).with_context(
-            no_mail_to_attendees=True
-        ).write({"start": "2030-03-02 10:00:00", "stop": "2030-03-02 11:00:00"})
+        event.with_user(self.mover).with_context(no_mail_to_attendees=True).write(
+            {"start": "2030-03-02 10:00:00", "stop": "2030-03-02 11:00:00"}
+        )
         self.assertEqual(self._organizer_attendee(event).state, "needsAction")
 
     def test_reset_on_several_events_with_different_organizers(self):
@@ -590,9 +655,9 @@ class TestCalendarOrganizerAnswerReset(TransactionCase):
     def test_the_mover_s_own_answer_survives(self):
         """The reset is for events moved *by somebody else*."""
         event = self._event_for(self.org_a)
-        event.with_user(self.org_a).with_context(
-            no_mail_to_attendees=True
-        ).write({"start": "2030-03-02 10:00:00", "stop": "2030-03-02 11:00:00"})
+        event.with_user(self.org_a).with_context(no_mail_to_attendees=True).write(
+            {"start": "2030-03-02 10:00:00", "stop": "2030-03-02 11:00:00"}
+        )
         self.assertEqual(self._organizer_attendee(event).state, "accepted")
 
 
@@ -623,21 +688,23 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
             self.env["calendar.event"]
             .with_user(self.organizer)
             .with_context(no_mail_to_attendees=True)
-            .create({
-                "name": "Series",
-                "start": start,
-                "stop": stop,
-                "user_id": self.organizer.id,
-                "partner_ids": [
-                    (6, 0, (self.organizer.partner_id + self.guest.partner_id).ids)
-                ],
-                "recurrency": True,
-                "rrule_type": "weekly",
-                "mon": True,
-                "end_type": "count",
-                "count": 4,
-                "event_tz": "UTC",
-            })
+            .create(
+                {
+                    "name": "Series",
+                    "start": start,
+                    "stop": stop,
+                    "user_id": self.organizer.id,
+                    "partner_ids": [
+                        (6, 0, (self.organizer.partner_id + self.guest.partner_id).ids)
+                    ],
+                    "recurrency": True,
+                    "rrule_type": "weekly",
+                    "mon": True,
+                    "end_type": "count",
+                    "count": 4,
+                    "event_tz": "UTC",
+                }
+            )
         )
         self.env.flush_all()
         # Drop `no_mail_to_attendees`: it rides the recordset the create
@@ -655,22 +722,26 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         """Baseline: the path that already worked."""
         event = self._series()
         mails = self._mails_sent_by(
-            lambda: event.with_user(self.organizer).write({
-                "recurrence_update": "self_only",
-                "start": "2030-04-01 14:00:00",
-                "stop": "2030-04-01 15:00:00",
-            })
+            lambda: event.with_user(self.organizer).write(
+                {
+                    "recurrence_update": "self_only",
+                    "start": "2030-04-01 14:00:00",
+                    "stop": "2030-04-01 15:00:00",
+                }
+            )
         )
         self.assertTrue(mails, "a moved occurrence must be announced")
 
     def test_moving_the_whole_series_notifies(self):
         event = self._series()
         mails = self._mails_sent_by(
-            lambda: event.with_user(self.organizer).write({
-                "recurrence_update": "all_events",
-                "start": "2030-04-01 14:00:00",
-                "stop": "2030-04-01 15:00:00",
-            })
+            lambda: event.with_user(self.organizer).write(
+                {
+                    "recurrence_update": "all_events",
+                    "start": "2030-04-01 14:00:00",
+                    "stop": "2030-04-01 15:00:00",
+                }
+            )
         )
         self.assertTrue(mails, "a moved series must be announced")
 
@@ -678,11 +749,13 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         """Not once per occurrence: the template describes the recurrence."""
         event = self._series()
         mails = self._mails_sent_by(
-            lambda: event.with_user(self.organizer).write({
-                "recurrence_update": "all_events",
-                "start": "2030-04-01 14:00:00",
-                "stop": "2030-04-01 15:00:00",
-            })
+            lambda: event.with_user(self.organizer).write(
+                {
+                    "recurrence_update": "all_events",
+                    "start": "2030-04-01 14:00:00",
+                    "stop": "2030-04-01 15:00:00",
+                }
+            )
         )
         # The organizer is the one writing, so `_should_notify_attendee`
         # excludes them; the guest is the single recipient.
@@ -697,11 +770,13 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         """
         event = self._series()
         mails = self._mails_sent_by(
-            lambda: event.with_user(self.organizer).write({
-                "recurrence_update": "all_events",
-                "start": "2030-04-01 14:00:00",
-                "stop": "2030-04-01 15:00:00",
-            })
+            lambda: event.with_user(self.organizer).write(
+                {
+                    "recurrence_update": "all_events",
+                    "start": "2030-04-01 14:00:00",
+                    "stop": "2030-04-01 15:00:00",
+                }
+            )
         )
         self.assertEqual(len(mails), 1)
         self.assertEqual(mails.recipient_ids, self.guest.partner_id)
@@ -721,11 +796,13 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         occurrences = event.recurrence_id.calendar_event_ids.sorted("start")
         middle = occurrences[2].with_context(no_mail_to_attendees=False)
         mails = self._mails_sent_by(
-            lambda: middle.with_user(self.organizer).write({
-                "recurrence_update": "future_events",
-                "start": "2030-04-15 18:00:00",
-                "stop": "2030-04-15 19:00:00",
-            })
+            lambda: middle.with_user(self.organizer).write(
+                {
+                    "recurrence_update": "future_events",
+                    "start": "2030-04-15 18:00:00",
+                    "stop": "2030-04-15 19:00:00",
+                }
+            )
         )
         self.assertEqual(len(mails), 1, "one announcement per attendee, not two")
         self.assertEqual(mails.recipient_ids, self.guest.partner_id)
@@ -741,16 +818,24 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
             self.env, login="notif_newcomer", groups="base.group_user"
         )
         mails = self._mails_sent_by(
-            lambda: event.with_user(self.organizer).write({
-                "recurrence_update": "all_events",
-                "start": "2030-04-01 16:00:00",
-                "stop": "2030-04-01 17:00:00",
-                "partner_ids": [(6, 0, (
-                    self.organizer.partner_id
-                    + self.guest.partner_id
-                    + newcomer.partner_id
-                ).ids)],
-            })
+            lambda: event.with_user(self.organizer).write(
+                {
+                    "recurrence_update": "all_events",
+                    "start": "2030-04-01 16:00:00",
+                    "stop": "2030-04-01 17:00:00",
+                    "partner_ids": [
+                        (
+                            6,
+                            0,
+                            (
+                                self.organizer.partner_id
+                                + self.guest.partner_id
+                                + newcomer.partner_id
+                            ).ids,
+                        )
+                    ],
+                }
+            )
         )
         by_recipient = {mail.recipient_ids: mail.subject for mail in mails}
         self.assertEqual(len(mails), 2, by_recipient)
@@ -761,11 +846,13 @@ class TestCalendarRecurrenceDateChangeNotification(TransactionCase):
         """The future-only guard still holds on the recurrence path."""
         event = self._series(start="2020-01-06 10:00:00", stop="2020-01-06 11:00:00")
         mails = self._mails_sent_by(
-            lambda: event.with_user(self.organizer).write({
-                "recurrence_update": "all_events",
-                "start": "2020-01-06 14:00:00",
-                "stop": "2020-01-06 15:00:00",
-            })
+            lambda: event.with_user(self.organizer).write(
+                {
+                    "recurrence_update": "all_events",
+                    "start": "2020-01-06 14:00:00",
+                    "stop": "2020-01-06 15:00:00",
+                }
+            )
         )
         self.assertFalse(mails)
 
@@ -791,19 +878,21 @@ class TestCalendarMassDeletionTrimsTheRule(TransactionCase):
             self.env["calendar.event"]
             .with_user(self.user)
             .with_context(no_mail_to_attendees=True)
-            .create({
-                "name": "Series",
-                "start": "2030-06-03 10:00:00",
-                "stop": "2030-06-03 11:00:00",
-                "user_id": self.user.id,
-                "partner_ids": [(6, 0, self.user.partner_id.ids)],
-                "recurrency": True,
-                "rrule_type": "weekly",
-                "mon": True,
-                "end_type": "count",
-                "count": 4,
-                "event_tz": "UTC",
-            })
+            .create(
+                {
+                    "name": "Series",
+                    "start": "2030-06-03 10:00:00",
+                    "stop": "2030-06-03 11:00:00",
+                    "user_id": self.user.id,
+                    "partner_ids": [(6, 0, self.user.partner_id.ids)],
+                    "recurrency": True,
+                    "rrule_type": "weekly",
+                    "mon": True,
+                    "end_type": "count",
+                    "count": 4,
+                    "event_tz": "UTC",
+                }
+            )
         )
         self.env.flush_all()
         return event
@@ -895,19 +984,21 @@ class TestCalendarIcsRecurrence(TransactionCase):
             self.env["calendar.event"]
             .with_user(self.user)
             .with_context(no_mail_to_attendees=True)
-            .create({
-                "name": "ICS Series",
-                "start": "2030-06-03 10:00:00",
-                "stop": "2030-06-03 11:00:00",
-                "user_id": self.user.id,
-                "partner_ids": [(6, 0, self.user.partner_id.ids)],
-                "recurrency": True,
-                "rrule_type": "weekly",
-                "mon": True,
-                "end_type": "count",
-                "count": 4,
-                "event_tz": "UTC",
-            })
+            .create(
+                {
+                    "name": "ICS Series",
+                    "start": "2030-06-03 10:00:00",
+                    "stop": "2030-06-03 11:00:00",
+                    "user_id": self.user.id,
+                    "partner_ids": [(6, 0, self.user.partner_id.ids)],
+                    "recurrency": True,
+                    "rrule_type": "weekly",
+                    "mon": True,
+                    "end_type": "count",
+                    "count": 4,
+                    "event_tz": "UTC",
+                }
+            )
         )
         self.env.flush_all()
         rrule_lines = [
@@ -922,18 +1013,20 @@ class TestCalendarIcsRecurrence(TransactionCase):
             self.env["calendar.event"]
             .with_user(self.user)
             .with_context(no_mail_to_attendees=True)
-            .create({
-                "name": "ICS Series",
-                "start": "2032-03-01 10:00:00",
-                "stop": "2032-03-01 11:00:00",
-                "user_id": self.user.id,
-                "partner_ids": [(6, 0, self.user.partner_id.ids)],
-                "recurrency": True,
-                "rrule_type": "daily",
-                "end_type": "count",
-                "count": 3,
-                "event_tz": "UTC",
-            })
+            .create(
+                {
+                    "name": "ICS Series",
+                    "start": "2032-03-01 10:00:00",
+                    "stop": "2032-03-01 11:00:00",
+                    "user_id": self.user.id,
+                    "partner_ids": [(6, 0, self.user.partner_id.ids)],
+                    "recurrency": True,
+                    "rrule_type": "daily",
+                    "end_type": "count",
+                    "count": 3,
+                    "event_tz": "UTC",
+                }
+            )
         )
         self.env.flush_all()
         return event
@@ -972,24 +1065,28 @@ class TestCalendarIcsRecurrence(TransactionCase):
         one, so "remind me an hour before" reached the reader's calendar as
         `PT1H` -- an hour *late*, every time.
         """
-        alarm = self.env["calendar.alarm"].create({
-            "name": "1h before",
-            "alarm_type": "notification",
-            "interval": "hours",
-            "duration": 1,
-        })
+        alarm = self.env["calendar.alarm"].create(
+            {
+                "name": "1h before",
+                "alarm_type": "notification",
+                "interval": "hours",
+                "duration": 1,
+            }
+        )
         event = (
             self.env["calendar.event"]
             .with_user(self.user)
             .with_context(no_mail_to_attendees=True)
-            .create({
-                "name": "Alarmed",
-                "start": "2033-05-05 10:00:00",
-                "stop": "2033-05-05 11:00:00",
-                "user_id": self.user.id,
-                "partner_ids": [(6, 0, self.user.partner_id.ids)],
-                "alarm_ids": [(4, alarm.id)],
-            })
+            .create(
+                {
+                    "name": "Alarmed",
+                    "start": "2033-05-05 10:00:00",
+                    "stop": "2033-05-05 11:00:00",
+                    "user_id": self.user.id,
+                    "partner_ids": [(6, 0, self.user.partner_id.ids)],
+                    "alarm_ids": [(4, alarm.id)],
+                }
+            )
         )
         self.env.flush_all()
         triggers = [
@@ -1010,14 +1107,16 @@ class TestCalendarIcsRecurrence(TransactionCase):
             self.env["calendar.event"]
             .with_user(self.user)
             .with_context(no_mail_to_attendees=True)
-            .create({
-                "name": "Holiday",
-                "allday": True,
-                "start_date": "2030-12-24",
-                "stop_date": "2030-12-26",
-                "user_id": self.user.id,
-                "partner_ids": [(6, 0, self.user.partner_id.ids)],
-            })
+            .create(
+                {
+                    "name": "Holiday",
+                    "allday": True,
+                    "start_date": "2030-12-24",
+                    "stop_date": "2030-12-26",
+                    "user_id": self.user.id,
+                    "partner_ids": [(6, 0, self.user.partner_id.ids)],
+                }
+            )
         )
         self.env.flush_all()
         lines = self._ics_lines(event)
@@ -1066,16 +1165,18 @@ class TestCalendarUnavailableAttendees(TransactionCase):
             self.env["calendar.event"]
             .with_user(self.organizer)
             .with_context(no_mail_to_attendees=True)
-            .create([
-                {
-                    "name": f"m{index}",
-                    "start": datetime(year, 1, 1, 10) + relativedelta(days=index),
-                    "stop": datetime(year, 1, 1, 11) + relativedelta(days=index),
-                    "user_id": self.organizer.id,
-                    "partner_ids": [(6, 0, partners)],
-                }
-                for index in range(count)
-            ])
+            .create(
+                [
+                    {
+                        "name": f"m{index}",
+                        "start": datetime(year, 1, 1, 10) + relativedelta(days=index),
+                        "stop": datetime(year, 1, 1, 11) + relativedelta(days=index),
+                        "user_id": self.organizer.id,
+                        "partner_ids": [(6, 0, partners)],
+                    }
+                    for index in range(count)
+                ]
+            )
         )
 
     def _searches_to_compute(self, events):
@@ -1124,29 +1225,31 @@ class TestCalendarUnavailableAttendees(TransactionCase):
             self.env["calendar.event"]
             .with_user(self.organizer)
             .with_context(no_mail_to_attendees=True)
-            .create([
-                {
-                    "name": "clash a",
-                    "start": "2033-05-02 10:00:00",
-                    "stop": "2033-05-02 11:00:00",
-                    "user_id": self.organizer.id,
-                    "partner_ids": [(6, 0, partners)],
-                },
-                {
-                    "name": "clash b",
-                    "start": "2033-05-02 10:30:00",
-                    "stop": "2033-05-02 11:30:00",
-                    "user_id": self.organizer.id,
-                    "partner_ids": [(6, 0, partners)],
-                },
-                {
-                    "name": "alone",
-                    "start": "2033-09-09 10:00:00",
-                    "stop": "2033-09-09 11:00:00",
-                    "user_id": self.organizer.id,
-                    "partner_ids": [(6, 0, partners)],
-                },
-            ])
+            .create(
+                [
+                    {
+                        "name": "clash a",
+                        "start": "2033-05-02 10:00:00",
+                        "stop": "2033-05-02 11:00:00",
+                        "user_id": self.organizer.id,
+                        "partner_ids": [(6, 0, partners)],
+                    },
+                    {
+                        "name": "clash b",
+                        "start": "2033-05-02 10:30:00",
+                        "stop": "2033-05-02 11:30:00",
+                        "user_id": self.organizer.id,
+                        "partner_ids": [(6, 0, partners)],
+                    },
+                    {
+                        "name": "alone",
+                        "start": "2033-09-09 10:00:00",
+                        "stop": "2033-09-09 11:00:00",
+                        "user_id": self.organizer.id,
+                        "partner_ids": [(6, 0, partners)],
+                    },
+                ]
+            )
         )
         self.env.flush_all()
         clash_a, clash_b, alone = events

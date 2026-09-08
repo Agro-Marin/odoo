@@ -87,7 +87,11 @@ class TestBuyGiftCard(TestSaleCouponCommon):
 
         mails = self.env["mail.mail"].search([])
         self.assertEqual(len(mails), 2)
-        salesman_mail = mails.filtered(lambda m: m.author_id == salesman).check_singleton()
-        company_mail = mails.filtered(lambda m: m.author_id == company).check_singleton()
+        salesman_mail = mails.filtered(
+            lambda m: m.author_id == salesman
+        ).check_singleton()
+        company_mail = mails.filtered(
+            lambda m: m.author_id == company
+        ).check_singleton()
         self.assertEqual(salesman_mail.email_from, salesman.email_formatted)
         self.assertEqual(company_mail.email_from, company.email_formatted)

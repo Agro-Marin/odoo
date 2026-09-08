@@ -1,10 +1,12 @@
-from odoo import fields, models, _
+from odoo import _, fields, models
 
 
 class AccountMove(models.Model):
-    _inherit = 'account.move'
+    _inherit = "account.move"
 
-    l10n_id_qris_transaction_ids = fields.Many2many('l10n_id.qris.transaction', groups='account.group_account_invoice')
+    l10n_id_qris_transaction_ids = fields.Many2many(
+        "l10n_id.qris.transaction", groups="account.group_account_invoice"
+    )
 
     def _generate_qr_code(self, silent_errors=False):
         """
@@ -24,10 +26,12 @@ class AccountMove(models.Model):
             - If the QR is not paid and it has been more than 30m, we discard that qr id (no longer valid)
             - If it is paid, we will register the payment on the invoices.
         """
-        invoices = self.search([
-            ('payment_state', '=', 'not_paid'),
-            ('l10n_id_qris_transaction_ids', '!=', False)
-        ])
+        invoices = self.search(
+            [
+                ("payment_state", "=", "not_paid"),
+                ("l10n_id_qris_transaction_ids", "!=", False),
+            ]
+        )
         return invoices._l10n_id_update_payment_status()
 
     def action_l10n_id_update_payment_status(self):
@@ -38,14 +42,16 @@ class AccountMove(models.Model):
             - If the QR is not paid and it has been more than 30m, we discard that qr id (no longer valid)
             - If it is paid, we will register the payment on the invoices.
         """
-        invoices = self.filtered_domain([
-            ('payment_state', '=', 'not_paid'),
-            ('l10n_id_qris_transaction_ids', '!=', False)
-        ])
+        invoices = self.filtered_domain(
+            [
+                ("payment_state", "=", "not_paid"),
+                ("l10n_id_qris_transaction_ids", "!=", False),
+            ]
+        )
         return invoices._l10n_id_update_payment_status()
 
     def _l10n_id_update_payment_status(self):
-        """ Starts by fetching the QR statuses for the invoices in self, then update said invoices based on the statuses """
+        """Starts by fetching the QR statuses for the invoices in self, then update said invoices based on the statuses"""
         qr_statuses = self._l10n_id_get_qris_qr_statuses()
         return self._l10n_id_process_invoices(qr_statuses)
 
@@ -68,7 +74,9 @@ class AccountMove(models.Model):
         """
         result = {}
         for invoice in self:
-            result[invoice.id] = invoice.l10n_id_qris_transaction_ids._l10n_id_get_qris_qr_statuses()
+            result[invoice.id] = (
+                invoice.l10n_id_qris_transaction_ids._l10n_id_get_qris_qr_statuses()
+            )
         return result
 
     def _l10n_id_process_invoices(self, invoices_statuses):
@@ -77,18 +85,21 @@ class AccountMove(models.Model):
         For paid invoices we will register the payment and log a note, while for unpaid ones we will discard expired
         QR data and keep the non-expired ones for the next run.
         """
-        paid_invoices = self.env['account.move']
+        paid_invoices = self.env["account.move"]
         paid_messages = {}
         for invoice in self:
             statuses = invoices_statuses.get(invoice.id)
             # Paid invoice: we simply prepare a message to notify of the payment with details if possible.
-            if statuses['paid']:
-                paid_status = statuses['qr_statuses'][0]
-                if 'qris_payment_customername' in paid_status and 'qris_payment_methodby' in paid_status:
+            if statuses["paid"]:
+                paid_status = statuses["qr_statuses"][0]
+                if (
+                    "qris_payment_customername" in paid_status
+                    and "qris_payment_methodby" in paid_status
+                ):
                     message = _(
                         "This invoice was paid by %(customer)s using QRIS with the payment method %(method)s.",
-                        customer=paid_status['qris_payment_customername'],
-                        method=paid_status['qris_payment_methodby'],
+                        customer=paid_status["qris_payment_customername"],
+                        method=paid_status["qris_payment_methodby"],
                     )
                 else:
                     message = _("This invoice was paid using QRIS.")
@@ -99,12 +110,15 @@ class AccountMove(models.Model):
         if paid_invoices:
             paid_invoices._message_log_batch(bodies=paid_messages)
             # Finally, register the payment:
-            return self.env['account.payment.register'].with_context(
-                active_model='account.move', active_ids=paid_invoices.ids
-            ).create({'group_payment': False}).action_create_payments()
+            return (
+                self.env["account.payment.register"]
+                .with_context(active_model="account.move", active_ids=paid_invoices.ids)
+                .create({"group_payment": False})
+                .action_create_payments()
+            )
 
     def _compute_tax_totals(self):
-        """ OVERRIDE
+        """OVERRIDE
 
         For invoices based on ID company as of January 2025, there is a separate tax base computation for non-luxury goods.
         Tax base is supposed to be 11/12 of original while tax amount is increased from 11% to 12% hence effectively
@@ -115,9 +129,16 @@ class AccountMove(models.Model):
         super()._compute_tax_totals()
         for move in self.filtered(lambda m: m.is_sale_document()):
             # invoice might be coming from different companies, each tax group with unique XML ID
-            non_luxury_tax_group = self.env['account.chart.template'].with_company(move.company_id.id).ref("l10n_id_tax_group_non_luxury_goods", raise_if_not_found=False)
+            non_luxury_tax_group = (
+                self.env["account.chart.template"]
+                .with_company(move.company_id.id)
+                .ref("l10n_id_tax_group_non_luxury_goods", raise_if_not_found=False)
+            )
 
-            if not non_luxury_tax_group or move.invoice_date and move.invoice_date < fields.Date.to_date('2025-01-01'):
+            if not non_luxury_tax_group or (
+                move.invoice_date
+                and move.invoice_date < fields.Date.to_date("2025-01-01")
+            ):
                 continue
 
             # for every tax group component with non-luxury tax group, we adjust the base amount and adjust the display to
@@ -126,11 +147,17 @@ class AccountMove(models.Model):
             for subtotal in move.tax_totals["subtotals"]:
                 for tax_group in subtotal["tax_groups"]:
                     if tax_group["id"] == non_luxury_tax_group.id:
-                        tax_group.update({
-                            "display_base_amount": tax_group["display_base_amount"] * (11 / 12),
-                            "display_base_amount_currency": tax_group["display_base_amount_currency"] * (11 / 12),
-                            "group_name": tax_group["group_name"] + " (on DPP)",
-                        })
+                        tax_group.update(
+                            {
+                                "display_base_amount": tax_group["display_base_amount"]
+                                * (11 / 12),
+                                "display_base_amount_currency": tax_group[
+                                    "display_base_amount_currency"
+                                ]
+                                * (11 / 12),
+                                "group_name": tax_group["group_name"] + " (on DPP)",
+                            }
+                        )
                         change_tax_base = True
             if change_tax_base:
                 move.tax_totals["same_tax_base"] = False

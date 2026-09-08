@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Spain - Point of Sale",
     "category": "Accounting/Localizations/Point of Sale",

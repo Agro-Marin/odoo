@@ -454,9 +454,7 @@ class TestDriveImport(TestCloudStorageS3Common):
         self.assertTrue(root._is_company_root_folder())
         self.assertEqual(result["folders"], 3)
         self.assertEqual(result["files"], 3)
-        contract = self.env["document.document"].search(
-            [("name", "=", "contract.pdf")]
-        )
+        contract = self.env["document.document"].search([("name", "=", "contract.pdf")])
         self.assertEqual(contract.folder_id.name, "ACME")
         self.assertEqual(contract.folder_id.folder_id.name, "06 Partners")
         self.assertEqual(contract.folder_id.folder_id.folder_id, root)

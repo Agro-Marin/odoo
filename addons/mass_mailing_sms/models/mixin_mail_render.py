@@ -15,4 +15,7 @@ class MixinMailRender(models.AbstractModel):
         would put a redirect in front of it. ``link_tracker`` used to carry this
         prefix itself, in a module that does not depend on ``sms``.
         """
-        return (*super()._shorten_links_text_skip_prefixes(base_url), base_url + '/sms/')
+        return (
+            *super()._shorten_links_text_skip_prefixes(base_url),
+            base_url + "/sms/",
+        )

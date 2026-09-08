@@ -25,7 +25,9 @@ class DummyMethods:
         </div>""",
     }
 
-    def multiple_args_and_error(self, a: int, b: list[int], c: dict[str, list[str]]) -> int:
+    def multiple_args_and_error(
+        self, a: int, b: list[int], c: dict[str, list[str]]
+    ) -> int:
         """
         Another dummy function.
 
@@ -43,10 +45,18 @@ class DummyMethods:
         "parameters": {
             "a": {"annotation": "int", "doc": "<p>an int.</p>"},
             "b": {"annotation": "list[int]", "doc": "<p>a list of int.</p>"},
-            "c": {"annotation": "dict[str, list[str]]", "doc": "<p>a dict of lists.</p>"},
+            "c": {
+                "annotation": "dict[str, list[str]]",
+                "doc": "<p>a dict of lists.</p>",
+            },
         },
-        'raise': {'ValueError': '<p>raise an error if <tt class="docutils literal">a</tt> is greater than <tt class="docutils literal">len(b)</tt>.</p>'},
-        "return": {"annotation": "int", "doc": '<p>returns the element of <tt class="docutils literal">b</tt> at index <tt class="docutils literal">a</tt>.</p>'},
+        "raise": {
+            "ValueError": '<p>raise an error if <tt class="docutils literal">a</tt> is greater than <tt class="docutils literal">len(b)</tt>.</p>'
+        },
+        "return": {
+            "annotation": "int",
+            "doc": '<p>returns the element of <tt class="docutils literal">b</tt> at index <tt class="docutils literal">a</tt>.</p>',
+        },
         "doc": """
         <div class="document">
         <p>Another dummy function.</p>
@@ -138,20 +148,32 @@ class DummyMethods:
     def api_model_decorator(self):
         pass
 
-    api_model_decorator.expected = {"api": ["model"], "parameters": {}, "signature": "()"}
+    api_model_decorator.expected = {
+        "api": ["model"],
+        "parameters": {},
+        "signature": "()",
+    }
 
     @api.readonly
     def api_readonly_decorator(self):
         pass
 
-    api_readonly_decorator.expected = {"api": ["readonly"], "parameters": {}, "signature": "()"}
+    api_readonly_decorator.expected = {
+        "api": ["readonly"],
+        "parameters": {},
+        "signature": "()",
+    }
 
     @api.model
     @api.readonly
     def multiple_decorators(self):
         pass
 
-    multiple_decorators.expected = {"signature": "()", "parameters": {}, "api": ["model", "readonly"]}
+    multiple_decorators.expected = {
+        "signature": "()",
+        "parameters": {},
+        "api": ["model", "readonly"],
+    }
 
     def bulletpoints(self):
         """

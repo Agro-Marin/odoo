@@ -1,16 +1,18 @@
 import logging
 import queue
-import requests
 import threading
 import time
 
+import requests
+
+from odoo.logutils import ColoredFormatter
+
 from odoo.addons.iot_drivers.tools import helpers
 from odoo.addons.iot_drivers.tools.system import IS_TEST
-from odoo.logutils import ColoredFormatter
 
 _logger = logging.getLogger(__name__)
 
-IOT_LOG_TO_SERVER_CONFIG_NAME = 'iot_log_to_server'  # config name in odoo.conf
+IOT_LOG_TO_SERVER_CONFIG_NAME = "iot_log_to_server"  # config name in odoo.conf
 
 
 class AsyncHTTPHandler(logging.Handler):
@@ -18,6 +20,7 @@ class AsyncHTTPHandler(logging.Handler):
     Custom logging handler which send IoT logs using asynchronous requests.
     To avoid spamming the server, we send logs by batch each X seconds
     """
+
     _MAX_QUEUE_SIZE = 1000
     """Maximum queue size. If a log record is received but the queue if full it will be discarded"""
     _MAX_BATCH_SIZE = 50
@@ -37,7 +40,7 @@ class AsyncHTTPHandler(logging.Handler):
         """
         super().__init__()
         self._odoo_server_url = odoo_server_url
-        self._db_name = helpers.get_conf('db_name') or ''
+        self._db_name = helpers.get_conf("db_name") or ""
         self._log_queue = queue.Queue(self._MAX_QUEUE_SIZE)
         self._flush_thread = None
         self._active = None
@@ -51,20 +54,24 @@ class AsyncHTTPHandler(logging.Handler):
         self._active = is_active
         if self._active and self._odoo_server_url:
             # Start the thread to periodically flush logs
-            self._flush_thread = threading.Thread(target=self._periodic_flush, name="ThreadServerLogSender", daemon=True)
+            self._flush_thread = threading.Thread(
+                target=self._periodic_flush, name="ThreadServerLogSender", daemon=True
+            )
             self._flush_thread.start()
         else:
             self._flush_thread and self._flush_thread.join()  # let a last flush
 
     def _periodic_flush(self):
         odoo_session = requests.Session()
-        while self._odoo_server_url and self._active:  # allow to exit the loop on thread.join
+        while (
+            self._odoo_server_url and self._active
+        ):  # allow to exit the loop on thread.join
             time.sleep(self._FLUSH_INTERVAL)
             self._flush_logs(odoo_session)
 
     def _flush_logs(self, odoo_session):
         def convert_to_byte(s):
-            return bytes(s, encoding="utf-8") + b'<log/>\n'
+            return bytes(s, encoding="utf-8") + b"<log/>\n"
 
         def convert_server_line(log_level, line_formatted):
             return convert_to_byte(f"{log_level},{line_formatted}")
@@ -75,16 +82,23 @@ class AsyncHTTPHandler(logging.Handler):
                 # Use a limit to avoid having too heavy requests & infinite loop of the queue receiving new entries
                 try:
                     log_record = self._log_queue.get_nowait()
-                    yield convert_server_line(log_record.levelno, self.format(log_record))
+                    yield convert_server_line(
+                        log_record.levelno, self.format(log_record)
+                    )
                 except queue.Empty:
                     break
 
             # Report to the server if the queue is close from saturation
-            if queue_size >= .8 * self._MAX_QUEUE_SIZE:
+            if queue_size >= 0.8 * self._MAX_QUEUE_SIZE:
                 log_message = "The IoT {} queue is saturating: {}/{} ({:.2f}%)".format(  # noqa: UP032
-                    self.__class__.__name__, queue_size, self._MAX_QUEUE_SIZE,
-                    100 * queue_size / self._MAX_QUEUE_SIZE)
-                _logger.warning(log_message)  # As we don't log our own logs, this will be part of the IoT logs
+                    self.__class__.__name__,
+                    queue_size,
+                    self._MAX_QUEUE_SIZE,
+                    100 * queue_size / self._MAX_QUEUE_SIZE,
+                )
+                _logger.warning(
+                    log_message
+                )  # As we don't log our own logs, this will be part of the IoT logs
                 # In order to report this to the server (on the current batch) we will append it manually
                 yield convert_server_line(logging.WARNING, log_message)
 
@@ -94,19 +108,28 @@ class AsyncHTTPHandler(logging.Handler):
             return
         try:
             odoo_session.post(
-                self._odoo_server_url + '/iot/log',
+                self._odoo_server_url + "/iot/log",
                 data=empty_queue(),
-                headers={'X-Odoo-Database': self._db_name},
-                timeout=self._REQUEST_TIMEOUT
+                headers={"X-Odoo-Database": self._db_name},
+                timeout=self._REQUEST_TIMEOUT,
             ).raise_for_status()
             self._next_disconnection_time = None
-        except (requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError) as request_errors:
+        except (
+            requests.exceptions.ConnectTimeout,
+            requests.exceptions.ConnectionError,
+        ) as request_errors:
             now = time.time()
-            if not self._next_disconnection_time or now >= self._next_disconnection_time:
-                _logger.info("Connection with the server to send the logs failed. It is likely down: %s", request_errors)
+            if (
+                not self._next_disconnection_time
+                or now >= self._next_disconnection_time
+            ):
+                _logger.info(
+                    "Connection with the server to send the logs failed. It is likely down: %s",
+                    request_errors,
+                )
                 self._next_disconnection_time = now + self._DELAY_BEFORE_NO_SERVER_LOG
-        except Exception:  # noqa: BLE001
-            _logger.error('Unexpected error happened while sending logs to server')
+        except Exception:
+            _logger.error("Unexpected error happened while sending logs to server")
 
     def emit(self, record):
         # This is important that this method is as fast as possible.
@@ -129,7 +152,9 @@ def close_server_log_sender_handler():
 
 def get_odoo_config_log_to_server_option():
     # Enabled by default if not in test mode
-    return not IS_TEST and (helpers.get_conf(IOT_LOG_TO_SERVER_CONFIG_NAME, section='options') or True)
+    return not IS_TEST and (
+        helpers.get_conf(IOT_LOG_TO_SERVER_CONFIG_NAME, section="options") or True
+    )
 
 
 def check_and_update_odoo_config_log_to_server_option(new_state):
@@ -137,7 +162,9 @@ def check_and_update_odoo_config_log_to_server_option(new_state):
     :return: wherever the config file need to be updated or not
     """
     if get_odoo_config_log_to_server_option() != new_state:
-        helpers.update_conf({IOT_LOG_TO_SERVER_CONFIG_NAME, new_state}, section='options')
+        helpers.update_conf(
+            {IOT_LOG_TO_SERVER_CONFIG_NAME, new_state}, section="options"
+        )
         _server_log_sender_handler.toggle_active(new_state)
         return True
     return False
@@ -151,10 +178,10 @@ def _server_log_sender_handler_filter(log_record):
     def _filter_frequent_irrelevant_calls():
         """Filter out this frequent irrelevant HTTP calls, to avoid spamming the server with useless logs"""
         return (
-            log_record.name == 'werkzeug'
+            log_record.name == "werkzeug"
             and log_record.args
             and len(log_record.args) > 0
-            and str(log_record.args[0]).startswith('GET /hw_proxy/hello ')
+            and str(log_record.args[0]).startswith("GET /hw_proxy/hello ")
         )
 
     return not (_filter_my_logs() or _filter_frequent_irrelevant_calls())
@@ -163,9 +190,15 @@ def _server_log_sender_handler_filter(log_record):
 # The server URL is set once at initlialisation as the IoT will always restart if the URL is changed
 # The only other possible case is when the server URL value is "Cleared",
 # in this case we force close the log handler (as it does not make sense anymore)
-_server_log_sender_handler = AsyncHTTPHandler(helpers.get_odoo_server_url(), get_odoo_config_log_to_server_option())
+_server_log_sender_handler = AsyncHTTPHandler(
+    helpers.get_odoo_server_url(), get_odoo_config_log_to_server_option()
+)
 if not IS_TEST:
-    _server_log_sender_handler.setFormatter(ColoredFormatter('%(asctime)s %(pid)s %(levelname)s %(dbname)s %(name)s: %(message)s %(perf_info)s'))
+    _server_log_sender_handler.setFormatter(
+        ColoredFormatter(
+            "%(asctime)s %(pid)s %(levelname)s %(dbname)s %(name)s: %(message)s %(perf_info)s"
+        )
+    )
     _server_log_sender_handler.addFilter(_server_log_sender_handler_filter)
     # Set it in the 'root' logger, on which every logger (including odoo) is a child
     logging.getLogger().addHandler(_server_log_sender_handler)

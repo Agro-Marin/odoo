@@ -5,14 +5,16 @@ from odoo.exceptions import AccessDenied, AccessError
 
 
 class IrWebsocket(models.AbstractModel):
-    _inherit = 'ir.websocket'
+    _inherit = "ir.websocket"
 
     def _get_bus_channels(self, channels):
         if self.env.uid:
             channels = list(channels)
             for channel in channels:
                 if isinstance(channel, str):
-                    match = re.match(r'editor_collaboration:(\w+(?:\.\w+)*):(\w+):(\d+)', channel)
+                    match = re.match(
+                        r"editor_collaboration:(\w+(?:\.\w+)*):(\w+):(\d+)", channel
+                    )
                     if match:
                         model_name = match[1]
                         field_name = match[2]
@@ -26,13 +28,21 @@ class IrWebsocket(models.AbstractModel):
                             continue
 
                         try:
-                            document.check_access('read')
-                            document.check_access('write')
+                            document.check_access("read")
+                            document.check_access("write")
                             if field := document._fields.get(field_name):
-                                document._check_field_access(field, 'read')
-                                document._check_field_access(field, 'write')
+                                document._check_field_access(field, "read")
+                                document._check_field_access(field, "write")
                         except AccessError:
                             continue
 
-                        channels.append((self.env.registry.db_name, 'editor_collaboration', model_name, field_name, res_id))
+                        channels.append(
+                            (
+                                self.env.registry.db_name,
+                                "editor_collaboration",
+                                model_name,
+                                field_name,
+                                res_id,
+                            )
+                        )
         return super()._get_bus_channels(channels)

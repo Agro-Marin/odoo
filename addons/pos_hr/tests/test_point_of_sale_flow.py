@@ -6,7 +6,7 @@ from odoo.exceptions import UserError
 from odoo.addons.point_of_sale.tests.common import CommonPosTest
 
 
-@odoo.tests.tagged('post_install', '-at_install')
+@odoo.tests.tagged("post_install", "-at_install")
 class TestPointOfSaleFlow(CommonPosTest):
     def test_pos_hr_session_name_gap(self):
         self.pos_config_usd.open_ui()
@@ -19,11 +19,15 @@ class TestPointOfSaleFlow(CommonPosTest):
         session = self.pos_config_usd.current_session_id
 
         def _message_post_patch(*_args, **_kwargs):
-            raise UserError('Test Error')
+            raise UserError("Test Error")
 
-        with patch.object(self.env.registry.models['pos.session'], "message_post", _message_post_patch):
+        with patch.object(
+            self.env.registry.models["pos.session"], "message_post", _message_post_patch
+        ):
             with self.assertRaises(UserError):
                 session.set_opening_control(0, None)
 
         session.set_opening_control(0, None)
-        self.assertEqual(int(session.name.split('/')[1]), int(current_session_name.split('/')[1]) + 1)
+        self.assertEqual(
+            int(session.name.split("/")[1]), int(current_session_name.split("/")[1]) + 1
+        )

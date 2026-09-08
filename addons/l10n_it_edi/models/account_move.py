@@ -201,9 +201,7 @@ class AccountMove(models.Model):
                 # We use matching_numbers[0] directly, assuming there's a valid key in the dictionary.
                 matching_lines = move_lines_per_matching_number.get(matching_numbers[0])
                 if matching_lines and matching_lines.payment_id:
-                    payment_channel = (
-                        matching_lines.payment_id.payment_channel_id[0]
-                    )
+                    payment_channel = matching_lines.payment_id.payment_channel_id[0]
                     if payment_channel:
                         move.l10n_it_payment_method = (
                             payment_channel.l10n_it_payment_method
@@ -363,9 +361,11 @@ class AccountMove(models.Model):
         is_xml = (
             file_data["name"].endswith(".xml")
             or file_data["mimetype"].endswith("/xml")
-            or "text/plain" in file_data["mimetype"]
-            and file_data["raw"]
-            and file_data["raw"].startswith(b"<?xml")
+            or (
+                "text/plain" in file_data["mimetype"]
+                and file_data["raw"]
+                and file_data["raw"].startswith(b"<?xml")
+            )
         )
         is_p7m = file_data["mimetype"] == "application/pkcs7-mime"
         return (is_xml or is_p7m) and re.search(
@@ -377,8 +377,10 @@ class AccountMove(models.Model):
         return [
             (
                 "l10n_it.fatturapa",
-                lambda file_data: self._is_l10n_it_edi_import_file(file_data)
-                and file_data["xml_tree"] is not None,
+                lambda file_data: (
+                    self._is_l10n_it_edi_import_file(file_data)
+                    and file_data["xml_tree"] is not None
+                ),
             ),
             *super()._import_file_type_rules(),
         ]
@@ -447,7 +449,7 @@ class AccountMove(models.Model):
                         "partner": "res.partner",
                         "move": "account.move",
                         "company": "res.company",
-                    }.get(split[3], None)
+                    }.get(split[3])
                 ):
                     if action := error_data.get("action"):
                         if "res_id" in action:
@@ -581,8 +583,8 @@ class AccountMove(models.Model):
             # Workaround: remove line breaks due to Tax Agency portal bug.
             # This deviates from Odoo's standard behavior and must be reviewed if the issue gets fixed.
             description = (
-                description and description.replace("\n", " ").strip() or "NO NAME"
-            )
+                description and description.replace("\n", " ").strip()
+            ) or "NO NAME"
 
             # Price unit.
             if quantity:
@@ -1136,18 +1138,18 @@ class AccountMove(models.Model):
         self.check_singleton()
         scopes = []
         for line in self.invoice_line_ids.filtered(
-            lambda l: (
-                l.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
-            )
+            lambda l: l.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
         ):
             tax_ids_with_tax_scope = line.tax_ids.filtered(lambda x: x.tax_scope)
             if tax_ids_with_tax_scope:
                 scopes += tax_ids_with_tax_scope.mapped("tax_scope")
             else:
                 scopes.append(
-                    line.product_id
-                    and line.product_id.type == "service"
-                    and "service"
+                    (
+                        line.product_id
+                        and line.product_id.type == "service"
+                        and "service"
+                    )
                     or "consu"
                 )
 
@@ -1595,7 +1597,7 @@ class AccountMove(models.Model):
         # Decrypt with the server key
         try:
             decrypted_content = proxy_user._decrypt_data(content, key)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             _logger.warning("Cannot decrypt e-invoice: %s, %s", filename, e)
             return False
 
@@ -1820,7 +1822,7 @@ class AccountMove(models.Model):
                 _logger.warning(
                     "Cannot handle default_move_type '%s'.", default_move_type
                 )
-                return
+                return None
 
             for incoming in incoming_possibilities:
                 company_role, partner_role = (
@@ -1843,7 +1845,7 @@ class AccountMove(models.Model):
                         "Your company's VAT number and Fiscal Code haven't been found in the buyer and/or seller sections inside the document."
                     )
                 )
-                return
+                return None
 
             # For unsupported document types, just assume in_invoice, and log that the type is unsupported
             document_type = get_text(tree, "//DatiGeneraliDocumento/TipoDocumento")

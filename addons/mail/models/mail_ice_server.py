@@ -75,9 +75,7 @@ class MailIceServer(models.Model):
         )
         return servers
 
-    def _get_twilio_ice_servers(
-        self, account_sid: str, auth_token: str
-    ) -> list | None:
+    def _get_twilio_ice_servers(self, account_sid: str, auth_token: str) -> list | None:
         url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Tokens.json"
         try:
             response = requests.post(url, auth=(account_sid, auth_token), timeout=5)

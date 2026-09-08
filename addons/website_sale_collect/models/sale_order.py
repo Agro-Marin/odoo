@@ -189,9 +189,7 @@ class SaleOrder(models.Model):
                 )
         return insufficient_stock_data
 
-    def _get_updated_quantity(
-        self, order_line, product_id, new_qty, uom_id, **kwargs
-    ):
+    def _get_updated_quantity(self, order_line, product_id, new_qty, uom_id, **kwargs):
         """Override of `website_sale_stock` to skip the verification when click and collect
         is activated. The quantity is verified later."""
         product = self.env["product.product"].browse(product_id)

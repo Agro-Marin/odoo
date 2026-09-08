@@ -8,27 +8,31 @@ from odoo.tools import consteq
 
 
 class SpreadsheetDashboardShare(models.Model):
-    _name = 'spreadsheet.dashboard.share'
-    _inherit = ['mixin.spreadsheet']
-    _description = 'Copy of a shared dashboard'
+    _name = "spreadsheet.dashboard.share"
+    _inherit = ["mixin.spreadsheet"]
+    _description = "Copy of a shared dashboard"
 
-    dashboard_id = fields.Many2one('spreadsheet.dashboard', required=True, ondelete='cascade')
+    dashboard_id = fields.Many2one(
+        "spreadsheet.dashboard", required=True, ondelete="cascade"
+    )
     excel_export = fields.Binary()
     access_token = fields.Char(required=True, default=lambda _x: str(uuid.uuid4()))
-    full_url = fields.Char(string="URL", compute='_compute_full_url')
-    name = fields.Char(related='dashboard_id.name')
+    full_url = fields.Char(string="URL", compute="_compute_full_url")
+    name = fields.Char(related="dashboard_id.name")
 
-    @api.depends('access_token')
+    @api.depends("access_token")
     def _compute_full_url(self):
         for share in self:
-            share.full_url = "%s/dashboard/share/%s/%s" % (share.get_base_url(), share.id, share.access_token)
+            share.full_url = "%s/dashboard/share/%s/%s" % (
+                share.get_base_url(),
+                share.id,
+                share.access_token,
+            )
 
     @api.model
     def action_get_share_url(self, vals):
         if "excel_files" in vals:
-            excel_zip = self._zip_xslx_files(
-                vals["excel_files"]
-            )
+            excel_zip = self._zip_xslx_files(vals["excel_files"])
             del vals["excel_files"]
             vals["excel_export"] = base64.b64encode(excel_zip)
         return self.create(vals).full_url

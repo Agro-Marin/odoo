@@ -507,9 +507,7 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         self.create_move(date="2020-01-01", name="00000876-G 0002/2020")
         next_move = self.create_move(date="2020-01-01")
         next_move.action_post()
-        self.assertMoveName(
-            next_move, "00000876-G 0002/2021"
-        )
+        self.assertMoveName(next_move, "00000876-G 0002/2021")
 
         next_move.action_draft()
         next_move.name = False
@@ -551,12 +549,8 @@ class TestSequenceMixin(TestSequenceMixinCommon):
         self.assertEqual(next_move.name, "MISC/2021/21/00001")
 
         with self.assertRaises(ValidationError):
-            self.create_move(
-                date="2022-01-01", name="MISC/2021/22/00001", post=True
-            )
-        self.create_move(
-            date="2022-01-01", name="MISC/2022/22/00001", post=True
-        )
+            self.create_move(date="2022-01-01", name="MISC/2021/22/00001", post=True)
+        self.create_move(date="2022-01-01", name="MISC/2022/22/00001", post=True)
 
     def test_journal_sequence_ordering(self):
         self.test_move.name = "XMISC/2016/00001"
@@ -743,39 +737,23 @@ class TestSequenceMixin(TestSequenceMixinCommon):
             new_year.date + relativedelta(months=1), "MISC/2017/02/00001"
         )
 
-        self.assertNameAtDate(
-            self.test_move.date, "MISC/00002"
-        )
-        self.assertNameAtDate(
-            new_year.date, "MISC/2017/00002"
-        )
-        self.assertNameAtDate(
-            new_month.date, "MISC/2017/02/00002"
-        )
+        self.assertNameAtDate(self.test_move.date, "MISC/00002")
+        self.assertNameAtDate(new_year.date, "MISC/2017/00002")
+        self.assertNameAtDate(new_month.date, "MISC/2017/02/00002")
 
         start_fiscal = self.set_sequence(
             new_year.date + relativedelta(months=2), "MISC/2016-2017/00001"
         )
 
-        self.assertNameAtDate(
-            self.test_move.date, "MISC/00003"
-        )
-        self.assertNameAtDate(
-            new_year.date, "MISC/2016-2017/00002"
-        )
-        self.assertNameAtDate(
-            new_month.date, "MISC/2017/02/00003"
-        )
-        self.assertNameAtDate(
-            start_fiscal.date, "MISC/2016-2017/00003"
-        )
+        self.assertNameAtDate(self.test_move.date, "MISC/00003")
+        self.assertNameAtDate(new_year.date, "MISC/2016-2017/00002")
+        self.assertNameAtDate(new_month.date, "MISC/2017/02/00003")
+        self.assertNameAtDate(start_fiscal.date, "MISC/2016-2017/00003")
 
         reset_never = self.set_sequence(
             self.test_move.date + relativedelta(years=2), "MISC/00100"
         )
-        self.assertNameAtDate(
-            reset_never.date, "MISC/00101"
-        )
+        self.assertNameAtDate(reset_never.date, "MISC/00101")
 
     def test_fiscal_vs_monthly(self):
         self.set_sequence("2101-02-01", "MISC/01-02/00001")

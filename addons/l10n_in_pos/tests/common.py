@@ -1,8 +1,9 @@
 from contextlib import contextmanager
 
 from odoo.fields import Command
-from odoo.addons.point_of_sale.tests.common import TestPoSCommon
+
 from odoo.addons.account.tests.common import TestTaxCommon
+from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 
 class TestInPosBase(TestPoSCommon):
@@ -11,37 +12,42 @@ class TestInPosBase(TestPoSCommon):
     This class sets up the company, products, and configuration required
     for any test involving GSTR in a POS environment.
     """
+
     @classmethod
-    @TestTaxCommon.setup_country('in')
+    @TestTaxCommon.setup_country("in")
     def setUpClass(cls):
         super().setUpClass()
         country_in_id = cls.env.ref("base.in").id
-        cls.company_data["company"].write({
-            "vat": "24AAGCC7144L6ZE",
-            "state_id": cls.env.ref("base.state_in_gj").id,
-            "street": "street1",
-            "city": "city1",
-            "zip": "123456",
-            "country_id": country_in_id,
-            "l10n_in_is_gst_registered": True,
-        })
+        cls.company_data["company"].write(
+            {
+                "vat": "24AAGCC7144L6ZE",
+                "state_id": cls.env.ref("base.state_in_gj").id,
+                "street": "street1",
+                "city": "city1",
+                "zip": "123456",
+                "country_id": country_in_id,
+                "l10n_in_is_gst_registered": True,
+            }
+        )
         cls.config = cls.basic_config
-        cls.gst_5 = cls.env['account.chart.template'].ref('sgst_sale_5')
-        cls.nil_rated = cls.env['account.chart.template'].ref('nil_rated_sale')
+        cls.gst_5 = cls.env["account.chart.template"].ref("sgst_sale_5")
+        cls.nil_rated = cls.env["account.chart.template"].ref("nil_rated_sale")
 
-        country_in = cls.env.ref('base.in')
-        state_in_gj = cls.env.ref('base.state_in_gj')
+        country_in = cls.env.ref("base.in")
+        state_in_gj = cls.env.ref("base.state_in_gj")
 
-        cls.partner_a.write({
-            'name': "Partner Intra State",
-            'vat': '24ABCPM8965E1ZE',
-            'state_id': state_in_gj.id,
-            'country_id': country_in.id,
-            'street': "Karansinhji Rd",
-            'street2': "Karanpara",
-            'city': "Rajkot",
-            'zip': "360001",
-        })
+        cls.partner_a.write(
+            {
+                "name": "Partner Intra State",
+                "vat": "24ABCPM8965E1ZE",
+                "state_id": state_in_gj.id,
+                "country_id": country_in.id,
+                "street": "Karansinhji Rd",
+                "street2": "Karanpara",
+                "city": "Rajkot",
+                "zip": "360001",
+            }
+        )
 
         # Common product setup for POS tests
         cls._setup_products()
@@ -49,24 +55,30 @@ class TestInPosBase(TestPoSCommon):
     @classmethod
     def _setup_products(cls):
         """Sets up products for POS testing with GST."""
-        cls.product_a.write({
-            'available_in_pos': True,
-            'l10n_in_hsn_code': '1111',
-            'list_price': 100,
-            'taxes_id': [Command.set(cls.gst_5.ids)],  # Tax: 5
-        })
-        cls.product_b.write({
-            'available_in_pos': True,
-            'l10n_in_hsn_code': '2222',
-            'list_price': 200,
-            'taxes_id': [Command.set(cls.gst_5.ids)],  # Tax: 10
-        })
-        cls.product_c = cls.env['product.product'].create({
-            'name': 'Product C',
-            'available_in_pos': True,
-            'list_price': 300,
-            'taxes_id': [Command.set(cls.nil_rated.ids)],  # Tax: 0
-        })
+        cls.product_a.write(
+            {
+                "available_in_pos": True,
+                "l10n_in_hsn_code": "1111",
+                "list_price": 100,
+                "taxes_id": [Command.set(cls.gst_5.ids)],  # Tax: 5
+            }
+        )
+        cls.product_b.write(
+            {
+                "available_in_pos": True,
+                "l10n_in_hsn_code": "2222",
+                "list_price": 200,
+                "taxes_id": [Command.set(cls.gst_5.ids)],  # Tax: 10
+            }
+        )
+        cls.product_c = cls.env["product.product"].create(
+            {
+                "name": "Product C",
+                "available_in_pos": True,
+                "list_price": 300,
+                "taxes_id": [Command.set(cls.nil_rated.ids)],  # Tax: 0
+            }
+        )
 
     @contextmanager
     def with_pos_session(self):
@@ -79,8 +91,8 @@ class TestInPosBase(TestPoSCommon):
     def _create_order(self, ui_data):
         """Helper to create a POS order from UI data."""
         order_data = self.create_ui_order_data(**ui_data)
-        results = self.env['pos.order'].sync_from_ui([order_data])
-        return self.env['pos.order'].browse([o['id'] for o in results['pos.order']])
+        results = self.env["pos.order"].sync_from_ui([order_data])
+        return self.env["pos.order"].browse([o["id"] for o in results["pos.order"]])
 
     @classmethod
     def _create_categ_anglo(cls):

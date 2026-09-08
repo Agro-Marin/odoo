@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Transifex integration",
     "version": "1.0",

@@ -59,7 +59,10 @@ def migrate(cr, version):
     # `_process_end` cannot sweep those afterwards: it removes a record and then
     # its xmlid, and by then the record is already gone. So drop the xmlids while
     # the ids are still resolvable.
-    for model, table in (("ir.rule", "ir_rule"), ("ir.model.access", "ir_model_access")):
+    for model, table in (
+        ("ir.rule", "ir_rule"),
+        ("ir.model.access", "ir_model_access"),
+    ):
         cr.execute(
             f"""
             DELETE FROM ir_model_data
@@ -171,7 +174,7 @@ def _carry_references_over(cr):
 
         cr.execute(
             f'UPDATE "{table}" t SET "{column}" = m.new_id'
-            f"  FROM pd_map m WHERE t.\"{column}\" = m.old_id"
+            f'  FROM pd_map m WHERE t."{column}" = m.old_id'
         )
         carried = cr.rowcount
 

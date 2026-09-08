@@ -1,30 +1,36 @@
-# -*- coding: utf-8 -*-
 import re
-from odoo import api, fields, models, _
+
+from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
 class PrintPrenumberedChecks(models.TransientModel):
-    _name = 'print.prenumbered.checks'
-    _description = 'Print Pre-numbered Checks'
+    _name = "print.prenumbered.checks"
+    _description = "Print Pre-numbered Checks"
 
-    next_check_number = fields.Char('Next Check Number', required=True)
+    next_check_number = fields.Char("Next Check Number", required=True)
 
-    @api.constrains('next_check_number')
+    @api.constrains("next_check_number")
     def _check_next_check_number(self):
         for check in self:
-            if check.next_check_number and not re.match(r'^[0-9]+$', check.next_check_number):
-                raise ValidationError(_('Next Check Number should only contains numbers.'))
+            if check.next_check_number and not re.match(
+                r"^[0-9]+$", check.next_check_number
+            ):
+                raise ValidationError(
+                    _("Next Check Number should only contains numbers.")
+                )
 
     def print_checks(self):
         check_number = int(self.next_check_number)
         number_len = len(self.next_check_number or "")
-        payments = self.env['account.payment'].browse(self.env.context['payment_ids'])
-        payments.filtered(lambda r: r.state == 'draft').action_post()
-        payments.filtered(lambda r: r.state == 'in_process' and not r.is_sent).write({'is_sent': True})
+        payments = self.env["account.payment"].browse(self.env.context["payment_ids"])
+        payments.filtered(lambda r: r.state == "draft").action_post()
+        payments.filtered(lambda r: r.state == "in_process" and not r.is_sent).write(
+            {"is_sent": True}
+        )
         for payment in payments:
-            payment.check_number = '%0{}d'.format(number_len) % check_number
+            payment.check_number = f"%0{number_len}d" % check_number
             check_number += 1
         checks_action = payments.do_print_checks()
-        checks_action.update({'close_on_report_download': True})
+        checks_action.update({"close_on_report_download": True})
         return checks_action

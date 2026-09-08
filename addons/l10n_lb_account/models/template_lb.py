@@ -38,7 +38,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "default_cash_difference_expense_account_id": "lb_account_601101",
                 "deferred_expense_account_id": "lb_account_472001",
                 "deferred_revenue_account_id": "lb_account_473001",
-                'expense_account_id': 'lb_account_601101',
-                'income_account_id': 'lb_account_701000',
+                "expense_account_id": "lb_account_601101",
+                "income_account_id": "lb_account_701000",
             },
         }

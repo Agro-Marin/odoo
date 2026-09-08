@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Fleet",
     "version": "0.1",

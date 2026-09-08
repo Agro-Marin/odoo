@@ -13,13 +13,12 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import config, date_utils, split_every
 from odoo.tools.image import image_data_uri
-
 from odoo.tools.xml_utils import dict_to_xml
 
 # Holds the maximum amount of records that can be sent in a single submission.
 SUBMISSION_MAX_SIZE = 100
 MAX_SUBMISSION_UPDATE = 25
-CANCELLED_STATES = {'invalid', 'cancelled'}
+CANCELLED_STATES = {"invalid", "cancelled"}
 
 
 class MyInvoisDocument(models.Model):
@@ -28,8 +27,9 @@ class MyInvoisDocument(models.Model):
 
     In Odoo, a document represent either an invoice, or a group of PoS order.
     """
-    _name = 'myinvois.document'
-    _inherit = ['mixin.mail.thread', 'mixin.mail.activity', 'mixin.sequence']
+
+    _name = "myinvois.document"
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.sequence"]
     _description = "MyInvois Document"
     _order = "myinvois_issuance_date desc, id desc"
     _check_company_auto = True
@@ -40,10 +40,10 @@ class MyInvoisDocument(models.Model):
     # ------------------
 
     name = fields.Char(
-        compute='_compute_name',
+        compute="_compute_name",
         store=True,
         copy=False,
-        index='trigram',
+        index="trigram",
     )
     active = fields.Boolean(
         string="Active",
@@ -56,12 +56,12 @@ class MyInvoisDocument(models.Model):
         default=lambda self: self.env.company,
     )
     currency_id = fields.Many2one(
-        comodel_name='res.currency',
+        comodel_name="res.currency",
         required=True,
     )
     company_currency_id = fields.Many2one(
-        string='Company Currency',
-        related='company_id.currency_id',
+        string="Company Currency",
+        related="company_id.currency_id",
     )
     myinvois_issuance_date = fields.Date(
         string="Issuance Date",
@@ -70,28 +70,33 @@ class MyInvoisDocument(models.Model):
     )
     # File fields
     myinvois_file_id = fields.Many2one(
-        comodel_name='ir.attachment',
-        compute=lambda self: self._compute_linked_attachment_id('myinvois_file_id', 'myinvois_file'),
-        depends=['myinvois_file'],
+        comodel_name="ir.attachment",
+        compute=lambda self: self._compute_linked_attachment_id(
+            "myinvois_file_id", "myinvois_file"
+        ),
+        depends=["myinvois_file"],
         copy=False,
         export_string_translation=False,
     )
     myinvois_file = fields.Binary(
-        string='MyInvois XML File',
+        string="MyInvois XML File",
         copy=False,
         readonly=True,
         export_string_translation=False,
     )
     # Odoo Implementation fields
     myinvois_state = fields.Selection(
-        string='MyInvois State',
-        help='State of this document on the MyInvois portal.\nA document awaiting validation will be automatically updated once the validation status is available.',
+        string="MyInvois State",
+        help="State of this document on the MyInvois portal.\nA document awaiting validation will be automatically updated once the validation status is available.",
         selection=[
-            ('in_progress', 'Validation In Progress'),
-            ('valid', 'Valid'),
-            ('rejected', 'Rejected'),  # Technically not a state on MyInvois, but having it here helps with managing bills.
-            ('invalid', 'Invalid'),
-            ('cancelled', 'Cancelled'),
+            ("in_progress", "Validation In Progress"),
+            ("valid", "Valid"),
+            (
+                "rejected",
+                "Rejected",
+            ),  # Technically not a state on MyInvois, but having it here helps with managing bills.
+            ("invalid", "Invalid"),
+            ("cancelled", "Cancelled"),
         ],
         copy=False,
         readonly=True,
@@ -112,7 +117,7 @@ class MyInvoisDocument(models.Model):
     myinvois_exemption_reason = fields.Char(
         string="Tax Exemption Reason",
         help="Buyer’s sales tax exemption certificate number, special exemption as per gazette orders, etc.\n"
-             "Only applicable if you are using a tax with a type 'Exempt'.",
+        "Only applicable if you are using a tax with a type 'Exempt'.",
     )
     myinvois_custom_form_reference = fields.Char(
         string="Customs Form Reference Number",
@@ -120,7 +125,7 @@ class MyInvoisDocument(models.Model):
     )
     # API information fields
     myinvois_submission_uid = fields.Char(
-        string='Submission UID',
+        string="Submission UID",
         help="Unique ID assigned to a batch of documents when sent to MyInvois.",
         copy=False,
         readonly=True,
@@ -133,7 +138,7 @@ class MyInvoisDocument(models.Model):
         readonly=True,
     )
     myinvois_validation_time = fields.Datetime(
-        string='Validation Time',
+        string="Validation Time",
         copy=False,
         readonly=True,
     )
@@ -156,11 +161,13 @@ class MyInvoisDocument(models.Model):
     # Compute, inverse, search methods
     # --------------------------------
 
-    @api.depends('myinvois_issuance_date')
+    @api.depends("myinvois_issuance_date")
     def _compute_name(self):
-        """ Compute the name by using the sequence mixin. """
-        for document in self.sorted(key=lambda d: (d.myinvois_issuance_date, d._origin.id)):
-            document_has_name = document.name and document.name != '/'
+        """Compute the name by using the sequence mixin."""
+        for document in self.sorted(
+            key=lambda d: (d.myinvois_issuance_date, d._origin.id)
+        ):
+            document_has_name = document.name and document.name != "/"
             if document_has_name:
                 if not document._sequence_matches_date():
                     document.name = False
@@ -168,7 +175,7 @@ class MyInvoisDocument(models.Model):
             if document.myinvois_issuance_date and not document_has_name:
                 document._set_next_sequence()
 
-        self.filtered(lambda m: not m.name).name = '/'
+        self.filtered(lambda m: not m.name).name = "/"
 
     def _compute_linked_attachment_id(self, attachment_field, binary_field):
         """
@@ -176,31 +183,37 @@ class MyInvoisDocument(models.Model):
         This is needed because fields.Many2one('ir.attachment') makes all
         attachments available to the user.
         """
-        attachments = self.env['ir.attachment'].search([
-            ('res_model', '=', self._name),
-            ('res_id', 'in', self.ids),
-            ('res_field', '=', binary_field),
-        ])
-        attachments_per_res_id = attachments.grouped('res_id')
+        attachments = self.env["ir.attachment"].search(
+            [
+                ("res_model", "=", self._name),
+                ("res_id", "in", self.ids),
+                ("res_field", "=", binary_field),
+            ]
+        )
+        attachments_per_res_id = attachments.grouped("res_id")
         for document in self:
-            document[attachment_field] = attachments_per_res_id.get(document._origin.id, False)
+            document[attachment_field] = attachments_per_res_id.get(
+                document._origin.id, False
+            )
 
-    @api.depends('name')
+    @api.depends("name")
     def _compute_display_name(self):
         for document in self:
-            document.display_name = document.name if document.name != '/' else document.env._('Draft')
+            document.display_name = (
+                document.name if document.name != "/" else document.env._("Draft")
+            )
 
     # -----------------------
     # CRUD, inherited methods
     # -----------------------
 
     def _get_starting_sequence(self):
-        """ Defines the default sequence to use by MyInvois Documents. """
+        """Defines the default sequence to use by MyInvois Documents."""
         self.check_singleton()
         return "MYINV/%04d/00000" % self.myinvois_issuance_date.year
 
     def _get_last_sequence_domain(self, relaxed=False):
-        """ Returns the SQL WHERE statement to use when fetching the latest record with the same sequence, and its params. """
+        """Returns the SQL WHERE statement to use when fetching the latest record with the same sequence, and its params."""
         self.check_singleton()
         if not self.myinvois_issuance_date:
             return "WHERE FALSE", {}
@@ -208,37 +221,76 @@ class MyInvoisDocument(models.Model):
         param = {}
 
         if not relaxed:
-            domain = [('id', '!=', self.id or self._origin.id), ('name', 'not in', ('/', '', False))]
-            reference_name = self.sudo().search(domain + [('myinvois_issuance_date', '<=', self.myinvois_issuance_date)], limit=1).name
+            domain = [
+                ("id", "!=", self.id or self._origin.id),
+                ("name", "not in", ("/", "", False)),
+            ]
+            reference_name = (
+                self.sudo()
+                .search(
+                    domain
+                    + [("myinvois_issuance_date", "<=", self.myinvois_issuance_date)],
+                    limit=1,
+                )
+                .name
+            )
             if not reference_name:
-                reference_name = self.sudo().search(domain, order='myinvois_issuance_date asc', limit=1).name
+                reference_name = (
+                    self.sudo()
+                    .search(domain, order="myinvois_issuance_date asc", limit=1)
+                    .name
+                )
             sequence_number_reset = self._deduce_sequence_number_reset(reference_name)
-            date_start, date_end, *_ = self._get_sequence_date_range(sequence_number_reset)
+            date_start, date_end, *_ = self._get_sequence_date_range(
+                sequence_number_reset
+            )
             where_string += """ AND myinvois_issuance_date BETWEEN %(date_start)s AND %(date_end)s"""
-            param['date_start'] = date_start
-            param['date_end'] = date_end
-            if sequence_number_reset in ('year', 'year_range'):
-                param['anti_regex'] = re.sub(r"\?P<\w+>", "?:", self._sequence_monthly_regex.split('(?P<seq>')[0]) + '$'
-            elif sequence_number_reset == 'never':
-                param['anti_regex'] = re.sub(r"\?P<\w+>", "?:", self._sequence_yearly_regex.split('(?P<seq>')[0]) + '$'
+            param["date_start"] = date_start
+            param["date_end"] = date_end
+            if sequence_number_reset in ("year", "year_range"):
+                param["anti_regex"] = (
+                    re.sub(
+                        r"\?P<\w+>",
+                        "?:",
+                        self._sequence_monthly_regex.split("(?P<seq>")[0],
+                    )
+                    + "$"
+                )
+            elif sequence_number_reset == "never":
+                param["anti_regex"] = (
+                    re.sub(
+                        r"\?P<\w+>",
+                        "?:",
+                        self._sequence_yearly_regex.split("(?P<seq>")[0],
+                    )
+                    + "$"
+                )
 
-            if param.get('anti_regex'):
+            if param.get("anti_regex"):
                 where_string += " AND sequence_prefix !~ %(anti_regex)s "
 
         return where_string, param
 
     def _get_sequence_date_range(self, reset):
-        """ Make sure that the sequence date range follows the company's fiscal year """
-        if reset == 'year_range':
+        """Make sure that the sequence date range follows the company's fiscal year"""
+        if reset == "year_range":
             company = self.company_id
-            return date_utils.get_fiscal_year(self.myinvois_issuance_date, day=company.fiscalyear_last_day, month=int(company.fiscalyear_last_month))
+            return date_utils.get_fiscal_year(
+                self.myinvois_issuance_date,
+                day=company.fiscalyear_last_day,
+                month=int(company.fiscalyear_last_month),
+            )
         return super()._get_sequence_date_range(reset)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_check(self):
         for document in self:
             if document.myinvois_state in ["in_progress", "valid", "rejected"]:
-                raise UserError(document.env._('You cannot delete a document that is active on MyInvois.\nYou must cancel it first.'))
+                raise UserError(
+                    document.env._(
+                        "You cannot delete a document that is active on MyInvois.\nYou must cancel it first."
+                    )
+                )
 
     # --------------
     # Action methods
@@ -249,14 +301,26 @@ class MyInvoisDocument(models.Model):
         Submit all new documents in self to MyInvois.
         This can also be used on invalid documents to re-submit them after correcting the error.
         """
-        documents = self.filtered(lambda d: d.myinvois_state in [False, 'invalid'])
+        documents = self.filtered(lambda d: d.myinvois_state in [False, "invalid"])
         if not documents:
             return
 
         # Documents linked to an invoice, and whose invoice is cancelled or draft, shouldn't be sent.
-        invalid_documents = documents.filtered(lambda d: d.invoice_ids and any(invoice.state in ('draft', 'cancel') for invoice in d.invoice_ids))
+        invalid_documents = documents.filtered(
+            lambda d: (
+                d.invoice_ids
+                and any(
+                    invoice.state in ("draft", "cancel") for invoice in d.invoice_ids
+                )
+            )
+        )
         if invalid_documents:
-            raise UserError(self.env._('You cannot send this document to MyInvois because the related invoice(s) %s are in draft or canceled state.', ','.join(invalid_documents.mapped('name'))))
+            raise UserError(
+                self.env._(
+                    "You cannot send this document to MyInvois because the related invoice(s) %s are in draft or canceled state.",
+                    ",".join(invalid_documents.mapped("name")),
+                )
+            )
 
         # Required for the file, this is the exact date at which the consolidated invoice was sent to MyInvois.
         documents.myinvois_issuance_date = fields.Date.context_today(documents)
@@ -280,50 +344,72 @@ class MyInvoisDocument(models.Model):
         new_documents_data = []
         for document in self:
             if document.myinvois_file_id:
-                document.myinvois_file_id.write({
-                    'name': f"{document.myinvois_file_id.name} (old)",
-                    'res_field': False,  # Remove the link between the old attachment and the record's field
-                })
+                document.myinvois_file_id.write(
+                    {
+                        "name": f"{document.myinvois_file_id.name} (old)",
+                        "res_field": False,  # Remove the link between the old attachment and the record's field
+                    }
+                )
 
             xml_data, errors = document._myinvois_generate_xml_file()
             if errors:
-                raise UserError(document.env._("Error when generating the documents' files:\n\n- %(errors)s", errors='\n- '.join(errors)))
+                raise UserError(
+                    document.env._(
+                        "Error when generating the documents' files:\n\n- %(errors)s",
+                        errors="\n- ".join(errors),
+                    )
+                )
 
-            new_documents_data.append({
-                "name": f'{document.name.replace("/", "_")}_myinvois.xml' if document.name != "/" else "myinvois.xml",
-                "raw": xml_data,
-                "mimetype": "application/xml",
-                "res_model": document._name,
-                "res_id": document.id,
-                "res_field": "myinvois_file",
-            })
+            new_documents_data.append(
+                {
+                    "name": f"{document.name.replace('/', '_')}_myinvois.xml"
+                    if document.name != "/"
+                    else "myinvois.xml",
+                    "raw": xml_data,
+                    "mimetype": "application/xml",
+                    "res_model": document._name,
+                    "res_id": document.id,
+                    "res_field": "myinvois_file",
+                }
+            )
 
         self.env["ir.attachment"].with_user(SUPERUSER_ID).create(new_documents_data)
-        self.invalidate_recordset(fnames=['myinvois_file_id', 'myinvois_file'])
+        self.invalidate_recordset(fnames=["myinvois_file_id", "myinvois_file"])
 
     def action_cancel_submission(self):
-        """ Cancel the document on the platform. """
+        """Cancel the document on the platform."""
         self.check_singleton()
-        return self._action_myinvois_update_document(new_status='cancelled')
+        return self._action_myinvois_update_document(new_status="cancelled")
 
     def action_show_myinvois_documents(self):
-        """ Open the documents in self in the correct view based on the amount of records. """
+        """Open the documents in self in the correct view based on the amount of records."""
         if len(self) == 1:
             action_vals = {
-                'type': 'ir.actions.act_window',
-                'res_model': 'myinvois.document',
-                'view_mode': 'form',
-                'res_id': self.id,
-                'views': [(self.env.ref('l10n_my_edi.myinvois_document_form_view').id, 'form')],
+                "type": "ir.actions.act_window",
+                "res_model": "myinvois.document",
+                "view_mode": "form",
+                "res_id": self.id,
+                "views": [
+                    (self.env.ref("l10n_my_edi.myinvois_document_form_view").id, "form")
+                ],
             }
         else:
             action_vals = {
-                'name': self.env._("Consolidated Invoices"),
-                'type': 'ir.actions.act_window',
-                'res_model': 'myinvois.document',
-                'view_mode': 'list,form',
-                'views': [(self.env.ref('l10n_my_edi.myinvois_document_list_view').id, 'list'), (self.env.ref('l10n_my_edi.myinvois_document_form_view').id, 'form')],
-                'domain': [('id', 'in', self.ids)],
+                "name": self.env._("Consolidated Invoices"),
+                "type": "ir.actions.act_window",
+                "res_model": "myinvois.document",
+                "view_mode": "list,form",
+                "views": [
+                    (
+                        self.env.ref("l10n_my_edi.myinvois_document_list_view").id,
+                        "list",
+                    ),
+                    (
+                        self.env.ref("l10n_my_edi.myinvois_document_form_view").id,
+                        "form",
+                    ),
+                ],
+                "domain": [("id", "in", self.ids)],
             }
         return action_vals
 
@@ -344,7 +430,11 @@ class MyInvoisDocument(models.Model):
 
         proxy_user = company.sudo().l10n_my_edi_proxy_user_id
         if not proxy_user:
-            raise UserError(self.env._("Please register for the E-Invoicing service in the settings first."))
+            raise UserError(
+                self.env._(
+                    "Please register for the E-Invoicing service in the settings first."
+                )
+            )
 
         return proxy_user
 
@@ -357,20 +447,27 @@ class MyInvoisDocument(models.Model):
         if message:
             self._message_log_batch(bodies={document.id: message for document in self})
             if self.invoice_ids:
-                self.invoice_ids._message_log_batch(bodies={move.id: message for move in self.invoice_ids})
+                self.invoice_ids._message_log_batch(
+                    bodies={move.id: message for move in self.invoice_ids}
+                )
 
-        documents_per_id = self.grouped('id')
+        documents_per_id = self.grouped("id")
         if bodies:
             self._message_log_batch(bodies=bodies)
             if self.invoice_ids:
                 invoice_bodies = {}
                 for document_id, message in bodies.items():
-                    invoice_bodies.update({invoice.id: message for invoice in documents_per_id[document_id].invoice_ids})
+                    invoice_bodies.update(
+                        {
+                            invoice.id: message
+                            for invoice in documents_per_id[document_id].invoice_ids
+                        }
+                    )
                 self.invoice_ids._message_log_batch(bodies=invoice_bodies)
 
     @api.model
     def _myinvois_map_error(self, error):
-        """ This helper will take in an error code coming from the proxy, and return a translatable error message. """
+        """This helper will take in an error code coming from the proxy, and return a translatable error message."""
         error_map = {
             # These errors should be returned when we send malformed request to the EDI, ... tldr; this should never happen unless we have bugs.
             "internal_server_error": self.env._(
@@ -422,28 +519,43 @@ class MyInvoisDocument(models.Model):
                 "You cannot update this invoice, has it has been referenced by a debit or credit note.\n"
                 "If you still want to update it, you must first update the debit/credit note."
             ),
-            "update_forbidden": self.env._("You do not have the permission to update this invoice."),
-            "search_date_invalid": self.env._("The search params are invalid."),  # Should never happen
-            'document_not_found': self.env._('The document provided in the request does not exist.'),  # Should never happen
-            'submission_too_large': self.env._('The submission is too large, try to send fewer invoices at once.'),
-            'action_forbidden': self.env._('Permission to do this action has not been granted. Please ensure that Odoo has sufficient permissions on the MyInvois platform.'),
+            "update_forbidden": self.env._(
+                "You do not have the permission to update this invoice."
+            ),
+            "search_date_invalid": self.env._(
+                "The search params are invalid."
+            ),  # Should never happen
+            "document_not_found": self.env._(
+                "The document provided in the request does not exist."
+            ),  # Should never happen
+            "submission_too_large": self.env._(
+                "The submission is too large, try to send fewer invoices at once."
+            ),
+            "action_forbidden": self.env._(
+                "Permission to do this action has not been granted. Please ensure that Odoo has sufficient permissions on the MyInvois platform."
+            ),
         }
 
-        if error.get('target'):
+        if error.get("target"):
             # When validating a part of the invoice, they give random numerical codes with no explanation whatsoever.
             # So instead of trying to guess what they mean, we just give a generic "this is not valid" error and hope for the best.
             # For future bugfixer => To avoid issues as much as possible, please add additional checks in the UBL python file to avoid these.
-            return self.env._('An error occurred while validating the invoice: "%(property_name)s" is invalid.', property_name=error['target'])
+            return self.env._(
+                'An error occurred while validating the invoice: "%(property_name)s" is invalid.',
+                property_name=error["target"],
+            )
 
-        return error_map.get(error['reference'], self.env._("An unexpected error has occurred."))
+        return error_map.get(
+            error["reference"], self.env._("An unexpected error has occurred.")
+        )
 
     @staticmethod
     def _can_commit():
-        """ Helper to know if we can commit the current transaction or not.
+        """Helper to know if we can commit the current transaction or not.
 
         :returns: True if commit is acceptable, False otherwise.
         """
-        return not config['test_enable'] and not modules.module.current_test
+        return not config["test_enable"] and not modules.module.current_test
 
     def _get_mail_thread_data_attachments(self):
         res = super()._get_mail_thread_data_attachments()
@@ -462,11 +574,13 @@ class MyInvoisDocument(models.Model):
 
         :param including_in_progress: if set to true, invoices of state in_progress will be included.
         """
-        active_states = ['valid', 'rejected'] + (['in_progress'] if including_in_progress else [])
+        active_states = ["valid", "rejected"] + (
+            ["in_progress"] if including_in_progress else []
+        )
         return self.filtered(lambda d: d.myinvois_state in active_states)[:1]
 
     def _generate_myinvois_qr_code(self):
-        """ Generate the qr code for which can be used to access this document. """
+        """Generate the qr code for which can be used to access this document."""
         self.check_singleton()
 
         if not self.myinvois_document_long_id:  # Only valid invoices have a long id
@@ -474,21 +588,23 @@ class MyInvoisDocument(models.Model):
 
         # We need to add the portal url to the qr
         proxy_user = self._myinvois_get_proxy_user()
-        if proxy_user.edi_mode == 'prod':
+        if proxy_user.edi_mode == "prod":
             portal_url = "myinvois.hasil.gov.my"
         else:
             portal_url = "preprod.myinvois.hasil.gov.my"
 
         try:
-            qr_code = self.env['ir.actions.report'].prepare_barcode(
-                barcode_type='QR',
+            qr_code = self.env["ir.actions.report"].prepare_barcode(
+                barcode_type="QR",
                 width=128,
                 height=128,
                 humanreadable=1,
-                value=f'https://{portal_url}/{self.myinvois_external_uuid}/share/{self.myinvois_document_long_id}',
+                value=f"https://{portal_url}/{self.myinvois_external_uuid}/share/{self.myinvois_document_long_id}",
             )
-        except (ValueError, AttributeError):
-            raise werkzeug.exceptions.HTTPException(description='Cannot convert into QR Code.')
+        except ValueError, AttributeError:
+            raise werkzeug.exceptions.HTTPException(
+                description="Cannot convert into QR Code."
+            )
 
         return image_data_uri(base64.b64encode(qr_code))
 
@@ -497,7 +613,10 @@ class MyInvoisDocument(models.Model):
         :return: True if this document is linked to a single refund invoice.
         """
         has_single_document = self.invoice_ids and len(self.invoice_ids) == 1
-        return has_single_document and self.invoice_ids[0].move_type in ('out_refund', 'in_refund')
+        return has_single_document and self.invoice_ids[0].move_type in (
+            "out_refund",
+            "in_refund",
+        )
 
     def _get_rounded_base_lines(self):
         """
@@ -509,7 +628,7 @@ class MyInvoisDocument(models.Model):
         self.check_singleton()
         # Refunds of consolidated invoices are treated as regular invoice besides for the fixed customer.
         if self._is_consolidated_invoice():
-            AccountTax = self.env['account.tax']
+            AccountTax = self.env["account.tax"]
             grouped_records = self._split_consolidated_invoice_record_in_lines()
 
             tax_data_fields = (
@@ -560,8 +679,14 @@ class MyInvoisDocument(models.Model):
                             for key in tax_data_fields:
                                 new_taxes_data_map[tax][key] = sign * tax_data[key]
 
-                total_amount_discounted = new_tax_details["total_excluded"] + new_tax_details["delta_total_excluded"]
-                total_amount_discounted_currency = new_tax_details["total_excluded_currency"] + new_tax_details["delta_total_excluded_currency"]
+                total_amount_discounted = (
+                    new_tax_details["total_excluded"]
+                    + new_tax_details["delta_total_excluded"]
+                )
+                total_amount_discounted_currency = (
+                    new_tax_details["total_excluded_currency"]
+                    + new_tax_details["delta_total_excluded_currency"]
+                )
                 total_amount = total_amount_currency = 0.0
                 for base_line in base_lines:
                     sign = -1 if base_line["is_refund"] else 1
@@ -580,26 +705,31 @@ class MyInvoisDocument(models.Model):
                     tax_ids=taxes,
                     price_unit=total_amount_currency,
                     discount_amount=total_amount - total_amount_discounted,
-                    discount_amount_currency=total_amount_currency - total_amount_discounted_currency,
+                    discount_amount_currency=total_amount_currency
+                    - total_amount_discounted_currency,
                     quantity=1.0,
                     currency_id=self.currency_id,
                     tax_details={
                         **new_tax_details,
                         "taxes_data": list(new_taxes_data_map.values()),
                     },
-                    line_name=f"{sequenced_records[0].name}-{sequenced_records[-1].name}" if len(sequenced_records) > 1 else sequenced_records[0].name,
+                    line_name=f"{sequenced_records[0].name}-{sequenced_records[-1].name}"
+                    if len(sequenced_records) > 1
+                    else sequenced_records[0].name,
                 )
                 consolidated_base_lines.append(new_base_line)
 
             base_lines = consolidated_base_lines
         else:
-            invoice = self.invoice_ids[0]  # Otherwise it would be a consolidated invoice.
+            invoice = self.invoice_ids[
+                0
+            ]  # Otherwise it would be a consolidated invoice.
             base_lines, _tax_lines = invoice._get_rounded_base_and_tax_lines()
         # In any cases, we'll provide a reference to the document in the base lines.
         # This will help later on when it is time to handle tax grouping as we may need to get the
         # tax exemption info.
         for base_line in base_lines:
-            base_line['myinvois_document'] = self
+            base_line["myinvois_document"] = self
 
         return base_lines
 
@@ -625,7 +755,11 @@ class MyInvoisDocument(models.Model):
         is_consolidated_invoice_refund = False
         if self._is_refund_document():
             refunded_invoice = self.invoice_ids.reversed_entry_id
-            refunded_document = refunded_invoice.l10n_my_edi_document_ids._get_active_myinvois_document(including_in_progress=True)
+            refunded_document = (
+                refunded_invoice.l10n_my_edi_document_ids._get_active_myinvois_document(
+                    including_in_progress=True
+                )
+            )
             is_consolidated_invoice_refund = len(refunded_document.invoice_ids) > 1
         return is_consolidated_invoice_refund
 
@@ -643,7 +777,9 @@ class MyInvoisDocument(models.Model):
             return []
 
         # We will be working on that soon, but for now we do not support it.
-        raise NotImplementedError("Support for consolidated invoices in the invoicing app is not yet implemented.")
+        raise NotImplementedError(
+            "Support for consolidated invoices in the invoicing app is not yet implemented."
+        )
 
     def _get_record_rounded_base_lines(self, record):
         """
@@ -655,7 +791,7 @@ class MyInvoisDocument(models.Model):
         self.check_singleton()
         record.check_singleton()
         base_lines = []
-        if record and record._name == 'account.move':
+        if record and record._name == "account.move":
             base_lines, _tax_lines = record._get_rounded_base_and_tax_lines()
         return base_lines
 
@@ -671,15 +807,18 @@ class MyInvoisDocument(models.Model):
         :param submissions_content: A dict of the format {record: {'name': '', 'xml': ''}}
         :return: a dict of potential errors in the format {record: errors_list}
         """
+
         def _format_error_messages(errors_list):
-            MixinAccountMoveSend = self.env['mixin.account.move.send']
+            MixinAccountMoveSend = self.env["mixin.account.move.send"]
             error_data = {
-                'error_title': self.env._("Error when sending the documents to the E-invoicing service."),
-                'errors': errors_list,
+                "error_title": self.env._(
+                    "Error when sending the documents to the E-invoicing service."
+                ),
+                "errors": errors_list,
             }
             return {
-                'html_error': MixinAccountMoveSend._format_error_html(error_data),
-                'plain_text_error': MixinAccountMoveSend._format_error_text(error_data),
+                "html_error": MixinAccountMoveSend._format_error_html(error_data),
+                "plain_text_error": MixinAccountMoveSend._format_error_text(error_data),
             }
 
         records_to_send = self.filtered(lambda record: record in submissions_content)
@@ -687,59 +826,91 @@ class MyInvoisDocument(models.Model):
             return None
 
         # Ensure to lock the records that will be sent, to avoid risking sending them twice.
-        self.env['res.company']._with_locked_records(records_to_send)
+        self.env["res.company"]._with_locked_records(records_to_send)
 
         error_messages = {}
         success_messages = {}
-        invoice_to_cancel = self.env['account.move']
+        invoice_to_cancel = self.env["account.move"]
 
         # We will group per proxy_user, then batch the records in batches of SUBMISSION_MAX_SIZE
-        records_per_proxy_users = records_to_send.grouped(lambda r: r._myinvois_get_proxy_user())
+        records_per_proxy_users = records_to_send.grouped(
+            lambda r: r._myinvois_get_proxy_user()
+        )
 
         # MyInvois only supports up to 100 document per submission. To avoid timing out on big batches, we split it client side.
         for proxy_user, records_to_send in records_per_proxy_users.items():
-            for batch in split_every(SUBMISSION_MAX_SIZE, records_to_send.ids, self.env['myinvois.document'].browse):
+            for batch in split_every(
+                SUBMISSION_MAX_SIZE,
+                records_to_send.ids,
+                self.env["myinvois.document"].browse,
+            ):
                 batch_result = proxy_user._l10n_my_edi_contact_proxy(
-                    endpoint='api/l10n_my_edi/1/submit_invoices',
+                    endpoint="api/l10n_my_edi/1/submit_invoices",
                     params={
-                        'documents': [{
-                            'move_id': record.id,
-                            'move_name': submissions_content[record]['name'],
-                            'error_document_hash': record.myinvois_error_document_hash,
-                            'retry_at': record.myinvois_retry_at,
-                            'data': base64.b64encode(submissions_content[record]['xml'].encode()).decode(),
-                        } for record in batch],
+                        "documents": [
+                            {
+                                "move_id": record.id,
+                                "move_name": submissions_content[record]["name"],
+                                "error_document_hash": record.myinvois_error_document_hash,
+                                "retry_at": record.myinvois_retry_at,
+                                "data": base64.b64encode(
+                                    submissions_content[record]["xml"].encode()
+                                ).decode(),
+                            }
+                            for record in batch
+                        ],
                     },
                 )
                 # If an error is present in the result itself (and not per document), it means that the whole submission failed.
                 # We don't add to the result but instead directly in the errors.
-                if 'error' in batch_result:
-                    error_string = self._myinvois_map_error(batch_result['error'])
-                    error_messages.update({record.id: _format_error_messages([error_string]) for record in batch})
+                if "error" in batch_result:
+                    error_string = self._myinvois_map_error(batch_result["error"])
+                    error_messages.update(
+                        {
+                            record.id: _format_error_messages([error_string])
+                            for record in batch
+                        }
+                    )
                 else:
-                    records_per_id = batch.grouped('id')
-                    for document_result in batch_result['documents']:
-                        record = records_per_id[document_result['move_id']]
-                        success = document_result['success']
+                    records_per_id = batch.grouped("id")
+                    for document_result in batch_result["documents"]:
+                        record = records_per_id[document_result["move_id"]]
+                        success = document_result["success"]
 
                         updated_values = {
-                            'myinvois_external_uuid': document_result.get('uuid'),  # rejected documents do not have an uuid.
-                            'myinvois_submission_uid': batch_result['submission_uid'],
-                            'myinvois_state': 'in_progress' if success else 'invalid',
+                            "myinvois_external_uuid": document_result.get(
+                                "uuid"
+                            ),  # rejected documents do not have an uuid.
+                            "myinvois_submission_uid": batch_result["submission_uid"],
+                            "myinvois_state": "in_progress" if success else "invalid",
                         }
 
                         if success:
                             # Ids are logged for future references. An invalid document may be reset to resend it after correction, which would be a new submission/uuid.
-                            success_messages[record.id] = self.env._('The document has been sent to MyInvois with uuid "%(uuid)s" and submission id "%(submission_id)s".\nValidation results will be available shortly.',
-                                                                     uuid=document_result['uuid'], submission_id=batch_result['submission_uid'])
+                            success_messages[record.id] = self.env._(
+                                'The document has been sent to MyInvois with uuid "%(uuid)s" and submission id "%(submission_id)s".\nValidation results will be available shortly.',
+                                uuid=document_result["uuid"],
+                                submission_id=batch_result["submission_uid"],
+                            )
                         else:
                             # When we raise a "hash_resubmitted" error, we don't resend the same hash/retry at and don't want to rewrite.
-                            if 'error_document_hash' in document_result:
-                                updated_values.update({
-                                    'myinvois_error_document_hash': document_result['error_document_hash'],
-                                    'myinvois_retry_at': document_result['retry_at'],
-                                })
-                            error_messages[record.id] = _format_error_messages([self._myinvois_map_error(error) for error in document_result['errors']])
+                            if "error_document_hash" in document_result:
+                                updated_values.update(
+                                    {
+                                        "myinvois_error_document_hash": document_result[
+                                            "error_document_hash"
+                                        ],
+                                        "myinvois_retry_at": document_result[
+                                            "retry_at"
+                                        ],
+                                    }
+                                )
+                            error_messages[record.id] = _format_error_messages(
+                                [
+                                    self._myinvois_map_error(error)
+                                    for error in document_result["errors"]
+                                ]
+                            )
                             if self.invoice_ids:
                                 invoice_to_cancel |= self.invoice_ids
 
@@ -756,7 +927,7 @@ class MyInvoisDocument(models.Model):
         if error_messages:
             unsuccessful_records = self.browse(list(error_messages.keys()))
             unsuccessful_records._myinvois_log_message(
-                bodies={rid: msg['html_error'] for rid, msg in error_messages.items()},
+                bodies={rid: msg["html_error"] for rid, msg in error_messages.items()},
             )
 
         if invoice_to_cancel:
@@ -771,6 +942,7 @@ class MyInvoisDocument(models.Model):
 
         :return: A dict of the format: {submission_uid: {'error': '', 'statuses': {record: document_statuses}}}
         """
+
         def _make_deep_default_dict():
             return defaultdict(_make_deep_default_dict)
 
@@ -778,49 +950,61 @@ class MyInvoisDocument(models.Model):
             return None
 
         results = _make_deep_default_dict()
-        for proxy_user, records in self.grouped(lambda r: r._myinvois_get_proxy_user()).items():
+        for proxy_user, records in self.grouped(
+            lambda r: r._myinvois_get_proxy_user()
+        ).items():
             if not proxy_user:
                 continue
 
-            for submission_uid, submission_records in records.grouped('myinvois_submission_uid').items():
+            for submission_uid, submission_records in records.grouped(
+                "myinvois_submission_uid"
+            ).items():
                 # Filter the submission records to skip batches that we don't want to fetch yet.
-                submission_records.filtered(lambda r: not r.myinvois_retry_at or fields.Datetime.from_string(r.myinvois_retry_at) <= datetime.datetime.now())
+                submission_records.filtered(
+                    lambda r: (
+                        not r.myinvois_retry_at
+                        or fields.Datetime.from_string(r.myinvois_retry_at)
+                        <= datetime.datetime.now()
+                    )
+                )
 
                 if not submission_uid or not submission_records:
                     continue
 
                 self.env["res.company"]._with_locked_records(submission_records)
 
-                records_per_uuid = submission_records.grouped('myinvois_external_uuid')
+                records_per_uuid = submission_records.grouped("myinvois_external_uuid")
 
                 result = proxy_user._l10n_my_edi_contact_proxy(
-                    endpoint='api/l10n_my_edi/1/get_submission_statuses',
+                    endpoint="api/l10n_my_edi/1/get_submission_statuses",
                     params={
-                        'submission_uid': submission_uid,
-                        'page': 1,
+                        "submission_uid": submission_uid,
+                        "page": 1,
                     },
                 )
-                if 'error' in result:
-                    results[submission_uid]['error'] = self._myinvois_map_error(result['error'])
+                if "error" in result:
+                    results[submission_uid]["error"] = self._myinvois_map_error(
+                        result["error"]
+                    )
                 else:
                     # While unlikely, if we end up with too many documents we will start by getting all the info.
-                    if result['document_count'] > 100:
-                        for page in range(2, (result['document_count'] // 100) + 1):
+                    if result["document_count"] > 100:
+                        for page in range(2, (result["document_count"] // 100) + 1):
                             if self._can_commit():  # avoid the sleep in tests.
                                 time.sleep(0.3)
                             page_result = proxy_user._l10n_my_edi_contact_proxy(
-                                endpoint='api/l10n_my_edi/1/get_submission_statuses',
+                                endpoint="api/l10n_my_edi/1/get_submission_statuses",
                                 params={
-                                    'submission_uid': submission_uid,
-                                    'page': page,
+                                    "submission_uid": submission_uid,
+                                    "page": page,
                                 },
                             )
-                            result['statuses'].update(page_result['statuses'])
+                            result["statuses"].update(page_result["statuses"])
 
-                    for uuid, status in result['statuses'].items():
+                    for uuid, status in result["statuses"].items():
                         record = records_per_uuid.get(uuid)
                         if record:
-                            results[submission_uid]['statuses'][record] = status
+                            results[submission_uid]["statuses"][record] = status
 
                 if self._can_commit():  # avoid the sleep in tests.
                     time.sleep(0.3)
@@ -834,25 +1018,33 @@ class MyInvoisDocument(models.Model):
         """
         statuses = self._myinvois_get_submission_status()
         for submission_uid, results in statuses.items():
-            records = self.browse(list(results['statuses'].keys()))
+            records = self.browse(list(results["statuses"].keys()))
 
-            if results['error']:
-                message = self.env["mixin.account.move.send"]._format_error_html({
-                    "error_title": self.env._("The status update failed with the following errors:"),
-                    "errors": results['error'],
-                })
-                records._myinvois_log_message(bodies={document.id: message for document in self})
+            if results["error"]:
+                message = self.env["mixin.account.move.send"]._format_error_html(
+                    {
+                        "error_title": self.env._(
+                            "The status update failed with the following errors:"
+                        ),
+                        "errors": results["error"],
+                    }
+                )
+                records._myinvois_log_message(
+                    bodies={document.id: message for document in self}
+                )
                 if with_commit and self._can_commit():
                     self.env.cr.commit()
                 continue
 
-            for record, status in results['statuses'].items():
+            for record, status in results["statuses"].items():
                 # For valid documents, we always want to update the try time; it's pointless to fetch too often.
-                if record.myinvois_state == 'valid' or status['status'] == 'valid':
-                    record.myinvois_retry_at = fields.Datetime.now() + datetime.timedelta(hours=1)
+                if record.myinvois_state == "valid" or status["status"] == "valid":
+                    record.myinvois_retry_at = (
+                        fields.Datetime.now() + datetime.timedelta(hours=1)
+                    )
 
                 # If the status did not change, we do not need to do anything more.
-                if record.myinvois_state == status['status']:
+                if record.myinvois_state == status["status"]:
                     if with_commit and self._can_commit():
                         self.env.cr.commit()
                     continue
@@ -860,11 +1052,18 @@ class MyInvoisDocument(models.Model):
                 # Invalid documents may not all have a reason, but we still want to log something.
                 # We will have a reason when documents are cancelled/rejected though, and we want to log that too.
                 message = None
-                if status.get('reason') or status['status'] == 'invalid':
-                    if status.get('reason'):
-                        message = record.env._('The MyInvois platform returned a "%(status)s" status for this document for reason: %(reason)s', status=status['reason'], reason=status['reason'])
+                if status.get("reason") or status["status"] == "invalid":
+                    if status.get("reason"):
+                        message = record.env._(
+                            'The MyInvois platform returned a "%(status)s" status for this document for reason: %(reason)s',
+                            status=status["reason"],
+                            reason=status["reason"],
+                        )
                     else:
-                        message = record.env._('The MyInvois platform returned an "%(status)s" status for this document.', status=status['reason'])
+                        message = record.env._(
+                            'The MyInvois platform returned an "%(status)s" status for this document.',
+                            status=status["reason"],
+                        )
 
                 record._myinvois_set_state(status["status"], message)
                 record._myinvois_set_validation_fields(status)
@@ -873,27 +1072,41 @@ class MyInvoisDocument(models.Model):
                 self.env.cr.commit()
 
     def _check_taxes(self):
-        """ Makes use of account.edi.xml.ubl_myinvois_my to validate the taxes for the records in self."""
+        """Makes use of account.edi.xml.ubl_myinvois_my to validate the taxes for the records in self."""
         if self.invoice_ids:
-            self.env["account.edi.xml.ubl_myinvois_my"]._check_taxes(self.invoice_ids.invoice_line_ids.tax_ids)
+            self.env["account.edi.xml.ubl_myinvois_my"]._check_taxes(
+                self.invoice_ids.invoice_line_ids.tax_ids
+            )
 
     def _myinvois_generate_xml_file(self):
-        """ Generate the xml file representing this record(s) attached to this document. """
+        """Generate the xml file representing this record(s) attached to this document."""
         self.check_singleton()
-        builder = self.env['account.edi.xml.ubl_myinvois_my']
+        builder = self.env["account.edi.xml.ubl_myinvois_my"]
         # 1. Validate the structure of the taxes
         self._check_taxes()
         # 2. Export the file data
-        vals = {'myinvois_document': self.with_context(lang=self.env.company.partner_id.lang)}
+        vals = {
+            "myinvois_document": self.with_context(
+                lang=self.env.company.partner_id.lang
+            )
+        }
         document_node = builder._get_myinvois_document_node(vals)
-        vals['document_node'] = document_node
+        vals["document_node"] = document_node
         # 3. Check for any issue with the data
-        errors = [constraint for constraint in builder._export_myinvois_document_constraints(vals).values() if constraint]
+        errors = [
+            constraint
+            for constraint in builder._export_myinvois_document_constraints(
+                vals
+            ).values()
+            if constraint
+        ]
         # 4. Generate the xml file
         template = builder._get_document_template(vals)
         nsmap = builder._get_document_nsmap(vals)
         xml_content = dict_to_xml(document_node, nsmap=nsmap, template=template)
-        return etree.tostring(xml_content, xml_declaration=True, encoding='UTF-8'), set(errors)
+        return etree.tostring(xml_content, xml_declaration=True, encoding="UTF-8"), set(
+            errors
+        )
 
     def _submit_to_myinvois(self):
         """
@@ -904,23 +1117,26 @@ class MyInvoisDocument(models.Model):
         self.action_generate_xml_file()
 
         # Submit the documents to the API
-        errors = self._myinvois_submit_documents({
-            document: {
-                'name': document.name,
-                'xml': base64.b64decode(document.myinvois_file).decode('utf-8'),
-            } for document in self
-        })
+        errors = self._myinvois_submit_documents(
+            {
+                document: {
+                    "name": document.name,
+                    "xml": base64.b64decode(document.myinvois_file).decode("utf-8"),
+                }
+                for document in self
+            }
+        )
 
         # When sending an individual document, we can raise once we are sure we logged the errors.
         if len(self) == 1 and errors:
             if self._can_commit():
                 self.env.cr.commit()  # Save the error logged in the chatter.
-            raise UserError(errors[self.id]['plain_text_error'])
+            raise UserError(errors[self.id]["plain_text_error"])
 
         # Try and get the status, up to three time, stopping if all documents have a status already.
         for _i in range(3):
             self._myinvois_submission_statuses_update()
-            if not any(document.myinvois_state == 'in_progress' for document in self):
+            if not any(document.myinvois_state == "in_progress" for document in self):
                 break
             if self._can_commit():  # avoid the sleep in tests.
                 time.sleep(1)
@@ -928,7 +1144,7 @@ class MyInvoisDocument(models.Model):
     # Status Update
 
     def _myinvois_check_can_update_status(self):
-        """ The document status can only be updated (for rejection, or cancellation) up to 72h after the validation time.
+        """The document status can only be updated (for rejection, or cancellation) up to 72h after the validation time.
         After that, any update will be rejected by the platform, as you are expected to issue a debit/credit note.
 
         This helper will raise if the status cannot be updated.
@@ -939,12 +1155,20 @@ class MyInvoisDocument(models.Model):
 
         time_difference = datetime.datetime.now() - self.myinvois_validation_time
         if time_difference >= datetime.timedelta(days=3):
-            raise UserError(self.env._('It has been more than 72h since the document validation, you can no longer cancel it.\n'
-                                       'Instead, you should issue a debit or credit note.'))
-        if self.myinvois_state not in ['valid', 'rejected']:
-            raise UserError(self.env._('You can only change the state of a document in the valid or rejected states.'))
+            raise UserError(
+                self.env._(
+                    "It has been more than 72h since the document validation, you can no longer cancel it.\n"
+                    "Instead, you should issue a debit or credit note."
+                )
+            )
+        if self.myinvois_state not in ["valid", "rejected"]:
+            raise UserError(
+                self.env._(
+                    "You can only change the state of a document in the valid or rejected states."
+                )
+            )
 
-    def _action_myinvois_update_document(self, new_status='cancelled'):
+    def _action_myinvois_update_document(self, new_status="cancelled"):
         """
         Returns the action to open the status updated wizard for the mode passed in params.
 
@@ -971,36 +1195,42 @@ class MyInvoisDocument(models.Model):
         At that point, the invoice will be cancelled if need be by the call to _myinvois_set_state.
         """
         self.check_singleton()
-        self.env['res.company']._with_locked_records(self)
+        self.env["res.company"]._with_locked_records(self)
         proxy_user = self._myinvois_get_proxy_user()
 
         # While we do this check before opening the wizard (to avoid filling the wizard for nothing), it is safer to
         # recheck here in case we exceeded the limit in the meantime or if this is called from elsewhere.
         self._myinvois_check_can_update_status()
 
-        successfully_updated_documents = self.env['myinvois.document']
+        successfully_updated_documents = self.env["myinvois.document"]
         for document in self:
             result = proxy_user._l10n_my_edi_contact_proxy(
-                endpoint='api/l10n_my_edi/1/update_status',
+                endpoint="api/l10n_my_edi/1/update_status",
                 params={
-                    'status_values': {
-                        'uuid': document.myinvois_external_uuid,
-                        'reason': reason,
-                        'status': status,
+                    "status_values": {
+                        "uuid": document.myinvois_external_uuid,
+                        "reason": reason,
+                        "status": status,
                     },
                 },
             )
 
             # If it is not a success, it will have raised an error.
-            if 'error' in result:
-                document._myinvois_log_message(message=self._myinvois_map_error(result['error']))
+            if "error" in result:
+                document._myinvois_log_message(
+                    message=self._myinvois_map_error(result["error"])
+                )
             else:
                 successfully_updated_documents |= document
 
-        if status in self._fields['myinvois_state'].get_values(self.env):
+        if status in self._fields["myinvois_state"].get_values(self.env):
             successfully_updated_documents._myinvois_set_state(
                 state=status,
-                message=self.env._('This document has been %(status)s for reason: %(reason)s', status=status, reason=reason),
+                message=self.env._(
+                    "This document has been %(status)s for reason: %(reason)s",
+                    status=status,
+                    reason=reason,
+                ),
             )
 
         if self._can_commit():
@@ -1025,16 +1255,20 @@ class MyInvoisDocument(models.Model):
 
     def _myinvois_set_validation_fields(self, validation_result):
         self.check_singleton()
-        if self.myinvois_state != 'valid':
+        if self.myinvois_state != "valid":
             return
 
         # We receive a timezone_aware datetime, but it should always be in UTC.
         # Odoo expect a timezone unaware datetime in UTC, so we can safely remove the info without any more work needed.
-        utc_tz_aware_datetime = dateutil.parser.isoparse(validation_result['valid_datetime'])
-        self.write({
-            'myinvois_validation_time': utc_tz_aware_datetime.replace(tzinfo=None),
-            'myinvois_document_long_id': validation_result['long_id'],
-        })
+        utc_tz_aware_datetime = dateutil.parser.isoparse(
+            validation_result["valid_datetime"]
+        )
+        self.write(
+            {
+                "myinvois_validation_time": utc_tz_aware_datetime.replace(tzinfo=None),
+                "myinvois_document_long_id": validation_result["long_id"],
+            }
+        )
 
     def _myinvois_single_status_update(self):
         """
@@ -1044,31 +1278,39 @@ class MyInvoisDocument(models.Model):
         self.check_singleton()
         proxy_user = self._myinvois_get_proxy_user()
 
-        self.env['res.company']._with_locked_records(self)
+        self.env["res.company"]._with_locked_records(self)
 
         result = proxy_user._l10n_my_edi_contact_proxy(
-            endpoint='api/l10n_my_edi/1/get_status',
+            endpoint="api/l10n_my_edi/1/get_status",
             params={
-                'document_uuid': self.myinvois_external_uuid,
+                "document_uuid": self.myinvois_external_uuid,
             },
         )
 
-        if 'error' in result:
-            raise UserError(self._myinvois_map_error(result['error']))
+        if "error" in result:
+            raise UserError(self._myinvois_map_error(result["error"]))
 
-        if result['status'] == self.myinvois_state:
+        if result["status"] == self.myinvois_state:
             return
 
         message = None
-        if 'validation_errors' in result:
-            message = self.env['mixin.account.move.send']._format_error_html({
-                'error_title': self.env._('The validation failed with the following errors:'),
-                'errors': result['validation_errors'],
-            })
-        elif result.get('status_reason'):
-            message = self.env._('This document has been %(status)s for reason: %(reason)s', status=result['status'], reason=result['status_reason'])
+        if "validation_errors" in result:
+            message = self.env["mixin.account.move.send"]._format_error_html(
+                {
+                    "error_title": self.env._(
+                        "The validation failed with the following errors:"
+                    ),
+                    "errors": result["validation_errors"],
+                }
+            )
+        elif result.get("status_reason"):
+            message = self.env._(
+                "This document has been %(status)s for reason: %(reason)s",
+                status=result["status"],
+                reason=result["status_reason"],
+            )
 
-        self._myinvois_set_state(result['status'], message)
+        self._myinvois_set_state(result["status"], message)
         self._myinvois_set_validation_fields(result)
 
     @api.model
@@ -1082,36 +1324,50 @@ class MyInvoisDocument(models.Model):
         # /!\ when a document validation is pending, myinvois_validation_time is still None. These also need to be updated.
         datetime_threshold = datetime.datetime.now() - datetime.timedelta(hours=74)
         # We always want to fetch in_progress document, it's very likely that their status is already there.
-        domain = Domain('myinvois_state', 'in', ('in_progress', False))
+        domain = Domain("myinvois_state", "in", ("in_progress", False))
         # For valid document, we want them if their myinvois_validation_time is less than 74h ago, and if their myinvois_retry_at in the past.
-        domain |= Domain([
-            ('myinvois_state', '=', 'valid'),
-            ('myinvois_validation_time', '>', datetime_threshold),
-            '|',
-            ('myinvois_retry_at', '<=', datetime.datetime.now()),
-            ('myinvois_retry_at', '=', False),
-        ])
-        grouped_documents = self.env['myinvois.document']._read_group(
+        domain |= Domain(
+            [
+                ("myinvois_state", "=", "valid"),
+                ("myinvois_validation_time", ">", datetime_threshold),
+                "|",
+                ("myinvois_retry_at", "<=", datetime.datetime.now()),
+                ("myinvois_retry_at", "=", False),
+            ]
+        )
+        grouped_documents = self.env["myinvois.document"]._read_group(
             domain,
-            groupby=['myinvois_submission_uid'],
-            aggregates=['id:recordset'],
+            groupby=["myinvois_submission_uid"],
+            aggregates=["id:recordset"],
             limit=MAX_SUBMISSION_UPDATE,
         )
-        document_count = self.search_count(domain)  # Count the total amount of documents to process.
+        document_count = self.search_count(
+            domain
+        )  # Count the total amount of documents to process.
 
         processed_documents = 0
         for index, (submission_uid, documents) in enumerate(grouped_documents):
             # Update the status for that one submission. In case of errors, we log it and continue.
             # Errors are quite unlikely in this flow.
-            documents._myinvois_submission_statuses_update(with_commit=False)  # We handle the commit after notifying of progress.
+            documents._myinvois_submission_statuses_update(
+                with_commit=False
+            )  # We handle the commit after notifying of progress.
 
             processed_documents += len(documents)
             # Commit if we can, in case an issue arises later.
             if self._can_commit():
-                self.env['ir.cron']._commit_progress(processed=processed_documents, remaining=document_count - processed_documents)
+                self.env["ir.cron"]._commit_progress(
+                    processed=processed_documents,
+                    remaining=document_count - processed_documents,
+                )
 
                 # Avoid sleeping on the last loop and in tests (due to the commit check)
                 if index != (len(grouped_documents) - 1):
-                    time.sleep(0.3)  # There is a limit of how many calls we can do, so we spread them out a bit.
+                    time.sleep(
+                        0.3
+                    )  # There is a limit of how many calls we can do, so we spread them out a bit.
         if self._can_commit():
-            self.env['ir.cron']._commit_progress(processed=processed_documents, remaining=document_count - processed_documents)
+            self.env["ir.cron"]._commit_progress(
+                processed=processed_documents,
+                remaining=document_count - processed_documents,
+            )

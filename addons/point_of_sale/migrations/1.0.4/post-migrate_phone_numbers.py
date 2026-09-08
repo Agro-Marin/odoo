@@ -1,8 +1,6 @@
 from odoo.db.schema import column_exists
 
-SOURCES = (
-    ("pos_order", "mobile", "mobile", "pos_order_phone_number_rel", "order_id"),
-)
+SOURCES = (("pos_order", "mobile", "mobile", "pos_order_phone_number_rel", "order_id"),)
 
 SANITIZE = r"""
     regexp_replace(

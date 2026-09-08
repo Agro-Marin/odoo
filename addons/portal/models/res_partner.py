@@ -3,7 +3,6 @@ from odoo.fields import Domain
 
 
 class ResPartner(models.Model):
-
     _inherit = "res.partner"
 
     @api.model

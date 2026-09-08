@@ -103,9 +103,7 @@ class TestAnalyticMixin(TransactionCase):
             filter_domain("!=", "Commercial & Marketing"),
             adm_ids - self.adm_com_marketing_ad,
         )
-        self.assertEqual(
-            filter_domain("!=", ""), adm_ids
-        )  # Should return every ADM
+        self.assertEqual(filter_domain("!=", ""), adm_ids)  # Should return every ADM
         self.assertEqual(
             filter_domain("!=", self.commercial_aa.id), adm_ids - self.adm_commercial_ad
         )

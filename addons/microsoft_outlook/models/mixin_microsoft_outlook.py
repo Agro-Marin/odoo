@@ -14,50 +14,65 @@ OUTLOOK_TOKEN_REQUEST_TIMEOUT = OAUTH2_TOKEN_REQUEST_TIMEOUT
 OUTLOOK_TOKEN_VALIDITY_THRESHOLD = OAUTH2_TOKEN_VALIDITY_THRESHOLD
 
 OUTLOOK = Oauth2MailProvider(
-    prefix='microsoft_outlook',
-    label='Outlook',
-    route='microsoft_outlook',
-    csrf_scope='microsoft_outlook_oauth',
-    iap_service='outlook',
-    iap_endpoint_param='mail.server.outlook.iap.endpoint',
-    iap_endpoint_default='https://outlook.api.odoo.com',
-    authorize_url=lambda records: url_join(records._get_microsoft_endpoint(), 'authorize'),
-    token_url=lambda records: url_join(records._get_microsoft_endpoint(), 'token'),
+    prefix="microsoft_outlook",
+    label="Outlook",
+    route="microsoft_outlook",
+    csrf_scope="microsoft_outlook_oauth",
+    iap_service="outlook",
+    iap_endpoint_param="mail.server.outlook.iap.endpoint",
+    iap_endpoint_default="https://outlook.api.odoo.com",
+    authorize_url=lambda records: url_join(
+        records._get_microsoft_endpoint(), "authorize"
+    ),
+    token_url=lambda records: url_join(records._get_microsoft_endpoint(), "token"),
     # offline_access is needed to have the refresh_token
     scope=lambda records: (
-        'openid email offline_access '
-        f'https://outlook.office.com/User.read {records._OUTLOOK_SCOPE}'
+        "openid email offline_access "
+        f"https://outlook.office.com/User.read {records._OUTLOOK_SCOPE}"
     ),
-    authorize_extra_params={'response_mode': 'query'},
+    authorize_extra_params={"response_mode": "query"},
     token_sends_scope=True,
     token_error_detail=True,
 )
 
 
 class MixinMicrosoftOutlook(models.AbstractModel):
-    _name = 'mixin.microsoft.outlook'
-    _inherit = ['mixin.oauth2.mail.provider']
+    _name = "mixin.microsoft.outlook"
+    _inherit = ["mixin.oauth2.mail.provider"]
 
-    _description = 'Microsoft Outlook Mixin'
+    _description = "Microsoft Outlook Mixin"
 
     _OUTLOOK_SCOPE = None
 
     # Doors onto `oauth2_credential_id`, not stores. The names stay: they are in
     # the views and in every caller.
-    microsoft_outlook_refresh_token = fields.Char(string='Outlook Refresh Token',
-        groups='base.group_system', copy=False,
-        compute='_compute_microsoft_outlook_tokens',
-        inverse='_inverse_microsoft_outlook_refresh_token')
-    microsoft_outlook_access_token = fields.Char(string='Outlook Access Token',
-        groups='base.group_system', copy=False,
-        compute='_compute_microsoft_outlook_tokens',
-        inverse='_inverse_microsoft_outlook_access_token')
-    microsoft_outlook_access_token_expiration = fields.Integer(string='Outlook Access Token Expiration Timestamp',
-        groups='base.group_system', copy=False)
-    microsoft_outlook_uri = fields.Char(compute='_compute_outlook_uri', string='Authentication URI',
-        help='The URL to generate the authorization code from Outlook', groups='base.group_system')
+    microsoft_outlook_refresh_token = fields.Char(
+        string="Outlook Refresh Token",
+        groups="base.group_system",
+        copy=False,
+        compute="_compute_microsoft_outlook_tokens",
+        inverse="_inverse_microsoft_outlook_refresh_token",
+    )
+    microsoft_outlook_access_token = fields.Char(
+        string="Outlook Access Token",
+        groups="base.group_system",
+        copy=False,
+        compute="_compute_microsoft_outlook_tokens",
+        inverse="_inverse_microsoft_outlook_access_token",
+    )
+    microsoft_outlook_access_token_expiration = fields.Integer(
+        string="Outlook Access Token Expiration Timestamp",
+        groups="base.group_system",
+        copy=False,
+    )
+    microsoft_outlook_uri = fields.Char(
+        compute="_compute_outlook_uri",
+        string="Authentication URI",
+        help="The URL to generate the authorization code from Outlook",
+        groups="base.group_system",
+    )
 
-    @api.depends('oauth2_credential_id')
+    @api.depends("oauth2_credential_id")
     def _compute_microsoft_outlook_tokens(self):
         for record in self:
             access_token, refresh_token = record._oauth2_stored_tokens()
@@ -100,12 +115,12 @@ class MixinMicrosoftOutlook(models.AbstractModel):
         if not client_id or not client_secret:
             return self._get_outlook_access_token_iap(refresh_token)
 
-        response = self._get_outlook_token('refresh_token', refresh_token=refresh_token)
+        response = self._get_outlook_token("refresh_token", refresh_token=refresh_token)
         return (
-            response['refresh_token'],
-            response['access_token'],
-            response['id_token'],
-            int(time.time()) + int(response['expires_in']),
+            response["refresh_token"],
+            response["access_token"],
+            response["id_token"],
+            int(time.time()) + int(response["expires_in"]),
         )
 
     def _get_outlook_token(self, grant_type, **values):
@@ -120,11 +135,15 @@ class MixinMicrosoftOutlook(models.AbstractModel):
         :param login: Email address of the Outlook account to authenticate
         :return: The SASL argument for the OAuth2 mechanism.
         """
-        return self._oauth2_generate_string(OUTLOOK, login, self._renew_outlook_access_token)
+        return self._oauth2_generate_string(
+            OUTLOOK, login, self._renew_outlook_access_token
+        )
 
     def _renew_outlook_access_token(self):
         if not self.microsoft_outlook_refresh_token:
-            raise UserError(_('Please connect with your Outlook account before using it.'))
+            raise UserError(
+                _("Please connect with your Outlook account before using it.")
+            )
         (
             self.microsoft_outlook_refresh_token,
             self.microsoft_outlook_access_token,
@@ -137,7 +156,11 @@ class MixinMicrosoftOutlook(models.AbstractModel):
 
     @api.model
     def _get_microsoft_endpoint(self):
-        return self.env["ir.config_parameter"].sudo().get_param(
-            'microsoft_outlook.endpoint',
-            'https://login.microsoftonline.com/common/oauth2/v2.0/',
+        return (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(
+                "microsoft_outlook.endpoint",
+                "https://login.microsoftonline.com/common/oauth2/v2.0/",
+            )
         )

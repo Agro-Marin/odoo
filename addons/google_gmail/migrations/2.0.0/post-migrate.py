@@ -42,12 +42,14 @@ def migrate(cr, version):
         for record_id, name, access_token, refresh_token in cr.fetchall():
             if category is None:
                 category = env.ref("credential.credential_category_oauth2")
-            credential = env["credential.credential"].create({
-                "name": f"{LABEL}: {name}",
-                "category_id": category.id,
-                "oauth_access_token": access_token or False,
-                "oauth_refresh_token": refresh_token or False,
-            })
+            credential = env["credential.credential"].create(
+                {
+                    "name": f"{LABEL}: {name}",
+                    "category_id": category.id,
+                    "oauth_access_token": access_token or False,
+                    "oauth_refresh_token": refresh_token or False,
+                }
+            )
             cr.execute(
                 f"UPDATE {table} SET oauth2_credential_id = %s WHERE id = %s",
                 (credential.id, record_id),

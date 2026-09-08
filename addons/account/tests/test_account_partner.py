@@ -26,9 +26,7 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         self.assertEqual(partner.days_sales_outstanding, 0.0)
         move_1.action_post()
         self.env.invalidate_all()
-        self.assertEqual(
-            partner.days_sales_outstanding, 150
-        )
+        self.assertEqual(partner.days_sales_outstanding, 150)
         self.env["account.payment.register"].with_context(
             active_model="account.move", active_ids=move_1.ids
         ).create(
@@ -226,9 +224,7 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         self.partner_a.parent_id = self.partner_b
 
     def test_res_partner_bank(self):
-        self.env.user.group_ids -= self.env.ref(
-            "base.group_system"
-        )
+        self.env.user.group_ids -= self.env.ref("base.group_system")
         self.env.user.group_ids += self.env.ref("base.group_partner_manager")
         self.env.user.group_ids += self.env.ref("account.group_validate_bank_account")
         partner = self.env["res.partner"].create({"name": "MyCustomer"})

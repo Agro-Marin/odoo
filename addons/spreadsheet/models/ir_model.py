@@ -15,5 +15,7 @@ class IrModel(models.Model):
             else:
                 # we consider only stored parent relationships were meant to
                 # be searched
-                result[model_name] = model._parent_store and model._parent_name in model._fields
+                result[model_name] = (
+                    model._parent_store and model._parent_name in model._fields
+                )
         return result

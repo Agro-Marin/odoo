@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
-
 from odoo import models
 
 
 class AccountEdiXmlUbl_Nl(models.AbstractModel):
-    _name = 'account.edi.xml.ubl_nl'
+    _name = "account.edi.xml.ubl_nl"
     _inherit = ["account.edi.xml.ubl_bis3"]
     _description = "SI-UBL 2.0 (NLCIUS)"
 
@@ -36,17 +34,21 @@ class AccountEdiXmlUbl_Nl(models.AbstractModel):
     # EXPORT: Templates
     # -------------------------------------------------------------------------
 
-    def _get_customization_id(self, process_type='billing'):
-        if process_type == 'billing':
-            return 'urn:cen.eu:en16931:2017#compliant#urn:fdc:nen.nl:nlcius:v1.0'
+    def _get_customization_id(self, process_type="billing"):
+        if process_type == "billing":
+            return "urn:cen.eu:en16931:2017#compliant#urn:fdc:nen.nl:nlcius:v1.0"
 
-    def _ubl_default_tax_category_grouping_key(self, base_line, tax_data, vals, currency):
+    def _ubl_default_tax_category_grouping_key(
+        self, base_line, tax_data, vals, currency
+    ):
         # EXTENDS account.edi.xml.ubl_bis3
-        grouping_key = super()._ubl_default_tax_category_grouping_key(base_line, tax_data, vals, currency)
+        grouping_key = super()._ubl_default_tax_category_grouping_key(
+            base_line, tax_data, vals, currency
+        )
         if not grouping_key:
-            return
+            return None
 
-        grouping_key['tax_exemption_reason_code'] = None
+        grouping_key["tax_exemption_reason_code"] = None
         return grouping_key
 
     def _ubl_add_values_tax_currency_code(self, vals):
@@ -55,40 +57,44 @@ class AccountEdiXmlUbl_Nl(models.AbstractModel):
 
     def _ubl_tax_totals_node_grouping_key(self, base_line, tax_data, vals, currency):
         # EXTENDS account.edi.xml.ubl_bis3
-        tax_total_keys = super()._ubl_tax_totals_node_grouping_key(base_line, tax_data, vals, currency)
+        tax_total_keys = super()._ubl_tax_totals_node_grouping_key(
+            base_line, tax_data, vals, currency
+        )
 
-        company_currency = vals['company'].currency_id
+        company_currency = vals["company"].currency_id
         if (
-            tax_total_keys['tax_total_key']
-            and company_currency != vals['currency']
-            and tax_total_keys['tax_total_key']['currency'] == company_currency
+            tax_total_keys["tax_total_key"]
+            and company_currency != vals["currency"]
+            and tax_total_keys["tax_total_key"]["currency"] == company_currency
         ):
-            tax_total_keys['tax_total_key'] = None
+            tax_total_keys["tax_total_key"] = None
 
         return tax_total_keys
 
     def _ubl_get_line_allowance_charge_discount_node(self, vals, discount_values):
         # EXTENDS account.edi.xml.ubl_bis3
-        discount_node = super()._ubl_get_line_allowance_charge_discount_node(vals, discount_values)
-        discount_node['cbc:AllowanceChargeReasonCode'] = None
-        discount_node['cbc:MultiplierFactorNumeric'] = None
-        discount_node['cbc:BaseAmount'] = None
+        discount_node = super()._ubl_get_line_allowance_charge_discount_node(
+            vals, discount_values
+        )
+        discount_node["cbc:AllowanceChargeReasonCode"] = None
+        discount_node["cbc:MultiplierFactorNumeric"] = None
+        discount_node["cbc:BaseAmount"] = None
         return discount_node
 
     def _add_invoice_payment_means_nodes(self, document_node, vals):
         # EXTENDS account.edi.xml.ubl_bis3
         super()._add_invoice_payment_means_nodes(document_node, vals)
         # [BR-NL-29] The use of a payment means text (cac:PaymentMeans/cbc:PaymentMeansCode/@name) is not recommended
-        payment_means_node = document_node['cac:PaymentMeans']
-        if 'name' in payment_means_node['cbc:PaymentMeansCode']:
-            payment_means_node['cbc:PaymentMeansCode']['name'] = None
-        if 'listID' in payment_means_node['cbc:PaymentMeansCode']:
-            payment_means_node['cbc:PaymentMeansCode']['listID'] = None
+        payment_means_node = document_node["cac:PaymentMeans"]
+        if "name" in payment_means_node["cbc:PaymentMeansCode"]:
+            payment_means_node["cbc:PaymentMeansCode"]["name"] = None
+        if "listID" in payment_means_node["cbc:PaymentMeansCode"]:
+            payment_means_node["cbc:PaymentMeansCode"]["listID"] = None
 
     def _get_address_node(self, vals):
         # EXTENDS account.edi.xml.ubl_bis3
         address_node = super()._get_address_node(vals)
         # [BR-NL-28] The use of a country subdivision (cac:AccountingCustomerParty/cac:Party/cac:PostalAddress
         # /cbc:CountrySubentity) is not recommended
-        address_node['cbc:CountrySubentity'] = None
+        address_node["cbc:CountrySubentity"] = None
         return address_node

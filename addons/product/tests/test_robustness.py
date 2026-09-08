@@ -8,7 +8,6 @@ from .common import ProductCommon, ProductVariantsCommon
 
 
 class TestBugFixes(ProductCommon):
-
     def test_b1_mutable_default_pricelist_recursion(self):
         self._enable_pricelists()
         pl_a = self._create_pricelist(name="PL A")
@@ -94,9 +93,6 @@ class TestBugFixes(ProductCommon):
 
 
 class TestPerformanceOptimizations(ProductVariantsCommon):
-
-
-
     def test_p3_batch_set_template_field(self):
         template = self.product.product_tmpl_id
         self.assertEqual(
@@ -219,7 +215,6 @@ class TestPerformanceOptimizations(ProductVariantsCommon):
 
 
 class TestCodeQualityFixes(ProductCommon):
-
     def test_q3_no_dead_compute_price_on_supplierinfo(self):
         SupplierInfo = self.env["product.supplierinfo"]
         self.assertFalse(
@@ -304,7 +299,6 @@ class TestCodeQualityFixes(ProductCommon):
 
 
 class TestProductCategory(ProductCommon):
-
     def test_complete_name_hierarchy(self):
         parent = self.env["product.category"].create({"name": "Electronics"})
         child = self.env["product.category"].create(
@@ -349,7 +343,6 @@ class TestProductCategory(ProductCommon):
 
 
 class TestPricelistItemConstraints(ProductCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -432,7 +425,6 @@ class TestPricelistItemConstraints(ProductCommon):
 
 
 class TestSupplierInfoCompute(ProductCommon):
-
     def test_compute_product_uom_id(self):
         partner = self.env["res.partner"].create({"name": "Vendor"})
         supplier = self.env["product.supplierinfo"].create(
@@ -482,7 +474,6 @@ class TestSupplierInfoCompute(ProductCommon):
 
 
 class TestResCompanyPricelist(TransactionCase):
-
     def test_company_creates_default_pricelist(self):
         self.env.user.group_ids += self.env.ref("product.group_product_pricelist")
         company = self.env["res.company"].create(
@@ -501,7 +492,6 @@ class TestResCompanyPricelist(TransactionCase):
 
 
 class TestVariantOptimizations(ProductVariantsCommon):
-
     def test_p8_variant_limit_hoisted(self):
         self.env["ir.config_parameter"].sudo().set_param(
             "product.dynamic_variant_limit",
@@ -560,7 +550,6 @@ class TestVariantOptimizations(ProductVariantsCommon):
 
 
 class TestPricelistItemComputeHardening(ProductCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -649,7 +638,6 @@ class TestPricelistItemComputeHardening(ProductCommon):
 
 
 class TestPricelistItemRefactor(ProductCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

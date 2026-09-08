@@ -1,6 +1,6 @@
 from freezegun import freeze_time
-from odoo import Command
 
+from odoo import Command
 from odoo.tests import Form, tagged, users, warmup
 
 from odoo.addons.test_crm_full.tests.common import TestCrmFullCommon
@@ -50,7 +50,11 @@ class TestCrmPerformance(CrmPerformanceCase):
                     "function": "Noisy Customer",
                     "lang_id": lang_be_id,
                     "name": "Test Lead %02d" % idx,
-                    "phone_ids": [Command.create({"number": "04550000%02d" % idx, "type": "landline"})],
+                    "phone_ids": [
+                        Command.create(
+                            {"number": "04550000%02d" % idx, "type": "landline"}
+                        )
+                    ],
                     "street": "Super Street, %092d" % idx,
                     "zip": "1400",
                 }
@@ -123,7 +127,9 @@ class TestCrmPerformance(CrmPerformanceCase):
                     "function": "Noisy Customer",
                     "lang_id": lang_be_id,
                     "name": "Test Lead",
-                    "phone_ids": [Command.create({"number": "0455000000", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create({"number": "0455000000", "type": "landline"})
+                    ],
                     "street": "Super Street, 00",
                     "zip": "1400",
                 }

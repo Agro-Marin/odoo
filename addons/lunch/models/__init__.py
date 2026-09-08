@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import lunch_alert
 from . import lunch_cashmove
 from . import lunch_location

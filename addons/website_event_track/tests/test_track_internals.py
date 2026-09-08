@@ -168,7 +168,9 @@ class TestTrackData(TestEventOnlineCommon):
                 "event_id": event.id,
                 "name": "Mega Track",
                 "partner_name": "Nibbler In Space",
-                "phone_ids": [Command.create({"number": test_phone, "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": test_phone, "type": "landline"})
+                ],
                 "partner_biography": test_bio,
             }
         )
@@ -199,7 +201,9 @@ class TestTrackData(TestEventOnlineCommon):
             {
                 "event_id": event.id,
                 "name": "Mega Track",
-                "contact_phone_ids": [Command.create({"number": test_phone, "type": "landline"})],
+                "contact_phone_ids": [
+                    Command.create({"number": test_phone, "type": "landline"})
+                ],
             }
         )
         self.assertEqual(new_track.contact_email, False)

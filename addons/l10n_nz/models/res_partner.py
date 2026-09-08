@@ -1,10 +1,10 @@
-from odoo import models, _
+from odoo import _, models
 
 
 class ResPartner(models.Model):
-    _inherit = 'res.partner'
+    _inherit = "res.partner"
 
     def _get_company_registry_labels(self):
         labels = super()._get_company_registry_labels()
-        labels['NZ'] = _("NZBN")
+        labels["NZ"] = _("NZBN")
         return labels

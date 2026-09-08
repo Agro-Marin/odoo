@@ -55,7 +55,9 @@ class TestSensitiveDataFilter(BaseCase):
         """Test that mutating the shared keys set after construction updates the masking."""
         keys = set()
         filter_ = SensitiveDataFilter(keys)
-        keys.add("token")  # A provider module may populate the shared `SENSITIVE_KEYS` set.
+        keys.add(
+            "token"
+        )  # A provider module may populate the shared `SENSITIVE_KEYS` set.
         record = self._make_record({"token": "abc"})
         filter_.filter(record)
         self.assertEqual(record.args["token"], "[REDACTED]")

@@ -1,4 +1,4 @@
-from odoo import models, api
+from odoo import api, models
 
 
 class PosPaymentMethod(models.Model):
@@ -11,4 +11,4 @@ class PosPaymentMethod(models.Model):
     # will be overridden.
     @api.model
     def _load_pos_self_data_domain(self, data, config):
-        return [('id', '=', False)]
+        return [("id", "=", False)]

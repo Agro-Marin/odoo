@@ -547,7 +547,8 @@ class DockerIot(DockerWine):
 
     def build_image(self) -> None:
         shutil.copy(
-            Path(self.args.build_dir) / "odoo/addons/iot_box_image/configuration/requirements.txt",
+            Path(self.args.build_dir)
+            / "odoo/addons/iot_box_image/configuration/requirements.txt",
             self.docker_dir / "requirements-iot.txt",
         )
         self.tag = f"{self.tag}-iot"

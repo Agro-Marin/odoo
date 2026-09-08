@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "France - VAT Anti-Fraud Certification for Point of Sale (CGI 286 I-3 bis)",
     "version": "1.1",

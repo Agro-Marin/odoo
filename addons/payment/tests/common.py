@@ -38,7 +38,9 @@ class PaymentCommon(BaseCommon):
                 "email": "norbert.buyer@example.com",
                 "street": "Huge Street",
                 "street2": "2/543",
-                "phone_ids": [Command.create({"number": "0032 12 34 56 78", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "0032 12 34 56 78", "type": "landline"})
+                ],
                 "city": "Sin City",
                 "zip": "1000",
                 "country_id": cls.country_belgium.id,

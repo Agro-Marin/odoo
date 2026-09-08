@@ -1,4 +1,3 @@
-
 import base64
 
 from odoo import api, fields, models

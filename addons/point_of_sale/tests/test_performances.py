@@ -11,7 +11,6 @@ _logger = logging.getLogger(__name__)
 
 @tagged("-standard", "pos_performance", "-at_install", "post_install")
 class TestPosPerformance(TestPointOfSaleHttpCommon):
-
     def __populate_model(self, model_name, total_count):
         before_count = self.env[model_name].search_count([])
         if not before_count:

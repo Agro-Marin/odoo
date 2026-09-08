@@ -1,8 +1,7 @@
 import logging
 import re
 
-from odoo import api, models, _
-
+from odoo import _, api, models
 from odoo.exceptions import ValidationError
 
 _logger = logging.getLogger(__name__)
@@ -11,23 +10,27 @@ _logger = logging.getLogger(__name__)
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    def _run_check_identification(self, validation='error'):
-        """Add validation of UY document types CI and NIE  """
-        if validation == 'error':
-            ci_nie_types = self.filtered(lambda p:
-                p.l10n_latam_identification_type_id.l10n_uy_dgi_code in ("1", "3")
-                and p.l10n_latam_identification_type_id.country_id.code == "UY"
-                and p.vat
+    def _run_check_identification(self, validation="error"):
+        """Add validation of UY document types CI and NIE"""
+        if validation == "error":
+            ci_nie_types = self.filtered(
+                lambda p: (
+                    p.l10n_latam_identification_type_id.l10n_uy_dgi_code in ("1", "3")
+                    and p.l10n_latam_identification_type_id.country_id.code == "UY"
+                    and p.vat
+                )
             )
             for partner in ci_nie_types:
                 if not partner._l10n_uy_ci_nie_is_valid():
-                    raise ValidationError(self._l10n_uy_build_vat_error_message(partner))
+                    raise ValidationError(
+                        self._l10n_uy_build_vat_error_message(partner)
+                    )
         return super()._run_check_identification(validation=validation)
 
     @api.model
     def _l10n_uy_build_vat_error_message(self, partner):
-        """ Similar to _prepare_vat_error_message but using latam doc type name instead of vat_label
-        NOTE: maybe can be implemented in master to l10n_latam_base for the use of different doc types """
+        """Similar to _prepare_vat_error_message but using latam doc type name instead of vat_label
+        NOTE: maybe can be implemented in master to l10n_latam_base for the use of different doc types"""
         vat_label = _("CI/NIE")
         expected_format = _("3:402.010-2 or 93:402.010-1 (CI or NIE)")
 
@@ -52,7 +55,7 @@ class ResPartner(models.Model):
         return msg
 
     def _l10n_uy_ci_nie_is_valid(self):
-        """ Check if the partner's CI or NIE number is a valid one.
+        """Check if the partner's CI or NIE number is a valid one.
 
         CI:
             1) The ID number is taken up to the second to last position, that is, the first 6 or 7 digits.
@@ -80,7 +83,7 @@ class ResPartner(models.Model):
         if invalid_chars:
             return False
 
-        ci_nie_number = re.sub("[^0-9]", "", self.vat)
+        ci_nie_number = re.sub(r"[^0-9]", "", self.vat)
 
         # we get the validation digit, if NIE doc type we skip the first digit
         is_nie = self.l10n_latam_identification_type_id.l10n_uy_dgi_code == "1"

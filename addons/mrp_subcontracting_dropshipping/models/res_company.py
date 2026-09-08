@@ -99,7 +99,9 @@ class ResCompany(models.Model):
             .search([("code", "=", "mrp.subcontracting.dropshipping")])
             .mapped("company_id")
         )
-        self._get_companies_without(having)._create_subcontracting_dropshipping_sequence()
+        self._get_companies_without(
+            having
+        )._create_subcontracting_dropshipping_sequence()
 
     @api.model
     def _create_missing_subcontracting_dropshipping_picking_type(self):

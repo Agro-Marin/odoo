@@ -8,7 +8,6 @@ from .utils import unlink_where_possible
 
 
 class ProductTemplateAttributeValue(models.Model):
-
     _name = "product.template.attribute.value"
     _description = "Product Template Attribute Value"
     _order = "attribute_line_id, product_attribute_value_id, id"

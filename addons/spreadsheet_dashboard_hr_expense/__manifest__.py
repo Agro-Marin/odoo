@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Spreadsheet dashboard for expenses",
     "version": "1.0",

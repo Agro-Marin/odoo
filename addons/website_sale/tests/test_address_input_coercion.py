@@ -131,7 +131,9 @@ class TestShopAddressReservedParams(HttpCase, WebsiteSaleCommon):
                 "zip": "1000",
                 "country_id": self.country_be.id,
                 "email": "reserved.params@example.com",
-                "phone_ids": [Command.create({"number": "+32 2 000 00 00", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "+32 2 000 00 00", "type": "landline"})
+                ],
             }
         )
         self.cart.write(

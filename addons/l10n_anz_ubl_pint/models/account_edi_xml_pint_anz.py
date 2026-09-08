@@ -1,11 +1,11 @@
-from odoo import models, _
+from odoo import _, models
 from odoo.tools import float_is_zero
 
-ANZ_TAX_CATEGORIES = {'S', 'E', 'Z', 'G', 'O'}
+ANZ_TAX_CATEGORIES = {"S", "E", "Z", "G", "O"}
 
 
 class AccountEdiXmlPint_Anz(models.AbstractModel):
-    _name = 'account.edi.xml.pint_anz'
+    _name = "account.edi.xml.pint_anz"
     _inherit = ["account.edi.xml.ubl_bis3"]
     _description = "Australia & New Zealand implementation of Peppol International (PINT) model for Billing"
     """
@@ -23,36 +23,37 @@ class AccountEdiXmlPint_Anz(models.AbstractModel):
         # EXTENDS account_edi_ubl_cii
         return f"{invoice.name.replace('/', '_')}_pint_anz.xml"
 
-    def _get_customization_id(self, process_type='billing'):
-        if process_type == 'billing':
-            return 'urn:peppol:pint:billing-1@aunz-1'
+    def _get_customization_id(self, process_type="billing"):
+        if process_type == "billing":
+            return "urn:peppol:pint:billing-1@aunz-1"
 
     # -------------------------------------------------------------------------
     # EXPORT: Templates
     # -------------------------------------------------------------------------
 
-    def _ubl_default_tax_category_grouping_key(self, base_line, tax_data, vals, currency):
+    def _ubl_default_tax_category_grouping_key(
+        self, base_line, tax_data, vals, currency
+    ):
         # EXTENDS account.edi.xml.ubl_bis3
-        grouping_key = super()._ubl_default_tax_category_grouping_key(base_line, tax_data, vals, currency)
+        grouping_key = super()._ubl_default_tax_category_grouping_key(
+            base_line, tax_data, vals, currency
+        )
         if not grouping_key:
-            return
+            return None
 
-        grouping_key['scheme_id'] = 'GST'
+        grouping_key["scheme_id"] = "GST"
 
         # A business not registered for GST cannot issue tax invoices.
         # In this case, the tax category code should be O (Outside scope of tax).
         # See https://docs.peppol.eu/poac/aunz/pint-aunz/bis/#_tax_category_code
-        supplier = vals['supplier']
+        supplier = vals["supplier"]
         if not supplier.ref_company_ids[:1].l10n_au_is_gst_registered:
-            grouping_key['tax_category_code'] = 'O'
+            grouping_key["tax_category_code"] = "O"
 
         # As of PINT A-NZ v1.1.0: [aligned-ibrp-o-05-aunz] tax categories of type "Not Subject to tax" (i.e. tax_category_code == 'O') must NOT have
         # tax rate ('cbc:Percent').
-        if (
-            grouping_key['tax_category_code'] == 'O'
-            and not grouping_key['percent']
-        ):
-            grouping_key['percent'] = None
+        if grouping_key["tax_category_code"] == "O" and not grouping_key["percent"]:
+            grouping_key["percent"] = None
 
         return grouping_key
 
@@ -61,18 +62,20 @@ class AccountEdiXmlPint_Anz(models.AbstractModel):
         super()._add_invoice_header_nodes(document_node, vals)
 
         # see https://docs.peppol.eu/poac/aunz/pint-aunz/bis/#_identifying_the_a_nz_billing_specialisation
-        document_node['cbc:ProfileID'] = {'_text': 'urn:peppol:bis:billing'}
+        document_node["cbc:ProfileID"] = {"_text": "urn:peppol:bis:billing"}
 
     def _get_party_node(self, vals):
         # EXTENDS account.edi.xml.ubl_bis3
         party_node = super()._get_party_node(vals)
-        commercial_partner = vals['partner'].commercial_partner_id
+        commercial_partner = vals["partner"].commercial_partner_id
 
-        party_node['cac:PartyTaxScheme'][0]['cac:TaxScheme']['cbc:ID']['_text'] = 'GST'
+        party_node["cac:PartyTaxScheme"][0]["cac:TaxScheme"]["cbc:ID"]["_text"] = "GST"
 
         # In both cases the scheme must be set to a value that comes from the eas.
-        if commercial_partner.country_code in ('AU', 'NZ'):
-            party_node['cac:PartyLegalEntity']['cbc:CompanyID']['schemeID'] = commercial_partner.peppol_eas
+        if commercial_partner.country_code in ("AU", "NZ"):
+            party_node["cac:PartyLegalEntity"]["cbc:CompanyID"]["schemeID"] = (
+                commercial_partner.peppol_eas
+            )
 
         return party_node
 
@@ -85,25 +88,36 @@ class AccountEdiXmlPint_Anz(models.AbstractModel):
         constraints = super()._export_invoice_constraints(invoice, vals)
 
         # Tax category must be filled on the line, with a value from SG categories.
-        tax_total_node = vals['document_node']['cac:TaxTotal'][0]
-        for tax_subtotal_node in tax_total_node['cac:TaxSubtotal']:
-            if any(tax_category_node['cbc:ID']['_text'] not in ANZ_TAX_CATEGORIES for tax_category_node in tax_subtotal_node['cac:TaxCategory']):
-                constraints['anz_vat_category_required'] = _("You must set a tax category on each taxes of the invoice.\nValid categories are: S, E, Z, G, O")
+        tax_total_node = vals["document_node"]["cac:TaxTotal"][0]
+        for tax_subtotal_node in tax_total_node["cac:TaxSubtotal"]:
+            if any(
+                tax_category_node["cbc:ID"]["_text"] not in ANZ_TAX_CATEGORIES
+                for tax_category_node in tax_subtotal_node["cac:TaxCategory"]
+            ):
+                constraints["anz_vat_category_required"] = _(
+                    "You must set a tax category on each taxes of the invoice.\nValid categories are: S, E, Z, G, O"
+                )
 
         # Tax category of type "Not subject to tax" must have tax amount 0
         count_outside_of_scope_breakdown = 0
-        for tax_subtotal in tax_total_node['cac:TaxSubtotal']:
-            if any(tax_category_node['cbc:ID']['_text'] != 'O' for tax_category_node in tax_subtotal['cac:TaxCategory']):
+        for tax_subtotal in tax_total_node["cac:TaxSubtotal"]:
+            if any(
+                tax_category_node["cbc:ID"]["_text"] != "O"
+                for tax_category_node in tax_subtotal["cac:TaxCategory"]
+            ):
                 continue
             count_outside_of_scope_breakdown += 1
 
-            if float_is_zero(tax_subtotal['cbc:TaxAmount']['_text'], precision_digits=2):
+            if float_is_zero(
+                tax_subtotal["cbc:TaxAmount"]["_text"], precision_digits=2
+            ):
                 continue
 
-            if vals['supplier'].ref_company_ids[:1].l10n_au_is_gst_registered:
-                constraints['anz_tax_breakdown_amount'] = \
-                    self.env._("A tax category of type 'Not subject to tax' must have tax"
-                               " amount set to 0")
+            if vals["supplier"].ref_company_ids[:1].l10n_au_is_gst_registered:
+                constraints["anz_tax_breakdown_amount"] = self.env._(
+                    "A tax category of type 'Not subject to tax' must have tax"
+                    " amount set to 0"
+                )
             else:
                 # If a company is not GST registered, this module remaps all tax categories
                 # to 'O' (Other/Out of Scope). This causes an issue when a line contained a
@@ -112,23 +126,32 @@ class AccountEdiXmlPint_Anz(models.AbstractModel):
                 # Since the code silently remaps tax classification code, the original error
                 # message might be misleading for users. This constraint contains better
                 # explaination of error and intructions on how to prevent it.
-                constraints['anz_non_gst_supplier_tax_scope'] = \
-                    self.env._("Suppliers not registered for GST cannot use taxes that are"
-                               " not zero-rated. Please ensure the tax category is set to"
-                               " 'O' (Services outside scope of tax) with a tax amount of 0.")
+                constraints["anz_non_gst_supplier_tax_scope"] = self.env._(
+                    "Suppliers not registered for GST cannot use taxes that are"
+                    " not zero-rated. Please ensure the tax category is set to"
+                    " 'O' (Services outside scope of tax) with a tax amount of 0."
+                )
 
         # There should be at most one tax breakdown of type "Not subject to tax".
-        if count_outside_of_scope_breakdown > 1 and vals['supplier'].ref_company_ids[:1].l10n_au_is_gst_registered:
-            constraints['anz_duplicate_tax_breakdown'] = \
-                self.env._("A tax breakdown of type 'Not subject to tax' should appear at most"
-                           " once in the tax breakdown")
+        if (
+            count_outside_of_scope_breakdown > 1
+            and vals["supplier"].ref_company_ids[:1].l10n_au_is_gst_registered
+        ):
+            constraints["anz_duplicate_tax_breakdown"] = self.env._(
+                "A tax breakdown of type 'Not subject to tax' should appear at most"
+                " once in the tax breakdown"
+            )
 
         # ALIGNED-IBR-001-AUNZ and ALIGNED-IBR-002-AUNZ
-        for partner_type in ('supplier', 'customer'):
+        for partner_type in ("supplier", "customer"):
             partner = vals[partner_type]
-            if partner.country_code == 'AU' and partner.peppol_eas != '0151':
-                constraints[f'au_{partner_type}_eas_0151'] = _("The Peppol EAS must be set to ABN (0151) if the partner country is Australia.")
-            elif partner.country_code == 'NZ' and partner.peppol_eas != '0088':
-                constraints[f'nz_{partner_type}_eas_0088'] = _("The Peppol EAS must be set to EAN (0088) if the partner country is New Zealand.")
+            if partner.country_code == "AU" and partner.peppol_eas != "0151":
+                constraints[f"au_{partner_type}_eas_0151"] = _(
+                    "The Peppol EAS must be set to ABN (0151) if the partner country is Australia."
+                )
+            elif partner.country_code == "NZ" and partner.peppol_eas != "0088":
+                constraints[f"nz_{partner_type}_eas_0088"] = _(
+                    "The Peppol EAS must be set to EAN (0088) if the partner country is New Zealand."
+                )
 
         return constraints

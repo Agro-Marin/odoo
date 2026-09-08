@@ -4,24 +4,24 @@ MAX_LINE_COUNT_PER_INVOICE = 100
 
 
 class MyInvoisConsolidateInvoiceWizard(models.TransientModel):
-    _name = 'myinvois.consolidate.invoice.wizard'
-    _description = 'Consolidate Invoice Wizard'
+    _name = "myinvois.consolidate.invoice.wizard"
+    _description = "Consolidate Invoice Wizard"
 
     # ------------------
     # Fields declaration
     # ------------------
 
     date_from = fields.Date(
-        string='Date From',
+        string="Date From",
         required=True,
     )
     date_to = fields.Date(
-        string='Date To',
+        string="Date To",
         required=True,
     )
     consolidation_type = fields.Selection(
         selection=[
-            ('invoice', 'Invoice'),
+            ("invoice", "Invoice"),
         ],
         required=True,
     )
@@ -40,7 +40,9 @@ class MyInvoisConsolidateInvoiceWizard(models.TransientModel):
         self.check_singleton()
         myinvois_document_vals = self._get_myinvois_document_vals()
         if myinvois_document_vals:
-            myinvois_documents = self.env["myinvois.document"].create(myinvois_document_vals)
+            myinvois_documents = self.env["myinvois.document"].create(
+                myinvois_document_vals
+            )
             return myinvois_documents.action_show_myinvois_documents()
         return False
 
@@ -55,7 +57,9 @@ class MyInvoisConsolidateInvoiceWizard(models.TransientModel):
         :return: A list of dicts used to create the consolidated invoices.
         """
         self.check_singleton()
-        if self.consolidation_type == 'invoice':
+        if self.consolidation_type == "invoice":
             # We will support it soon, but not now. So we put the bases for it, but it won't be available to use yet.
             # consolidation_type will never be 'invoice' unless custom code/actions are used.
-            raise NotImplementedError('Support for consolidated invoices in the invoicing app is not yet implemented.')
+            raise NotImplementedError(
+                "Support for consolidated invoices in the invoicing app is not yet implemented."
+            )

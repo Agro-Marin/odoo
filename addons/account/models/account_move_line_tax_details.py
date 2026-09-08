@@ -471,6 +471,7 @@ base_tax_matching_all_amounts AS (
 %(final_select)s
 """
 
+
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 

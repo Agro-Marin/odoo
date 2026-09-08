@@ -9,11 +9,11 @@ class L10nRoCPVCode(models.Model):
     name = fields.Char(string="Name", required=True)
 
     _code_uniq = models.Constraint(
-        'unique (code)',
-        'Code must be unique!',
+        "unique (code)",
+        "Code must be unique!",
     )
 
-    @api.depends('code')
+    @api.depends("code")
     def _compute_display_name(self):
         for cpv in self:
             cpv.display_name = f"{cpv.code} {cpv.name or ''}"

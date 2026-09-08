@@ -1,17 +1,20 @@
 import ast
+
 from markupsafe import Markup
 
-from odoo import api, models, fields, _
-from odoo.addons.mail.tools.discuss import Store
-from odoo.tools.misc import OrderedSet
+from odoo import _, api, fields, models
 from odoo.fields import Domain
+from odoo.tools.misc import OrderedSet
+
+from odoo.addons.mail.tools.discuss import Store
+
 
 class ResPartner(models.Model):
-    _inherit = 'res.partner'
+    _inherit = "res.partner"
 
-    user_livechat_username = fields.Char(compute='_compute_user_livechat_username')
+    user_livechat_username = fields.Char(compute="_compute_user_livechat_username")
     chatbot_script_ids = fields.One2many("chatbot.script", "operator_partner_id")
-    livechat_channel_count = fields.Integer(compute='_compute_livechat_channel_count')
+    livechat_channel_count = fields.Integer(compute="_compute_livechat_channel_count")
 
     def _search_for_channel_invite_to_store(self, store: Store, channel):
         super()._search_for_channel_invite_to_store(store, channel)
@@ -29,32 +32,45 @@ class ResPartner(models.Model):
             self.env["im_livechat.channel"].search([]).available_operator_ids.partner_id
         )
         for partner in self:
-            languages = list(OrderedSet([
-                lang_name_by_code[partner.lang],
-                *partner.user_ids.sudo().livechat_lang_ids.mapped("name")
-            ]))
+            languages = list(
+                OrderedSet(
+                    [
+                        lang_name_by_code[partner.lang],
+                        *partner.user_ids.sudo().livechat_lang_ids.mapped("name"),
+                    ]
+                )
+            )
             store.add(
                 partner,
                 {
-                    "invite_by_self_count": invite_by_self_count_by_partner.get(partner, 0),
+                    "invite_by_self_count": invite_by_self_count_by_partner.get(
+                        partner, 0
+                    ),
                     "is_available": partner in active_livechat_partners,
                     "lang_name": languages[0],
-                    "livechat_expertise": partner.user_ids.sudo().livechat_expertise_ids.mapped("name"),
+                    "livechat_expertise": partner.user_ids.sudo().livechat_expertise_ids.mapped(
+                        "name"
+                    ),
                     "livechat_languages": languages[1:],
                     "user_livechat_username": partner.sudo().user_livechat_username,
                 },
-                extra_fields=[Store.Attr("is_in_call", sudo=True)]
+                extra_fields=[Store.Attr("is_in_call", sudo=True)],
             )
 
-    @api.depends('user_ids.livechat_username')
+    @api.depends("user_ids.livechat_username")
     def _compute_user_livechat_username(self):
         for partner in self:
-            partner.user_livechat_username = next(iter(partner.user_ids.mapped('livechat_username')), False)
+            partner.user_livechat_username = next(
+                iter(partner.user_ids.mapped("livechat_username")), False
+            )
 
     def _compute_livechat_channel_count(self):
         livechat_count_by_partner = dict(
             self.env["im_livechat.channel.member.history"]._read_group(
-                domain=[("partner_id", "in", self.ids), ("livechat_member_type", "=", "visitor")],
+                domain=[
+                    ("partner_id", "in", self.ids),
+                    ("livechat_member_type", "=", "visitor"),
+                ],
                 groupby=["partner_id"],
                 aggregates=["channel_id:count_distinct"],
             )
@@ -91,13 +107,20 @@ class ResPartner(models.Model):
             partner.display_name = partner.name
 
     def action_view_livechat_sessions(self):
-        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("im_livechat.discuss_channel_action")
-        livechat_channel_ids = self.env['im_livechat.channel.member.history'].search([
-            ('partner_id', '=', self.id),
-            ('livechat_member_type', '=', 'visitor'),
-        ]).channel_id.ids
-        action["domain"] = Domain.AND([
-            ast.literal_eval(action["domain"]),
-            [('id', 'in', livechat_channel_ids)]
-        ])
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
+            "im_livechat.discuss_channel_action"
+        )
+        livechat_channel_ids = (
+            self.env["im_livechat.channel.member.history"]
+            .search(
+                [
+                    ("partner_id", "=", self.id),
+                    ("livechat_member_type", "=", "visitor"),
+                ]
+            )
+            .channel_id.ids
+        )
+        action["domain"] = Domain.AND(
+            [ast.literal_eval(action["domain"]), [("id", "in", livechat_channel_ids)]]
+        )
         return action

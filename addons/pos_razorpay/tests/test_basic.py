@@ -1,10 +1,11 @@
 import time
-
-from requests import Response
 from unittest.mock import patch
 
-from odoo.addons.point_of_sale.tests.test_frontend import TestPointOfSaleHttpCommon
+from requests import Response
+
 from odoo.tests.common import tagged
+
+from odoo.addons.point_of_sale.tests.test_frontend import TestPointOfSaleHttpCommon
 
 
 @tagged("post_install_l10n", "post_install", "-at_install")
@@ -123,7 +124,9 @@ class TestRazorPayPoS(TestPointOfSaleHttpCommon):
         response._content = "ok"
 
         if url == "https://demo.ezetap.com/api/3.0/p2padapter/pay":
-            self.external_ref_number = self._on_razorpay_payment_line_added(response, **kwargs)
+            self.external_ref_number = self._on_razorpay_payment_line_added(
+                response, **kwargs
+            )
 
         elif url == "https://demo.ezetap.com/api/3.0/p2padapter/status":
             self._send_status_response(response, **kwargs)
@@ -141,15 +144,24 @@ class TestRazorPayPoS(TestPointOfSaleHttpCommon):
         return response
 
     def test_razorpay_basic_order(self):
-        with patch("odoo.addons.pos_razorpay.models.razorpay_pos_request.requests.Session.post", self._mock_post):
+        with patch(
+            "odoo.addons.pos_razorpay.models.razorpay_pos_request.requests.Session.post",
+            self._mock_post,
+        ):
             self.start_pos_tour("PosRazorpayTour")
 
     def test_razorpay_cancel_payment(self):
         self.is_cancel_payment_test = True
 
-        with patch("odoo.addons.pos_razorpay.models.razorpay_pos_request.requests.Session.post", self._mock_post):
+        with patch(
+            "odoo.addons.pos_razorpay.models.razorpay_pos_request.requests.Session.post",
+            self._mock_post,
+        ):
             self.start_pos_tour("PosRazorpayCancelTour")
 
     def test_razorpay_refund_order(self):
-        with patch("odoo.addons.pos_razorpay.models.razorpay_pos_request.requests.Session.post", self._mock_post):
+        with patch(
+            "odoo.addons.pos_razorpay.models.razorpay_pos_request.requests.Session.post",
+            self._mock_post,
+        ):
             self.start_pos_tour("PosRazorpayRefundTour")

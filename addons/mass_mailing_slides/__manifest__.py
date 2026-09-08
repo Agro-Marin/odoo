@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Mass mailing on course members",
     "version": "1.0",

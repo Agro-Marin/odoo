@@ -5,7 +5,6 @@ from odoo.addons.pos_online_payment.controllers.payment_portal import PaymentPor
 
 
 class OnlinePaymentCommon(PaymentHttpCommon):
-
     def _fake_http_get_request(self, route):
         url = self._build_url(route)
         response = self._make_http_get_request(url)
@@ -13,18 +12,33 @@ class OnlinePaymentCommon(PaymentHttpCommon):
         return response
 
     def _fake_open_pos_order_pay_page(self, pos_order_id, access_token):
-        response = self._fake_http_get_request(PaymentPortal._get_pay_route(pos_order_id, access_token))
+        response = self._fake_http_get_request(
+            PaymentPortal._get_pay_route(pos_order_id, access_token)
+        )
         return self._get_payment_context(response)
 
     def _fake_request_pos_order_pay_transaction_page(self, pos_order_id, route_values):
-        uri = f'/pos/pay/transaction/{pos_order_id}'
+        uri = f"/pos/pay/transaction/{pos_order_id}"
         url = self._build_url(uri)
         return self.call_jsonrpc(url, route_values)
 
-    def _fake_open_pos_order_pay_confirmation_page(self, pos_order_id, access_token, tx_id, exit_route=None):
-        self._fake_http_get_request(PaymentPortal._get_landing_route(pos_order_id, access_token, tx_id=tx_id, exit_route=exit_route))
+    def _fake_open_pos_order_pay_confirmation_page(
+        self, pos_order_id, access_token, tx_id, exit_route=None
+    ):
+        self._fake_http_get_request(
+            PaymentPortal._get_landing_route(
+                pos_order_id, access_token, tx_id=tx_id, exit_route=exit_route
+            )
+        )
 
-    def _fake_online_payment(self, pos_order_id, access_token, expected_payment_provider_id, exit_route=None, confirmation_page=True):
+    def _fake_online_payment(
+        self,
+        pos_order_id,
+        access_token,
+        expected_payment_provider_id,
+        exit_route=None,
+        confirmation_page=True,
+    ):
         payment_context = self._fake_open_pos_order_pay_page(pos_order_id, access_token)
 
         # Code inspired by addons/payment/tests/test_flows.py
@@ -32,22 +46,28 @@ class OnlinePaymentCommon(PaymentHttpCommon):
         route_values = {
             k: payment_context[k]
             for k in [
-                'amount',
-                'access_token',
-                'landing_route',
+                "amount",
+                "access_token",
+                "landing_route",
             ]
         }
-        route_values.update({
-            'provider_id': self.provider.id,
-            'payment_method_id': self.payment_method_id,
-            'token_id': None,
-            'flow': 'direct',
-            'tokenization_requested': False,
-        })
+        route_values.update(
+            {
+                "provider_id": self.provider.id,
+                "payment_method_id": self.payment_method_id,
+                "token_id": None,
+                "flow": "direct",
+                "tokenization_requested": False,
+            }
+        )
 
-        with mute_logger('odoo.addons.payment.models.payment_transaction'):
-            processing_values = self._fake_request_pos_order_pay_transaction_page(pos_order_id, route_values)
-        tx_sudo = self._get_tx(processing_values['reference'])
+        with mute_logger("odoo.addons.payment.models.payment_transaction"):
+            processing_values = self._fake_request_pos_order_pay_transaction_page(
+                pos_order_id, route_values
+            )
+        tx_sudo = self._get_tx(processing_values["reference"])
         tx_sudo._set_done()
         if confirmation_page:
-            self._fake_open_pos_order_pay_confirmation_page(pos_order_id, access_token, tx_sudo.id, exit_route=exit_route)
+            self._fake_open_pos_order_pay_confirmation_page(
+                pos_order_id, access_token, tx_sudo.id, exit_route=exit_route
+            )

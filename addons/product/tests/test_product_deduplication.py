@@ -7,7 +7,6 @@ from .common import ProductCommon, ProductVariantsCommon
 
 @tagged("post_install", "-at_install")
 class TestSharedPricing(ProductVariantsCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -73,7 +72,6 @@ class TestSharedPricing(ProductVariantsCommon):
 
 @tagged("post_install", "-at_install")
 class TestLabelReportIsShared(ProductCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -150,7 +148,6 @@ class TestLabelReportIsShared(ProductCommon):
 
 @tagged("post_install", "-at_install")
 class TestImportContinuationRows(ProductCommon):
-
     def test_a_second_vendor_line_stays_with_its_product(self):
         vendors = self.env["res.partner"].create(
             [{"name": "Cont Vendor A"}, {"name": "Cont Vendor B"}]

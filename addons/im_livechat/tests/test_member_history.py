@@ -1,6 +1,7 @@
-from odoo.addons.im_livechat.tests import chatbot_common
 from odoo.exceptions import ValidationError
-from odoo.tests.common import tagged, new_test_user
+from odoo.tests.common import new_test_user, tagged
+
+from odoo.addons.im_livechat.tests import chatbot_common
 from odoo.addons.im_livechat.tests.common import TestGetOperatorCommon
 
 
@@ -93,12 +94,16 @@ class TestLivechatMemberHistory(TestGetOperatorCommon, chatbot_common.ChatbotCas
             ).livechat_member_type,
             "agent",
         )
-        guest_visitor_history = channel.channel_member_ids.livechat_member_history_ids.filtered(
-            lambda m: m.guest_id
+        guest_visitor_history = (
+            channel.channel_member_ids.livechat_member_history_ids.filtered(
+                lambda m: m.guest_id
+            )
         )
         self.assertEqual(guest_visitor_history.livechat_member_type, "visitor")
         visitor_user = new_test_user(
-            self.env, login="visitor_user", groups="im_livechat.im_livechat_group_manager"
+            self.env,
+            login="visitor_user",
+            groups="im_livechat.im_livechat_group_manager",
         )
         self.authenticate("visitor_user", "visitor_user")
         data = self.call_jsonrpc(
@@ -117,10 +122,14 @@ class TestLivechatMemberHistory(TestGetOperatorCommon, chatbot_common.ChatbotCas
 
     def test_can_only_create_history_for_livechats(self):
         john = self._create_operator("fr_FR")
-        channel = self.env["discuss.channel"]._create_channel(name="General", group_id=None)
+        channel = self.env["discuss.channel"]._create_channel(
+            name="General", group_id=None
+        )
         member = channel.add_members(partner_ids=john.partner_id.ids)
         with self.assertRaises(ValidationError):
-            self.env["im_livechat.channel.member.history"].create({"member_id": member.id}).channel_id
+            self.env["im_livechat.channel.member.history"].create(
+                {"member_id": member.id}
+            ).channel_id
 
     def test_update_history_on_second_join(self):
         john = self._create_operator("fr_FR")
@@ -135,7 +144,9 @@ class TestLivechatMemberHistory(TestGetOperatorCommon, chatbot_common.ChatbotCas
         og_history = channel.channel_member_ids.livechat_member_history_ids.filtered(
             lambda m: m.partner_id == john.partner_id
         )
-        john_member = channel.channel_member_ids.filtered(lambda m: m.partner_id == john.partner_id)
+        john_member = channel.channel_member_ids.filtered(
+            lambda m: m.partner_id == john.partner_id
+        )
         self.assertEqual(og_history.livechat_member_type, "agent")
         self.assertEqual(og_history.member_id, john_member)
         channel.with_user(john).action_unfollow()
@@ -146,7 +157,9 @@ class TestLivechatMemberHistory(TestGetOperatorCommon, chatbot_common.ChatbotCas
         self.assertNotIn(john.partner_id, channel.channel_member_ids.partner_id)
         channel._add_members(users=john)
         self.assertIn(john.partner_id, channel.channel_member_ids.partner_id)
-        john_member = channel.channel_member_ids.filtered(lambda m: m.partner_id == john.partner_id)
+        john_member = channel.channel_member_ids.filtered(
+            lambda m: m.partner_id == john.partner_id
+        )
         john_history = channel.channel_member_ids.livechat_member_history_ids.filtered(
             lambda m: m.partner_id == john.partner_id
         )

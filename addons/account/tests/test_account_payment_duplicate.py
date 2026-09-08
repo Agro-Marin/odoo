@@ -241,9 +241,7 @@ class TestAccountPaymentDuplicateMoves(AccountTestInvoicingCommon):
         self.assertRecordValues(
             payment_1, [{"duplicate_payment_ids": [existing_payment.id]}]
         )
-        self.assertRecordValues(
-            payment_2, [{"duplicate_payment_ids": []}]
-        )
+        self.assertRecordValues(payment_2, [{"duplicate_payment_ids": []}])
         self.assertRecordValues(
             combined_payments, [{"duplicate_payment_ids": [existing_payment.id]}]
         )

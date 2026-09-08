@@ -91,7 +91,11 @@ class TestRatingStats(TransactionCase):
         self._rate(5)
         self._rate(1)
         self.project.invalidate_recordset(
-            ["rating_child_count", "rating_child_avg", "rating_child_percentage_satisfaction"],
+            [
+                "rating_child_count",
+                "rating_child_avg",
+                "rating_child_percentage_satisfaction",
+            ],
         )
         self.assertEqual(self.project.rating_child_count, 3)
         self.assertAlmostEqual(self.project.rating_child_avg, 11 / 3, places=2)

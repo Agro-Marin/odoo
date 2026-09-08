@@ -56,9 +56,7 @@ class MixinOrderStock(models.AbstractModel):
         if not confirmed:
             return
 
-        states_per_order, _pending_ids = confirmed._rollup_line_states(
-            "transfer_state"
-        )
+        states_per_order, _pending_ids = confirmed._rollup_line_states("transfer_state")
         for order in confirmed:
             states = states_per_order.get(order._origin.id, set())
             if not states:
@@ -70,9 +68,7 @@ class MixinOrderStock(models.AbstractModel):
             elif "partial" in states:
                 order.transfer_state = "partial"
             elif "done" in states:
-                order.transfer_state = (
-                    "partial" if "to do" in states else "done"
-                )
+                order.transfer_state = "partial" if "to do" in states else "done"
             elif "to do" in states:
                 order.transfer_state = "to do"
             else:

@@ -1,5 +1,6 @@
 from odoo import Command, fields
 from odoo.tests.common import HttpCase, new_test_user
+
 from odoo.addons.bus.tests.common import BusCase
 
 
@@ -7,39 +8,36 @@ class TestImLivechatCommon(HttpCase, BusCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.password = 'Pl1bhD@2!kXZ'
-        cls.operators = cls.env['res.users'].create([{
-            'name': 'Michel',
-            'login': 'michel',
-            'password': cls.password,
-            'livechat_username': "Michel Operator",
-            'email': 'michel@example.com',
-            'group_ids': cls.env.ref('im_livechat.im_livechat_group_user'),
-        }, {
-            'name': 'Paul',
-            'login': 'paul'
-        }, {
-            'name': 'Pierre',
-            'login': 'pierre'
-        }, {
-            'name': 'Jean',
-            'login': 'jean'
-        }, {
-            'name': 'Georges',
-            'login': 'georges'
-        }])
+        cls.password = "Pl1bhD@2!kXZ"
+        cls.operators = cls.env["res.users"].create(
+            [
+                {
+                    "name": "Michel",
+                    "login": "michel",
+                    "password": cls.password,
+                    "livechat_username": "Michel Operator",
+                    "email": "michel@example.com",
+                    "group_ids": cls.env.ref("im_livechat.im_livechat_group_user"),
+                },
+                {"name": "Paul", "login": "paul"},
+                {"name": "Pierre", "login": "pierre"},
+                {"name": "Jean", "login": "jean"},
+                {"name": "Georges", "login": "georges"},
+            ]
+        )
 
-        cls.visitor_user = cls.env['res.users'].create({
-            'name': 'Rajesh',
-            'login': 'rajesh',
-            'country_id': cls.env.ref('base.in').id,
-            'email': 'rajesh@example.com',
-        })
+        cls.visitor_user = cls.env["res.users"].create(
+            {
+                "name": "Rajesh",
+                "login": "rajesh",
+                "country_id": cls.env.ref("base.in").id,
+                "email": "rajesh@example.com",
+            }
+        )
 
-        cls.livechat_channel = cls.env['im_livechat.channel'].create({
-            'name': 'The channel',
-            'user_ids': [(6, 0, cls.operators.ids)]
-        })
+        cls.livechat_channel = cls.env["im_livechat.channel"].create(
+            {"name": "The channel", "user_ids": [(6, 0, cls.operators.ids)]}
+        )
 
     def setUp(self):
         super().setUp()
@@ -48,7 +46,11 @@ class TestImLivechatCommon(HttpCase, BusCase):
             for record in channel_self:
                 record.available_operator_ids = record.user_ids
 
-        self.patch(type(self.env['im_livechat.channel']), '_compute_available_operator_ids', _compute_available_operator_ids)
+        self.patch(
+            type(self.env["im_livechat.channel"]),
+            "_compute_available_operator_ids",
+            _compute_available_operator_ids,
+        )
 
 
 class TestGetOperatorCommon(HttpCase):
@@ -63,14 +65,19 @@ class TestGetOperatorCommon(HttpCase):
                 "channel_type": "livechat",
                 "livechat_channel_id": livechat.id,
                 "livechat_operator_id": operator.partner_id.id,
-                "channel_member_ids": [Command.create({"partner_id": operator.partner_id.id})],
+                "channel_member_ids": [
+                    Command.create({"partner_id": operator.partner_id.id})
+                ],
                 "last_interest_dt": fields.Datetime.now(),
             }
         )
         channel.with_user(operator).message_post(body="Hello, how can I help you?")
         if in_call:
             member = self.env["discuss.channel.member"].search(
-                [("partner_id", "=", operator.partner_id.id), ("channel_id", "=", channel.id)]
+                [
+                    ("partner_id", "=", operator.partner_id.id),
+                    ("channel_id", "=", channel.id),
+                ]
             )
             self.env["discuss.channel.rtc.session"].sudo().create(
                 {"channel_id": channel.id, "channel_member_id": member.id}
@@ -91,7 +98,9 @@ class TestGetOperatorCommon(HttpCase):
             {
                 "name": f"Operator {lang_code or country_code}",
                 "lang": lang_code,
-                "country_id": self.env["res.country"].search([("code", "=", country_code)]).id
+                "country_id": self.env["res.country"]
+                .search([("code", "=", country_code)])
+                .id
                 if country_code
                 else None,
             }

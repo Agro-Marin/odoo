@@ -35,7 +35,9 @@ class TestCollaborationChannels(TransactionCase):
         )
 
     def _editor_channels(self, keys):
-        return [key for key in keys if len(key) > 1 and key[1] == "editor_collaboration"]
+        return [
+            key for key in keys if len(key) > 1 and key[1] == "editor_collaboration"
+        ]
 
     def test_authorised_user_gets_the_collaboration_channel(self):
         keys = self._subscribe(self.admin, [self._channel()])

@@ -20,17 +20,18 @@ MALFORMED = "IT09633951000_NpFwF.xml.p7m"
 
 class _Target:
     """Stand-in for the record remove_signature() records its strategy on."""
+
     remove_signature_method = None
 
 
 @tagged("post_install_l10n", "post_install", "-at_install")
 class TestRemoveSignature(BaseCase):
-    """ remove_signature() tries each strategy under a try/except, so a strategy
-        that cannot run at all is indistinguishable from one that declined --
-        which is how the previous OpenSSL implementation went on raising
-        AttributeError from its first line without failing a test. Every
-        strategy is therefore also called DIRECTLY here, where nothing swallows
-        the exception.
+    """remove_signature() tries each strategy under a try/except, so a strategy
+    that cannot run at all is indistinguishable from one that declined --
+    which is how the previous OpenSSL implementation went on raising
+    AttributeError from its first line without failing a test. Every
+    strategy is therefore also called DIRECTLY here, where nothing swallows
+    the exception.
     """
 
     def _fixture(self, name):
@@ -51,15 +52,15 @@ class TestRemoveSignature(BaseCase):
 
     def test_conforming_envelope_yields_exactly_the_content(self):
         """CMS returns the encapsulated content and nothing else, so the result
-           is a standalone document a strict parser accepts."""
+        is a standalone document a strict parser accepts."""
         extracted = remove_signature_cms(self._fixture(CONFORMING))
         tree = etree.fromstring(extracted, etree.XMLParser(resolve_entities=False))
         self.assertEqual(etree.QName(tree).localname, "FatturaElettronica")
 
     def test_malformed_envelope_falls_back(self):
         """The fallback exists for envelopes CMS cannot parse. Keep both halves
-           of that pinned: that CMS really does reject this file, and that the
-           fallback really does recover the invoice from it."""
+        of that pinned: that CMS really does reject this file, and that the
+        fallback really does recover the invoice from it."""
         content = self._fixture(MALFORMED)
         with self.assertRaises(ValueError):
             remove_signature_cms(content)
@@ -75,7 +76,9 @@ class TestRemoveSignature(BaseCase):
         # The fallback returns a superset of the content -- here the certificate
         # DER trails the closing tag -- so only a recovering parser gets a tree
         # out of it. account_move passes recover=True for this reason.
-        tree = etree.fromstring(extracted, etree.XMLParser(recover=True, resolve_entities=False))
+        tree = etree.fromstring(
+            extracted, etree.XMLParser(recover=True, resolve_entities=False)
+        )
         self.assertEqual(etree.QName(tree).localname, "FatturaElettronica")
 
     def test_content_that_is_not_an_envelope_returns_none(self):
@@ -85,18 +88,22 @@ class TestRemoveSignature(BaseCase):
 
     def test_detached_signature_is_rejected(self):
         """An envelope with no encapsulated content must not read as an empty
-           invoice: asn1crypto returns None for it and CMS has to say so."""
+        invoice: asn1crypto returns None for it and CMS has to say so."""
         from asn1crypto import cms
 
-        detached = cms.ContentInfo({
-            "content_type": "signed_data",
-            "content": cms.SignedData({
-                "version": "v1",
-                "digest_algorithms": [],
-                "encap_content_info": {"content_type": "data"},
-                "signer_infos": [],
-            }),
-        }).dump()
+        detached = cms.ContentInfo(
+            {
+                "content_type": "signed_data",
+                "content": cms.SignedData(
+                    {
+                        "version": "v1",
+                        "digest_algorithms": [],
+                        "encap_content_info": {"content_type": "data"},
+                        "signer_infos": [],
+                    }
+                ),
+            }
+        ).dump()
 
         with self.assertRaises(ValueError):
             remove_signature_cms(detached)

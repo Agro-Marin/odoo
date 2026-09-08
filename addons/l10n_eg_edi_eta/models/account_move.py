@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import base64
 import json
 import logging
@@ -113,7 +112,7 @@ class AccountMove(models.Model):
             )
         )
         if not invoices:
-            return
+            return None
 
         company_ids = invoices.mapped("company_id")
         # since the middleware accepts only one drive at a time, we have to limit signing to one company at a time

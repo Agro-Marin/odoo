@@ -78,6 +78,4 @@ class TestProjectDateAlias(TestProjectCommon):
             with self.subTest(field=field):
                 project = self._dated()
                 project.write({field: fields.Date.to_date("2029-03-31")})
-                self.assertEqual(
-                    project.date_end, fields.Date.to_date("2029-03-31")
-                )
+                self.assertEqual(project.date_end, fields.Date.to_date("2029-03-31"))

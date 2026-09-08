@@ -276,7 +276,7 @@ class MailController(http.Controller):
                 message = request.env["mail.message"].search(
                     [("id", "=", int(kwargs["message_id"]))]
                 )
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 message = request.env["mail.message"]
             if message:
                 model, res_id = message.model, message.res_id

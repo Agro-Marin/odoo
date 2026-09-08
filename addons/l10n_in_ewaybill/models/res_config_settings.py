@@ -1,23 +1,26 @@
-from odoo import models, fields, _
+from odoo import _, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import html_escape
+
 from odoo.addons.l10n_in_ewaybill.tools.ewaybill_api import EWayBillApi, EWayBillError
 
 
 class ResConfigSettings(models.TransientModel):
-    _inherit = 'res.config.settings'
+    _inherit = "res.config.settings"
 
     l10n_in_ewaybill_username = fields.Char(
         "Indian Ewaybill username",
-        related='company_id.l10n_in_ewaybill_username',
-        readonly=False
+        related="company_id.l10n_in_ewaybill_username",
+        readonly=False,
     )
     l10n_in_ewaybill_password = fields.Char(
         "Indian Ewaybill password",
-        related='company_id.l10n_in_ewaybill_password',
-        readonly=False
+        related="company_id.l10n_in_ewaybill_password",
+        readonly=False,
     )
-    l10n_in_ewaybill_feature = fields.Boolean(related='company_id.l10n_in_ewaybill_feature', readonly=False)
+    l10n_in_ewaybill_feature = fields.Boolean(
+        related="company_id.l10n_in_ewaybill_feature", readonly=False
+    )
 
     def l10n_in_ewaybill_test(self):
         self._l10n_in_check_gst_number()
@@ -27,13 +30,17 @@ class ResConfigSettings(models.TransientModel):
         except EWayBillError as e:
             raise UserError(e.get_all_error_message())
         if not self.company_id.sudo()._l10n_in_ewaybill_token_is_valid():
-            raise UserError(_("Incorrect username or password, or the GST number on company does not match."))
+            raise UserError(
+                _(
+                    "Incorrect username or password, or the GST number on company does not match."
+                )
+            )
         return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'type': 'info',
-                'sticky': False,
-                'message': _("API credentials validated successfully"),
-            }
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "type": "info",
+                "sticky": False,
+                "message": _("API credentials validated successfully"),
+            },
         }

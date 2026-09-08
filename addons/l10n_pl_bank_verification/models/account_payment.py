@@ -5,24 +5,32 @@ from odoo.db.schema import column_exists, create_column
 
 
 class L10nPlAccountPayment(models.Model):
-    _inherit = 'account.payment'
+    _inherit = "account.payment"
 
     l10n_pl_verification_id = fields.Many2one(
-        string='PL Bank Verification',
-        comodel_name='l10n_pl.bank.account.verification',
-        compute='_compute_l10n_pl_verification_id',
+        string="PL Bank Verification",
+        comodel_name="l10n_pl.bank.account.verification",
+        compute="_compute_l10n_pl_verification_id",
         store=True,
         readonly=True,
         copy=False,
     )
-    l10n_pl_verification_status = fields.Selection(related='l10n_pl_verification_id.verification_status')
-    l10n_pl_verification_timestamp = fields.Datetime(related='l10n_pl_verification_id.verification_timestamp')
-    l10n_pl_verification_request_id = fields.Char(related='l10n_pl_verification_id.verification_request_id')
+    l10n_pl_verification_status = fields.Selection(
+        related="l10n_pl_verification_id.verification_status"
+    )
+    l10n_pl_verification_timestamp = fields.Datetime(
+        related="l10n_pl_verification_id.verification_timestamp"
+    )
+    l10n_pl_verification_request_id = fields.Char(
+        related="l10n_pl_verification_id.verification_request_id"
+    )
 
     def init(self):
         super().init()
-        if not column_exists(self.env.cr, 'account_payment', 'l10n_pl_verification_id'):
-            create_column(self.env.cr, 'account_payment', 'l10n_pl_verification_id', 'integer')
+        if not column_exists(self.env.cr, "account_payment", "l10n_pl_verification_id"):
+            create_column(
+                self.env.cr, "account_payment", "l10n_pl_verification_id", "integer"
+            )
 
     @api.model
     def _payment_need_check(self, partner, payment_type, amounts, currency):
@@ -30,24 +38,28 @@ class L10nPlAccountPayment(models.Model):
         :param amounts: list of amounts in case values are coming from a batch
         """
         return (
-            partner.country_code == 'PL'
-            and payment_type == 'outbound'
+            partner.country_code == "PL"
+            and payment_type == "outbound"
             and any(currency.compare_amounts(amount, 15000) >= 0 for amount in amounts)
-            and currency.name == 'PLN'
+            and currency.name == "PLN"
         )
 
-    @api.depends('state', 'date', 'partner_id', 'partner_bank_id')
+    @api.depends("state", "date", "partner_id", "partner_bank_id")
     def _compute_l10n_pl_verification_id(self):
-        partner_to_partner_banks = defaultdict(self.env['res.partner.bank'].browse)  # {partner: recordset(res.partner.bank)}
+        partner_to_partner_banks = defaultdict(
+            self.env["res.partner.bank"].browse
+        )  # {partner: recordset(res.partner.bank)}
         for pay in self:
-            if pay.state == 'draft':
+            if pay.state == "draft":
                 pay.l10n_pl_verification_id = False
                 continue
-            elif pay.company_id.country_code != 'PL':
+            if pay.company_id.country_code != "PL":
                 continue
 
             partner = pay.partner_id
-            if not partner or not self._payment_need_check(partner, pay.payment_type, [pay.amount], pay.currency_id):
+            if not partner or not self._payment_need_check(
+                partner, pay.payment_type, [pay.amount], pay.currency_id
+            ):
                 continue
 
             partner_bank = pay.partner_bank_id or partner.bank_ids[:1]
@@ -58,10 +70,14 @@ class L10nPlAccountPayment(models.Model):
             partner_to_partner_banks[partner.id] |= partner_bank
 
         partner_bank_data = list(partner_to_partner_banks.items())
-        date = fields.Date.context_today(self.with_context(tz='Europe/Warsaw'))
-        verifications = self.env['l10n_pl.bank.account.verification'].sudo()._l10n_pl_get_verification(partner_bank_data, date)
-        bank2verification = verifications.grouped('partner_bank_account_number')
-        partner2verification = verifications.grouped('partner_vat')
+        date = fields.Date.context_today(self.with_context(tz="Europe/Warsaw"))
+        verifications = (
+            self.env["l10n_pl.bank.account.verification"]
+            .sudo()
+            ._l10n_pl_get_verification(partner_bank_data, date)
+        )
+        bank2verification = verifications.grouped("partner_bank_account_number")
+        partner2verification = verifications.grouped("partner_vat")
 
         for pay in self:
             partner = pay.partner_id
@@ -70,6 +86,8 @@ class L10nPlAccountPayment(models.Model):
 
             partner_bank = pay.partner_bank_id or partner.bank_ids[:1]
             if partner_bank:
-                pay.l10n_pl_verification_id = bank2verification.get(partner_bank.sanitized_acc_number)
+                pay.l10n_pl_verification_id = bank2verification.get(
+                    partner_bank.sanitized_acc_number
+                )
             else:
                 pay.l10n_pl_verification_id = partner2verification.get(partner.vat)

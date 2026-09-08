@@ -146,9 +146,7 @@ def _adopt_gateway_endpoints(env) -> int:
         )
         if env.cr.rowcount:
             adopted += env.cr.rowcount
-            _logger.info(
-                "api_transport: %s.%s -> %s.%s", _GATEWAY, name, owner, name
-            )
+            _logger.info("api_transport: %s.%s -> %s.%s", _GATEWAY, name, owner, name)
     if adopted:
         _logger.info(
             "api_transport: routed %s outbound endpoint(s) out of %s to their "

@@ -6,5 +6,5 @@ class PosConfig(models.Model):
 
     def _supported_kiosk_payment_terminal(self):
         res = super()._supported_kiosk_payment_terminal()
-        res.append('qfpay')
+        res.append("qfpay")
         return res

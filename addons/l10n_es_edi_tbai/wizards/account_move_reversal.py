@@ -1,14 +1,15 @@
-# -*- coding: utf-8 -*-
-from odoo import fields, models, api
-from odoo.addons.l10n_es_edi_tbai.models.account_move import TBAI_REFUND_REASONS
+from odoo import api, fields, models
 from odoo.exceptions import UserError
+
+from odoo.addons.l10n_es_edi_tbai.models.account_move import TBAI_REFUND_REASONS
 
 
 class AccountMoveReversal(models.TransientModel):
-    _inherit = 'account.move.reversal'
+    _inherit = "account.move.reversal"
 
     l10n_es_tbai_is_required = fields.Boolean(
-        compute="_compute_l10n_es_tbai_is_required", readonly=True,
+        compute="_compute_l10n_es_tbai_is_required",
+        readonly=True,
         string="Is TicketBai required for this reversal",
     )
 
@@ -19,19 +20,27 @@ class AccountMoveReversal(models.TransientModel):
         "Valor Añadido. Artículo 80. Modificación de la base imponible.",
     )
 
-    @api.depends('move_ids')
+    @api.depends("move_ids")
     def _compute_l10n_es_tbai_is_required(self):
         for wizard in self:
-            moves_tbai_required = set(m.l10n_es_tbai_is_required for m in wizard.move_ids)
+            moves_tbai_required = set(
+                m.l10n_es_tbai_is_required for m in wizard.move_ids
+            )
             if len(moves_tbai_required) > 1:
-                raise UserError(self.env._("Reversals mixing invoices with and without TicketBAI are not allowed."))
+                raise UserError(
+                    self.env._(
+                        "Reversals mixing invoices with and without TicketBAI are not allowed."
+                    )
+                )
             wizard.l10n_es_tbai_is_required = moves_tbai_required.pop()
 
     def _prepare_default_reversal(self, move):
         # OVERRIDE
         values = super()._prepare_default_reversal(move)
         if move.l10n_es_tbai_is_required:
-            values.update({
-                'l10n_es_tbai_refund_reason': self.l10n_es_tbai_refund_reason,
-            })
+            values.update(
+                {
+                    "l10n_es_tbai_refund_reason": self.l10n_es_tbai_refund_reason,
+                }
+            )
         return values

@@ -2,7 +2,7 @@ from odoo import api, models
 
 
 class ProductTag(models.Model):
-    _inherit = 'product.tag'
+    _inherit = "product.tag"
 
     def _can_return_content(self, field_name=None, access_token=None):
         if field_name == "image" and self.sudo().visible_to_customers:
@@ -11,4 +11,4 @@ class ProductTag(models.Model):
 
     @api.model
     def _load_pos_self_data_domain(self, data, config):
-        return [('visible_to_customers', '=', True)]
+        return [("visible_to_customers", "=", True)]

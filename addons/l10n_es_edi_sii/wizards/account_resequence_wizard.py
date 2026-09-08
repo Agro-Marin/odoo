@@ -8,6 +8,7 @@ class AccountResequenceWizard(models.TransientModel):
         docs = super()._frozen_edi_documents()
         # SII vendor bills are sent with ref, so they can be resequenced
         return docs.filtered(
-            lambda doc: doc.edi_format_id.code != "es_sii"
-            or doc.move_id.is_sale_document()
+            lambda doc: (
+                doc.edi_format_id.code != "es_sii" or doc.move_id.is_sale_document()
+            )
         )

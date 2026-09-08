@@ -1134,9 +1134,7 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
                 "invoice_payment_term_id": self.early_pay_10_percents_10_days.id,
             }
         )
-        self.assertEqual(
-            len(inv.line_ids), 5
-        )
+        self.assertEqual(len(inv.line_ids), 5)
         inv.write({"invoice_payment_term_id": self.pay_terms_a.id})
         self.assertEqual(len(inv.line_ids), 3)
         inv.write({"invoice_payment_term_id": self.early_pay_10_percents_10_days.id})
@@ -1184,13 +1182,9 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
                 "invoice_payment_term_id": self.early_pay_10_percents_10_days.id,
             }
         )
-        self.assertEqual(
-            len(inv.line_ids), 8
-        )
+        self.assertEqual(len(inv.line_ids), 8)
         inv.invoice_line_ids[1].unlink()
-        self.assertEqual(
-            len(inv.line_ids), 5
-        )
+        self.assertEqual(len(inv.line_ids), 5)
         self.assertEqual(inv.amount_tax, 9.00)
 
     def test_mixed_epd_with_rounding_issue(self):

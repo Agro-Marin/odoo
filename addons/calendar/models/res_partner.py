@@ -5,14 +5,22 @@ from odoo.tools import SQL
 
 
 class ResPartner(models.Model):
-    _inherit = 'res.partner'
+    _inherit = "res.partner"
 
-    meeting_count = fields.Integer("# Meetings", compute='_compute_meeting_count')
-    meeting_ids = fields.Many2many('calendar.event', 'calendar_event_res_partner_rel', 'res_partner_id',
-                                   'calendar_event_id', string='Meetings', copy=False)
+    meeting_count = fields.Integer("# Meetings", compute="_compute_meeting_count")
+    meeting_ids = fields.Many2many(
+        "calendar.event",
+        "calendar_event_res_partner_rel",
+        "res_partner_id",
+        "calendar_event_id",
+        string="Meetings",
+        copy=False,
+    )
 
     calendar_last_notif_ack = fields.Datetime(
-        'Last notification marked as read from base Calendar', default=fields.Datetime.now)
+        "Last notification marked as read from base Calendar",
+        default=fields.Datetime.now,
+    )
 
     def _compute_meeting_count(self):
         result = self._compute_meeting()
@@ -23,18 +31,22 @@ class ResPartner(models.Model):
         if self.ids:
             # prefetch 'parent_id'
             all_partners = self.with_context(active_test=False).search_fetch(
-                [('id', 'child_of', self.ids)], ['parent_id'],
+                [("id", "child_of", self.ids)],
+                ["parent_id"],
             )
 
-            query = self.env['calendar.event']._search([])  # ir.rules will be applied
-            meeting_data = self.env.execute_query(SQL("""
+            query = self.env["calendar.event"]._search([])  # ir.rules will be applied
+            meeting_data = self.env.execute_query(
+                SQL(
+                    """
                 SELECT DISTINCT res_partner_id, calendar_event_id
                   FROM calendar_event_res_partner_rel
                  WHERE res_partner_id = ANY(%s) AND calendar_event_id IN %s
                 """,
-                list(all_partners._ids),
-                query.subselect(),
-            ))
+                    list(all_partners._ids),
+                    query.subselect(),
+                )
+            )
 
             # Create a dict {partner_id: event_ids} and fill with events linked to the partner
             meetings = {}
@@ -52,40 +64,55 @@ class ResPartner(models.Model):
                 while partner.parent_id:
                     partner = partner.parent_id
                     if partner.id in wanted_ids:
-                        meetings[partner.id] = meetings.get(partner.id, set()) | meetings[p.id]
+                        meetings[partner.id] = (
+                            meetings.get(partner.id, set()) | meetings[p.id]
+                        )
             return {p_id: list(meetings.get(p_id, set())) for p_id in self.ids}
         return {}
 
     def _get_application_statistics(self):
         data_list = super()._get_application_statistics()
-        for partner in self.filtered('meeting_count'):
-            stat_info = {'iconClass': 'fa-solid fa-calendar', 'value': partner.meeting_count, 'label': _('Meetings'), 'tagClass': 'o_tag_color_3'}
+        for partner in self.filtered("meeting_count"):
+            stat_info = {
+                "iconClass": "fa-solid fa-calendar",
+                "value": partner.meeting_count,
+                "label": _("Meetings"),
+                "tagClass": "o_tag_color_3",
+            }
             data_list[partner.id].append(stat_info)
         return data_list
 
     def get_attendee_detail(self, meeting_ids):
-        """ Return a list of dict of the given meetings with the attendees details
-            Used by:
+        """Return a list of dict of the given meetings with the attendees details
+        Used by:
 
-            - many2many_attendee.js: Many2ManyAttendee
-            - calendar_model.js (calendar.CalendarModel)
+        - many2many_attendee.js: Many2ManyAttendee
+        - calendar_model.js (calendar.CalendarModel)
         """
         attendees_details = []
-        meetings = self.env['calendar.event'].browse(meeting_ids)
+        meetings = self.env["calendar.event"].browse(meeting_ids)
         for attendee in meetings.attendee_ids:
             if attendee.partner_id not in self:
                 continue
-            attendee_is_organizer = self.env.user == attendee.event_id.user_id and attendee.partner_id == self.env.user.partner_id
-            attendees_details.append({
-                'id': attendee.partner_id.id,
-                'name': attendee.partner_id.display_name,
-                'status': attendee.state,
-                'event_id': attendee.event_id.id,
-                'attendee_id': attendee.id,
-                'is_alone': attendee.event_id.is_organizer_alone and attendee_is_organizer,
-                # attendees data is sorted according to this key in JS.
-                'is_organizer': 1 if attendee.partner_id == attendee.event_id.user_id.partner_id else 0,
-            })
+            attendee_is_organizer = (
+                self.env.user == attendee.event_id.user_id
+                and attendee.partner_id == self.env.user.partner_id
+            )
+            attendees_details.append(
+                {
+                    "id": attendee.partner_id.id,
+                    "name": attendee.partner_id.display_name,
+                    "status": attendee.state,
+                    "event_id": attendee.event_id.id,
+                    "attendee_id": attendee.id,
+                    "is_alone": attendee.event_id.is_organizer_alone
+                    and attendee_is_organizer,
+                    # attendees data is sorted according to this key in JS.
+                    "is_organizer": 1
+                    if attendee.partner_id == attendee.event_id.user_id.partner_id
+                    else 0,
+                }
+            )
         return attendees_details
 
     @api.model
@@ -97,22 +124,30 @@ class ResPartner(models.Model):
         # partner. `fields.Datetime.now()` rather than `datetime.now()` for the
         # same reason every other write of this column uses it -- the two agree
         # today, and the field's own default is already spelled this way.
-        self.env.user.partner_id.write({
-            'calendar_last_notif_ack': fields.Datetime.now(),
-        })
+        self.env.user.partner_id.write(
+            {
+                "calendar_last_notif_ack": fields.Datetime.now(),
+            }
+        )
 
     def schedule_meeting(self):
         self.check_singleton()
-        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("calendar.action_calendar_event")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+            "calendar.action_calendar_event"
+        )
         # Not `partner_ids = self.ids; partner_ids.append(...)`: that reads as a
         # mutation of the recordset's own ids and is only safe because `ids`
         # happens to build a fresh list each time.
-        action['context'] = {
-            'default_partner_ids': [*self.ids, self.env.user.partner_id.id],
+        action["context"] = {
+            "default_partner_ids": [*self.ids, self.env.user.partner_id.id],
         }
         # The first branch carries the meetings of this partner's *children*,
         # which the second cannot express as a domain.
-        action['domain'] = ['|', ('id', 'in', self._compute_meeting()[self.id]), ('partner_ids', 'in', self.ids)]
+        action["domain"] = [
+            "|",
+            ("id", "in", self._compute_meeting()[self.id]),
+            ("partner_ids", "in", self.ids),
+        ]
         return action
 
     def _get_busy_calendar_events(self, start_datetime, end_datetime):
@@ -136,12 +171,14 @@ class ResPartner(models.Model):
 
         :rtype: <calendar.event>
         """
-        return self.env['calendar.event'].search([
-            ('stop', '>=', start_datetime.replace(tzinfo=None)),
-            ('start', '<=', end_datetime.replace(tzinfo=None)),
-            ('partner_ids', 'in', self.ids),
-            ('show_as', '=', 'busy'),
-        ])
+        return self.env["calendar.event"].search(
+            [
+                ("stop", ">=", start_datetime.replace(tzinfo=None)),
+                ("start", "<=", end_datetime.replace(tzinfo=None)),
+                ("partner_ids", "in", self.ids),
+                ("show_as", "=", "busy"),
+            ]
+        )
 
     def _group_busy_calendar_events(self, events, start_datetime, end_datetime):
         """Bucket the part of `events` intersecting the interval, by attendee.
@@ -160,7 +197,7 @@ class ResPartner(models.Model):
         """
         start = start_datetime.replace(tzinfo=None)
         stop = end_datetime.replace(tzinfo=None)
-        event_by_partner_id = defaultdict(lambda: self.env['calendar.event'])
+        event_by_partner_id = defaultdict(lambda: self.env["calendar.event"])
         for event in events:
             if not (event.stop >= start and event.start <= stop):
                 continue

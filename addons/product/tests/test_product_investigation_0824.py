@@ -17,7 +17,6 @@ def _png(color="#112233", size=(64, 64)):
 
 @tagged("post_install", "-at_install")
 class TestVariantUnlinkUnderBinSize(ProductVariantsCommon):
-
     def test_unlink_moves_the_image_under_a_bin_size_context(self):
         template = self.product_template_sofa
         variant = template.product_variant_ids[0]
@@ -36,7 +35,6 @@ class TestVariantUnlinkUnderBinSize(ProductVariantsCommon):
 
 @tagged("post_install", "-at_install")
 class TestUpdateAttributeValueWizardCount(ProductVariantsCommon):
-
     def test_count_follows_the_attribute_value(self):
         wizard = self.env["update.product.attribute.value"].create(
             {
@@ -65,7 +63,6 @@ class TestUpdateAttributeValueWizardCount(ProductVariantsCommon):
 
 @tagged("post_install", "-at_install")
 class TestOwnAttributeExclusions(ProductVariantsCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -164,7 +161,6 @@ class TestOwnAttributeExclusions(ProductVariantsCommon):
 
 @tagged("post_install", "-at_install")
 class TestCategoryRulePrecedence(ProductCommon):
-
     def test_child_category_rule_wins_over_parent(self):
         child = self.env["product.category"].create({"name": "Prec child"})
         parent = self.env["product.category"].create({"name": "Prec parent"})

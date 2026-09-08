@@ -10,7 +10,7 @@ from .diff_utils import (
 
 
 class MixinHtmlFieldHistory(models.AbstractModel):
-    _name = 'mixin.html.field.history'
+    _name = "mixin.html.field.history"
     _description = "Field html History"
     _html_field_history_size_limit = 300
 
@@ -41,13 +41,13 @@ class MixinHtmlFieldHistory(models.AbstractModel):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            vals.pop('html_field_history', None)
+            vals.pop("html_field_history", None)
         return super().create(vals_list)
 
     def write(self, vals):
         rec_db_contents = {}
-        if 'html_field_history' in vals:
-            del vals['html_field_history']
+        if "html_field_history" in vals:
+            del vals["html_field_history"]
         versioned_fields = self._get_fields_versioned()
         vals_contain_versioned_fields = set(vals).intersection(versioned_fields)
 
@@ -105,24 +105,30 @@ class MixinHtmlFieldHistory(models.AbstractModel):
                     history_revs[field] = history_revs[field][:limit]
             if new_revisions:
                 extra_vals = {"html_field_history": history_revs}
-                write_result = super(MixinHtmlFieldHistory, rec).write(extra_vals) and write_result
+                write_result = (
+                    super(MixinHtmlFieldHistory, rec).write(extra_vals) and write_result
+                )
 
         return write_result
 
     def _check_versioned_field(self, field_name):
         if field_name not in self._get_fields_versioned():
-            raise UserError(_(
-                'Field "%(field)s" is not versioned on model "%(model)s".',
-                field=field_name,
-                model=self._name,
-            ))
+            raise UserError(
+                _(
+                    'Field "%(field)s" is not versioned on model "%(model)s".',
+                    field=field_name,
+                    model=self._name,
+                )
+            )
 
     def _check_revision_id(self, revision_id):
         if isinstance(revision_id, bool) or not isinstance(revision_id, int):
-            raise UserError(_(
-                'Invalid revision id "%(revision)s": expected an integer.',
-                revision=revision_id,
-            ))
+            raise UserError(
+                _(
+                    'Invalid revision id "%(revision)s": expected an integer.',
+                    revision=revision_id,
+                )
+            )
 
     def html_field_history_get_content_at_revision(self, field_name, revision_id):
         self.check_singleton()

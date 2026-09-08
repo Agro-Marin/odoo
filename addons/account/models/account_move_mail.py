@@ -161,8 +161,7 @@ class AccountMove(models.Model):
                     **message_values,
                     "res_id": invoice.id,
                     "attachment_ids": [
-                        Command.link(attachment.id)
-                        for attachment in attachment_records
+                        Command.link(attachment.id) for attachment in attachment_records
                     ],
                 }
                 super(

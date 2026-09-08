@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 {
     "name": "Point of Sale Discounts",
     "version": "1.0",

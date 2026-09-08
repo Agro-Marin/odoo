@@ -4,7 +4,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestCompanyDefaultPricelistCurrency(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -155,7 +154,6 @@ class TestCatalogContextContract(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestSectionSearchInputValidation(TransactionCase):
-
     def _search(self, **ctx):
         return (
             self.env["product.product"]
@@ -195,7 +193,6 @@ class TestSectionSearchInputValidation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestPackagingCompanyConsistency(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -295,7 +292,6 @@ class TestPackagingCompanyConsistency(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestPricelistUnknownBase(TransactionCase):
-
     def test_unknown_base_raises_a_readable_error(self):
         template = self.env["product.template"].create(
             {"name": "Unknown Base Product", "list_price": 100.0},
@@ -337,7 +333,6 @@ class TestLabelLayoutMissingWizard(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestTransientWizardIsolation(TransactionCase):
-
     def test_every_product_wizard_has_an_ownership_rule(self):
         wizards = [
             "product.label.layout",
@@ -358,7 +353,6 @@ class TestTransientWizardIsolation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCatalogPricePortalTarget(TransactionCase):
-
     def test_catalog_card_declares_the_price_portal_target(self):
         arch = self.env.ref("product.view_product_product_kanban_catalog").arch_db
 

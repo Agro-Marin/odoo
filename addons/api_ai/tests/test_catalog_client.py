@@ -36,7 +36,8 @@ class TestCatalogAIClient(TransactionCase):
 
     def test_model_override_wins(self):
         self.assertEqual(
-            CatalogAIClient("groq", "key", "other-model", env=self.env).model, "other-model"
+            CatalogAIClient("groq", "key", "other-model", env=self.env).model,
+            "other-model",
         )
 
     def test_every_vendor_ships_a_default_model(self):
@@ -104,7 +105,9 @@ class TestCatalogAIClient(TransactionCase):
         self.assertTrue(CatalogAIClient("groq", "key", env=self.env).supports_audio)
         self.assertTrue(CatalogAIClient("gemini", "key", env=self.env).supports_audio)
         self.assertFalse(CatalogAIClient("claude", "key", env=self.env).supports_audio)
-        self.assertFalse(CatalogAIClient("deepseek", "key", env=self.env).supports_audio)
+        self.assertFalse(
+            CatalogAIClient("deepseek", "key", env=self.env).supports_audio
+        )
 
     def test_transcribe_excludes_thinking_parts(self):
         payload = {
@@ -131,7 +134,9 @@ class TestCatalogAIClient(TransactionCase):
         self.assertEqual(transcript, "Compra de tres llantas, doce mil pesos.")
 
     def test_audio_timeout_per_vendor(self):
-        self.assertEqual(CatalogAIClient("gemini", "key", env=self.env)._audio_timeout, 90)
+        self.assertEqual(
+            CatalogAIClient("gemini", "key", env=self.env)._audio_timeout, 90
+        )
         self.assertEqual(
             CatalogAIClient("groq", "key", env=self.env)._audio_timeout,
             30,
@@ -151,8 +156,12 @@ class TestCatalogAIClient(TransactionCase):
         self.assertTrue(CatalogAIClient("gemini", "key", env=self.env).supports_vision)
         self.assertTrue(CatalogAIClient("openai", "key", env=self.env).supports_vision)
         self.assertTrue(CatalogAIClient("claude", "key", env=self.env).supports_vision)
-        self.assertFalse(CatalogAIClient("deepseek", "key", env=self.env).supports_vision)
-        self.assertFalse(CatalogAIClient("moonshot", "key", env=self.env).supports_vision)
+        self.assertFalse(
+            CatalogAIClient("deepseek", "key", env=self.env).supports_vision
+        )
+        self.assertFalse(
+            CatalogAIClient("moonshot", "key", env=self.env).supports_vision
+        )
 
     def test_groq_vision_model_differs_from_text_model(self):
         provider = CatalogAIClient("groq", "key", env=self.env)
@@ -169,7 +178,9 @@ class TestCatalogAIClient(TransactionCase):
             )
 
     def test_vision_model_override_reaches_a_shared_model_vendor(self):
-        self.assertEqual(CatalogAIClient("openai", "key", "custom").vision_model, "custom")
+        self.assertEqual(
+            CatalogAIClient("openai", "key", "custom").vision_model, "custom"
+        )
         self.assertEqual(
             CatalogAIClient("groq", "key", "custom").vision_model,
             PROVIDERS["groq"]["vision_model"],
@@ -352,14 +363,21 @@ class TestSharedResponseReaders(TransactionCase):
 
     def test_anthropic_reader_refuses_a_truncated_answer(self):
         text, problem = read_anthropic_content(
-            {"content": [{"type": "text", "text": '{"partial"'}], "stop_reason": "max_tokens"}
+            {
+                "content": [{"type": "text", "text": '{"partial"'}],
+                "stop_reason": "max_tokens",
+            }
         )
         self.assertEqual(text, "")
         self.assertIn("truncated", problem)
 
     def test_openai_reader_refuses_a_truncated_answer(self):
         text, problem = read_openai_content(
-            {"choices": [{"message": {"content": '{"partial"'}, "finish_reason": "length"}]}
+            {
+                "choices": [
+                    {"message": {"content": '{"partial"'}, "finish_reason": "length"}
+                ]
+            }
         )
         self.assertEqual(text, "")
         self.assertIn("truncated", problem)
@@ -411,7 +429,9 @@ class TestAuthHeadersComeFromTheEndpoint(TransactionCase):
             factory.return_value.post.return_value = {
                 "status_code": 200,
                 "body": {
-                    "choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}],
+                    "choices": [
+                        {"message": {"content": "{}"}, "finish_reason": "stop"}
+                    ],
                     "content": [{"type": "text", "text": "{}"}],
                     "stop_reason": "end_turn",
                 },

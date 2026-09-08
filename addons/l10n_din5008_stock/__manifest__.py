@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "DIN 5008 - Stock",
     "category": "Accounting/Localizations",

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Finland - Sale",
     "version": "1.0",

@@ -280,7 +280,7 @@ class AccountMove(models.Model):
                             "This vendor bill is already rejected according to the Tax Authority."
                         )
                     )
-                elif move.l10n_hr_business_document_status in ("4", "99"):
+                if move.l10n_hr_business_document_status in ("4", "99"):
                     _mer_api_update_document_process_status(
                         move.company_id,
                         move.l10n_hr_mer_document_eid,

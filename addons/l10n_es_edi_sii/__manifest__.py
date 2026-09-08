@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Thanks to AEOdoo and the Spanish community
 # Specially among others Ignacio Ibeas, Pedro Baeza and Landoo
 

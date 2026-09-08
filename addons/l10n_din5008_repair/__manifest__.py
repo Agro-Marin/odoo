@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "DIN 5008 - Repair",
     "category": "Accounting/Localizations",

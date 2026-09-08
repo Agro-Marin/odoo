@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Indian - Point of Sale",
     "version": "1.0",

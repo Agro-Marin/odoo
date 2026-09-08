@@ -8,13 +8,16 @@ from odoo.addons.account_edi_proxy_client.models.account_edi_proxy_user import (
 
 
 class AccountEdiProxyClientUser(models.Model):
-    _inherit = 'account_edi_proxy_client.user'
+    _inherit = "account_edi_proxy_client.user"
 
     # ------------------
     # Fields declaration
     # ------------------
 
-    proxy_type = fields.Selection(selection_add=[('l10n_my_edi', 'Malaysian EDI')], ondelete={'l10n_my_edi': 'cascade'})
+    proxy_type = fields.Selection(
+        selection_add=[("l10n_my_edi", "Malaysian EDI")],
+        ondelete={"l10n_my_edi": "cascade"},
+    )
 
     _unique_identification_l10n_my_edi = models.UniqueIndex(
         "(edi_identification, proxy_type, edi_mode) WHERE (active AND proxy_type = 'l10n_my_edi')",
@@ -29,16 +32,20 @@ class AccountEdiProxyClientUser(models.Model):
         # EXTENDS 'account_edi_proxy_client'
         urls = super()._get_proxy_urls()
         # We do not use demo with MyInvois as during a demo, showing the invoice on the pre-prod platform will be better.
-        urls['l10n_my_edi'] = {
-            'demo': False,
-            'prod': 'https://l10n-my-edi.api.odoo.com',
-            'test': self.env['ir.config_parameter'].sudo().get_param('l10n_my_edi_test_server_url', 'https://l10n-my-edi.test.odoo.com'),
+        urls["l10n_my_edi"] = {
+            "demo": False,
+            "prod": "https://l10n-my-edi.api.odoo.com",
+            "test": self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(
+                "l10n_my_edi_test_server_url", "https://l10n-my-edi.test.odoo.com"
+            ),
         }
         return urls
 
     def _get_proxy_identification(self, company, proxy_type):
         # EXTENDS 'account_edi_proxy_client'
-        if proxy_type == 'l10n_my_edi':
+        if proxy_type == "l10n_my_edi":
             if not company.vat:
                 raise UserError(
                     company.env._(
@@ -62,6 +69,10 @@ class AccountEdiProxyClientUser(models.Model):
             )
         except AccountEdiProxyError as _error:
             # Request error while contacting the IAP server. We assume it is a temporary error.
-            raise UserError(self.env._("Failed to contact the E-Invoicing service. Please try again later."))
+            raise UserError(
+                self.env._(
+                    "Failed to contact the E-Invoicing service. Please try again later."
+                )
+            )
 
         return response

@@ -44,20 +44,28 @@ class TestAlertsAreKeyedByUser(AccountTestInvoicingCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.accountant = cls.env["res.users"].create({
-            "name": "Audit accountant",
-            "login": "audit_accountant",
-            "group_ids": [Command.set([
-                cls.env.ref("base.group_user").id,
-                cls.env.ref("account.group_account_manager").id,
-                cls.env.ref("account.group_account_user").id,
-            ])],
-        })
-        cls.plain = cls.env["res.users"].create({
-            "name": "Audit plain",
-            "login": "audit_plain",
-            "group_ids": [Command.set([cls.env.ref("base.group_user").id])],
-        })
+        cls.accountant = cls.env["res.users"].create(
+            {
+                "name": "Audit accountant",
+                "login": "audit_accountant",
+                "group_ids": [
+                    Command.set(
+                        [
+                            cls.env.ref("base.group_user").id,
+                            cls.env.ref("account.group_account_manager").id,
+                            cls.env.ref("account.group_account_user").id,
+                        ]
+                    )
+                ],
+            }
+        )
+        cls.plain = cls.env["res.users"].create(
+            {
+                "name": "Audit plain",
+                "login": "audit_plain",
+                "group_ids": [Command.set([cls.env.ref("base.group_user").id])],
+            }
+        )
 
     def _locked_draft_invoice(self):
         invoice = self.init_invoice(
@@ -139,10 +147,12 @@ class TestReportFilenames(AccountTestInvoicingCommon):
     def test_a_numberless_draft_still_produces_a_filename(self):
         invoice = self.init_invoice("out_invoice", amounts=[100.0], post=False)
         invoice.name = False
-        report = self.env.ref("account.account_invoices").copy({
-            "print_report_name": False,
-            "name": "audit report without a name expression",
-        })
+        report = self.env.ref("account.account_invoices").copy(
+            {
+                "print_report_name": False,
+                "name": "audit report without a name expression",
+            }
+        )
         self.assertEqual(
             invoice._get_invoice_report_filename(report=report),
             f"{invoice._get_move_display_name()}.pdf",
@@ -162,14 +172,20 @@ class TestQrCodeDoesNotWriteOnReadOnlyPaths(AccountTestInvoicingCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.reader = cls.env["res.users"].create({
-            "name": "Audit reader",
-            "login": "audit_reader",
-            "group_ids": [Command.set([
-                cls.env.ref("base.group_user").id,
-                cls.env.ref("account.group_account_readonly").id,
-            ])],
-        })
+        cls.reader = cls.env["res.users"].create(
+            {
+                "name": "Audit reader",
+                "login": "audit_reader",
+                "group_ids": [
+                    Command.set(
+                        [
+                            cls.env.ref("base.group_user").id,
+                            cls.env.ref("account.group_account_readonly").id,
+                        ]
+                    )
+                ],
+            }
+        )
 
     def test_a_reader_can_render_a_qr_code_without_write_access(self):
         invoice = self.init_invoice("out_invoice", amounts=[100.0], post=True)
@@ -189,11 +205,13 @@ class TestQrCodeDoesNotWriteOnReadOnlyPaths(AccountTestInvoicingCommon):
 @tagged("post_install", "-at_install")
 class TestCurrencyRateRpcIsGuarded(AccountTestInvoicingCommon):
     def test_a_portal_user_cannot_read_a_rate_through_a_move_they_cannot_read(self):
-        portal = self.env["res.users"].create({
-            "name": "Audit portal",
-            "login": "audit_portal",
-            "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
-        })
+        portal = self.env["res.users"].create(
+            {
+                "name": "Audit portal",
+                "login": "audit_portal",
+                "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
+            }
+        )
         invoice = self.init_invoice("out_invoice", amounts=[100.0], post=True)
         with self.assertRaises(AccessError):
             invoice.with_user(portal).get_currency_rate(

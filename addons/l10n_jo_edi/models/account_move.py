@@ -13,9 +13,14 @@ JOFOTARA_URL = "https://backend.jofotara.gov.jo/core/invoices/"
 
 
 class AccountMove(models.Model):
-    _inherit = 'account.move'
+    _inherit = "account.move"
 
-    l10n_jo_edi_uuid = fields.Char(string="Invoice UUID", copy=False, compute="_compute_l10n_jo_edi_uuid", store=True)
+    l10n_jo_edi_uuid = fields.Char(
+        string="Invoice UUID",
+        copy=False,
+        compute="_compute_l10n_jo_edi_uuid",
+        store=True,
+    )
     l10n_jo_edi_qr = fields.Char(string="QR", copy=False)
 
     l10n_jo_edi_is_needed = fields.Boolean(
@@ -23,10 +28,11 @@ class AccountMove(models.Model):
         help="Jordan: technical field to determine if this invoice is eligible to be e-invoiced.",
     )
     l10n_jo_edi_state = fields.Selection(
-        selection=[('to_send', 'To Send'), ('sent', 'Sent'), ('demo', 'Sent (Demo)')],
+        selection=[("to_send", "To Send"), ("sent", "Sent"), ("demo", "Sent (Demo)")],
         string="JoFotara State",
         tracking=True,
-        copy=False)
+        copy=False,
+    )
     l10n_jo_edi_error = fields.Text(
         string="JoFotara Error",
         copy=False,
@@ -56,14 +62,15 @@ class AccountMove(models.Model):
     reversed_entry_id = fields.Many2one(tracking=True)
     l10n_jo_edi_invoice_type = fields.Selection(
         selection=[
-            ('local', 'Local'),
-            ('export', 'Export'),
-            ('development', 'Development Area'),
+            ("local", "Local"),
+            ("export", "Export"),
+            ("development", "Development Area"),
         ],
         string="Invoice Type",
         precompute=True,
-        compute='_compute_l10n_jo_edi_invoice_type',
-        readonly=False, store=True,
+        compute="_compute_l10n_jo_edi_invoice_type",
+        readonly=False,
+        store=True,
         tracking=True,
         help="Invoice Types as per the Income and Sales Tax Department for JoFotara",
     )
@@ -80,7 +87,9 @@ class AccountMove(models.Model):
     def _compute_show_reset_to_draft_button(self):
         # EXTENDS 'account'
         super()._compute_show_reset_to_draft_button()
-        self.filtered(lambda move: move.l10n_jo_edi_state == 'sent').show_reset_to_draft_button = False
+        self.filtered(
+            lambda move: move.l10n_jo_edi_state == "sent"
+        ).show_reset_to_draft_button = False
 
     @api.depends("l10n_jo_edi_is_needed")
     def _compute_l10n_jo_edi_uuid(self):
@@ -91,81 +100,113 @@ class AccountMove(models.Model):
     @api.depends("state", "l10n_jo_edi_is_needed")
     def _compute_l10n_jo_edi_computed_xml(self):
         for invoice in self:
-            if invoice.state == 'posted' and invoice.l10n_jo_edi_is_needed:
-                xml_content = self.env['account.edi.xml.ubl_21.jo']._export_invoice(invoice)[0]
+            if invoice.state == "posted" and invoice.l10n_jo_edi_is_needed:
+                xml_content = self.env["account.edi.xml.ubl_21.jo"]._export_invoice(
+                    invoice
+                )[0]
                 invoice.l10n_jo_edi_computed_xml = base64.b64encode(xml_content)
             else:
                 invoice.l10n_jo_edi_computed_xml = False
 
-    @api.depends('partner_id.country_code')
+    @api.depends("partner_id.country_code")
     def _compute_l10n_jo_edi_invoice_type(self):
-        for move in self.filtered(lambda m: m.l10n_jo_edi_is_needed and m.l10n_jo_edi_invoice_type != 'development'):
+        for move in self.filtered(
+            lambda m: (
+                m.l10n_jo_edi_is_needed and m.l10n_jo_edi_invoice_type != "development"
+            )
+        ):
             country_code = move.commercial_partner_id.country_code
-            if country_code == 'JO':
-                move.l10n_jo_edi_invoice_type = 'local'
+            if country_code == "JO":
+                move.l10n_jo_edi_invoice_type = "local"
             elif country_code:
-                move.l10n_jo_edi_invoice_type = 'export'
+                move.l10n_jo_edi_invoice_type = "export"
             else:
                 move.l10n_jo_edi_invoice_type = False
 
-    @api.depends('partner_id', 'company_id')
+    @api.depends("partner_id", "company_id")
     def _compute_preferred_payment_channel_id(self):
         super()._compute_preferred_payment_channel_id()
 
         for move in self.filtered(lambda m: m.partner_id and m.l10n_jo_edi_is_needed):
-            expected_type = 'bank' if move.partner_id.is_company or move.partner_id.parent_id else 'cash'
-            journal = self.env['account.journal'].search([
-                ('type', '=', expected_type),
-                ('company_id', '=', move.company_id.id),
-                ('inbound_payment_channel_ids', '!=', False),
-            ], limit=1)
+            expected_type = (
+                "bank"
+                if move.partner_id.is_company or move.partner_id.parent_id
+                else "cash"
+            )
+            journal = self.env["account.journal"].search(
+                [
+                    ("type", "=", expected_type),
+                    ("company_id", "=", move.company_id.id),
+                    ("inbound_payment_channel_ids", "!=", False),
+                ],
+                limit=1,
+            )
             if journal and (payment_channel := journal.inbound_payment_channel_ids[0]):
                 move.preferred_payment_channel_id = payment_channel
 
     def download_l10n_jo_edi_computed_xml(self):
-        if error_message := self._l10n_jo_validate_config() or self._l10n_jo_validate_fields():
-            raise ValidationError(_("The following errors have to be fixed in order to create an XML:\n") + error_message)
-        params = urlencode({
-            'model': self._name,
-            'id': self.id,
-            'field': 'l10n_jo_edi_computed_xml',
-            'filename': self._l10n_jo_edi_get_xml_attachment_name(),
-            'mimetype': 'application/xml',
-            'download': 'true',
-        })
-        return {'type': 'ir.actions.act_url', 'url': '/web/content/?' + params, 'target': 'new'}
+        if (
+            error_message := self._l10n_jo_validate_config()
+            or self._l10n_jo_validate_fields()
+        ):
+            raise ValidationError(
+                _("The following errors have to be fixed in order to create an XML:\n")
+                + error_message
+            )
+        params = urlencode(
+            {
+                "model": self._name,
+                "id": self.id,
+                "field": "l10n_jo_edi_computed_xml",
+                "filename": self._l10n_jo_edi_get_xml_attachment_name(),
+                "mimetype": "application/xml",
+                "download": "true",
+            }
+        )
+        return {
+            "type": "ir.actions.act_url",
+            "url": "/web/content/?" + params,
+            "target": "new",
+        }
 
     def _l10n_jo_qr_code_src(self):
         self.check_singleton()
-        encoded_params = urlencode({
-            'barcode_type': 'QR',
-            'quiet': 0,
-            'value': self.l10n_jo_edi_qr,
-            'width': 200,
-            'height': 200,
-        })
-        return f'/report/barcode/?{encoded_params}'
+        encoded_params = urlencode(
+            {
+                "barcode_type": "QR",
+                "quiet": 0,
+                "value": self.l10n_jo_edi_qr,
+                "width": 200,
+                "height": 200,
+            }
+        )
+        return f"/report/barcode/?{encoded_params}"
 
     def _is_sales_refund(self):
         self.check_singleton()
-        return self.company_id.l10n_jo_edi_taxpayer_type == 'sales' and self.move_type == 'out_refund'
+        return (
+            self.company_id.l10n_jo_edi_taxpayer_type == "sales"
+            and self.move_type == "out_refund"
+        )
 
     def _get_invoice_scope_code(self):
         return {
-            'local': '0',
-            'export': '1',
-            'development': '2',
-        }.get(self.l10n_jo_edi_invoice_type, '0')
+            "local": "0",
+            "export": "1",
+            "development": "2",
+        }.get(self.l10n_jo_edi_invoice_type, "0")
 
     def _get_invoice_payment_method_code(self):
-        return '1' if self.preferred_payment_channel_id.journal_id.type == 'cash' else '2'
+        return (
+            "1" if self.preferred_payment_channel_id.journal_id.type == "cash" else "2"
+        )
 
     def _get_invoice_tax_payer_type_code(self):
         return {
-            'income': '1',
-            'sales': '2',
-            'special': '3',
-        }.get(self.company_id.l10n_jo_edi_taxpayer_type, '1')
+            "income": "1",
+            "sales": "2",
+            "special": "3",
+        }.get(self.company_id.l10n_jo_edi_taxpayer_type, "1")
 
     def action_draft(self):
         # EXTENDS 'account'
@@ -181,57 +222,64 @@ class AccountMove(models.Model):
     def _get_fields_to_detach(self):
         # EXTENDS account
         fields_list = super()._get_fields_to_detach()
-        fields_list.append('l10n_jo_edi_xml_attachment_file')
+        fields_list.append("l10n_jo_edi_xml_attachment_file")
         return fields_list
 
     def _post_entries(self):
         # EXTENDS 'account'
-        for invoice in self.filtered('l10n_jo_edi_is_needed'):
-            invoice.l10n_jo_edi_state = 'to_send'
+        for invoice in self.filtered("l10n_jo_edi_is_needed"):
+            invoice.l10n_jo_edi_state = "to_send"
         return super()._post_entries()
 
     def _get_name_invoice_report(self):
         # EXTENDS account
         self.check_singleton()
-        if self.l10n_jo_edi_state in ['sent', 'demo'] and self.l10n_jo_edi_xml_attachment_id:
-            return 'l10n_jo_edi.report_invoice_document'
+        if (
+            self.l10n_jo_edi_state in ["sent", "demo"]
+            and self.l10n_jo_edi_xml_attachment_id
+        ):
+            return "l10n_jo_edi.report_invoice_document"
         return super()._get_name_invoice_report()
 
     def _l10n_jo_build_jofotara_headers(self):
         self.check_singleton()
         return {
-            'Client-Id': self.sudo().company_id.l10n_jo_edi_client_identifier,
-            'Secret-Key': self.sudo().company_id.l10n_jo_edi_secret_key,
+            "Client-Id": self.sudo().company_id.l10n_jo_edi_client_identifier,
+            "Secret-Key": self.sudo().company_id.l10n_jo_edi_secret_key,
         }
 
     def _send_l10n_jo_edi_request(self, params, headers):
         if self.env.company.l10n_jo_edi_demo_mode:
-            return {'EINV_QR': "Demo JoFotara QR"}  # mocked response
+            return {"EINV_QR": "Demo JoFotara QR"}  # mocked response
 
         try:
-            response = requests.post(JOFOTARA_URL, json=params, headers=headers, timeout=50)
+            response = requests.post(
+                JOFOTARA_URL, json=params, headers=headers, timeout=50
+            )
         except requests.exceptions.Timeout:
-            return {'error': _("Request timeout! Please try again.")}
+            return {"error": _("Request timeout! Please try again.")}
         except requests.exceptions.RequestException as e:
-            return {'error': _("Invalid request: %s", e)}
+            return {"error": _("Invalid request: %s", e)}
 
         if not response.ok:
             content = response.content.decode()
             if response.status_code == 403:
-                content = _("Access forbidden. Please verify your JoFotara credentials.")
-            return {'error': _("Request failed: %s", content)}
+                content = _(
+                    "Access forbidden. Please verify your JoFotara credentials."
+                )
+            return {"error": _("Request failed: %s", content)}
         dict_response = response.json()
         return dict_response
 
     def _submit_to_jofotara(self):
         self.check_singleton()
         headers = self._l10n_jo_build_jofotara_headers()
-        xml_invoice = self.env['account.edi.xml.ubl_21.jo']._export_invoice(self)[0]
-        params = {'invoice': base64.b64encode(xml_invoice).decode()}
+        xml_invoice = self.env["account.edi.xml.ubl_21.jo"]._export_invoice(self)[0]
+        params = {"invoice": base64.b64encode(xml_invoice).decode()}
         dict_response = self._send_l10n_jo_edi_request(params, headers)
-        if 'error' in dict_response and len(dict_response) == 1:
-            return dict_response['error']
-        self.l10n_jo_edi_qr = str(dict_response.get('EINV_QR', ''))
+        if "error" in dict_response and len(dict_response) == 1:
+            return dict_response["error"]
+        self.l10n_jo_edi_qr = str(dict_response.get("EINV_QR", ""))
         self.invoice_pdf_report_id.res_field = False
         self.env["ir.attachment"].create(
             {
@@ -255,64 +303,125 @@ class AccountMove(models.Model):
         if not self.company_id.l10n_jo_edi_taxpayer_type:
             error_msgs.append(_("Taxpayer type is missing."))
         if not self.company_id.l10n_jo_edi_sequence_income_source:
-            error_msgs.append(_("Activity number (Sequence of income source) is missing."))
+            error_msgs.append(
+                _("Activity number (Sequence of income source) is missing.")
+            )
 
         if error_msgs:
-            return _("%s \nTo set: Configuration > Settings > Electronic Invoicing (Jordan)", "\n".join(error_msgs))
+            return _(
+                "%s \nTo set: Configuration > Settings > Electronic Invoicing (Jordan)",
+                "\n".join(error_msgs),
+            )
 
     def _l10n_jo_validate_fields(self):
         def has_non_digit_vat(partner, partner_type, error_msgs):
             if partner.vat and not partner.vat.isdigit():
-                error_msgs.append(_("JoFotara portal cannot process %s VAT with non-digit characters in it", partner_type))
+                error_msgs.append(
+                    _(
+                        "JoFotara portal cannot process %s VAT with non-digit characters in it",
+                        partner_type,
+                    )
+                )
 
         error_msgs = []
 
         if not self.preferred_payment_channel_id:
             error_msgs.append(_("Please select a payment method before submission."))
         if not self.l10n_jo_edi_invoice_type:
-            error_msgs.append(_("Please select an invoice type before submitting this invoice to JoFotara."))
+            error_msgs.append(
+                _(
+                    "Please select an invoice type before submitting this invoice to JoFotara."
+                )
+            )
 
         customer = self.partner_id
-        has_non_digit_vat(customer, 'customer', error_msgs)
+        has_non_digit_vat(customer, "customer", error_msgs)
 
         supplier = self.company_id.partner_id.commercial_partner_id
-        has_non_digit_vat(supplier, 'supplier', error_msgs)
+        has_non_digit_vat(supplier, "supplier", error_msgs)
 
-        if self.move_type == 'out_refund':
+        if self.move_type == "out_refund":
             if not self.reversed_entry_id:
-                error_msgs.append(_('Please use "Reversal of" to link this credit note with an Invoice'))
+                error_msgs.append(
+                    _(
+                        'Please use "Reversal of" to link this credit note with an Invoice'
+                    )
+                )
             elif self.currency_id != self.reversed_entry_id.currency_id:
-                error_msgs.append(_("Please make sure the currency of the credit note is the same as the related invoice"))
+                error_msgs.append(
+                    _(
+                        "Please make sure the currency of the credit note is the same as the related invoice"
+                    )
+                )
 
             if not self.ref:
-                error_msgs.append(_('Please make sure the "Customer Reference" contains the reason for the return'))
+                error_msgs.append(
+                    _(
+                        'Please make sure the "Customer Reference" contains the reason for the return'
+                    )
+                )
 
         if any(
             line.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
             and (line.quantity < 0 or line.price_unit < 0)
             for line in self.invoice_line_ids
         ):
-            error_msgs.append(_("JoFotara portal cannot process negative quantity nor negative price on invoice lines"))
+            error_msgs.append(
+                _(
+                    "JoFotara portal cannot process negative quantity nor negative price on invoice lines"
+                )
+            )
 
-        for line in self.invoice_line_ids.filtered(lambda line: line.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES):
-            if self.company_id.l10n_jo_edi_taxpayer_type == 'income' and len(line.tax_ids) != 0:
-                error_msgs.append(_("No taxes are allowed on invoice lines for taxpayers unregistered in the sales tax"))
-            elif self.company_id.l10n_jo_edi_taxpayer_type == 'sales' and len(line.tax_ids) != 1:
-                error_msgs.append(_("One general tax per invoice line is expected for taxpayers registered in the sales tax"))
-            elif self.company_id.l10n_jo_edi_taxpayer_type == 'special' and len(line.tax_ids) != 2:
-                error_msgs.append(_("One special and one general tax per invoice line is expected for taxpayers registered in the special tax"))
+        for line in self.invoice_line_ids.filtered(
+            lambda line: line.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
+        ):
+            if (
+                self.company_id.l10n_jo_edi_taxpayer_type == "income"
+                and len(line.tax_ids) != 0
+            ):
+                error_msgs.append(
+                    _(
+                        "No taxes are allowed on invoice lines for taxpayers unregistered in the sales tax"
+                    )
+                )
+            elif (
+                self.company_id.l10n_jo_edi_taxpayer_type == "sales"
+                and len(line.tax_ids) != 1
+            ):
+                error_msgs.append(
+                    _(
+                        "One general tax per invoice line is expected for taxpayers registered in the sales tax"
+                    )
+                )
+            elif (
+                self.company_id.l10n_jo_edi_taxpayer_type == "special"
+                and len(line.tax_ids) != 2
+            ):
+                error_msgs.append(
+                    _(
+                        "One special and one general tax per invoice line is expected for taxpayers registered in the special tax"
+                    )
+                )
 
         return "\n".join(error_msgs)
 
     def _mark_sent_jo_edi(self):
         self.l10n_jo_edi_error = False
-        self.l10n_jo_edi_state = 'demo' if self.env.company.l10n_jo_edi_demo_mode else 'sent'
+        self.l10n_jo_edi_state = (
+            "demo" if self.env.company.l10n_jo_edi_demo_mode else "sent"
+        )
 
     def _l10n_jo_edi_send(self):
         self.check_singleton()
-        if not self.env['res.company']._with_locked_records(records=self, allow_raising=False):
-            return
-        if error_message := self._l10n_jo_validate_config() or self._l10n_jo_validate_fields() or self._submit_to_jofotara():
+        if not self.env["res.company"]._with_locked_records(
+            records=self, allow_raising=False
+        ):
+            return None
+        if (
+            error_message := self._l10n_jo_validate_config()
+            or self._l10n_jo_validate_fields()
+            or self._submit_to_jofotara()
+        ):
             self.l10n_jo_edi_error = error_message
             return error_message
         else:

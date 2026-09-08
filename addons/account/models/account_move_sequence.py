@@ -220,7 +220,6 @@ class AccountMove(models.Model):
         else:
             return month_range + forced_year_range
 
-
     def _get_invoice_reference_euro_invoice(self):
         self.check_singleton()
         journal_identifier = (

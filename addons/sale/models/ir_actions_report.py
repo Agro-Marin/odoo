@@ -4,7 +4,6 @@ from odoo import models
 class IrActionsReport(models.Model):
     _inherit = "ir.actions.report"
 
-
     def _get_order_edi_report_map(self):
         return {
             **super()._get_order_edi_report_map(),

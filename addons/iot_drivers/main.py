@@ -1,9 +1,10 @@
 import logging
+import subprocess
+import time
+from threading import Thread
+
 import requests
 import schedule
-import subprocess
-from threading import Thread
-import time
 
 from odoo.addons.iot_drivers.tools import certificate, helpers, upgrade, wifi
 from odoo.addons.iot_drivers.tools.system import IS_RPI
@@ -11,6 +12,7 @@ from odoo.addons.iot_drivers.websocket_client import WebsocketClient
 
 if IS_RPI:
     from dbus.mainloop.glib import DBusGMainLoop
+
     DBusGMainLoop(set_as_default=True)  # Must be started from main thread
 
 _logger = logging.getLogger(__name__)
@@ -36,11 +38,11 @@ class Manager(Thread):
         """
         Get the iot box domain based on the IP address and subject.
         """
-        subject = helpers.get_conf('subject')
+        subject = helpers.get_conf("subject")
         ip_addr = helpers.get_ip()
         if subject and ip_addr:
-            return ip_addr.replace('.', '-') + subject.strip('*')
-        return ip_addr or '127.0.0.1'
+            return ip_addr.replace(".", "-") + subject.strip("*")
+        return ip_addr or "127.0.0.1"
 
     def _get_changes_to_send(self):
         """
@@ -50,7 +52,9 @@ class Manager(Thread):
         changed = False
 
         current_devices = set(iot_devices.keys()) | set(unsupported_devices.keys())
-        previous_devices = set(self.previous_iot_devices.keys()) | set(self.previous_unsupported_devices.keys())
+        previous_devices = set(self.previous_iot_devices.keys()) | set(
+            self.previous_unsupported_devices.keys()
+        )
         if current_devices != previous_devices:
             self.previous_iot_devices = iot_devices.copy()
             self.previous_unsupported_devices = unsupported_devices.copy()
@@ -79,48 +83,59 @@ class Manager(Thread):
         :param server_url: URL of the Odoo server (provided by decorator).
         """
         iot_box = {
-            'identifier': self.identifier,
-            'mac': helpers.get_mac_address(),
-            'ip': self.domain,
-            'token': helpers.get_token(),
-            'version': self.version,
+            "identifier": self.identifier,
+            "mac": helpers.get_mac_address(),
+            "ip": self.domain,
+            "token": helpers.get_token(),
+            "version": self.version,
         }
         devices_list = {}
         for device in self.previous_iot_devices.values():
             identifier = device.device_identifier
             devices_list[identifier] = {
-                'name': device.device_name,
-                'type': device.device_type,
-                'manufacturer': device.device_manufacturer,
-                'connection': device.device_connection,
-                'subtype': device.device_subtype if device.device_type == 'printer' else '',
+                "name": device.device_name,
+                "type": device.device_type,
+                "manufacturer": device.device_manufacturer,
+                "connection": device.device_connection,
+                "subtype": device.device_subtype
+                if device.device_type == "printer"
+                else "",
             }
         devices_list.update(self.previous_unsupported_devices)
 
-        delay = .5
+        delay = 0.5
         max_retries = 5
         for attempt in range(1, max_retries + 1):
             try:
                 response = requests.post(
                     server_url + "/iot/setup",
-                    json={'params': {'iot_box': iot_box, 'devices': devices_list}},
+                    json={"params": {"iot_box": iot_box, "devices": devices_list}},
                     timeout=5,
                 )
                 response.raise_for_status()
                 data = response.json()
-                self.ws_channel = data.get('result', '')
+                self.ws_channel = data.get("result", "")
                 break  # Success, exit the retry loop
             except requests.exceptions.RequestException:
                 if attempt < max_retries:
                     _logger.warning(
-                        'Could not reach configured server to send all IoT devices, retrying in %s seconds (%d/%d attempts)',
-                        delay, attempt, max_retries, exc_info=True
+                        "Could not reach configured server to send all IoT devices, retrying in %s seconds (%d/%d attempts)",
+                        delay,
+                        attempt,
+                        max_retries,
+                        exc_info=True,
                     )
                     time.sleep(delay)
                 else:
-                    _logger.exception('Could not reach configured server to send all IoT devices after %d attempts.', max_retries)
+                    _logger.exception(
+                        "Could not reach configured server to send all IoT devices after %d attempts.",
+                        max_retries,
+                    )
             except ValueError:
-                _logger.exception('Could not load JSON data: Received data is not valid JSON.\nContent:\n%s', response.content)
+                _logger.exception(
+                    "Could not load JSON data: Received data is not valid JSON.\nContent:\n%s",
+                    response.content,
+                )
                 break
 
     def run(self):
@@ -130,12 +145,19 @@ class Manager(Thread):
         if IS_RPI:
             # ensure that the root filesystem is writable retro compatibility (TODO: remove this in 19.0)
             subprocess.run(["sudo", "mount", "-o", "remount,rw", "/"], check=False)
-            subprocess.run(["sudo", "mount", "-o", "remount,rw", "/root_bypass_ramdisks/"], check=False)
+            subprocess.run(
+                ["sudo", "mount", "-o", "remount,rw", "/root_bypass_ramdisks/"],
+                check=False,
+            )
 
-            wifi.reconnect(helpers.get_conf('wifi_ssid'), helpers.get_conf('wifi_password'))
+            wifi.reconnect(
+                helpers.get_conf("wifi_ssid"), helpers.get_conf("wifi_password")
+            )
 
         helpers.start_nginx_server()
-        _logger.info("IoT Box Image version: %s", helpers.get_version(detailed_version=True))
+        _logger.info(
+            "IoT Box Image version: %s", helpers.get_version(detailed_version=True)
+        )
         upgrade.check_git_branch()
 
         if IS_RPI and helpers.get_odoo_server_url():
@@ -168,8 +190,10 @@ class Manager(Thread):
             try:
                 if self._get_changes_to_send():
                     self._send_all_devices()
-                if IS_RPI and helpers.get_ip() != '10.11.12.1':
-                    wifi.reconnect(helpers.get_conf('wifi_ssid'), helpers.get_conf('wifi_password'))
+                if IS_RPI and helpers.get_ip() != "10.11.12.1":
+                    wifi.reconnect(
+                        helpers.get_conf("wifi_ssid"), helpers.get_conf("wifi_password")
+                    )
                 time.sleep(3)
                 schedule.run_pending()
             except Exception:

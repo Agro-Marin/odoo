@@ -6,29 +6,33 @@ from odoo.exceptions import UserError
 
 
 class AccountEdiProxyClientUser(models.Model):
-    _inherit = 'account_edi_proxy_client.user'
+    _inherit = "account_edi_proxy_client.user"
 
     def _nemhandel_send_response(self, reference_moves, status, note=False):
         self.check_singleton()
-        reference_moves = reference_moves.filtered(lambda rm: rm.nemhandel_message_uuid and rm.partner_id.nemhandel_response_support)
+        reference_moves = reference_moves.filtered(
+            lambda rm: (
+                rm.nemhandel_message_uuid and rm.partner_id.nemhandel_response_support
+            )
+        )
         if not reference_moves:
             return
 
-        assert status in {'BusinessAccept', 'BusinessReject'}
+        assert status in {"BusinessAccept", "BusinessReject"}
 
         try:
             response = self._call_nemhandel_proxy(
                 "/api/nemhandel/1/send_response",
                 params={
-                    'reference_uuids': reference_moves.mapped('nemhandel_message_uuid'),
-                    'status': status,
-                    'note': note,
+                    "reference_uuids": reference_moves.mapped("nemhandel_message_uuid"),
+                    "status": status,
+                    "note": note,
                 },
             )
         except UserError as e:
             log_message = self.env._(
                 "An error occurred with the Nemhandel proxy while responding to this invoice's expeditor.%(br)sResponse: %(status)s - %(error)s",
-                br=Markup('<br>'),
+                br=Markup("<br>"),
                 status=status,
                 error=str(e),
             )
@@ -36,75 +40,104 @@ class AccountEdiProxyClientUser(models.Model):
                 bodies={move.id: log_message for move in reference_moves},
             )
         else:
-            if response.get('error'):
+            if response.get("error"):
                 log_message = self.env._(
                     "An error occurred with the Nemhandel server while responding to this invoice's expeditor.%(br)sStatus: %(status)s - %(error)s",
-                    br=Markup('<br>'),
+                    br=Markup("<br>"),
                     status=status,
-                    error=response['error']['message'],
+                    error=response["error"]["message"],
                 )
                 reference_moves._message_log_batch(
                     bodies={move.id: log_message for move in reference_moves},
                 )
             else:
-                self.env['nemhandel.response'].create([{
-                        'nemhandel_message_uuid': message['message_uuid'],
-                        'response_code': status,
-                        'nemhandel_state': 'processing',
-                        'move_id': move.id,
-                    }
-                    for message, move in zip(response.get('messages'), reference_moves)
-                ])
-                log_message = self.env._(
-                    "A Nemhandel response was sent to the Nemhandel Access Point declaring you accepted this document.",
-                ) if status == 'BusinessAccept' else self.env._(
-                    "A Nemhandel response was sent to the Nemhandel Access Point declaring you rejected this document.",
+                self.env["nemhandel.response"].create(
+                    [
+                        {
+                            "nemhandel_message_uuid": message["message_uuid"],
+                            "response_code": status,
+                            "nemhandel_state": "processing",
+                            "move_id": move.id,
+                        }
+                        for message, move in zip(
+                            response.get("messages"), reference_moves
+                        )
+                    ]
                 )
-                reference_moves._message_log_batch(bodies={move.id: log_message for move in reference_moves})
+                log_message = (
+                    self.env._(
+                        "A Nemhandel response was sent to the Nemhandel Access Point declaring you accepted this document.",
+                    )
+                    if status == "BusinessAccept"
+                    else self.env._(
+                        "A Nemhandel response was sent to the Nemhandel Access Point declaring you rejected this document.",
+                    )
+                )
+                reference_moves._message_log_batch(
+                    bodies={move.id: log_message for move in reference_moves}
+                )
 
     @api.model
     def _nemhandel_extract_response_info(self, document):
         doc_tree = etree.fromstring(document)
-        blr_status = doc_tree.find('{*}DocumentResponse/{*}Response/{*}ResponseCode').text
-        descriptions = doc_tree.findall('{*}DocumentResponse/{*}Response/{*}Description')
+        blr_status = doc_tree.find(
+            "{*}DocumentResponse/{*}Response/{*}ResponseCode"
+        ).text
+        descriptions = doc_tree.findall(
+            "{*}DocumentResponse/{*}Response/{*}Description"
+        )
 
         note = Markup()
         if descriptions:
             for description in descriptions:
-                note += Markup('<br>{}').format(description.text or self.env._("N/A"))
+                note += Markup("<br>{}").format(description.text or self.env._("N/A"))
         return blr_status, note
 
     def _nemhandel_process_new_messages(self, messages):
         self.check_singleton()
         processed_uuids = []
         other_messages = {}
-        origin_message_uuids = [content['origin_message_uuid'] for content in messages.values()]
-        origin_moves = self.env['account.move'].search([
-            ('nemhandel_message_uuid', 'in', origin_message_uuids),
-            ('company_id', '=', self.company_id.id),
-            ('partner_id', '!=', self.company_id.partner_id.id),
-        ]).grouped('nemhandel_message_uuid')
+        origin_message_uuids = [
+            content["origin_message_uuid"] for content in messages.values()
+        ]
+        origin_moves = (
+            self.env["account.move"]
+            .search(
+                [
+                    ("nemhandel_message_uuid", "in", origin_message_uuids),
+                    ("company_id", "=", self.company_id.id),
+                    ("partner_id", "!=", self.company_id.partner_id.id),
+                ]
+            )
+            .grouped("nemhandel_message_uuid")
+        )
         for uuid, content in messages.items():
-            if content['document_type'] == 'ApplicationResponse':
+            if content["document_type"] == "ApplicationResponse":
                 enc_key = content["enc_key"]
                 document_content = content["document"]
                 decoded_document = self._decrypt_data(document_content, enc_key)
-                blr_status, note = self._nemhandel_extract_response_info(decoded_document)
-                if move := origin_moves.get(content['origin_message_uuid']):
-                    if blr_status in {'BusinessAccept', 'BusinessReject'}:
-                        self.env['nemhandel.response'].create({
-                            'nemhandel_message_uuid': uuid,
-                            'response_code': blr_status,
-                            'nemhandel_state': content['state'],
-                            'move_id': move.id,
-                        })
-                        if content['state'] == 'done':
-                            if blr_status == 'BusinessReject':
+                blr_status, note = self._nemhandel_extract_response_info(
+                    decoded_document
+                )
+                if move := origin_moves.get(content["origin_message_uuid"]):
+                    if blr_status in {"BusinessAccept", "BusinessReject"}:
+                        self.env["nemhandel.response"].create(
+                            {
+                                "nemhandel_message_uuid": uuid,
+                                "response_code": blr_status,
+                                "nemhandel_state": content["state"],
+                                "move_id": move.id,
+                            }
+                        )
+                        if content["state"] == "done":
+                            if blr_status == "BusinessReject":
                                 move._message_log(
                                     body=self.env._(
                                         "The Nemhandel receiver of this document has rejected it with the following information: %s",
-                                        note
-                                    ) if note else self.env._(
+                                        note,
+                                    )
+                                    if note
+                                    else self.env._(
                                         "The Nemhandel receiver of this document has rejected it.",
                                     ),
                                 )
@@ -113,21 +146,25 @@ class AccountEdiProxyClientUser(models.Model):
                                     body=self.env._(
                                         "The Nemhandel receiver of this document has accepted it with the following information: %s",
                                         note,
-                                    ) if note else self.env._(
+                                    )
+                                    if note
+                                    else self.env._(
                                         "The Nemhandel receiver of this document has accepted it.",
                                     ),
                                 )
-                    if blr_status in {'TechnicalReject', 'ProfileReject'}:
+                    if blr_status in {"TechnicalReject", "ProfileReject"}:
                         move._message_log(
                             body=self.env._(
                                 "An issue arose with your Nemhandel document on the partner's side with the following information: %(note)s"
                                 "%(br)sPlease contact the support if this issue persists.",
                                 note=note,
-                                br=Markup('<br>'),
-                            ) if note else self.env._(
+                                br=Markup("<br>"),
+                            )
+                            if note
+                            else self.env._(
                                 "An issue arose with your Nemhandel document on the partner's side."
                                 "%(br)sPlease contact the support if this issue persists.",
-                                br=Markup('<br>'),
+                                br=Markup("<br>"),
                             ),
                         )
                 processed_uuids.append(uuid)
@@ -143,10 +180,10 @@ class AccountEdiProxyClientUser(models.Model):
         if len(documents) > batch_size:
             return documents
 
-        edi_user_responses = self.env['nemhandel.response'].search(
+        edi_user_responses = self.env["nemhandel.response"].search(
             [
-                ('nemhandel_state', '=', 'processing'),
-                ('company_id', '=', self.company_id.id),
+                ("nemhandel_state", "=", "processing"),
+                ("company_id", "=", self.company_id.id),
             ],
             limit=batch_size - len(documents) + 1,
         )
@@ -157,26 +194,32 @@ class AccountEdiProxyClientUser(models.Model):
         processed_message_uuids = []
         other_messages = {}
         for uuid, content in messages.items():
-            if uuid_to_record[uuid]._name != 'nemhandel.response':
+            if uuid_to_record[uuid]._name != "nemhandel.response":
                 other_messages[uuid] = content
                 continue
 
             nemhandel_response = uuid_to_record[uuid]
-            if content.get('error'):
-                if content['error'].get('code') == 702:
+            if content.get("error"):
+                if content["error"].get("code") == 702:
                     # "Nemhandel request not ready" error:
                     # thrown when the IAP is still processing the message
                     continue
-                if content['error'].get('code') == 207:
-                    nemhandel_response.nemhandel_state = 'not_serviced'
+                if content["error"].get("code") == 207:
+                    nemhandel_response.nemhandel_state = "not_serviced"
                 else:
-                    nemhandel_response.nemhandel_state = 'error'
+                    nemhandel_response.nemhandel_state = "error"
                     nemhandel_response.move_id._message_log(
-                        body=self.env._("Nemhandel business response error: %s", content['error'].get('data', {}).get('message') or content['error']['message']),
+                        body=self.env._(
+                            "Nemhandel business response error: %s",
+                            content["error"].get("data", {}).get("message")
+                            or content["error"]["message"],
+                        ),
                     )
                 processed_message_uuids.append(uuid)
                 continue
 
-            nemhandel_response.nemhandel_state = content['state']
+            nemhandel_response.nemhandel_state = content["state"]
             processed_message_uuids.append(uuid)
-        return processed_message_uuids + super()._nemhandel_process_messages_status(other_messages, uuid_to_record)
+        return processed_message_uuids + super()._nemhandel_process_messages_status(
+            other_messages, uuid_to_record
+        )

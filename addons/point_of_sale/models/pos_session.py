@@ -357,9 +357,7 @@ class PosSession(models.Model):
         return (
             self.env["pos.config"]
             .browse(config_id)
-            .get_pos_ui_product_pricelist_item_by_product(
-                product_tmpl_ids, product_ids
-            )
+            .get_pos_ui_product_pricelist_item_by_product(product_tmpl_ids, product_ids)
         )
 
     @api.depends("currency_id", "company_id.currency_id")
@@ -2233,10 +2231,7 @@ class PosSession(models.Model):
                     (
                         "ref",
                         "in",
-                        [
-                            self._get_diff_account_move_ref(pm)
-                            for pm in legacy_methods
-                        ],
+                        [self._get_diff_account_move_ref(pm) for pm in legacy_methods],
                     ),
                 ]
             )

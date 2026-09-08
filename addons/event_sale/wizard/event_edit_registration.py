@@ -55,7 +55,9 @@ class RegistrationEditor(models.TransientModel):
                         "registration_id": reg.id,
                         "name": reg.name,
                         "email": reg.email,
-                        "phone_ids": [Command.link(phone.id) for phone in reg.phone_ids],
+                        "phone_ids": [
+                            Command.link(phone.id) for phone in reg.phone_ids
+                        ],
                         "sale_order_line_id": so_line.id,
                     },
                 ]

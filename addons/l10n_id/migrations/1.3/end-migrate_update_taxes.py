@@ -1,18 +1,29 @@
-from odoo import api, SUPERUSER_ID
+from odoo import SUPERUSER_ID, api
 
 
 def migrate(cr, version):
     env = api.Environment(cr, SUPERUSER_ID, {"lang": "en_US"})
 
-    companies = env["res.company"].search([("chart_template", "=", "id"), ("parent_id", "=", False)])
+    companies = env["res.company"].search(
+        [("chart_template", "=", "id"), ("parent_id", "=", False)]
+    )
 
-    new_tax_groups = ["l10n_id_tax_group_stlg", "l10n_id_tax_group_non_luxury_goods", "l10n_id_tax_group_luxury_goods", "l10n_id_tax_group_0"]
+    new_tax_groups = [
+        "l10n_id_tax_group_stlg",
+        "l10n_id_tax_group_non_luxury_goods",
+        "l10n_id_tax_group_luxury_goods",
+        "l10n_id_tax_group_0",
+    ]
     new_taxes = [
-        "tax_ST4", "tax_PT4",
-        "tax_ST5", "tax_PT5",
-        "tax_ST6", "tax_ST7",
+        "tax_ST4",
+        "tax_PT4",
+        "tax_ST5",
+        "tax_PT5",
+        "tax_ST6",
+        "tax_ST7",
         "tax_luxury_sales_pemungut_ppn",
-        "tax_PT6", "tax_PT7",
+        "tax_PT6",
+        "tax_PT7",
     ]
 
     for company in companies:
@@ -30,7 +41,7 @@ def migrate(cr, version):
             if xmlid in new_taxes
         }
         new_tax_group_data = {}
-        if (tax_group_data):
+        if tax_group_data:
             new_tax_group_data = {
                 g: data
                 for g, data in tax_group_data.items()
@@ -75,8 +86,10 @@ def migrate(cr, version):
         # =============================
         # Remove l10n_id.ppn_tag from specific taxes
         taxes_to_clean = [
-            "tax_ST1", "tax_PT1",
-            "tax_ST3", "tax_PT3",
+            "tax_ST1",
+            "tax_PT1",
+            "tax_ST3",
+            "tax_PT3",
             "tax_luxury_sales",
         ]
         ppn_tag = env.ref("l10n_id.ppn_tag", raise_if_not_found=False)
@@ -88,29 +101,41 @@ def migrate(cr, version):
                     tax_records |= rec
 
             if tax_records:
-                repartition_lines = env["account.tax.repartition.line"].sudo().search([
-                    ("tax_id", "in", tax_records.ids),
-                    ("tag_ids", "in", [ppn_tag.id]),
-                ])
+                repartition_lines = (
+                    env["account.tax.repartition.line"]
+                    .sudo()
+                    .search(
+                        [
+                            ("tax_id", "in", tax_records.ids),
+                            ("tag_ids", "in", [ppn_tag.id]),
+                        ]
+                    )
+                )
                 if repartition_lines:
                     repartition_lines.write({"tag_ids": [(3, ppn_tag.id)]})
 
         # =============================
         # Update tax_luxury_sales group, description and invoice_label
-        old_group = ChartTemplate.ref("l10n_id_tax_group_luxury_goods", raise_if_not_found=False)
-        new_group = ChartTemplate.ref("l10n_id_tax_group_stlg", raise_if_not_found=False)
-        tax_luxury_sales = ChartTemplate.ref("tax_luxury_sales", raise_if_not_found=False)
+        old_group = ChartTemplate.ref(
+            "l10n_id_tax_group_luxury_goods", raise_if_not_found=False
+        )
+        new_group = ChartTemplate.ref(
+            "l10n_id_tax_group_stlg", raise_if_not_found=False
+        )
+        tax_luxury_sales = ChartTemplate.ref(
+            "tax_luxury_sales", raise_if_not_found=False
+        )
         if not (old_group and new_group and tax_luxury_sales):
             continue
         tax_luxury_sales_vals = {}
         if tax_luxury_sales.tax_group_id == old_group:
-            tax_luxury_sales_vals['tax_group_id'] = new_group.id
+            tax_luxury_sales_vals["tax_group_id"] = new_group.id
         if tax_luxury_sales.description == "Luxury":
-            tax_luxury_sales_vals['description'] = "Sales Tax on Luxury Goods (STLG)"
+            tax_luxury_sales_vals["description"] = "Sales Tax on Luxury Goods (STLG)"
         if tax_luxury_sales.invoice_label == "Luxury Goods (ID)":
-            tax_luxury_sales_vals['invoice_label'] = "20%"
+            tax_luxury_sales_vals["invoice_label"] = "20%"
         if tax_luxury_sales.name == "20%":
-            tax_luxury_sales_vals['name'] = "20% (STLG)"
+            tax_luxury_sales_vals["name"] = "20% (STLG)"
         if tax_luxury_sales.is_base_affected:
-            tax_luxury_sales['is_base_affected'] = False
+            tax_luxury_sales["is_base_affected"] = False
         tax_luxury_sales.write(tax_luxury_sales_vals)

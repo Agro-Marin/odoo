@@ -1,6 +1,6 @@
 import re
-from odoo import Command
 
+from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import Form, HttpCase, tagged, users
 from odoo.tools import mute_logger
@@ -63,19 +63,25 @@ class TestMailComposerForm(TestMailComposer):
             [
                 {
                     "email": "private.customer@text.example.com",
-                    "phone_ids": [Command.create({"number": "0032455112233", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create({"number": "0032455112233", "type": "landline"})
+                    ],
                     "name": "Private Customer",
                     "company_id": cls.other_company.id,
                 },
                 {
                     "email": "private.customer.2@test.example.com",
-                    "phone_ids": [Command.create({"number": "0032455445566", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create({"number": "0032455445566", "type": "landline"})
+                    ],
                     "name": "Private Customer 2",
                     "company_id": cls.other_company.id,
                 },
                 {
                     "email": "not.private@test.example.com",
-                    "phone_ids": [Command.create({"number": "0032455778899", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create({"number": "0032455778899", "type": "landline"})
+                    ],
                     "name": "Classic Customer",
                     "type": "contact",
                 },

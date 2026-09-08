@@ -1,9 +1,9 @@
-from odoo import models, api
+from odoo import api, models
 
 
 class L10n_LatamIdentificationType(models.Model):
-    _name = 'l10n_latam.identification.type'
-    _inherit = ['l10n_latam.identification.type', 'mixin.pos.load']
+    _name = "l10n_latam.identification.type"
+    _inherit = ["l10n_latam.identification.type", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):
@@ -14,4 +14,4 @@ class L10n_LatamIdentificationType(models.Model):
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ['name']
+        return ["name"]

@@ -1,6 +1,6 @@
-from odoo.addons.l10n_my_edi.models.product_template import CLASSIFICATION_CODES_LIST
-
 from odoo import api, fields, models
+
+from odoo.addons.l10n_my_edi.models.product_template import CLASSIFICATION_CODES_LIST
 
 
 class AccountMoveLine(models.Model):
@@ -25,12 +25,15 @@ class AccountMoveLine(models.Model):
 
     @api.depends("product_id.product_tmpl_id")
     def _compute_l10n_my_edi_classification_code(self):
-        """ Default to the product classification if any """
+        """Default to the product classification if any"""
         for line in self:
             # We don't want to automatically update it on invoices that were sent to MyInvois
             if not line.move_id.l10n_my_edi_state:
                 # There is no product in case of downpayments, so we need to manually set the class code
-                if 'is_downpayment' in line and line.is_downpayment:
+                if "is_downpayment" in line and line.is_downpayment:
                     line.l10n_my_edi_classification_code = "022"
                 else:
-                    line.l10n_my_edi_classification_code = line.product_id.product_tmpl_id.l10n_my_edi_classification_code or line.l10n_my_edi_classification_code
+                    line.l10n_my_edi_classification_code = (
+                        line.product_id.product_tmpl_id.l10n_my_edi_classification_code
+                        or line.l10n_my_edi_classification_code
+                    )

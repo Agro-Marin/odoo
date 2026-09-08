@@ -1,4 +1,4 @@
-from itertools import pairwise
+from itertools import pairwise, starmap
 from unittest.mock import patch
 
 from odoo.exceptions import UserError, ValidationError
@@ -501,12 +501,7 @@ class TestPricelist(ProductVariantsCommon):
             ]
         )
 
-        Pricelist.item_ids.create(
-            [
-                create_item_vals(pl_from, pl_to)
-                for (pl_from, pl_to) in pairwise(pricelists)
-            ]
-        )
+        Pricelist.item_ids.create(list(starmap(create_item_vals, pairwise(pricelists))))
 
         with self.assertRaises(ValidationError):
             Pricelist.item_ids.create(create_item_vals(pl_d, pl_d))

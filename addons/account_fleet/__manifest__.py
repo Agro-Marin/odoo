@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Accounting/Fleet bridge",
     "version": "1.0",

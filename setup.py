@@ -7,9 +7,7 @@ import pathlib
 from setuptools import find_namespace_packages, setup
 
 exec(
-    (pathlib.Path(__file__).parent / "odoo" / "release.py")
-    .open("rb")
-    .read()
+    (pathlib.Path(__file__).parent / "odoo" / "release.py").open("rb").read()
 )  # Load release variables
 lib_name = "odoo"
 

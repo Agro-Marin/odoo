@@ -504,9 +504,7 @@ class TestVariants(ProductVariantsCommon):
                 ]
             }
         )
-        self.assertFalse(
-            template.barcode
-        )
+        self.assertFalse(template.barcode)
 
         variant_1 = template.product_variant_ids[0]
         variant_2 = template.product_variant_ids[1]
@@ -516,15 +514,11 @@ class TestVariants(ProductVariantsCommon):
 
         variant_1.action_archive()
         template.invalidate_model(["barcode"])
-        self.assertEqual(
-            template.barcode, variant_2.barcode
-        )
+        self.assertEqual(template.barcode, variant_2.barcode)
 
         variant_1.action_unarchive()
         template.invalidate_model(["barcode"])
-        self.assertFalse(
-            template.barcode
-        )
+        self.assertFalse(template.barcode)
 
     @mute_logger("odoo.models.unlink")
     def test_archive_all_variants(self):
@@ -1195,7 +1189,6 @@ class TestVariantsImages(ProductVariantsCommon):
 
 @tagged("post_install", "-at_install")
 class TestVariantsArchive(ProductVariantsCommon):
-
     @classmethod
     def setUpClass(cls):
         res = super().setUpClass()
@@ -2259,7 +2252,6 @@ class TestVariantsExclusion(ProductVariantsCommon):
 
 @tagged("post_install", "-at_install")
 class TestVariantCombinationIntegrityOnRemoval(ProductVariantsCommon):
-
     def setUp(self):
         super().setUp()
 

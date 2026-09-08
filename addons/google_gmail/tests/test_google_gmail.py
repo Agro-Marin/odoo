@@ -10,7 +10,6 @@ from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 
 class TestIrMailServer(EncryptionKeyCase, TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -58,7 +57,11 @@ class TestIrMailServer(EncryptionKeyCase, TransactionCase):
                 "2021-12-15 10:59:50",
                 False,
                 "fake_access_token",
-                ("%s: reuse existing access token. It expires in %i minutes", "Gmail", 0),
+                (
+                    "%s: reuse existing access token. It expires in %i minutes",
+                    "Gmail",
+                    0,
+                ),
             ),
             (
                 "2021-12-15 10:59:55",
@@ -80,14 +83,20 @@ class TestIrMailServer(EncryptionKeyCase, TransactionCase):
             expected_token,
             expected_log,
         ) in cases:
-            with self.subTest(currenct_datetime=current_datetime), \
-                freeze_time(current_datetime), \
-                mock.patch("odoo.addons.mail_oauth2.models.mixin_oauth2_mail_provider._logger.info") as mock_logger, \
+            with (
+                self.subTest(currenct_datetime=current_datetime),
+                freeze_time(current_datetime),
+                mock.patch(
+                    "odoo.addons.mail_oauth2.models.mixin_oauth2_mail_provider._logger.info"
+                ) as mock_logger,
                 mock.patch(
                     "odoo.addons.google_gmail.models.mixin_google_gmail.MixinGoogleGmail._get_gmail_access_token",
                     return_value=("new-access-token", new_token_expiry),
-                ) as mock_get_gmail_access_token:
-                self.mail_server.google_gmail_access_token_expiration = current_token_expiry
+                ) as mock_get_gmail_access_token,
+            ):
+                self.mail_server.google_gmail_access_token_expiration = (
+                    current_token_expiry
+                )
                 oauth2_string = self.mail_server._generate_oauth2_string(
                     "user-account", "refresh-token"
                 )

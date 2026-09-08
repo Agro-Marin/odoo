@@ -1,6 +1,6 @@
-# -*- coding: utf-8 -*-
 import uuid
-from typing import Dict, Callable, List, Optional
+from collections.abc import Callable
+from typing import Dict, List, Optional
 
 from odoo import api, fields, models
 
@@ -27,11 +27,11 @@ class RestaurantTable(models.Model):
 
     @api.model
     def _load_pos_self_data_fields(self, config):
-        return ['table_number', 'identifier', 'floor_id']
+        return ["table_number", "identifier", "floor_id"]
 
     @api.model
     def _load_pos_self_data_domain(self, data, config):
-        return [('floor_id', 'in', [floor['id'] for floor in data['restaurant.floor']])]
+        return [("floor_id", "in", [floor["id"] for floor in data["restaurant.floor"]])]
 
 
 class RestaurantFloor(models.Model):
@@ -39,8 +39,8 @@ class RestaurantFloor(models.Model):
 
     @api.model
     def _load_pos_self_data_fields(self, config):
-        return ['name', 'table_ids']
+        return ["name", "table_ids"]
 
     @api.model
     def _load_pos_self_data_domain(self, data, config):
-        return [('id', 'in', config.floor_ids.ids)]
+        return [("id", "in", config.floor_ids.ids)]

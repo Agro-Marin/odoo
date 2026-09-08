@@ -580,12 +580,8 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         )
         self.assertEqual(product_line.price_unit, 95)
         self.assertEqual(product_line.discount, 5)
-        self.assertEqual(
-            product_line.price_subtotal, 90.25
-        )
-        self.assertEqual(
-            product_line.price_total, 103.79
-        )
+        self.assertEqual(product_line.price_subtotal, 90.25)
+        self.assertEqual(product_line.price_total, 103.79)
 
     def test_cogs_with_ship_later_with_backorder(self):
         self._enable_delivery_time_cogs()

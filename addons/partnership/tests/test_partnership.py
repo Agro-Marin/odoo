@@ -5,9 +5,8 @@ from odoo.tests import tagged
 from .common import PartnershipCommon
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestPartnership(PartnershipCommon):
-
     def test_sell_basic_partnership(self):
         self.sale_order_partnership.action_confirm()
         self.assertEqual(
@@ -22,22 +21,26 @@ class TestPartnership(PartnershipCommon):
         )
 
     def test_constrains_uniqueness_partnership_grade(self):
-        partnership = self.env['product.product'].create({
-            'name': 'Partnership',
-            'type': 'service',
-            'list_price': 100.00,
-            'service_tracking': 'partnership',
-            'grade_id': self.env['res.partner.grade'].create({'name': 'A+'}).id,
-        })
+        partnership = self.env["product.product"].create(
+            {
+                "name": "Partnership",
+                "type": "service",
+                "list_price": 100.00,
+                "service_tracking": "partnership",
+                "grade_id": self.env["res.partner.grade"].create({"name": "A+"}).id,
+            }
+        )
         with self.assertRaises(ValidationError):
             # A sale order cannot contain partnership products assigning different grade levels
-            self.sale_order_partnership.line_ids = [Command.create({'product_id': partnership.id})]
+            self.sale_order_partnership.line_ids = [
+                Command.create({"product_id": partnership.id})
+            ]
 
     def test_partnership_product_domain(self):
-        ProductTemplate = self.env['product.template']
+        ProductTemplate = self.env["product.template"]
         product_domain = [
-            ('sale_ok', '=', True),
-            ('service_tracking', 'in', ProductTemplate._get_saleable_tracking_types()),
+            ("sale_ok", "=", True),
+            ("service_tracking", "in", ProductTemplate._get_saleable_tracking_types()),
         ]
         self.assertIn(
             self.partnership_product.product_tmpl_id,

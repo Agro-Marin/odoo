@@ -46,7 +46,9 @@ class TestPosMrp(CommonPosMrpTest):
             ).total_cost,
             30.0,
         )
-        accounts = self.product_product_kit_three.product_tmpl_id._get_product_accounts()
+        accounts = (
+            self.product_product_kit_three.product_tmpl_id._get_product_accounts()
+        )
         debit_interim_account = accounts["stock_output"]
         credit_expense_account = accounts["expense"]
         invoice_accounts = order.account_move.line_ids.mapped("account_id.id")

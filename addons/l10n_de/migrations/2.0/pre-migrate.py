@@ -28,7 +28,8 @@ def migrate(cr, version):
     cr.execute(
         """SELECT 1 FROM ir_model_data
             WHERE module='l10n_de' AND name='tag_de_liabilities_bs_B_1'
-        """)
+        """
+    )
     if cr.rowcount:
         # If the script didn't run, we should remove the tags that have been replaced from ir_model_data too so they're
         # not deleted by the ORM if they were already used.

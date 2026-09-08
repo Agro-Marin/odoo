@@ -4,7 +4,6 @@ from odoo.tools.misc import str2bool
 
 
 class ResUsersApikeys(models.Model):
-
     _inherit = "res.users.apikeys"
 
     def _check_generate_access(self):

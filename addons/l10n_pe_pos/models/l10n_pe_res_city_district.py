@@ -1,8 +1,8 @@
-from odoo import fields, models, api
+from odoo import api, fields, models
 
 
 class L10n_PeResCityDistrict(models.Model):
-    _name = 'l10n_pe.res.city.district'
+    _name = "l10n_pe.res.city.district"
     _inherit = ["l10n_pe.res.city.district", "mixin.pos.load"]
 
     country_id = fields.Many2one(related="city_id.country_id")

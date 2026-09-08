@@ -13,7 +13,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSBasicConfig(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
         self.config = self.basic_config
@@ -2052,7 +2051,6 @@ class TestPoSBasicConfig(TestPoSCommon):
     def test_closing_entry_by_product(self):
         self.config.is_closing_entry_by_product = True
         self.open_new_session()
-
 
         orders = []
 

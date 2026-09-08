@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Product Matrix",
     "version": "1.0",

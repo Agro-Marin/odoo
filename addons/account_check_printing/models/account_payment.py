@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from odoo import _, api, fields, models
 from odoo.db.schema import column_exists, create_column
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
@@ -184,15 +183,13 @@ class AccountPayment(models.Model):
         ):
             sequence = payment.journal_id.check_sequence_id
             payment.check_number = sequence.next_by_id()
-        return super(AccountPayment, self).action_post()
+        return super().action_post()
 
     def print_checks(self):
         """Check that the recordset is valid, set the payments state to sent and call print_checks()"""
         # Since this method can be called via a client_action_multi, we need to make sure the received records are what we expect
         valid_payments = self.filtered(
-            lambda r: (
-                r.payment_channel_id.code == "check_printing" and not r.is_sent
-            )
+            lambda r: r.payment_channel_id.code == "check_printing" and not r.is_sent
         )
 
         if len(valid_payments) == 0:
@@ -279,7 +276,7 @@ class AccountPayment(models.Model):
     # CHECK PRINTING METHODS
     #######################
     def _check_fill_line(self, amount_str):
-        return amount_str and (amount_str + " ").ljust(200, "*") or ""
+        return (amount_str and (amount_str + " ").ljust(200, "*")) or ""
 
     def _check_build_page_info(self, i, p):
         multi_stub = self.company_id.account_check_printing_multi_stub
@@ -341,11 +338,7 @@ class AccountPayment(models.Model):
                     invoice_sign * amount_residual,
                     currency_obj=invoice.currency_id,
                 )
-            amount_paid = (
-                current_amount
-                if current_amount
-                else sum(partials.mapped(partial_field))
-            )
+            amount_paid = current_amount or sum(partials.mapped(partial_field))
 
             return {
                 "due_date": format_date(self.env, invoice.invoice_date_due),
@@ -376,9 +369,7 @@ class AccountPayment(models.Model):
             ).filtered(lambda x: x.is_outbound(include_receipts=True))
 
             # Group partials by invoices.
-            invoice_map = {
-                invoice: self.env["account.partial.reconcile"] for invoice in invoices
-            }
+            invoice_map = dict.fromkeys(invoices, self.env["account.partial.reconcile"])
             for partial in term_lines.matched_debit_ids:
                 invoice = partial.debit_move_id.move_id
                 if invoice in invoice_map:
@@ -426,10 +417,8 @@ class AccountPayment(models.Model):
         if not self.company_id.account_check_printing_multi_stub:
             # If we need to crop the stub, leave place for an ellipsis line
             num_stub_lines = (
-                len(stub_lines) > INV_LINES_PER_STUB
-                and INV_LINES_PER_STUB - 1
-                or INV_LINES_PER_STUB
-            )
+                len(stub_lines) > INV_LINES_PER_STUB and INV_LINES_PER_STUB - 1
+            ) or INV_LINES_PER_STUB
             stub_pages = [stub_lines[:num_stub_lines]]
         else:
             stub_pages = []

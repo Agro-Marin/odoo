@@ -5,7 +5,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosLoadScoping(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
         self.config = self.basic_config

@@ -182,7 +182,6 @@ class TestInlineImages:
 
 
 class TestAttachedMessage:
-
     NESTED = (
         b'Content-Type: message/rfc822; name="original_msg.eml"\r\n'
         b'Content-Disposition: attachment; filename="original_msg.eml"\r\n\r\n'
@@ -231,7 +230,9 @@ class TestAttachedMessage:
     # agromarin-knowledge/workspaces/workspace-LMMG/2026-08-23-odoo-merge-port-list.md.
     # Skipped rather than deleted so the question stays visible and origin's other
     # four tests keep running; whoever decides the parser deletes the skip or the test.
-    @pytest.mark.skip(reason="parser behaviour undecided: see the 2026-08-23 merge port list")
+    @pytest.mark.skip(
+        reason="parser behaviour undecided: see the 2026-08-23 merge port list"
+    )
     def test_a_file_inside_the_attached_mail_is_not_lifted_out(self):
         result = payload(
             HEADERS
@@ -248,7 +249,9 @@ class TestAttachedMessage:
     # agromarin-knowledge/workspaces/workspace-LMMG/2026-08-23-odoo-merge-port-list.md.
     # Skipped rather than deleted so the question stays visible and origin's other
     # four tests keep running; whoever decides the parser deletes the skip or the test.
-    @pytest.mark.skip(reason="parser behaviour undecided: see the 2026-08-23 merge port list")
+    @pytest.mark.skip(
+        reason="parser behaviour undecided: see the 2026-08-23 merge port list"
+    )
     def test_the_nested_file_survives_inside_the_archive(self):
         [attached] = payload(
             HEADERS

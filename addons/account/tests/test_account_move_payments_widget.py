@@ -184,7 +184,6 @@ class TestAccountMovePaymentsWidget(AccountTestInvoicingCommon):
         )
         cls.payment_2017_curr_3.action_post()
 
-
     def test_outstanding_payments_single_currency(self):
         out_invoice = self.env["account.move"].create(
             {

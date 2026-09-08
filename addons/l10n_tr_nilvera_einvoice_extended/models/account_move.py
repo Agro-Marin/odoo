@@ -51,13 +51,19 @@ class AccountMove(models.Model):
         string="Exemption Reason",
         help="The exception reason of the invoice.",
     )
-    l10n_tr_exemption_code_domain_list = fields.Binary(compute="_compute_l10n_tr_exemption_code_domain_list")
+    l10n_tr_exemption_code_domain_list = fields.Binary(
+        compute="_compute_l10n_tr_exemption_code_domain_list"
+    )
     l10n_tr_nilvera_customer_status = fields.Selection(
         string="Partner Nilvera Status",
         related="partner_id.l10n_tr_nilvera_customer_status",
     )
 
-    @api.depends("l10n_tr_gib_invoice_scenario", "l10n_tr_gib_invoice_type", "l10n_tr_is_export_invoice")
+    @api.depends(
+        "l10n_tr_gib_invoice_scenario",
+        "l10n_tr_gib_invoice_type",
+        "l10n_tr_is_export_invoice",
+    )
     def _compute_l10n_tr_exemption_code_domain_list(self):
         for record in self:
             domain = []
@@ -74,7 +80,9 @@ class AccountMove(models.Model):
         for record in self:
             record.l10n_tr_gib_invoice_type = False
 
-    @api.depends("l10n_tr_gib_invoice_scenario", "l10n_tr_gib_invoice_type", "partner_id")
+    @api.depends(
+        "l10n_tr_gib_invoice_scenario", "l10n_tr_gib_invoice_type", "partner_id"
+    )
     def _compute_l10n_tr_exemption_code_id(self):
         for record in self:
             record.l10n_tr_exemption_code_id = False

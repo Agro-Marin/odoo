@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Colombian - Point of Sale",
     "version": "1.0",

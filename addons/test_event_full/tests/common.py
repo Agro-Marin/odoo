@@ -61,7 +61,9 @@ class TestEventFullCommon(EventCrmCase, TestSalesCommon, MockVisitor):
                 "country_id": cls.env.ref("base.be").id,
                 "email": "customer.test@example.com",
                 "name": "Test Customer",
-                "phone_ids": [Command.create({"number": "0456123456", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "0456123456", "type": "landline"})
+                ],
             }
         )
         # make a SO for a customer, selling some tickets
@@ -147,7 +149,9 @@ class TestEventFullCommon(EventCrmCase, TestSalesCommon, MockVisitor):
                     "country_id": cls.env.ref("base.be").id,
                     "email": "event.sponsor@example.com",
                     "name": "EventSponsor",
-                    "phone_ids": [Command.create({"number": "04856112233", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create({"number": "04856112233", "type": "landline"})
+                    ],
                 }
             ]
         )
@@ -356,7 +360,9 @@ class TestEventFullCommon(EventCrmCase, TestSalesCommon, MockVisitor):
                 "email": f"customer.email.{idx:02d}@test.example.com",
                 "name": f"My Customer {idx:02d}",
                 "partner_id": False,
-                "phone_ids": [Command.create({"number": f"04560000{idx:02d}", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": f"04560000{idx:02d}", "type": "landline"})
+                ],
             }
             for idx in range(10)
         ]
@@ -365,7 +371,9 @@ class TestEventFullCommon(EventCrmCase, TestSalesCommon, MockVisitor):
                 "email": f"website.email.{idx:02d}@test.example.com",
                 "name": f"My Customer {idx:02d}",
                 "partner_id": cls.env.ref("base.public_partner").id,
-                "phone_ids": [Command.create({"number": f"04560000{idx:02d}", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": f"04560000{idx:02d}", "type": "landline"})
+                ],
                 "registration_answer_ids": [
                     (
                         0,
@@ -404,7 +412,11 @@ class TestEventFullCommon(EventCrmCase, TestSalesCommon, MockVisitor):
                 {
                     "email": f"partner.email.{idx:02d}@test.example.com",
                     "name": f"PartnerCustomer {idx:02d}",
-                    "phone_ids": [Command.create({"number": f"04560000{idx:02d}", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create(
+                            {"number": f"04560000{idx:02d}", "type": "landline"}
+                        )
+                    ],
                 }
                 for idx in range(10)
             ]
@@ -648,14 +660,18 @@ class TestWEventCommon(HttpCaseWithUserDemo, HttpCaseWithUserPortal, MockVisitor
                 "name": "Constantin Customer",
                 "email": "constantin@test.example.com",
                 "country_id": self.env.ref("base.be").id,
-                "phone_ids": [Command.create({"number": "0485112233", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "0485112233", "type": "landline"})
+                ],
             }
         )
         self.event_speaker = self.env["res.partner"].create(
             {
                 "name": "Brandon Freeman",
                 "email": "brandon.freeman55@example.com",
-                "phone_ids": [Command.create({"number": "(355)-687-3262", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "(355)-687-3262", "type": "landline"})
+                ],
             }
         )
 

@@ -1148,7 +1148,9 @@ class TestEventRegistrationData(TestEventInternalsCommon):
         self.assertEqual(new_reg.partner_id, customer)
         self.assertEqual(new_reg.name, customer.name)
         self.assertEqual(new_reg.email, customer.email)
-        self.assertEqual(new_reg._phone_get_number().number, customer._phone_get_number().number)
+        self.assertEqual(
+            new_reg._phone_get_number().number, customer._phone_get_number().number
+        )
 
         # partial update
         event.write(
@@ -1193,7 +1195,11 @@ class TestEventRegistrationData(TestEventInternalsCommon):
                         0,
                         {
                             "name": "Nibbler In Space",
-                            "phone_ids": [Command.create({"number": test_phone, "type": "landline"})],
+                            "phone_ids": [
+                                Command.create(
+                                    {"number": test_phone, "type": "landline"}
+                                )
+                            ],
                         },
                     )
                 ]
@@ -1237,7 +1243,9 @@ class TestEventRegistrationData(TestEventInternalsCommon):
                     "parent_id": company.id,
                     "type": "contact",
                     "email": "ContactEmail <contact.email@test.example.com>",
-                    "phone_ids": [Command.create({"number": "+32456998877", "type": "landline"})],
+                    "phone_ids": [
+                        Command.create({"number": "+32456998877", "type": "landline"})
+                    ],
                 }
             )
         )
@@ -1260,7 +1268,9 @@ class TestEventRegistrationData(TestEventInternalsCommon):
         self.assertEqual(new_reg.partner_id, customer)
         self.assertEqual(new_reg.name, contact.name)
         self.assertEqual(new_reg.email, contact.email)
-        self.assertEqual(new_reg._phone_get_number().number, contact._phone_get_number().number)
+        self.assertEqual(
+            new_reg._phone_get_number().number, contact._phone_get_number().number
+        )
 
 
 @tagged("event_registration", "phone_number")

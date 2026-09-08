@@ -6,7 +6,6 @@ from .utils import unlink_where_possible
 
 
 class ProductTemplateAttributeLine(models.Model):
-
     _name = "product.template.attribute.line"
     _inherit = "mixin.attribute.line"
     _rec_name = "attribute_id"

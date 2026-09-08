@@ -76,8 +76,7 @@ def urlopen(url: str) -> io.BufferedReader:
     file_path = f"/tmp/package_versions_cache/{file_name}"
     if not Path(file_path).is_file():
         response = _urlopen(url)
-        with Path(file_path).open("wb") as fw:
-            fw.write(response.read())
+        Path(file_path).write_bytes(response.read())
     return Path(file_path).open("rb")
 
 
@@ -543,8 +542,7 @@ def main(args: argparse.Namespace) -> None:
                 )
 
     if args.output:
-        with Path(args.output).open("w", encoding="utf8") as f:
-            f.write(output)
+        Path(args.output).write_text(output, encoding="utf8")
     else:
         stdout.write(output)
 

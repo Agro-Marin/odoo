@@ -1,4 +1,5 @@
 import odoo
+
 from odoo.addons.web.tests.test_js import unit_test_error_checker
 
 
@@ -9,7 +10,7 @@ class ExternalTestSuite(odoo.tests.HttpCase):
             "/web/tests/livechat?headless&loglevel=2&preset=desktop",
             "",
             "",
-            login='admin',
+            login="admin",
             timeout=1800,
             success_signal="[HOOT] Test suite succeeded",
             error_checker=unit_test_error_checker,

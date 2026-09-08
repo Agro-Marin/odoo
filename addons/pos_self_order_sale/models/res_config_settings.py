@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
-
-from odoo import models, api
+from odoo import api, models
 
 
 class ResConfigSettings(models.TransientModel):
@@ -11,6 +9,8 @@ class ResConfigSettings(models.TransientModel):
         super()._onchange_pos_self_order_kiosk()
 
         for record in self:
-            if record.pos_config_id.self_ordering_mode == 'kiosk':
+            if record.pos_config_id.self_ordering_mode == "kiosk":
                 if not record.pos_crm_team_id:
-                    record.pos_crm_team_id = self.env.ref('pos_self_order_sale.pos_sales_team', raise_if_not_found=False)
+                    record.pos_crm_team_id = self.env.ref(
+                        "pos_self_order_sale.pos_sales_team", raise_if_not_found=False
+                    )

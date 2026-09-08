@@ -1,14 +1,14 @@
 """Operating system-related utilities for the IoT"""
 
 import subprocess
-from platform import system, release
+from platform import release, system
 
 IOT_SYSTEM = system()
 
 IOT_RPI_CHAR, IOT_WINDOWS_CHAR, IOT_TEST_CHAR = "L", "W", "T"
 
 IS_WINDOWS = IOT_SYSTEM[0] == IOT_WINDOWS_CHAR
-IS_RPI = 'rpi' in release()
+IS_RPI = "rpi" in release()
 IS_TEST = not IS_RPI and not IS_WINDOWS
 """IoT system "Test" correspond to any non-Raspberry Pi nor windows system.
 Expected to be Linux or macOS used locally for development purposes."""
@@ -20,10 +20,12 @@ IOT_CHAR = IOT_RPI_CHAR if IS_RPI else IOT_WINDOWS_CHAR if IS_WINDOWS else IOT_T
 - 'T' for Test (non-Raspberry Pi nor Windows)"""
 
 if IS_RPI:
+
     def rpi_only(function):
         """Decorator to check if the system is raspberry pi before running the function."""
         return function
 else:
+
     def rpi_only(_):
         """No-op decorator for non raspberry pi systems."""
         return lambda *args, **kwargs: None
@@ -43,7 +45,21 @@ def mtr(host):
         return None, None
 
     # sudo is required for probe interval < 1s, which almost divides execution time by 2
-    command = ["sudo", "mtr", "-r", "-C", "--no-dns", "-c", "3", "-i", "0.2", "-4", "-G", "1", host]
+    command = [
+        "sudo",
+        "mtr",
+        "-r",
+        "-C",
+        "--no-dns",
+        "-c",
+        "3",
+        "-i",
+        "0.2",
+        "-4",
+        "-G",
+        "1",
+        host,
+    ]
     p = subprocess.run(command, stdout=subprocess.PIPE, text=True, check=False)
     if p.returncode != 0:
         return None, None
@@ -52,5 +68,5 @@ def mtr(host):
     last_line = output.splitlines()[-1].split(",")
     try:
         return float(last_line[6]), float(last_line[10])
-    except (IndexError, ValueError):
+    except IndexError, ValueError:
         return None, None

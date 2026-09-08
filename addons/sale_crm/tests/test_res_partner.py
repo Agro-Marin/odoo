@@ -1,5 +1,5 @@
-from odoo.tests import tagged, users
 from odoo import Command
+from odoo.tests import tagged, users
 
 from odoo.addons.crm.tests.common import TestCrmCommon
 

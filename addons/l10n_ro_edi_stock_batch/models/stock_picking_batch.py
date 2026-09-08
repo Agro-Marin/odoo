@@ -1,116 +1,157 @@
 import base64
+
 import markupsafe
 import requests
 
-from odoo import fields, models, api, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
 from odoo.addons.l10n_ro_edi_stock.models.etransport_api import ETransportAPI
 from odoo.addons.l10n_ro_edi_stock.models.mixin_stock_consignment import (
-    OPERATION_SCOPES, OPERATION_TYPE_TO_ALLOWED_SCOPE_CODES,
+    OPERATION_SCOPES,
+    OPERATION_TYPE_TO_ALLOWED_SCOPE_CODES,
 )
 
 
 class StockPickingBatch(models.Model):
-    _inherit = 'stock.picking.batch'
+    _inherit = "stock.picking.batch"
 
     # Document fields
-    l10n_ro_edi_stock_document_ids = fields.One2many(comodel_name='l10n_ro_edi.document', inverse_name='batch_id')
+    l10n_ro_edi_stock_document_ids = fields.One2many(
+        comodel_name="l10n_ro_edi.document", inverse_name="batch_id"
+    )
 
     ################################################################################
     # Onchange Methods
     ################################################################################
 
-    @api.onchange('l10n_ro_edi_stock_operation_type')
+    @api.onchange("l10n_ro_edi_stock_operation_type")
     def _l10n_ro_edi_stock_reset_variable_selection_fields(self):
         self.l10n_ro_edi_stock_operation_scope = False
 
         # the 'location' value is always valid, regardless of which operation type is chosen
-        self.l10n_ro_edi_stock_start_loc_type = 'location'
-        self.l10n_ro_edi_stock_end_loc_type = 'location'
+        self.l10n_ro_edi_stock_start_loc_type = "location"
+        self.l10n_ro_edi_stock_end_loc_type = "location"
 
     ################################################################################
     # Compute Methods
     ################################################################################
 
-    @api.depends('company_id.account_fiscal_country_id.code')
+    @api.depends("company_id.account_fiscal_country_id.code")
     def _compute_l10n_ro_edi_stock_default_location_type(self):
         for batch in self:
-            if batch.company_id.account_fiscal_country_id.code == 'RO':
+            if batch.company_id.account_fiscal_country_id.code == "RO":
                 if not batch.l10n_ro_edi_stock_start_loc_type:
-                    batch.l10n_ro_edi_stock_start_loc_type = 'location'
+                    batch.l10n_ro_edi_stock_start_loc_type = "location"
                 else:
-                    batch.l10n_ro_edi_stock_start_loc_type = batch.l10n_ro_edi_stock_start_loc_type
+                    batch.l10n_ro_edi_stock_start_loc_type = (
+                        batch.l10n_ro_edi_stock_start_loc_type
+                    )
 
                 if not batch.l10n_ro_edi_stock_end_loc_type:
-                    batch.l10n_ro_edi_stock_end_loc_type = 'location'
+                    batch.l10n_ro_edi_stock_end_loc_type = "location"
                 else:
-                    batch.l10n_ro_edi_stock_start_loc_type = batch.l10n_ro_edi_stock_start_loc_type
+                    batch.l10n_ro_edi_stock_start_loc_type = (
+                        batch.l10n_ro_edi_stock_start_loc_type
+                    )
             else:
                 batch.l10n_ro_edi_stock_start_loc_type = False
                 batch.l10n_ro_edi_stock_end_loc_type = False
 
-    @api.depends('l10n_ro_edi_stock_operation_type')
+    @api.depends("l10n_ro_edi_stock_operation_type")
     def _compute_l10n_ro_edi_stock_available_operation_scopes(self):
         for batch in self:
             if batch.l10n_ro_edi_stock_operation_type:
-                allowed_scopes = OPERATION_TYPE_TO_ALLOWED_SCOPE_CODES.get(batch.l10n_ro_edi_stock_operation_type, ("9999",))
+                allowed_scopes = OPERATION_TYPE_TO_ALLOWED_SCOPE_CODES.get(
+                    batch.l10n_ro_edi_stock_operation_type, ("9999",)
+                )
             else:
                 allowed_scopes = [c for c, _dummy in OPERATION_SCOPES]
 
-            batch.l10n_ro_edi_stock_available_operation_scopes = ','.join(allowed_scopes)
+            batch.l10n_ro_edi_stock_available_operation_scopes = ",".join(
+                allowed_scopes
+            )
 
-    @api.depends('l10n_ro_edi_stock_operation_type')
+    @api.depends("l10n_ro_edi_stock_operation_type")
     def _compute_l10n_ro_edi_stock_available_location_types(self):
         for batch in self:
-            batch.l10n_ro_edi_stock_available_start_loc_types = self.env['stock.picking']._l10n_ro_edi_stock_get_available_location_types(batch.l10n_ro_edi_stock_operation_type, 'start')
-            batch.l10n_ro_edi_stock_available_end_loc_types = self.env['stock.picking']._l10n_ro_edi_stock_get_available_location_types(batch.l10n_ro_edi_stock_operation_type, 'end')
+            batch.l10n_ro_edi_stock_available_start_loc_types = self.env[
+                "stock.picking"
+            ]._l10n_ro_edi_stock_get_available_location_types(
+                batch.l10n_ro_edi_stock_operation_type, "start"
+            )
+            batch.l10n_ro_edi_stock_available_end_loc_types = self.env[
+                "stock.picking"
+            ]._l10n_ro_edi_stock_get_available_location_types(
+                batch.l10n_ro_edi_stock_operation_type, "end"
+            )
 
-    @api.depends('l10n_ro_edi_stock_document_ids', 'company_id.account_fiscal_country_id.code')
+    @api.depends(
+        "l10n_ro_edi_stock_document_ids", "company_id.account_fiscal_country_id.code"
+    )
     def _compute_l10n_ro_edi_stock_current_document_state(self):
         for batch in self:
-            if batch.company_id.account_fiscal_country_id.code == 'RO' and (document := batch._l10n_ro_edi_stock_get_current_document()):
+            if batch.company_id.account_fiscal_country_id.code == "RO" and (
+                document := batch._l10n_ro_edi_stock_get_current_document()
+            ):
                 batch.l10n_ro_edi_stock_state = document.state
             else:
                 batch.l10n_ro_edi_stock_state = False
 
-    @api.depends('l10n_ro_edi_stock_document_ids', 'company_id.account_fiscal_country_id.code')
+    @api.depends(
+        "l10n_ro_edi_stock_document_ids", "company_id.account_fiscal_country_id.code"
+    )
     def _compute_l10n_ro_edi_stock_current_document_uit(self):
         for batch in self:
-            if batch.company_id.account_fiscal_country_id.code == 'RO' and (document := batch._l10n_ro_edi_stock_get_current_document()):
+            if batch.company_id.account_fiscal_country_id.code == "RO" and (
+                document := batch._l10n_ro_edi_stock_get_current_document()
+            ):
                 batch.l10n_ro_edi_stock_document_uit = document.l10n_ro_edi_stock_uit
             else:
                 batch.l10n_ro_edi_stock_document_uit = False
 
-    @api.depends('company_id.account_fiscal_country_id.code')
+    @api.depends("company_id.account_fiscal_country_id.code")
     def _compute_l10n_ro_edi_stock_enable(self):
         for batch in self:
-            batch.l10n_ro_edi_stock_enable = batch.company_id.account_fiscal_country_id.code == 'RO'
+            batch.l10n_ro_edi_stock_enable = (
+                batch.company_id.account_fiscal_country_id.code == "RO"
+            )
 
-    @api.depends('l10n_ro_edi_stock_enable', 'state', 'l10n_ro_edi_stock_state')
+    @api.depends("l10n_ro_edi_stock_enable", "state", "l10n_ro_edi_stock_state")
     def _compute_l10n_ro_edi_stock_enable_send(self):
         for batch in self:
-            batch.l10n_ro_edi_stock_enable_send = (batch.l10n_ro_edi_stock_enable
-                                                   and batch.state != 'draft'
-                                                   and batch.l10n_ro_edi_stock_state in (False, 'stock_sending_failed')
-                                                   and not batch._l10n_ro_edi_stock_get_last_document('stock_validated'))
+            batch.l10n_ro_edi_stock_enable_send = (
+                batch.l10n_ro_edi_stock_enable
+                and batch.state != "draft"
+                and batch.l10n_ro_edi_stock_state in (False, "stock_sending_failed")
+                and not batch._l10n_ro_edi_stock_get_last_document("stock_validated")
+            )
 
-    @api.depends('l10n_ro_edi_stock_enable', 'state', 'l10n_ro_edi_stock_state')
+    @api.depends("l10n_ro_edi_stock_enable", "state", "l10n_ro_edi_stock_state")
     def _compute_l10n_ro_edi_stock_enable_fetch(self):
         for batch in self:
-            batch.l10n_ro_edi_stock_enable_fetch = batch.l10n_ro_edi_stock_enable and batch.l10n_ro_edi_stock_state == 'stock_sent'
+            batch.l10n_ro_edi_stock_enable_fetch = (
+                batch.l10n_ro_edi_stock_enable
+                and batch.l10n_ro_edi_stock_state == "stock_sent"
+            )
 
-    @api.depends('l10n_ro_edi_stock_state')
+    @api.depends("l10n_ro_edi_stock_state")
     def _compute_l10n_ro_edi_stock_enable_amend(self):
         for batch in self:
-            batch.l10n_ro_edi_stock_enable_amend = (batch.l10n_ro_edi_stock_enable
-                                                    and (batch.l10n_ro_edi_stock_state == 'stock_validated'
-                                                         or (batch.l10n_ro_edi_stock_state == 'stock_sending_failed'
-                                                             and batch._l10n_ro_edi_stock_get_last_document('stock_validated'))))
+            batch.l10n_ro_edi_stock_enable_amend = batch.l10n_ro_edi_stock_enable and (
+                batch.l10n_ro_edi_stock_state == "stock_validated"
+                or (
+                    batch.l10n_ro_edi_stock_state == "stock_sending_failed"
+                    and batch._l10n_ro_edi_stock_get_last_document("stock_validated")
+                )
+            )
 
-    @api.depends('l10n_ro_edi_stock_state')
+    @api.depends("l10n_ro_edi_stock_state")
     def _compute_l10n_ro_edi_stock_fields_readonly(self):
         for batch in self:
-            batch.l10n_ro_edi_stock_fields_readonly = batch.l10n_ro_edi_stock_state == 'stock_sent'
+            batch.l10n_ro_edi_stock_fields_readonly = (
+                batch.l10n_ro_edi_stock_state == "stock_sent"
+            )
 
     ################################################################################
     # Validation methods
@@ -121,17 +162,28 @@ class StockPickingBatch(models.Model):
         self.check_singleton()
         self._check_company()
 
-        self.picking_ids.with_context(l10n_ro_edi_stock_validate_carrier=True)._l10n_ro_edi_stock_validate_carrier()
+        self.picking_ids.with_context(
+            l10n_ro_edi_stock_validate_carrier=True
+        )._l10n_ro_edi_stock_validate_carrier()
 
         # Carrier should be the same on all pickings
         first_carrier = self.picking_ids[0].carrier_id
         if any(picking.carrier_id != first_carrier for picking in self.picking_ids):
-            raise UserError(_("All Pickings in a Batch Transfer should have the same Carrier"))
+            raise UserError(
+                _("All Pickings in a Batch Transfer should have the same Carrier")
+            )
 
         # Commercial partner should be the same on all pickings
         first_commercial_partner = self.picking_ids[0].partner_id.commercial_partner_id
-        if any(picking.partner_id.commercial_partner_id != first_commercial_partner for picking in self.picking_ids):
-            raise UserError(_("All Pickings in a Batch Transfer should have the same Commercial Partner"))
+        if any(
+            picking.partner_id.commercial_partner_id != first_commercial_partner
+            for picking in self.picking_ids
+        ):
+            raise UserError(
+                _(
+                    "All Pickings in a Batch Transfer should have the same Commercial Partner"
+                )
+            )
 
         return super().action_done()
 
@@ -141,17 +193,31 @@ class StockPickingBatch(models.Model):
         self.check_singleton()
 
         if not self.company_id.l10n_ro_edi_access_token:
-            errors.append(_('Romanian access token not found. Please generate or fill it in the settings.'))
+            errors.append(
+                _(
+                    "Romanian access token not found. Please generate or fill it in the settings."
+                )
+            )
             return errors
 
         match self.l10n_ro_edi_stock_state:
-            case 'stock_sending_failed':
-                if not self._l10n_ro_edi_stock_get_last_document('stock_validated'):
-                    errors.append(_("This document has not been successfully sent yet because it contains errors."))
+            case "stock_sending_failed":
+                if not self._l10n_ro_edi_stock_get_last_document("stock_validated"):
+                    errors.append(
+                        _(
+                            "This document has not been successfully sent yet because it contains errors."
+                        )
+                    )
                 else:
-                    errors.append(_("This document has not been corrected yet because it contains errors."))
-            case 'stock_validated':
-                errors.append(_("This document has already been successfully sent to anaf."))
+                    errors.append(
+                        _(
+                            "This document has not been corrected yet because it contains errors."
+                        )
+                    )
+            case "stock_validated":
+                errors.append(
+                    _("This document has already been successfully sent to anaf.")
+                )
 
         return errors
 
@@ -162,7 +228,7 @@ class StockPickingBatch(models.Model):
     def action_l10n_ro_edi_stock_send_etransport(self):
         self.check_singleton()
 
-        send_type = self.env.context.get('l10n_ro_edi_stock_send_type', 'send')
+        send_type = self.env.context.get("l10n_ro_edi_stock_send_type", "send")
         self._l10n_ro_edi_stock_send_etransport_document(send_type=send_type)
 
     def action_l10n_ro_edi_stock_fetch_status(self):
@@ -174,7 +240,11 @@ class StockPickingBatch(models.Model):
 
     def _l10n_ro_edi_stock_get_current_document(self):
         self.check_singleton()
-        return self.l10n_ro_edi_stock_document_ids.sorted()[0] if self.l10n_ro_edi_stock_document_ids else None
+        return (
+            self.l10n_ro_edi_stock_document_ids.sorted()[0]
+            if self.l10n_ro_edi_stock_document_ids
+            else None
+        )
 
     def _l10n_ro_edi_stock_get_all_documents(self, states):
         self.check_singleton()
@@ -182,49 +252,63 @@ class StockPickingBatch(models.Model):
         if isinstance(states, str):
             states = [states]
 
-        return self.l10n_ro_edi_stock_document_ids.filtered(lambda doc: doc.state in states)
+        return self.l10n_ro_edi_stock_document_ids.filtered(
+            lambda doc: doc.state in states
+        )
 
     def _l10n_ro_edi_stock_get_last_document(self, state):
         self.check_singleton()
-        documents_in_state = self.l10n_ro_edi_stock_document_ids.filtered(lambda doc: doc.state == state).sorted()
+        documents_in_state = self.l10n_ro_edi_stock_document_ids.filtered(
+            lambda doc: doc.state == state
+        ).sorted()
 
         return documents_in_state and documents_in_state[0]
 
     def _l10n_ro_edi_stock_create_document_stock_sent(self, values: dict[str, object]):
         self.check_singleton()
-        return self.env['l10n_ro_edi.document'].create({
-            'batch_id': self.id,
-            'state': 'stock_sent',
-            'l10n_ro_edi_stock_load_id': values['l10n_ro_edi_stock_load_id'],
-            'l10n_ro_edi_stock_uit': values['l10n_ro_edi_stock_uit'],
-            'attachment': base64.b64encode(values['raw_xml'].encode('utf-8')),
-        })
+        return self.env["l10n_ro_edi.document"].create(
+            {
+                "batch_id": self.id,
+                "state": "stock_sent",
+                "l10n_ro_edi_stock_load_id": values["l10n_ro_edi_stock_load_id"],
+                "l10n_ro_edi_stock_uit": values["l10n_ro_edi_stock_uit"],
+                "attachment": base64.b64encode(values["raw_xml"].encode("utf-8")),
+            }
+        )
 
-    def _l10n_ro_edi_stock_create_document_stock_sending_failed(self, values: dict[str, object]):
+    def _l10n_ro_edi_stock_create_document_stock_sending_failed(
+        self, values: dict[str, object]
+    ):
         self.check_singleton()
-        document = self.env['l10n_ro_edi.document'].create({
-            'batch_id': self.id,
-            'state': 'stock_sending_failed',
-            'message': values['message'],
-            'l10n_ro_edi_stock_load_id': values.get('l10n_ro_edi_stock_load_id'),
-            'l10n_ro_edi_stock_uit': values.get('l10n_ro_edi_stock_uit'),
-        })
+        document = self.env["l10n_ro_edi.document"].create(
+            {
+                "batch_id": self.id,
+                "state": "stock_sending_failed",
+                "message": values["message"],
+                "l10n_ro_edi_stock_load_id": values.get("l10n_ro_edi_stock_load_id"),
+                "l10n_ro_edi_stock_uit": values.get("l10n_ro_edi_stock_uit"),
+            }
+        )
 
-        if 'raw_xml' in values:
+        if "raw_xml" in values:
             # when an error is thrown during data validation there will be no 'raw_xml'
-            document.attachment = base64.b64encode(values['raw_xml'].encode('utf-8'))
+            document.attachment = base64.b64encode(values["raw_xml"].encode("utf-8"))
 
         return document
 
-    def _l10n_ro_edi_stock_create_document_stock_validated(self, values: dict[str, object]):
+    def _l10n_ro_edi_stock_create_document_stock_validated(
+        self, values: dict[str, object]
+    ):
         self.check_singleton()
-        return self.env['l10n_ro_edi.document'].create({
-            'batch_id': self.id,
-            'state': 'stock_validated',
-            'l10n_ro_edi_stock_load_id': values['l10n_ro_edi_stock_load_id'],
-            'l10n_ro_edi_stock_uit': values['l10n_ro_edi_stock_uit'],
-            'attachment': base64.b64encode(values['raw_xml'].encode('utf-8')),
-        })
+        return self.env["l10n_ro_edi.document"].create(
+            {
+                "batch_id": self.id,
+                "state": "stock_validated",
+                "l10n_ro_edi_stock_load_id": values["l10n_ro_edi_stock_load_id"],
+                "l10n_ro_edi_stock_uit": values["l10n_ro_edi_stock_uit"],
+                "attachment": base64.b64encode(values["raw_xml"].encode("utf-8")),
+            }
+        )
 
     ################################################################################
     # Send Logic
@@ -238,97 +322,127 @@ class StockPickingBatch(models.Model):
         self.check_singleton()
 
         data = {
-            'partner_id': self.picking_ids[0].partner_id,
-            'transport_partner_id': self.picking_ids[0].carrier_id.l10n_ro_edi_stock_partner_id,
-            'company_id': self.company_id,
-            'scheduled_date': self.date_planned,
-            'name': self.name,
-            'send_type': send_type,
-            'l10n_ro_edi_stock_operation_type': self.l10n_ro_edi_stock_operation_type,
-            'l10n_ro_edi_stock_operation_scope': self.l10n_ro_edi_stock_operation_scope,
-            'stock_move_ids': self.move_ids,
-            'l10n_ro_edi_stock_vehicle_number': self.l10n_ro_edi_stock_vehicle_number,
-            'l10n_ro_edi_stock_trailer_1_number': self.l10n_ro_edi_stock_trailer_1_number,
-            'l10n_ro_edi_stock_trailer_2_number': self.l10n_ro_edi_stock_trailer_2_number,
-            'l10n_ro_edi_stock_start_loc_type': self.l10n_ro_edi_stock_start_loc_type,
-            'l10n_ro_edi_stock_end_loc_type': self.l10n_ro_edi_stock_end_loc_type,
-            'l10n_ro_edi_stock_remarks': self.l10n_ro_edi_stock_remarks,
-            'picking_type_id': self.picking_type_id,
-            'l10n_ro_edi_stock_start_bcp': self.l10n_ro_edi_stock_start_bcp,
-            'l10n_ro_edi_stock_end_bcp': self.l10n_ro_edi_stock_end_bcp,
-            'l10n_ro_edi_stock_start_customs_office': self.l10n_ro_edi_stock_start_customs_office,
-            'l10n_ro_edi_stock_end_customs_office': self.l10n_ro_edi_stock_end_customs_office,
-            'l10n_ro_edi_stock_document_uit': self.l10n_ro_edi_stock_document_uit,
+            "partner_id": self.picking_ids[0].partner_id,
+            "transport_partner_id": self.picking_ids[
+                0
+            ].carrier_id.l10n_ro_edi_stock_partner_id,
+            "company_id": self.company_id,
+            "scheduled_date": self.date_planned,
+            "name": self.name,
+            "send_type": send_type,
+            "l10n_ro_edi_stock_operation_type": self.l10n_ro_edi_stock_operation_type,
+            "l10n_ro_edi_stock_operation_scope": self.l10n_ro_edi_stock_operation_scope,
+            "stock_move_ids": self.move_ids,
+            "l10n_ro_edi_stock_vehicle_number": self.l10n_ro_edi_stock_vehicle_number,
+            "l10n_ro_edi_stock_trailer_1_number": self.l10n_ro_edi_stock_trailer_1_number,
+            "l10n_ro_edi_stock_trailer_2_number": self.l10n_ro_edi_stock_trailer_2_number,
+            "l10n_ro_edi_stock_start_loc_type": self.l10n_ro_edi_stock_start_loc_type,
+            "l10n_ro_edi_stock_end_loc_type": self.l10n_ro_edi_stock_end_loc_type,
+            "l10n_ro_edi_stock_remarks": self.l10n_ro_edi_stock_remarks,
+            "picking_type_id": self.picking_type_id,
+            "l10n_ro_edi_stock_start_bcp": self.l10n_ro_edi_stock_start_bcp,
+            "l10n_ro_edi_stock_end_bcp": self.l10n_ro_edi_stock_end_bcp,
+            "l10n_ro_edi_stock_start_customs_office": self.l10n_ro_edi_stock_start_customs_office,
+            "l10n_ro_edi_stock_end_customs_office": self.l10n_ro_edi_stock_end_customs_office,
+            "l10n_ro_edi_stock_document_uit": self.l10n_ro_edi_stock_document_uit,
         }
 
-        if errors := self.env['stock.picking']._l10n_ro_edi_stock_validate_data(data=data):
-            self._l10n_ro_edi_stock_get_all_documents('stock_sending_failed').unlink()
-            document_values = {'message': '\n'.join(errors)}
+        if errors := self.env["stock.picking"]._l10n_ro_edi_stock_validate_data(
+            data=data
+        ):
+            self._l10n_ro_edi_stock_get_all_documents("stock_sending_failed").unlink()
+            document_values = {"message": "\n".join(errors)}
 
-            if send_type == 'amend':
-                last_sent_document = self._l10n_ro_edi_stock_get_last_document('stock_validated')
+            if send_type == "amend":
+                last_sent_document = self._l10n_ro_edi_stock_get_last_document(
+                    "stock_validated"
+                )
                 document_values |= {
-                    'l10n_ro_edi_stock_load_id': last_sent_document.l10n_ro_edi_stock_load_id,
-                    'l10n_ro_edi_stock_uit': last_sent_document.l10n_ro_edi_stock_uit,
-                    'raw_xml': base64.b64decode(last_sent_document.attachment).decode(),
+                    "l10n_ro_edi_stock_load_id": last_sent_document.l10n_ro_edi_stock_load_id,
+                    "l10n_ro_edi_stock_uit": last_sent_document.l10n_ro_edi_stock_uit,
+                    "raw_xml": base64.b64decode(last_sent_document.attachment).decode(),
                 }
 
-            self._l10n_ro_edi_stock_create_document_stock_sending_failed(document_values)
+            self._l10n_ro_edi_stock_create_document_stock_sending_failed(
+                document_values
+            )
             return
 
-        raw_xml = markupsafe.Markup("<?xml version='1.0' encoding='UTF-8'?>\n") + self.env['ir.qweb']._render(
-            'l10n_ro_edi_stock.l10n_ro_template_etransport',
-            values=self.env['stock.picking']._l10n_ro_edi_stock_get_template_data(data=data),
+        raw_xml = markupsafe.Markup(
+            "<?xml version='1.0' encoding='UTF-8'?>\n"
+        ) + self.env["ir.qweb"]._render(
+            "l10n_ro_edi_stock.l10n_ro_template_etransport",
+            values=self.env["stock.picking"]._l10n_ro_edi_stock_get_template_data(
+                data=data
+            ),
         )
 
         result = ETransportAPI().upload_data(company_id=self.company_id, data=raw_xml)
 
-        if 'error' in result:
-            self._l10n_ro_edi_stock_get_all_documents('stock_sending_failed').unlink()
-            document_values = {'message': result['error'], 'raw_xml': raw_xml}
+        if "error" in result:
+            self._l10n_ro_edi_stock_get_all_documents("stock_sending_failed").unlink()
+            document_values = {"message": result["error"], "raw_xml": raw_xml}
 
-            if send_type == 'amend':
-                last_sent_document = self._l10n_ro_edi_stock_get_last_document('stock_validated')
+            if send_type == "amend":
+                last_sent_document = self._l10n_ro_edi_stock_get_last_document(
+                    "stock_validated"
+                )
                 document_values |= {
-                    'l10n_ro_edi_stock_load_id': last_sent_document.l10n_ro_edi_stock_load_id,
-                    'l10n_ro_edi_stock_uit': last_sent_document.l10n_ro_edi_stock_uit,
+                    "l10n_ro_edi_stock_load_id": last_sent_document.l10n_ro_edi_stock_load_id,
+                    "l10n_ro_edi_stock_uit": last_sent_document.l10n_ro_edi_stock_uit,
                 }
 
-            self._l10n_ro_edi_stock_create_document_stock_sending_failed(document_values)
+            self._l10n_ro_edi_stock_create_document_stock_sending_failed(
+                document_values
+            )
         else:
-            self._l10n_ro_edi_stock_get_all_documents({'stock_sending_failed', 'stock_sent'}).unlink()
+            self._l10n_ro_edi_stock_get_all_documents(
+                {"stock_sending_failed", "stock_sent"}
+            ).unlink()
 
-            content = result['content']
+            content = result["content"]
 
-            if send_type == 'send':
-                uit = content['UIT']
+            if send_type == "send":
+                uit = content["UIT"]
             else:
-                last_validated = self._l10n_ro_edi_stock_get_last_document('stock_validated')
+                last_validated = self._l10n_ro_edi_stock_get_last_document(
+                    "stock_validated"
+                )
                 uit = last_validated.l10n_ro_edi_stock_uit
                 raw_xml = base64.b64decode(last_validated.attachment).decode()
 
-            self._l10n_ro_edi_stock_create_document_stock_sent({
-                'l10n_ro_edi_stock_load_id': content['index_incarcare'],
-                'l10n_ro_edi_stock_uit': uit,
-                'raw_xml': raw_xml,
-            })
+            self._l10n_ro_edi_stock_create_document_stock_sent(
+                {
+                    "l10n_ro_edi_stock_load_id": content["index_incarcare"],
+                    "l10n_ro_edi_stock_uit": uit,
+                    "raw_xml": raw_xml,
+                }
+            )
 
     def _l10n_ro_edi_stock_fetch_document_status(self):
         session = requests.Session()
-        documents_to_delete = self.env['l10n_ro_edi.document']
-        to_fetch = self.filtered(lambda b: b.l10n_ro_edi_stock_state == 'stock_sent')
+        documents_to_delete = self.env["l10n_ro_edi.document"]
+        to_fetch = self.filtered(lambda b: b.l10n_ro_edi_stock_state == "stock_sent")
 
         for batch in to_fetch:
-            current_sending_document = batch.l10n_ro_edi_stock_document_ids.filtered(lambda doc: doc.state == 'stock_sent')[0]
+            current_sending_document = batch.l10n_ro_edi_stock_document_ids.filtered(
+                lambda doc: doc.state == "stock_sent"
+            )[0]
 
             if errors := batch._l10n_ro_edi_stock_validate_fetch_data():
-                documents_to_delete |= batch._l10n_ro_edi_stock_get_all_documents('stock_sending_failed')
-                batch._l10n_ro_edi_stock_create_document_stock_sending_failed({
-                    'message': '\n'.join(errors),
-                    'l10n_ro_edi_stock_load_id': current_sending_document.l10n_ro_edi_stock_load_id,
-                    'l10n_ro_edi_stock_uit': current_sending_document.l10n_ro_edi_stock_uit,
-                    'raw_xml': base64.b64decode(current_sending_document.attachment).decode(),
-                })
+                documents_to_delete |= batch._l10n_ro_edi_stock_get_all_documents(
+                    "stock_sending_failed"
+                )
+                batch._l10n_ro_edi_stock_create_document_stock_sending_failed(
+                    {
+                        "message": "\n".join(errors),
+                        "l10n_ro_edi_stock_load_id": current_sending_document.l10n_ro_edi_stock_load_id,
+                        "l10n_ro_edi_stock_uit": current_sending_document.l10n_ro_edi_stock_uit,
+                        "raw_xml": base64.b64decode(
+                            current_sending_document.attachment
+                        ).decode(),
+                    }
+                )
                 continue
 
             result = ETransportAPI().get_status(
@@ -337,30 +451,46 @@ class StockPickingBatch(models.Model):
                 session=session,
             )
 
-            if 'error' in result:
-                documents_to_delete |= batch._l10n_ro_edi_stock_get_all_documents('stock_sending_failed')
-                batch._l10n_ro_edi_stock_create_document_stock_sending_failed({
-                    'message': result['error'],
-                    'l10n_ro_edi_stock_load_id': current_sending_document.l10n_ro_edi_stock_load_id,
-                    'l10n_ro_edi_stock_uit': current_sending_document.l10n_ro_edi_stock_uit,
-                    'raw_xml': base64.b64decode(current_sending_document.attachment).decode(),
-                })
+            if "error" in result:
+                documents_to_delete |= batch._l10n_ro_edi_stock_get_all_documents(
+                    "stock_sending_failed"
+                )
+                batch._l10n_ro_edi_stock_create_document_stock_sending_failed(
+                    {
+                        "message": result["error"],
+                        "l10n_ro_edi_stock_load_id": current_sending_document.l10n_ro_edi_stock_load_id,
+                        "l10n_ro_edi_stock_uit": current_sending_document.l10n_ro_edi_stock_uit,
+                        "raw_xml": base64.b64decode(
+                            current_sending_document.attachment
+                        ).decode(),
+                    }
+                )
             else:
-                documents_to_delete |= batch._l10n_ro_edi_stock_get_all_documents(('stock_sent', 'stock_sending_failed'))
+                documents_to_delete |= batch._l10n_ro_edi_stock_get_all_documents(
+                    ("stock_sent", "stock_sending_failed")
+                )
                 new_document_data = {
-                    'l10n_ro_edi_stock_load_id': current_sending_document.l10n_ro_edi_stock_load_id,
-                    'l10n_ro_edi_stock_uit': current_sending_document.l10n_ro_edi_stock_uit,
-                    'raw_xml': base64.b64decode(current_sending_document.attachment).decode(),
+                    "l10n_ro_edi_stock_load_id": current_sending_document.l10n_ro_edi_stock_load_id,
+                    "l10n_ro_edi_stock_uit": current_sending_document.l10n_ro_edi_stock_uit,
+                    "raw_xml": base64.b64decode(
+                        current_sending_document.attachment
+                    ).decode(),
                 }
-                match state := result['content']['stare']:
-                    case 'ok':
-                        batch._l10n_ro_edi_stock_create_document_stock_validated(new_document_data)
-                    case 'in prelucrare':
+                match state := result["content"]["stare"]:
+                    case "ok":
+                        batch._l10n_ro_edi_stock_create_document_stock_validated(
+                            new_document_data
+                        )
+                    case "in prelucrare":
                         # Document is still being validated
-                        batch._l10n_ro_edi_stock_create_document_stock_sent(new_document_data)
-                    case 'XML cu erori nepreluat de sistem':
-                        new_document_data['message'] = _("XML contains errors.")
-                        batch._l10n_ro_edi_stock_create_document_stock_sending_failed(new_document_data)
+                        batch._l10n_ro_edi_stock_create_document_stock_sent(
+                            new_document_data
+                        )
+                    case "XML cu erori nepreluat de sistem":
+                        new_document_data["message"] = _("XML contains errors.")
+                        batch._l10n_ro_edi_stock_create_document_stock_sending_failed(
+                            new_document_data
+                        )
                     case _:
                         batch._l10n_ro_edi_stock_report_unhandled_document_state(state)
 
@@ -372,4 +502,6 @@ class StockPickingBatch(models.Model):
 
     def _l10n_ro_edi_stock_report_unhandled_document_state(self, state: str):
         self.check_singleton()
-        self.message_post(body=_("Unhandled eTransport document state: %(state)s", state=state))
+        self.message_post(
+            body=_("Unhandled eTransport document state: %(state)s", state=state)
+        )

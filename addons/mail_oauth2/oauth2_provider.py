@@ -31,7 +31,7 @@ class Oauth2MailProvider:
     token_error_detail: bool = False
 
     def field(self, suffix):
-        return f'{self.prefix}_{suffix}'
+        return f"{self.prefix}_{suffix}"
 
     def resolve(self, value, records):
         return value(records) if callable(value) else value

@@ -1,44 +1,56 @@
-# -*- coding: utf-8 -*-
-
 from collections import defaultdict
 
-from odoo import models, fields, api, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
 class Base(models.AbstractModel):
-    _inherit = 'base'
+    _inherit = "base"
 
     def _valid_field_parameter(self, field, name):
-        return name == 'sparse' or super()._valid_field_parameter(field, name)
+        return name == "sparse" or super()._valid_field_parameter(field, name)
 
 
 class IrModelFields(models.Model):
-    _inherit = 'ir.model.fields'
+    _inherit = "ir.model.fields"
 
     # No `selection_add` for 'serialized': this fork builds ir.model.fields.ttype
     # from the field-type registry (`_field_types` reads `Field._by_type__`), so
     # defining the Serialized class above is what puts the value in the list.
     # Declaring it again raised "selection_add=... on non-list selection" at
     # registry build and made this module impossible to install.
-    serialization_field_id = fields.Many2one('ir.model.fields', string='Serialization Field',
-        ondelete='cascade', domain="[('ttype','=','serialized'), ('model_id', '=', model_id)]",
+    serialization_field_id = fields.Many2one(
+        "ir.model.fields",
+        string="Serialization Field",
+        ondelete="cascade",
+        domain="[('ttype','=','serialized'), ('model_id', '=', model_id)]",
         help="If set, this field will be stored in the sparse structure of the "
-             "serialization field, instead of having its own database column. "
-             "This cannot be changed after creation.",
+        "serialization field, instead of having its own database column. "
+        "This cannot be changed after creation.",
     )
 
     def write(self, vals):
         # Limitation: renaming a sparse field or changing the storing system is
         # currently not allowed
-        if 'serialization_field_id' in vals or 'name' in vals:
+        if "serialization_field_id" in vals or "name" in vals:
             for field in self:
-                if 'serialization_field_id' in vals and field.serialization_field_id.id != vals['serialization_field_id']:
-                    raise UserError(_('Changing the storing system for field "%s" is not allowed.', field.name))
-                if field.serialization_field_id and (field.name != vals['name']):
-                    raise UserError(_('Renaming sparse field "%s" is not allowed', field.name))
+                if (
+                    "serialization_field_id" in vals
+                    and field.serialization_field_id.id
+                    != vals["serialization_field_id"]
+                ):
+                    raise UserError(
+                        _(
+                            'Changing the storing system for field "%s" is not allowed.',
+                            field.name,
+                        )
+                    )
+                if field.serialization_field_id and (field.name != vals["name"]):
+                    raise UserError(
+                        _('Renaming sparse field "%s" is not allowed', field.name)
+                    )
 
-        return super(IrModelFields, self).write(vals)
+        return super().write(vals)
 
     def _reflect_fields(self, model_names):
         super()._reflect_fields(model_names)
@@ -62,13 +74,19 @@ class IrModelFields(models.Model):
             for field_name, field in self.env[model_name]._fields.items():
                 field_id, current_value = existing[(model_name, field_name)]
                 try:
-                    value = existing[(model_name, field.sparse)][0] if field.sparse else None
+                    value = (
+                        existing[(model_name, field.sparse)][0]
+                        if field.sparse
+                        else None
+                    )
                 except KeyError:
-                    raise UserError(_(
-                        'Serialization field "%(serialization_field)s" not found for sparse field %(sparse_field)s!',
-                        serialization_field=field.sparse,
-                        sparse_field=field,
-                    ))
+                    raise UserError(
+                        _(
+                            'Serialization field "%(serialization_field)s" not found for sparse field %(sparse_field)s!',
+                            serialization_field=field.sparse,
+                            sparse_field=field,
+                        )
+                    )
                 if current_value != value:
                     updates[value].append(field_id)
 
@@ -76,29 +94,31 @@ class IrModelFields(models.Model):
             return
 
         # update fields
-        query = "UPDATE ir_model_fields SET serialization_field_id=%s WHERE id = ANY(%s)"
+        query = (
+            "UPDATE ir_model_fields SET serialization_field_id=%s WHERE id = ANY(%s)"
+        )
         for value, ids in updates.items():
             cr.execute(query, [value, list(ids)])
 
         records = self.browse(id_ for ids in updates.values() for id_ in ids)
-        self.pool.post_init(records.modified, ['serialization_field_id'])
+        self.pool.post_init(records.modified, ["serialization_field_id"])
 
     def _prepare_field_attrs(self, field_data):
-        attrs = super(IrModelFields, self)._prepare_field_attrs(field_data)
-        if field_data.get('serialization_field_id'):
-            serialization_record = self.browse(field_data['serialization_field_id'])
-            attrs['sparse'] = serialization_record.name
+        attrs = super()._prepare_field_attrs(field_data)
+        if field_data.get("serialization_field_id"):
+            serialization_record = self.browse(field_data["serialization_field_id"])
+            attrs["sparse"] = serialization_record.name
         return attrs
 
 
 class Sparse_FieldsTest(models.TransientModel):
-    _name = 'sparse_fields.test'
-    _description = 'Sparse fields Test'
+    _name = "sparse_fields.test"
+    _description = "Sparse fields Test"
 
     data = fields.Serialized()
-    boolean = fields.Boolean(sparse='data')
-    integer = fields.Integer(sparse='data')
-    float = fields.Float(sparse='data')
-    char = fields.Char(sparse='data')
-    selection = fields.Selection([('one', 'One'), ('two', 'Two')], sparse='data')
-    partner = fields.Many2one('res.partner', sparse='data')
+    boolean = fields.Boolean(sparse="data")
+    integer = fields.Integer(sparse="data")
+    float = fields.Float(sparse="data")
+    char = fields.Char(sparse="data")
+    selection = fields.Selection([("one", "One"), ("two", "Two")], sparse="data")
+    partner = fields.Many2one("res.partner", sparse="data")

@@ -1,7 +1,7 @@
 from urllib.parse import quote
 
-from odoo.tests.common import TransactionCase
 from odoo.exceptions import UserError
+from odoo.tests.common import TransactionCase
 
 from .. import uninstall_hook
 
@@ -9,7 +9,7 @@ from .. import uninstall_hook
 class TestCloudStorageGoogleCommon(TransactionCase):
     def setUp(self):
         super().setUp()
-        self.DUMMY_GOOGLE_ACCOUNT_INFO = r'''
+        self.DUMMY_GOOGLE_ACCOUNT_INFO = r"""
 {
     "type": "service_account",
     "project_id": "project_id",
@@ -23,35 +23,52 @@ class TestCloudStorageGoogleCommon(TransactionCase):
     "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/account%40project_id.iam.gserviceaccount.com",
     "universe_domain": "googleapis.com"
 }
-'''
-        self.bucket_name = 'bucket_name'
-        ICP = self.env['ir.config_parameter']
-        ICP.set_param('cloud_storage_provider', 'google')
-        ICP.set_param('cloud_storage_google_bucket_name', self.bucket_name)
-        ICP.set_param('cloud_storage_google_account_info', self.DUMMY_GOOGLE_ACCOUNT_INFO)
+"""
+        self.bucket_name = "bucket_name"
+        ICP = self.env["ir.config_parameter"]
+        ICP.set_param("cloud_storage_provider", "google")
+        ICP.set_param("cloud_storage_google_bucket_name", self.bucket_name)
+        ICP.set_param(
+            "cloud_storage_google_account_info", self.DUMMY_GOOGLE_ACCOUNT_INFO
+        )
 
 
 class TestCloudStorageGoogle(TestCloudStorageGoogleCommon):
     def test_generate_signed_url(self):
-        file_name = ' ¥®°²Æçéðπ⁉€∇⓵▲☑♂♥✓➔『にㄅ㊀中한︸🌈🌍👌😀.txt'
-        attachment = self.env['ir.attachment'].create([{
-            'name': file_name,
-            'mimetype': 'text/plain',
-            'datas': b'',
-        }])
+        file_name = " ¥®°²Æçéðπ⁉€∇⓵▲☑♂♥✓➔『にㄅ㊀中한︸🌈🌍👌😀.txt"
+        attachment = self.env["ir.attachment"].create(
+            [
+                {
+                    "name": file_name,
+                    "mimetype": "text/plain",
+                    "datas": b"",
+                }
+            ]
+        )
         attachment._post_add_create(cloud_storage=True)
         attachment._generate_cloud_storage_upload_info()
         attachment._generate_cloud_storage_download_info()
-        self.assertTrue(attachment.url.startswith(f'https://storage.googleapis.com/{self.bucket_name}/'))
+        self.assertTrue(
+            attachment.url.startswith(
+                f"https://storage.googleapis.com/{self.bucket_name}/"
+            )
+        )
         self.assertTrue(attachment.url.endswith(quote(file_name)))
 
     def test_uninstall_fail(self):
-        with self.assertRaises(UserError, msg="Don't uninstall the module if there are Google attachments in use"):
-            attachment = self.env['ir.attachment'].create([{
-                'name': 'test.txt',
-                'mimetype': 'text/plain',
-                'datas': b'',
-            }])
+        with self.assertRaises(
+            UserError,
+            msg="Don't uninstall the module if there are Google attachments in use",
+        ):
+            attachment = self.env["ir.attachment"].create(
+                [
+                    {
+                        "name": "test.txt",
+                        "mimetype": "text/plain",
+                        "datas": b"",
+                    }
+                ]
+            )
             attachment._post_add_create(cloud_storage=True)
             attachment.flush_recordset()
             uninstall_hook(self.env)
@@ -59,7 +76,7 @@ class TestCloudStorageGoogle(TestCloudStorageGoogleCommon):
     def test_uninstall_success(self):
         uninstall_hook(self.env)
         # make sure all sensitive data are removed
-        ICP = self.env['ir.config_parameter']
-        self.assertFalse(ICP.get_param('cloud_storage_provider'))
-        self.assertFalse(ICP.get_param('cloud_storage_google_bucket_name'))
-        self.assertFalse(ICP.get_param('cloud_storage_google_account_info'))
+        ICP = self.env["ir.config_parameter"]
+        self.assertFalse(ICP.get_param("cloud_storage_provider"))
+        self.assertFalse(ICP.get_param("cloud_storage_google_bucket_name"))
+        self.assertFalse(ICP.get_param("cloud_storage_google_account_info"))

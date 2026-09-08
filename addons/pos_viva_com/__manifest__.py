@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "PoS Viva.com",
     "version": "1.0",

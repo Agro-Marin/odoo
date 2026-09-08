@@ -80,7 +80,9 @@ class IrActionsReport(models.Model):
                         self_with_order_context._update_mapping_and_add_pages_to_writer(
                             writer, footer, form_fields_values_mapping, prefix, order
                         )
-                pdf.update_form_fields_pdf(writer, form_fields=form_fields_values_mapping)
+                pdf.update_form_fields_pdf(
+                    writer, form_fields=form_fields_values_mapping
+                )
                 with io.BytesIO() as _buffer:
                     writer.write(_buffer)
                     stream = io.BytesIO(_buffer.getvalue())

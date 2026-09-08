@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Argentinean - Point of Sale with AR Doc",
     "version": "1.0",

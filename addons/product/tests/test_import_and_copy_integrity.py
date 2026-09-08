@@ -7,7 +7,6 @@ from odoo.addons.product.tests.common import ProductCommon
 
 @tagged("post_install", "-at_install")
 class TestAttributeLineCreateOrder(ProductCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -129,7 +128,6 @@ class TestAttributeLineCreateOrder(ProductCommon):
 
 @tagged("post_install", "-at_install")
 class TestTemplateCopyPriceExtra(ProductCommon):
-
     def test_copy_preserves_price_extra_with_archived_value(self):
         attribute = self.env["product.attribute"].create(
             {
@@ -196,7 +194,6 @@ class TestTemplateCopyPriceExtra(ProductCommon):
 
 @tagged("post_install", "-at_install")
 class TestSellerPriceUomConversion(ProductCommon):
-
     def test_price_discounted_with_incompatible_vendor_uom(self):
         template = self._create_product(
             name="Cross category seller product", uom_id=self.uom_unit.id

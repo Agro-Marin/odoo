@@ -31,7 +31,10 @@ def doc_cache_generation(env):
     :rtype: str
     """
     registry_sequence, cache_sequences = env.registry.get_sequences(env.cr)
-    material = (registry_sequence, *(cache_sequences[name] for name in ACCESS_CACHE_SEQUENCES))
+    material = (
+        registry_sequence,
+        *(cache_sequences[name] for name in ACCESS_CACHE_SEQUENCES),
+    )
     return hashlib.blake2b(repr(material).encode(), digest_size=6).hexdigest()
 
 

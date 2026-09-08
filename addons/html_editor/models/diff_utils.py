@@ -3,7 +3,6 @@ from difflib import SequenceMatcher, unified_diff
 
 from bs4 import BeautifulSoup
 
-
 OPERATION_SEPARATOR = "\n"
 LINE_SEPARATOR = "<"
 
@@ -53,9 +52,7 @@ def apply_patch(initial_content, patch):
         return initial_content
 
     initial_content = initial_content.replace("\n", "")
-    initial_content = _remove_html_attribute(
-        initial_content, HTML_ATTRIBUTES_TO_REMOVE
-    )
+    initial_content = _remove_html_attribute(initial_content, HTML_ATTRIBUTES_TO_REMOVE)
 
     content = initial_content.split(LINE_SEPARATOR)
     patch_operations = patch.split(OPERATION_SEPARATOR)
@@ -71,8 +68,7 @@ def apply_patch(initial_content, patch):
         start_index, end_index = parsed_indexes
         deletes = operation_type in [PATCH_OPERATION_REMOVE, PATCH_OPERATION_REPLACE]
         if deletes and not (
-            -len(content) <= start_index < len(content)
-            and end_index < len(content)
+            -len(content) <= start_index < len(content) and end_index < len(content)
         ):
             continue
 
@@ -145,9 +141,7 @@ def generate_comparison(new_content, old_content):
                     DELETION_COMPARISON_REGEX,
                     comparison[index],
                 )
-                if not re.search(
-                    EMPTY_OPERATION_TAG, deletion_flagged_comparison
-                ):
+                if not re.search(EMPTY_OPERATION_TAG, deletion_flagged_comparison):
                     comparison[index] = deletion_flagged_comparison
 
         if operation_type == PATCH_OPERATION_ADD:
@@ -168,10 +162,9 @@ def generate_comparison(new_content, old_content):
                 )
                 if not re.search(EMPTY_OPERATION_TAG, addition_flagged_line):
                     comparison.insert(start_index, addition_flagged_line)
-                elif (
-                    line.split(">")[0] != comparison[start_index].split(">")[0]
-                    or line.startswith("/")
-                ):
+                elif line.split(">")[0] != comparison[start_index].split(">")[
+                    0
+                ] or line.startswith("/"):
                     comparison.insert(start_index, line)
 
     final_comparison = LINE_SEPARATOR.join(comparison)
@@ -186,9 +179,7 @@ def generate_comparison(new_content, old_content):
             return match.group(1)
         return match.group(0)
 
-    return re.sub(
-        UNNECESSARY_REPLACE_FIXER, collapse_identical_pair, final_comparison
-    )
+    return re.sub(UNNECESSARY_REPLACE_FIXER, collapse_identical_pair, final_comparison)
 
 
 def _format_line_index(start, end):
@@ -226,9 +217,7 @@ def _patch_generator(new_content, old_content):
                     patch_content_line.extend(old_content_lines[j1:j2])
 
         if patch_content_line:
-            patch_content = LINE_SEPARATOR + LINE_SEPARATOR.join(
-                patch_content_line
-            )
+            patch_content = LINE_SEPARATOR + LINE_SEPARATOR.join(patch_content_line)
             yield str(patch_operation) + PATCH_OPERATION_CONTENT + patch_content
         else:
             yield str(patch_operation)
@@ -238,23 +227,23 @@ def generate_patch(new_content, old_content):
     new_content = _remove_html_attribute(new_content, HTML_ATTRIBUTES_TO_REMOVE)
     old_content = _remove_html_attribute(old_content, HTML_ATTRIBUTES_TO_REMOVE)
 
-    return OPERATION_SEPARATOR.join(
-        list(_patch_generator(new_content, old_content))
-    )
+    return OPERATION_SEPARATOR.join(list(_patch_generator(new_content, old_content)))
 
 
 def _remove_html_attribute(html_content, attributes_to_remove):
     for attribute in attributes_to_remove:
-        html_content = re.sub(
-            rf' {attribute}="[^"]*"', "", html_content
-        )
+        html_content = re.sub(rf' {attribute}="[^"]*"', "", html_content)
 
     return html_content
 
 
 def _indent(content):
-    content = "<document>" + _remove_html_attribute(content, HTML_ATTRIBUTES_TO_REMOVE) + "</document>"
-    soup = BeautifulSoup(content, 'html.parser')
+    content = (
+        "<document>"
+        + _remove_html_attribute(content, HTML_ATTRIBUTES_TO_REMOVE)
+        + "</document>"
+    )
+    soup = BeautifulSoup(content, "html.parser")
     return soup.prettify()
 
 
@@ -263,11 +252,13 @@ def generate_unified_diff(new_content, old_content):
     old_content = _indent(old_content)
 
     return OPERATION_SEPARATOR.join(
-        list(unified_diff(
-            old_content.split(OPERATION_SEPARATOR),
-            new_content.split(OPERATION_SEPARATOR),
-            fromfile='old',
-            tofile='new',
-            lineterm='',
-        ))
+        list(
+            unified_diff(
+                old_content.split(OPERATION_SEPARATOR),
+                new_content.split(OPERATION_SEPARATOR),
+                fromfile="old",
+                tofile="new",
+                lineterm="",
+            )
+        )
     )

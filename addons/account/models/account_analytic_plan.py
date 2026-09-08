@@ -26,7 +26,9 @@ class AccountAnalyticApplicability(models.Model):
         compute="_compute_display_account_prefix",
         help="Defines if the field account prefix should be displayed",
     )
-    account_prefix_placeholder = fields.Char(compute="_compute_account_prefix_placeholder")
+    account_prefix_placeholder = fields.Char(
+        compute="_compute_account_prefix_placeholder"
+    )
 
     @api.depends("account_prefix", "business_domain")
     def _compute_account_prefix_placeholder(self):

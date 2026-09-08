@@ -3,16 +3,16 @@ from odoo.exceptions import ValidationError
 
 
 class L10n_ItDocumentType(models.Model):
-    _name = 'l10n_it.document.type'
-    _description = 'Italian Document Type'
+    _name = "l10n_it.document.type"
+    _description = "Italian Document Type"
 
-    name = fields.Char(required=True, help='The document type name', translate=True)
+    name = fields.Char(required=True, help="The document type name", translate=True)
     code = fields.Char(required=True)
     # not used, to be removed in master
     type = fields.Selection(
         selection=[
-            ('sale', "Sale"),
-            ('purchase', "Purchase"),
+            ("sale", "Sale"),
+            ("purchase", "Purchase"),
         ],
     )
 
@@ -20,14 +20,14 @@ class L10n_ItDocumentType(models.Model):
         for document_type in self:
             document_type.display_name = f"{document_type.code} - {document_type.name}"
 
-    @api.constrains('code')
+    @api.constrains("code")
     def _check_code_unique(self):
         duplicate = self._read_group(
             domain=[],
-            groupby=['code'],
-            aggregates=['id:recordset'],
-            having=[('__count', '>', 1)],
+            groupby=["code"],
+            aggregates=["id:recordset"],
+            having=[("__count", ">", 1)],
             limit=1,
         )
         if duplicate:
-            raise ValidationError(_('Document Type code must be unique.'))
+            raise ValidationError(_("Document Type code must be unique."))

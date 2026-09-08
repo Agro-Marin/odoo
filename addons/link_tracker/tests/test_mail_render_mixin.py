@@ -7,9 +7,8 @@ from odoo.tools import mute_logger
 from odoo.tools.mail import TEXT_URL_REGEX
 
 
-@tagged('-at_install', 'post_install')
+@tagged("-at_install", "post_install")
 class TestMailRenderMixin(common.HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -39,16 +38,21 @@ class TestMailRenderMixin(common.HttpCase):
             '<a href="#"></a>',
             '<a href="mailto:afunemail@somewhere.com">email label</a>',
             '<a href="https://www.odoo.com?test=%20+3&amp;this=that">THERE > there</a>',
-            '<a >Without href</a>'
+            "<a >Without href</a>",
         ]
 
-        with self.allow_requests(all_requests=True):  # Creating link will query url to infer title
+        with self.allow_requests(
+            all_requests=True
+        ):  # Creating link will query url to infer title
             self.env["mixin.mail.render"]._shorten_links("".join(test_links), {})
 
         trackers_to_find = [
             [("url", "=", "https://gitlab.com"), ("label", "=", "test_label")],
             [("url", "=", "https://test_542152qsdqsd.com")],
-            [("url", "=", "https://third_test_54212.com"), ("label", "=", "[media] imagesrc")],
+            [
+                ("url", "=", "https://third_test_54212.com"),
+                ("label", "=", "[media] imagesrc"),
+            ],
             [("url", "=", "https://fourthtesthasnolabel.com"), ("label", "=", False)],
             [
                 ("url", "=", "https://test_strange_html.com"),
@@ -62,13 +66,16 @@ class TestMailRenderMixin(common.HttpCase):
                 ("url", "=", "https://url_with_params.com?a=b&c=d"),
                 ("label", "=", "label"),
             ],
-            [("url", "=", self.base_url + '#')],
-            [("url", "=", "https://www.odoo.com?test=%20+3&this=that"), ("label", "=", "THERE > there")],  # lxml unescaped
+            [("url", "=", self.base_url + "#")],
+            [
+                ("url", "=", "https://www.odoo.com?test=%20+3&this=that"),
+                ("label", "=", "THERE > there"),
+            ],  # lxml unescaped
         ]
         trackers_to_fail = [
             [("url", "=", "https://test_542152qsdqsd.com"), ("label", "ilike", "_")],
             [("url", "ilike", "%mailto:afunemail@somewhere.com")],
-            [("label", '=', 'Without href')]
+            [("label", "=", "Without href")],
         ]
 
         for tracker_to_find in trackers_to_find:
@@ -119,7 +126,10 @@ And here is the same: <a href="{self.base_url}/r/(\w+)+"><img src="https://www.o
             [("url", "=", "https://www.odoo.com"), ("label", "=", "logo.png")],
             [("url", "=", "https://www.odoo.com"), ("label", "=", "there")],
             [("url", "=", "https://www.odoo.com"), ("label", "=", "[media] image")],
-            [("url", "=", "https://www.odoo.com"), ("label", "=", "[media] image2's trouble")],
+            [
+                ("url", "=", "https://www.odoo.com"),
+                ("label", "=", "[media] image2's trouble"),
+            ],
             [("url", "=", "https://www.odoo.com"), ("label", "=", "blurp")],
             [("url", "=", "https://www.odoo.com"), ("label", "=", '[media] "scary"')],
             [("url", "=", "https://www.odoo.com"), ("label", "=", "[media] ins ' ide")],
@@ -133,7 +143,9 @@ And here is the same: <a href="{self.base_url}/r/(\w+)+"><img src="https://www.o
                     f"Tracker labeled {tracker_to_find[1][2]} was not found.",
                 )
 
-        link_pattern = re.compile(rf'href="({self.base_url}/r/(\w+)+)"', flags=re.DOTALL)
+        link_pattern = re.compile(
+            rf'href="({self.base_url}/r/(\w+)+)"', flags=re.DOTALL
+        )
         matches = link_pattern.findall(new_content)
 
         def assert_different_shortcode(idx1, idx2):
@@ -148,7 +160,9 @@ And here is the same: <a href="{self.base_url}/r/(\w+)+"><img src="https://www.o
             assert_different_shortcode(idx, idx + 1)
         self.assertNotEqual(matches[0], matches[8])
         self.assertEqual(
-            matches[8], matches[9], "Links to the same image without alt should be covered by the same tracker."
+            matches[8],
+            matches[9],
+            "Links to the same image without alt should be covered by the same tracker.",
         )
 
     @mute_logger("odoo.tests.transaction_case.requests")
@@ -193,25 +207,31 @@ And a last, more complex: <a href="{self.base_url}/r/(\w+)">There!</a>
 
     @mute_logger("odoo.tests.transaction_case.requests")
     def test_shorten_links_html_markup(self):
-        content = Markup('<p>A link: <a href="https://www.worldcommunitygrid.org">Link</a></p>')
+        content = Markup(
+            '<p>A link: <a href="https://www.worldcommunitygrid.org">Link</a></p>'
+        )
 
         new_content = self.env["mixin.mail.render"]._shorten_links(content, {})
         self.assertTrue(isinstance(new_content, Markup))
 
-        expected_pattern = re.compile(rf'<p>A link: <a href="{self.base_url}/r/\w+">Link</a></p>')
+        expected_pattern = re.compile(
+            rf'<p>A link: <a href="{self.base_url}/r/\w+">Link</a></p>'
+        )
         self.assertRegex(new_content, expected_pattern)
 
     @mute_logger("odoo.tests.transaction_case.requests")
     def test_shorten_links_html_skip_shorts(self):
         old_content = self.env["mixin.mail.render"]._shorten_links(
-            'This is a link: <a href="https://test_542152qsdqsd.com">old</a>', {})
+            'This is a link: <a href="https://test_542152qsdqsd.com">old</a>', {}
+        )
         created_short_url_match = TEXT_URL_REGEX.search(old_content)
         self.assertIsNotNone(created_short_url_match)
         created_short_url = created_short_url_match[0]
         self.assertRegex(created_short_url, f"{self.base_url}/r/[\\w]+")
 
         new_content = self.env["mixin.mail.render"]._shorten_links(
-            f'Reusing this old <a href="{created_short_url}">link</a> with a new <a href="https://odoo.com">one</a>', {}
+            f'Reusing this old <a href="{created_short_url}">link</a> with a new <a href="https://odoo.com">one</a>',
+            {},
         )
         expected = re.compile(
             rf'Reusing this old <a href="{created_short_url}">link</a> with a new <a href="{self.base_url}/r/\w+">one</a>'
@@ -235,7 +255,9 @@ A third: {self.base_url}/r/(\w+)
 A forth: {self.base_url}/r/(\w+)
 And a last, with question mark: {self.base_url}/r/(\w+)"""
         )
-        with self.allow_requests(all_requests=True):  # Creating link will query url to infer title
+        with self.allow_requests(
+            all_requests=True
+        ):  # Creating link will query url to infer title
             new_content = self.env["mixin.mail.render"]._shorten_links_text(content, {})
 
         self.assertRegex(new_content, expected_pattern)
@@ -245,16 +267,20 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
 
     def test_shorten_links_text_skip_shorts(self):
         old_content = self.env["mixin.mail.render"]._shorten_links_text(
-            'This is a link: https://test_542152qsdqsd.com', {})
+            "This is a link: https://test_542152qsdqsd.com", {}
+        )
         created_short_url_match = TEXT_URL_REGEX.search(old_content)
         self.assertIsNotNone(created_short_url_match)
         created_short_url = created_short_url_match[0]
         self.assertRegex(created_short_url, rf"{self.base_url}/r/\w+")
 
         new_content = self.env["mixin.mail.render"]._shorten_links_text(
-            f'Reusing this old link {created_short_url} with a new one, https://odoo.com</a>', {}
+            f"Reusing this old link {created_short_url} with a new one, https://odoo.com</a>",
+            {},
         )
-        expected = re.compile(rf'Reusing this old link {created_short_url} with a new one, {self.base_url}/r/\w+')
+        expected = re.compile(
+            rf"Reusing this old link {created_short_url} with a new one, {self.base_url}/r/\w+"
+        )
         self.assertRegex(new_content, expected)
 
     def test_shorten_blacklisted_links(self):
@@ -267,18 +293,42 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
         discriminate, and they used to disagree.
         """
         test_links = [
-            ('This link should not be shortened: <a href="https://www.example.com/page/blacklist">text</a>', 'blacklist', False),
-            ('Neither should this link: <a href="https://www.example.com/page/view?param=true">text</a>', 'view', False),
-            ('But this link should be shortened: <a href="https://www.example.com/page/viewform">text</a>', 'view', True),
-            ('This link should not be shortened: <a href="https://www.example.com/page/blacklist/">text</a>', 'blacklist', False),
-            ('This link should not get shortened: <a href="https://example.com/blacklist/somepage">text</a>', 'blacklist', False),
+            (
+                'This link should not be shortened: <a href="https://www.example.com/page/blacklist">text</a>',
+                "blacklist",
+                False,
+            ),
+            (
+                'Neither should this link: <a href="https://www.example.com/page/view?param=true">text</a>',
+                "view",
+                False,
+            ),
+            (
+                'But this link should be shortened: <a href="https://www.example.com/page/viewform">text</a>',
+                "view",
+                True,
+            ),
+            (
+                'This link should not be shortened: <a href="https://www.example.com/page/blacklist/">text</a>',
+                "blacklist",
+                False,
+            ),
+            (
+                'This link should not get shortened: <a href="https://example.com/blacklist/somepage">text</a>',
+                "blacklist",
+                False,
+            ),
         ]
-        blacklist = ['/blacklist', '/view']
+        blacklist = ["/blacklist", "/view"]
 
-        for (link, keyword, should_shorten) in test_links:
+        for link, keyword, should_shorten in test_links:
             with self.subTest(msg=link, link=link):
-                shorten_html = self.env['mixin.mail.render']._shorten_links(link, {}, blacklist=blacklist)
-                shorten_text = self.env['mixin.mail.render']._shorten_links_text(link, {}, blacklist=blacklist)
+                shorten_html = self.env["mixin.mail.render"]._shorten_links(
+                    link, {}, blacklist=blacklist
+                )
+                shorten_text = self.env["mixin.mail.render"]._shorten_links_text(
+                    link, {}, blacklist=blacklist
+                )
                 if should_shorten:
                     self.assertNotIn(keyword, shorten_html)
                     self.assertNotIn(keyword, shorten_text)
@@ -295,9 +345,11 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
         """
         url = "https://blacklisted-host.example.com/page"
         shorten_html = self.env["mixin.mail.render"]._shorten_links(
-            f'<a href="{url}">text</a>', {}, blacklist=["blacklisted-host.example.com"])
+            f'<a href="{url}">text</a>', {}, blacklist=["blacklisted-host.example.com"]
+        )
         shorten_text = self.env["mixin.mail.render"]._shorten_links_text(
-            url, {}, blacklist=["blacklisted-host.example.com"])
+            url, {}, blacklist=["blacklisted-host.example.com"]
+        )
         self.assertNotIn("/r/", shorten_html)
         self.assertNotIn("/r/", shorten_text)
 
@@ -307,16 +359,20 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
         They were interpolated raw, so `a.c` matched `/abc`, `a+` matched `/aaa`,
         and a lone `(` raised re.PatternError out of a public helper.
         """
-        for item, url in [("a.c", "https://literal.example.com/abc"),
-                          ("a+", "https://literal.example.com/aaa")]:
+        for item, url in [
+            ("a.c", "https://literal.example.com/abc"),
+            ("a+", "https://literal.example.com/aaa"),
+        ]:
             with self.subTest(item=item):
                 shortened = self.env["mixin.mail.render"]._shorten_links(
-                    f'<a href="{url}">text</a>', {}, blacklist=[item])
+                    f'<a href="{url}">text</a>', {}, blacklist=[item]
+                )
                 self.assertIn("/r/", shortened, f"{item!r} must not match as a pattern")
 
         # an item that is not a valid regex must not raise
         shortened = self.env["mixin.mail.render"]._shorten_links(
-            '<a href="https://paren.example.com/x">text</a>', {}, blacklist=["("])
+            '<a href="https://paren.example.com/x">text</a>', {}, blacklist=["("]
+        )
         self.assertIn("/r/", shortened)
 
     def test_shorten_links_text_skips_only_our_own_routes(self):
@@ -329,32 +385,52 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
         so what is asserted depends on which side of that split is installed.
         """
         base_url = self.env["mixin.mail.render"].get_base_url()
-        prefixes = self.env["mixin.mail.render"]._shorten_links_text_skip_prefixes(base_url)
-        self.assertIn(base_url + "/r/", prefixes, "link_tracker claims its own short-link route")
+        prefixes = self.env["mixin.mail.render"]._shorten_links_text_skip_prefixes(
+            base_url
+        )
+        self.assertIn(
+            base_url + "/r/", prefixes, "link_tracker claims its own short-link route"
+        )
 
         # an already-shortened link is left alone either way
         short = f"{base_url}/r/abcdefgh"
-        self.assertEqual(self.env["mixin.mail.render"]._shorten_links_text(short, {}), short)
+        self.assertEqual(
+            self.env["mixin.mail.render"]._shorten_links_text(short, {}), short
+        )
 
         sms_prefix = base_url + "/sms/"
-        sms_installed = bool(self.env["ir.module.module"].sudo().search_count(
-            [("name", "=", "mass_mailing_sms"), ("state", "=", "installed")]))
+        sms_installed = bool(
+            self.env["ir.module.module"]
+            .sudo()
+            .search_count(
+                [("name", "=", "mass_mailing_sms"), ("state", "=", "installed")]
+            )
+        )
         if sms_installed:
-            self.assertIn(sms_prefix, prefixes,
-                          "mass_mailing_sms extends the hook with its unsubscribe route")
+            self.assertIn(
+                sms_prefix,
+                prefixes,
+                "mass_mailing_sms extends the hook with its unsubscribe route",
+            )
         else:
-            self.assertNotIn(sms_prefix, prefixes,
-                             "without its owner installed, /sms/ is an ordinary url")
+            self.assertNotIn(
+                sms_prefix,
+                prefixes,
+                "without its owner installed, /sms/ is an ordinary url",
+            )
             shortened = self.env["mixin.mail.render"]._shorten_links_text(
-                f"{base_url}/sms/3/somecode", {})
+                f"{base_url}/sms/3/somecode", {}
+            )
             self.assertIn("/r/", shortened)
 
     def test_shorten_links_keeps_the_body_structure(self):
         """`fromstring` synthesises a wrapper around a multi-root fragment."""
         body = '<p>Hello</p><p><a href="https://struct.example.com">Click</a></p>'
         shortened = self.env["mixin.mail.render"]._shorten_links(body, {})
-        self.assertTrue(shortened.startswith("<p>Hello</p>"),
-                        f"a <div> was wrapped around the body: {shortened}")
+        self.assertTrue(
+            shortened.startswith("<p>Hello</p>"),
+            f"a <div> was wrapped around the body: {shortened}",
+        )
         self.assertNotIn("<div>", shortened)
 
         # a single-rooted body is unchanged in shape, as it always was
@@ -366,5 +442,7 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
         """A body that parses to nothing raised ParserError onto the send path."""
         body = '<!--[if mso]><a href="https://mso.example.com">C</a><![endif]-->'
         self.assertEqual(
-            self.env["mixin.mail.render"]._shorten_links(body, {}), body,
-            "an unparseable body is returned untouched, not raised on")
+            self.env["mixin.mail.render"]._shorten_links(body, {}),
+            body,
+            "an unparseable body is returned untouched, not raised on",
+        )

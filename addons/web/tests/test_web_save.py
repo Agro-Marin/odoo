@@ -275,9 +275,7 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                     self.c3.id: {"ref": "start"},
                 },
             )
-        self.env.cr.execute(
-            "SELECT ref FROM res_partner WHERE id = %s", (self.c1.id,)
-        )
+        self.env.cr.execute("SELECT ref FROM res_partner WHERE id = %s", (self.c1.id,))
         self.assertEqual(self.env.cr.fetchone()[0], "start")
 
     def test_multirecord_known_values_no_conflict(self):
@@ -336,9 +334,7 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 specification={"ref": {}},
                 known_values={self.c1.id: {"ref": "start"}},
             )
-        self.env.cr.execute(
-            "SELECT ref FROM res_partner WHERE id = %s", (self.c1.id,)
-        )
+        self.env.cr.execute("SELECT ref FROM res_partner WHERE id = %s", (self.c1.id,))
         self.assertEqual(self.env.cr.fetchone()[0], "999")
 
     def test_single_selected_row_massedit_no_false_conflict(self):
@@ -386,9 +382,7 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                     self.c2.id: {"ref": "start"},
                 },
             )
-        self.env.cr.execute(
-            "SELECT ref FROM res_partner WHERE id = %s", (self.c1.id,)
-        )
+        self.env.cr.execute("SELECT ref FROM res_partner WHERE id = %s", (self.c1.id,))
         self.assertEqual(self.env.cr.fetchone()[0], "start")
 
     def test_web_save_multi_same_value_no_conflict(self):

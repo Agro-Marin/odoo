@@ -11,7 +11,7 @@ def clean_node_dict(node, template=None):
 
     for child_tag, child in list(node.items()):
         # Skip special keys or simple attributes
-        if child_tag.startswith('_') or not isinstance(child, (dict, list)):
+        if child_tag.startswith("_") or not isinstance(child, (dict, list)):
             continue
 
         # Remove child if not in template

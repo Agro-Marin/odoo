@@ -13,7 +13,6 @@ class AccountMoveSendBatchWizard(models.TransientModel):
     summary_data = fields.Json(compute="_compute_summary_data")
     alerts = fields.Json(compute="_compute_alerts")
 
-
     @api.model
     def default_get(self, fields_list):
         results = super().default_get(fields_list)
@@ -22,16 +21,13 @@ class AccountMoveSendBatchWizard(models.TransientModel):
             results["move_ids"] = [Command.set(move_ids)]
         return results
 
-
     @api.depends("move_ids")
     def _compute_summary_data(self):
         extra_edis = self._get_all_extra_edis()
         sending_methods = dict(
             self.env["res.partner"]._fields["invoice_sending_method"].selection
         )
-        sending_methods["manual"] = _(
-            "Manually"
-        )
+        sending_methods["manual"] = _("Manually")
 
         for wizard in self:
             edi_counter = Counter()
@@ -73,12 +69,10 @@ class AccountMoveSendBatchWizard(models.TransientModel):
             }
             wizard.alerts = self._get_alerts(wizard.move_ids._origin, moves_data)
 
-
     @api.constrains("move_ids")
     def _check_move_ids_constraints(self):
         for wizard in self:
             self._check_move_constraints(wizard.move_ids)
-
 
     def action_send_and_print(self, force_synchronous=False, allow_fallback_pdf=False):
         self.check_singleton()

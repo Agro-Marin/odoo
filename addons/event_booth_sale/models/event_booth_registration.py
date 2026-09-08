@@ -7,37 +7,63 @@ class EventBoothRegistration(models.Model):
     """event.booth.registrations are used to allow multiple partners to book the same booth.
     Whenever a partner has paid their registration all the others linked to the booth will be deleted."""
 
-    _name = 'event.booth.registration'
-    _description = 'Event Booth Registration'
+    _name = "event.booth.registration"
+    _description = "Event Booth Registration"
 
-    sale_order_line_id = fields.Many2one('sale.order.line', string='Sale Order Line', required=True, index=True, ondelete='cascade')
-    event_booth_id = fields.Many2one('event.booth', string='Booth', required=True, index=True)
+    sale_order_line_id = fields.Many2one(
+        "sale.order.line",
+        string="Sale Order Line",
+        required=True,
+        index=True,
+        ondelete="cascade",
+    )
+    event_booth_id = fields.Many2one(
+        "event.booth", string="Booth", required=True, index=True
+    )
     partner_id = fields.Many2one(
-        'res.partner', related='sale_order_line_id.partner_id', store=True)
-    contact_name = fields.Char(string='Contact Name', compute='_compute_contact_name', readonly=False, store=True)
-    contact_email = fields.Char(string='Contact Email', compute='_compute_contact_email', readonly=False, store=True)
+        "res.partner", related="sale_order_line_id.partner_id", store=True
+    )
+    contact_name = fields.Char(
+        string="Contact Name",
+        compute="_compute_contact_name",
+        readonly=False,
+        store=True,
+    )
+    contact_email = fields.Char(
+        string="Contact Email",
+        compute="_compute_contact_email",
+        readonly=False,
+        store=True,
+    )
     phone_ids = fields.Many2many(
-        'phone.number', 'event_booth_registration_phone_number_rel', 'registration_id', 'phone_number_id',
-        string='Contact Phone', compute='_compute_phone_ids', readonly=False, store=True)
-
-    _unique_registration = models.Constraint(
-        'unique(sale_order_line_id, event_booth_id)',
-        'There can be only one registration for a booth by sale order line',
+        "phone.number",
+        "event_booth_registration_phone_number_rel",
+        "registration_id",
+        "phone_number_id",
+        string="Contact Phone",
+        compute="_compute_phone_ids",
+        readonly=False,
+        store=True,
     )
 
-    @api.depends('partner_id')
+    _unique_registration = models.Constraint(
+        "unique(sale_order_line_id, event_booth_id)",
+        "There can be only one registration for a booth by sale order line",
+    )
+
+    @api.depends("partner_id")
     def _compute_contact_name(self):
         for registration in self:
             if not registration.contact_name:
                 registration.contact_name = registration.partner_id.name or False
 
-    @api.depends('partner_id')
+    @api.depends("partner_id")
     def _compute_contact_email(self):
         for registration in self:
             if not registration.contact_email:
                 registration.contact_email = registration.partner_id.email or False
 
-    @api.depends('partner_id')
+    @api.depends("partner_id")
     def _compute_phone_ids(self):
         for registration in self:
             if not registration.phone_ids:
@@ -45,7 +71,13 @@ class EventBoothRegistration(models.Model):
 
     @api.model
     def _get_fields_for_booth_confirmation(self):
-        return ['sale_order_line_id', 'partner_id', 'contact_name', 'contact_email', 'phone_ids']
+        return [
+            "sale_order_line_id",
+            "partner_id",
+            "contact_name",
+            "contact_email",
+            "phone_ids",
+        ]
 
     def action_confirm(self):
         for registration in self:
@@ -60,19 +92,26 @@ class EventBoothRegistration(models.Model):
         value = self[field]
         if not isinstance(value, models.BaseModel):
             return value
-        if self._fields[field].type == 'many2many':
+        if self._fields[field].type == "many2many":
             return [Command.set(value.ids)]
         return value.id
 
     def _cancel_pending_registrations(self):
-        body = Markup('<p>%(message)s: <ul>%(booth_names)s</ul></p>') % {
-            'message': _('Your order has been cancelled because the following booths have been reserved'),
-            'booth_names': Markup().join(Markup('<li>%s</li>') % booth.display_name for booth in self.event_booth_id)
+        body = Markup("<p>%(message)s: <ul>%(booth_names)s</ul></p>") % {
+            "message": _(
+                "Your order has been cancelled because the following booths have been reserved"
+            ),
+            "booth_names": Markup().join(
+                Markup("<li>%s</li>") % booth.display_name
+                for booth in self.event_booth_id
+            ),
         }
-        other_registrations = self.search([
-            ('event_booth_id', 'in', self.event_booth_id.ids),
-            ('id', 'not in', self.ids)
-        ])
+        other_registrations = self.search(
+            [
+                ("event_booth_id", "in", self.event_booth_id.ids),
+                ("id", "not in", self.ids),
+            ]
+        )
         for order in other_registrations.sale_order_line_id.order_id:
             order.sudo().message_post(
                 body=body,

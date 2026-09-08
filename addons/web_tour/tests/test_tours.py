@@ -6,65 +6,84 @@ from odoo.tests import tagged
 from odoo.addons.base.tests.common import BaseCommon, HttpCase
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestTour(BaseCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.tour_1 = cls.env["web_tour.tour"].create({
-            "name": "my_tour",
-            "url": "my_url",
-            "sequence": 2,
-            "step_ids": [Command.create(
-                {
-                    "content": "Click here",
-                    "trigger": "button",
-                    "run": "click",
-                }),
-            ]
-        })
+        cls.tour_1 = cls.env["web_tour.tour"].create(
+            {
+                "name": "my_tour",
+                "url": "my_url",
+                "sequence": 2,
+                "step_ids": [
+                    Command.create(
+                        {
+                            "content": "Click here",
+                            "trigger": "button",
+                            "run": "click",
+                        }
+                    ),
+                ],
+            }
+        )
 
-        cls.tour_2 = cls.env["web_tour.tour"].create({
-            "name": "your_tour",
-            "url": "my_url",
-            "custom": True,
-            "sequence": 3,
-            "step_ids": [Command.create({
-                    "content": "Click here",
-                    "trigger": "button",
-                    "run": "click",
-                }),
-                Command.create({
-                    "content": "Edit here",
-                    "trigger": "input",
-                    "run": "edit 5",
-                }),
-            ]
-        })
+        cls.tour_2 = cls.env["web_tour.tour"].create(
+            {
+                "name": "your_tour",
+                "url": "my_url",
+                "custom": True,
+                "sequence": 3,
+                "step_ids": [
+                    Command.create(
+                        {
+                            "content": "Click here",
+                            "trigger": "button",
+                            "run": "click",
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "content": "Edit here",
+                            "trigger": "input",
+                            "run": "edit 5",
+                        }
+                    ),
+                ],
+            }
+        )
 
-        cls.tour_3 = cls.env["web_tour.tour"].create({
-            "name": "their_tour",
-            "url": "my_url",
-            "sequence": 1,
-        })
+        cls.tour_3 = cls.env["web_tour.tour"].create(
+            {
+                "name": "their_tour",
+                "url": "my_url",
+                "sequence": 1,
+            }
+        )
 
     def test_get_tour_json_by_name(self):
         tour = self.env["web_tour.tour"].get_tour_json_by_name("my_tour")
 
-        self.assertEqual(tour, {
-            "name": "my_tour",
-            "url": "my_url",
-            "custom": False,
-            "rainbowManMessage": Markup("<span><b>Good job!</b> You went through all steps of this tour.</span>"),
-            "steps": [{
-                "content": "Click here",
-                "trigger": "button",
-                "tooltipPosition": "bottom",
-                "run": "click",
-            }]
-        })
+        self.assertEqual(
+            tour,
+            {
+                "name": "my_tour",
+                "url": "my_url",
+                "custom": False,
+                "rainbowManMessage": Markup(
+                    "<span><b>Good job!</b> You went through all steps of this tour.</span>"
+                ),
+                "steps": [
+                    {
+                        "content": "Click here",
+                        "trigger": "button",
+                        "tooltipPosition": "bottom",
+                        "run": "click",
+                    }
+                ],
+            },
+        )
 
     def test_get_current_tour(self):
         self.env.user.tour_enabled = True
@@ -79,9 +98,8 @@ class TestTour(BaseCommon):
         self.assertEqual(bool(tour), False)
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class WebTourHttp(HttpCase):
-
     def test_sanity_automatic(self):
         ResUsers = self.env["res.users"]
         IrAsset = self.env["ir.asset"]
@@ -118,15 +136,17 @@ class WebTourHttp(HttpCase):
         admin = ResUsers.search(ResUsers._get_login_domain("admin"))
         admin.tour_enabled = False
 
-        self.env["ir.ui.view"].create({
-            "name": "test_sanity_onboarding",
-            "inherit_id": self.env.ref("web.conditional_assets_tests").id,
-            "arch": """
+        self.env["ir.ui.view"].create(
+            {
+                "name": "test_sanity_onboarding",
+                "inherit_id": self.env.ref("web.conditional_assets_tests").id,
+                "arch": """
                 <xpath expr="/t[@t-name='web.conditional_assets_tests']/t" position="before">
                     <t t-set="test_mode_enabled" t-value="False" />
                 </xpath>
-            """
-        })
+            """,
+            }
+        )
 
         ready = "document.readyState === 'complete'"
 

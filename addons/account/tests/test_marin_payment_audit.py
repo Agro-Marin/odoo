@@ -38,7 +38,9 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
                         {
                             "name": "line",
                             "price_unit": amount,
-                            "account_id": self.company_data["default_account_revenue"].id,
+                            "account_id": self.company_data[
+                                "default_account_revenue"
+                            ].id,
                             "tax_ids": [Command.clear()],
                         }
                     )
@@ -50,8 +52,12 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
 
     def test_posted_payment_can_be_deleted(self):
         payment = self._payment()
-        self.assertTrue(payment.move_id, "fixture: the payment must carry a journal entry")
-        self.assertTrue(payment.outstanding_account_id, "fixture: and an outstanding account")
+        self.assertTrue(
+            payment.move_id, "fixture: the payment must carry a journal entry"
+        )
+        self.assertTrue(
+            payment.outstanding_account_id, "fixture: and an outstanding account"
+        )
         self.assertNotIn(payment.state, ("draft", "canceled"), "fixture: and be posted")
         payment.unlink()
         self.env.flush_all()
@@ -59,7 +65,11 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
     def test_draft_payment_can_be_deleted(self):
         """Control for test_posted_payment_can_be_deleted: the draft path must stay green."""
         payment = self.env["account.payment"].create(
-            {"amount": 5.0, "partner_id": self.partner_a.id, "journal_id": self.bank_journal.id}
+            {
+                "amount": 5.0,
+                "partner_id": self.partner_a.id,
+                "journal_id": self.bank_journal.id,
+            }
         )
         payment.unlink()
         self.env.flush_all()
@@ -74,7 +84,9 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
         Payment = self.env["account.payment"]
         by_invoice = Payment.search([("reconciled_invoice_ids", "in", invoice.ids)])
         by_bill = Payment.search([("reconciled_bill_ids", "in", invoice.ids)])
-        self.assertTrue(by_invoice, "fixture: the payment must be findable as an invoice payment")
+        self.assertTrue(
+            by_invoice, "fixture: the payment must be findable as an invoice payment"
+        )
         self.assertFalse(by_bill, "a customer invoice is not a bill")
 
     def test_duplicate_banner_follows_the_currency(self):
@@ -104,7 +116,9 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
 
     def test_reconciled_invoices_follow_invoice_ids(self):
         payment = self._payment()
-        self.assertFalse(payment.reconciled_invoice_ids, "fixture: nothing reconciled yet")
+        self.assertFalse(
+            payment.reconciled_invoice_ids, "fixture: nothing reconciled yet"
+        )
         invoice = self._posted_invoice()
         payment.invoice_ids = [Command.set(invoice.ids)]
         self.env.flush_all()
@@ -114,11 +128,15 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
         payment = self._payment(memo="ORIGINAL")
         payment.action_draft()
         self.env.flush_all()
-        self.assertEqual(set(payment.move_id.line_ids.mapped("name")), {"Manual Payment: ORIGINAL"})
+        self.assertEqual(
+            set(payment.move_id.line_ids.mapped("name")), {"Manual Payment: ORIGINAL"}
+        )
 
         payment.write({"memo": "CHANGED"})
         self.env.flush_all()
-        self.assertEqual(payment.move_id.ref, "CHANGED", "fixture: the reference does follow")
+        self.assertEqual(
+            payment.move_id.ref, "CHANGED", "fixture: the reference does follow"
+        )
         self.assertEqual(
             set(payment.move_id.line_ids.mapped("name")),
             {"Manual Payment: CHANGED"},
@@ -136,7 +154,10 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
                 "line_ids": [
                     Command.update(
                         line.id,
-                        {"balance": line.balance / 2, "amount_currency": line.amount_currency / 2},
+                        {
+                            "balance": line.balance / 2,
+                            "amount_currency": line.amount_currency / 2,
+                        },
                     ),
                     Command.create(
                         {
@@ -153,7 +174,9 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
         )
         self.env.flush_all()
         payment.invalidate_recordset()
-        self.assertEqual(len(payment._seek_for_lines()[1]), 2, "fixture: two counterpart lines")
+        self.assertEqual(
+            len(payment._seek_for_lines()[1]), 2, "fixture: two counterpart lines"
+        )
         payment.write({"date": "2026-09-09"})
         self.env.flush_all()
 
@@ -169,7 +192,10 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
                 "line_ids": [
                     Command.update(
                         line.id,
-                        {"balance": line.balance / 2, "amount_currency": line.amount_currency / 2},
+                        {
+                            "balance": line.balance / 2,
+                            "amount_currency": line.amount_currency / 2,
+                        },
                     ),
                     Command.create(
                         {
@@ -186,7 +212,9 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
         )
         self.env.flush_all()
         payment.invalidate_recordset()
-        self.assertEqual(len(payment._seek_for_lines()[0]), 2, "fixture: two liquidity lines")
+        self.assertEqual(
+            len(payment._seek_for_lines()[0]), 2, "fixture: two liquidity lines"
+        )
         payment.write({"date": "2026-09-09"})
         self.env.flush_all()
 

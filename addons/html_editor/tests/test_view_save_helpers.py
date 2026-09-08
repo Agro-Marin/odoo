@@ -17,7 +17,6 @@ class TestViewSaveHelpers(TransactionCase):
         super().setUpClass()
         cls.View = cls.env["ir.ui.view"]
 
-
     def test_editing_attributes_are_stripped(self):
         element = lxml_html.fromstring(
             '<div class="a o_editable b" contenteditable="true"'
@@ -37,7 +36,6 @@ class TestViewSaveHelpers(TransactionCase):
         cleaned = self.View._get_cleaned_non_editing_attributes(element.attrib.items())
         self.assertEqual(cleaned["contenteditable"], "false")
         self.assertEqual(cleaned["class"], "keepme")
-
 
     def test_archs_equal_ignores_attribute_order(self):
         self.assertTrue(
@@ -64,7 +62,6 @@ class TestViewSaveHelpers(TransactionCase):
             )
         )
 
-
     def test_field_ref_drops_branding_and_restores_t_field(self):
         element = lxml_html.fromstring(
             '<span data-oe-expression="rec.name" data-oe-model="m" class="k">txt</span>'
@@ -82,7 +79,6 @@ class TestViewSaveHelpers(TransactionCase):
         self.assertEqual(result.get("class"), "s")
         self.assertEqual(len(result), 0)
         self.assertFalse(result.text)
-
 
     def _view(self):
         return self.env["ir.ui.view"].create(

@@ -36,7 +36,9 @@ class StockForecasted_Product_Product(models.AbstractModel):
         )
         return line
 
-    def _get_domain_move_draft(self, product_template_ids, product_ids, wh_location_ids):
+    def _get_domain_move_draft(
+        self, product_template_ids, product_ids, wh_location_ids
+    ):
         in_domain, out_domain = super()._get_domain_move_draft(
             product_template_ids, product_ids, wh_location_ids
         )

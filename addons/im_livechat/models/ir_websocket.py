@@ -13,7 +13,10 @@ class IrWebsocket(models.AbstractModel):
         ):
             if self.env.user.has_group("im_livechat.im_livechat_group_user"):
                 channels.append(
-                    (self.env.ref("im_livechat.im_livechat_group_user"), "LOOKING_FOR_HELP")
+                    (
+                        self.env.ref("im_livechat.im_livechat_group_user"),
+                        "LOOKING_FOR_HELP",
+                    )
                 )
             channels.remove("im_livechat.looking_for_help")
         return super()._get_bus_channels(channels)

@@ -632,7 +632,9 @@ class TestMassSMS(TestMassSMSCommon):
         (recipients[0] | recipients[1]).write({"opt_out": True})
         # blacklist records 4
         # TDE FIXME: sudo should not be necessary
-        self.env["phone.blacklist"].sudo().create({"number": recipients[4].phone_nbr_ids.number})
+        self.env["phone.blacklist"].sudo().create(
+            {"number": recipients[4].phone_nbr_ids.number}
+        )
 
         mailing.write(
             {

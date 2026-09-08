@@ -1,72 +1,83 @@
-import io
 import base64
+import io
 
 import openpyxl
 
 from odoo import Command
 from odoo.tests import tagged
+
 from odoo.addons.l10n_ph.tests.common import TestPhCommon
 
 
-@tagged('post_install_l10n', 'post_install', '-at_install')
+@tagged("post_install_l10n", "post_install", "-at_install")
 class TestBIR2307Generation(TestPhCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
         # 10% Withholding Tax
-        purchase_10_wc516 = cls.env.ref(f'account.{cls.company_data["company"].id}_l10n_ph_tax_purchase_10_wc516')
+        purchase_10_wc516 = cls.env.ref(
+            f"account.{cls.company_data['company'].id}_l10n_ph_tax_purchase_10_wc516"
+        )
 
-        cls.invoice = cls.env['account.move'].create({
-            'move_type': 'in_invoice',
-            'invoice_date': '2020-01-15',
-            'partner_id': cls.partner_a.id,
-            'invoice_line_ids': [
-                Command.create({
-                    'name': 'Test line',
-                    'quantity': 1.0,
-                    'price_unit': 100,
-                    'tax_ids': purchase_10_wc516,
-                })
-            ]
-        })
+        cls.invoice = cls.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "invoice_date": "2020-01-15",
+                "partner_id": cls.partner_a.id,
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "Test line",
+                            "quantity": 1.0,
+                            "price_unit": 100,
+                            "tax_ids": purchase_10_wc516,
+                        }
+                    )
+                ],
+            }
+        )
         cls.invoice.action_post()
 
-        cls.partner = cls.env['res.partner'].create({
-            'vat': '123-456-789-001',
-            'branch_code': '001',
-            'name': 'Jose Mangahas Cuyegkeng',
-            'first_name': 'Jose',
-            'middle_name': 'Mangahas',
-            'last_name': 'Cuyegkeng',
-            'street': "250 Amorsolo Street",
-            'city': "Manila",
-            'country_id': cls.env.ref('base.ph').id,
-            'zip': "+900–1-096",
-        })
+        cls.partner = cls.env["res.partner"].create(
+            {
+                "vat": "123-456-789-001",
+                "branch_code": "001",
+                "name": "Jose Mangahas Cuyegkeng",
+                "first_name": "Jose",
+                "middle_name": "Mangahas",
+                "last_name": "Cuyegkeng",
+                "street": "250 Amorsolo Street",
+                "city": "Manila",
+                "country_id": cls.env.ref("base.ph").id,
+                "zip": "+900–1-096",
+            }
+        )
 
-        cls.partner_a.write({
-            'vat': '123-456-789-001',
-            'branch_code': '001',
-            'name': 'JMC Company',
-            'street': "250 Amorsolo Street",
-            'city': "Manila",
-            'country_id': cls.env.ref('base.ph').id,
-            'zip': "+900–1-096",
-            'is_company': True,
-        })
+        cls.partner_a.write(
+            {
+                "vat": "123-456-789-001",
+                "branch_code": "001",
+                "name": "JMC Company",
+                "street": "250 Amorsolo Street",
+                "city": "Manila",
+                "country_id": cls.env.ref("base.ph").id,
+                "zip": "+900–1-096",
+                "is_company": True,
+            }
+        )
 
-        cls.other_currency = cls.setup_other_currency('EUR', rates=[('2017-01-01', 2)])
+        cls.other_currency = cls.setup_other_currency("EUR", rates=[("2017-01-01", 2)])
 
     @staticmethod
     def _cell_text(value):
         return "" if value is None else value
 
     def test_bir_2307_company(self):
-        """ Test the report """
+        """Test the report"""
         wizard_action = self.invoice.action_view_l10n_ph_2307_wizard()
-        context = wizard_action['context']
-        wizard = self.env['l10n_ph_2307.wizard'].with_context(context).create({})
+        context = wizard_action["context"]
+        wizard = self.env["l10n_ph_2307.wizard"].with_context(context).create({})
         wizard.action_generate()
 
         bir_2307 = base64.b64decode(wizard.xls_file)
@@ -74,9 +85,39 @@ class TestBIR2307Generation(TestPhCommon):
         # 2: Build the expected values
         expected_values = {
             # Header
-            1: ['Reporting_Month', 'Vendor_TIN', 'branchCode', 'companyName', 'surName', 'firstName', 'middleName', 'address', 'zip_code', 'nature', 'ATC', 'income_payment', 'ewt_rate', 'tax_amount'],
+            1: [
+                "Reporting_Month",
+                "Vendor_TIN",
+                "branchCode",
+                "companyName",
+                "surName",
+                "firstName",
+                "middleName",
+                "address",
+                "zip_code",
+                "nature",
+                "ATC",
+                "income_payment",
+                "ewt_rate",
+                "tax_amount",
+            ],
             # Row
-            2: ['01/15/2020', '123456789', '001', 'JMC Company', '', '', '', '250 Amorsolo Street, Manila, Philippines', '+900–1-096', 'Commission/rebates/discounts', 'WC516', 100.0, 10.0, 10.0],
+            2: [
+                "01/15/2020",
+                "123456789",
+                "001",
+                "JMC Company",
+                "",
+                "",
+                "",
+                "250 Amorsolo Street, Manila, Philippines",
+                "+900–1-096",
+                "Commission/rebates/discounts",
+                "WC516",
+                100.0,
+                10.0,
+                10.0,
+            ],
         }
 
         wb = openpyxl.load_workbook(io.BytesIO(bir_2307))
@@ -87,15 +128,19 @@ class TestBIR2307Generation(TestPhCommon):
                 self.assertEqual(row_value, expected_value)
 
     def test_01_no_atc(self):
-        """ Ensure that generating the file on a document where no taxes has an ATC set will work, although gives an empty file. """
-        tax = self._create_tax('10% VAT', 10)
+        """Ensure that generating the file on a document where no taxes has an ATC set will work, although gives an empty file."""
+        tax = self._create_tax("10% VAT", 10)
         bill = self.init_invoice(
-            move_type='in_invoice',
+            move_type="in_invoice",
             amounts=[100],
             taxes=tax,
         )
         bill.action_post()
-        wizard = self.env['l10n_ph_2307.wizard'].with_context(default_moves_to_export=bill.ids).create({})
+        wizard = (
+            self.env["l10n_ph_2307.wizard"]
+            .with_context(default_moves_to_export=bill.ids)
+            .create({})
+        )
         wizard.action_generate()
         wb = openpyxl.load_workbook(io.BytesIO(base64.b64decode(wizard.xls_file)))
         sheet = wb.active
@@ -106,17 +151,21 @@ class TestBIR2307Generation(TestPhCommon):
         self.assertEqual(result, [])
 
     def test_02_simple_atc(self):
-        """ Ensure that generating the file on a document with a single ATC tax and check the results. """
-        tax = self._create_tax('10% ATC', -10, l10n_ph_atc='WI010')
+        """Ensure that generating the file on a document with a single ATC tax and check the results."""
+        tax = self._create_tax("10% ATC", -10, l10n_ph_atc="WI010")
         bill = self.init_invoice(
-            move_type='in_invoice',
+            move_type="in_invoice",
             amounts=[1000],
             taxes=tax,
             partner=self.partner,
-            invoice_date='2025-01-01',
+            invoice_date="2025-01-01",
         )
         bill.action_post()
-        wizard = self.env['l10n_ph_2307.wizard'].with_context(default_moves_to_export=bill.ids).create({})
+        wizard = (
+            self.env["l10n_ph_2307.wizard"]
+            .with_context(default_moves_to_export=bill.ids)
+            .create({})
+        )
         wizard.action_generate()
         wb = openpyxl.load_workbook(io.BytesIO(base64.b64decode(wizard.xls_file)))
         sheet = wb.active
@@ -124,24 +173,48 @@ class TestBIR2307Generation(TestPhCommon):
         result = []
         for row in sheet.iter_rows(min_row=2, values_only=True):
             result.append([self._cell_text(value) for value in row])
-        self.assertEqual(result, [
-            ['01/01/2025', '123456789', '001', '', 'Cuyegkeng', 'Jose', 'Mangahas', '250 Amorsolo Street, Manila, Philippines', '+900–1-096', '', 'WI010', 1000.0, 10.0, 100.0]
-        ])
+        self.assertEqual(
+            result,
+            [
+                [
+                    "01/01/2025",
+                    "123456789",
+                    "001",
+                    "",
+                    "Cuyegkeng",
+                    "Jose",
+                    "Mangahas",
+                    "250 Amorsolo Street, Manila, Philippines",
+                    "+900–1-096",
+                    "",
+                    "WI010",
+                    1000.0,
+                    10.0,
+                    100.0,
+                ]
+            ],
+        )
 
     def test_03_atc_affected_by_vat(self):
-        """ Ensure that generating the file on a document where the ATC tax is affected works as expected. """
-        vat = self._create_tax('15% VAT', 15, include_base_amount=True)
-        atc = self._create_tax('10% ATC', -10, l10n_ph_atc='WI010', is_base_affected=True)
-        atc.description = '10% ATC'
+        """Ensure that generating the file on a document where the ATC tax is affected works as expected."""
+        vat = self._create_tax("15% VAT", 15, include_base_amount=True)
+        atc = self._create_tax(
+            "10% ATC", -10, l10n_ph_atc="WI010", is_base_affected=True
+        )
+        atc.description = "10% ATC"
         bill = self.init_invoice(
-            move_type='in_invoice',
+            move_type="in_invoice",
             amounts=[1000],
             taxes=(vat | atc),
             partner=self.partner,
-            invoice_date='2025-01-01',
+            invoice_date="2025-01-01",
         )
         bill.action_post()
-        wizard = self.env['l10n_ph_2307.wizard'].with_context(default_moves_to_export=bill.ids).create({})
+        wizard = (
+            self.env["l10n_ph_2307.wizard"]
+            .with_context(default_moves_to_export=bill.ids)
+            .create({})
+        )
         wizard.action_generate()
         wb = openpyxl.load_workbook(io.BytesIO(base64.b64decode(wizard.xls_file)))
         sheet = wb.active
@@ -149,23 +222,45 @@ class TestBIR2307Generation(TestPhCommon):
         result = []
         for row in sheet.iter_rows(min_row=2, values_only=True):
             result.append([self._cell_text(value) for value in row])
-        self.assertEqual(result, [
-            ['01/01/2025', '123456789', '001', '', 'Cuyegkeng', 'Jose', 'Mangahas', '250 Amorsolo Street, Manila, Philippines', '+900–1-096', '10% ATC', 'WI010', 1150.0, 10.0, 115.0]
-        ])
+        self.assertEqual(
+            result,
+            [
+                [
+                    "01/01/2025",
+                    "123456789",
+                    "001",
+                    "",
+                    "Cuyegkeng",
+                    "Jose",
+                    "Mangahas",
+                    "250 Amorsolo Street, Manila, Philippines",
+                    "+900–1-096",
+                    "10% ATC",
+                    "WI010",
+                    1150.0,
+                    10.0,
+                    115.0,
+                ]
+            ],
+        )
 
     def test_04_multi_currency(self):
-        """ Ensure that generating the file on a document of another currency than the company's gives the correct result. """
-        tax = self._create_tax('10% ATC', -10, l10n_ph_atc='WI010')
+        """Ensure that generating the file on a document of another currency than the company's gives the correct result."""
+        tax = self._create_tax("10% ATC", -10, l10n_ph_atc="WI010")
         bill = self.init_invoice(
-            move_type='in_invoice',
+            move_type="in_invoice",
             amounts=[2000],
             taxes=tax,
             partner=self.partner_a,
-            invoice_date='2025-01-01',
+            invoice_date="2025-01-01",
             currency=self.other_currency,
         )
         bill.action_post()
-        wizard = self.env['l10n_ph_2307.wizard'].with_context(default_moves_to_export=bill.ids).create({})
+        wizard = (
+            self.env["l10n_ph_2307.wizard"]
+            .with_context(default_moves_to_export=bill.ids)
+            .create({})
+        )
         wizard.action_generate()
         wb = openpyxl.load_workbook(io.BytesIO(base64.b64decode(wizard.xls_file)))
         sheet = wb.active
@@ -174,9 +269,27 @@ class TestBIR2307Generation(TestPhCommon):
         for row in sheet.iter_rows(min_row=2, values_only=True):
             result.append([self._cell_text(value) for value in row])
         # We expect the values in company currency in the file.
-        self.assertEqual(result, [
-            ['01/01/2025', '123456789', '001', 'JMC Company', '', '', '', '250 Amorsolo Street, Manila, Philippines', '+900–1-096', '', 'WI010', 1000.0, 10.0, 100.0]
-        ])
+        self.assertEqual(
+            result,
+            [
+                [
+                    "01/01/2025",
+                    "123456789",
+                    "001",
+                    "JMC Company",
+                    "",
+                    "",
+                    "",
+                    "250 Amorsolo Street, Manila, Philippines",
+                    "+900–1-096",
+                    "",
+                    "WI010",
+                    1000.0,
+                    10.0,
+                    100.0,
+                ]
+            ],
+        )
 
     @classmethod
     def _create_tax(

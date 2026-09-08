@@ -2,7 +2,7 @@ from odoo import api, fields, models
 
 
 class ResCompany(models.Model):
-    _inherit = 'res.company'
+    _inherit = "res.company"
 
     # ------------------
     # Fields declaration
@@ -12,14 +12,22 @@ class ResCompany(models.Model):
         comodel_name="account_edi_proxy_client.user",
         compute="_compute_l10n_my_edi_proxy_user_id",
     )
-    l10n_my_identification_type = fields.Selection(related='partner_id.l10n_my_identification_type', readonly=False)
-    l10n_my_identification_number = fields.Char(related='partner_id.l10n_my_identification_number', readonly=False)
-    l10n_my_identification_number_placeholder = fields.Char(compute="_compute_l10n_my_identification_number_placeholder")
-    l10n_my_edi_industrial_classification = fields.Many2one(related='partner_id.l10n_my_edi_industrial_classification', readonly=False)
+    l10n_my_identification_type = fields.Selection(
+        related="partner_id.l10n_my_identification_type", readonly=False
+    )
+    l10n_my_identification_number = fields.Char(
+        related="partner_id.l10n_my_identification_number", readonly=False
+    )
+    l10n_my_identification_number_placeholder = fields.Char(
+        compute="_compute_l10n_my_identification_number_placeholder"
+    )
+    l10n_my_edi_industrial_classification = fields.Many2one(
+        related="partner_id.l10n_my_edi_industrial_classification", readonly=False
+    )
     l10n_my_edi_mode = fields.Selection(
         selection=[
-            ('test', 'Pre-Production'),
-            ('prod', 'Production'),
+            ("test", "Pre-Production"),
+            ("prod", "Production"),
         ],
         # Nothing will happen until the user register, so it can be set by default.
         default="test",
@@ -36,31 +44,36 @@ class ResCompany(models.Model):
     # Compute, inverse, search methods
     # --------------------------------
 
-    @api.depends("account_edi_proxy_client_ids", 'l10n_my_edi_mode')
+    @api.depends("account_edi_proxy_client_ids", "l10n_my_edi_mode")
     def _compute_l10n_my_edi_proxy_user_id(self):
-        """ Each company is expected to have at most one proxy user for malaysia for each mode.
+        """Each company is expected to have at most one proxy user for malaysia for each mode.
         Thus, we can easily find said user.
         """
         for company in self:
-            company.l10n_my_edi_proxy_user_id = company.account_edi_proxy_client_ids.filtered(
-                lambda u: u.proxy_type == 'l10n_my_edi' and u.edi_mode == company.l10n_my_edi_mode
-            )[:1]
+            company.l10n_my_edi_proxy_user_id = (
+                company.account_edi_proxy_client_ids.filtered(
+                    lambda u: (
+                        u.proxy_type == "l10n_my_edi"
+                        and u.edi_mode == company.l10n_my_edi_mode
+                    )
+                )[:1]
+            )
 
-    @api.depends('l10n_my_identification_type')
+    @api.depends("l10n_my_identification_type")
     def _compute_l10n_my_identification_number_placeholder(self):
-        """ Computes a dynamic placeholder that depends on the selected type to help the user inputs their data.
+        """Computes a dynamic placeholder that depends on the selected type to help the user inputs their data.
         The placeholders have been taken from the MyInvois doc.
         """
         for company in self:
-            placeholder = 'N/A'
-            if company.l10n_my_identification_type == 'NRIC':
-                placeholder = '830503114923'
-            elif company.l10n_my_identification_type == 'BRN':
-                placeholder = '202201234565'
-            elif company.l10n_my_identification_type == 'PASSPORT':
-                placeholder = 'A00000000'
-            elif company.l10n_my_identification_type == 'ARMY':
-                placeholder = '830805134983'
+            placeholder = "N/A"
+            if company.l10n_my_identification_type == "NRIC":
+                placeholder = "830503114923"
+            elif company.l10n_my_identification_type == "BRN":
+                placeholder = "202201234565"
+            elif company.l10n_my_identification_type == "PASSPORT":
+                placeholder = "A00000000"
+            elif company.l10n_my_identification_type == "ARMY":
+                placeholder = "830805134983"
             company.l10n_my_identification_number_placeholder = placeholder
 
     # ----------------
@@ -68,10 +81,12 @@ class ResCompany(models.Model):
     # ----------------
 
     def _l10n_my_edi_create_proxy_user(self):
-        """ This method will create a new proxy user for the current company based on the selected mode, if no users already exists. """
+        """This method will create a new proxy user for the current company based on the selected mode, if no users already exists."""
         self.check_singleton()
         if not self.l10n_my_edi_proxy_user_id:
-            self.env['account_edi_proxy_client.user']._register_proxy_user(self, 'l10n_my_edi', self.l10n_my_edi_mode)
+            self.env["account_edi_proxy_client.user"]._register_proxy_user(
+                self, "l10n_my_edi", self.l10n_my_edi_mode
+            )
 
     def _l10n_my_edi_enabled(self):
         self.check_singleton()

@@ -17,7 +17,6 @@ class TestPosProductTemplate(CommonPosTest):
         self.config.open_ui()
         self.session = self.config.current_session_id
 
-
     def test_pos_sequence_is_unique_across_a_batch_create(self):
         templates = self.env["product.template"].create(
             [{"name": f"Batch product {index}"} for index in range(3)]
@@ -54,7 +53,6 @@ class TestPosProductTemplate(CommonPosTest):
         source = self.env["product.template"].create({"name": "Sequence source"})
         self.assertNotEqual(source.copy().pos_sequence, source.pos_sequence)
 
-
     def test_empty_public_description_is_normalised_on_create(self):
         template = self.env["product.template"].create(
             {"name": "Blank description", "public_description": "<p><br></p>"}
@@ -84,7 +82,6 @@ class TestPosProductTemplate(CommonPosTest):
             }
         )
         self.env.invalidate_all()
-
 
     def _search_read(self, **context):
         data = {"pos.config": [{"_pos_special_products_ids": []}]}
@@ -159,7 +156,6 @@ class TestPosProductTemplate(CommonPosTest):
     def test_the_loaded_payload_carries_archived_combinations(self):
         rows = self._search_read()
         self.assertTrue(all("_archived_combinations" in row for row in rows))
-
 
     def _uom_barcode_fixture(self):
         variant = self.ten_dollars_no_tax.product_variant_id
@@ -263,7 +259,6 @@ class TestPosProductTemplate(CommonPosTest):
         )
         self.assertEqual(data["product.pricelist.item"], [])
 
-
     def test_a_variant_created_from_the_pos_is_read_like_every_other(self):
         attribute = self.env["product.attribute"].create(
             {
@@ -366,7 +361,6 @@ class TestPosProductTemplate(CommonPosTest):
             "config's company, not whoever asked for it",
         )
 
-
     def test_the_product_info_lists_each_vendor_once(self):
         template = self.ten_dollars_no_tax
         template.seller_ids = [Command.clear()]
@@ -453,7 +447,6 @@ class TestPosProductTemplate(CommonPosTest):
         if warehouse_id and info["warehouses"]:
             self.assertEqual(info["warehouses"][0]["id"], warehouse_id)
 
-
     def test_clearing_sale_ok_by_write_also_clears_available_in_pos(self):
         template = self.env["product.template"].create(
             {"name": "Withdrawn from sale", "available_in_pos": True}
@@ -471,7 +464,6 @@ class TestPosProductTemplate(CommonPosTest):
         template = self.env["product.template"].create({"name": "Self optional"})
         with self.assertRaises(ValidationError):
             template.pos_optional_product_ids = template
-
 
     def test_archiving_by_write_is_refused_while_a_session_is_open(self):
         with self.assertRaises(UserError):

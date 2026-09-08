@@ -2,18 +2,26 @@ from odoo import api, fields, models
 
 
 class EventSlot(models.Model):
-    _name = 'event.slot'
-    _inherit = ['event.slot', 'mixin.pos.load']
+    _name = "event.slot"
+    _inherit = ["event.slot", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):
         return [
-            ('event_id.is_finished', '=', False),
-            ('event_id.company_id', '=', config.company_id.id),
-            ('event_id', 'in', [event['id'] for event in data['event.event']]),
-            ('start_datetime', '>=', fields.Datetime.now()),
+            ("event_id.is_finished", "=", False),
+            ("event_id.company_id", "=", config.company_id.id),
+            ("event_id", "in", [event["id"] for event in data["event.event"]]),
+            ("start_datetime", ">=", fields.Datetime.now()),
         ]
 
     @api.model
     def _load_pos_data_fields(self, config):
-        return ['id', 'date', 'display_name', 'event_id', 'registration_ids', 'seats_available', 'start_datetime']
+        return [
+            "id",
+            "date",
+            "display_name",
+            "event_id",
+            "registration_ids",
+            "seats_available",
+            "start_datetime",
+        ]

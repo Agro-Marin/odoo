@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class IrAttachment(models.Model):
-    _inherit = 'ir.attachment'
+    _inherit = "ir.attachment"
 
     @api.autovacuum
     def _gc_doc_index(self):

@@ -1,7 +1,9 @@
-from odoo import models, fields
+from odoo import fields, models
 
 
 class DiscussCallHistory(models.Model):
     _inherit = "discuss.call.history"
 
-    livechat_participant_history_ids = fields.Many2many("im_livechat.channel.member.history")
+    livechat_participant_history_ids = fields.Many2many(
+        "im_livechat.channel.member.history"
+    )

@@ -45,8 +45,7 @@ def migrate(cr, version):
     created = _create_missing_documents(cr)
     copied = _copy_discriminators(cr)
     _logger.info(
-        "product.document backfill: %s documents.document created, "
-        "columns copied: %s",
+        "product.document backfill: %s documents.document created, columns copied: %s",
         created,
         ", ".join(copied) or "none",
     )
@@ -80,7 +79,9 @@ def _create_missing_documents(cr):
             {
                 "attachment_id": attachment_id,
                 "company_id": company_id,
-                "folder_id": folder_by_company.get(company_id, env["documents.document"]).id,
+                "folder_id": folder_by_company.get(
+                    company_id, env["documents.document"]
+                ).id,
             }
             for attachment_id, company_id in rows
         ]

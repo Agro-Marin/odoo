@@ -6,22 +6,26 @@ from odoo.exceptions import UserError
 class FetchmailServer(models.Model):
     """Add the Outlook OAuth authentication on the incoming mail servers."""
 
-    _name = 'fetchmail.server'
-    _inherit = ['fetchmail.server', 'mixin.microsoft.outlook']
+    _name = "fetchmail.server"
+    _inherit = ["fetchmail.server", "mixin.microsoft.outlook"]
 
-    _OUTLOOK_SCOPE = 'https://outlook.office.com/IMAP.AccessAsUser.All'
+    _OUTLOOK_SCOPE = "https://outlook.office.com/IMAP.AccessAsUser.All"
 
-    server_type = fields.Selection(selection_add=[('outlook', 'Outlook OAuth Authentication')], ondelete={'outlook': 'set default'})
+    server_type = fields.Selection(
+        selection_add=[("outlook", "Outlook OAuth Authentication")],
+        ondelete={"outlook": "set default"},
+    )
 
     def _compute_server_type_info(self):
-        outlook_servers = self.filtered(lambda server: server.server_type == 'outlook')
+        outlook_servers = self.filtered(lambda server: server.server_type == "outlook")
         outlook_servers.server_type_info = _(
-            'Connect your personal Outlook account using OAuth. \n'
-            'You will be redirected to the Outlook login page to accept '
-            'the permissions.')
+            "Connect your personal Outlook account using OAuth. \n"
+            "You will be redirected to the Outlook login page to accept "
+            "the permissions."
+        )
         super(FetchmailServer, self - outlook_servers)._compute_server_type_info()
 
-    @api.constrains('server_type', 'encryption', 'password', 'user')
+    @api.constrains("server_type", "encryption", "password", "user")
     def _check_use_microsoft_outlook_service(self):
         """Mirror ``ir.mail_server``'s Outlook constraint on the incoming side.
 
@@ -29,20 +33,31 @@ class FetchmailServer(models.Model):
         half checked only the encryption, so an Outlook server could carry a stored
         password that the OAuth flow never uses and no username for it to match.
         """
-        for server in self.filtered(lambda s: s.server_type == 'outlook'):
+        for server in self.filtered(lambda s: s.server_type == "outlook"):
             if server.password:
-                raise UserError(_(
-                    'Please leave the password field empty for Outlook mail server “%s”. '
-                    'The OAuth process does not require it.', server.name))
-            if server.encryption not in ('ssl', 'ssl_strict'):
-                raise UserError(_(
-                    'Incorrect Connection Encryption for Outlook mail server “%s”. '
-                    'Please set it to "SSL/TLS".', server.name))
+                raise UserError(
+                    _(
+                        "Please leave the password field empty for Outlook mail server “%s”. "
+                        "The OAuth process does not require it.",
+                        server.name,
+                    )
+                )
+            if server.encryption not in ("ssl", "ssl_strict"):
+                raise UserError(
+                    _(
+                        "Incorrect Connection Encryption for Outlook mail server “%s”. "
+                        'Please set it to "SSL/TLS".',
+                        server.name,
+                    )
+                )
             if not server.user:
-                raise UserError(_(
-                    'Please fill the "Username" field with your Outlook/Office365 username (your email address). '
-                    'This should be the same account as the one used for the Outlook '
-                    'OAuthentication Token.'))
+                raise UserError(
+                    _(
+                        'Please fill the "Username" field with your Outlook/Office365 username (your email address). '
+                        "This should be the same account as the one used for the Outlook "
+                        "OAuthentication Token."
+                    )
+                )
 
     def _prepare_server_type_defaults(self) -> ValuesType:
         """Outlook is IMAPS on 993, and its tokens belong to no other server type.
@@ -53,8 +68,8 @@ class FetchmailServer(models.Model):
         last, used to disable the ``encryption`` trigger for every server type.
         """
         vals = super()._prepare_server_type_defaults()
-        if self.server_type == 'outlook':
-            vals.update(server='imap.outlook.com', encryption='ssl_strict', port=993)
+        if self.server_type == "outlook":
+            vals.update(server="imap.outlook.com", encryption="ssl_strict", port=993)
         else:
             vals.update(
                 microsoft_outlook_refresh_token=False,
@@ -69,9 +84,9 @@ class FetchmailServer(models.Model):
         If the mail server is Outlook, we use the OAuth2 authentication protocol.
         """
         self.check_singleton()
-        if self.server_type == 'outlook':
+        if self.server_type == "outlook":
             auth_string = self._generate_outlook_oauth2_string(self.user)
-            connection.authenticate('XOAUTH2', lambda x: auth_string)
+            connection.authenticate("XOAUTH2", lambda x: auth_string)
         else:
             super()._imap_login__(connection)
 
@@ -81,4 +96,6 @@ class FetchmailServer(models.Model):
         The Outlook mail server uses an IMAP connection.
         """
         self.check_singleton()
-        return 'imap' if self.server_type == 'outlook' else super()._get_connection_type()
+        return (
+            "imap" if self.server_type == "outlook" else super()._get_connection_type()
+        )

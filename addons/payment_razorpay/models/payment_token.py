@@ -5,10 +5,10 @@ from odoo.addons.payment_razorpay import const
 
 
 class PaymentToken(models.Model):
-    _inherit = 'payment.token'
+    _inherit = "payment.token"
 
     def _razorpay_get_limit_exceed_warning(self, amount, currency_id):
-        """ Return a warning message when the maximum payment amount is exceeded.
+        """Return a warning message when the maximum payment amount is exceeded.
 
         :param float amount: The amount to be paid.
         :param currency_id: The currency of the amount.
@@ -17,21 +17,27 @@ class PaymentToken(models.Model):
         """
         self.check_singleton()
 
-        if not amount or self.provider_code != 'razorpay':
+        if not amount or self.provider_code != "razorpay":
             return ""
 
         # Try to get the maximum amount based on the transaction from which this token was created.
-        Transaction = self.env['payment.transaction']
+        Transaction = self.env["payment.transaction"]
         primary_tx = Transaction.search(
-            [('token_id', '=', self.id), ('operation', 'not in', ['offline', 'online_token'])],
+            [
+                ("token_id", "=", self.id),
+                ("operation", "not in", ["offline", "online_token"]),
+            ],
             limit=1,
         )
         if primary_tx:
             mandate_max_amount = primary_tx._razorpay_get_mandate_max_amount()
         else:  # Get the maximum amount based on the token's payment method code.
-            pm = self.payment_method_id.primary_payment_method_id or self.payment_method_id
+            pm = (
+                self.payment_method_id.primary_payment_method_id
+                or self.payment_method_id
+            )
             mandate_max_amount_INR = const.MANDATE_MAX_AMOUNT.get(
-                pm.code, const.MANDATE_MAX_AMOUNT['card']
+                pm.code, const.MANDATE_MAX_AMOUNT["card"]
             )
             mandate_max_amount = Transaction._razorpay_convert_inr_to_currency(
                 mandate_max_amount_INR, currency_id

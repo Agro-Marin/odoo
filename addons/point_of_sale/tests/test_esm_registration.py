@@ -4,7 +4,6 @@ from odoo.tools.assets.esm_registry import check_esm_config, esm_registry
 
 @tagged("post_install", "-at_install")
 class TestEsmRegistration(TransactionCase):
-
     BUNDLE = "point_of_sale.assets_debug"
     PARENTS = ("point_of_sale.assets_prod", "point_of_sale.assets_prod_dark")
 

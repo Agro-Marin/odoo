@@ -6,7 +6,7 @@ from odoo.fields import Command
 from odoo.tests import TransactionCase, tagged
 
 
-@tagged('post_install', '-at_install')
+@tagged("post_install", "-at_install")
 class TestLoyaltyRewardDomain(TransactionCase):
     """The two representations of a reward's discounted products."""
 
@@ -15,15 +15,20 @@ class TestLoyaltyRewardDomain(TransactionCase):
         super().setUpClass()
         # Set once, here: `set_param` invalidates the cache, and these tests are
         # about what the ORM invalidates on its own.
-        cls.env['ir.config_parameter'].sudo().set_param(
-            'loyalty.compute_all_discount_product_ids', 'disabled'
+        cls.env["ir.config_parameter"].sudo().set_param(
+            "loyalty.compute_all_discount_product_ids", "disabled"
         )
-        cls.program = cls.env['loyalty.program'].create({
-            'name': "Domain program", 'reward_ids': [Command.create({})],
-        })
+        cls.program = cls.env["loyalty.program"].create(
+            {
+                "name": "Domain program",
+                "reward_ids": [Command.create({})],
+            }
+        )
         cls.reward = cls.program.reward_ids
-        cls.reward.discount_applicability = 'specific'
-        cls.product = cls.env['product.product'].create({'name': "Discounted", 'type': 'consu'})
+        cls.reward.discount_applicability = "specific"
+        cls.product = cls.env["product.product"].create(
+            {"name": "Discounted", "type": "consu"}
+        )
 
     def _serialized_domain(self):
         """Read the domain the PoS would be handed, invalidating nothing.
@@ -50,7 +55,7 @@ class TestLoyaltyRewardDomain(TransactionCase):
 
     def test_domain_follows_the_category(self):
         """The same for the reward's product category."""
-        category = self.env['product.category'].create({'name': "Discounted category"})
+        category = self.env["product.category"].create({"name": "Discounted category"})
         before = self._serialized_domain()
         self.reward.discount_product_category_id = category
         after = self._serialized_domain()
@@ -59,7 +64,7 @@ class TestLoyaltyRewardDomain(TransactionCase):
 
     def test_domain_follows_the_tag(self):
         """The same for the reward's product tag."""
-        tag = self.env['product.tag'].create({'name': "Discounted tag"})
+        tag = self.env["product.tag"].create({"name": "Discounted tag"})
         before = self._serialized_domain()
         self.reward.discount_product_tag_id = tag
         after = self._serialized_domain()
@@ -74,26 +79,30 @@ class TestLoyaltyRewardDomain(TransactionCase):
         the category is expanded here and not on `loyalty.rule`, which is read by the
         server alone.
         """
-        parent = self.env['product.category'].create({'name': "Parent"})
-        self.env['product.category'].create({'name': "Child", 'parent_id': parent.id})
+        parent = self.env["product.category"].create({"name": "Parent"})
+        self.env["product.category"].create({"name": "Child", "parent_id": parent.id})
         self.reward.discount_product_category_id = parent
 
         serialized = json.dumps(self._serialized_domain())
 
-        self.assertNotIn('child_of', serialized)
-        self.assertNotIn('parent_of', serialized)
+        self.assertNotIn("child_of", serialized)
+        self.assertNotIn("parent_of", serialized)
 
     def test_the_expanded_category_covers_every_descendant(self):
         """Expanding the category must reach the whole subtree, not one level."""
-        root = self.env['product.category'].create({'name': "Root"})
-        mid = self.env['product.category'].create({'name': "Mid", 'parent_id': root.id})
-        leaf = self.env['product.category'].create({'name': "Leaf", 'parent_id': mid.id})
-        deep_product = self.env['product.product'].create(
-            {'name': "Deep", 'type': 'consu', 'categ_id': leaf.id}
+        root = self.env["product.category"].create({"name": "Root"})
+        mid = self.env["product.category"].create({"name": "Mid", "parent_id": root.id})
+        leaf = self.env["product.category"].create(
+            {"name": "Leaf", "parent_id": mid.id}
+        )
+        deep_product = self.env["product.product"].create(
+            {"name": "Deep", "type": "consu", "categ_id": leaf.id}
         )
         self.reward.discount_product_category_id = root
 
-        matched = self.env['product.product'].search(self.reward._get_discount_product_domain())
+        matched = self.env["product.product"].search(
+            self.reward._get_discount_product_domain()
+        )
 
         self.assertIn(deep_product, matched)
 
@@ -104,16 +113,20 @@ class TestLoyaltyRewardDomain(TransactionCase):
         nothing tracks it; the invalidation is the parameter change, not the test
         papering over a missing dependency.
         """
-        Param = self.env['ir.config_parameter'].sudo()
+        Param = self.env["ir.config_parameter"].sudo()
         self.reward.discount_product_ids = [Command.set(self.product.ids)]
 
-        Param.set_param('loyalty.compute_all_discount_product_ids', 'enabled')
-        self.reward.invalidate_recordset(['all_discount_product_ids', 'reward_product_domain'])
+        Param.set_param("loyalty.compute_all_discount_product_ids", "enabled")
+        self.reward.invalidate_recordset(
+            ["all_discount_product_ids", "reward_product_domain"]
+        )
         self.assertEqual(self.reward.all_discount_product_ids, self.product)
         self.assertEqual(self.reward.reward_product_domain, "null")
 
-        Param.set_param('loyalty.compute_all_discount_product_ids', 'disabled')
-        self.reward.invalidate_recordset(['all_discount_product_ids', 'reward_product_domain'])
+        Param.set_param("loyalty.compute_all_discount_product_ids", "disabled")
+        self.reward.invalidate_recordset(
+            ["all_discount_product_ids", "reward_product_domain"]
+        )
         self.assertFalse(self.reward.all_discount_product_ids)
         self.assertNotEqual(self.reward.reward_product_domain, "null")
 
@@ -125,7 +138,7 @@ class TestLoyaltyRewardDomain(TransactionCase):
         version of them invalidated the field by hand and so passed against the very
         bug they were written for; this fails if that ever comes back.
         """
-        field = self.reward._fields['reward_product_domain']
+        field = self.reward._fields["reward_product_domain"]
 
         self._serialized_domain()
         self.assertTrue(
@@ -145,14 +158,16 @@ class TestLoyaltyRewardDomain(TransactionCase):
         The unit depended on the product and the tag but read `reward_product_ids`,
         which is empty for anything but a product reward.
         """
-        product_reward = self.env['loyalty.reward'].create({
-            'program_id': self.program.id,
-            'reward_type': 'product',
-            'reward_product_id': self.product.id,
-        })
+        product_reward = self.env["loyalty.reward"].create(
+            {
+                "program_id": self.program.id,
+                "reward_type": "product",
+                "reward_product_id": self.product.id,
+            }
+        )
         self.assertTrue(product_reward.reward_product_uom_id)
 
-        product_reward.reward_type = 'discount'
+        product_reward.reward_type = "discount"
 
         self.assertFalse(product_reward.reward_product_ids)
         self.assertFalse(product_reward.reward_product_uom_id)

@@ -20,6 +20,14 @@ class TestMailingDynamicFields(TransactionCase):
     def test_the_rendered_fields_are_still_gated(self):
         scanned = self.env["mailing.mailing"]._get_dynamic_field_names()
         self.assertLessEqual(
-            {"body_arch", "body_html", "email_from", "lang", "preview", "reply_to", "subject"},
+            {
+                "body_arch",
+                "body_html",
+                "email_from",
+                "lang",
+                "preview",
+                "reply_to",
+                "subject",
+            },
             scanned,
         )

@@ -10,7 +10,6 @@ _logger = logging.getLogger(__name__)
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosAccountingUnits(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
         self.config = self.basic_config
@@ -162,7 +161,6 @@ class TestPosAccountingUnits(TestPoSCommon):
             "cash_rounding line must post to the rounding profit/loss account",
         )
 
-
     def test_get_balancing_account_uses_company_pos_receivable(self):
         session = self._start_pos_session(self.cash_pm1, 0)
         expected = self.env.company.account_default_pos_receivable_account_id
@@ -193,7 +191,6 @@ class TestPosAccountingUnits(TestPoSCommon):
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosSessionAmountBuilders(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
         self.config = self.basic_config

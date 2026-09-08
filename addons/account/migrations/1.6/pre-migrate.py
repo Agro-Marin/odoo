@@ -3,8 +3,18 @@ from odoo.db import schema
 MODEL = "account.journal"
 
 RENAMES = (
-    ("account_control_ids", "allowed_account_ids", "account_journal_account_account_control_rel", "account_journal_allowed_account_rel"),
-    ("user_can_access_ids", "allowed_user_ids", "account_journal_res_users_can_access_rel", "account_journal_allowed_user_rel"),
+    (
+        "account_control_ids",
+        "allowed_account_ids",
+        "account_journal_account_account_control_rel",
+        "account_journal_allowed_account_rel",
+    ),
+    (
+        "user_can_access_ids",
+        "allowed_user_ids",
+        "account_journal_res_users_can_access_rel",
+        "account_journal_allowed_user_rel",
+    ),
 )
 
 
@@ -21,7 +31,9 @@ def migrate(cr, version):
         return
 
     for old, new, old_table, new_table in RENAMES:
-        if schema.table_exists(cr, old_table) and not schema.table_exists(cr, new_table):
+        if schema.table_exists(cr, old_table) and not schema.table_exists(
+            cr, new_table
+        ):
             cr.execute(f'ALTER TABLE "{old_table}" RENAME TO "{new_table}"')
 
         cr.execute(

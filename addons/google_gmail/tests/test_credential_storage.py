@@ -13,10 +13,12 @@ class TestGmailCredentials(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.server = cls.env["ir.mail_server"].create({
-            "name": "Gmail Server",
-            "smtp_host": "smtp.example.com",
-        })
+        cls.server = cls.env["ir.mail_server"].create(
+            {
+                "name": "Gmail Server",
+                "smtp_host": "smtp.example.com",
+            }
+        )
 
     def _set(self, **tokens):
         self.server.write(tokens)
@@ -82,5 +84,7 @@ class TestGmailCredentials(EncryptionKeyCase, TransactionCase):
         )
 
     def test_the_expiry_is_not_a_secret_and_stays_a_column(self):
-        field = self.env["ir.mail_server"]._fields["google_gmail_access_token_expiration"]
+        field = self.env["ir.mail_server"]._fields[
+            "google_gmail_access_token_expiration"
+        ]
         self.assertTrue(field.store)

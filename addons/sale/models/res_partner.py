@@ -5,7 +5,6 @@ from odoo.fields import Domain
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-
     sale_order_ids = fields.One2many(
         comodel_name="sale.order",
         inverse_name="partner_id",
@@ -17,7 +16,6 @@ class ResPartner(models.Model):
         groups="sales_team.group_sale_salesman",
     )
     sale_warn_msg = fields.Text(string="Message for Sales Order")
-
 
     def _compute_sale_order_count(self):
         self._compute_order_count(
@@ -75,7 +73,6 @@ class ResPartner(models.Model):
             )
             partner.commercial_partner_id.credit_to_invoice += credit_company_currency
 
-
     @api.model
     def _get_sale_order_domain_count(self):
         return []
@@ -85,7 +82,6 @@ class ResPartner(models.Model):
         return super()._get_order_activity_sources() + [
             ("sale.order", [("state", "=", "done")]),
         ]
-
 
     def _has_order(self, partner_domain):
         self.check_singleton()

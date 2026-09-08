@@ -75,7 +75,9 @@ class SurveySurvey(models.Model):
                 }
             )
         action["context"] = dict(
-            self.env["ir.actions.actions"]._eval_action_context(action.get("context") or "{}"),  # sufficient in most cases
+            self.env["ir.actions.actions"]._eval_action_context(
+                action.get("context") or "{}"
+            ),  # sufficient in most cases
             create=False,
         )
         return action

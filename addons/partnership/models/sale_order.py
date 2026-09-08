@@ -3,24 +3,31 @@ from odoo.exceptions import ValidationError
 
 
 class SaleOrder(models.Model):
-    _inherit = 'sale.order'
+    _inherit = "sale.order"
 
-    assigned_grade_id = fields.Many2one('res.partner.grade', compute='_compute_partnership')
+    assigned_grade_id = fields.Many2one(
+        "res.partner.grade", compute="_compute_partnership"
+    )
 
-    @api.constrains('line_ids')
+    @api.constrains("line_ids")
     def _constraint_unique_assigned_grade(self):
         for so in self:
-            if len(set(so.line_ids.mapped('product_id.grade_id'))) > 1:
-                raise ValidationError(so.env._(
-                    "You cannot confirm Sale Order %(sale_order_name)s because there are products"
-                    " assigning different grades.", sale_order_name=so.name,
-                ))
+            if len(set(so.line_ids.mapped("product_id.grade_id"))) > 1:
+                raise ValidationError(
+                    so.env._(
+                        "You cannot confirm Sale Order %(sale_order_name)s because there are products"
+                        " assigning different grades.",
+                        sale_order_name=so.name,
+                    )
+                )
 
-    @api.depends('line_ids.product_id')
+    @api.depends("line_ids.product_id")
     def _compute_partnership(self):
         for so in self:
-            partnership_lines = so.line_ids.filtered(lambda l: l.service_tracking == 'partnership')
-            so.assigned_grade_id = partnership_lines.mapped('product_id.grade_id')[:1]
+            partnership_lines = so.line_ids.filtered(
+                lambda l: l.service_tracking == "partnership"
+            )
+            so.assigned_grade_id = partnership_lines.mapped("product_id.grade_id")[:1]
 
     def action_confirm(self):
         res = super().action_confirm()

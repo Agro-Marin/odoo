@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "India Purchase and Warehouse Management",
     "version": "1.0",

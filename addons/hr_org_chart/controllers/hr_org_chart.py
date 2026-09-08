@@ -14,9 +14,7 @@ class HrOrgChartController(http.Controller):
         else:
             cids = [request.env.company.id]
 
-        Employee = request.env["hr.employee"].with_context(
-            allowed_company_ids=cids
-        )
+        Employee = request.env["hr.employee"].with_context(allowed_company_ids=cids)
         employee = Employee.browse(employee_id)
         return employee if employee.has_access("read") else Employee.browse()
 

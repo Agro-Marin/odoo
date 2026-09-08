@@ -2,7 +2,7 @@ from odoo import _, fields, models
 
 
 class ResPartner(models.Model):
-    _inherit = 'res.partner'
+    _inherit = "res.partner"
 
     l10n_tr_nilvera_edispatch_customs_zip = fields.Char(
         string="Customs ZIP",
@@ -23,15 +23,17 @@ class ResPartner(models.Model):
                 _("Country"): record.country_id,
             }
 
-            missing_fields = [name for name, value in required_fields.items() if not value]
-            if country_code == 'TR' and not record.vat:
+            missing_fields = [
+                name for name, value in required_fields.items() if not value
+            ]
+            if country_code == "TR" and not record.vat:
                 missing_fields.append(_("TCKN/VKN"))
 
-            if country_code == 'TR' and not record.zip:
+            if country_code == "TR" and not record.zip:
                 missing_fields.append(_("ZIP"))
 
             if missing_fields:
-                msg.append(_("%s is required", ', '.join(missing_fields)))
+                msg.append(_("%s is required", ", ".join(missing_fields)))
 
             if country_code != "TR" and (
                 not record.l10n_tr_nilvera_edispatch_customs_zip
@@ -43,8 +45,12 @@ class ResPartner(models.Model):
                 # Instead of using name, display_name is used, since name is not required
                 # if contact is of type "Delivery Address".
                 error_messages[f"invalid_partner_{record.id}"] = {
-                    'message': _("%(name)s's %(errors)s.", name=record.display_name, errors=', '.join(msg)),
-                    'action_text': _("View %s", record.display_name),
-                    'action': record._get_records_action(name=_("View Partner"))
+                    "message": _(
+                        "%(name)s's %(errors)s.",
+                        name=record.display_name,
+                        errors=", ".join(msg),
+                    ),
+                    "action_text": _("View %s", record.display_name),
+                    "action": record._get_records_action(name=_("View Partner")),
                 }
         return error_messages

@@ -1,12 +1,14 @@
 import logging
-import requests
 from datetime import datetime
 from json import JSONDecodeError
+
+import requests
 
 from odoo import _
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
+
 
 def _get_nilvera_client(company, timeout_limit=None):
     return NilveraClient(
@@ -19,28 +21,35 @@ def _get_nilvera_client(company, timeout_limit=None):
 class NilveraClient:
     def __init__(self, test_environment=False, api_key=None, timeout_limit=None):
         self.is_production = not test_environment
-        self.base_url = 'https://api.nilvera.com' if self.is_production else 'https://apitest.nilvera.com'
+        self.base_url = (
+            "https://api.nilvera.com"
+            if self.is_production
+            else "https://apitest.nilvera.com"
+        )
         self.timeout_limit = min(timeout_limit or 10, 30)
 
         self.__session = requests.Session()
-        self.__session.headers.update({'Accept': 'application/json'})
+        self.__session.headers.update({"Accept": "application/json"})
         if api_key:
-            self.__session.headers['Authorization'] = 'Bearer ' + api_key
+            self.__session.headers["Authorization"] = "Bearer " + api_key
 
     def __enter__(self):
         return self
 
     def __exit__(self, type, value, traceback):
-        if hasattr(self, '_NilveraClient__session'):
+        if hasattr(self, "_NilveraClient__session"):
             self.__session.close()
 
-    def request(self, method, endpoint, params=None, json=None, files=None, handle_response=True):
+    def request(
+        self, method, endpoint, params=None, json=None, files=None, handle_response=True
+    ):
         start = datetime.utcnow()
         url = self.base_url + endpoint
 
         try:
             response = self.__session.request(
-                method, url,
+                method,
+                url,
                 timeout=self.timeout_limit,
                 params=params,
                 json=json,
@@ -48,7 +57,11 @@ class NilveraClient:
             )
         except requests.exceptions.RequestException as e:
             _logger.info(_("Network error during request: %s"), e)
-            raise UserError(_("Network connectivity issue. Please check your internet connection and try again."))
+            raise UserError(
+                _(
+                    "Network connectivity issue. Please check your internet connection and try again."
+                )
+            )
 
         end = datetime.utcnow()
         duration = (end - start).total_seconds()
@@ -62,18 +75,28 @@ class NilveraClient:
         _logger.info(
             '"%(method)s %(url)s" %(status)s %(duration).3f',
             {
-                'method': method,
-                'url': url,
-                'status': status_code,
-                'duration': duration,
+                "method": method,
+                "url": url,
+                "status": status_code,
+                "duration": duration,
             },
         )
 
     def handle_response(self, response):
         if response.status_code in {401, 403}:
-            raise UserError(_("Oops, seems like you're unauthorised to do this. Try another API key with more rights or contact Nilvera."))
-        elif 403 < response.status_code < 600:
-            raise UserError(_("Odoo could not perform this action at the moment, try again later.\n%(reason)s - %(status_code)s", reason=response.reason, status_code=response.status_code))
+            raise UserError(
+                _(
+                    "Oops, seems like you're unauthorised to do this. Try another API key with more rights or contact Nilvera."
+                )
+            )
+        if 403 < response.status_code < 600:
+            raise UserError(
+                _(
+                    "Odoo could not perform this action at the moment, try again later.\n%(reason)s - %(status_code)s",
+                    reason=response.reason,
+                    status_code=response.status_code,
+                )
+            )
 
         try:
             return response.json()

@@ -11,7 +11,6 @@ from odoo.addons.portal.utils import get_portal_partner
 
 
 class PortalChatter(ThreadController):
-
     @http.route(
         "/mail/avatar/mail.message/<int:res_id>/author_avatar/<int:width>x<int:height>",
         type="http",

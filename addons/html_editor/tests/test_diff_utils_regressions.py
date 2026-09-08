@@ -38,9 +38,7 @@ class TestUnnecessaryReplaceFixer(BaseCase):
         )
 
     def test_does_not_collapse_across_elements(self):
-        comparison = generate_comparison(
-            "<p>abc</p><p>def</p>", "<p>xyz</p><p>uvw</p>"
-        )
+        comparison = generate_comparison("<p>abc</p><p>def</p>", "<p>xyz</p><p>uvw</p>")
         self.assertIn("<added>xyz</added><removed>abc</removed>", comparison)
         self.assertIn("<added>uvw</added><removed>def</removed>", comparison)
 
@@ -106,8 +104,12 @@ class TestPatchRoundTrip(BaseCase):
     def test_many_repeated_tokens_completes_quickly(self):
         import time
 
-        new = "".join(f"<p class='b{i}'>paragraph {i} text here</p>" for i in range(400))
-        old = "".join(f"<p class='a{i}'>paragraph {i} text here</p>" for i in range(400))
+        new = "".join(
+            f"<p class='b{i}'>paragraph {i} text here</p>" for i in range(400)
+        )
+        old = "".join(
+            f"<p class='a{i}'>paragraph {i} text here</p>" for i in range(400)
+        )
         start = time.monotonic()
         patch = generate_patch(new, old)
         elapsed = time.monotonic() - start

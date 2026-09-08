@@ -1,11 +1,9 @@
-
 import odoo.tests
 from odoo.tests.common import HttpCase
 
 
-@odoo.tests.tagged('-at_install', 'post_install')
+@odoo.tests.tagged("-at_install", "post_install")
 class TestHtmlBuilderAssetsBundle(HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -14,4 +12,8 @@ class TestHtmlBuilderAssetsBundle(HttpCase):
     def test_html_builder_assets_bundle_no_edit_scss(self):
         for file in self.bundle.files:
             filename = file["filename"]
-            self.assertFalse(filename.endswith("edit.scss"), msg="html_builder.assets must not contain *.edit.scss files. Remove " + filename)
+            self.assertFalse(
+                filename.endswith("edit.scss"),
+                msg="html_builder.assets must not contain *.edit.scss files. Remove "
+                + filename,
+            )

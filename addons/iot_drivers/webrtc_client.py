@@ -1,10 +1,12 @@
 import asyncio
 import json
 import logging
-from threading import Thread
 import time
+from threading import Thread
+
 try:
     from aiortc import RTCDataChannel, RTCPeerConnection, RTCSessionDescription
+
     webrtc_client = True
 except ImportError:
     webrtc_client = None
@@ -28,9 +30,7 @@ class WebRtcClient(Thread):
         ).result()
 
     def send(self, data: dict):
-        asyncio.run_coroutine_threadsafe(
-            self._send(data), self.event_loop
-        )
+        asyncio.run_coroutine_threadsafe(self._send(data), self.event_loop)
 
     async def _offer(self, request: dict):
         offer = RTCSessionDescription(sdp=request["sdp"], type=request["type"])
@@ -65,30 +65,44 @@ class WebRtcClient(Thread):
                     if device_identifier in main.iot_devices:
                         start_operation_time = time.perf_counter()
                         _logger.info("device '%s' action started", device_identifier)
-                        await self.event_loop.run_in_executor(None, lambda: main.iot_devices[device_identifier].action(data))
-                        _logger.info("device '%s' action finished - %.*f", device_identifier, 3, time.perf_counter() - start_operation_time)
+                        await self.event_loop.run_in_executor(
+                            None,
+                            lambda: main.iot_devices[device_identifier].action(data),
+                        )
+                        _logger.info(
+                            "device '%s' action finished - %.*f",
+                            device_identifier,
+                            3,
+                            time.perf_counter() - start_operation_time,
+                        )
                     else:
                         # Notify that the device is not connected
-                        self.send({
-                            'owner': message['session_id'],
-                            'device_identifier': device_identifier,
-                            'time': time.time(),
-                            'status': 'disconnected',
-                        })
+                        self.send(
+                            {
+                                "owner": message["session_id"],
+                                "device_identifier": device_identifier,
+                                "time": time.time(),
+                                "status": "disconnected",
+                            }
+                        )
                 elif message_type == "test_protocol":
-                    self.send({
-                        'owner': message['session_id'],
-                        'device_identifier': helpers.get_identifier(),
-                        'time': time.time(),
-                        'status': 'success',
-                    })
+                    self.send(
+                        {
+                            "owner": message["session_id"],
+                            "device_identifier": helpers.get_identifier(),
+                            "time": time.time(),
+                            "status": "success",
+                        }
+                    )
                 elif message_type == "restart_odoo":
-                    self.send({
-                        'owner': message['session_id'],
-                        'device_identifier': helpers.get_identifier(),
-                        'time': time.time(),
-                        'status': 'success',
-                    })
+                    self.send(
+                        {
+                            "owner": message["session_id"],
+                            "device_identifier": helpers.get_identifier(),
+                            "time": time.time(),
+                            "status": "success",
+                        }
+                    )
                     await self.event_loop.run_in_executor(None, helpers.odoo_restart)
 
             @channel.on("close")
@@ -105,7 +119,10 @@ class WebRtcClient(Thread):
         answer = await peer_connection.createAnswer()
         await peer_connection.setLocalDescription(answer)
 
-        return {"sdp": peer_connection.localDescription.sdp, "type": peer_connection.localDescription.type}
+        return {
+            "sdp": peer_connection.localDescription.sdp,
+            "type": peer_connection.localDescription.type,
+        }
 
     async def _send(self, data: dict):
         for connection in self.connections:

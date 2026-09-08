@@ -9,6 +9,7 @@ EXCEL_FILES = [
     }
 ]
 
+
 class DashboardSharing(DashboardTestCommon):
     def test_share_url(self):
         dashboard = self.create_dashboard()

@@ -8,7 +8,6 @@ from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPoSOtherCurrencyConfig(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
 
@@ -678,6 +677,4 @@ class TestPoSOtherCurrencyConfig(TestPoSCommon):
                 res["product.product"],
             )
         )
-        self.assertEqual(
-            product1_data["standard_price"], 2.5
-        )
+        self.assertEqual(product1_data["standard_price"], 2.5)

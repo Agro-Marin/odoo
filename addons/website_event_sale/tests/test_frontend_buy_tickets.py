@@ -83,7 +83,9 @@ class TestUi(HttpCaseWithUserDemo, TestWebsiteEventSaleCommon):
                 "zip": "18503",
                 "country_id": cls.env.ref("base.us").id,
                 "state_id": cls.env.ref("base.state_us_39").id,
-                "phone_ids": [Command.create({"number": "+1 555-555-5555", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "+1 555-555-5555", "type": "landline"})
+                ],
                 "email": "admin@yourcompany.example.com",
             }
         )

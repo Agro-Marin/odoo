@@ -4,8 +4,7 @@ from odoo.addons.account.controllers.portal import PortalAccount as CustomerPort
 
 
 class PortalAccount(CustomerPortal):
-
     def _prepare_my_account_rendering_values(self, *args, **kwargs):
         rendering_values = super()._prepare_my_account_rendering_values(*args, **kwargs)
-        rendering_values['invoice_sending_methods'].update({'snailmail': _("by Post")})
+        rendering_values["invoice_sending_methods"].update({"snailmail": _("by Post")})
         return rendering_values

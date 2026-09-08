@@ -3,12 +3,17 @@ import re
 
 import odoo
 from odoo.tools.misc import file_open
+
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
-from odoo.addons.cloud_storage_google.tests.test_cloud_storage_google import TestCloudStorageGoogleCommon
+from odoo.addons.cloud_storage_google.tests.test_cloud_storage_google import (
+    TestCloudStorageGoogleCommon,
+)
 
 
 @odoo.tests.tagged("-at_install", "post_install", "mail_controller")
-class TestCloudStorageAttachmentController(HttpCaseWithUserDemo, TestCloudStorageGoogleCommon):
+class TestCloudStorageAttachmentController(
+    HttpCaseWithUserDemo, TestCloudStorageGoogleCommon
+):
     def test_cloud_storage_google_attachment_upload(self):
         """Test uploading an attachment with google cloud storage."""
         thread = self.env["res.partner"].create({"name": "Test"})
@@ -64,6 +69,10 @@ class TestCloudStorageAttachmentController(HttpCaseWithUserDemo, TestCloudStorag
                             ],
                         },
                     },
-                    "upload_info": {"method": "PUT", "response_status": 200, "url": "[url]"},
+                    "upload_info": {
+                        "method": "PUT",
+                        "response_status": 200,
+                        "url": "[url]",
+                    },
                 },
             )

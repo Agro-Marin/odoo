@@ -1,5 +1,5 @@
 def get_payment_option(payment_method_code):
-    """ Map the payment method code to one of the payment options expected by APS.
+    """Map the payment method code to one of the payment options expected by APS.
 
     As APS expects the specific card brand (e.g, VISA) rather than the generic 'card' option, we
     skip the mapping and return an empty string when the provided payment method code is 'card'.
@@ -9,4 +9,4 @@ def get_payment_option(payment_method_code):
     :return: The corresponding APS' payment option.
     :rtype: str
     """
-    return payment_method_code.upper() if payment_method_code != 'card' else ''
+    return payment_method_code.upper() if payment_method_code != "card" else ""

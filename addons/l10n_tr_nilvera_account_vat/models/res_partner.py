@@ -1,11 +1,11 @@
 from odoo import models
 
-NILVERA_TEST_VAT_NUMS = {'1234567801', '1234567802'}
-L10N_TR_GIB_ALLOWED_NUMS = {'11111111111', '2222222222'}
+NILVERA_TEST_VAT_NUMS = {"1234567801", "1234567802"}
+L10N_TR_GIB_ALLOWED_NUMS = {"11111111111", "2222222222"}
 
 
 class ResPartner(models.Model):
-    _inherit = 'res.partner'
+    _inherit = "res.partner"
 
     def check_vat_tr(self, vat):
         # EXTENDS 'account_vat'

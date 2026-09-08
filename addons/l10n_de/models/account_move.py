@@ -1,19 +1,25 @@
-from odoo import models, api, fields
+from odoo import api, fields, models
 
 
 class AccountMove(models.Model):
-    _inherit = 'account.move'
+    _inherit = "account.move"
 
-    @api.depends('country_code', 'move_type')
+    @api.depends("country_code", "move_type")
     def _compute_show_delivery_date(self):
         # EXTENDS 'account'
         super()._compute_show_delivery_date()
         for move in self:
-            if move.country_code == 'DE':
+            if move.country_code == "DE":
                 move.show_delivery_date = move.is_sale_document()
 
     def _post_entries(self):
         for move in self:
-            if move.country_code == 'DE' and move.is_sale_document() and not move.delivery_date:
-                move.delivery_date = move.invoice_date or fields.Date.context_today(self)
+            if (
+                move.country_code == "DE"
+                and move.is_sale_document()
+                and not move.delivery_date
+            ):
+                move.delivery_date = move.invoice_date or fields.Date.context_today(
+                    self
+                )
         return super()._post_entries()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # @author -  Fekete Mihai <feketemihai@gmail.com>
 # Copyright (C) 2020 NextERP Romania (https://www.nexterp.ro) <contact@nexterp.ro>
 # Copyright (C) 2015 Forest and Biomass Services Romania (http://www.forbiom.eu).
@@ -13,16 +12,18 @@ class ResPartner(models.Model):
 
     @api.model
     def _commercial_fields(self):
-        return super(ResPartner, self)._commercial_fields() + ['nrc']
+        return super()._commercial_fields() + ["nrc"]
 
-    nrc = fields.Char(string='NRC', help='Registration number at the Registry of Commerce')
+    nrc = fields.Char(
+        string="NRC", help="Registration number at the Registry of Commerce"
+    )
 
-    @api.depends('vat', 'country_id')
+    @api.depends("vat", "country_id")
     def _compute_company_registry(self):
         # OVERRIDE
         # In Romania, if you have a VAT number, it's also your company registry (CUI) number
         super()._compute_company_registry()
-        for partner in self.filtered(lambda p: p.country_id.code == 'RO' and p.vat):
+        for partner in self.filtered(lambda p: p.country_id.code == "RO" and p.vat):
             vat_country, vat_number = self._split_vat(partner.vat)
-            if vat_country in ('RO', '') and self._check_vat_number('RO', vat_number):
+            if vat_country in ("RO", "") and self._check_vat_number("RO", vat_number):
                 partner.company_registry = vat_number

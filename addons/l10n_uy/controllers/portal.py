@@ -4,9 +4,7 @@ from odoo.addons.l10n_latam_base.controllers.portal import L10nLatamBasePortalAc
 
 
 class L10nUYPortalAccount(L10nLatamBasePortalAccount):
-
     def _l10n_get_default_identification_type_id(self):
         return (
-            (self.env.company.country_code == 'UY' and request.env.ref('l10n_uy.it_ci'))
-            or super()._l10n_get_default_identification_type_id()
-        )
+            self.env.company.country_code == "UY" and request.env.ref("l10n_uy.it_ci")
+        ) or super()._l10n_get_default_identification_type_id()

@@ -109,9 +109,7 @@ class FleetVehicle(models.Model):
                 employee_ids = (
                     self.env["hr.employee"]
                     .sudo()
-                    .search(
-                        [("partner_id", "=", vals["future_driver_id"])], limit=2
-                    )
+                    .search([("partner_id", "=", vals["future_driver_id"])], limit=2)
                 )
                 if len(employee_ids) == 1:
                     employee = employee_ids[0].id

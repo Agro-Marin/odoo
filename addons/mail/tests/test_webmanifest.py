@@ -10,7 +10,6 @@ from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 @tagged("-at_install", "post_install", "web_manifest")
 class MailServiceWorkerTest(HttpCaseWithUserDemo):
-
     def _parse_check(self, source, label):
         node = shutil.which("node")
         if not node:

@@ -11,26 +11,26 @@ from odoo.addons.payment_redsys import const
 
 
 class PaymentProvider(models.Model):
-    _inherit = 'payment.provider'
+    _inherit = "payment.provider"
 
     code = fields.Selection(
-        selection_add=[('redsys', "Redsys")], ondelete={'redsys': 'set default'}
+        selection_add=[("redsys", "Redsys")], ondelete={"redsys": "set default"}
     )
     redsys_merchant_code = fields.Char(
         string="Redsys Merchant Code",
-        required_if_provider='redsys',
+        required_if_provider="redsys",
         copy=False,
     )
     redsys_merchant_terminal = fields.Char(
         string="Redsys Merchant Terminal",
-        required_if_provider='redsys',
+        required_if_provider="redsys",
         copy=False,
     )
     redsys_secret_key = fields.Char(
         string="Redsys Secret Key",
-        required_if_provider='redsys',
+        required_if_provider="redsys",
         copy=False,
-        groups='base.group_system',
+        groups="base.group_system",
     )
 
     # === CRUD METHODS === #
@@ -38,17 +38,17 @@ class PaymentProvider(models.Model):
     def _get_default_payment_method_codes(self):
         """Override of `payment` to return the default payment method codes."""
         self.check_singleton()
-        if self.code != 'redsys':
+        if self.code != "redsys":
             return super()._get_default_payment_method_codes()
         return const.DEFAULT_PAYMENT_METHOD_CODES
 
     # === BUSINESS METHODS === #
 
     def _redsys_get_api_url(self):
-        if self.state == 'enabled':
-            return 'https://sis.redsys.es/sis/realizarPago'
+        if self.state == "enabled":
+            return "https://sis.redsys.es/sis/realizarPago"
         else:  # 'test'
-            return 'https://sis-t.redsys.es:25443/sis/realizarPago'
+            return "https://sis-t.redsys.es:25443/sis/realizarPago"
 
     def _redsys_calculate_signature(self, merchant_parameters, reference, secret_key):
         """Calculate the signature for the provided data.
@@ -64,11 +64,11 @@ class PaymentProvider(models.Model):
         # 1. Decode the SHA-256 key from Base64.
         decoded_key = base64.b64decode(secret_key)
         # 2. Derive the signature key by 3DES-encrypting the transaction (Ds_Merchant_Order).
-        encoded_order = reference.encode().ljust(16, b'\x00')
-        cipher = Cipher(
-            TripleDES(decoded_key), modes.CBC(b'\x00' * 8)
+        encoded_order = reference.encode().ljust(16, b"\x00")
+        cipher = Cipher(TripleDES(decoded_key), modes.CBC(b"\x00" * 8))
+        derived_key = (
+            cipher.encryptor().update(encoded_order) + cipher.encryptor().finalize()
         )
-        derived_key = cipher.encryptor().update(encoded_order) + cipher.encryptor().finalize()
         # 3. Create HMAC-SHA256 using the derived key and merchant parameters.
         hmac_obj = hmac.new(derived_key, merchant_parameters.encode(), hashlib.sha256)
         # 4. Encode the HMAC result in Base64.

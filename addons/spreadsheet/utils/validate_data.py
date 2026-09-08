@@ -51,7 +51,7 @@ def odoo_view_links(data):
     urls looks like odoo://view/{... view data...}
     """
     return [
-        json.loads(url[len(odoo_view_link_prefix):])
+        json.loads(url[len(odoo_view_link_prefix) :])
         for url in links_urls(data)
         if url.startswith(odoo_view_link_prefix)
     ]
@@ -73,19 +73,18 @@ def domain_fields(domain):
 
 def pivot_measure_fields(pivot):
     measures = [
-        measure if isinstance(measure, str)
+        measure
+        if isinstance(measure, str)
         # "field" has been renamed to "name" and "name" to "fieldName"
-        else measure["field"] if "field" in measure
-        else measure["name"] if "name" in measure
+        else measure["field"]
+        if "field" in measure
+        else measure["name"]
+        if "name" in measure
         else measure["fieldName"]
         for measure in pivot["measures"]
         if "computedBy" not in measure
     ]
-    return [
-        measure
-        for measure in measures
-        if measure != "__count"
-    ]
+    return [measure for measure in measures if measure != "__count"]
 
 
 def pivot_fields(pivot):
@@ -93,8 +92,10 @@ def pivot_fields(pivot):
     model = pivot["model"]
     fields = set(
         # colGroupBys and rowGroupBys were renamed to columns and rows, name to fieldName
-        pivot.get("colGroupBys", []) + [col.get("name", col.get("fieldName")) for col in pivot.get("columns", [])]
-        + pivot.get("rowGroupBys", []) + [row.get("name", row.get("fieldName")) for row in pivot.get("rows", [])]
+        pivot.get("colGroupBys", [])
+        + [col.get("name", col.get("fieldName")) for col in pivot.get("columns", [])]
+        + pivot.get("rowGroupBys", [])
+        + [row.get("name", row.get("fieldName")) for row in pivot.get("rows", [])]
         + pivot_measure_fields(pivot)
         + domain_fields(pivot["domain"])
     )
@@ -146,7 +147,9 @@ def filter_fields(data):
                 model = data["lists"][list_id]["model"]
                 fields_by_model[model].add(matching["field"])
             for chart_id, matching in filter_definition.get("graphFields", {}).items():
-                chart = next((chart for chart in charts if chart["id"] == chart_id), None)
+                chart = next(
+                    (chart for chart in charts if chart["id"] == chart_id), None
+                )
                 model = chart["metaData"]["resModel"]
                 fields_by_model[model].add(matching["field"])
     else:
@@ -184,7 +187,11 @@ def extract_fields(extract_fn, items):
 
 def fields_in_spreadsheet(data):
     """return all fields, grouped by model, used in the spreadsheet"""
-    odoo_pivots = (pivot for pivot in data.get("pivots", {}).values() if pivot.get("type", "ODOO") == "ODOO")
+    odoo_pivots = (
+        pivot
+        for pivot in data.get("pivots", {}).values()
+        if pivot.get("type", "ODOO") == "ODOO"
+    )
     all_fields = chain(
         extract_fields(list_fields, data.get("lists", {}).values()).items(),
         extract_fields(pivot_fields, odoo_pivots).items(),
@@ -201,7 +208,7 @@ def fields_in_spreadsheet(data):
 def menus_xml_ids_in_spreadsheet(data):
 
     return set(data.get("chartOdooMenusReferences", {}).values()) | {
-        url[len(xml_id_url_prefix):]
+        url[len(xml_id_url_prefix) :]
         for url in links_urls(data)
         if url.startswith(xml_id_url_prefix)
     }

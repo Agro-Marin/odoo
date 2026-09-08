@@ -6,8 +6,10 @@ class AccountMove(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def unlink_snailmail_letters(self):
-        snailmail_letters = self.env['snailmail.letter'].search([
-            ('model', '=', 'account.move'),
-            ('res_id', 'in', self.ids),
-        ])
+        snailmail_letters = self.env["snailmail.letter"].search(
+            [
+                ("model", "=", "account.move"),
+                ("res_id", "in", self.ids),
+            ]
+        )
         snailmail_letters.unlink()

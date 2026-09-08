@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Spreadsheet dashboard for live chat",
     "version": "1.0",

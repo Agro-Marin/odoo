@@ -1,23 +1,23 @@
-# -*- coding: utf-8 -*-
-from odoo import models
-from odoo import api
+from odoo import api, models
 
 
 class MixinMailThread(models.AbstractModel):
-    _inherit = 'mixin.mail.thread'
+    _inherit = "mixin.mail.thread"
 
     def _notify_cancel_snail(self):
         author_id = self.env.user.id
-        letters = self.env['snailmail.letter'].search([
-            ('state', 'not in', ['sent', 'canceled', 'pending']),
-            ('user_id', '=', author_id),
-            ('model', '=', self._name)
-        ])
+        letters = self.env["snailmail.letter"].search(
+            [
+                ("state", "not in", ["sent", "canceled", "pending"]),
+                ("user_id", "=", author_id),
+                ("model", "=", self._name),
+            ]
+        )
         letters.cancel()
 
     @api.model
     def notify_cancel_by_type(self, notification_type):
         super().notify_cancel_by_type(notification_type)
-        if notification_type == 'snail':
+        if notification_type == "snail":
             self._notify_cancel_snail()
         return True

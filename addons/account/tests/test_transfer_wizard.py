@@ -354,7 +354,6 @@ class TestTransferWizard(AccountTestInvoicingCommon):
             ],
         )
 
-
         context = {
             "active_model": "account.move.line",
             "active_ids": move_with_tax.line_ids[0].ids,
@@ -699,9 +698,7 @@ class TestTransferWizard(AccountTestInvoicingCommon):
         wizard_res = wizard.do_action()
 
         created_moves = self.env["account.move"].browse(wizard_res["domain"][0][2])
-        adjustment_move = created_moves[
-            1
-        ]
+        adjustment_move = created_moves[1]
         self.assertRecordValues(
             adjustment_move, [{"date": fields.Date.to_date("2019-03-31")}]
         )

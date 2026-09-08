@@ -1,7 +1,7 @@
 from odoo import models
 from odoo.http import request
 
-CONTEXT_KEYS = ['editable', 'edit_translations', 'translatable']
+CONTEXT_KEYS = ["editable", "edit_translations", "translatable"]
 
 
 class IrHttp(models.AbstractModel):

@@ -1,7 +1,9 @@
-from odoo import api, SUPERUSER_ID
+from odoo import SUPERUSER_ID, api
 
 
 def migrate(cr, version):
     env = api.Environment(cr, SUPERUSER_ID, {})
-    for company in env['res.company'].search([('chart_template', '=', 'co')], order="parent_path"):
-        env['account.chart.template'].try_loading('co', company)
+    for company in env["res.company"].search(
+        [("chart_template", "=", "co")], order="parent_path"
+    ):
+        env["account.chart.template"].try_loading("co", company)

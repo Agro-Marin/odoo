@@ -5,7 +5,6 @@ from odoo.addons.point_of_sale.tests.test_anglo_saxon import TestAngloSaxonCommo
 
 @tagged("post_install", "-at_install")
 class TestPosOrderCosting(TestAngloSaxonCommon):
-
     def _make_order(self, qty=1.0, price=450.0, **order_vals):
         vals = {
             "company_id": self.company.id,
@@ -49,7 +48,6 @@ class TestPosOrderCosting(TestAngloSaxonCommon):
     def _open_session(self):
         self.pos_config.open_ui()
         self.pos_config.current_session_id.set_opening_control(0, None)
-
 
     def test_cogs_falls_back_when_no_valued_move(self):
         self._open_session()
@@ -123,7 +121,6 @@ class TestPosOrderCosting(TestAngloSaxonCommon):
             "the real FIFO cost of the delivered goods, not standard_price",
         )
 
-
     def test_write_qty_on_several_lines(self):
         self.pos_config.order_edit_tracking = True
         self._open_session()
@@ -163,10 +160,8 @@ class TestPosOrderCosting(TestAngloSaxonCommon):
         order.lines.write({"qty": 4.0})
         self.assertFalse(order.lines.is_edited)
 
-
     def test_pack_lot_line_ids_is_not_a_field(self):
         self.assertNotIn("pack_lot_line_ids", self.env["pos.order.line"]._fields)
-
 
     def test_refund_orders_count_excludes_cancelled(self):
         self._open_session()
@@ -192,7 +187,6 @@ class TestPosOrderCosting(TestAngloSaxonCommon):
             order.action_view_refund_orders()["domain"][0][2],
             "the smart button must not open cancelled refunds",
         )
-
 
     def test_refunded_qty_depends_on_refund_line_qty(self):
         self._open_session()

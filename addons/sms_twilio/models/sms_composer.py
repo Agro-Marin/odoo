@@ -2,7 +2,7 @@ from odoo import models
 
 
 class SendSMS(models.TransientModel):
-    _inherit = 'sms.composer'
+    _inherit = "sms.composer"
 
     def _prepare_mass_sms_values(self, records):
         results = super()._prepare_mass_sms_values(records)

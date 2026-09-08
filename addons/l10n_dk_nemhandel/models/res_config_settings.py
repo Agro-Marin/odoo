@@ -5,17 +5,34 @@ from odoo.addons.l10n_dk_nemhandel.tools.demo_utils import handle_demo
 
 
 class ResConfigSettings(models.TransientModel):
-    _inherit = 'res.config.settings'
+    _inherit = "res.config.settings"
 
-    nemhandel_edi_user = fields.Many2one(related='company_id.nemhandel_edi_user')
-    nemhandel_edi_mode = fields.Selection(string='Nemhandel EDI operating mode', related='nemhandel_edi_user.edi_mode')
-    nemhandel_contact_email = fields.Char(related='company_id.nemhandel_contact_email', readonly=False)
-    nemhandel_identifier_type = fields.Selection(related='company_id.nemhandel_identifier_type', readonly=False)
-    nemhandel_identifier_value = fields.Char(related='company_id.nemhandel_identifier_value', readonly=False)
-    nemhandel_edi_identification = fields.Char(string='Nemhandel identification', related='nemhandel_edi_user.edi_identification')
-    nemhandel_phone_number = fields.Char(related='company_id.nemhandel_phone_number', readonly=False)
-    l10n_dk_nemhandel_proxy_state = fields.Selection(related='company_id.l10n_dk_nemhandel_proxy_state', readonly=False)
-    nemhandel_purchase_journal_id = fields.Many2one(related='company_id.nemhandel_purchase_journal_id', readonly=False)
+    nemhandel_edi_user = fields.Many2one(related="company_id.nemhandel_edi_user")
+    nemhandel_edi_mode = fields.Selection(
+        string="Nemhandel EDI operating mode", related="nemhandel_edi_user.edi_mode"
+    )
+    nemhandel_contact_email = fields.Char(
+        related="company_id.nemhandel_contact_email", readonly=False
+    )
+    nemhandel_identifier_type = fields.Selection(
+        related="company_id.nemhandel_identifier_type", readonly=False
+    )
+    nemhandel_identifier_value = fields.Char(
+        related="company_id.nemhandel_identifier_value", readonly=False
+    )
+    nemhandel_edi_identification = fields.Char(
+        string="Nemhandel identification",
+        related="nemhandel_edi_user.edi_identification",
+    )
+    nemhandel_phone_number = fields.Char(
+        related="company_id.nemhandel_phone_number", readonly=False
+    )
+    l10n_dk_nemhandel_proxy_state = fields.Selection(
+        related="company_id.l10n_dk_nemhandel_proxy_state", readonly=False
+    )
+    nemhandel_purchase_journal_id = fields.Many2one(
+        related="company_id.nemhandel_purchase_journal_id", readonly=False
+    )
 
     # -------------------------------------------------------------------------
     # COMPUTE METHODS
@@ -24,7 +41,11 @@ class ResConfigSettings(models.TransientModel):
     @api.depends("company_id.account_edi_proxy_client_ids")
     def _compute_nemhandel_edi_user(self):
         for config in self:
-            config.nemhandel_edi_user = config.company_id.account_edi_proxy_client_ids.filtered(lambda u: u.proxy_type == 'nemhandel')
+            config.nemhandel_edi_user = (
+                config.company_id.account_edi_proxy_client_ids.filtered(
+                    lambda u: u.proxy_type == "nemhandel"
+                )
+            )
 
     # -------------------------------------------------------------------------
     # BUSINESS ACTIONS
@@ -32,8 +53,12 @@ class ResConfigSettings(models.TransientModel):
 
     def action_view_nemhandel_form(self):
         self.check_singleton()
-        registration_wizard = self.env['nemhandel.registration'].create({'company_id': self.company_id.id})
-        registration_action = registration_wizard._action_view_nemhandel_form(reopen=False)
+        registration_wizard = self.env["nemhandel.registration"].create(
+            {"company_id": self.company_id.id}
+        )
+        registration_action = registration_wizard._action_view_nemhandel_form(
+            reopen=False
+        )
         return registration_action
 
     @handle_demo
@@ -48,10 +73,10 @@ class ResConfigSettings(models.TransientModel):
             raise ValidationError(_("Contact email is required"))
 
         self.nemhandel_edi_user._call_nemhandel_proxy(
-            endpoint='/api/nemhandel/1/update_user',
+            endpoint="/api/nemhandel/1/update_user",
             params={
-                'update_data': {
-                    'nemhandel_contact_email': self.nemhandel_contact_email,
+                "update_data": {
+                    "nemhandel_contact_email": self.nemhandel_contact_email,
                 },
             },
         )

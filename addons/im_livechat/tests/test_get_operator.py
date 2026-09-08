@@ -3,9 +3,10 @@ from unittest.mock import patch
 
 import odoo
 from odoo import Command, fields
+from odoo.tests.common import users
+
 from odoo.addons.im_livechat.tests.common import TestGetOperatorCommon
 from odoo.addons.mail.tests.common import MailCommon, freeze_all_time
-from odoo.tests.common import users
 
 
 @odoo.tests.tagged("-at_install", "post_install")
@@ -62,11 +63,15 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
         )
         self.assertEqual(
             fr_operator,
-            livechat_channel._get_operator(country_id=self.env["res.country"].search([("code", "=", "FR")]).id),
+            livechat_channel._get_operator(
+                country_id=self.env["res.country"].search([("code", "=", "FR")]).id
+            ),
         )
         self.assertEqual(
             en_operator,
-            livechat_channel._get_operator(country_id=self.env["res.country"].search([("code", "=", "US")]).id),
+            livechat_channel._get_operator(
+                country_id=self.env["res.country"].search([("code", "=", "US")]).id
+            ),
         )
 
     def test_get_by_country_no_operator_matching_country(self):
@@ -79,7 +84,9 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
         )
         self.assertEqual(
             fr_operator,
-            livechat_channel._get_operator(country_id=self.env["res.country"].search([("code", "=", "US")]).id),
+            livechat_channel._get_operator(
+                country_id=self.env["res.country"].search([("code", "=", "US")]).id
+            ),
         )
 
     def test_get_by_lang_and_country_prioritize_lang(self):
@@ -94,13 +101,15 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
         self.assertEqual(
             fr_operator,
             livechat_channel._get_operator(
-                lang="fr_FR", country_id=self.env["res.country"].search([("code", "=", "US")]).id
+                lang="fr_FR",
+                country_id=self.env["res.country"].search([("code", "=", "US")]).id,
             ),
         )
         self.assertEqual(
             en_operator,
             livechat_channel._get_operator(
-                lang="en_US", country_id=self.env["res.country"].search([("code", "=", "FR")]).id
+                lang="en_US",
+                country_id=self.env["res.country"].search([("code", "=", "FR")]).id,
             ),
         )
 
@@ -117,11 +126,17 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
             self._create_conversation(livechat_channel, first_operator)
             self._create_conversation(livechat_channel, first_operator)
             self.assertEqual(
-                first_operator, livechat_channel._get_operator(previous_operator_id=first_operator.partner_id.id)
+                first_operator,
+                livechat_channel._get_operator(
+                    previous_operator_id=first_operator.partner_id.id
+                ),
             )
             self._create_conversation(livechat_channel, first_operator, in_call=True)
             self.assertEqual(
-                second_operator, livechat_channel._get_operator(previous_operator_id=first_operator.partner_id.id)
+                second_operator,
+                livechat_channel._get_operator(
+                    previous_operator_id=first_operator.partner_id.id
+                ),
             )
 
     def test_priority_by_number_of_chat(self):
@@ -193,15 +208,21 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
         pets_support = self.env["im_livechat.channel"].create(
             {"name": "Pets", "user_ids": all_operators.ids}
         )
-        self.assertEqual(operator_dog, pets_support._get_operator(expertises=dog_expert))
-        self.assertEqual(operator_car, pets_support._get_operator(expertises=cat_expert))
+        self.assertEqual(
+            operator_dog, pets_support._get_operator(expertises=dog_expert)
+        )
+        self.assertEqual(
+            operator_car, pets_support._get_operator(expertises=cat_expert)
+        )
 
     def test_get_by_expertise_amongst_same_language(self):
         dog_expert = self.env["im_livechat.expertise"].create({"name": "dog"})
         cat_expert = self.env["im_livechat.expertise"].create({"name": "cat"})
         operator_fr_dog = self._create_operator("fr_FR", expertises=dog_expert)
         operator_fr_cat = self._create_operator("fr_FR", expertises=cat_expert)
-        operator_fr_dog_cat = self._create_operator("fr_FR", expertises=dog_expert + cat_expert)
+        operator_fr_dog_cat = self._create_operator(
+            "fr_FR", expertises=dog_expert + cat_expert
+        )
         operator_en_dog = self._create_operator("en_US", expertises=dog_expert)
         operator_en_cat = self._create_operator("en_US", expertises=cat_expert)
         all_operators = (
@@ -215,16 +236,24 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
             {"name": "Pets", "user_ids": all_operators.ids}
         )
         self.assertEqual(
-            operator_fr_dog, pets_support._get_operator(lang="fr_FR", expertises=dog_expert)
+            operator_fr_dog,
+            pets_support._get_operator(lang="fr_FR", expertises=dog_expert),
         )
         self.assertEqual(
-            operator_en_cat, pets_support._get_operator(lang="en_US", expertises=cat_expert)
+            operator_en_cat,
+            pets_support._get_operator(lang="en_US", expertises=cat_expert),
         )
         self.assertEqual(
-            operator_fr_dog_cat, pets_support._get_operator(lang="fr_FR", expertises=dog_expert + cat_expert)
+            operator_fr_dog_cat,
+            pets_support._get_operator(
+                lang="fr_FR", expertises=dog_expert + cat_expert
+            ),
         )
         self.assertEqual(
-            operator_en_dog, pets_support._get_operator(lang="en_US", expertises=dog_expert + cat_expert)
+            operator_en_dog,
+            pets_support._get_operator(
+                lang="en_US", expertises=dog_expert + cat_expert
+            ),
         )
 
     @users("employee")
@@ -236,7 +265,9 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
             "max_sessions_mode": "limited",
             "max_sessions": 2,
         }
-        livechat_channel = self.env["im_livechat.channel"].sudo().create(livechat_channel_data)
+        livechat_channel = (
+            self.env["im_livechat.channel"].sudo().create(livechat_channel_data)
+        )
         self.assertEqual(livechat_channel.available_operator_ids, operator)
         self._create_conversation(livechat_channel, operator)
         self.assertEqual(livechat_channel.available_operator_ids, operator)
@@ -253,9 +284,13 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
             "max_sessions_mode": "limited",
             "max_sessions": 2,
         }
-        livechat_channel = self.env["im_livechat.channel"].sudo().create(livechat_channel_data)
+        livechat_channel = (
+            self.env["im_livechat.channel"].sudo().create(livechat_channel_data)
+        )
         self._create_conversation(livechat_channel, operator_1)
-        self.assertEqual(livechat_channel.available_operator_ids, operator_1 + operator_2)
+        self.assertEqual(
+            livechat_channel.available_operator_ids, operator_1 + operator_2
+        )
         self._create_conversation(livechat_channel, operator_1)
         self.assertEqual(livechat_channel.available_operator_ids, operator_2)
         self._create_conversation(livechat_channel, operator_2)
@@ -269,7 +304,9 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
             "user_ids": operator,
             "block_assignment_during_call": True,
         }
-        livechat_channel = self.env["im_livechat.channel"].sudo().create(livechat_channel_data)
+        livechat_channel = (
+            self.env["im_livechat.channel"].sudo().create(livechat_channel_data)
+        )
         with freeze_all_time():
             self._create_conversation(livechat_channel, operator, in_call=True)
             self.assertFalse(livechat_channel.available_operator_ids)
@@ -289,7 +326,9 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
                 "user_ids": [operator.id],
             },
         ]
-        livechat_channels = self.env["im_livechat.channel"].sudo().create(livechat_channels_data)
+        livechat_channels = (
+            self.env["im_livechat.channel"].sudo().create(livechat_channels_data)
+        )
         self._create_conversation(livechat_channels[0], operator)
         self._create_conversation(livechat_channels[0], operator)
         self.assertFalse(livechat_channels[0].available_operator_ids)
@@ -310,7 +349,9 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
                 "user_ids": [operator.id],
             },
         ]
-        livechat_channels = self.env["im_livechat.channel"].sudo().create(livechat_channels_data)
+        livechat_channels = (
+            self.env["im_livechat.channel"].sudo().create(livechat_channels_data)
+        )
         self._create_conversation(livechat_channels[1], operator)
         self._create_conversation(livechat_channels[1], operator)
         self.assertEqual(livechat_channels[0].available_operator_ids, operator)
@@ -324,18 +365,24 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
             "max_sessions_mode": "limited",
             "max_sessions": 1,
         }
-        livechat_channel = self.env["im_livechat.channel"].sudo().create(livechat_channel_data)
+        livechat_channel = (
+            self.env["im_livechat.channel"].sudo().create(livechat_channel_data)
+        )
         channel_data = {
             "name": "Visitor 1",
             "channel_type": "livechat",
             "livechat_channel_id": livechat_channel.id,
             "livechat_operator_id": operator.partner_id.id,
-            "channel_member_ids": [Command.create({"partner_id": operator.partner_id.id})],
+            "channel_member_ids": [
+                Command.create({"partner_id": operator.partner_id.id})
+            ],
             "last_interest_dt": fields.Datetime.now() - timedelta(minutes=4),
         }
         channel = self.env["discuss.channel"].create(channel_data)
         self.assertFalse(livechat_channel.available_operator_ids)
-        channel.write({"last_interest_dt": fields.Datetime.now() - timedelta(minutes=20)})
+        channel.write(
+            {"last_interest_dt": fields.Datetime.now() - timedelta(minutes=20)}
+        )
         self.assertEqual(livechat_channel.available_operator_ids, operator)
 
     @users("employee")
@@ -351,7 +398,9 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
                 "name": "Livechat Channel 2",
             },
         ]
-        livechat_channels = self.env["im_livechat.channel"].sudo().create(livechat_channels_data)
+        livechat_channels = (
+            self.env["im_livechat.channel"].sudo().create(livechat_channels_data)
+        )
         self.assertFalse(livechat_channels[0].available_operator_ids)
         self.assertFalse(livechat_channels[1].available_operator_ids)
         self.assertEqual(
@@ -385,18 +434,27 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
         operator_2 = self._create_operator(lang_code="en_US")
         all_operators = operator_1 + operator_2
         livechat_channel_data = {"name": "Livechat Channel 2"}
-        livechat_channel = self.env["im_livechat.channel"].sudo().create(livechat_channel_data)
+        livechat_channel = (
+            self.env["im_livechat.channel"].sudo().create(livechat_channel_data)
+        )
         self.assertFalse(livechat_channel._get_operator())
         self.assertFalse(
-            livechat_channel._get_operator(previous_operator_id=operator_1.partner_id.id)
+            livechat_channel._get_operator(
+                previous_operator_id=operator_1.partner_id.id
+            )
         )
-        self.assertEqual(livechat_channel._get_operator(users=all_operators), operator_1)
         self.assertEqual(
-            livechat_channel._get_operator(previous_operator_id=operator_2.partner_id.id, users=all_operators),
+            livechat_channel._get_operator(users=all_operators), operator_1
+        )
+        self.assertEqual(
+            livechat_channel._get_operator(
+                previous_operator_id=operator_2.partner_id.id, users=all_operators
+            ),
             operator_2,
         )
         self.assertEqual(
-            livechat_channel._get_operator(lang="en_US", users=all_operators), operator_2
+            livechat_channel._get_operator(lang="en_US", users=all_operators),
+            operator_2,
         )
 
     def test_buffer_time_multi_operator(self):

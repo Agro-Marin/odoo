@@ -126,7 +126,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             ).id
         return self.env["account.bank.statement.line"].create(values)
 
-
     def _test_statement_line_edition(
         self,
         journal,
@@ -152,7 +151,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             }
         )
 
-
         self.assertRecordValues(
             statement_line,
             [
@@ -173,7 +171,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 }
             ],
         )
-
 
         liquidity_lines, suspense_lines, _other_lines = statement_line._seek_for_lines()
         self.assertRecordValues(liquidity_lines, [expected_liquidity_values])
@@ -517,7 +514,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
             "amount_currency": 0.0,
         }
 
-
         assertStatementLineConstraint(
             {
                 **statement_line_vals,
@@ -531,7 +527,6 @@ class TestAccountBankStatementLine(AccountTestInvoicingCommon):
                 "foreign_currency_id": self.currency_2.id,
             }
         )
-
 
         st_line = self.env["account.bank.statement.line"].create(statement_line_vals)
 

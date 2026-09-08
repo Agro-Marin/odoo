@@ -9,7 +9,8 @@ class L10nMyEdiIndustryClassification(models.Model):
     Made a model as the list of codes would be too long for a selection field, yet it is easier to provide users with
     the list than expect them to find and then enter both name and code manually.
     """
-    _name = 'l10n_my_edi.industry_classification'
+
+    _name = "l10n_my_edi.industry_classification"
     _description = "Malaysian Industry Classification"
 
     # ------------------
@@ -23,7 +24,7 @@ class L10nMyEdiIndustryClassification(models.Model):
     # Compute, inverse, search methods
     # --------------------------------
 
-    @api.depends('code')
+    @api.depends("code")
     def _compute_display_name(self):
         for classification in self:
             classification.display_name = f"{classification.code} {classification.name}"

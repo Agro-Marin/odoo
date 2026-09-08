@@ -1,4 +1,5 @@
 from odoo import tests
+
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 
@@ -6,12 +7,14 @@ from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 class TestLivechatChatbotFormUI(HttpCaseWithUserDemo):
     def test_chatbot_steps_sequence_ui(self):
         self.start_tour(
-            '/odoo',
-            'im_livechat_chatbot_steps_sequence_tour',
-            login='admin',
+            "/odoo",
+            "im_livechat_chatbot_steps_sequence_tour",
+            login="admin",
         )
 
-        chatbot_script = self.env['chatbot.script'].search([('title', '=', 'Test Chatbot Sequence')])
+        chatbot_script = self.env["chatbot.script"].search(
+            [("title", "=", "Test Chatbot Sequence")]
+        )
 
         self.assertEqual(len(chatbot_script.script_step_ids), 3)
 
@@ -24,15 +27,16 @@ class TestLivechatChatbotFormUI(HttpCaseWithUserDemo):
 
     def test_chatbot_steps_sequence_with_move_ui(self):
         self.start_tour(
-            '/odoo',
-            'im_livechat_chatbot_steps_sequence_with_move_tour',
-            login='admin',
+            "/odoo",
+            "im_livechat_chatbot_steps_sequence_with_move_tour",
+            login="admin",
         )
 
-        chatbot_script = self.env['chatbot.script'].search([('title', '=', 'Test Chatbot Sequence')])
+        chatbot_script = self.env["chatbot.script"].search(
+            [("title", "=", "Test Chatbot Sequence")]
+        )
 
         self.assertEqual(len(chatbot_script.script_step_ids), 6)
-
 
         self.assertEqual(chatbot_script.script_step_ids[0].message, "<p>Step 1</p>")
         self.assertEqual(chatbot_script.script_step_ids[0].sequence, 0)

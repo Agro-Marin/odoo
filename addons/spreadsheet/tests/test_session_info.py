@@ -10,14 +10,12 @@ class TestSessionInfo(common.HttpCase):
         super().setUpClass()
         cls.user_password = "password"
         cls.user = common.new_test_user(
-            cls.env,
-            "user",
-            email="user@in.fo",
-            password=cls.user_password,
-            tz="UTC")
+            cls.env, "user", email="user@in.fo", password=cls.user_password, tz="UTC"
+        )
 
         cls.payload = json.dumps(
-            {"jsonrpc": "2.0", "method": "call", "id": str(uuid4())})
+            {"jsonrpc": "2.0", "method": "call", "id": str(uuid4())}
+        )
         cls.headers = {
             "Content-Type": "application/json",
         }
@@ -29,7 +27,8 @@ class TestSessionInfo(common.HttpCase):
         """
         self.authenticate(self.user.login, self.user_password)
         response = self.url_open(
-            "/web/session/get_session_info", data=self.payload, headers=self.headers)
+            "/web/session/get_session_info", data=self.payload, headers=self.headers
+        )
         self.assertEqual(response.status_code, 200)
 
         data = response.json()
@@ -38,4 +37,5 @@ class TestSessionInfo(common.HttpCase):
         self.assertEqual(
             session_info["can_insert_in_spreadsheet"],
             False,
-            "The session_info['can_insert_in_spreadsheet'] should be False")
+            "The session_info['can_insert_in_spreadsheet'] should be False",
+        )

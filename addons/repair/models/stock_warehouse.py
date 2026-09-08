@@ -3,84 +3,101 @@ from odoo.exceptions import UserError
 
 
 class StockWarehouse(models.Model):
-    _inherit = 'stock.warehouse'
+    _inherit = "stock.warehouse"
 
-    repair_type_id = fields.Many2one('stock.picking.type', 'Repair Operation Type', check_company=True, copy=False)
-    repair_mto_pull_id = fields.Many2one(
-        'stock.rule', 'Repair MTO Rule', copy=False)
+    repair_type_id = fields.Many2one(
+        "stock.picking.type", "Repair Operation Type", check_company=True, copy=False
+    )
+    repair_mto_pull_id = fields.Many2one("stock.rule", "Repair MTO Rule", copy=False)
 
     def _get_picking_type_codes(self):
         codes = super()._get_picking_type_codes()
-        codes['repair_type_id'] = 'RO'
+        codes["repair_type_id"] = "RO"
         return codes
 
     def _prepare_picking_type_create_vals(self):
         data = super()._prepare_picking_type_create_vals()
         prod_location = self._get_production_location()
-        scrap_location = self.env['stock.location'].search([
-            ('usage', '=', 'inventory'),
-            ('company_id', 'in', [self.company_id.id, False]),
-        ], limit=1)
+        scrap_location = self.env["stock.location"].search(
+            [
+                ("usage", "=", "inventory"),
+                ("company_id", "in", [self.company_id.id, False]),
+            ],
+            limit=1,
+        )
         if not scrap_location:
             raise UserError(_("No location of type Inventory Loss found"))
 
-        data.update({
-            'repair_type_id': {
-                'name': _('Repairs'),
-                'code': 'repair_operation',
-                'default_location_src_id': self.lot_stock_id.id,
-                'default_location_dest_id': prod_location.id,
-                'default_remove_location_dest_id': scrap_location.id,
-                'default_recycle_location_dest_id': self.lot_stock_id.id,
-                'company_id': self.company_id.id,
-                'use_create_lots': True,
-                'use_existing_lots': True,
-            },
-        })
+        data.update(
+            {
+                "repair_type_id": {
+                    "name": _("Repairs"),
+                    "code": "repair_operation",
+                    "default_location_src_id": self.lot_stock_id.id,
+                    "default_location_dest_id": prod_location.id,
+                    "default_remove_location_dest_id": scrap_location.id,
+                    "default_recycle_location_dest_id": self.lot_stock_id.id,
+                    "company_id": self.company_id.id,
+                    "use_create_lots": True,
+                    "use_existing_lots": True,
+                },
+            }
+        )
         return data
 
     def _prepare_picking_type_update_vals(self):
         data = super()._prepare_picking_type_update_vals()
-        data.update({
-            'repair_type_id': {
-                'active': self.active,
-            },
-        })
+        data.update(
+            {
+                "repair_type_id": {
+                    "active": self.active,
+                },
+            }
+        )
         return data
 
     def _create_missing_locations(self, vals):
         super()._create_missing_locations(vals)
         for company_id in self.company_id:
-            location = self.env['stock.location'].search([('usage', '=', 'production'), ('company_id', '=', company_id.id)], limit=1)
+            location = self.env["stock.location"].search(
+                [("usage", "=", "production"), ("company_id", "=", company_id.id)],
+                limit=1,
+            )
             if not location:
                 company_id._create_production_location()
 
     def _get_fields_route_trigger(self):
-        return super()._get_fields_route_trigger() | {'repair_type_id'}
+        return super()._get_fields_route_trigger() | {"repair_type_id"}
 
     def _get_global_rule_fields(self):
-        return super()._get_global_rule_fields() | {'repair_mto_pull_id'}
+        return super()._get_global_rule_fields() | {"repair_mto_pull_id"}
 
     def _prepare_global_route_rule_vals(self):
         rules = super()._prepare_global_route_rule_vals()
         production_location = self._get_production_location()
-        rules.update({
-            'repair_mto_pull_id': {
-                'depends': ['repair_type_id'],
-                'create_values': {
-                    'procure_method': 'make_to_order',
-                    'company_id': self.company_id.id,
-                    'action': 'pull',
-                    'auto': 'manual',
-                    'route_id': self._get_or_create_global_route('stock.route_warehouse0_mto', _('Replenish on Order (MTO)')).id,
-                    'location_dest_id': self.repair_type_id.default_location_dest_id.id,
-                    'location_src_id': self.repair_type_id.default_location_src_id.id,
-                    'picking_type_id': self.repair_type_id.id
+        rules.update(
+            {
+                "repair_mto_pull_id": {
+                    "depends": ["repair_type_id"],
+                    "create_values": {
+                        "procure_method": "make_to_order",
+                        "company_id": self.company_id.id,
+                        "action": "pull",
+                        "auto": "manual",
+                        "route_id": self._get_or_create_global_route(
+                            "stock.route_warehouse0_mto", _("Replenish on Order (MTO)")
+                        ).id,
+                        "location_dest_id": self.repair_type_id.default_location_dest_id.id,
+                        "location_src_id": self.repair_type_id.default_location_src_id.id,
+                        "picking_type_id": self.repair_type_id.id,
+                    },
+                    "update_values": {
+                        "name": self._format_rulename(
+                            self.lot_stock_id, production_location, "MTO"
+                        ),
+                        "active": True,
+                    },
                 },
-                'update_values': {
-                    'name': self._format_rulename(self.lot_stock_id, production_location, 'MTO'),
-                    'active': True,
-                },
-            },
-        })
+            }
+        )
         return rules

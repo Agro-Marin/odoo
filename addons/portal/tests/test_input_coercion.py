@@ -11,7 +11,6 @@ from odoo.addons.portal.utils import (
 
 
 class _FakeTokenThread:
-
     _mail_post_token_field = "access_token"
     _fields = {"access_token": object()}
 
@@ -29,7 +28,6 @@ class _FakeTokenThread:
 
 
 class TestCredentialTypeCoercion(TransactionCase):
-
     def test_hash_pid_non_str_hash(self):
         for bad_hash in (5, 5.5, True, ["deadbeef"], {"a": 1}):
             with self.subTest(hash=bad_hash):
@@ -65,7 +63,6 @@ class TestCredentialTypeCoercion(TransactionCase):
 
 
 class TestRecordPagerUrl(TransactionCase):
-
     def test_empty_url_field_yields_no_link(self):
         partner = self.env.ref("base.partner_root")
 
@@ -89,7 +86,6 @@ class TestRecordPagerUrl(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestAddressBooleanParam(HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -137,7 +133,6 @@ class TestAddressBooleanParam(HttpCase):
 
 
 class TestShareRecipientSplit(TransactionCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -194,7 +189,6 @@ class TestShareRecipientSplit(TransactionCase):
 
 
 class TestPortalMessageFormatScaling(TransactionCase):
-
     def _make_messages(self, count):
         thread = self.env["res.partner"].create({"name": "Chatter Scaling"})
         return self.env["mail.message"].concat(
@@ -231,7 +225,6 @@ class TestPortalMessageFormatScaling(TransactionCase):
 
 
 class TestPagerBounds(TransactionCase):
-
     def test_non_positive_step(self):
         for step in (0, -5):
             with self.subTest(step=step):
@@ -273,7 +266,6 @@ class TestPagerBounds(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestPortalApiKeysVisibility(HttpCase):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

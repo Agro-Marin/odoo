@@ -21,9 +21,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
         super().setUpClass()
 
         cls.partner_a.email = "turlututu@tsointsoin"
-        cls.user_accountman = (
-            cls.env.user
-        )
+        cls.user_accountman = cls.env.user
         cls.company_main = cls.company_data["company"]
         cls.move_template = cls.env["mail.template"].create(
             {

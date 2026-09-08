@@ -1,5 +1,6 @@
 from odoo import fields
 from odoo.tests.common import tagged
+
 from odoo.addons.im_livechat.tests.common import TestGetOperatorCommon
 
 
@@ -15,7 +16,8 @@ class TestUserLivechatUsername(TestGetOperatorCommon):
             }
         )
         data = self.call_jsonrpc(
-            "/im_livechat/get_session", {"channel_id": livechat_channel.id, "persisted": True}
+            "/im_livechat/get_session",
+            {"channel_id": livechat_channel.id, "persisted": True},
         )
         john.partner_id.user_livechat_username = "ELOPERADOR"
         channel = self.env["discuss.channel"].browse(data["channel_id"])
@@ -62,19 +64,32 @@ class TestUserLivechatUsername(TestGetOperatorCommon):
         livechat_channel = self.env["im_livechat.channel"].create(
             {
                 "name": "The channel",
-                "user_ids": [fields.Command.link(john.id), fields.Command.link(operator.id)],
+                "user_ids": [
+                    fields.Command.link(john.id),
+                    fields.Command.link(operator.id),
+                ],
             }
         )
-        channel = self.env["discuss.channel"].with_user(operator).create(
-            {
-                "name": "Livechat session",
-                "channel_type": "livechat",
-                "livechat_operator_id": operator.partner_id.id,
-                "livechat_channel_id": livechat_channel.id,
-            }
+        channel = (
+            self.env["discuss.channel"]
+            .with_user(operator)
+            .create(
+                {
+                    "name": "Livechat session",
+                    "channel_type": "livechat",
+                    "livechat_operator_id": operator.partner_id.id,
+                    "livechat_channel_id": livechat_channel.id,
+                }
+            )
         )
-        data = operator.partner_id.with_user(operator).search_for_channel_invite("fr_FR", channel.id)["store_data"]
-        john_data = next(filter(lambda partner: partner["id"] == john.partner_id.id, data["res.partner"]))
+        data = operator.partner_id.with_user(operator).search_for_channel_invite(
+            "fr_FR", channel.id
+        )["store_data"]
+        john_data = next(
+            filter(
+                lambda partner: partner["id"] == john.partner_id.id, data["res.partner"]
+            )
+        )
         self.assertEqual(
             john_data["user_livechat_username"],
             "ELOPERADOR",

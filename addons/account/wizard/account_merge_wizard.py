@@ -27,7 +27,9 @@ class AccountMergeWizard(models.TransientModel):
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
-        if not set(fields_list) & {"account_ids", "wizard_line_ids"} or set(res.keys()) & {
+        if not set(fields_list) & {"account_ids", "wizard_line_ids"} or set(
+            res.keys()
+        ) & {
             "account_ids",
             "wizard_line_ids",
         }:
@@ -72,9 +74,7 @@ class AccountMergeWizard(models.TransientModel):
                         "display_type": "line_section",
                         "grouping_key": grouping_key_str,
                         "sequence": (sequence := sequence + 1),
-                        "account_id": group_accounts[
-                            0
-                        ].id,
+                        "account_id": group_accounts[0].id,
                     }
                 )
                 wizard_lines_vals_list.extend(

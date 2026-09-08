@@ -13,7 +13,9 @@ class TestUi(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
             {
                 "city": "Bayonne",
                 "country_id": cls.env.ref("base.us").id,
-                "phone_ids": [Command.create({"number": "(683)-556-5104", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "(683)-556-5104", "type": "landline"})
+                ],
                 "street": "858 Lynn Street",
                 "zip": "07002",
                 "state_id": cls.env.ref("base.state_us_5").id,

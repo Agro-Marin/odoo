@@ -23,7 +23,9 @@ class TestSalePrices(SaleCommon):
         cls.env.company.account_fiscal_country_id = belgium
         cls.env.add_to_compute(
             cls.env["account.tax"]._fields["country_id"],
-            cls.env["account.tax"].search([('company_ids', 'in', [cls.env.company.id])]),
+            cls.env["account.tax"].search(
+                [("company_ids", "in", [cls.env.company.id])]
+            ),
         )
         cls.env.add_to_compute(
             cls.env["account.tax.group"]._fields["country_id"],
@@ -170,9 +172,7 @@ class TestSalePrices(SaleCommon):
             self.assertEqual(order_line.price_unit, self.product.lst_price)
             self.assertEqual(order_line.discount, 10)
 
-        self.assertEqual(
-            self.empty_order.amount_untaxed, self.product.lst_price * 3.8
-        )
+        self.assertEqual(self.empty_order.amount_untaxed, self.product.lst_price * 3.8)
 
     def test_pricelist_product_context(self):
         no_variant_attribute = self.env["product.attribute"].create(
@@ -564,7 +564,6 @@ class TestSalePrices(SaleCommon):
             }
         )
 
-
         sales_order = (
             product_1_ctxt.with_context(mail_notrack=True, mail_create_nolog=True)
             .env["sale.order"]
@@ -704,7 +703,6 @@ class TestSalePrices(SaleCommon):
             so_line.save()
 
         self.assertEqual(so_line.price_unit, 10.0)
-
 
     def test_sale_tax_mapping(self):
         country_belgium = self.env["res.country"].search(
@@ -914,7 +912,6 @@ class TestSalePrices(SaleCommon):
                 },
             ]
         )
-
 
         SaleOrder = self.env["sale.order"]
 

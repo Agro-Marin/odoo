@@ -1,15 +1,18 @@
 from odoo import models
+
 from odoo.addons.mail.tools.discuss import Store
 
 
 class MailMessage(models.Model):
-    _inherit = 'mail.message'
+    _inherit = "mail.message"
 
     def _to_store_defaults(self, target):
         return super()._to_store_defaults(target) + ["chatbot_current_step"]
 
     def _to_store(self, store: Store, fields, **kwargs):
-        super()._to_store(store, [f for f in fields if f != "chatbot_current_step"], **kwargs)
+        super()._to_store(
+            store, [f for f in fields if f != "chatbot_current_step"], **kwargs
+        )
         if "chatbot_current_step" not in fields:
             return
         channel_messages = self.filtered(lambda message: message.channel_id)
@@ -62,7 +65,8 @@ class MailMessage(models.Model):
                         ]
                     store.add_model_values("ChatbotStep", step_data)
                     store.add(
-                        message, {"chatbotStep": {"scriptStep": step.id, "message": message.id}}
+                        message,
+                        {"chatbotStep": {"scriptStep": step.id, "message": message.id}},
                     )
 
     def _get_store_partner_name_fields(self):

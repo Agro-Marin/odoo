@@ -1,14 +1,17 @@
 from datetime import datetime, timedelta
 
-from odoo import api, models, fields
+from odoo import api, fields, models
 from odoo.fields import Domain
+
 from odoo.addons.mail.tools.discuss import Store
 
 
 class DiscussChannelMember(models.Model):
-    _inherit = 'discuss.channel.member'
+    _inherit = "discuss.channel.member"
 
-    livechat_member_history_ids = fields.One2many("im_livechat.channel.member.history", "member_id")
+    livechat_member_history_ids = fields.One2many(
+        "im_livechat.channel.member.history", "member_id"
+    )
     livechat_member_type = fields.Selection(
         [("agent", "Agent"), ("visitor", "Visitor"), ("bot", "Chatbot")],
         compute="_compute_livechat_member_type",
@@ -33,7 +36,9 @@ class DiscussChannelMember(models.Model):
         members = super().create(vals_list)
         guest = self.env["mail.guest"]._get_guest_from_context()
         for member in members.filtered(
-            lambda m: m.channel_id.channel_type == "livechat" and not m.livechat_member_type
+            lambda m: (
+                m.channel_id.channel_type == "livechat" and not m.livechat_member_type
+            )
         ):
             if (
                 guest
@@ -48,20 +53,28 @@ class DiscussChannelMember(models.Model):
     @api.depends("livechat_member_history_ids.livechat_member_type")
     def _compute_livechat_member_type(self):
         for member in self:
-            member.livechat_member_type = member.livechat_member_history_ids.livechat_member_type
+            member.livechat_member_type = (
+                member.livechat_member_history_ids.livechat_member_type
+            )
 
     @api.depends("livechat_member_history_ids.chatbot_script_id")
     def _compute_chatbot_script_id(self):
         for member in self:
-            member.chatbot_script_id = member.livechat_member_history_ids.chatbot_script_id
+            member.chatbot_script_id = (
+                member.livechat_member_history_ids.chatbot_script_id
+            )
 
     @api.depends("livechat_member_history_ids.agent_expertise_ids")
     def _compute_agent_expertise_ids(self):
         for member in self:
-            member.agent_expertise_ids = member.livechat_member_history_ids.agent_expertise_ids
+            member.agent_expertise_ids = (
+                member.livechat_member_history_ids.agent_expertise_ids
+            )
 
     def _create_or_update_history(self, values_by_member):
-        members_without_history = self.filtered(lambda m: not m.livechat_member_history_ids)
+        members_without_history = self.filtered(
+            lambda m: not m.livechat_member_history_ids
+        )
         history_domain = Domain.OR(
             [
                 [
@@ -80,10 +93,16 @@ class DiscussChannelMember(models.Model):
             persona = history.partner_id or history.guest_id
             history_by_channel_persona[history.channel_id, persona] = history
         to_create = members_without_history.filtered(
-            lambda m: (m.channel_id, m.partner_id or m.guest_id) not in history_by_channel_persona
+            lambda m: (
+                (m.channel_id, m.partner_id or m.guest_id)
+                not in history_by_channel_persona
+            )
         )
         self.env["im_livechat.channel.member.history"].create(
-            [{"member_id": member.id, **values_by_member[member]} for member in to_create]
+            [
+                {"member_id": member.id, **values_by_member[member]}
+                for member in to_create
+            ]
         )
         for member in self - to_create:
             persona = member.partner_id or member.guest_id
@@ -98,28 +117,41 @@ class DiscussChannelMember(models.Model):
 
     def _inverse_livechat_member_type(self):
         self.sudo()._create_or_update_history(
-            {member: {"livechat_member_type": member.livechat_member_type} for member in self},
+            {
+                member: {"livechat_member_type": member.livechat_member_type}
+                for member in self
+            },
         )
 
     def _inverse_chatbot_script_id(self):
         self.sudo()._create_or_update_history(
-            {member: {"chatbot_script_id": member.chatbot_script_id.id} for member in self}
+            {
+                member: {"chatbot_script_id": member.chatbot_script_id.id}
+                for member in self
+            }
         )
 
     def _inverse_agent_expertise_ids(self):
         self.sudo()._create_or_update_history(
-            {member: {"agent_expertise_ids": member.agent_expertise_ids.ids} for member in self}
+            {
+                member: {"agent_expertise_ids": member.agent_expertise_ids.ids}
+                for member in self
+            }
         )
 
     @api.autovacuum
     def _gc_unpin_livechat_sessions(self):
-        members = self.env['discuss.channel.member'].search([
-            ('is_pinned', '=', True),
-            ('last_seen_dt', '<=', datetime.now() - timedelta(days=1)),
-            ('channel_id.channel_type', '=', 'livechat'),
-        ])
-        sessions_to_be_unpinned = members.filtered(lambda m: m.message_unread_counter == 0)
-        sessions_to_be_unpinned.write({'unpin_dt': fields.Datetime.now()})
+        members = self.env["discuss.channel.member"].search(
+            [
+                ("is_pinned", "=", True),
+                ("last_seen_dt", "<=", datetime.now() - timedelta(days=1)),
+                ("channel_id.channel_type", "=", "livechat"),
+            ]
+        )
+        sessions_to_be_unpinned = members.filtered(
+            lambda m: m.message_unread_counter == 0
+        )
+        sessions_to_be_unpinned.write({"unpin_dt": fields.Datetime.now()})
         sessions_to_be_unpinned.channel_id.livechat_end_dt = fields.Datetime.now()
         for member in sessions_to_be_unpinned:
             Store(bus_channel=member._bus_channel()).add(
@@ -137,7 +169,7 @@ class DiscussChannelMember(models.Model):
 
     def _get_store_partner_fields(self, field_specs):
         self.check_singleton()
-        if self.channel_id.channel_type == 'livechat':
+        if self.channel_id.channel_type == "livechat":
             new_fields = [
                 "active",
                 "avatar_128",
@@ -153,7 +185,7 @@ class DiscussChannelMember(models.Model):
 
     def _get_store_guest_fields(self, field_specs):
         self.check_singleton()
-        if self.channel_id.channel_type == 'livechat':
+        if self.channel_id.channel_type == "livechat":
             return [
                 "avatar_128",
                 Store.One("country_id", ["code", "name"]),
@@ -166,7 +198,9 @@ class DiscussChannelMember(models.Model):
     def _get_rtc_invite_members_domain(self, *a, **kw):
         domain = super()._get_rtc_invite_members_domain(*a, **kw)
         if self.channel_id.channel_type == "livechat":
-            domain &= Domain("partner_id", "not in", self._get_excluded_rtc_members_partner_ids())
+            domain &= Domain(
+                "partner_id", "not in", self._get_excluded_rtc_members_partner_ids()
+            )
         return domain
 
     def _get_excluded_rtc_members_partner_ids(self):
@@ -175,6 +209,9 @@ class DiscussChannelMember(models.Model):
         return excluded_partner_ids
 
     def _get_html_link_title(self):
-        if self.channel_id.channel_type == "livechat" and self.partner_id.user_livechat_username:
+        if (
+            self.channel_id.channel_type == "livechat"
+            and self.partner_id.user_livechat_username
+        ):
             return self.partner_id.user_livechat_username
         return super()._get_html_link_title()

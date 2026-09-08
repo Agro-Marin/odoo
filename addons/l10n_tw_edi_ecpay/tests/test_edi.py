@@ -5,52 +5,68 @@ from urllib.parse import urljoin
 from freezegun import freeze_time
 
 from odoo import Command
-from odoo.addons.account.tests.test_account_move_send import TestAccountMoveSendCommon
 from odoo.exceptions import UserError
 from odoo.tests import tagged
 from odoo.tests.common import HttpCase
 
-CALL_API_METHOD = 'odoo.addons.l10n_tw_edi_ecpay.models.account_move.call_ecpay_api'
+from odoo.addons.account.tests.test_account_move_send import TestAccountMoveSendCommon
+
+CALL_API_METHOD = "odoo.addons.l10n_tw_edi_ecpay.models.account_move.call_ecpay_api"
 
 
-@tagged('post_install_l10n', 'post_install', '-at_install')
+@tagged("post_install_l10n", "post_install", "-at_install")
 class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
-
     @classmethod
-    @TestAccountMoveSendCommon.setup_country('tw')
+    @TestAccountMoveSendCommon.setup_country("tw")
     def setUpClass(cls):
         super().setUpClass()
-        cls.company_data['company'].write({
-            'l10n_tw_edi_ecpay_staging_mode': True,
-            'l10n_tw_edi_ecpay_merchant_id': '1234',
-            'l10n_tw_edi_ecpay_hashkey': 'aaBBccDDeeFFggHH',
-            'l10n_tw_edi_ecpay_hashIV': 'bbCCDDeeFFggHHaa',
-            'phone_ids': [Command.create({"number": '+886 123 456 781', "type": "landline"})],
-        })
-        cls.partner_a.write({
-            'phone_ids': [Command.create({"number": '+886 123 456 789', "type": "landline"})],
-            'street': 'street七美',
-            'city': '中正區',
-            'state_id': cls.env.ref('base.state_tw_tpc').id,
-            'country_id': cls.env.ref('base.tw').id,
-            'is_company': False,
-        })
-        cls.partner_b.write({
-            'phone_ids': [Command.create({"number": '+886 123 456 789', "type": "landline"})],
-            'street': 'street七美',
-            'city': '信義區',
-            'state_id': cls.env.ref('base.state_tw_klc').id,
-            'country_id': cls.env.ref('base.tw').id,
-            'vat': '24153791',
-            'is_company': True,
-        })
+        cls.company_data["company"].write(
+            {
+                "l10n_tw_edi_ecpay_staging_mode": True,
+                "l10n_tw_edi_ecpay_merchant_id": "1234",
+                "l10n_tw_edi_ecpay_hashkey": "aaBBccDDeeFFggHH",
+                "l10n_tw_edi_ecpay_hashIV": "bbCCDDeeFFggHHaa",
+                "phone_ids": [
+                    Command.create({"number": "+886 123 456 781", "type": "landline"})
+                ],
+            }
+        )
+        cls.partner_a.write(
+            {
+                "phone_ids": [
+                    Command.create({"number": "+886 123 456 789", "type": "landline"})
+                ],
+                "street": "street七美",
+                "city": "中正區",
+                "state_id": cls.env.ref("base.state_tw_tpc").id,
+                "country_id": cls.env.ref("base.tw").id,
+                "is_company": False,
+            }
+        )
+        cls.partner_b.write(
+            {
+                "phone_ids": [
+                    Command.create({"number": "+886 123 456 789", "type": "landline"})
+                ],
+                "street": "street七美",
+                "city": "信義區",
+                "state_id": cls.env.ref("base.state_tw_klc").id,
+                "country_id": cls.env.ref("base.tw").id,
+                "vat": "24153791",
+                "is_company": True,
+            }
+        )
         # We can reuse this invoice for the flow tests.
         cls.basic_invoice = cls.init_invoice(
-            'out_invoice', partner=cls.partner_a, products=cls.product_a,
+            "out_invoice",
+            partner=cls.partner_a,
+            products=cls.product_a,
         )
         cls.basic_invoice.action_post()
         cls.basic_invoice_b2b = cls.init_invoice(
-            'out_invoice', partner=cls.partner_b, products=cls.product_a,
+            "out_invoice",
+            partner=cls.partner_b,
+            products=cls.product_a,
         )
         cls.basic_invoice_b2b.action_post()
 
@@ -69,9 +85,11 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         self.assertEqual(json_data.get("CustomerEmail"), "partner_a@tsointsoin")
         self.assertEqual(json_data.get("CustomerPhone"), "0123456789")
         self.assertEqual(json_data.get("SalesAmount"), 1050.0)
-        self.assertEqual(json_data.get("CustomerAddr"), "street七美, 中正區 TPC, Taiwan")
+        self.assertEqual(
+            json_data.get("CustomerAddr"), "street七美, 中正區 TPC, Taiwan"
+        )
 
-        self.basic_invoice.write({'ref': 'Test Reference'})
+        self.basic_invoice.write({"ref": "Test Reference"})
         json_data_with_ref = self.basic_invoice._l10n_tw_edi_generate_invoice_json()
         self.assertEqual(json_data_with_ref.get("InvoiceRemark"), "Test Reference")
 
@@ -87,11 +105,15 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         # Now that the invoice has been sent successfully, we assert that some info have been saved correctly.
         self.assertRecordValues(
             self.basic_invoice,
-            [{
-                'l10n_tw_edi_ecpay_invoice_id': 'AB11100099',
-                'l10n_tw_edi_invoice_create_date': datetime.strptime('2025-01-06 15:00:00', '%Y-%m-%d %H:%M:%S'),
-                'l10n_tw_edi_state': 'valid',
-            }]
+            [
+                {
+                    "l10n_tw_edi_ecpay_invoice_id": "AB11100099",
+                    "l10n_tw_edi_invoice_create_date": datetime.strptime(
+                        "2025-01-06 15:00:00", "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "l10n_tw_edi_state": "valid",
+                }
+            ],
         )
 
         self.assertTrue(self.basic_invoice.l10n_tw_edi_file_id)
@@ -113,11 +135,19 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         send_and_print = self.create_send_and_print(self.basic_invoice)
         with patch(CALL_API_METHOD, new=self._test_04_mock):
             send_and_print.action_send_and_print()
-            wizard_vals = {'journal_id': self.basic_invoice.journal_id.id, 'reason': 'refund'}
-            wizard_reverse = self.env['account.move.reversal']\
-                .with_context(active_ids=self.basic_invoice.id, active_model='account.move').create(wizard_vals)
+            wizard_vals = {
+                "journal_id": self.basic_invoice.journal_id.id,
+                "reason": "refund",
+            }
+            wizard_reverse = (
+                self.env["account.move.reversal"]
+                .with_context(
+                    active_ids=self.basic_invoice.id, active_model="account.move"
+                )
+                .create(wizard_vals)
+            )
             wizard_reverse.reverse_moves(is_modify=True)
-        self.assertEqual(self.basic_invoice.l10n_tw_edi_state, 'invalid')
+        self.assertEqual(self.basic_invoice.l10n_tw_edi_state, "invalid")
 
     @freeze_time("2025-01-06 15:00:00")
     def test_05_refund_invoice(self):
@@ -130,13 +160,18 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         with patch(CALL_API_METHOD, new=self._test_05_mock):
             send_and_print.action_send_and_print()
             wizard_vals = {
-                'journal_id': self.basic_invoice.journal_id.id,
-                'l10n_tw_edi_refund_agreement_type': 'offline',
-                'l10n_tw_edi_allowance_notify_way': 'email',
-                'reason': 'refund',
+                "journal_id": self.basic_invoice.journal_id.id,
+                "l10n_tw_edi_refund_agreement_type": "offline",
+                "l10n_tw_edi_allowance_notify_way": "email",
+                "reason": "refund",
             }
-            wizard_reverse = self.env['account.move.reversal']\
-                .with_context(active_ids=self.basic_invoice.id, active_model='account.move').create(wizard_vals)
+            wizard_reverse = (
+                self.env["account.move.reversal"]
+                .with_context(
+                    active_ids=self.basic_invoice.id, active_model="account.move"
+                )
+                .create(wizard_vals)
+            )
             wizard_reverse.reverse_moves(is_modify=False)
             credit_note = wizard_reverse.new_move_ids
             credit_note.action_post()
@@ -144,14 +179,16 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             send_and_print_credit_note.action_send_and_print()
         self.assertRecordValues(
             credit_note,
-            [{
-                'reversed_entry_id': self.basic_invoice.id,
-                'l10n_tw_edi_refund_agreement_type': 'offline',
-                'l10n_tw_edi_refund_invoice_number': '20250106000000021',
-                'l10n_tw_edi_refund_state': 'agreed',
-                'l10n_tw_edi_ecpay_invoice_id': 'AB11100099',
-                'l10n_tw_edi_invoice_create_date': datetime(2025, 1, 6, 15, 0, 0),
-            }]
+            [
+                {
+                    "reversed_entry_id": self.basic_invoice.id,
+                    "l10n_tw_edi_refund_agreement_type": "offline",
+                    "l10n_tw_edi_refund_invoice_number": "20250106000000021",
+                    "l10n_tw_edi_refund_state": "agreed",
+                    "l10n_tw_edi_ecpay_invoice_id": "AB11100099",
+                    "l10n_tw_edi_invoice_create_date": datetime(2025, 1, 6, 15, 0, 0),
+                }
+            ],
         )
 
     @freeze_time("2025-01-06 15:00:00")
@@ -165,13 +202,18 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         with patch(CALL_API_METHOD, new=self._test_06_mock):
             send_and_print.action_send_and_print()
             wizard_vals = {
-                'journal_id': self.basic_invoice.journal_id.id,
-                'l10n_tw_edi_refund_agreement_type': 'online',
-                'l10n_tw_edi_allowance_notify_way': 'email',
-                'reason': 'refund',
+                "journal_id": self.basic_invoice.journal_id.id,
+                "l10n_tw_edi_refund_agreement_type": "online",
+                "l10n_tw_edi_allowance_notify_way": "email",
+                "reason": "refund",
             }
-            wizard_reverse = self.env['account.move.reversal']\
-                .with_context(active_ids=self.basic_invoice.id, active_model='account.move').create(wizard_vals)
+            wizard_reverse = (
+                self.env["account.move.reversal"]
+                .with_context(
+                    active_ids=self.basic_invoice.id, active_model="account.move"
+                )
+                .create(wizard_vals)
+            )
             wizard_reverse.reverse_moves(is_modify=False)
             credit_note = wizard_reverse.new_move_ids
             credit_note.action_post()
@@ -179,31 +221,33 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             send_and_print_credit_note.action_send_and_print()
         self.assertRecordValues(
             credit_note,
-            [{
-                'reversed_entry_id': self.basic_invoice.id,
-                'l10n_tw_edi_refund_agreement_type': 'online',
-                'l10n_tw_edi_refund_invoice_number': '20250106000000021',
-                'l10n_tw_edi_refund_state': 'to_be_agreed',
-                'l10n_tw_edi_ecpay_invoice_id': 'AB11100099',
-                'l10n_tw_edi_invoice_create_date': datetime(2025, 1, 6, 15, 0, 0),
-            }]
+            [
+                {
+                    "reversed_entry_id": self.basic_invoice.id,
+                    "l10n_tw_edi_refund_agreement_type": "online",
+                    "l10n_tw_edi_refund_invoice_number": "20250106000000021",
+                    "l10n_tw_edi_refund_state": "to_be_agreed",
+                    "l10n_tw_edi_ecpay_invoice_id": "AB11100099",
+                    "l10n_tw_edi_invoice_create_date": datetime(2025, 1, 6, 15, 0, 0),
+                }
+            ],
         )
 
         # test the step that the customer agrees invoice allowance
         api_url = urljoin(
             credit_note.get_base_url(),
-            f"/invoice/ecpay/agreed_invoice_allowance/{credit_note.id}?access_token={credit_note._portal_ensure_token()}")
-        response = self.url_open(
-            api_url,
-            data={"RtnCode": "1"}
+            f"/invoice/ecpay/agreed_invoice_allowance/{credit_note.id}?access_token={credit_note._portal_ensure_token()}",
         )
+        response = self.url_open(api_url, data={"RtnCode": "1"})
         self.assertEqual(response.status_code, 200)
         self.assertRecordValues(
             credit_note,
-            [{
-                'l10n_tw_edi_refund_invoice_number': '20250106000000021',
-                'l10n_tw_edi_refund_state': 'agreed',
-            }]
+            [
+                {
+                    "l10n_tw_edi_refund_invoice_number": "20250106000000021",
+                    "l10n_tw_edi_refund_state": "agreed",
+                }
+            ],
         )
 
     def test_07_fail_data_validation(self):
@@ -211,16 +255,22 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         This tests the data validation when trying to send to the ECpay platform.
         """
         # the partner is b2b but has no tax id
-        test_partner = self.env['res.partner'].create({
-            'name': 'Test Partner',
-            'phone_ids': [Command.create({"number": '+886 123 456 789', "type": "landline"})],
-            'street': 'street七美',
-            'city': '中正區',
-            'state_id': self.env.ref('base.state_tw_tpc').id,
-            'is_company': True,
-        })
+        test_partner = self.env["res.partner"].create(
+            {
+                "name": "Test Partner",
+                "phone_ids": [
+                    Command.create({"number": "+886 123 456 789", "type": "landline"})
+                ],
+                "street": "street七美",
+                "city": "中正區",
+                "state_id": self.env.ref("base.state_tw_tpc").id,
+                "is_company": True,
+            }
+        )
         invoice_a = self.init_invoice(
-            'out_invoice', partner=test_partner, products=self.product_a,
+            "out_invoice",
+            partner=test_partner,
+            products=self.product_a,
         )
         invoice_a.action_post()
         send_and_print = self.create_send_and_print(invoice_a)
@@ -228,9 +278,11 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             send_and_print.action_send_and_print()
 
         # the partner is b2b and has an invalid tax id
-        test_partner.vat = '1234567A'
+        test_partner.vat = "1234567A"
         invoice_b = self.init_invoice(
-            'out_invoice', partner=test_partner, products=self.product_a,
+            "out_invoice",
+            partner=test_partner,
+            products=self.product_a,
         )
         invoice_b.action_post()
         send_and_print = self.create_send_and_print(invoice_b)
@@ -238,21 +290,31 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             send_and_print.action_send_and_print()
 
         # the partner's phone number is invalid
-        test_partner.vat = '12345678'
-        test_partner.phone_ids = [Command.clear(), Command.create({'number': '123+456+789', 'type': 'landline'})]
+        test_partner.vat = "12345678"
+        test_partner.phone_ids = [
+            Command.clear(),
+            Command.create({"number": "123+456+789", "type": "landline"}),
+        ]
         invoice_c = self.init_invoice(
-            'out_invoice', partner=test_partner, products=self.product_a,
+            "out_invoice",
+            partner=test_partner,
+            products=self.product_a,
         )
         invoice_c.action_post()
         send_and_print = self.create_send_and_print(invoice_c)
         with self.assertRaises(UserError):
             send_and_print.action_send_and_print()
         # the invoice type is invalid
-        test_partner.phone_ids = [Command.clear(), Command.create({'number': '+886 123 456 789', 'type': 'landline'})]
+        test_partner.phone_ids = [
+            Command.clear(),
+            Command.create({"number": "+886 123 456 789", "type": "landline"}),
+        ]
         invoice_d = self.init_invoice(
-            'out_invoice', partner=test_partner, products=self.product_a,
+            "out_invoice",
+            partner=test_partner,
+            products=self.product_a,
         )
-        invoice_d.l10n_tw_edi_invoice_type = '08'
+        invoice_d.l10n_tw_edi_invoice_type = "08"
         invoice_d.action_post()
         send_and_print = self.create_send_and_print(invoice_d)
         with self.assertRaises(UserError):
@@ -261,40 +323,46 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
     def test_08_invoice_with_downpayment(self):
         """Ensure downpayment with -ve quantity is normalized for ECPay JSON."""
         invoice = self.init_invoice(
-            'out_invoice', partner=self.partner_a, products=self.product_a,
+            "out_invoice",
+            partner=self.partner_a,
+            products=self.product_a,
         )
-        invoice.write({
-            "invoice_line_ids": [
-                Command.create({
-                    "name": "Downpayment",
-                    "price_unit": 10.0,
-                    "quantity": -1.0,
-                    "tax_ids": self.tax_sale_a,
-                }),
-            ],
-        })
+        invoice.write(
+            {
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "Downpayment",
+                            "price_unit": 10.0,
+                            "quantity": -1.0,
+                            "tax_ids": self.tax_sale_a,
+                        }
+                    ),
+                ],
+            }
+        )
         invoice.action_post()
 
         self.assertListEqual(
-            invoice._l10n_tw_edi_generate_invoice_json()['Items'],
+            invoice._l10n_tw_edi_generate_invoice_json()["Items"],
             [
                 {
-                    'ItemSeq': 1,
-                    'ItemName': 'product_a',
-                    'ItemCount': 1.0,
-                    'ItemWord': 'Units',
-                    'ItemPrice': 1000.0,
-                    'ItemTaxType': '1',
-                    'ItemAmount': 1000.0
+                    "ItemSeq": 1,
+                    "ItemName": "product_a",
+                    "ItemCount": 1.0,
+                    "ItemWord": "Units",
+                    "ItemPrice": 1000.0,
+                    "ItemTaxType": "1",
+                    "ItemAmount": 1000.0,
                 },
                 {
-                    'ItemSeq': 2,
-                    'ItemName': 'Downpayment',
-                    'ItemCount': 1.0,
-                    'ItemWord': False,
-                    'ItemPrice': -10.0,
-                    'ItemTaxType': '1',
-                    'ItemAmount': -10.0
+                    "ItemSeq": 2,
+                    "ItemName": "Downpayment",
+                    "ItemCount": 1.0,
+                    "ItemWord": False,
+                    "ItemPrice": -10.0,
+                    "ItemTaxType": "1",
+                    "ItemAmount": -10.0,
                 },
             ],
         )
@@ -311,37 +379,54 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             basic_invoice_json = self.basic_invoice._l10n_tw_edi_generate_invoice_json()
             send_and_print.action_send_and_print()
             # register payment
-            self.env['account.payment.register'].with_context(active_model='account.move', active_ids=self.basic_invoice.ids).create({
-                'amount': self.basic_invoice.amount_total,
-            })._create_payments()
-            self.assertEqual(self.basic_invoice.payment_state, self.env['account.move']._get_invoice_in_payment_state())
+            self.env["account.payment.register"].with_context(
+                active_model="account.move", active_ids=self.basic_invoice.ids
+            ).create(
+                {
+                    "amount": self.basic_invoice.amount_total,
+                }
+            )._create_payments()
+            self.assertEqual(
+                self.basic_invoice.payment_state,
+                self.env["account.move"]._get_invoice_in_payment_state(),
+            )
             # create credit note
             wizard_vals = {
-                'journal_id': self.basic_invoice.journal_id.id,
-                'l10n_tw_edi_refund_agreement_type': 'offline',
-                'l10n_tw_edi_allowance_notify_way': 'email',
-                'reason': 'refund',
+                "journal_id": self.basic_invoice.journal_id.id,
+                "l10n_tw_edi_refund_agreement_type": "offline",
+                "l10n_tw_edi_allowance_notify_way": "email",
+                "reason": "refund",
             }
-            wizard_reverse = self.env['account.move.reversal']\
-                .with_context(active_ids=self.basic_invoice.id, active_model='account.move').create(wizard_vals)
+            wizard_reverse = (
+                self.env["account.move.reversal"]
+                .with_context(
+                    active_ids=self.basic_invoice.id, active_model="account.move"
+                )
+                .create(wizard_vals)
+            )
             wizard_reverse.reverse_moves(is_modify=False)
             credit_note = wizard_reverse.new_move_ids
             credit_note.action_post()
             credit_note_json = credit_note._l10n_tw_edi_generate_issue_allowance_json()
             # Ensure that the sale amount on invoice json and the allowance amount on credit note json are the same
-            self.assertEqual(basic_invoice_json.get('SalesAmount'), credit_note_json.get('AllowanceAmount'))
+            self.assertEqual(
+                basic_invoice_json.get("SalesAmount"),
+                credit_note_json.get("AllowanceAmount"),
+            )
             send_and_print_credit_note = self.create_send_and_print(credit_note)
             send_and_print_credit_note.action_send_and_print()
         self.assertRecordValues(
             credit_note,
-            [{
-                'reversed_entry_id': self.basic_invoice.id,
-                'l10n_tw_edi_refund_agreement_type': 'offline',
-                'l10n_tw_edi_refund_invoice_number': '20250106000000021',
-                'l10n_tw_edi_refund_state': 'agreed',
-                'l10n_tw_edi_ecpay_invoice_id': 'AB11100099',
-                'l10n_tw_edi_invoice_create_date': datetime(2025, 1, 6, 15, 0, 0),
-            }]
+            [
+                {
+                    "reversed_entry_id": self.basic_invoice.id,
+                    "l10n_tw_edi_refund_agreement_type": "offline",
+                    "l10n_tw_edi_refund_invoice_number": "20250106000000021",
+                    "l10n_tw_edi_refund_state": "agreed",
+                    "l10n_tw_edi_ecpay_invoice_id": "AB11100099",
+                    "l10n_tw_edi_invoice_create_date": datetime(2025, 1, 6, 15, 0, 0),
+                }
+            ],
         )
 
     @freeze_time("2025-01-06 15:00:00")
@@ -357,11 +442,15 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         # Now that the invoice has been sent successfully, we assert that some info have been saved correctly.
         self.assertRecordValues(
             self.basic_invoice_b2b,
-            [{
-                'l10n_tw_edi_ecpay_invoice_id': 'AB11100099',
-                'l10n_tw_edi_invoice_create_date': datetime.strptime('2025-01-06 15:00:00', '%Y-%m-%d %H:%M:%S'),
-                'l10n_tw_edi_state': 'valid',
-            }]
+            [
+                {
+                    "l10n_tw_edi_ecpay_invoice_id": "AB11100099",
+                    "l10n_tw_edi_invoice_create_date": datetime.strptime(
+                        "2025-01-06 15:00:00", "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "l10n_tw_edi_state": "valid",
+                }
+            ],
         )
 
         self.assertTrue(self.basic_invoice_b2b.l10n_tw_edi_file_id)
@@ -379,11 +468,15 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         # Now that the invoice has been sent successfully, we assert that some info have been saved correctly.
         self.assertRecordValues(
             self.basic_invoice_b2b,
-            [{
-                'l10n_tw_edi_ecpay_invoice_id': 'AB11100099',
-                'l10n_tw_edi_invoice_create_date': datetime.strptime('2025-01-06 15:00:00', '%Y-%m-%d %H:%M:%S'),
-                'l10n_tw_edi_state': 'valid',
-            }]
+            [
+                {
+                    "l10n_tw_edi_ecpay_invoice_id": "AB11100099",
+                    "l10n_tw_edi_invoice_create_date": datetime.strptime(
+                        "2025-01-06 15:00:00", "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "l10n_tw_edi_state": "valid",
+                }
+            ],
         )
 
         self.assertTrue(self.basic_invoice_b2b.l10n_tw_edi_file_id)
@@ -414,12 +507,16 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
         passes validation regardless of the gap. (not covered here)
         """
         seven_days_ago = datetime.now() - timedelta(days=7)
-        invoice = self.init_invoice("out_invoice", partner=self.partner_b, products=self.product_a)
-        invoice.write({
-            "invoice_date": seven_days_ago.date(),
-            "l10n_tw_edi_invoice_create_date": seven_days_ago,
-            "l10n_tw_edi_ecpay_invoice_id": "AB11100099"  # simulate it was already sent
-        })
+        invoice = self.init_invoice(
+            "out_invoice", partner=self.partner_b, products=self.product_a
+        )
+        invoice.write(
+            {
+                "invoice_date": seven_days_ago.date(),
+                "l10n_tw_edi_invoice_create_date": seven_days_ago,
+                "l10n_tw_edi_ecpay_invoice_id": "AB11100099",  # simulate it was already sent
+            }
+        )
         invoice.action_post()
 
         wizard_vals = {
@@ -427,17 +524,20 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
             "reason": "Refund 7 days later",
             "l10n_tw_edi_refund_agreement_type": "offline",
         }
-        wizard = self.env["account.move.reversal"].with_context(
-            active_ids=invoice.ids,
-            active_model="account.move"
-        ).create(wizard_vals)
+        wizard = (
+            self.env["account.move.reversal"]
+            .with_context(active_ids=invoice.ids, active_model="account.move")
+            .create(wizard_vals)
+        )
         wizard.reverse_moves()
         credit_note = wizard.new_move_ids
         credit_note.action_post()
 
         json_data = credit_note._l10n_tw_edi_generate_issue_allowance_json()
-        self.assertNotIn("AllowanceDate", json_data,
-            "B2B Allowances should not include AllowanceDate to avoid >6 day limit errors."
+        self.assertNotIn(
+            "AllowanceDate",
+            json_data,
+            "B2B Allowances should not include AllowanceDate to avoid >6 day limit errors.",
         )
 
     # -------------------------------------------------------------------------
@@ -450,7 +550,10 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "CompanyName": "Test Company",
             }
         else:
-            raise UserError('Unexpected endpoint called during a test: %s with params %s.' % (endpoint, params))
+            raise UserError(
+                "Unexpected endpoint called during a test: %s with params %s."
+                % (endpoint, params)
+            )
 
     def _test_02_mock(self, endpoint, json_data, company_id, is_b2b=False):
         if endpoint == "/Issue":
@@ -459,7 +562,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnMsg": "Success",
                 "InvoiceNo": "AB11100099",
                 "InvoiceDate": "2025-01-06 23:00:00",
-                "RandomNumber": "6868"
+                "RandomNumber": "6868",
             }
         elif endpoint == "/GetIssue":
             return {
@@ -477,7 +580,10 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "CompanyName": "Test Company",
             }
         else:
-            raise UserError('Unexpected endpoint called during a test: %s with params %s.' % (endpoint, json_data))
+            raise UserError(
+                "Unexpected endpoint called during a test: %s with params %s."
+                % (endpoint, json_data)
+            )
 
     def _test_03_mock(self, endpoint, params, company_id, is_b2b=False):
         if endpoint == "/Issue":
@@ -486,7 +592,10 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnMsg": "Error",
             }
         else:
-            raise UserError('Unexpected endpoint called during a test: %s with params %s.' % (endpoint, params))
+            raise UserError(
+                "Unexpected endpoint called during a test: %s with params %s."
+                % (endpoint, params)
+            )
 
     def _test_04_mock(self, endpoint, params, company_id, is_b2b=False):
         if endpoint == "/Issue":
@@ -495,32 +604,33 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnMsg": "Success",
                 "InvoiceNo": "AB11100099",
                 "InvoiceDate": "2025-01-06 23:00:00",
-                "RandomNumber": "6868"
+                "RandomNumber": "6868",
             }
         elif endpoint == "/GetIssue":
             return_data = {
                 "RtnCode": 1,
                 "RtnMsg": "Success",
                 "IIS_Sales_Amount": self.basic_invoice.amount_total,
-                "IIS_Invalid_Status": "1" if self.basic_invoice.l10n_tw_edi_invalidate_reason else "0",
+                "IIS_Invalid_Status": "1"
+                if self.basic_invoice.l10n_tw_edi_invalidate_reason
+                else "0",
                 "IIS_Issue_Status": "1",
                 "IIS_Relate_Number": "20250106000000020",
                 "IIS_Remain_Allowance_Amt": 0,
             }
             return return_data
         elif endpoint == "/Invalid":
-            return {
-                "RtnCode": 1,
-                "RtnMsg": "Success",
-                "InvoiceNo": "AB11100099"
-            }
+            return {"RtnCode": 1, "RtnMsg": "Success", "InvoiceNo": "AB11100099"}
         elif endpoint == "/GetCompanyNameByTaxID":
             return {
                 "RtnCode": 1,
                 "CompanyName": "Test Company",
             }
         else:
-            raise UserError('Unexpected endpoint called during a test: %s with params %s.' % (endpoint, params))
+            raise UserError(
+                "Unexpected endpoint called during a test: %s with params %s."
+                % (endpoint, params)
+            )
 
     def _test_05_mock(self, endpoint, params, company_id, is_b2b=False):
         if endpoint == "/Issue":
@@ -529,7 +639,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnMsg": "Success",
                 "InvoiceNo": "AB11100099",
                 "InvoiceDate": "2025-01-06 23:00:00",
-                "RandomNumber": "6868"
+                "RandomNumber": "6868",
             }
         elif endpoint == "/GetIssue":
             return_data = {
@@ -557,7 +667,10 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "CompanyName": "Test Company",
             }
         else:
-            raise UserError('Unexpected endpoint called during a test: %s with params %s.' % (endpoint, params))
+            raise UserError(
+                "Unexpected endpoint called during a test: %s with params %s."
+                % (endpoint, params)
+            )
 
     def _test_06_mock(self, endpoint, params, company_id, is_b2b=False):
         if endpoint == "/Issue":
@@ -566,7 +679,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnMsg": "Success",
                 "InvoiceNo": "AB11100099",
                 "InvoiceDate": "2025-01-06 23:00:00",
-                "RandomNumber": "6868"
+                "RandomNumber": "6868",
             }
         elif endpoint == "/GetIssue":
             return_data = {
@@ -594,7 +707,10 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "CompanyName": "Test Company",
             }
         else:
-            raise UserError('Unexpected endpoint called during a test: %s with params %s.' % (endpoint, params))
+            raise UserError(
+                "Unexpected endpoint called during a test: %s with params %s."
+                % (endpoint, params)
+            )
 
     def _test_09_mock(self, endpoint, params, company_id, is_b2b=False):
         if endpoint == "/Issue":
@@ -603,7 +719,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnMsg": "Success",
                 "InvoiceNo": "AB11100099",
                 "InvoiceDate": "2025-01-06 23:00:00",
-                "RandomNumber": "6868"
+                "RandomNumber": "6868",
             }
         elif endpoint == "/GetIssue":
             return_data = {
@@ -631,7 +747,10 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "CompanyName": "Test Company",
             }
         else:
-            raise UserError('Unexpected endpoint called during a test: %s with params %s.' % (endpoint, params))
+            raise UserError(
+                "Unexpected endpoint called during a test: %s with params %s."
+                % (endpoint, params)
+            )
 
     def _test_10_mock(self, endpoint, json_data, company_id, is_b2b=False):
         if endpoint == "/Issue":
@@ -639,7 +758,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnCode": 1,
                 "RtnMsg": "Success",
                 "InvoiceNumber": "AB11100099",
-                "RandomNumber": "6868"
+                "RandomNumber": "6868",
             }
         elif endpoint == "/GetIssue":
             return {
@@ -663,7 +782,10 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnMsg": "新增成功",
             }
         else:
-            raise UserError('Unexpected endpoint called during a test: %s with params %s.' % (endpoint, json_data))
+            raise UserError(
+                "Unexpected endpoint called during a test: %s with params %s."
+                % (endpoint, json_data)
+            )
 
     def _test_11_mock(self, endpoint, json_data, company_id, is_b2b=False):
         if endpoint == "/Issue":
@@ -671,7 +793,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnCode": 1,
                 "RtnMsg": "Success",
                 "InvoiceNumber": "AB11100099",
-                "RandomNumber": "6868"
+                "RandomNumber": "6868",
             }
         elif endpoint == "/GetIssue":
             return {
@@ -695,7 +817,10 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnMsg": "新增成功",
             }
         else:
-            raise UserError('Unexpected endpoint called during a test: %s with params %s.' % (endpoint, json_data))
+            raise UserError(
+                "Unexpected endpoint called during a test: %s with params %s."
+                % (endpoint, json_data)
+            )
 
     def _test_12_mock(self, endpoint, json_data, company_id, is_b2b=False):
         if endpoint == "/MaintainMerchantCustomerData":
@@ -704,4 +829,7 @@ class L10nTWITestEdi(TestAccountMoveSendCommon, HttpCase):
                 "RtnMsg": "新增成功",
             }
         else:
-            raise UserError('Unexpected endpoint called during a test: %s with params %s.' % (endpoint, json_data))
+            raise UserError(
+                "Unexpected endpoint called during a test: %s with params %s."
+                % (endpoint, json_data)
+            )

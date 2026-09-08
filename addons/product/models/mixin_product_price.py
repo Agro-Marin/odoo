@@ -3,7 +3,6 @@ from odoo.exceptions import UserError, ValidationError
 
 
 class MixinProductPrice(models.AbstractModel):
-
     _name = "mixin.product.price"
     _description = "Product Pricing Mixin"
 

@@ -244,9 +244,7 @@ class AccountMove(models.Model):
 
         for move in self:
             if previous_hash and previous_hash.startswith("$"):
-                previous_hash = previous_hash.split("$")[
-                    2
-                ]
+                previous_hash = previous_hash.split("$")[2]
             values = {}
             for fname in move._get_fields_integrity_hash():
                 values[fname] = _getattrstring(move, fname)

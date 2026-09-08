@@ -7,7 +7,6 @@ class ProductTemplate(models.Model):
     _name = "product.template"
     _inherit = ["product.template", "mixin.pos.load"]
 
-
     available_in_pos = fields.Boolean(
         string="Available in POS",
         help="Check if you want this product to appear in the Point of Sale.",
@@ -39,7 +38,6 @@ class ProductTemplate(models.Model):
         help="Determine the display order in the POS Terminal",
         copy=False,
     )
-
 
     @api.constrains("available_in_pos")
     def _check_available_in_pos(self):
@@ -93,7 +91,6 @@ class ProductTemplate(models.Model):
                 )
             )
 
-
     @api.model_create_multi
     def create(self, vals_list):
         self._update_public_description_vals(vals_list)
@@ -124,7 +121,6 @@ class ProductTemplate(models.Model):
     def _unlink_except_special_product(self):
         self._check_is_special_product()
 
-
     @api.depends("pos_categ_ids")
     def _compute_color(self):
         for product in self:
@@ -132,7 +128,6 @@ class ProductTemplate(models.Model):
                 product.color = product.pos_categ_ids[0].color
             else:
                 product.color = product.color or 0
-
 
     @api.onchange("sale_ok")
     def _onchange_sale_ok(self):
@@ -143,7 +138,6 @@ class ProductTemplate(models.Model):
     def _onchange_available_in_pos(self):
         if self.available_in_pos and not self.sale_ok:
             self.sale_ok = True
-
 
     def set_pos_favorite(self, is_favorite):
         self.check_singleton()
@@ -299,7 +293,6 @@ class ProductTemplate(models.Model):
             }
             for attribute_line in self.attribute_line_ids
         ]
-
 
     @api.model
     def _update_available_in_pos_vals(self, vals):

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Indian - Stock Report(GST)",
     "version": "1.0",

@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 {
     "name": "Product Email Template",
     "category": "Accounting/Accounting",

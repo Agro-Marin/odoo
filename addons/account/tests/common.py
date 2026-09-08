@@ -256,16 +256,10 @@ class AccountTestInvoicingCommon(ProductCommon):
             "account_journal_payment_credit_account_id", raise_if_not_found=False
         )
         if bank_journal:
-            cls.inbound_payment_channel = (
-                bank_journal.inbound_payment_channel_ids[0]
-            )
+            cls.inbound_payment_channel = bank_journal.inbound_payment_channel_ids[0]
             cls.inbound_payment_channel.payment_account_id = in_outstanding_account
-            cls.outbound_payment_channel = (
-                bank_journal.outbound_payment_channel_ids[0]
-            )
-            cls.outbound_payment_channel.payment_account_id = (
-                out_outstanding_account
-            )
+            cls.outbound_payment_channel = bank_journal.outbound_payment_channel_ids[0]
+            cls.outbound_payment_channel.payment_account_id = out_outstanding_account
 
         cls.simple_accountman = cls.env["res.users"].create(
             {
@@ -523,7 +517,6 @@ class AccountTestInvoicingCommon(ProductCommon):
             raise SkipTest(
                 f"Module required for the test is not installed ({module_name})"
             )
-
 
     def group_of_taxes(self, taxes, **kwargs):
         self.tax_number += 1
@@ -1240,7 +1233,6 @@ class AccountTestInvoicingCommon(ProductCommon):
         discount_wizard.action_apply_discount()
         return discount_wizard
 
-
     def replace_ignore(self, to_compare):
         if isinstance(to_compare, dict):
             return {k: self.replace_ignore(v) for k, v in to_compare.items()}
@@ -1387,7 +1379,6 @@ class AccountTestInvoicingCommon(ProductCommon):
                 )
                 self.assertDictEqual(current_tax_group, expected_tax_group)
 
-
     @classmethod
     def _get_ignore_schema(
         cls, subfolder: str, ignore_schema_name: str
@@ -1533,9 +1524,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                 if schema_key in data:
                     if schema_value == "___ignore___":
                         data[schema_key] = "___ignore___"
-                    elif data[
-                        schema_key
-                    ]:
+                    elif data[schema_key]:
                         cls._apply_json_ignore_schema(data[schema_key], schema_value)
         elif isinstance(ignore_schema, list):
             if len(ignore_schema) == 1:
@@ -1986,7 +1975,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
                 js_test.update(r)
                 assert_function(js_test, expected_values)
 
-
     def init_document(self, lines, currency=None, rate=None, cash_rounding=None):
         return {
             "currency": currency or self.env.company.currency_id,
@@ -2017,7 +2005,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             **document_params,
             "lines": base_lines,
         }
-
 
     def _assert_sub_test_taxes_computation(self, results, expected_values):
         def compare_taxes_computation_values(sub_results, rounding):
@@ -2186,7 +2173,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             extra_function=extra_function,
         )
 
-
     def _assert_sub_test_adapt_price_unit_to_another_taxes(
         self, results, expected_price_unit
     ):
@@ -2239,7 +2225,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             product,
             product_uom_id,
         )
-
 
     def _extract_base_lines_details(self, document):
         return [
@@ -2309,7 +2294,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             document,
         )
 
-
     def _assert_sub_test_tax_totals_summary(self, results, expected_results):
         self._assert_tax_totals_summary(
             results["tax_totals"],
@@ -2371,7 +2355,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
         )
         self._assert_sub_test_tax_totals_summary(results, expected_values)
 
-
     def _assert_sub_test_global_discount(self, results, expected_results):
         self._assert_tax_totals_summary(
             results["tax_totals"],
@@ -2429,7 +2412,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             amount,
             soft_checking,
         )
-
 
     def _assert_sub_test_down_payment(self, results, expected_results):
         self._assert_tax_totals_summary(
@@ -2495,7 +2477,6 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
             amount,
             soft_checking,
         )
-
 
     def assert_invoice_totals(self, invoice, expected_values):
         cash_rounding_base_amount_currency = invoice.tax_totals.get(

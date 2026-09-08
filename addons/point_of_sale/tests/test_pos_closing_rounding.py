@@ -10,7 +10,6 @@ _logger = logging.getLogger(__name__)
 
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPosClosingRounding(TestPoSCommon):
-
     def setUp(self):
         super().setUp()
         self.config = self.other_currency_config

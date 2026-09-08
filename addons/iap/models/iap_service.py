@@ -2,8 +2,8 @@ from odoo import fields, models
 
 
 class IapService(models.Model):
-    _name = 'iap.service'
-    _description = 'IAP Service'
+    _name = "iap.service"
+    _description = "IAP Service"
 
     name = fields.Char(required=True)
     technical_name = fields.Char(readonly=True, required=True)
@@ -12,6 +12,6 @@ class IapService(models.Model):
     integer_balance = fields.Boolean(required=True)
 
     _unique_technical_name = models.Constraint(
-        'UNIQUE(technical_name)',
-        'Only one service can exist with a specific technical_name',
+        "UNIQUE(technical_name)",
+        "Only one service can exist with a specific technical_name",
     )

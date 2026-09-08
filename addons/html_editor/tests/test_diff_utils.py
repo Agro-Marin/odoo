@@ -36,9 +36,7 @@ class TestPatchUtils(BaseCase):
         self.assertEqual(restored_initial_content, initial_content)
 
         comparison = generate_comparison(new_content, initial_content)
-        self.assertEqual(
-            comparison, "<p>foo</p><p><added>bar</added></p><p>baz</p>"
-        )
+        self.assertEqual(comparison, "<p>foo</p><p><added>bar</added></p><p>baz</p>")
 
     def test_new_content_replace_line(self):
         initial_content = "<p>foo</p><p>bar</p><p>bor</p><p>bir</p><p>baz</p>"
@@ -131,7 +129,10 @@ class TestPatchUtils(BaseCase):
             "<p>foo</p><p>boz</p><p>buz</p>",
             "<p>buz</p>",
         ]
-        patches = [generate_patch(contents[i + 1], contents[i]) for i in range(len(contents) - 1)]
+        patches = [
+            generate_patch(contents[i + 1], contents[i])
+            for i in range(len(contents) - 1)
+        ]
 
         patches.reverse()
         reconstruct_content = contents[-1]
@@ -243,9 +244,7 @@ class TestPatchUtils(BaseCase):
         comparison = generate_comparison(new_content, initial_content)
         self.assertEqual(
             comparison,
-            "<div><removed>X</removed>"
-            "<p><b><added>A</added></b>"
-            "<b>B</b></p></div>",
+            "<div><removed>X</removed><p><b><added>A</added></b><b>B</b></p></div>",
         )
 
     def test_simple_removal(self):
@@ -279,9 +278,7 @@ class TestPatchUtils(BaseCase):
         )
 
     def test_replace_twice_just_class(self):
-        initial_content = (
-            "<div class='A1'>A</div><p>abc</p><div class='D1'>D</div>"
-        )
+        initial_content = "<div class='A1'>A</div><p>abc</p><div class='D1'>D</div>"
         new_content = "<div class='B1'>A</div><p>abc</p><div class='E1'>D</div>"
 
         comparison = generate_comparison(new_content, initial_content)
@@ -297,8 +294,7 @@ class TestPatchUtils(BaseCase):
         comparison = generate_comparison(new_content, initial_content)
         self.assertEqual(
             comparison,
-            "<p><added>abc</added><removed>def</removed></p>"
-            "<div class='A1'>A</div>",
+            "<p><added>abc</added><removed>def</removed></p><div class='A1'>A</div>",
         )
 
     def test_replace_class_and_content(self):
@@ -318,9 +314,7 @@ class TestPatchUtils(BaseCase):
         comparison = generate_comparison(new_content, initial_content)
         self.assertEqual(
             comparison,
-            "<div class='A1'><p><i>"
-            "<added>A</added><removed>B</removed>"
-            "</i></p></div>",
+            "<div class='A1'><p><i><added>A</added><removed>B</removed></i></p></div>",
         )
 
     def test_double_closing_div_between_repeated_content(self):
@@ -340,5 +334,5 @@ class TestPatchUtils(BaseCase):
             "<p><added>repeated</added></p>"
             "</div></div>"
             "<p><added>repeated</added></p>"
-            "<h1><br></h1>"
+            "<h1><br></h1>",
         )

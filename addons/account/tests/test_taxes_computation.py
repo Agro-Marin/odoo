@@ -332,9 +332,7 @@ class TestTaxesComputation(TestTaxCommon):
             {
                 "total_included": 399.999999,
                 "total_excluded": 333.333332,
-                "taxes_data": (
-                    (333.333332, 66.666667),
-                ),
+                "taxes_data": ((333.333332, 66.666667),),
             },
             rounding_method="round_per_line",
             precision_rounding=currency_dp_6,

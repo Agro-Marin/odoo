@@ -1,12 +1,13 @@
 import base64
 import json
 import logging
+
 import PyKCS11
 
-from odoo.libs.password import CryptContext
-
 from odoo import http
+from odoo.libs.password import CryptContext
 from odoo.tools.config import config
+
 from odoo.addons.iot_drivers.tools import route
 from odoo.addons.iot_drivers.tools.system import IOT_SYSTEM, IS_RPI, IS_WINDOWS
 
@@ -129,7 +130,7 @@ class EtaUsbController(http.Controller):
                 slots[0], PyKCS11.CKF_SERIAL_SESSION | PyKCS11.CKF_RW_SESSION
             )
             session.login(pin)
-        except Exception as ex:  # noqa: BLE001
+        except Exception as ex:
             error = self._get_error_template(str(ex))
         return session, error
 

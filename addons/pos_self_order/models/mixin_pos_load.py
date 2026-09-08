@@ -1,4 +1,4 @@
-from odoo import models, api
+from odoo import api, models
 
 
 class MixinPosLoad(models.AbstractModel):
@@ -6,7 +6,7 @@ class MixinPosLoad(models.AbstractModel):
 
     @api.model
     def _load_pos_self_data_search_read(self, data, config):
-        """ Search and return records to be loaded in the self """
+        """Search and return records to be loaded in the self"""
         if not config:
             raise ValueError("config must be provided to search for PoS data.")
 
@@ -19,12 +19,12 @@ class MixinPosLoad(models.AbstractModel):
 
     @api.model
     def _load_pos_self_data_domain(self, data, config):
-        """ Return the domain used to filter records """
+        """Return the domain used to filter records"""
         return self._load_pos_data_domain(data, config)
 
     @api.model
     def _load_pos_self_data_read(self, records, config):
-        """ Read specific fields from the given records """
+        """Read specific fields from the given records"""
         if not config:
             raise ValueError("config must be provided to read PoS data.")
 
@@ -34,5 +34,5 @@ class MixinPosLoad(models.AbstractModel):
 
     @api.model
     def _load_pos_self_data_fields(self, config):
-        """ Return the list of fields to be loaded """
+        """Return the list of fields to be loaded"""
         return self._load_pos_data_fields(config)

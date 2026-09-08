@@ -39,9 +39,7 @@ class TestOutlookTokenFlow(EncryptionKeyCase, TransactionCase):
             f"{MIXIN_MODULE}.requests.post",
             return_value=self._response(payload=payload),
         ) as post:
-            result = self.Mixin._get_outlook_token(
-                "refresh_token", refresh_token="RT"
-            )
+            result = self.Mixin._get_outlook_token("refresh_token", refresh_token="RT")
         self.assertEqual(result, payload)
         sent = post.call_args.kwargs["data"]
         self.assertEqual(sent["client_id"], "test-client-id")
@@ -65,9 +63,7 @@ class TestOutlookTokenFlow(EncryptionKeyCase, TransactionCase):
             f"{MIXIN_MODULE}.requests.post",
             return_value=self._response(payload=payload),
         ):
-            refresh, access, expiration = self.Mixin._get_outlook_refresh_token(
-                "CODE"
-            )
+            refresh, access, expiration = self.Mixin._get_outlook_refresh_token("CODE")
         self.assertEqual((refresh, access), ("RT", "AT"))
         self.assertGreaterEqual(expiration, before + 1000)
 

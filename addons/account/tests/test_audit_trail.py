@@ -135,9 +135,7 @@ class TestAuditTrail(AccountTestInvoicingCommon):
 
         self.move.line_ids = [
             Command.update(self.move.line_ids[0].id, {"balance": 300}),
-            Command.update(
-                self.move.line_ids[1].id, {"credit": 200}
-            ),
+            Command.update(self.move.line_ids[1].id, {"credit": 200}),
             Command.create(
                 {
                     "balance": -100,

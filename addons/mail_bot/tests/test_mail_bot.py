@@ -11,10 +11,9 @@ from odoo.addons.mail_bot.tests.common import MailBotCommon
 
 @tagged("odoobot")
 class TestBotSilence(MailBotCommon):
-
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_disabled_state_silences_the_bot(self):
-        """"Disabled" means disabled.
+        """ "Disabled" means disabled.
 
         The state only ever gated `_init_odoobot`; `_get_answer` never read it,
         so a user an administrator had explicitly switched off kept being
@@ -35,13 +34,18 @@ class TestBotSilence(MailBotCommon):
         than an idle one, and could not restart the tour either.
         """
         self._set_state("disabled")
-        with patch("random.choice", side_effect=AssertionError("banter branch reached")):
+        with patch(
+            "random.choice", side_effect=AssertionError("banter branch reached")
+        ):
             self.assertFalse(self._say("banana"))
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_bot_is_silent_outside_a_chat_with_odoobot(self):
-        group = self.env["discuss.channel"].with_user(self.bot_user)._create_channel(
-            name="no bot here", group_id=None)
+        group = (
+            self.env["discuss.channel"]
+            .with_user(self.bot_user)
+            ._create_channel(name="no bot here", group_id=None)
+        )
         group.add_members(partner_ids=self.bot_user.partner_id.ids)
         self._set_state("idle")
         self.assertFalse(self._say("hello", channel=group))
@@ -55,7 +59,6 @@ class TestBotSilence(MailBotCommon):
 
 @tagged("odoobot")
 class TestStepHints(MailBotCommon):
-
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_step_hint_is_repeated_after_every_mistake(self):
         """The hint must survive the first failure.
@@ -70,8 +73,11 @@ class TestStepHints(MailBotCommon):
         self.assertIn("send an emoji", first)
         for attempt in ("nope again", "still no", "not this either"):
             again = self._say_one(attempt)
-            self.assertIn("send an emoji", again,
-                          f"hint lost after a previous mistake ({attempt!r})")
+            self.assertIn(
+                "send an emoji",
+                again,
+                f"hint lost after a previous mistake ({attempt!r})",
+            )
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_repeated_mistakes_add_documentation_to_the_hint(self):
@@ -120,9 +126,11 @@ class TestBodyIsHtml(MailBotCommon):
         """The one branch that does not care which state the user is in."""
         for state in ("idle", "onboarding_emoji", "onboarding_ping"):
             self._set_state(state)
-            self.assertIn("I have feelings",
-                          self._say_one(Markup("<p>Go fuck yourself</p>")),
-                          f"the swear branch did not fire in {state}")
+            self.assertIn(
+                "I have feelings",
+                self._say_one(Markup("<p>Go fuck yourself</p>")),
+                f"the swear branch did not fire in {state}",
+            )
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_emoji_is_found_inside_markup(self):
@@ -133,23 +141,23 @@ class TestBodyIsHtml(MailBotCommon):
 
 @tagged("odoobot")
 class TestHelpPredicate(MailBotCommon):
-
     def test_is_help_requested_is_a_pure_predicate(self):
         """It answers a question about the body and nothing else."""
         bot = self.env["mail.bot"].with_user(self.bot_user)
         self.bot_user.sudo().odoobot_failed = True
-        self.assertFalse(bot._is_help_requested("banana"),
-                         "a previous failure is not a help request")
+        self.assertFalse(
+            bot._is_help_requested("banana"), "a previous failure is not a help request"
+        )
         for body in ("help", "help me", "i need help please", "what now?"):
             self.assertTrue(bot._is_help_requested(body), body)
         for body in ("whelped", "what is the shelp", "helpful", "banana"):
-            self.assertFalse(bot._is_help_requested(body),
-                             f"{body!r} is not a help request")
+            self.assertFalse(
+                bot._is_help_requested(body), f"{body!r} is not a help request"
+            )
 
 
 @tagged("odoobot")
 class TestNotificationOrder(MailBotCommon):
-
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_answer_is_notified_after_the_question(self):
         """The bus must carry the question before the answer.
@@ -162,7 +170,8 @@ class TestNotificationOrder(MailBotCommon):
         self._set_state("idle")
         with self.mock_bus():
             question = self.bot_channel.with_user(self.bot_user).message_post(
-                body="hello", message_type="comment", subtype_xmlid="mail.mt_comment")
+                body="hello", message_type="comment", subtype_xmlid="mail.mt_comment"
+            )
         broadcast = []
         for notification in self._new_bus_notifs:
             payload = json.loads(notification.message)
@@ -170,14 +179,22 @@ class TestNotificationOrder(MailBotCommon):
                 continue
             data = payload.get("payload", {}).get("data", {})
             broadcast += [record["id"] for record in data.get("mail.message", [])]
-        answer = self.env["mail.message"].search([
-            ("model", "=", "discuss.channel"),
-            ("res_id", "=", self.bot_channel.id),
-            ("author_id", "=", self.odoobot.id),
-        ], order="id desc", limit=1)
+        answer = self.env["mail.message"].search(
+            [
+                ("model", "=", "discuss.channel"),
+                ("res_id", "=", self.bot_channel.id),
+                ("author_id", "=", self.odoobot.id),
+            ],
+            order="id desc",
+            limit=1,
+        )
         self.assertTrue(answer, "odoobot did not answer")
         self.assertEqual(
-            [message_id for message_id in broadcast if message_id in (question.id, answer.id)],
+            [
+                message_id
+                for message_id in broadcast
+                if message_id in (question.id, answer.id)
+            ],
             [question.id, answer.id],
             "odoobot's answer reached the bus before the message it answers",
         )
@@ -185,7 +202,6 @@ class TestNotificationOrder(MailBotCommon):
 
 @tagged("odoobot")
 class TestBatchPost(MailBotCommon):
-
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_batch_post_does_not_trigger_the_bot(self):
         """`_message_post_batch` posts notifications, which the bot ignores.
@@ -195,12 +211,17 @@ class TestBatchPost(MailBotCommon):
         in the first place.
         """
         self._set_state("idle")
-        before = self.env["mail.message"].search_count([
-            ("model", "=", "discuss.channel"), ("res_id", "=", self.bot_channel.id)])
+        before = self.env["mail.message"].search_count(
+            [("model", "=", "discuss.channel"), ("res_id", "=", self.bot_channel.id)]
+        )
         self.bot_channel.with_user(self.bot_user)._message_post_batch(
-            {self.bot_channel.id: "batched body"})
-        after = self.env["mail.message"].search([
-            ("model", "=", "discuss.channel"), ("res_id", "=", self.bot_channel.id)],
-            order="id")
-        self.assertEqual(len(after) - before, 1, "the bot answered a batched notification")
+            {self.bot_channel.id: "batched body"}
+        )
+        after = self.env["mail.message"].search(
+            [("model", "=", "discuss.channel"), ("res_id", "=", self.bot_channel.id)],
+            order="id",
+        )
+        self.assertEqual(
+            len(after) - before, 1, "the bot answered a batched notification"
+        )
         self.assertNotEqual(after[-1].author_id, self.odoobot)

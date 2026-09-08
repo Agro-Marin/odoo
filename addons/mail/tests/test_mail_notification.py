@@ -9,7 +9,6 @@ FAILURE_TYPE = "mail_email_invalid"
 
 @tagged("mail_notification")
 class TestMailNotificationFailureReason(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -37,7 +36,6 @@ class TestMailNotificationFailureReason(MailCommon):
 
 @tagged("mail_notification")
 class TestReplyToLengthBoundary(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

@@ -1,14 +1,21 @@
-# coding: utf-8
 from odoo import models
 
 
 class SaleOrder(models.Model):
-    _inherit = 'sale.order'
+    _inherit = "sale.order"
 
     def _get_name_portal_content_view(self):
         self.check_singleton()
-        return 'l10n_br_sales.sale_order_portal_content_brazil' if self.company_id.country_code == 'BR' else super()._get_name_portal_content_view()
+        return (
+            "l10n_br_sales.sale_order_portal_content_brazil"
+            if self.company_id.country_code == "BR"
+            else super()._get_name_portal_content_view()
+        )
 
     def _get_name_tax_totals_view(self):
         self.check_singleton()
-        return 'l10n_br_sales.document_tax_totals_brazil' if self.company_id.country_code == 'BR' else super()._get_name_tax_totals_view()
+        return (
+            "l10n_br_sales.document_tax_totals_brazil"
+            if self.company_id.country_code == "BR"
+            else super()._get_name_tax_totals_view()
+        )

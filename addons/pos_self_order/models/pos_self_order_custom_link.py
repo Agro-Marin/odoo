@@ -1,15 +1,12 @@
-# -*- coding: utf-8 -*-
-
-from odoo import fields, models, api
 from markupsafe import escape
+
+from odoo import api, fields, models
 
 
 class Pos_Self_OrderCustom_Link(models.Model):
-    _name = 'pos_self_order.custom_link'
+    _name = "pos_self_order.custom_link"
     _inherit = ["mixin.pos.load"]
-    _description = (
-        "Custom links that the restaurant can configure to be displayed on the self order screen"
-    )
+    _description = "Custom links that the restaurant can configure to be displayed on the self order screen"
     name = fields.Char(string="Label", required=True, translate=True)
     url = fields.Char(string="URL", required=True)
     pos_config_ids = fields.Many2many(
@@ -33,19 +30,23 @@ class Pos_Self_OrderCustom_Link(models.Model):
         default="primary",
         required=True,
     )
-    link_html = fields.Html("Preview", compute="_compute_link_html", store=True, readonly=True)
+    link_html = fields.Html(
+        "Preview", compute="_compute_link_html", store=True, readonly=True
+    )
     sequence = fields.Integer("Sequence", default=1)
 
     @api.model
     def _load_pos_self_data_domain(self, data, config):
-        return [('pos_config_ids', 'in', config.id)]
+        return [("pos_config_ids", "in", config.id)]
 
     @api.model
     def _load_pos_self_data_fields(self, config):
-        return ['name', 'url', 'style', 'link_html', 'sequence']
+        return ["name", "url", "style", "link_html", "sequence"]
 
     @api.depends("name", "style")
     def _compute_link_html(self):
         for link in self:
             if link.name:
-                link.link_html = f'<a class="btn btn-{link.style} w-100">{escape(link.name)}</a>'
+                link.link_html = (
+                    f'<a class="btn btn-{link.style} w-100">{escape(link.name)}</a>'
+                )

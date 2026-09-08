@@ -1,13 +1,14 @@
 from odoo import Command
-from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.exceptions import ValidationError
 from odoo.tests import tagged
+
+from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 
 @tagged("post_install_l10n", "post_install", "-at_install")
 class TestL10nBrPix(AccountTestInvoicingCommon):
     @classmethod
-    @AccountTestInvoicingCommon.setup_country('br')
+    @AccountTestInvoicingCommon.setup_country("br")
     def setUpClass(cls):
         super().setUpClass()
         cls.partner_bank = cls.env["res.partner.bank"].create(
@@ -36,15 +37,24 @@ class TestL10nBrPix(AccountTestInvoicingCommon):
         with self.assertRaises(ValidationError, msg="not a valid email"):
             self.partner_bank.proxy_value = "example.com"
 
-        self.partner_bank.write({"proxy_type": "br_cpf_cnpj", "proxy_value": "00740886967"})
+        self.partner_bank.write(
+            {"proxy_type": "br_cpf_cnpj", "proxy_value": "00740886967"}
+        )
         with self.assertRaises(ValidationError, msg="not a valid CPF"):
             self.partner_bank.proxy_value = "444444321"
 
-        self.partner_bank.write({"proxy_type": "mobile", "proxy_value": "+5561912345678"})
+        self.partner_bank.write(
+            {"proxy_type": "mobile", "proxy_value": "+5561912345678"}
+        )
         with self.assertRaises(ValidationError, msg="The mobile number"):
             self.partner_bank.proxy_value = "061912345678"
 
-        self.partner_bank.write({"proxy_type": "br_random", "proxy_value": "71d6c6e1-64ea-4a11-9560-a10870c40ca2"})
+        self.partner_bank.write(
+            {
+                "proxy_type": "br_random",
+                "proxy_value": "71d6c6e1-64ea-4a11-9560-a10870c40ca2",
+            }
+        )
         with self.assertRaises(ValidationError, msg="The random key"):
             self.partner_bank.proxy_value = "not a random key"
 

@@ -1,11 +1,13 @@
-from odoo.tests.common import new_test_user, tagged, HttpCase, JsonRpcException
+from odoo.tests.common import HttpCase, JsonRpcException, new_test_user, tagged
 
 
 @tagged("post_install", "-at_install")
 class TestCall(HttpCase):
     def test_visitor_cannot_start_call(self):
         self.authenticate(None, None)
-        operator = self.env["res.users"].create({"name": "Operator", "login": "operator"})
+        operator = self.env["res.users"].create(
+            {"name": "Operator", "login": "operator"}
+        )
         self.env["mail.presence"]._update_presence(operator)
         livechat_channel = self.env["im_livechat.channel"].create(
             {"name": "Test Livechat Channel", "user_ids": [operator.id]}
@@ -14,8 +16,16 @@ class TestCall(HttpCase):
             new_test_user(self.env, "portal_user", groups="base.group_portal"),
             self.env["mail.guest"].create({"name": "Guest"}),
         ]:
-            user = pseudo_user if pseudo_user._name == "res.users" else self.env["res.users"]
-            guest = pseudo_user if pseudo_user._name == "mail.guest" else self.env["mail.guest"]
+            user = (
+                pseudo_user
+                if pseudo_user._name == "res.users"
+                else self.env["res.users"]
+            )
+            guest = (
+                pseudo_user
+                if pseudo_user._name == "mail.guest"
+                else self.env["mail.guest"]
+            )
             if user:
                 self.authenticate(user.login, user.login)
             else:
@@ -30,7 +40,9 @@ class TestCall(HttpCase):
                     "persisted": True,
                 },
             )
-            with self.assertRaises(JsonRpcException, msg="werkzeug.exceptions.NotFound"):
+            with self.assertRaises(
+                JsonRpcException, msg="werkzeug.exceptions.NotFound"
+            ):
                 self.call_jsonrpc(
                     "/mail/rtc/channel/join_call",
                     {"channel_id": data["channel_id"]},

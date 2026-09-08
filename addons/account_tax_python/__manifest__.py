@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 {
     "name": "Define Taxes as Python Code",
     "version": "1.0",

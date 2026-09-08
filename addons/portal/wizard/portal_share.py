@@ -3,7 +3,6 @@ from odoo.exceptions import UserError
 
 
 class PortalShare(models.TransientModel):
-
     _name = "portal.share"
     _description = "Portal Sharing"
 

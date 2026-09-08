@@ -118,7 +118,7 @@ class IotBoxOwlHomePage(http.Controller):
             if IS_RPI
             else Path().absolute().parent.joinpath("odoo.log")
         )
-        with open(logs_path, encoding="utf-8") as file:
+        with Path(logs_path).open(encoding="utf-8") as file:
             return http.request.prepare_json_response(
                 {
                     "status": "success",

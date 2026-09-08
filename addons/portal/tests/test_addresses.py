@@ -57,7 +57,9 @@ class TestPortalAddresses(BaseCommon, HttpCase):
                 "city": "Ramillies",
                 "zip": "1367",
                 "country_id": cls.country_be.id,
-                "phone_ids": [Command.create({"number": "+3200000000000", "type": "landline"})],
+                "phone_ids": [
+                    Command.create({"number": "+3200000000000", "type": "landline"})
+                ],
             }
         )
         (cls.account_a.partner_id + cls.account_b.partner_id).write(
@@ -296,7 +298,6 @@ class TestPortalAddresses(BaseCommon, HttpCase):
             self.portal_user.partner_id.child_ids,
             [self.expected_address_values],
         )
-
 
     def test_address_archiving(self):
         self.authenticate(self.account_a.login, self.account_a.login)
