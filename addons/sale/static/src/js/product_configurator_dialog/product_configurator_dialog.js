@@ -78,6 +78,7 @@ export class ProductConfiguratorDialog extends Component {
         });
         this.currency = { id: this.props.currencyId };
         this._combinationRequests = new Map();
+        this._pendingCombinations = new Set();
         this.getValuesUrl = "/sale/product_configurator/get_values";
         this.createProductUrl = "/sale/product_configurator/create_product";
         this.updateCombinationUrl = "/sale/product_configurator/update_combination";
@@ -187,7 +188,12 @@ export class ProductConfiguratorDialog extends Component {
             keepLast = new KeepLast();
             this._combinationRequests.set(product.product_tmpl_id, keepLast);
         }
-        return keepLast.add(this._updateCombination(product, quantity, uomId));
+        const pending = keepLast.add(this._updateCombination(product, quantity, uomId));
+        this._pendingCombinations.add(pending);
+        pending
+            .catch(() => {})
+            .finally(() => this._pendingCombinations.delete(pending));
+        return pending;
     }
 
     async _getOptionalProducts(product) {
@@ -397,6 +403,7 @@ export class ProductConfiguratorDialog extends Component {
      * @return {undefined}
      */
     async onConfirm(options) {
+        await this._settleCombinations();
         if (!this.isPossibleConfiguration()) {
             return;
         }
@@ -421,6 +428,12 @@ export class ProductConfiguratorDialog extends Component {
             options,
         );
         this.props.close();
+    }
+
+    async _settleCombinations() {
+        while (this._pendingCombinations.size) {
+            await Promise.allSettled([...this._pendingCombinations]);
+        }
     }
 
     onDiscard() {
