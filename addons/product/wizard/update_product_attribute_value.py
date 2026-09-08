@@ -74,30 +74,48 @@ class UpdateProductAttributeValue(models.TransientModel):
             key: ProductTemplate.search_count(self._get_product_count_domain(key))
             for key in set(keys_by_wizard.values()) - {None}
         }
+        customized = self._get_customized_counts_per_value()
         for wizard in self:
             wizard.product_count = counts.get(keys_by_wizard[wizard], 0)
-            if wizard.mode == "update_extra_price" and wizard.attribute_value_id:
-                wizard.customized_product_count = self.env[
-                    "product.template.attribute.value"
-                ].search_count(
-                    [
-                        (
-                            "product_attribute_value_id",
-                            "=",
-                            wizard.attribute_value_id.id,
-                        ),
-                        (
-                            "product_tmpl_id.company_id",
-                            "in",
-                            self.env.companies.ids + [False],
-                        ),
-                        (
-                            "price_extra",
-                            "!=",
-                            wizard.attribute_value_id.default_extra_price,
-                        ),
-                    ]
-                )
+            wizard.customized_product_count = customized.get(
+                wizard.attribute_value_id.id, 0
+            )
+
+    def _get_customized_counts_per_value(self):
+        """How many templates price each attribute value away from its default.
+
+        One `_read_group` for the whole recordset rather than a `search_count`
+        per wizard: the count cannot be expressed as a domain, because the
+        threshold it compares against -- the value's own `default_extra_price`
+        -- differs per row, and a domain cannot compare two fields. Grouping by
+        (value, price) instead returns one row per distinct price actually in
+        use, which is a handful, and the comparison happens over those.
+
+        :return: {product.attribute.value id: count of templates priced away}
+        :rtype: dict
+        """
+        wizards = self.filtered(
+            lambda wizard: (
+                wizard.mode == "update_extra_price" and wizard.attribute_value_id
+            )
+        )
+        values = wizards.attribute_value_id
+        if not values:
+            return {}
+        default_per_value = {value.id: value.default_extra_price for value in values}
+        counts = {}
+        groups = self.env["product.template.attribute.value"]._read_group(
+            [
+                ("product_attribute_value_id", "in", values.ids),
+                ("product_tmpl_id.company_id", "in", self.env.companies.ids + [False]),
+            ],
+            groupby=["product_attribute_value_id", "price_extra"],
+            aggregates=["__count"],
+        )
+        for value, price_extra, count in groups:
+            if price_extra != default_per_value[value.id]:
+                counts[value.id] = counts.get(value.id, 0) + count
+        return counts
 
     def action_confirm(self):
         self.check_singleton()
