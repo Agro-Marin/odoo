@@ -288,28 +288,10 @@ class _BulkAccessMixin:
         _check_copy_args(self, table, columns, returning_ids, binary, on_error)
         self._before_statement()
 
-        if returning_ids:
-            if not hasattr(rows, "__len__"):
-                rows = list(rows)
-            count = len(rows)
-            if count == 0:
-                return []
-            ids = self._preallocate_copy_ids(table, count)
-            columns = ["id", *columns]
-            rows = [(id_, *row) for id_, row in zip(ids, rows, strict=True)]
-        else:
-            ids = None
-            if hasattr(rows, "__len__"):
-                if len(rows) == 0:
-                    return None
-            else:
-                # Peeled rather than materialised: this branch exists to stream,
-                # and a generator has no length to test before the round trip.
-                iterator = iter(rows)
-                first = next(iterator, _NO_ROWS)
-                if first is _NO_ROWS:
-                    return None
-                rows = chain((first,), iterator)
+        prepared = self._prepare_copy_rows(table, columns, rows, returning_ids)
+        if prepared is None:
+            return [] if returning_ids else None
+        columns, rows, ids = prepared
 
         col_types = self._get_column_type_oids(table, columns) if binary else None
         if col_types is not None and not self._is_binary_copy_worthwhile(col_types):
@@ -365,6 +347,38 @@ class _BulkAccessMixin:
             self._record_sql_log("into", table, delay)
 
         return ids
+
+    def _prepare_copy_rows(
+        self: _CursorInternals,
+        table: str,
+        columns: list[str],
+        rows,
+        returning_ids: bool,
+    ) -> tuple[list[str], Any, list[int] | None] | None:
+        if returning_ids:
+            if not hasattr(rows, "__len__"):
+                rows = list(rows)
+            count = len(rows)
+            if count == 0:
+                return None
+            ids = self._preallocate_copy_ids(table, count)
+            return (
+                ["id", *columns],
+                [(id_, *row) for id_, row in zip(ids, rows, strict=True)],
+                ids,
+            )
+        if hasattr(rows, "__len__"):
+            if len(rows) == 0:
+                return None
+        else:
+            # Peeled rather than materialised: this branch exists to stream,
+            # and a generator has no length to test before the round trip.
+            iterator = iter(rows)
+            first = next(iterator, _NO_ROWS)
+            if first is _NO_ROWS:
+                return None
+            rows = chain((first,), iterator)
+        return columns, rows, None
 
     def _preallocate_copy_ids(
         self: _CursorInternals, table: str, count: int
