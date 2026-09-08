@@ -618,9 +618,9 @@
                                     name="date_planned"
                                     readonly="not is_date_editable"
                                     required="id"
-                                    decoration-warning="state not in ('done', 'cancel') and date_planned &lt; now"
+                                    decoration-warning="id and state not in ('done', 'cancel') and date_planned &lt; now"
                                     decoration-danger="state not in ('done', 'cancel') and date_planned &lt; current_date"
-                                    decoration-bf="state not in ('done', 'cancel') and (date_planned &lt; current_date or date_planned &lt; now)" />
+                                    decoration-bf="id and state not in ('done', 'cancel') and (date_planned &lt; current_date or date_planned &lt; now)" />
                                 <field
                                     name="json_popover"
                                     nolabel="1"
