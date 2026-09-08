@@ -84,7 +84,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
                         unreserved_expired, product=product, read=read
                     )
                 ]
-                reported_qty += unreserved_expired
 
             to_reduce = sum(d["taken_from_stock"] for d in moves_data.values())
 
@@ -106,10 +105,16 @@ class StockForecasted_Product_Product(models.AbstractModel):
                     )
                     reported_qty += free_stock_at_date
 
-            # `free_stock` already includes the expired and dated-removal
-            # quantities just broken out above; without this, the
-            # undivided line added by super() below double-counts them.
+            # `free_stock` already covers the dated-removal quantities just
+            # broken out above; without this, the undivided line added by
+            # super() below double-counts them. Expired quants are NOT in it:
+            # `_get_quant_domain` filters them out, which is why only the
+            # dated buckets feed `reported_qty`.
             free_stock += reserved_expired - reported_qty
+            if res and product.uom_id.is_zero(free_stock):
+                # Everything free is accounted for by the lines above; an
+                # undivided line here would be a bare "Free Stock 0.00" row.
+                return res
         return res + super()._free_stock_lines(
             product, free_stock, moves_data, wh_location_ids, read
         )

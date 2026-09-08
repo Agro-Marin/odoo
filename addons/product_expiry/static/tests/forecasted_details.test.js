@@ -21,16 +21,16 @@ const freeStockLine = (quantity, removal_date) => ({
     move_out: false,
 });
 
-function makeDocs(undatedQty) {
+function makeDocs() {
     const expired = freeStockLine(2, -1);
-    const undated = freeStockLine(undatedQty, false);
+    const undated = freeStockLine(1, false);
     const dated1 = freeStockLine(3, "09/10/2026");
     const dated2 = freeStockLine(4, "09/11/2026");
     return {
         docs: {
             lines: [expired, undated, dated1, dated2],
             product: {
-                7: { qty_available_virtual: 9, qty_free: 9, qty: { in: 0, out: 0 } },
+                7: { qty_available_virtual: 8, qty_free: 8, qty: { in: 0, out: 0 } },
             },
             multiple_product: false,
             use_expiration_date: true,
@@ -41,7 +41,7 @@ function makeDocs(undatedQty) {
 }
 
 test("expired stock is not free stock", () => {
-    const { docs, lines } = makeDocs(10);
+    const { docs, lines } = makeDocs();
     const details = makeDetails(docs);
 
     expect(details.categoryOf(lines.expired)).toBe(null);
@@ -52,26 +52,28 @@ test("expired stock is not free stock", () => {
     ]);
 });
 
-test("dated removals are deducted from the undated free stock line", () => {
-    const { docs, lines } = makeDocs(10);
-    const details = makeDetails(docs);
-
-    expect(lines.undated.quantity).toBe(3);
-    expect(details.lines.length).toBe(4);
-});
-
-test("the undated free stock line is dropped once it is emptied", () => {
-    const { docs, lines } = makeDocs(7);
-    const details = makeDetails(docs);
-
-    expect(details.lines).not.toInclude(lines.undated);
-    expect(details.lines.length).toBe(3);
-});
-
 test("free stock lines merge with each other but not with expired stock", () => {
-    const { docs } = makeDocs(10);
+    const { docs } = makeDocs();
     const details = makeDetails(docs);
 
     expect(details.mergedRows[0]).toBe(undefined);
-    expect(details.mergedRows[1]).toEqual({ rowcount: 3, tot_qty: 10 });
+    expect(details.mergedRows[1]).toEqual({ rowcount: 3, tot_qty: 8 });
+});
+
+test("the quantities the report sent are displayed as they are", () => {
+    // The undated free stock line already excludes what the dated lines
+    // report; deducting them again here understates it, and turns negative
+    // on a product whose free stock is entirely dated.
+    const { docs, lines } = makeDocs();
+    const quantities = docs.lines.map((line) => line.quantity);
+    const details = makeDetails(docs);
+
+    expect(details.lines.map((line) => line.quantity)).toEqual(quantities);
+    expect(lines.undated.quantity).toBe(1);
+    expect(docs.lines).toEqual([
+        lines.expired,
+        lines.undated,
+        lines.dated1,
+        lines.dated2,
+    ]);
 });
