@@ -80,3 +80,11 @@ from . import test_move_line_audit_2026_08_31
 from . import test_picking_audit_2026_08_31
 from . import test_completion_sequence
 from . import test_group_readonly
+from . import test_picking_list_layout
+from . import test_lot_view_groups
+from . import test_move_line_list_decorations
+from . import test_request_count_wizard
+from . import test_picking_form_decorations
+from . import test_lot_list_columns
+from . import test_inventory_menu_names
+from . import test_dashboard_cards

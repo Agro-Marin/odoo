@@ -209,8 +209,8 @@
                     name="quantity"
                     string="Quantity"
                     class="fw-bolder"
-                    decoration-danger="(location_usage in ('internal','transit')) and (location_dest_usage not in ('internal','transit'))"
-                    decoration-success="(location_usage not in ('internal','transit')) and (location_dest_usage in ('internal','transit'))" />
+                    decoration-danger="(location_usage in ('internal','transit')) and (location_dest_usage not in ('internal','transit')) and quantity != 0"
+                    decoration-success="(location_usage not in ('internal','transit')) and (location_dest_usage in ('internal','transit')) and quantity != 0" />
                 <field
                     name="product_uom_id"
                     options="{'no_open': True, 'no_create': True}"

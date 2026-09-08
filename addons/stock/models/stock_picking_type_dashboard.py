@@ -66,16 +66,6 @@ class StockPickingTypeDashboard(models.Model):
             ):
                 record[field_name] = count
 
-    def _compute_count_move_ready(self):
-        data = self.env["stock.move"]._read_group(
-            [("state", "=", "assigned"), ("picking_type_id", "in", self.ids)],
-            ["picking_type_id"],
-            ["__count"],
-        )
-        count = {picking_type.id: count for picking_type, count in data}
-        for record in self:
-            record.count_move_ready = count.get(record.id, 0)
-
     def _compute_kanban_dashboard_graph(self):
         summaries = {}
         for (
@@ -151,11 +141,6 @@ class StockPickingTypeDashboard(models.Model):
 
     def action_view_pickings_ready(self):
         return self._prepare_action_by_xml_id("stock.action_picking_tree_ready")
-
-    def action_view_moves_ready(self):
-        return self._prepare_action_by_xml_id(
-            "stock.action_get_picking_type_ready_moves"
-        )
 
     def action_view_moves_analysis(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(

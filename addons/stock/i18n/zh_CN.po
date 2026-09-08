@@ -2349,11 +2349,6 @@ msgid "Control panel buttons"
 msgstr "控制面板按钮"
 
 #. module: stock
-#: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_move_ready
-msgid "Count Move Ready"
-msgstr "就绪移动计数"
-
-#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_picking
 msgid "Count Picking"
 msgstr "拣货计数"
@@ -5338,7 +5333,6 @@ msgstr "位置：到达"
 #: model:ir.actions.act_window,name:stock.action_storage_category_locations
 #: model:ir.actions.act_window,name:stock.stock_quant_action
 #: model:ir.ui.menu,name:stock.menu_action_location_form
-#: model:ir.ui.menu,name:stock.menu_valuation
 #: model_terms:ir.ui.view,arch_db:stock.product_product_stock_tree
 #: model_terms:ir.ui.view,arch_db:stock.report_location_barcode
 #: model_terms:ir.ui.view,arch_db:stock.res_config_settings_view_form
@@ -7757,11 +7751,6 @@ msgid "Ready"
 msgstr "就绪"
 
 #. module: stock
-#: model:ir.actions.act_window,name:stock.action_get_picking_type_ready_moves
-msgid "Ready Moves"
-msgstr "就绪移动"
-
-#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_move__product_qty
 msgid "Real Quantity"
 msgstr "实际数量"
@@ -9181,6 +9170,7 @@ msgid "Stock Location"
 msgstr "库存地点"
 
 #. module: stock
+#: model:ir.ui.menu,name:stock.menu_valuation
 #: model_terms:ir.ui.view,arch_db:stock.view_location_search
 msgid "Stock Locations"
 msgstr "库存位置"

@@ -251,7 +251,6 @@ class StockPickingType(models.Model):
     count_picking_waiting = fields.Integer(compute="_compute_picking_count")
     count_picking_late = fields.Integer(compute="_compute_picking_count")
     count_picking_backorders = fields.Integer(compute="_compute_picking_count")
-    count_move_ready = fields.Integer(compute="_compute_count_move_ready")
     kanban_dashboard_graph = fields.Text(compute="_compute_kanban_dashboard_graph")
 
     _barcode_uniq = models.UniqueIndex(

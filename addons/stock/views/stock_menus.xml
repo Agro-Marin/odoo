@@ -230,7 +230,7 @@
 
     <menuitem
         id="menu_valuation"
-        name="Locations"
+        name="Stock Locations"
         parent="stock.menu_warehouse_report"
         action="action_view_quants"
         sequence="150"

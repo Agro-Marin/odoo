@@ -2455,11 +2455,6 @@ msgid "Control panel buttons"
 msgstr "Botones del panel de control"
 
 #. module: stock
-#: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_move_ready
-msgid "Count Move Ready"
-msgstr "Número de movimientos listos"
-
-#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_picking
 msgid "Count Picking"
 msgstr "Número de recolecciones"
@@ -5557,7 +5552,6 @@ msgstr "Ubicación: cuando llega a"
 #: model:ir.actions.act_window,name:stock.action_storage_category_locations
 #: model:ir.actions.act_window,name:stock.stock_quant_action
 #: model:ir.ui.menu,name:stock.menu_action_location_form
-#: model:ir.ui.menu,name:stock.menu_valuation
 #: model_terms:ir.ui.view,arch_db:stock.product_product_stock_tree
 #: model_terms:ir.ui.view,arch_db:stock.report_location_barcode
 #: model_terms:ir.ui.view,arch_db:stock.res_config_settings_view_form
@@ -8027,11 +8021,6 @@ msgid "Ready"
 msgstr "Listo"
 
 #. module: stock
-#: model:ir.actions.act_window,name:stock.action_get_picking_type_ready_moves
-msgid "Ready Moves"
-msgstr "Movimientos listos"
-
-#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_move__product_qty
 msgid "Real Quantity"
 msgstr "Cantidad real"
@@ -9491,6 +9480,7 @@ msgid "Stock Location"
 msgstr "Ubicación de existencias"
 
 #. module: stock
+#: model:ir.ui.menu,name:stock.menu_valuation
 #: model_terms:ir.ui.view,arch_db:stock.view_location_search
 msgid "Stock Locations"
 msgstr "Ubicaciones de existencias"

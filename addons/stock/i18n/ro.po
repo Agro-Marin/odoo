@@ -2451,11 +2451,6 @@ msgid "Control panel buttons"
 msgstr "Butoane panou control"
 
 #. module: stock
-#: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_move_ready
-msgid "Count Move Ready"
-msgstr "Număr Mișcări Gata"
-
-#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_picking_type__count_picking
 msgid "Count Picking"
 msgstr "Nr. Ridicare"
@@ -5545,7 +5540,6 @@ msgstr "Locație: Când ajunge la"
 #: model:ir.actions.act_window,name:stock.action_storage_category_locations
 #: model:ir.actions.act_window,name:stock.stock_quant_action
 #: model:ir.ui.menu,name:stock.menu_action_location_form
-#: model:ir.ui.menu,name:stock.menu_valuation
 #: model_terms:ir.ui.view,arch_db:stock.product_product_stock_tree
 #: model_terms:ir.ui.view,arch_db:stock.report_location_barcode
 #: model_terms:ir.ui.view,arch_db:stock.res_config_settings_view_form
@@ -8014,11 +8008,6 @@ msgid "Ready"
 msgstr "Pregătit"
 
 #. module: stock
-#: model:ir.actions.act_window,name:stock.action_get_picking_type_ready_moves
-msgid "Ready Moves"
-msgstr "Mișcări pregătite"
-
-#. module: stock
 #: model:ir.model.fields,field_description:stock.field_stock_move__product_qty
 msgid "Real Quantity"
 msgstr "Cantitate faptică"
@@ -9477,6 +9466,7 @@ msgid "Stock Location"
 msgstr "Locație stoc"
 
 #. module: stock
+#: model:ir.ui.menu,name:stock.menu_valuation
 #: model_terms:ir.ui.view,arch_db:stock.view_location_search
 msgid "Stock Locations"
 msgstr "Locații stoc"
