@@ -32,6 +32,17 @@
             <!-- When the subscription has expired, the expiration panel is shown over the whole UI instead of here -->
             <ExpirationPanel t-if="subscription.warningType and !subscription.isWarningHidden and subscription.daysLeft &lt;= 30 and subscription.daysLeft > 0 and !subscription.sysadmin.replace"/>
             <SysAdminPanel t-if="subscription.daysLeft > 0 and subscription.sysadmin.message"/>
+            <t t-set="attention" t-value="attentionApps"/>
+            <nav t-if="attention.length" class="o_home_menu_attention mt-4 mx-0" aria-label="Apps needing attention">
+                <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Needs attention</div>
+                <div class="o_attention_apps row user-select-none mx-0" role="list">
+                    <div t-foreach="attention" t-as="app" t-key="app.id" class="col-3 col-md-2 mb-3 px-0" role="listitem">
+                        <t t-call="{{ constructor.appTemplate }}">
+                            <t t-set="tileId" t-value="'attention_app_' + app_index"/>
+                        </t>
+                    </div>
+                </div>
+            </nav>
             <t t-set="recents" t-value="recentApps"/>
             <nav t-if="recents.length and !search.query" class="o_home_menu_recent mt-4 mx-0" aria-label="Recent apps">
                 <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Recent</div>

@@ -1214,14 +1214,18 @@ test("a count too wide for an icon is shown as 99+, by the same rule in both lau
     });
     await mountWithCleanup(HomeMenu, { props: getDefaultHomeMenuProps() });
     await animationFrame();
-    expect(queryAllTexts(".o_app_badge")).toEqual(["99", "99+", "99+"], {
-        message: "99 still fits; anything above it does not",
-    });
-    expect(".o_app[data-menu-xmlid='app.2'] .o_app_badge").toHaveAttribute(
-        "aria-label",
-        "100 pending",
-        { message: "the reader is told the real number, not the shortened one" },
+    // Scoped to the grid throughout: an app with a count also appears in the
+    // Needs attention row above it, so an unscoped selector reads every badge
+    // twice, and in that section's order rather than the grid's.
+    expect(queryAllTexts(".o_apps_listbox .o_app_badge")).toEqual(
+        ["99", "99+", "99+"],
+        { message: "99 still fits; anything above it does not" },
     );
+    expect(
+        ".o_apps_listbox .o_app[data-menu-xmlid='app.2'] .o_app_badge",
+    ).toHaveAttribute("aria-label", "100 pending", {
+        message: "the reader is told the real number, not the shortened one",
+    });
 });
 
 test("a menu reload that changes the apps re-counts their badges", async () => {
@@ -1657,4 +1661,45 @@ test("the server's counts land on the tiles alongside a client provider's", asyn
     expect(".o_app[data-menu-xmlid='app.1'] .o_app_badge").toHaveText("7");
     expect(".o_app[data-menu-xmlid='app.2'] .o_app_badge").toHaveText("1");
     expect(".o_app[data-menu-xmlid='app.3'] .o_app_badge").toHaveCount(0);
+});
+
+test("the apps with something waiting lead the grid, most first", async () => {
+    registry.category("home_menu_badges").add("attention", {
+        provide: () => ({ "app.3": 2, "app.1": 40 }),
+    });
+    after(() => registry.category("home_menu_badges").remove("attention"));
+    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    await animationFrame();
+    // Ordered by what is waiting, not by the grid order or by use: the app with
+    // forty is first even though it is neither pinned nor recently opened.
+    expect(queryAllTexts(".o_attention_apps .o_caption")).toEqual([
+        "Discuss",
+        "Contacts",
+    ]);
+    expect(".o_attention_apps .o_app_badge:first").toHaveText("40");
+    // Still in the grid below; the section is a shortcut, not a move.
+    expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual([
+        "Discuss",
+        "Calendar",
+        "Contacts",
+    ]);
+
+    await searchFor("cal");
+    expect(".o_home_menu_attention").toHaveCount(0, {
+        message: "a query has its own answer",
+    });
+});
+
+test("no counts, no section", async () => {
+    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    await animationFrame();
+    expect(".o_home_menu_attention").toHaveCount(0);
+
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    expect(".o_home_menu_attention").toHaveCount(0, {
+        message: "and none while arranging the grid, where the tiles hide it anyway",
+    });
 });

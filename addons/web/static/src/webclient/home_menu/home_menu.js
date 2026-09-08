@@ -37,8 +37,6 @@ import {
 import { useHomeMenuSearch } from "./home_menu_search.js";
 import { SysAdminPanel } from "./sysadmin_panel.js";
 
-// A stable object, so a menu service without `getMenuAsTree` still resolves
-// against the flattened-tree cache instead of missing it on a fresh literal.
 const EMPTY_MENU_TREE = { childrenTree: [] };
 
 /** @param {{ xmlid?: string }[]} apps */
@@ -47,29 +45,16 @@ function homeMenuAppsKey(apps) {
 }
 
 const APPS_PER_ROW = 6;
-// A heading costs a row, so it pays only once the grid no longer fits on
-// screen at a glance. Below this the flat grid IS the overview.
 const SECTIONED_FROM = APPS_PER_ROW * 2;
 const RECENT_APPS = 6;
+const ATTENTION_APPS = 6;
 const DIRECT_JUMP_HOTKEYS = 9;
 const MENU_MATCHES = 8;
 
 /**
- * The launcher's name for what `computeAppsAndMenuItems` calls an app. It was
- * a second declaration of the same record, and the two had drifted: this one
- * made `xmlid` required, which every reader of it already disbelieved --
- * `isPinned`, `isHidden`, `badgeFor` and `_sortAppDrop` all test it against
- * `undefined` first.
- *
  * @typedef {import("@web/webclient/menus/menu_utils").AppEntry} HomeMenuApp
  */
 
-/**
- * Home menu
- *
- * This component handles the display and navigation between the different
- * available applications and menus.
- */
 export class HomeMenu extends Component {
     static template = "web.HomeMenu";
     static appTemplate = "web.HomeMenu.App";
@@ -429,6 +414,39 @@ export class HomeMenu extends Component {
     /** @returns {HomeMenuApp[]} */
     _recentApps() {
         return this.search.query ? [] : menuUsage.rank(this.visibleApps, RECENT_APPS);
+    }
+
+    /** @returns {HomeMenuApp[]} */
+    get attentionApps() {
+        if (!this.derived.has("attentionApps")) {
+            this.derived.set("attentionApps", this._attentionApps());
+        }
+        return this.derived.get("attentionApps");
+    }
+
+    /**
+     * The apps with something waiting, most first.
+     *
+     * Recents answer "what do you use", which is not the same question and on a
+     * grid this size is often not the same apps: a launcher of eighty tiles can
+     * put the one with forty late transfers below the fold while showing six a
+     * user opened yesterday out of habit. The counts were already on the tiles;
+     * nothing ordered by them.
+     *
+     * A section rather than a re-sort of the grid, for the reason Pinned and
+     * Recent are: a grid whose order moves with the data is a grid nobody can
+     * learn the shape of.
+     *
+     * @returns {HomeMenuApp[]}
+     */
+    _attentionApps() {
+        if (this.search.query || this.state.editing) {
+            return [];
+        }
+        return this.visibleApps
+            .filter((app) => this.badgeFor(app).count > 0)
+            .sort((a, b) => this.badgeFor(b).count - this.badgeFor(a).count)
+            .slice(0, ATTENTION_APPS);
     }
 
     /**
