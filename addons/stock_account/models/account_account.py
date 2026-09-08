@@ -21,6 +21,10 @@ class AccountAccount(models.Model):
         ],
         help="At closing, register the inventory variation of the period into a specific account",
     )
+    account_stock_variation_active = fields.Boolean(
+        string="Variation Account Active",
+        related="account_stock_variation_id.active",
+    )
     account_stock_expense_id = fields.Many2one(
         "account.account",
         string="Expense Account",
@@ -37,4 +41,8 @@ class AccountAccount(models.Model):
             )
         ],
         help="Counterpart used at closing for accounting adjustments to inventory valuation.",
+    )
+    account_stock_expense_active = fields.Boolean(
+        string="Expense Account Active",
+        related="account_stock_expense_id.active",
     )

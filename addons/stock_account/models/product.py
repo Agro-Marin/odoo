@@ -995,6 +995,10 @@ class ProductCategory(models.Model):
         check_company=True,
         help="""When automated inventory valuation is enabled on a product, this account will hold the current value of the products.""",
     )
+    property_stock_valuation_account_active = fields.Boolean(
+        string="Stock Valuation Account Active",
+        related="property_stock_valuation_account_id.active",
+    )
     property_price_difference_account_id = fields.Many2one(
         "account.account",
         "Price Difference Account",
@@ -1003,11 +1007,19 @@ class ProductCategory(models.Model):
         check_company=True,
         help="""With perpetual valuation, this account will hold the price difference between the standard price and the bill price.""",
     )
+    property_price_difference_account_active = fields.Boolean(
+        string="Price Difference Account Active",
+        related="property_price_difference_account_id.active",
+    )
     account_stock_variation_id = fields.Many2one(
         "account.account",
         string="Stock Variation Account",
         readonly=False,
         related="property_stock_valuation_account_id.account_stock_variation_id",
+    )
+    account_stock_variation_active = fields.Boolean(
+        string="Stock Variation Account Active",
+        related="account_stock_variation_id.active",
     )
 
     @api.depends_context("company")

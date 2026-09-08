@@ -130,7 +130,7 @@ class ResCompany(models.Model):
 
         moves_vals = {
             "journal_id": self.account_stock_journal_id.id,
-            "date": at_date or fields.Date.today(),
+            "date": at_date or fields.Date.context_today(self),
             "ref": _("Stock Closing"),
             "is_stock_valuation_closing": True,
             "stock_valuation_closing_cutoff": (
@@ -396,7 +396,7 @@ class ResCompany(models.Model):
     ):
         extra_balance = self._get_extra_balance(extra_aml_vals_list)
 
-        reference_date = at_date or fields.Date.today()
+        reference_date = at_date or fields.Date.context_today(self)
         fiscal_year_date_from = self.compute_fiscalyear_dates(reference_date)[
             "date_from"
         ]
