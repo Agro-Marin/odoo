@@ -26,6 +26,10 @@ class TestSaleOrderStateMachine(SaleCommon):
         self.sale_order.write({"state": "done"})
         self.assertEqual(self.sale_order.state, "done")
 
+    def test_legal_transition_draft_to_cancel(self):
+        self.sale_order.write({"state": "cancel"})
+        self.assertEqual(self.sale_order.state, "cancel")
+
     def test_legal_transition_done_to_cancel(self):
         self.sale_order.write({"state": "done"})
         self.sale_order.write({"state": "cancel"})
