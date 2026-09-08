@@ -324,7 +324,6 @@
                     widget="badge"
                     decoration-success="state == 'done'"
                     decoration-info="state == 'draft'"
-                    decoration-warning="state == 'to approve'"
                     optional="show" />
                 <field
                     name="date_commitment"
