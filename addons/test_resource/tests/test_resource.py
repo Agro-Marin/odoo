@@ -211,3 +211,11 @@ class TestResource(TestResourceCommon):
             datetime(2024, 7, 11), datetime(2024, 7, 12)
         )
         self.assertFalse(unavailabilities)
+
+    def test_copy_carries_the_new_name_onto_its_resource(self):
+        origin = self.env["resource.test"].create({"name": "Origin"})
+        copy_with_new_name = origin.copy({"name": "Renamed"})
+        self.assertEqual(copy_with_new_name.resource_id.name, "Renamed")
+
+        plain_copy = origin.copy()
+        self.assertEqual(plain_copy.resource_id.name, "Origin (copy)")

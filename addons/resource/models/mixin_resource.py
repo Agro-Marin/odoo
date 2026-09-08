@@ -126,6 +126,12 @@ class MixinResource(models.AbstractModel):
             vals["resource_id"] = resource.id
             vals["company_id"] = resource.company_id.id
             vals["resource_calendar_id"] = resource.calendar_id.id
+            if not resource.partner_id and self._rec_name in default:
+                # Only an explicit rename of the host record follows onto
+                # its resource; otherwise resource.resource's own "(copy)"
+                # naming stands, and a partner-backed resource always
+                # follows its partner's name, never the host record's.
+                resource.name = default[self._rec_name]
         return vals_list
 
     def _get_calendars(
