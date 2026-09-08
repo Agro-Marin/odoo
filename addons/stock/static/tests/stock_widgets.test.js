@@ -37,6 +37,13 @@ class StockThing extends models.Model {
             is_storable: true,
             state: "done",
         },
+        {
+            id: 3,
+            forecast_availability: 0,
+            product_qty: 0,
+            is_storable: true,
+            state: "assigned",
+        },
     ];
 }
 class StockPackage extends models.Model {
@@ -69,6 +76,13 @@ describe("forecast_widget", () => {
         await mountForecast(2);
         expect(".badge").toHaveText("Not Available");
         expect(".badge").toHaveClass("text-bg-danger");
+    });
+
+    test("a line with no demand shows no badge at all", async () => {
+        // A zero forecast covers a zero demand, so the badge used to read
+        // "Available" on a line nobody has asked anything of yet.
+        await mountForecast(3);
+        expect(".badge").toHaveCount(0);
     });
 
     test("it is a real button, so it is reachable from the keyboard", async () => {

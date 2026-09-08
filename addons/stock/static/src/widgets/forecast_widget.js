@@ -20,6 +20,10 @@ export class ForecastWidgetField extends Component {
         return this.props.record.resId;
     }
 
+    get productQty() {
+        return this.props.record.data.product_qty;
+    }
+
     get forecastExpectedDate() {
         return formatDate(this.props.record.data.date_planned_forecast);
     }
