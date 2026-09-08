@@ -15,6 +15,7 @@ class UpdateProductAttributeValue(models.TransientModel):
             ("add", "Add to existing products"),
             ("update_extra_price", "Update the extra price on existing products"),
         ],
+        required=True,
     )
     message = fields.Char(compute="_compute_message")
     product_count = fields.Integer(compute="_compute_product_count")

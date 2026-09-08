@@ -1,11 +1,23 @@
+from psycopg.errors import NotNullViolation
+
 from odoo.fields import Command
 from odoo.tests import Form, tagged
+from odoo.tools import mute_logger
 
 from odoo.addons.product.tests.common import ProductVariantsCommon
 
 
 @tagged("post_install", "-at_install")
 class TestUpdateProductAttributeValueWizard(ProductVariantsCommon):
+    def test_mode_is_required(self):
+        with (
+            mute_logger("odoo.sql_db"),
+            self.assertRaises(NotNullViolation),
+        ):
+            self.env["update.product.attribute.value"].create(
+                {"attribute_value_id": self.color_attribute_red.id}
+            )
+
     def test_add_to_products(self):
         product_template_shirt = self.env["product.template"].create(
             {
