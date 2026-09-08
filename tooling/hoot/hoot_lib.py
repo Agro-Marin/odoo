@@ -911,6 +911,7 @@ def run_suites(
     extra: str = "",
     verbose: bool = False,
     self_tests: bool = False,
+    page: str | None = None,
 ) -> RunResult:
     _bootstrap_odoo()
     from odoo.tools import config
@@ -928,16 +929,21 @@ def run_suites(
     capture = _ConsoleCapture()
     browser_logger.addHandler(capture)
 
-    if self_tests:
-        # Hoot's own suites are not in any asset bundle and must not be: each
-        # declares itself as `describe(parseUrl(import.meta.url))`, and in a
-        # bundle `import.meta.url` is the BUNDLE's url for every file, so all
-        # thirteen collapse into one suite and registration dies on the first
-        # duplicate name. They ship their own page instead, with its own import
-        # map, which is what this drives. No preset, tag or module scope: that
-        # page has none.
+    own_page = SELF_TEST_PAGE if self_tests else page
+    if own_page:
+        # A suite on a page of its own, driven whole: no id filter, no preset,
+        # no tag and no module scope, because such a page carries none of them.
+        #
+        # Hoot's own suites are the first of these and are not in any asset
+        # bundle, deliberately: each declares itself as
+        # `describe(parseUrl(import.meta.url))`, and in a bundle
+        # `import.meta.url` is the BUNDLE's url for every file, so all thirteen
+        # collapse into one suite and registration dies on the first duplicate
+        # name. `im_livechat`'s embed suites are the second, for a different
+        # reason -- the embed runs outside the web client and is bundled as the
+        # visitor gets it.
         url = (
-            f"http://{HOST}:{port}{SELF_TEST_PAGE}"
+            f"http://{HOST}:{port}{own_page}"
             f"?headless&loglevel=2&timeout={hoot_timeout_ms}{extra}"
         )
     else:

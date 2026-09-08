@@ -194,7 +194,8 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
     touch = env["touch"] if args.touch is None else args.touch
     tag = env["tag"] if args.tag is None else args.tag
     # Hoot's own page carries no presets and no tags; sending one selects nothing.
-    extra = "" if getattr(args, "self_tests", False) else (f"&tag={tag}" if tag else "")
+    on_own_page = getattr(args, "self_tests", False) or getattr(args, "page", None)
+    extra = "" if on_own_page else (f"&tag={tag}" if tag else "")
     if args.filter:
         extra += f"&filter={args.filter}"
     if args.hook_timeout is not None:
@@ -211,6 +212,7 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
         extra=extra,
         verbose=args.verbose,
         self_tests=getattr(args, "self_tests", False),
+        page=getattr(args, "page", None),
     )
     after = H.read_state(state["db"]) or {}
     if after.get("pid") != state.get("pid") or not H.server_is_warm(after):
@@ -304,6 +306,14 @@ def main() -> int:
         help="Run HOOT's OWN suites (lib/hoot/tests) instead of an addon's. "
         "They live on their own page and are in no asset bundle, so no "
         "@web/... id reaches them.",
+    )
+    ap.add_argument(
+        "--page",
+        help="Drive an addon's own test page instead of /web/tests, e.g. "
+        "'/web/tests/livechat' for im_livechat's embed suites. Such a page "
+        "runs whole: it takes no suite id, preset, tag or module scope. "
+        "`hoot --page` needs --db to name a database with that addon "
+        "installed, since it cannot derive one from a suite id.",
     )
     ap.add_argument(
         "--preset",
@@ -426,7 +436,18 @@ def main() -> int:
                 print(reaped)
         return 0
 
-    if args.self_tests:
+    if getattr(args, "page", None) and not args.self_tests:
+        # The suites named on the command line label the run; the page decides
+        # what actually executes, so they are not resolved to ids.
+        suites = args.suites or [args.page]
+        if not args.db:
+            print(
+                "hoot --page needs --db: a page carries no suite id to derive a "
+                "database from.",
+                file=sys.stderr,
+            )
+            return 2
+    elif args.self_tests:
         # A label, not a selector: the page runs all of Hoot's own suites and
         # takes no id filter. `web` is what the server must have installed.
         suites = ["@hoot"]
@@ -439,7 +460,10 @@ def main() -> int:
             print(H.stop_server(db=db, clean=False))
         return 0
 
-    modules = H.modules_for_suites(["@web/hoot"] if args.self_tests else suites)
+    if getattr(args, "page", None) and not args.self_tests:
+        modules = []
+    else:
+        modules = H.modules_for_suites(["@web/hoot"] if args.self_tests else suites)
     db = args.db or H.db_for_modules(modules)
     if args.restart:
         H.stop_server(db=db, clean=False)

@@ -136,6 +136,32 @@ installed), boots a threaded server on the first free port in **8085-8089**, and
 builds the bundle on first navigation. Every later invocation reuses that warm
 server and the cached bundle. Ports 8069 and the `wjsaudit` DB are never touched.
 
+### Suites that live on a page of their own (`--page`)
+
+Two suites in this tree are in no asset bundle and cannot be reached by an
+`&id=` filter against `/web/tests`, because they are not on that page:
+
+| Suite | Page | Why it is separate |
+|---|---|---|
+| HOOT's own 204 | `/web/static/lib/hoot/tests/index.html` | each declares `describe(parseUrl(import.meta.url))`, which in a bundle is the bundle's url for every file — all thirteen would collapse into one suite and registration would die on the first duplicate name. `--self` drives it |
+| `im_livechat`'s embed, 36 | `/web/tests/livechat` | the embed runs outside the web client and is bundled as a visitor gets it (`im_livechat.embed_assets_unit_tests`) |
+
+`./hoot '@im_livechat/embed'` therefore fails with *no suite or test matches id* —
+the page it asks does not carry them. Drive the page instead:
+
+```bash
+./hoot --page /web/tests/livechat --db hoot_livechat '@im_livechat/embed'
+```
+
+A page runs **whole**: the suite arguments label the run and select nothing, and
+no preset, tag or module scope is sent, because such a page implements none of
+them. `--db` is required, since there is no suite id to derive a database from —
+name one with the addon installed.
+
+**A suite nobody can run is a suite nobody runs.** The embed's two long-standing
+failures sat unreproducible behind a documented command that could not work; that
+is the same silence `hoot-shard` runs `--self` by default to avoid.
+
 ## Affected-suite selection
 
 `hoot-affected` / `hoot --affected` maps changed JS files to the minimal set of
