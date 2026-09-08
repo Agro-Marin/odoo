@@ -5,6 +5,7 @@ from lxml import etree
 from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import Form, new_test_user
+from odoo.tools.safe_eval import safe_eval
 
 from odoo.addons.stock.tests.common import TestStockCommon
 
@@ -9272,3 +9273,65 @@ class TestStockMove(TestStockCommon):
             arch.xpath("//field[@name='partner_id']"),
             "the Moves Analysis list must offer the contact as a column",
         )
+
+    def test_moves_analysis_measures_are_in_product_uom(self):
+        """Moves Analysis must not add up quantities held in different units.
+
+        Our moves span more than thirty units of measure at once -- Units,
+        Liter, 2kg, 20L and a score of package sizes -- and `quantity` is each
+        move's own unit, so summing it adds litres to kilos. Every measure the
+        action offers must be normalised to the product's own unit first.
+        """
+        product = self.product_1
+        moves = self.env["stock.move"].create(
+            [
+                {
+                    "product_id": product.id,
+                    "product_uom_id": product.uom_id.id,
+                    "product_uom_qty": 10,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                },
+                {
+                    "product_id": product.id,
+                    "product_uom_id": self.uom_unit.id,
+                    "product_uom_qty": 10,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                },
+            ]
+        )
+        for move in moves:
+            move.quantity = 10
+
+        measures = [
+            measure
+            for measure in safe_eval(self.env.ref("stock.stock_move_action").context)[
+                "pivot_measures"
+            ]
+            if measure != "__count__"
+        ]
+        self.assertTrue(measures, "fixture: the action must declare a measure")
+
+        raw = sum(moves.mapped("quantity"))
+        normalised = sum(
+            move.product_uom_id._compute_quantity_stored(move.quantity, product.uom_id)
+            for move in moves
+        )
+        self.assertNotEqual(
+            raw,
+            normalised,
+            "fixture: the two moves must really be held in different units",
+        )
+
+        for measure in measures:
+            with self.subTest(measure=measure):
+                [group] = self.env["stock.move"]._read_group(
+                    [("id", "in", moves.ids)],
+                    aggregates=[f"{measure}:sum"],
+                )
+                self.assertEqual(
+                    group[0],
+                    normalised,
+                    f"the {measure} measure must be in the product's own unit",
+                )
