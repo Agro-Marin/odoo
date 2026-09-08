@@ -68,17 +68,17 @@ def _reexec_server(updated_modules: list[str] | None = None) -> None:
 
 
 def _run_post_install_tests(registry: Registry, update_module: bool) -> int:
-    from odoo.db.utils import seed_planner_stats
+    from odoo.db.utils import update_planner_stats
     from odoo.tests import loader
 
     try:
         with registry.cursor() as cr:
-            seeded = seed_planner_stats(cr)
-        if seeded:
-            _logger.info("Seeded planner statistics for %d zero-stat tables", seeded)
+            updated = update_planner_stats(cr)
+        if updated:
+            _logger.info("Set planner statistics for %d zero-stat tables", updated)
     except Exception:
         _logger.warning(
-            "Planner-stats seeding failed; tests may run slower", exc_info=True
+            "Planner-stats update failed; tests may run slower", exc_info=True
         )
 
     t0 = time.time()

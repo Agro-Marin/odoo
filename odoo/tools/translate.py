@@ -432,7 +432,15 @@ def xml_term_adapter(term_en: str) -> Callable[[str], str | None]:
             for orig_n, new_n in same_struct_iter(orig_node, new_node):
                 for k in [k for k in new_n.attrib if k in MODIFIER_ATTRS]:
                     del new_n.attrib[k]
-                new_n.attrib.update(orig_n.attrib)
+                # A translator-addable attribute belongs to the translation, so
+                # the source term must not overwrite one the translator set --
+                # nor supply one the translation never carried.
+                new_n.attrib.update(
+                    (k, v)
+                    for k, v in orig_n.attrib.items()
+                    if k not in TRANSLATOR_ADDABLE_ATTRS
+                    and not k.startswith(TRANSLATOR_ADDABLE_ATTR_PREFIX)
+                )
         except ValueError:
             return None
 

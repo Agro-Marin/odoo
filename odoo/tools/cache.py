@@ -70,7 +70,7 @@ _COUNTERS: defaultdict[tuple[str, Callable], ormcache_counter] = defaultdict(
 )
 
 
-def prune_counters(db_name: str) -> None:
+def remove_counters(db_name: str) -> None:
     for cache_key in [k for k in _COUNTERS if k[0] == db_name]:
         del _COUNTERS[cache_key]
 

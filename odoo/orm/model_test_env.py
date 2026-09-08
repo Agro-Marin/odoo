@@ -492,7 +492,7 @@ def model_test_env(
 
     cr = InMemoryCursor(cast("Registry", registry), fixtures=fixtures)
 
-    _seed_fixtures(cr.storage, registry)
+    _create_fixtures(cr.storage, registry)
 
     from .runtime.environment import Environment
 
@@ -501,7 +501,7 @@ def model_test_env(
     yield env
 
 
-def _seed_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
+def _create_fixtures(storage: DictBackend, registry: ModelRegistry) -> None:
 
     def _insert_row(table: str, record_id: int, data: dict) -> None:
         data["id"] = record_id

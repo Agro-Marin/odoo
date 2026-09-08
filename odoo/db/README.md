@@ -31,7 +31,7 @@ files here carry one, so this README is the only map.
 | `lifecycle.py` | psycopg_pool `configure`/`reset`/`check` callbacks (`register_adapters` and its numeric-to-float loader, prepare tuning, session reset, grace-windowed health check sized by `PoolSettings.healthcheck_grace`) | yes |
 | `schema_cache.py` | `TransactionSchemaCache`: per-cursor, transaction-lifetime catalog facts for `copy_from` (id sequences, column types) | yes |
 | `metrics.py` | `_MetricsMixin` (query counters, thread metrics, DEBUG per-table stats), `categorize_query` (the statement -> (kind, table) classifier those stats key on), `sql_counter` | yes |
-| `utils.py` | `get_connection_info_for_database`, `is_maintenance_db`, `get_value_marker_positions`, `seed_planner_stats` | yes |
+| `utils.py` | `get_connection_info_for_database`, `is_maintenance_db`, `get_value_marker_positions`, `update_planner_stats` | yes |
 | `settings.py` | `PoolSettings`: the frozen snapshot of every `db_*` option the package reads, `from_config` to build one, and the slot (`current`, `installed`, `override`) through which `odoo.tools.config` supplies it — the one door the option dict has into this package | yes |
 
 “Pure” = importable and testable without a database or the framework. No

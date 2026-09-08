@@ -12,7 +12,7 @@ from odoo.tools.assets.esbuild import (
 )
 from odoo.tools.assets.esm_graph import (
     _TRANSITIVE_IMPORT_RE,
-    _scan_import_specifiers,
+    _get_import_specifiers,
     get_escaping_relative_imports,
 )
 from odoo.tools.assets.esm_lexer import lex_module
@@ -43,7 +43,7 @@ def _get_specs_imported_by_consumers(
             else:
                 imported.update(
                     spec
-                    for spec in _scan_import_specifiers(asset.raw_content)
+                    for spec in _get_import_specifiers(asset.raw_content)
                     if spec in members
                 )
         imported.update(

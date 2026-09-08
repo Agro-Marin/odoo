@@ -167,7 +167,7 @@ class TestTheWorkerCensusCrossesTheFork:
         unrelated.write_text("{}")
         os.utime(unrelated, (old, old))
 
-        master._sweep_stale_censuses()
+        master._remove_stale_censuses()
 
         assert not dead.exists(), (
             "_discard_census only runs on a clean stop, so without this sweep "
@@ -182,7 +182,7 @@ class TestTheWorkerCensusCrossesTheFork:
         old = time.time() - _prefork.CENSUS_MAX_AGE_S - 1
         os.utime(path, (old, old))
 
-        master._sweep_stale_censuses()
+        master._remove_stale_censuses()
 
         assert path.exists(), (
             "the sweep runs at start() before we have written anything, but it "

@@ -31,7 +31,7 @@ import odoo.models
 import odoo.orm.runtime
 from odoo import api
 from odoo.db import Cursor, Savepoint
-from odoo.db.utils import seed_planner_stats
+from odoo.db.utils import update_planner_stats
 from odoo.exceptions import AccessError
 from odoo.libs.password import CryptContext
 from odoo.logutils import RUNBOT
@@ -440,7 +440,7 @@ class BaseCase(TestCase):
     def _open_class_cursor(cls) -> None:
         cls.cr = cast("Cursor", cls.registry.cursor())
         cls.addClassCleanup(cls.cr.close)
-        seed_planner_stats(cls.cr)
+        update_planner_stats(cls.cr)
 
     @property
     def uid(self):

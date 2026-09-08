@@ -110,9 +110,9 @@ class TestLexerWorkerDegradation(BaseCase):
 
     @unittest.skipUnless(shutil.which("node"), "node binary not available")
     def test_the_union_of_both_lists_is_what_discovery_uses(self):
-        from odoo.tools.assets.esm_graph import _scan_import_specifiers
+        from odoo.tools.assets.esm_graph import _get_import_specifiers
 
-        specs = _scan_import_specifiers(
+        specs = _get_import_specifiers(
             "import { a } from '@x/y';\nexport * from '@x/z';\n"
         )
         self.assertEqual(specs, {"@x/y", "@x/z"})

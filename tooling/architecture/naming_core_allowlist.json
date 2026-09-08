@@ -12,6 +12,11 @@
     "_read_group_fill_temporal": "noun -- fill_temporal is a read_group parameter and a context key",
     "_read_group_fill_temporal_bound": "noun -- as _read_group_fill_temporal",
     "_read_group_apply_fill_temporal": "noun -- as _read_group_fill_temporal",
-    "_check_on_delete_required_m2o": "noun -- on_delete is a field on ir.model.fields"
+    "_check_on_delete_required_m2o": "noun -- on_delete is a field on ir.model.fields",
+    "populate_field": "domain verb -- odoo-bin populate is a subcommand whose whole object is populating a database, so §2.4.9's 'where the operation is what the model is about' holds: there is nothing more specific to say than populate",
+    "populate_model": "domain verb -- as populate_field",
+    "populate_models": "domain verb -- as populate_field",
+    "_populate_models_named": "domain verb -- as populate_field; it is the cli/populate.py entry point for the same subcommand",
+    "invalidate_addon_scan_cache": "noun -- the addon scan is the cached thing (_esbuild_addon_scan_cache), not an act this method performs; §2.4.4's 'unless it is a noun', and _invalidate_ is already §2.4.17's canonical"
   }
 }

@@ -146,7 +146,7 @@ _TRANSITIVE_IMPORT_RE = re.compile(
 )
 
 
-def _scan_import_specifiers(src: str) -> set[str]:
+def _get_import_specifiers(src: str) -> set[str]:
     lexed = lex_module(src)
     if lexed is not None:
         specs = {imp["n"] for imp in lexed["imports"]}
@@ -173,7 +173,7 @@ def get_escaping_relative_imports(
         )
     escapes: list[tuple[str, str, str]] = []
     for module in modules:
-        specs = _scan_import_specifiers(module.raw_content)
+        specs = _get_import_specifiers(module.raw_content)
         for spec in sorted(specs):
             if not spec.startswith("."):
                 continue
@@ -201,7 +201,7 @@ def discover_transitive_import_specifiers(
         src = resolver.read_source(spec)
         if src is None:
             continue
-        for target in _scan_import_specifiers(src):
+        for target in _get_import_specifiers(src):
             if target.startswith("."):
                 abs_spec = _resolve_export_specifier(
                     spec, target, resolver.effective_url(spec)

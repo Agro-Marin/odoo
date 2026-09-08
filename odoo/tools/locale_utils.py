@@ -28,7 +28,7 @@ def get_iso_codes(lang: str) -> str:
 
 
 @functools.cache
-def _scan_languages() -> tuple[tuple[str, str], ...]:
+def _read_lang_csv() -> tuple[tuple[str, str], ...]:
     with file_open("base/data/res.lang.csv") as csvfile:
         reader = csv.reader(csvfile, delimiter=",", quotechar='"')
         fields = next(reader)
@@ -39,9 +39,9 @@ def _scan_languages() -> tuple[tuple[str, str], ...]:
     return tuple(sorted(result or [("en_US", "English")], key=itemgetter(1)))
 
 
-def scan_languages() -> list[tuple[str, str]]:
+def get_languages() -> list[tuple[str, str]]:
     try:
-        return list(_scan_languages())
+        return list(_read_lang_csv())
     except Exception:
         _logger.exception("Could not read res.lang.csv")
         return [("en_US", "English")]

@@ -28,7 +28,7 @@ def loader():
     with (
         patch.dict("sys.modules", {}),
         patch("odoo.tests.loader", fake, create=True),
-        patch("odoo.db.utils.seed_planner_stats", return_value=0) as seed,
+        patch("odoo.db.utils.update_planner_stats", return_value=0) as seed,
         patch.object(lifecycle, "db", MagicMock(sql_counter=0)),
     ):
         yield fake, suite, seed

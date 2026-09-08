@@ -51,7 +51,7 @@ class BridgeShimManager:
         self.bundle_name = bundle_name
         self.native_modules = native_modules
 
-    def _refresh_reused_shims(self, existing) -> None:
+    def _update_reused_shim_dates(self, existing) -> None:
         if not existing:
             return
         cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(
@@ -108,7 +108,7 @@ class BridgeShimManager:
             ["url", "write_date"],
         )
         existing_urls = set(existing.mapped("url"))
-        self._refresh_reused_shims(existing)
+        self._update_reused_shim_dates(existing)
         to_create = [
             {
                 "name": url.rsplit("/", 1)[-1],

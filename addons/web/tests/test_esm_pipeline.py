@@ -25,7 +25,7 @@ from odoo.tools.assets.esm_graph import (
     _IMPORT_ANY_RE,
     _bridge_shim_source,
     _BridgeExportResolver,
-    _scan_import_specifiers,
+    _get_import_specifiers,
     discover_transitive_import_specifiers,
 )
 from odoo.tools.assets.esm_lexer import lex_module
@@ -1067,7 +1067,7 @@ class TestTransitiveImportClosure(TransactionCase):
         self.assertNotIn("@web/libs/bootstrap", res)
 
     def test_scan_covers_reexport_and_relative_shapes(self):
-        specs = _scan_import_specifiers(
+        specs = _get_import_specifiers(
             'import { a } from "@web/named";\n'
             'import "@web/side_effect";\n'
             'import "./relative";\n'
@@ -1119,7 +1119,7 @@ class TestTransitiveImportClosure(TransactionCase):
             source = self._read_static_url(url)
             if source is None:
                 continue
-            for imported in _scan_import_specifiers(source):
+            for imported in _get_import_specifiers(source):
                 if imported.startswith("."):
                     queue.append(
                         (
@@ -3256,7 +3256,7 @@ class TestLibraryFacades(TransactionCase):
                 imports = (
                     {imp["n"] for imp in lexed["imports"]}
                     if lexed is not None
-                    else _scan_import_specifiers(asset.raw_content)
+                    else _get_import_specifiers(asset.raw_content)
                 )
                 offenders.extend(
                     f"{family}: {asset.url} imports {spec} statically; use {facaded[spec]}"
@@ -3310,7 +3310,7 @@ class TestServedLibraries(TransactionCase):
         self.assertEqual(len(declared_files), len(set(declared_files)))
         for served_url, (lib, declared) in by_url.items():
             source = lib.files[declared].read_text(encoding="utf-8")
-            for spec in _scan_import_specifiers(source):
+            for spec in _get_import_specifiers(source):
                 if not spec.startswith(("./", "../")):
                     continue
                 target = posixpath.normpath(

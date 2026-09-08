@@ -86,7 +86,7 @@ from .locale_utils import (
     babel_locale_parse,
     get_iso_codes,
     get_lang,
-    scan_languages,
+    get_languages,
 )
 from .security import (
     consteq,
@@ -158,6 +158,7 @@ __all__ = [
     "get_flag",
     "get_iso_codes",
     "get_lang",
+    "get_languages",
     "get_pg_tool_path",
     "groupby",
     "has_list_types",
@@ -181,7 +182,6 @@ __all__ = [
     "remove_accents",
     "replace_exceptions",
     "resolve_hash_signed",
-    "scan_languages",
     "split_every",
     "str2bool",
     "street_split",

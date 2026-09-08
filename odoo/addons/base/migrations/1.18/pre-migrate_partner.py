@@ -119,7 +119,7 @@ def _rename_web_icon(cr):
     return rewritten
 
 
-def _sweep_source_text(cr):
+def _rewrite_source_text(cr):
     columns = (
         ("ir_ui_view", "arch_db", True),
         ("ir_ui_view", "arch_prev", False),
@@ -210,7 +210,7 @@ def migrate(cr, version):
     xmlids = _rename_xmlids(cr)
     icons = _rename_web_icon(cr)
     paths = _rename_arch_fs(cr)
-    quoted = _sweep_source_text(cr)
+    quoted = _rewrite_source_text(cr)
     checksums = _reset_data_file_checksums(cr)
 
     _logger.info(

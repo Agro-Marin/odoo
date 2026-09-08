@@ -232,9 +232,9 @@ class Registry(
     def delete(cls, db_name: str) -> None:
         if db_name in cls.registries:
             del cls.registries[db_name]
-        from odoo.tools.cache import prune_counters
+        from odoo.tools.cache import remove_counters
 
-        prune_counters(db_name)
+        remove_counters(db_name)
 
     @classmethod
     @locked
@@ -349,7 +349,7 @@ class Registry(
             done.add(field)
             todo.extend(self.field_setup_dependents.pop(field, ()))  # noqa: B909  todo is a worklist: appending newly discovered dependents here is how they get processed later in this same loop
 
-    def _setup_refresh_field_depends(self, env, models_field_depends_done: set) -> None:
+    def _setup_field_depends(self, env, models_field_depends_done: set) -> None:
         for model_cls in self.models.values():
             if model_cls in models_field_depends_done:
                 continue
@@ -406,7 +406,7 @@ class Registry(
 
             registration.setup_model_classes(env)
 
-            self._setup_refresh_field_depends(env, models_field_depends_done)
+            self._setup_field_depends(env, models_field_depends_done)
 
             reset_cached_properties(self)
 

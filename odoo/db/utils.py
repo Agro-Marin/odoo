@@ -129,7 +129,7 @@ def get_connection_info_for_database(
     return db_or_uri, connection_info
 
 
-def seed_planner_stats(cr, *, reltuples: float = 1000.0, relpages: int = 100) -> int:
+def update_planner_stats(cr, *, reltuples: float = 1000.0, relpages: int = 100) -> int:
     cr.execute(
         """
         SELECT count(*)

@@ -127,7 +127,7 @@ class PreforkServer(CommonServer):
             with contextlib.suppress(OSError):
                 path.unlink()
 
-    def _sweep_stale_censuses(self) -> None:
+    def _remove_stale_censuses(self) -> None:
         path = self._get_census_path()
         if path is None:
             return
@@ -138,7 +138,7 @@ class PreforkServer(CommonServer):
                     with contextlib.suppress(OSError):
                         stale.unlink()
         except Exception:
-            self.logger.debug("Could not sweep stale censuses", exc_info=True)
+            self.logger.debug("Could not remove stale censuses", exc_info=True)
 
     def __init__(self, app: Any) -> None:
         super().__init__(app)
@@ -489,7 +489,7 @@ class PreforkServer(CommonServer):
 
     def start(self) -> None:
         self.pipe = self.open_pipe()
-        self._sweep_stale_censuses()
+        self._remove_stale_censuses()
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGHUP, self.signal_handler)
@@ -669,7 +669,7 @@ class PreforkServer(CommonServer):
 
         _process_state.set_phoenix(phoenix_decided)
 
-    def _sweep_stale_workers(self) -> None:
+    def _remove_stale_workers(self) -> None:
         for pid in list(self.workers):
             proc = self._drain_procs.get(pid)
             if proc is None or not proc.is_running():
@@ -690,7 +690,7 @@ class PreforkServer(CommonServer):
                     )
                     return
                 self.stop_workers_gracefully()
-                self._sweep_stale_workers()
+                self._remove_stale_workers()
 
                 self.logger.info("Old server stopped")
                 return

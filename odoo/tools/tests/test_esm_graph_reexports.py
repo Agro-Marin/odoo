@@ -4,7 +4,7 @@ from unittest.mock import patch
 from odoo.tools.assets import esm_graph
 from odoo.tools.assets.esm_graph import (
     _TRANSITIVE_IMPORT_RE,
-    _scan_import_specifiers,
+    _get_import_specifiers,
     get_escaping_relative_imports,
 )
 from odoo.tools.assets.esm_lexer import lex_module
@@ -46,13 +46,13 @@ class TestNamedReExportsAreSeen(unittest.TestCase):
     def test_the_regex_runs_only_when_the_lexer_cannot(self):
         with patch.object(esm_graph, "lex_module", return_value=None):
             self.assertEqual(
-                _scan_import_specifiers(SOURCE),
+                _get_import_specifiers(SOURCE),
                 {"./sibling", "../outside/thing", "../outside/star"},
             )
 
     def test_the_scan_reports_every_static_specifier(self):
         self.assertEqual(
-            _scan_import_specifiers(SOURCE),
+            _get_import_specifiers(SOURCE),
             {"./sibling", "../outside/thing", "../outside/star"},
         )
 

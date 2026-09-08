@@ -577,18 +577,18 @@ class _PackageLoader:
         self.report_cost()
 
 
-def _sweep_gc(registry: Registry, sweeps: int) -> int:
+def _run_gc_cycle(registry: Registry, cycles: int) -> int:
     if gc.get_count()[0] <= _GC_YOUNG_BACKLOG_LIMIT:
-        return sweeps
+        return cycles
     registry._caches.clear_all()
-    sweeps += 1
-    if sweeps % _GC_FULL_CYCLE_EVERY == 0:
+    cycles += 1
+    if cycles % _GC_FULL_CYCLE_EVERY == 0:
         gc.unfreeze()
         gc.collect()
     else:
         gc.collect(generation=1)
     gc.freeze()
-    return sweeps
+    return cycles
 
 
 def load_module_graph(
@@ -617,7 +617,7 @@ def load_module_graph(
     cursor_queries_at_start = cr.sql_log_count
 
     models_updated: set[str] = set()
-    gc_sweeps = 0
+    gc_cycles = 0
 
     try:
         for index, package in enumerate(graph, 1):
@@ -638,7 +638,7 @@ def load_module_graph(
                 models_updated=models_updated,
             ).run()
             env.invalidate_all()
-            gc_sweeps = _sweep_gc(registry, gc_sweeps)
+            gc_cycles = _run_gc_cycle(registry, gc_cycles)
     finally:
         gc.unfreeze()
 

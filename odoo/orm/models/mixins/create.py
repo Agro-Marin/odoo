@@ -454,7 +454,7 @@ class CreateMixin(_ModelStubs):
 
         prof.mark("sql")
 
-        records, inverses_update = self._populate_create_cache(ids, data_list)
+        records, inverses_update = self._update_create_cache(ids, data_list)
         prof.mark("cache")
 
         for (field, value), record_ids in inverses_update.items():
@@ -490,7 +490,7 @@ class CreateMixin(_ModelStubs):
         prof.report(_orm_crud, "_create %s: %d records", self._name, len(records))
         return records
 
-    def _populate_create_cache(
+    def _update_create_cache(
         self, ids: list[int], data_list: list[dict]
     ) -> tuple[Self, dict]:
         records = self.browse(ids)

@@ -2963,45 +2963,45 @@ class TestPublicReadVerbsAreMemoized:
     def test_languages_csv_read_once(self):
         from odoo.tools import locale_utils
 
-        locale_utils._scan_languages.cache_clear()
+        locale_utils._read_lang_csv.cache_clear()
         try:
             with patch.object(
                 locale_utils, "file_open", wraps=locale_utils.file_open
             ) as fo:
-                first = locale_utils.scan_languages()
-                second = locale_utils.scan_languages()
+                first = locale_utils.get_languages()
+                second = locale_utils.get_languages()
             assert fo.call_count == 1, "res.lang.csv was re-read per call"
             assert first == second
             assert isinstance(first, list)
         finally:
-            locale_utils._scan_languages.cache_clear()
+            locale_utils._read_lang_csv.cache_clear()
 
     def test_languages_result_is_not_shared_across_calls(self):
         from odoo.tools import locale_utils
 
-        locale_utils._scan_languages.cache_clear()
+        locale_utils._read_lang_csv.cache_clear()
         try:
-            first = locale_utils.scan_languages()
+            first = locale_utils.get_languages()
             first.append(("zz_ZZ", "Mutated"))
-            assert ("zz_ZZ", "Mutated") not in locale_utils.scan_languages()
+            assert ("zz_ZZ", "Mutated") not in locale_utils.get_languages()
         finally:
-            locale_utils._scan_languages.cache_clear()
+            locale_utils._read_lang_csv.cache_clear()
 
     def test_language_read_failure_is_not_cached(self):
         from odoo.tools import locale_utils
 
-        locale_utils._scan_languages.cache_clear()
+        locale_utils._read_lang_csv.cache_clear()
         try:
             with patch.object(locale_utils, "file_open", side_effect=OSError("EIO")):
-                degraded = locale_utils.scan_languages()
+                degraded = locale_utils.get_languages()
             assert degraded == [("en_US", "English")]
 
-            recovered = locale_utils.scan_languages()
+            recovered = locale_utils.get_languages()
             assert len(recovered) > 1, (
                 "a transient res.lang.csv failure was cached as the permanent answer"
             )
         finally:
-            locale_utils._scan_languages.cache_clear()
+            locale_utils._read_lang_csv.cache_clear()
 
 
 class TestExpDropGate:

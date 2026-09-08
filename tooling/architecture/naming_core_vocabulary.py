@@ -14,10 +14,16 @@ become owed. It differs from its sibling in three ways, each of which is why a
 `--roots` flag on the sibling would not have done:
 
 * **It reads every function**, not the methods of model classes.
-* **It flags the four assemble verbs unconditionally.** They are payload-only in
+* **It flags the assemble verbs unconditionally.** They are payload-only in
   `ABOLISHED` because the sibling reads a name and not a receiver, and widening
   that shared table would move the addon floor by names nobody has looked at.
   Here the population is small enough to have been read.
+* **It reads the abolished table as families rather than as a word list.**
+  §2.4.20's argument is that a row's printed entry can drain to zero while the
+  operation goes on being performed under a word nobody listed, and that the
+  drained entry then reads as a finished family. `SYNONYMS` is that reading made
+  blocking, and the comment above it argues the exclusions as well as the
+  entries.
 * **It flags a bare assemble verb.** `classify` partitions on the first token
   and returns `None` when there is no remainder, so `make()` and `_build()` are
   invisible to every rule in §2.4. Seven of the second sweep's forty-five were
@@ -35,13 +41,13 @@ What survives the vocabulary in core is a list and not a package boundary, so th
 survivors are an allowlist naming each one and why, never a floor. A floor would
 let the next one in silently; an entry has to be argued.
 
-The floor is not zero and the difference matters. It stands at six, all of them
-in `odoo/tests`: the second sweep took every other part of core to zero and left
-the framework tree to a sweep already running inside it, because colliding with a live
-rename is worse than a floor. That is the one population here that is debt
-rather than a survivor, it is one commit from gone, and the allowlist is not the
-place to put it -- `test_naming_core_vocabulary` pins the six by NAME so a new
-finding in `orm/` cannot hide behind one of them going away.
+The floor was six when this was written, all of them in `odoo/tests`: the second
+sweep took every other part of core to zero and left the framework tree to a
+sweep already running inside it, because colliding with a live rename is worse
+than a floor. That sweep landed and the six are gone, so the gate is a hard zero
+held by `test_naming_core_vocabulary` and by no baseline file -- which is why
+every assertion in that module is aimed at a scan that has stopped looking
+rather than at a count.
 """
 
 from __future__ import annotations
@@ -76,7 +82,49 @@ FRAMEWORK = CORE / "tests"
 
 ALLOWLIST = Path(__file__).with_name("naming_core_allowlist.json")
 
-ASSEMBLE = frozenset({"build", "make", "compose", "construct"})
+# §2.4.3's Payload row prints four verbs; the operation has more spellings than
+# the row has entries. `assemble`, `craft` and `forge` name the same act under a
+# word nobody listed, so they are read here on the same terms as the four -- flagged
+# whatever the tail, and flagged bare.
+ASSEMBLE = frozenset(
+    {"build", "make", "compose", "construct", "assemble", "craft", "forge"}
+)
+
+# §2.4.20: read the table as families, not as a word list. `naming_vocabulary.py`
+# matches the literal token by construction, so a row's entry can drain to zero
+# while the operation goes on being performed under a synonym -- and the drained
+# entry then reads as a finished family. Each key below is a word the table does
+# not print whose body satisfies one of its rows; the value is that row's
+# canonical and the reason, which is what the renamer needs and the count is not.
+#
+# This table is a core-only reading and belongs here rather than in the shared
+# `ABOLISHED`: the addon floor would move by names nobody has looked at, which is
+# the same argument the assemble verbs are carved out on. What is NOT here is as
+# argued as what is:
+#
+# * `determine` is §2.4.20's own example and is left out, because core's
+#   population is not the derivation the section describes -- `Field.determine*`
+#   dispatches a hook by name or callable, which is a §2.4.9 question, and §2.4.9
+#   is provisional and says no mechanical rewrite exists.
+# * `collect` and `emit` need a discriminator this gate does not have. Most of
+#   core's `collect_*` accumulate into a caller's container and return nothing,
+#   which is not the Read row; `emit` is `logging.Handler.emit`, and an override
+#   whose name is the contract is a rename that silently unhooks it.
+# * `reap` and `probe` are terms of art from a layer below, on §2.4.3's
+#   "reserved, not abolished" terms: `reap` is the POSIX wait-for-a-child, and
+#   `probe` is a named subsystem in `odoo/db/`.
+SYNONYMS: dict[str, tuple[str, str]] = {
+    "populate": ("_update_", "populating is filling -- the Mutation row"),
+    "prune": ("_remove_", "pruning is purging -- the Removal row"),
+    "sweep": ("_remove_", "sweeping is purging -- the Removal row"),
+    "seed": ("create", "seeding is creating"),
+    "scan": ("_get_ or _read_", "reading a source and returning what is in it"),
+    "gather": ("_get_", "the Read row"),
+    "refresh": (
+        "_reset_ / _invalidate_ / _rebuild_",
+        "names neither the drop nor the rebuild, which is what §2.4.17 exists to say",
+    ),
+}
 
 # Vendored code is not ours to rename. `nv.SKIP_DIRS` carries "vendored"; this
 # tree spells it with the underscore.
@@ -114,6 +162,30 @@ def core_files(root: Path | None = None) -> list[Path]:
     ]
 
 
+# §2.4.8's three predicate prefixes, plus the modal §2.4.20 reads onto them.
+# A predicate does not perform the operation its tail names -- it answers a
+# question ABOUT it -- so the verb behind one of these is the subject and not a
+# §2.4.4 hiding place. `can_scan_identity` asks whether a field's cache admits an
+# identity scan; renaming its middle token would be renaming the question.
+PREDICATE_PREFIXES = frozenset({"is", "has", "can", "should"})
+
+
+def infix_synonym(name: str) -> str | None:
+    """A synonym parked behind a noun -- §2.4.4's hiding place, one table over.
+
+    `nv.infix_abolished_verb` asks the same question of the shared table. A
+    synonym hides in the same position for the same reason: `classify` partitions
+    on the first token, so a noun in front of the verb is invisible to it.
+    """
+    tokens = name.lstrip("_").split("_")
+    if tokens[0] in PREDICATE_PREFIXES:
+        return None
+    for token in tokens[1:-1]:
+        if token in SYNONYMS:
+            return token
+    return None
+
+
 def classify_name(name: str) -> tuple[str, str] | None:
     """Return (kind, why) for a name the vocabulary refuses, else None."""
     if name.startswith("__") and name.endswith("__"):
@@ -128,8 +200,13 @@ def classify_name(name: str) -> tuple[str, str] | None:
         return "leading", f"{hit[0]} -> {hit[1]}*"
     if verb in ASSEMBLE:
         return "assemble", f"{verb} -> _prepare_* or _get_*, on the consumer test"
+    if (entry := SYNONYMS.get(verb)) is not None:
+        return "synonym", f"{verb} -> {entry[0]} -- {entry[1]}"
     if (token := nv.infix_abolished_verb(name)) is not None:
         return "infix", f"`{token}` behind a noun -- §2.4.4, unless it is a noun"
+    if (token := infix_synonym(name)) is not None:
+        canonical, why = SYNONYMS[token]
+        return "infix-synonym", f"`{token}` behind a noun -> {canonical} -- {why}"
     return None
 
 

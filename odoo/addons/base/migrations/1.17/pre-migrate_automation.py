@@ -273,7 +273,7 @@ def _rename_tables(cr, table_renames):
     return len(table_renames)
 
 
-def _sweep_source_text(cr):
+def _rewrite_source_text(cr):
     substitute = _TEXT_SUBSTITUTE
     columns = (
         ("ir_ui_view", "arch_db", True),
@@ -371,7 +371,7 @@ def migrate(cr, version):
     models = _rename_models(cr)
     tables = _rename_tables(cr, table_renames)
     actions = _rename_server_action_usage(cr)
-    quoted = _sweep_source_text(cr)
+    quoted = _rewrite_source_text(cr)
     checksums = _reset_data_file_checksums(cr)
 
     _logger.info(

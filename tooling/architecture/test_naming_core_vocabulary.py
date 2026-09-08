@@ -75,6 +75,45 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
         self.assertIsNotNone(hit)
         self.assertEqual(hit[0], "bare")
 
+    def test_an_unlisted_synonym_of_an_abolished_row_is_reported(self):
+        # §2.4.20: the table is families, not a word list. `naming_vocabulary`
+        # matches the literal token, so the sibling sees nothing here.
+        self.assertIsNone(nv.classify("_prune_counters"))
+        hit = ncv.classify_name("_prune_counters")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "synonym")
+
+    def test_a_synonym_behind_a_noun_is_reported(self):
+        hit = ncv.classify_name("_setup_refresh_field_depends")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "infix-synonym")
+
+    def test_a_synonym_behind_a_predicate_prefix_is_not_reported(self):
+        # A predicate answers a question ABOUT the operation its tail names; it
+        # does not perform it, so the tail is the subject and not §2.4.4's
+        # hiding place. Four of core's live on one module.
+        self.assertIsNone(ncv.classify_name("can_scan_identity"))
+        self.assertIsNone(ncv.classify_name("is_refresh_due"))
+
+    def test_an_assemble_synonym_is_reported_without_a_payload_suffix(self):
+        self.assertIsNone(nv.classify("_assemble_registry"))
+        hit = ncv.classify_name("_assemble_registry")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "assemble")
+
+    def test_the_verbs_the_table_declines_to_add_stay_out(self):
+        # Argued in the SYNONYMS comment, and asserted here so that adding one
+        # is a decision rather than a diff nobody reads. `emit` is
+        # logging.Handler's contract, `reap` and `probe` are terms of art from a
+        # layer below, `determine` is a §2.4.9 dispatch question.
+        for name in (
+            "emit_record",
+            "_reap_dead_jobs",
+            "probe_connectable",
+            "determine_inverse",
+        ):
+            self.assertIsNone(ncv.classify_name(name), name)
+
     def test_a_bare_non_assemble_verb_is_not_reported(self):
         # `delete` alone is a Protocol member in orm/runtime/backend.py and the
         # contract in libs/password.py's neighbourhood. §2.4.6 [review], and the
@@ -173,6 +212,11 @@ class TestItCatchesAPlantedRegression(unittest.TestCase):
             "        return super().make_environ()\n"
         )
         self.assertEqual(found, [])
+
+    def test_a_synonym_fails_the_gate_end_to_end(self):
+        found = self.plant("def _sweep_stale_rows(cr):\n    return cr\n")
+        self.assertEqual([v.name for v in found], ["_sweep_stale_rows"])
+        self.assertEqual(found[0].kind, "synonym")
 
     def test_an_allowlisted_name_does_not_fail_the_gate(self):
         found = self.plant("def append_paths(self, paths):\n    return paths\n")

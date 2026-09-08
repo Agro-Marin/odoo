@@ -1138,7 +1138,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   315
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 25,914
+§2.4.3   Non-test methods declared on a model class                 25,911
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               100
 §2.4.4   Model methods with an abolished verb behind a noun            137
@@ -1150,7 +1150,7 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   157
 §2.4.5   ``X_to_Y`` converter definitions                               97
 §2.4.5   … distinct names                                               55
-§2.4.7   ``_get_*`` definitions                                      5,958
+§2.4.7   ``_get_*`` definitions                                      5,959
 §2.4.7   Abolished payload verbs, the four between them                 16
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  7
@@ -3769,6 +3769,35 @@ are ``_update_``, ``_remove_``, ``_read_`` and ``create``. §2.4.12's ``_toggle_
 is the same reading arriving from the other side, and §2.4.8 is this one in
 reverse -- a name wearing a listed verb that turns out not to belong to its
 family.
+
+**In the core package that reading is now a gate, not advice**
+``[gate naming_core_vocabulary]``. ``naming_core_vocabulary.py`` carries a ``SYNONYMS``
+table beside the abolished one -- ``populate``, ``prune``, ``sweep``, ``seed``,
+``scan``, ``gather``, ``refresh`` -- each mapping a word the table does not print
+onto the row whose discriminator its bodies satisfied, and ``assemble``,
+``craft`` and ``forge`` join the Payload verbs on the same terms as the four,
+flagged whatever the tail. It is a core-only reading on the same argument the
+assemble verbs are carved out on: widening the shared table would move the addon
+floor by names nobody has read. **What the table leaves out is argued in the
+same comment as what it holds**, because a synonym table nobody can see the edge
+of is a word list again -- ``reap`` and ``probe`` are terms of art from a layer
+below on §2.4.3's *reserved, not abolished* terms, ``emit`` is
+``logging.Handler``'s contract and renaming it unhooks it in silence, ``collect``
+needs a discriminator the gate does not have (most of core's accumulate into a
+caller's container and return nothing, which is not the Read row), and
+``determine`` -- this section's own example -- is left out because core's
+population is not a derivation at all: ``Field.determine*`` dispatches a hook by
+name or callable, which is §2.4.9's question, and §2.4.9 is provisional.
+
+**A predicate prefix suspends the infix rule, and that is not a fudge**
+``[review]``. §2.4.4 flags a verb behind a noun because the noun hides it from a
+``classify`` that partitions on the first token. Behind ``is_`` / ``has_`` /
+``can_`` / ``should_`` there is nothing hidden: a predicate does not perform the
+operation its tail names, it answers a question **about** it, so the verb is the
+subject. ``can_scan_identity`` asks whether a field's cache admits an identity
+scan, and renaming its middle token renames the question rather than the
+operation. The carve-out is in the gate, and the four definitions it protects
+sit on one module.
 
 **``_show_`` is a fourth predicate prefix, on §2.4.8's terms** ``[review]``, at
 **16** definitions under **12** names. It answers a question about the subject

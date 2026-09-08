@@ -153,7 +153,7 @@ def _bundle_name_list(esm: Mapping, key: str, module: str):
     return declared
 
 
-def _assemble_registry(
+def _freeze_registry(
     bundles: set,
     dynamic_children: dict,
     import_map_includes: dict,
@@ -248,7 +248,7 @@ def _prepare_esm_registry() -> EsmRegistry:
         standalone_bundles=standalone_bundles,
         runtime_bundles=runtime_bundles,
     )
-    registry = _assemble_registry(
+    registry = _freeze_registry(
         bundles,
         dynamic_children,
         import_map_includes,

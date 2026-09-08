@@ -168,7 +168,7 @@ class TestRealCursor(BaseCase):
 
 class TestSeedPlannerStats(BaseCase):
     def test_seeds_floors_for_zero_stat_tables(self):
-        from odoo.db.utils import seed_planner_stats
+        from odoo.db.utils import update_planner_stats
 
         cr = registry().cursor()
         try:
@@ -176,7 +176,7 @@ class TestSeedPlannerStats(BaseCase):
                 'CREATE TABLE "_test_seed_planner_stats" '
                 "(id serial PRIMARY KEY, val integer)"
             )
-            seeded = seed_planner_stats(cr)
+            seeded = update_planner_stats(cr)
             self.assertGreaterEqual(seeded, 1)
 
             cr.execute(
@@ -187,7 +187,7 @@ class TestSeedPlannerStats(BaseCase):
             self.assertGreater(reltuples, 0)
             self.assertGreater(relpages, 0)
 
-            self.assertEqual(seed_planner_stats(cr), 0)
+            self.assertEqual(update_planner_stats(cr), 0)
         finally:
             cr.rollback()
             cr.close()

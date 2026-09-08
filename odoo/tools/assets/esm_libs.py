@@ -10,7 +10,7 @@ from typing import NamedTuple
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.tools.misc import file_path
 
-from .esm_graph import _scan_import_specifiers
+from .esm_graph import _get_import_specifiers
 from .esm_registry import external_libs
 
 __all__ = [
@@ -83,7 +83,7 @@ def lib_closure(declared_url: str) -> dict[str, Path]:
             source = path.read_text(encoding="utf-8")
         except OSError, UnicodeDecodeError:
             continue
-        for spec in sorted(_scan_import_specifiers(source)):
+        for spec in sorted(_get_import_specifiers(source)):
             if not isinstance(spec, str) or not spec.startswith(("./", "../")):
                 continue
             target = posixpath.normpath(posixpath.join(posixpath.dirname(url), spec))

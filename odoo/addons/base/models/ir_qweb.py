@@ -624,7 +624,7 @@ class IrQweb(models.AbstractModel):
         source = [info.params.path_xml for info in stack if info.params.path_xml]
         code_lines = (code or "").split("\n")
 
-        path, html = self._scan_error_source(
+        path, html = self._get_error_source(
             code_lines, line_nb, ref, source, path, html
         )
 
@@ -695,7 +695,7 @@ class IrQweb(models.AbstractModel):
                 return wrapped_line - GENERATED_CODE_PREAMBLE_LINES
         return 0
 
-    def _scan_error_source(
+    def _get_error_source(
         self,
         code_lines: list[str],
         line_nb: int,
@@ -940,7 +940,7 @@ class IrQweb(models.AbstractModel):
             options["ref_xml"] = str(ref_xml) if ref_xml is not None else None
 
         return (
-            self._assemble_module_source(compile_context.template_functions, options),
+            self._get_module_source(compile_context.template_functions, options),
             options,
             def_name,
         )
@@ -1026,7 +1026,7 @@ class IrQweb(models.AbstractModel):
         ]
 
     @staticmethod
-    def _assemble_module_source(
+    def _get_module_source(
         template_functions: dict[str, list[str]], options: dict[str, Any]
     ) -> str:
         code_lines = [

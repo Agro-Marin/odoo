@@ -221,7 +221,7 @@ def exp_list(document: bool = False) -> list[str]:
 
 
 def exp_list_lang() -> list:
-    return odoo.tools.misc.scan_languages()
+    return odoo.tools.misc.get_languages()
 
 
 @functools.cache
