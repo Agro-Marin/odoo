@@ -177,6 +177,63 @@ class TestResourceCalendar(TransactionCase):
             " resource.calendar.attendance when compute_leaves=False.",
         )
 
+    def test_flexible_self_does_not_override_a_fixed_resource_calendar(self):
+        fixed = self.env["resource.calendar"].create(
+            {
+                "name": "9-to-5 with lunch",
+                "tz": "UTC",
+                "attendance_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "name": f"{period}",
+                            "dayofweek": str(i),
+                            "hour_from": hour_from,
+                            "hour_to": hour_to,
+                            "day_period": period,
+                        },
+                    )
+                    for i in range(5)
+                    for period, hour_from, hour_to in (
+                        ("morning", 9, 12),
+                        ("lunch", 12, 13),
+                        ("afternoon", 13, 17),
+                    )
+                ],
+            }
+        )
+        resource = self.env["resource.resource"].create(
+            {"name": "On fixed calendar", "calendar_id": fixed.id, "tz": "UTC"}
+        )
+        flexible_self = self.env["resource.calendar"].create(
+            {
+                "name": "Flexible fallback",
+                "flexible_hours": True,
+                "hours_per_day": 8.0,
+                "full_time_required_hours": 40.0,
+                "tz": "UTC",
+            }
+        )
+        start_dt = datetime(2026, 6, 1, 0, 0, 0).astimezone(UTC)
+        end_dt = datetime(2026, 6, 6, 23, 59, 59).astimezone(UTC)
+
+        via_own_calendar = fixed._attendance_intervals_batch(
+            start_dt, end_dt, resource
+        )[resource.id]
+        via_flexible_self = flexible_self._attendance_intervals_batch(
+            start_dt, end_dt, resource
+        )[resource.id]
+        self.assertEqual(len(via_flexible_self), len(via_own_calendar))
+
+        lunch_via_own_calendar = fixed._attendance_intervals_batch(
+            start_dt, end_dt, resource, lunch=True
+        )[resource.id]
+        lunch_via_flexible_self = flexible_self._attendance_intervals_batch(
+            start_dt, end_dt, resource, lunch=True
+        )[resource.id]
+        self.assertEqual(len(lunch_via_flexible_self), len(lunch_via_own_calendar))
+
     def test_public_holiday_calendar_no_company(self):
         self.env["resource.calendar.leaves"].create(
             [

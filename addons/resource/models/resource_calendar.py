@@ -588,11 +588,9 @@ class ResourceCalendar(models.Model):
         else:
             resources_list = list(resources) + [self.env["resource.resource"]]
 
-        if self.flexible_hours and lunch:
-            return {
-                resource.id: Intervals([], keep_distinct=True)
-                for resource in resources_list
-            }
+        if not resources and self.flexible_hours and lunch:
+            # No per-resource calendar to disagree with self here.
+            return {False: Intervals([], keep_distinct=True)}
 
         domain = Domain.AND(
             [
@@ -693,7 +691,7 @@ class ResourceCalendar(models.Model):
                 keep_distinct=True,
             )
         calendar = resource_calendars[resource] if resource else self
-        if not (self.flexible_hours or (resource and calendar.flexible_hours)):
+        if not calendar.flexible_hours:
             return fixed_intervals
         if lunch:
             return Intervals([], keep_distinct=True)
