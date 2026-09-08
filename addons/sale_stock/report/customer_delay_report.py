@@ -40,7 +40,7 @@ class CustomerDelayReport(models.Model):
             """
             CREATE OR replace VIEW customer_delay_report AS(
             SELECT sol.id                AS id,
-                Min(m.date)              AS date,
+                Min(m.date) FILTER (WHERE m.state = 'done') AS date,
                 sol.product_id           AS product_id,
                 Min(pc.id)               AS category_id,
                 sol.partner_id           AS partner_id,
@@ -68,6 +68,8 @@ class CustomerDelayReport(models.Model):
                     ON pt.id = p.product_tmpl_id
                 JOIN uom_uom pt_uom
                     ON pt_uom.id = pt.uom_id
+                JOIN stock_location dest_loc
+                    ON dest_loc.id = m.location_dest_id
                 LEFT JOIN product_category pc
                     ON pc.id = pt.categ_id
                 LEFT JOIN stock_move_line ml
@@ -75,6 +77,7 @@ class CustomerDelayReport(models.Model):
                 LEFT JOIN uom_uom ml_uom
                     ON ml_uom.id = ml.product_uom_id
             WHERE so.date_commitment IS NOT NULL
+                AND dest_loc.usage = 'customer'
             GROUP BY
                 sol.id, so.company_id
             )
