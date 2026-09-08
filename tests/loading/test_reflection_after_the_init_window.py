@@ -83,3 +83,30 @@ def test_updating_one_module_restores_a_lost_reflection_row_of_another(
         "window has closed; it must open its own, or a row it needs to write "
         f"for a model outside the updated module is lost ({after} != {before})"
     )
+
+
+def test_updating_one_module_survives_a_parent_that_has_no_ir_model_row_yet(
+    db_with_second_module,
+):
+    dbname = db_with_second_module
+    parent = _psql(
+        dbname,
+        "DELETE FROM ir_model WHERE id = ("
+        "  SELECT DISTINCT p.id FROM ir_model_inherit i"
+        "  JOIN ir_model p ON p.id = i.parent_id"
+        "  WHERE NOT EXISTS ("
+        "    SELECT 1 FROM pg_tables t"
+        "     WHERE t.tablename = replace(p.model, '.', '_')"
+        "  ) ORDER BY p.id LIMIT 1"
+        ") RETURNING model",
+    )
+    assert parent, "base must reflect at least one parent row that can be dropped"
+
+    proc = _odoo_bin(dbname, "-u", SECOND_MODULE)
+
+    assert "Cannot reflect inheritance" not in proc.stderr, proc.stderr[-3000:]
+    assert proc.returncode == 0, (
+        "a model that is in the registry but has no ir_model row yet -- a new "
+        f"mixin in a module this load does not update -- must not fail -u of an "
+        f"unrelated module:\n{proc.stdout[-3000:]}{proc.stderr[-3000:]}"
+    )

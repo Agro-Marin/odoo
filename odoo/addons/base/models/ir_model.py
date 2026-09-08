@@ -57,7 +57,11 @@ class IrModel(models.Model):
             )
         ]
 
-    name = fields.Char(string="Model Description", translate=True, required=True)
+    name = fields.Char(
+        string="Model Description",
+        translate=True,
+        required=True,
+    )
     model = fields.Char(default="x_", required=True)
     order = fields.Char(
         string="Order",
@@ -76,8 +80,8 @@ class IrModel(models.Model):
     )
     inherited_model_ids = fields.Many2many(
         "ir.model",
-        compute="_compute_inherited_model_ids",
         string="Inherited models",
+        compute="_compute_inherited_model_ids",
         help="The parent models this model delegates to (via _inherits).",
     )
     state = fields.Selection(
@@ -96,7 +100,9 @@ class IrModel(models.Model):
         help="List of modules in which the object is defined or inherited",
     )
     view_ids = fields.One2many(
-        "ir.ui.view", compute="_compute_view_ids", string="Views"
+        "ir.ui.view",
+        string="Views",
+        compute="_compute_view_ids",
     )
     count = fields.Integer(
         compute="_compute_count",
@@ -475,9 +481,20 @@ class IrModelInherit(models.Model):
     _description = "Model Inheritance Tree"
     _log_access = False
 
-    model_id = fields.Many2one("ir.model", required=True, ondelete="cascade")
-    parent_id = fields.Many2one("ir.model", required=True, ondelete="cascade")
-    parent_field_id = fields.Many2one("ir.model.fields", ondelete="cascade")
+    model_id = fields.Many2one(
+        "ir.model",
+        required=True,
+        ondelete="cascade",
+    )
+    parent_id = fields.Many2one(
+        "ir.model",
+        required=True,
+        ondelete="cascade",
+    )
+    parent_field_id = fields.Many2one(
+        "ir.model.fields",
+        ondelete="cascade",
+    )
 
     _uniq = models.Constraint(
         "UNIQUE(model_id, parent_id)", "Models inherits from another only once"
@@ -577,13 +594,18 @@ class IrModelInherit(models.Model):
         for parent_name in (*inherit_parents, *definition._inherits):
             parent_id = get_model_id(parent_name)
             if parent_id is None:
-                raise ValueError(
-                    f"Cannot reflect inheritance of {model_name!r}: parent "
-                    f"model {parent_name!r} is not present in ir_model."
+                _logger.debug(
+                    "Inheritance of %r from %r not reflected: no ir_model row yet",
+                    model_name,
+                    parent_name,
                 )
+                continue
             parent_ids[parent_name] = parent_id
 
-        if overlap := set(inherit_parents) & set(definition._inherits):
+        inherit_parents = [name for name in inherit_parents if name in parent_ids]
+        delegated = [name for name in definition._inherits if name in parent_ids]
+
+        if overlap := set(inherit_parents) & set(delegated):
             raise ValueError(
                 f"Model {model_name!r} both inherits from and delegates "
                 f"to {sorted(overlap)}: ir_model_inherit is unique on "
@@ -593,8 +615,12 @@ class IrModelInherit(models.Model):
         return [
             (model_id, parent_ids[parent_name], None) for parent_name in inherit_parents
         ] + [
-            (model_id, parent_ids[parent_name], get_field_id(field))
-            for parent_name, field in definition._inherits.items()
+            (
+                model_id,
+                parent_ids[parent_name],
+                get_field_id(definition._inherits[parent_name]),
+            )
+            for parent_name in delegated
         ]
 
     def _upsert_inherit_rows(
