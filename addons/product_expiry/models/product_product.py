@@ -122,7 +122,7 @@ class ProductTemplate(models.Model):
                     )
                 )
 
-    @api.depends("categ_id")
+    @api.depends("categ_id.use_expiration_date")
     def _compute_use_expiration_date(self):
         for product in self:
             product.use_expiration_date = (
@@ -132,4 +132,19 @@ class ProductTemplate(models.Model):
     def write(self, vals):
         if vals.get("tracking") == "none":
             vals["use_expiration_date"] = False
-        return super().write(vals)
+            reactivated = self.browse()
+        elif (
+            vals.get("tracking") not in (None, "none")
+            and "use_expiration_date" not in vals
+        ):
+            # `tracking` isn't itself a dependency of `_compute_use_expiration_date`
+            # (it gets recomputed by `stock` on every `is_storable` write, which
+            # would otherwise clobber a manual override on an unrelated write) —
+            # force a recompute only on an actual none -> tracked transition.
+            reactivated = self.filtered(lambda p: p.tracking == "none")
+        else:
+            reactivated = self.browse()
+        result = super().write(vals)
+        if reactivated:
+            self.env.add_to_compute(self._fields["use_expiration_date"], reactivated)
+        return result
