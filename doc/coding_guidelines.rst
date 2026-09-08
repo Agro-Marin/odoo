@@ -1132,13 +1132,13 @@ Section  Population                                                  Count
 §2.4.2   … spelled ``_onchange_<field>``                               277
 §2.4.2   ``@api.ondelete`` hooks                                       168
 §2.4.2   … spelled ``_unlink_except_*``                                109
-§2.4.2   ``@api.constrains`` hooks                                     679
-§2.4.2   … spelled ``_check_*``                                        627
+§2.4.2   ``@api.constrains`` hooks                                     681
+§2.4.2   … spelled ``_check_*``                                        629
 §2.4.2   … with a first token carrying no rule                          47
-§2.4.2   … binding exactly one field                                   312
-§2.4.2   … of those, spelled ``_check_<field>``                        139
+§2.4.2   … binding exactly one field                                   314
+§2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 25,864
+§2.4.3   Non-test methods declared on a model class                 25,872
 §2.4.3   Stems spelled with two or more verbs of one family              3
 §2.4.3   Groups of methods sharing a byte-identical body               101
 §2.4.4   Model methods with an abolished verb behind a noun            137
@@ -1150,13 +1150,13 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   157
 §2.4.5   ``X_to_Y`` converter definitions                               97
 §2.4.5   … distinct names                                               55
-§2.4.7   ``_get_*`` definitions                                      5,934
+§2.4.7   ``_get_*`` definitions                                      5,936
 §2.4.7   Abolished payload verbs, the four between them                 16
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  7
 §2.4.7   ``_prepare_*`` definitions                                    841
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            39
-§2.4.8   ``_check_*`` definitions                                    1,189
+§2.4.8   ``_check_*`` definitions                                    1,191
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     177
@@ -1175,9 +1175,9 @@ Section  Population                                                  Count
 §2.4.12  ``_sync_*`` definitions                                        69
 §2.4.12  ``_synchronize_*`` definitions                                 13
 §2.4.12  ``_post_*`` definitions                                       137
-§2.4.13  Module-level functions under ``models/`` and ``wizard/``      350
-§2.4.13  Methods on plain classes in model files                       412
-§2.4.13  … such classes                                                165
+§2.4.13  Module-level functions under ``models/`` and ``wizard/``      353
+§2.4.13  Methods on plain classes in model files                       414
+§2.4.13  … such classes                                                166
 §2.4.13  Functions nested inside model methods                         578
 §2.4.14  Private method names reached from stored Python               114
 §2.4.14  … code blocks reaching them                                   123
@@ -1968,8 +1968,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **363** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **262**
+**A ``bool`` return does not make a predicate** ``[review]``. **364** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **263**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
@@ -4489,7 +4489,7 @@ user sees. No linter reads it -- ``test_translated_unique`` checks the *column* 
 so a constraint can name a column the table lost four major versions ago
 (``ir.model``'s ``_obj_name_uniq``, declared ``UNIQUE (model)``). Name the columns
 the definition names, in the order it names them, and keep the predicate in the
-tail -- the tree spells that tail ``_uniq`` **97** times against ``_unique``'s
+tail -- the tree spells that tail ``_uniq`` **98** times against ``_unique``'s
 **52**, so prefer ``_uniq`` for a new one and do not sweep the others for it.
 
 **A constraint rename is carried by module-data cleanup, not by a migration**
