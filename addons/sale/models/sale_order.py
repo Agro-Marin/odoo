@@ -557,7 +557,13 @@ class SaleOrder(models.Model):
                 order.show_update_fpos = True
             order.fiscal_position_id = cache[key]
 
-    @api.depends("state", "date_order", "line_ids.customer_lead")
+    @api.depends(
+        "state",
+        "date_order",
+        "line_ids.customer_lead",
+        "line_ids.display_type",
+        "line_ids.product_id.type",
+    )
     def _compute_date_planned(self):
         for order in self:
             if order.state == "cancel":
@@ -602,7 +608,7 @@ class SaleOrder(models.Model):
                 for line in order.line_ids.filtered(lambda l: not l.display_type)
             )
 
-    @api.depends("transaction_ids")
+    @api.depends("transaction_ids", "transaction_ids.state")
     def _compute_authorized_transaction_ids(self):
         for trans in self:
             trans.authorized_transaction_ids = trans.transaction_ids.filtered(
@@ -612,7 +618,7 @@ class SaleOrder(models.Model):
                 trans.authorized_transaction_ids,
             )
 
-    @api.depends("transaction_ids")
+    @api.depends("transaction_ids", "transaction_ids.state", "transaction_ids.amount")
     def _compute_amount_paid(self):
         for order in self:
             order.amount_paid = sum(
