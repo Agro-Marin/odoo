@@ -131,8 +131,3 @@ class ReportProductReport_Pricelist(models.AbstractModel):
                 ]
             products_data.append(data)
         return products_data
-
-    def _get_product_data(self, is_product_tmpl, product, pricelist, quantities):
-        return self._get_products_data(is_product_tmpl, product, pricelist, quantities)[
-            0
-        ]
