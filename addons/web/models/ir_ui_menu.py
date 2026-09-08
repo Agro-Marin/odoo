@@ -23,6 +23,8 @@ class IrUiMenu(models.Model):
                     "actionPath": False,
                     "actionResModel": False,
                     "webIcon": None,
+                    "webKeywords": None,
+                    "webCategory": None,
                     "webIconData": None,
                     "webIconDataMimetype": None,
                     "backgroundImage": menu.get("backgroundImage"),
@@ -75,6 +77,8 @@ class IrUiMenu(models.Model):
                     "actionPath": action_path,
                     "actionResModel": action_res_model,
                     "webIcon": web_icon,
+                    "webKeywords": menu.get("web_keywords"),
+                    "webCategory": menu.get("web_category"),
                     "webIconData": web_icon_data,
                     "webIconDataMimetype": menu["web_icon_data_mimetype"],
                 }

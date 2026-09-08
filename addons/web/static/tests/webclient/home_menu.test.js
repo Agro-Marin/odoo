@@ -22,6 +22,7 @@ import { Component, onRendered, reactive, useState, xml } from "@odoo/owl";
 import {
     defineMenus,
     getService,
+    makeMockEnv,
     mockService,
     mountWebClient,
     mountWithCleanup,
@@ -31,7 +32,9 @@ import {
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { session } from "@web/session";
+import { loadHomeMenuBadges } from "@web/webclient/home_menu/badges";
 import { HomeMenu } from "@web/webclient/home_menu/home_menu";
+import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
 import { computeHomeMenuProps } from "@web/webclient/home_menu/home_menu_service";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 import { parseHomeMenuConfig, reorderApps } from "@web/webclient/menus/menu_utils";
@@ -838,6 +841,8 @@ test("with a pinned row the arrows follow the rows on screen, not one flat grid"
     ]);
 });
 
+const EMPTY_TREE = { id: "root", name: "root", appID: "root", childrenTree: [] };
+
 function searchFor(text) {
     const input = /** @type {HTMLInputElement} */ (queryOne(".o_home_menu_search"));
     input.value = text;
@@ -1092,6 +1097,11 @@ test("a keystroke evaluates each derived list once per render, not once per resu
     // The matching-menu rows used to ask for the app grid's length one row at
     // a time, so eight rows rebuilt the pinned map and the fuzzy-matched list
     // eight times over, per render, per character typed.
+    //
+    // Counted on the computations, not on the reads: the getters are now memo
+    // readers over one cache per render, and the whole point of that cache is
+    // that reading a list twice is free. What must stay at one per render is
+    // the walk over every app and every menu, which is `_<name>()`.
     const counts = { shownApps: 0, pinnedApps: 0, unpinnedApps: 0, menuMatches: 0 };
     let renders = 0;
     class Counted extends HomeMenu {
@@ -1101,14 +1111,11 @@ test("a keystroke evaluates each derived list once per render, not once per resu
         }
     }
     for (const name of Object.keys(counts)) {
-        const desc = Object.getOwnPropertyDescriptor(HomeMenu.prototype, name);
-        Object.defineProperty(Counted.prototype, name, {
-            ...desc,
-            get() {
-                counts[name]++;
-                return desc.get.call(this);
-            },
-        });
+        const compute = HomeMenu.prototype[`_${name}`];
+        Counted.prototype[`_${name}`] = function () {
+            counts[name]++;
+            return compute.call(this);
+        };
     }
     const xmlids = Array.from({ length: 20 }, (_, i) => `app${i}`);
     const tree = menuTreeOf(xmlids, 5);
@@ -1138,8 +1145,15 @@ test("a keystroke evaluates each derived list once per render, not once per resu
     expect(renders).toBe(3, { message: "one render per character" });
     expect(".o_menu_result").toHaveCount(8, { message: "eight rows on screen" });
     for (const [name, n] of Object.entries(counts)) {
-        expect(n).toBe(renders, { message: `${name}: once per render` });
+        expect(n).toBeLessThanOrEqual(renders, {
+            message: `${name}: at most once per render`,
+        });
     }
+    // `shownApps` is not one of them under a query: a query searches every app
+    // the user has, hidden ones included, so the layout filter never runs.
+    expect(counts.shownApps).toBe(0);
+    expect(counts.unpinnedApps).toBe(renders);
+    expect(counts.menuMatches).toBe(renders);
 });
 
 test("two quick pins are written one after the other, so neither can be lost", async () => {
@@ -1335,5 +1349,295 @@ test("the grid scrolls to follow an arrow key, and stays put for anything else",
     });
     expect(".o_menuitem.o_focused").toHaveCount(1, {
         message: "and the selection itself is still there",
+    });
+});
+
+test("an app is found by a word it is not named after", async () => {
+    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    const apps = [
+        {
+            actionID: 121,
+            href: "/odoo/action-121",
+            appID: 1,
+            id: 1,
+            label: "Invoicing",
+            parents: "",
+            webIcon: false,
+            xmlid: "app.1",
+            module: "account",
+            keywords: ["invoice", "vendor bill", "reconcile"],
+            searchTerms: ["invoice", "vendor bill", "reconcile", "account"],
+        },
+        {
+            actionID: 122,
+            href: "/odoo/action-122",
+            appID: 2,
+            id: 2,
+            label: "Inventory",
+            parents: "",
+            webIcon: false,
+            xmlid: "app.2",
+            module: "stock",
+            models: ["stock.picking"],
+            searchTerms: ["stock", "stock.picking"],
+        },
+    ];
+    await mountWithCleanup(HomeMenu, {
+        props: { apps, reorderApps: (o) => reorderApps(apps, o) },
+    });
+    const found = async (query) => {
+        await searchFor(query);
+        return queryAllTexts(".o_apps_listbox .o_caption");
+    };
+    expect(await found("invoice")).toEqual(["Invoicing"], {
+        message: "a declared keyword",
+    });
+    expect(await found("reconcile")).toEqual(["Invoicing"]);
+    expect(await found("account")).toEqual(["Invoicing"], { message: "the addon" });
+    expect(await found("picking")).toEqual(["Inventory"], {
+        message: "a model only this app opens",
+    });
+    expect(await found("invent")).toEqual(["Inventory"], {
+        message: "the name still wins for its own prefix",
+    });
+});
+
+test("a hidden app is decluttered from the grid, not hidden from the search", async () => {
+    onRpc("set_res_users_settings", () => ({}));
+    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps('{"hidden":["app.3"]}') });
+    expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual([
+        "Discuss",
+        "Calendar",
+    ]);
+
+    await searchFor("cont");
+    expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual(["Contacts"], {
+        message: "asked for by name, so it is there",
+    });
+    expect(".o_app[data-menu-xmlid='app.3']").toHaveClass("o_app_hidden", {
+        message: "and still says it is hidden",
+    });
+
+    await press("escape");
+    await animationFrame();
+    expect(queryAllTexts(".o_apps_listbox .o_caption")).toEqual([
+        "Discuss",
+        "Calendar",
+    ]);
+});
+
+test("the grid takes category headings once it stops fitting on a screen", async () => {
+    const make = (count) =>
+        Array.from({ length: count }, (_, i) => ({
+            actionID: 100 + i,
+            href: `/odoo/action-${100 + i}`,
+            appID: i + 1,
+            id: i + 1,
+            label: `App ${i}`,
+            parents: "",
+            webIcon: false,
+            xmlid: `app.${i}`,
+            category: i % 2 ? "Sales" : "Supply Chain",
+        }));
+    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+
+    const thirteen = make(13);
+    const big = await mountWithCleanup(HomeMenu, {
+        props: { apps: thirteen, reorderApps: (o) => reorderApps(thirteen, o) },
+    });
+    expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual(
+        ["SUPPLY CHAIN", "SALES"],
+        { message: "in the order their first app sits in, not alphabetical" },
+    );
+    // The running index is the display order, so alt+n and the arrows agree
+    // with what is on screen.
+    expect(queryAllAttributes(".o_apps_section .o_app", "id").slice(0, 3)).toEqual([
+        "result_app_0",
+        "result_app_1",
+        "result_app_2",
+    ]);
+    expect(
+        big.appSections.map((section) => [
+            section.category,
+            section.offset,
+            section.apps.map((app) => app.label),
+        ]),
+    ).toEqual([
+        [
+            "Supply Chain",
+            0,
+            ["App 0", "App 2", "App 4", "App 6", "App 8", "App 10", "App 12"],
+        ],
+        ["Sales", 7, ["App 1", "App 3", "App 5", "App 7", "App 9", "App 11"]],
+    ]);
+
+    await searchFor("app 1");
+    expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual([], {
+        message: "a query has its own order",
+    });
+});
+
+test("a grid that fits on a screen is the overview, and takes no headings", async () => {
+    const apps = Array.from({ length: 12 }, (_, i) => ({
+        actionID: 100 + i,
+        href: `/odoo/action-${100 + i}`,
+        appID: i + 1,
+        id: i + 1,
+        label: `App ${i}`,
+        parents: "",
+        webIcon: false,
+        xmlid: `app.${i}`,
+        category: i % 2 ? "Sales" : "Supply Chain",
+    }));
+    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    const menu = await mountWithCleanup(HomeMenu, {
+        props: { apps, reorderApps: (o) => reorderApps(apps, o) },
+    });
+    expect(".o_apps_section").toHaveCount(1);
+    expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual([], {
+        message: "a heading here would only cost a row",
+    });
+    expect(menu.appSections[0].offset).toBe(0);
+});
+
+test("the arrows walk the sections in the order they are shown", async () => {
+    const apps = Array.from({ length: 14 }, (_, i) => ({
+        actionID: 100 + i,
+        href: `/odoo/action-${100 + i}`,
+        appID: i + 1,
+        id: i + 1,
+        label: `App ${i}`,
+        parents: "",
+        webIcon: false,
+        xmlid: `app.${i}`,
+        category: i < 7 ? "Sales" : "Supply Chain",
+    }));
+    mockService("menu", { getMenuAsTree: () => EMPTY_TREE, selectMenu: () => {} });
+    const menu = await mountWithCleanup(HomeMenu, {
+        props: { apps, reorderApps: (o) => reorderApps(apps, o) },
+    });
+    // Sales holds seven, so it wraps after six; Supply Chain starts a row of
+    // its own rather than filling the tail of the last Sales row.
+    expect(menu.keyboardRows).toEqual([
+        [0, 1, 2, 3, 4, 5],
+        [6],
+        [7, 8, 9, 10, 11, 12],
+        [13],
+    ]);
+    expect(menu.visibleApps.map((app) => app.label)).toEqual(
+        apps.map((app) => app.label),
+    );
+});
+
+test("the launcher tells a screen reader what the query left on screen", async () => {
+    mockService("menu", {
+        getMenuAsTree: () => ({
+            id: "root",
+            name: "root",
+            appID: "root",
+            childrenTree: [
+                {
+                    id: 2,
+                    name: "Calendar",
+                    appID: 2,
+                    actionID: 121,
+                    childrenTree: [
+                        {
+                            id: 21,
+                            name: "Calls",
+                            appID: 2,
+                            actionID: 123,
+                            childrenTree: [],
+                        },
+                    ],
+                },
+            ],
+        }),
+        selectMenu: () => {},
+    });
+    await mountWithCleanup(HomeMenu, { props: getLayoutProps() });
+    expect(".o_home_menu_search_status").toHaveText("", {
+        message: "nothing to say before a query",
+    });
+    expect(".o_home_menu_search_status").toHaveAttribute("aria-live", "polite");
+
+    await searchFor("cal");
+    expect(".o_home_menu_search_status").toHaveText("1 apps and 1 menus match");
+
+    await searchFor("zzzz");
+    expect(".o_home_menu_search_status").toHaveText("No apps or menus match");
+});
+
+test("three hovers over the navbar are one run of the providers", async () => {
+    let calls = 0;
+    registry.category("home_menu_badges").add("cached", {
+        provide: () => {
+            calls++;
+            return { "app.1": calls };
+        },
+    });
+    after(() => registry.category("home_menu_badges").remove("cached"));
+    mockService("menu", {
+        getMenuAsTree: () => ({
+            id: "root",
+            name: "root",
+            appID: "root",
+            childrenTree: [1, 2, 3].map((id) => ({
+                id,
+                name: `App ${id}`,
+                appID: id,
+                actionID: 120 + id,
+                xmlid: `app.${id}`,
+                childrenTree: [],
+            })),
+        }),
+        selectMenu: () => {},
+    });
+    for (let i = 0; i < 3; i++) {
+        await mountWithCleanup(QuickLauncher, { props: { close: () => {} } });
+        await animationFrame();
+    }
+    expect(calls).toBe(1, {
+        message: "the popover opens on a hover; it must not ask again on each one",
+    });
+    expect(".o_app_badge").toHaveText("1");
+});
+
+test("the counts are cached for a hover and re-read for a deliberate open", async () => {
+    let calls = 0;
+    registry.category("home_menu_badges").add("counted", {
+        provide: () => {
+            calls++;
+            return {};
+        },
+    });
+    after(() => registry.category("home_menu_badges").remove("counted"));
+    const env = await makeMockEnv();
+    const apps = [{ xmlid: "app.1" }, { xmlid: "app.2" }];
+
+    await loadHomeMenuBadges(env, apps);
+    await loadHomeMenuBadges(env, apps);
+    expect(calls).toBe(1, { message: "a second reader inside the window joins" });
+
+    await loadHomeMenuBadges(env, [...apps].reverse());
+    expect(calls).toBe(1, {
+        message: "the same apps in another order are the same question",
+    });
+
+    await loadHomeMenuBadges(env, [...apps, { xmlid: "app.3" }]);
+    expect(calls).toBe(2, { message: "a different set is a different question" });
+
+    await loadHomeMenuBadges(env, apps, { refresh: true });
+    expect(calls).toBe(3, { message: "opening the launcher asks again" });
+    await loadHomeMenuBadges(env, apps);
+    expect(calls).toBe(3, { message: "and refills the cache behind it" });
+
+    registry.category("home_menu_badges").add("late", { provide: () => ({}) });
+    after(() => registry.category("home_menu_badges").remove("late"));
+    await loadHomeMenuBadges(env, apps);
+    expect(calls).toBe(4, {
+        message:
+            "a provider arriving means the cached answer was to a smaller question",
     });
 });

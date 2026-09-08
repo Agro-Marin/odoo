@@ -6,7 +6,8 @@
         name="Manufacturing"
         sequence="145"
         groups="group_mrp_user,group_mrp_manager,group_mrp_readonly"
-        web_icon="mrp,static/description/icon.png">
+        web_icon="mrp,static/description/icon.png"
+        web_keywords="manufacturing order, bom, bill of materials, work order, production, routing, unbuild">
         <menuitem id="menu_mrp_manufacturing" name="Operations" sequence="10" />
         <menuitem id="menu_mrp_planning" name="Planning" sequence="15" />
         <menuitem id="menu_mrp_bom" name="Products" sequence="20" />

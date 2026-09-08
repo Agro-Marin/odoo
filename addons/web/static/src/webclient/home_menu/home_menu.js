@@ -5,6 +5,7 @@ import {
     Component,
     onMounted,
     onPatched,
+    onWillRender,
     onWillUpdateProps,
     reactive,
     useRef,
@@ -18,6 +19,7 @@ import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 import {
+    appSearchKey,
     flattenMenuTree,
     menuSearchKey,
     parseHomeMenuConfig,
@@ -45,6 +47,9 @@ function homeMenuAppsKey(apps) {
 }
 
 const APPS_PER_ROW = 6;
+// A heading costs a row, so it pays only once the grid no longer fits on
+// screen at a glance. Below this the flat grid IS the overview.
+const SECTIONED_FROM = APPS_PER_ROW * 2;
 const RECENT_APPS = 6;
 const DIRECT_JUMP_HOTKEYS = 9;
 const MENU_MATCHES = 8;
@@ -82,7 +87,10 @@ export class HomeMenu extends Component {
                     label: String,
                     parents: String,
                     module: { type: String, optional: true },
+                    category: { type: String, optional: true },
                     models: { type: Array, element: String, optional: true },
+                    keywords: { type: Array, element: String, optional: true },
+                    searchTerms: { type: Array, element: String, optional: true },
                     webIcon: {
                         type: [
                             Boolean,
@@ -147,6 +155,21 @@ export class HomeMenu extends Component {
     subscription;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     rootRef;
+    /**
+     * The derived lists of the render being built. Every one of them walks
+     * every app or every menu in the database, and they read each other:
+     * the grid asks for its sections, the sections for the unpinned apps, the
+     * unpinned for the pinned. Uncached, one keystroke rebuilt the fuzzy match
+     * four times over.
+     *
+     * Cleared at the start of each render, so a handler reading one between
+     * renders sees the render it is looking at. Nothing here may be read by a
+     * handler that has just changed the state it derives from -- that state
+     * change schedules the render this cache is keyed to.
+     *
+     * @type {Map<string, any>}
+     */
+    derived = new Map();
 
     setup() {
         this.menus = useService("menu");
@@ -169,6 +192,8 @@ export class HomeMenu extends Component {
             orm: useService("orm"),
         });
         this.rootRef = useRef("root");
+
+        onWillRender(() => this.derived.clear());
 
         this._registerHotkeys();
 
@@ -253,13 +278,76 @@ export class HomeMenu extends Component {
     }
 
     /**
-     * The tiles on screen: pinned first in their pinned order, then the rest
-     * in the stored order, hidden ones only while editing.
+     * The tiles on screen, in the order they are on screen: pinned first in
+     * their pinned order, then each section in turn. The keyboard indexes
+     * into this, so it has to be the displayed order and not the stored one.
      *
      * @returns {HomeMenuApp[]}
      */
     get visibleApps() {
-        return [...this.pinnedApps, ...this.unpinnedApps];
+        if (!this.derived.has("visibleApps")) {
+            this.derived.set("visibleApps", this._visibleApps());
+        }
+        return this.derived.get("visibleApps");
+    }
+
+    /** @returns {HomeMenuApp[]} */
+    _visibleApps() {
+        return [
+            ...this.pinnedApps,
+            ...this.appSections.flatMap((section) => section.apps),
+        ];
+    }
+
+    /**
+     * The unpinned tiles as the grid lays them out: one unlabelled section
+     * while the grid is small enough to read whole, and while a query or the
+     * edit mode is on -- a query has its own ordering, and a drag has to mean
+     * one flat order or it means nothing.
+     *
+     * A section's place is where its first app sits in the stored order, so
+     * dragging an app to the front brings its section with it.
+     *
+     * Each section carries where it starts in the flat keyboard order: a
+     * running total cannot be kept in the template, where a `t-set` inside a
+     * `t-foreach` is scoped to its own iteration and resets on the next.
+     *
+     * @returns {{ category: string, apps: HomeMenuApp[], offset: number }[]}
+     */
+    get appSections() {
+        if (!this.derived.has("appSections")) {
+            this.derived.set("appSections", this._appSections());
+        }
+        return this.derived.get("appSections");
+    }
+
+    /** @returns {{ category: string, apps: HomeMenuApp[], offset: number }[]} */
+    _appSections() {
+        const apps = this.unpinnedApps;
+        const flat = [{ category: "", apps, offset: this.pinnedApps.length }];
+        if (this.search.query || this.state.editing || apps.length <= SECTIONED_FROM) {
+            return flat;
+        }
+        /** @type {Map<string, HomeMenuApp[]>} */
+        const byCategory = new Map();
+        for (const app of apps) {
+            const category = app.category || _t("Other");
+            const section = byCategory.get(category);
+            if (section) {
+                section.push(app);
+            } else {
+                byCategory.set(category, [app]);
+            }
+        }
+        if (byCategory.size < 2) {
+            return flat;
+        }
+        let offset = this.pinnedApps.length;
+        return [...byCategory].map(([category, sectionApps]) => {
+            const section = { category, apps: sectionApps, offset };
+            offset += sectionApps.length;
+            return section;
+        });
     }
 
     /**
@@ -268,6 +356,14 @@ export class HomeMenu extends Component {
      * @returns {HomeMenuApp[]}
      */
     get shownApps() {
+        if (!this.derived.has("shownApps")) {
+            this.derived.set("shownApps", this._shownApps());
+        }
+        return this.derived.get("shownApps");
+    }
+
+    /** @returns {HomeMenuApp[]} */
+    _shownApps() {
         // While editing, the hidden ones are on screen too, dimmed, so they
         // can be brought back.
         return this.state.editing
@@ -277,13 +373,39 @@ export class HomeMenu extends Component {
 
     /** @returns {HomeMenuApp[]} */
     get pinnedApps() {
-        return this.search.query ? [] : pinnedApps(this.layout.config, this.shownApps);
+        if (!this.derived.has("pinnedApps")) {
+            this.derived.set("pinnedApps", this._pinnedApps());
+        }
+        return this.derived.get("pinnedApps");
     }
 
     /** @returns {HomeMenuApp[]} */
+    _pinnedApps() {
+        return this.search.query ? [] : pinnedApps(this.layout.config, this.shownApps);
+    }
+
+    /**
+     * Under a query, every app the user has -- the hidden ones included, which
+     * is what `HomeMenuConfig.hidden` has always promised and what the palette
+     * has always done. Hiding an app declutters the grid; it is not a
+     * permission, and an app the user asked for by name is not decluttered.
+     * A hidden result keeps its dimming, so it still says what it is.
+     *
+     * @returns {HomeMenuApp[]}
+     */
     get unpinnedApps() {
+        if (!this.derived.has("unpinnedApps")) {
+            this.derived.set("unpinnedApps", this._unpinnedApps());
+        }
+        return this.derived.get("unpinnedApps");
+    }
+
+    /** @returns {HomeMenuApp[]} */
+    _unpinnedApps() {
         if (this.search.query) {
-            return fuzzyLookup(this.search.query, this.shownApps, (app) => app.label);
+            return fuzzyLookup(this.search.query, this.displayedApps, appSearchKey, {
+                preNormalized: true,
+            });
         }
         return this.shownApps.filter((app) => !this.layout.isPinned(app));
     }
@@ -298,6 +420,14 @@ export class HomeMenu extends Component {
      * @returns {HomeMenuApp[]}
      */
     get recentApps() {
+        if (!this.derived.has("recentApps")) {
+            this.derived.set("recentApps", this._recentApps());
+        }
+        return this.derived.get("recentApps");
+    }
+
+    /** @returns {HomeMenuApp[]} */
+    _recentApps() {
         return this.search.query ? [] : menuUsage.rank(this.visibleApps, RECENT_APPS);
     }
 
@@ -308,6 +438,14 @@ export class HomeMenu extends Component {
      * @returns {import("@web/webclient/menus/menu_utils").MenuEntry[]}
      */
     get menuMatches() {
+        if (!this.derived.has("menuMatches")) {
+            this.derived.set("menuMatches", this._menuMatches());
+        }
+        return this.derived.get("menuMatches");
+    }
+
+    /** @returns {import("@web/webclient/menus/menu_utils").MenuEntry[]} */
+    _menuMatches() {
         if (!this.search.query) {
             return [];
         }
@@ -317,6 +455,36 @@ export class HomeMenu extends Component {
         return fuzzyLookup(this.search.query, menuItems, menuSearchKey, {
             preNormalized: true,
         }).slice(0, MENU_MATCHES);
+    }
+
+    /**
+     * What a screen reader is told when the query moves: the grid collapsing
+     * is the whole answer to a search, and it is silent to anyone not looking
+     * at it.
+     *
+     * @returns {string}
+     */
+    get searchSummary() {
+        if (!this.derived.has("searchSummary")) {
+            this.derived.set("searchSummary", this._searchSummary());
+        }
+        return this.derived.get("searchSummary");
+    }
+
+    /** @returns {string} */
+    _searchSummary() {
+        if (!this.search.query) {
+            return "";
+        }
+        const appCount = this.unpinnedApps.length;
+        const menuCount = this.menuMatches.length;
+        if (!appCount && !menuCount) {
+            return _t("No apps or menus match");
+        }
+        return _t("%(apps)s apps and %(menus)s menus match", {
+            apps: appCount,
+            menus: menuCount,
+        });
     }
 
     /** @returns {boolean} */
@@ -373,6 +541,7 @@ export class HomeMenu extends Component {
                 /** @type {unknown} */ (this.env)
             ),
             apps ?? this.displayedApps,
+            { refresh: true },
         );
     }
 
@@ -463,7 +632,10 @@ export class HomeMenu extends Component {
      */
     get keyboardRows() {
         return gridRows(
-            [this.pinnedApps.length, this.unpinnedApps.length],
+            [
+                this.pinnedApps.length,
+                ...this.appSections.map((section) => section.apps.length),
+            ],
             APPS_PER_ROW,
             this.menuMatches.length,
         );

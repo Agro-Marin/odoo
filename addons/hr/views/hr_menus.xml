@@ -7,7 +7,8 @@
             name="Employees"
             sequence="185"
             groups="group_hr_manager,group_hr_user,base.group_user"
-            web_icon="hr,static/description/icon.png" />
+            web_icon="hr,static/description/icon.png"
+            web_keywords="employee, staff, personnel, department, contract, human resources, org chart" />
         <menuitem
             id="menu_hr_main"
             name="Human Resources"

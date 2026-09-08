@@ -436,7 +436,8 @@
             name="Website"
             sequence="95"
             groups="base.group_user"
-            web_icon="website,static/description/icon.png" />
+            web_icon="website,static/description/icon.png"
+            web_keywords="site, web page, cms, blog, seo, homepage" />
         <menuitem
             id="menu_site"
             name="Site"

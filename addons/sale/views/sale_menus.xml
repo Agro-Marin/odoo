@@ -6,6 +6,7 @@
         name="Sales"
         sequence="30"
         web_icon="sale_management,static/description/icon.png"
+        web_keywords="quotation, quote, sales order, customer order, pricelist, salesperson"
         active="False">
         <menuitem id="sale_order_menu" name="Orders" sequence="10">
             <menuitem

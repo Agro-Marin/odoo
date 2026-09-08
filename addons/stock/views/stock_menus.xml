@@ -6,7 +6,8 @@
         name="Inventory"
         sequence="140"
         groups="group_stock_manager,group_stock_user,group_stock_readonly"
-        web_icon="stock,static/description/icon.png" />
+        web_icon="stock,static/description/icon.png"
+        web_keywords="delivery, receipt, picking, transfer, warehouse, on hand, lot, serial, replenishment, inventory adjustment" />
 
     <menuitem
         id="menu_stock_warehouse_mgmt"

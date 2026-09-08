@@ -57,7 +57,9 @@ class LoadMenusTests(HttpCase):
                 "children": [self.menu_child.id],
                 "id": self.menu.id,
                 "name": "root menu (test)",
+                "webCategory": False,
                 "webIcon": False,
+                "webKeywords": False,
                 "webIconData": "/web/static/img/default_icon_app.png",
                 "webIconDataMimetype": False,
                 "xmlid": "",
@@ -71,7 +73,9 @@ class LoadMenusTests(HttpCase):
                 "children": [],
                 "id": self.menu_child.id,
                 "name": "child menu (test)",
+                "webCategory": False,
                 "webIcon": False,
+                "webKeywords": False,
                 "webIconData": False,
                 "webIconDataMimetype": False,
                 "xmlid": "",
@@ -86,7 +90,9 @@ class LoadMenusTests(HttpCase):
                 "children": [self.menu.id],
                 "id": "root",
                 "name": "root",
+                "webCategory": None,
                 "webIcon": None,
+                "webKeywords": None,
                 "webIconData": None,
                 "webIconDataMimetype": None,
                 "xmlid": "",
@@ -171,4 +177,78 @@ class LoadMenusTests(HttpCase):
             "menus_cache_version",
             session_info,
             "session_info must carry the key both consumers read",
+        )
+
+
+@tagged("web_http", "web_menu")
+class LoadMenusSearchTests(HttpCase):
+    """The two fields the app launcher searches and groups on."""
+
+    def setUp(self):
+        super().setUp()
+        self.authenticate("admin", "admin")
+
+    def test_keywords_reach_the_client(self):
+        menu = self.env.ref("base.menu_administration")
+        menu.web_keywords = "preferences, configuration"
+        self.env.registry.clear_all_caches()
+        loaded = self.url_open("/web/webclient/load_menus").json()
+        self.assertEqual(
+            loaded[str(menu.id)]["webKeywords"],
+            "preferences, configuration",
+            "the launcher matches an app on words its name does not contain",
+        )
+
+    def test_keywords_are_translated(self):
+        menu = self.env.ref("base.menu_administration")
+        menu.web_keywords = "settings"
+        self.assertTrue(
+            self.env["ir.ui.menu"]._fields["web_keywords"].translate,
+            "the vocabulary a user types is the vocabulary of their language",
+        )
+
+    def test_category_is_the_root_of_the_module_tree(self):
+        """The leaf category is nearly the app itself; its root is a heading.
+
+        Measured over a 22-app database the leaf yields 17 categories, 12 of
+        them holding one app, so grouping on it names more sections than it
+        saves rows. Walking to the root yields eight.
+        """
+        base_menu = self.env.ref("base.menu_administration")
+        category = self.env.ref("base.module_base").category_id
+        while category.parent_id:
+            category = category.parent_id
+        menus = self.env["ir.ui.menu"].load_menus(False)
+        self.assertEqual(
+            menus[base_menu.id]["web_category"],
+            category.name,
+            "an app root carries the top of its module's category tree",
+        )
+        child_id = menus[base_menu.id]["children"][0]
+        self.assertFalse(
+            menus[child_id]["web_category"],
+            "a heading belongs to an app, not to every menu under it",
+        )
+
+    def test_category_survives_a_menu_no_module_declares(self):
+        action = self.env["ir.actions.act_window"].create(
+            {
+                "name": "orphan action",
+                "res_model": "res.users",
+                "view_ids": [Command.create({"view_mode": "form"})],
+            }
+        )
+        menu = self.env["ir.ui.menu"].create(
+            {
+                "name": "orphan",
+                "parent_id": False,
+                "action": f"{action._name},{action.id}",
+            }
+        )
+        self.env.registry.clear_all_caches()
+        menus = self.env["ir.ui.menu"].load_menus(False)
+        self.assertIn(menu.id, menus)
+        self.assertFalse(
+            menus[menu.id]["web_category"],
+            "a menu with no xmlid has no heading, and asks for none",
         )

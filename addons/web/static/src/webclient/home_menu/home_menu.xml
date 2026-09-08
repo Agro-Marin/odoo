@@ -18,6 +18,9 @@
                   <i class="oi oi-settings-adjust fa-lg" aria-hidden="true"/>
               </button>
             </div>
+            <!-- The grid collapsing IS the answer to a search, and it is
+                 silent to anyone not looking at it. -->
+            <div class="o_home_menu_search_status visually-hidden" role="status" aria-live="polite" t-esc="searchSummary"/>
             <div t-if="canEditLayout and state.editing" class="o_home_menu_toolbar d-flex justify-content-center align-items-center gap-2 mt-2">
                 <t>
                     <span class="o_home_menu_edit_hint text-muted small me-2">Drag a tile to reorder</span>
@@ -41,12 +44,13 @@
                 </div>
             </nav>
             <t t-set="pinned" t-value="pinnedApps"/>
-            <t t-set="unpinned" t-value="unpinnedApps"/>
+            <t t-set="sections" t-value="appSections"/>
+            <t t-set="unpinned" t-value="visibleApps.length - pinned.length"/>
             <!-- Read once: each of these walks every app or every menu in the
                  database, and the branches below ask for them more than once. -->
             <t t-set="menuResults" t-value="menuMatches"/>
-            <t t-set="menuIndexOffset" t-value="pinned.length + unpinned.length"/>
-            <div t-if="pinned.length or unpinned.length" id="o_apps_listbox" role="list" aria-label="Apps" class="o_apps_listbox user-select-none" t-att-class="{'mt-5': !recents.length, 'mt-3': recents.length, o_home_menu_editing: state.editing}">
+            <t t-set="menuIndexOffset" t-value="pinned.length + unpinned"/>
+            <div t-if="pinned.length or unpinned" class="o_apps_listbox user-select-none" role="list" aria-label="Apps" t-att-class="{'mt-5': !recents.length, 'mt-3': recents.length, o_home_menu_editing: state.editing}">
                 <div t-if="pinned.length" class="o_pinned_apps mb-2">
                     <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Pinned</div>
                     <div class="row mx-0">
@@ -58,12 +62,15 @@
                         </div>
                     </div>
                 </div>
-                <div class="o_apps row mx-0">
-                    <div t-foreach="unpinned" t-as="app" t-key="app.id" class="col-3 col-md-2 o_draggable mb-3 px-0" role="listitem">
-                        <t t-call="{{ constructor.appTemplate }}">
-                            <t t-set="tileId" t-value="'result_app_' + (pinned.length + app_index)"/>
-                            <t t-set="gridIndex" t-value="pinned.length + app_index"/>
-                        </t>
+                <div t-foreach="sections" t-as="section" t-key="section.category or 'all'" class="o_apps_section">
+                    <div t-if="section.category" class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1" t-esc="section.category"/>
+                    <div class="o_apps row mx-0">
+                        <div t-foreach="section.apps" t-as="app" t-key="app.id" class="col-3 col-md-2 o_draggable mb-3 px-0" role="listitem">
+                            <t t-call="{{ constructor.appTemplate }}">
+                                <t t-set="tileId" t-value="'result_app_' + (section.offset + app_index)"/>
+                                <t t-set="gridIndex" t-value="section.offset + app_index"/>
+                            </t>
+                        </div>
                     </div>
                 </div>
             </div>

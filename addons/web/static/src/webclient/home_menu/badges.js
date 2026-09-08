@@ -5,18 +5,94 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
 // A provider answers `provide(env, apps)` with counts by app xmlid, sync or not.
-registry.category("home_menu_badges").addValidation({ provide: Function });
+const badgeProviders = registry.category("home_menu_badges");
+badgeProviders.addValidation({ provide: Function });
+
+/**
+ * How long a set of counts serves both launchers. The quick launcher opens on
+ * a navbar hover, so without this every mouse crossing the toggle is a full
+ * run of every provider -- free while the only provider reads the store, an
+ * request storm the moment one asks the server. Long enough to collapse a
+ * hover, short enough that deliberately reopening the launcher is fresh.
+ */
+const BADGE_TTL = 20_000;
+
+/**
+ * @type {{
+ *  key: string,
+ *  at: number,
+ *  badges: Promise<Record<string, number>>,
+ * } | null}
+ */
+let cached = null;
+
+/**
+ * Which apps a set of counts answers for. Sorted, because the answer is by
+ * xmlid and no provider is told to care about order -- the popover ranks its
+ * dozen tiles by use and the grid keeps the stored order, and those are the
+ * same question asked twice.
+ *
+ * @param {{ xmlid?: string }[]} apps
+ */
+function badgeCacheKey(apps) {
+    return apps
+        .map((app) => app.xmlid ?? "")
+        .sort()
+        .join("\u0000");
+}
+
+/**
+ * Drop the counts, so the next launcher to open asks again. For a caller that
+ * knows the numbers moved.
+ */
+export function invalidateHomeMenuBadges() {
+    cached = null;
+}
+
+// A different set of providers answers a different question, so counts taken
+// before one arrived are not an answer to it. This is also what keeps one
+// test's providers out of the next one's tiles.
+badgeProviders.addEventListener("UPDATE", invalidateHomeMenuBadges);
 
 /**
  * Every `home_menu_badges` provider answers with counts by app xmlid; a tile
  * shows their sum. A provider that fails costs its own counts only.
  *
+ * The result is shared between the two launchers for `BADGE_TTL`, and a call
+ * arriving while one is in flight joins it rather than starting a second.
+ *
+ * @param {import("@web/env").OdooEnv} env
+ * @param {{ xmlid?: string }[]} apps
+ * @param {{ refresh?: boolean }} [options] `refresh` for a caller the user
+ *  asked for by name -- opening the home menu is a request for the counts as
+ *  they are now, where crossing the navbar is not. It refills the cache, so
+ *  the hover behind it costs nothing.
+ * @returns {Promise<Record<string, number>>}
+ */
+export function loadHomeMenuBadges(env, apps, { refresh = false } = {}) {
+    const key = badgeCacheKey(apps);
+    const now = Date.now();
+    if (!refresh && cached && cached.key === key && now - cached.at < BADGE_TTL) {
+        return cached.badges;
+    }
+    const badges = countHomeMenuBadges(env, apps);
+    cached = { key, at: now, badges };
+    // A run that failed outright must not be served for the rest of the TTL.
+    badges.catch(() => {
+        if (cached?.badges === badges) {
+            cached = null;
+        }
+    });
+    return badges;
+}
+
+/**
  * @param {import("@web/env").OdooEnv} env
  * @param {{ xmlid?: string }[]} apps
  * @returns {Promise<Record<string, number>>}
  */
-export async function loadHomeMenuBadges(env, apps) {
-    const providers = registry.category("home_menu_badges").getAll();
+async function countHomeMenuBadges(env, apps) {
+    const providers = badgeProviders.getAll();
     /** @type {Record<string, number>} */
     const badges = {};
     if (!providers.length) {

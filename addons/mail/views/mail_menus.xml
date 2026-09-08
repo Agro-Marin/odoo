@@ -7,7 +7,8 @@
         action="action_discuss"
         sequence="5"
         groups="base.group_user"
-        web_icon="mail,static/description/icon.png" />
+        web_icon="mail,static/description/icon.png"
+        web_keywords="chat, message, inbox, channel, conversation, direct message" />
 
     <menuitem
         id="mail.menu_mail_discuss"

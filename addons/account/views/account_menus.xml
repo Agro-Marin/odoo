@@ -6,7 +6,8 @@
         name="Invoicing"
         sequence="55"
         groups="account.group_account_readonly,account.group_account_invoice"
-        web_icon="account,static/description/icon.png">
+        web_icon="account,static/description/icon.png"
+        web_keywords="invoice, bill, vendor bill, credit note, payment, journal, ledger, tax, reconcile, bank, accounting, finance">
         <menuitem
             id="menu_board_journal_1"
             name="Dashboard"

@@ -6,7 +6,8 @@
         name="Contacts"
         sequence="20"
         groups="base.group_user,base.group_partner_manager"
-        web_icon="partner,static/description/icon.png" />
+        web_icon="partner,static/description/icon.png"
+        web_keywords="customer, vendor, supplier, client, company, address, contact" />
 
     <menuitem
         id="res_partner_menu"

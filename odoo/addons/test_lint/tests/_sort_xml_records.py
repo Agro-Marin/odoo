@@ -106,6 +106,7 @@ ATTRIB_ORDER: dict[str, list[str]] = {
         "sequence",
         "groups",
         "web_icon",
+        "web_keywords",
         "active",
     ],
     "template": [

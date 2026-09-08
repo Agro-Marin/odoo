@@ -6,7 +6,8 @@
         name="Project"
         sequence="70"
         groups="group_project_manager,group_project_user"
-        web_icon="project,static/description/icon.png">
+        web_icon="project,static/description/icon.png"
+        web_keywords="task, timesheet, milestone, deadline, sprint, backlog">
         <menuitem
             id="menu_projects"
             name="Projects"

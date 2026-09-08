@@ -6,7 +6,8 @@
         name="Products"
         sequence="22"
         groups="base.group_user"
-        web_icon="product,static/description/icon.png">
+        web_icon="product,static/description/icon.png"
+        web_keywords="item, sku, catalog, price, variant, barcode, unit of measure">
         <menuitem
             id="menu_product_template"
             name="Products"

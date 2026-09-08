@@ -275,6 +275,7 @@
                 <!-- a root menu can have a web_icon, an action and children -->
                 <rng:group>
                     <rng:optional><rng:attribute name="web_icon"/></rng:optional>
+                    <rng:optional><rng:attribute name="web_keywords"/></rng:optional>
                     <rng:optional><rng:attribute name="action"/></rng:optional>
                     <rng:zeroOrMore><rng:ref name="submenuitem"/></rng:zeroOrMore>
                 </rng:group>

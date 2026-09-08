@@ -38,6 +38,9 @@ export function menuHref(menu) {
  * @property {number} [appID]
  * @property {string} [module] the addon whose icon the app carries, for an app
  * @property {string[]} [models] the models the app's menus open, for an app
+ * @property {string} [category] the heading it sits under, for an app
+ * @property {string[]} [keywords] the vocabulary its menu declares, for an app
+ * @property {string[]} [searchTerms] what the app matches on besides its name
  * @property {string} [webIconData]
  * @property {{ iconClass: string, color: string, backgroundColor: string }} [webIcon]
  */
@@ -60,6 +63,38 @@ export function menuHref(menu) {
  */
 
 /**
+ * A model names its app only when it belongs to one. Measured over a 22-app
+ * database, 108 of 127 models reach exactly one app, and the whole of the
+ * noise is a short head that every app carries -- `res.config.settings` in
+ * fourteen of them, `product.template` in seven, `res.partner` in six. Taking
+ * only the models nothing else claims keeps "picking" pointing at Inventory
+ * and stops "product" pointing at eight apps at once.
+ */
+const MAX_APPS_PER_SEARCHABLE_MODEL = 1;
+
+/**
+ * What an app answers to besides its name: the keywords its menu declares
+ * first, since they are the words a user actually types and a translator can
+ * follow, then the addon that owns it, then the models only it opens.
+ *
+ * @param {AppEntry} app
+ * @param {Map<string, number>} appsByModel how many apps each model reaches
+ * @returns {string[]}
+ */
+function appSearchTerms(app, appsByModel) {
+    const terms = [...(app.keywords || [])];
+    if (app.module) {
+        terms.push(app.module);
+    }
+    for (const model of app.models || []) {
+        if ((appsByModel.get(model) || 0) <= MAX_APPS_PER_SEARCHABLE_MODEL) {
+            terms.push(model);
+        }
+    }
+    return terms;
+}
+
+/**
  * @param {Object} menuTree
  * @returns {{ apps: AppEntry[], menuItems: MenuEntry[] }}
  */
@@ -70,6 +105,8 @@ export function computeAppsAndMenuItems(menuTree) {
     const menuItems = [];
     /** @type {Map<number, Set<string>>} */
     const modelsByApp = new Map();
+    /** @type {Map<string, number>} */
+    const appsByModel = new Map();
     traverseMenuTree(menuTree, (menuItem, parents) => {
         if (menuItem.actionResModel && menuItem.appID) {
             let models = modelsByApp.get(menuItem.appID);
@@ -77,7 +114,13 @@ export function computeAppsAndMenuItems(menuTree) {
                 models = new Set();
                 modelsByApp.set(menuItem.appID, models);
             }
-            models.add(menuItem.actionResModel);
+            if (!models.has(menuItem.actionResModel)) {
+                models.add(menuItem.actionResModel);
+                appsByModel.set(
+                    menuItem.actionResModel,
+                    (appsByModel.get(menuItem.actionResModel) || 0) + 1,
+                );
+            }
         }
         if (!menuItem.id || !menuItem.actionID) {
             return;
@@ -106,6 +149,15 @@ export function computeAppsAndMenuItems(menuTree) {
         if (iconParts.length === 2 && iconParts[0]) {
             item.module = iconParts[0];
         }
+        if (menuItem.webCategory) {
+            item.category = menuItem.webCategory;
+        }
+        if (menuItem.webKeywords) {
+            item.keywords = menuItem.webKeywords
+                .split(",")
+                .map((/** @type {string} */ word) => word.trim())
+                .filter(Boolean);
+        }
         if (menuItem.webIconData) {
             item.webIconData = menuItem.webIconData;
         } else {
@@ -122,6 +174,7 @@ export function computeAppsAndMenuItems(menuTree) {
     });
     for (const app of apps) {
         app.models = [...(modelsByApp.get(/** @type {number} */ (app.appID)) || [])];
+        app.searchTerms = appSearchTerms(app, appsByModel);
     }
     return { apps, menuItems };
 }
@@ -173,6 +226,27 @@ export function menuSearchKey(menu) {
         searchKeys.set(menu, key);
     }
     return key;
+}
+
+/** @type {WeakMap<object, string[]>} */
+const appSearchKeys = new WeakMap();
+
+/**
+ * What an app is matched against: its name and everything `appSearchTerms`
+ * gathered, each normalized once and searched `preNormalized`, the way
+ * `menuSearchKey` is. `fuzzyLookup` scores a list of strings by its best
+ * member, so a name match still outranks a model match on the same query.
+ *
+ * @param {{ label: string, searchTerms?: string[] }} app
+ * @returns {string[]}
+ */
+export function appSearchKey(app) {
+    let keys = appSearchKeys.get(app);
+    if (keys === undefined) {
+        keys = [app.label, ...(app.searchTerms || [])].map(normalize);
+        appSearchKeys.set(app, keys);
+    }
+    return keys;
 }
 
 /**

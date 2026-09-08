@@ -11,7 +11,8 @@
         name="CRM"
         sequence="25"
         groups="sales_team.group_sale_salesman,sales_team.group_sale_manager"
-        web_icon="crm,static/description/icon.png" />
+        web_icon="crm,static/description/icon.png"
+        web_keywords="lead, opportunity, pipeline, prospect, deal, forecast" />
 
     <!-- SALES (MAIN USER MENU) -->
     <menuitem id="crm_menu_sales" name="Sales" parent="crm_menu_root" sequence="1" />
