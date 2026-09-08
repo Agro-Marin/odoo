@@ -127,6 +127,55 @@ test("scorecards are placed two per row", async () => {
     expect(figureRows[2].querySelectorAll(".o-figure-canvas")).toHaveLength(1);
 });
 
+test("figures get a fixed aspect ratio instead of the stored pixel height", async () => {
+    const figure = {
+        tag: "chart",
+        height: 500,
+        width: 500,
+        offset: { x: 100, y: 100 },
+        col: 0,
+        row: 0,
+    };
+    const spreadsheetData = {
+        sheets: [
+            {
+                id: "sheet1",
+                figures: [
+                    { ...figure, id: "figure1", data: TEST_LINE_CHART_DATA },
+                    { ...figure, id: "figure2", data: TEST_SCORECARD_CHART_DATA },
+                    { ...figure, id: "figure3", data: TEST_SCORECARD_CHART_DATA },
+                ],
+            },
+        ],
+    };
+    const serverData = getDashboardServerData();
+    serverData.models["spreadsheet.dashboard.group"].records = [
+        { published_dashboard_ids: [789], id: 1, name: "Chart" },
+    ];
+    serverData.models["spreadsheet.dashboard"].records = [
+        {
+            id: 789,
+            name: "Spreadsheet with chart figure",
+            json_data: JSON.stringify(spreadsheetData),
+            spreadsheet_data: JSON.stringify(spreadsheetData),
+            dashboard_group_id: 1,
+        },
+    ];
+    await createSpreadsheetDashboard({ serverData });
+
+    const rows = queryAll(".o_figure_row");
+    expect(rows).toHaveLength(2);
+    // one chart on its own row, then the two scorecards side by side
+    expect(rows[0]).not.toHaveClass("scorecard_row");
+    expect(rows[1]).toHaveClass("scorecard_row");
+    expect(getComputedStyle(rows[0]).aspectRatio).toBe("4 / 3");
+    expect(getComputedStyle(rows[1]).aspectRatio).toBe("4 / 1");
+    // the stored figure height no longer leaks into the mobile layout
+    for (const figureEl of queryAll(".o-mobile-figure")) {
+        expect(figureEl.style.minHeight).toBe("");
+    }
+});
+
 test("double clicking on a figure doesn't open the side panel", async () => {
     const figure = {
         tag: "chart",
