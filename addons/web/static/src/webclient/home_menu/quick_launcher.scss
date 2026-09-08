@@ -1,5 +1,6 @@
 .o_quick_launcher {
     width: 21rem;
+    max-width: 100%;
 
     .o_app {
         width: 25%;
@@ -26,4 +27,8 @@
             font-size: $font-size-sm * 0.8;
         }
     }
+}
+
+.o_app_menu_sidebar .o_quick_launcher {
+    width: 100%;
 }

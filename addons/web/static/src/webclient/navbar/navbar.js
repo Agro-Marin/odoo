@@ -48,6 +48,7 @@ export class NavBar extends Component {
         DropdownItem,
         DropdownGroup,
         ErrorHandler,
+        QuickLauncher,
         Transition,
     };
     static props = {};
@@ -96,9 +97,6 @@ export class NavBar extends Component {
         this.menuAppsRef = useRef("menuApps");
         this.appSubMenus = useRef("appSubMenus");
         this._busToggledCallback = () => {
-            // The home menu is the launcher in full; a popover of it has no
-            // place over it, nor once the user is somewhere else. What the bar
-            // itself shows follows from `hm`, which it is subscribed to.
             this._clearQuickLauncherTimer();
             this.quickLauncher.close();
             this._updateMenuAppsIcon();
@@ -321,13 +319,6 @@ export class NavBar extends Component {
             this.hm.toggle();
         }
     }
-    /**
-     * The bar is half the app's and half the client's, and the home menu is
-     * not in an app. Written straight onto the elements rather than bound in
-     * the template because it has to land in the same paint as the home menu
-     * arriving: a scheduled render lands in the next one, and the brand of the
-     * app you just left is then visible over the launcher for a frame.
-     */
     _updateMenuAppsIcon() {
         const menuAppsEl = this.menuAppsRef.el;
         if (!menuAppsEl) {
@@ -342,7 +333,6 @@ export class NavBar extends Component {
             !this.isInApp && this.hasBackgroundAction,
         );
         if (!this.isScopedApp) {
-            // Not always the home menu: with a view behind it, it goes back.
             const title =
                 !this.isInApp && this.hasBackgroundAction
                     ? _t("Previous view")
@@ -353,9 +343,6 @@ export class NavBar extends Component {
         for (const el of [
             this.navRef.el?.querySelector(".o_menu_brand"),
             this.navRef.el?.querySelector(".o_menu_brand_icon"),
-            // The slot, not what is in it: the control panel portals its own
-            // breadcrumb in here, and that element is not this component's to
-            // reach into. The slot is.
             this.navRef.el?.querySelector(".o_navbar_breadcrumbs"),
             this.appSubMenus.el,
         ]) {

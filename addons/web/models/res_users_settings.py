@@ -30,6 +30,13 @@ class ResUsersSettings(models.Model):
         string="Color Scheme",
     )
     homemenu_config = fields.Json(string="Home Menu Configuration", readonly=True)
+    homemenu_usage = fields.Json(
+        string="Home Menu Usage",
+        readonly=True,
+        help="Which menus this user opens and when, as the app launcher's "
+        "recents rank them. Held here rather than in the browser so a second "
+        "device does not start blank.",
+    )
 
     @api.model
     def _format_settings(self, fields_to_format: list[str]) -> dict[str, Any]:

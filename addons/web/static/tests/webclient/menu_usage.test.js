@@ -1,7 +1,8 @@
-import { beforeEach, expect, mockDate, test } from "@odoo/hoot";
+import { beforeEach, expect, mockDate, runAllTimers, test } from "@odoo/hoot";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { user } from "@web/core/user";
-import { menuUsage } from "@web/webclient/menus/menu_usage";
+import { menuUsage, mergeUsage } from "@web/webclient/menus/menu_usage";
 
 const apps = [
     { xmlid: "app.sale", label: "Sale" },
@@ -62,11 +63,61 @@ test("a corrupt or foreign table reads as empty, a malformed entry as unused", (
     });
 });
 
+test("the table follows the user, and the browser's copy is merged back in", () => {
+    patchWithCleanup(user, {
+        settings: {
+            homemenu_usage: {
+                "app.sale": { n: 9, t: 5000 },
+                "app.crm": { n: 1, t: 1000 },
+            },
+        },
+    });
+    browser.localStorage.setItem(
+        `webclient_menu_usage:${user.userId}`,
+        JSON.stringify({
+            "app.crm": { n: 4, t: 9000 },
+            "app.stock": { n: 2, t: 2000 },
+        }),
+    );
+    expect(menuUsage.rank(apps).map((a) => a.xmlid)).toEqual([
+        "app.sale",
+        "app.crm",
+        "app.stock",
+    ]);
+});
+
+test("merging takes the higher count and the later use, and never sums", () => {
+    expect(
+        mergeUsage(
+            { a: { n: 3, t: 10 }, b: { n: 1, t: 50 } },
+            { a: { n: 5, t: 4 }, c: { n: 2, t: 7 } },
+        ),
+    ).toEqual({
+        a: { n: 5, t: 10 },
+        b: { n: 1, t: 50 },
+        c: { n: 2, t: 7 },
+    });
+});
+
+test("a burst of navigation is one write, not one per menu", async () => {
+    const writes = [];
+    patchWithCleanup(user, {
+        settings: {},
+        setUserSettings: (key, value) => {
+            writes.push([key, value && Object.keys(value).length]);
+        },
+    });
+    for (const app of [apps[0], apps[1], apps[2], apps[0]]) {
+        menuUsage.record(app);
+    }
+    expect(writes).toEqual([], { message: "nothing goes out on the click itself" });
+    await runAllTimers();
+    expect(writes).toEqual([["homemenu_usage", 3]], {
+        message: "one write carrying the finished table",
+    });
+});
+
 test("rank keeps the caller's order when frecency ties, so the input order is part of the answer", () => {
-    // Not a curiosity: it is why the home menu ranks its recents over the grid
-    // order rather than over the cheaper unsorted list. Array.sort is stable,
-    // so entries on the same count and the same millisecond come back in the
-    // order they went in.
     browser.localStorage.setItem(
         `webclient_menu_usage:${user.userId}`,
         JSON.stringify({

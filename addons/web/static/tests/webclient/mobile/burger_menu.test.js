@@ -62,10 +62,20 @@ test("Burger Menu on an App", async () => {
     await contains("a.o_menu_toggle", { root: document.body }).click();
 
     expect(
-        queryAll(".o_app_menu_sidebar nav.o_burger_menu_content", {
+        queryAll(".o_app_menu_sidebar .o_quick_launcher .o_app", {
             root: document.body,
         }),
-    ).toHaveText("App1\nSubMenu");
+    ).toHaveCount(1, { message: "switching app is one tap, not a trip to All Apps" });
+    expect(
+        queryAll(".o_app_menu_sidebar .o_burger_menu_app_name", {
+            root: document.body,
+        }),
+    ).toHaveText("App1");
+    expect(
+        queryAll(".o_app_menu_sidebar .o_burger_menu_sections", {
+            root: document.body,
+        }),
+    ).toHaveText("SubMenu");
     await click(".modal-backdrop", { root: document.body });
     await contains(".o_mobile_menu_toggle", { root: document.body }).click();
     expect(queryAll(".o_burger_menu", { root: document.body })).toHaveCount(1);
@@ -140,12 +150,17 @@ test("Burger menu closes when click on menu item", async () => {
 
     await contains(".o_menu_toggle", { root: document.body }).click();
     expect(
-        queryAll(".o_app_menu_sidebar nav.o_burger_menu_content", {
+        queryAll(".o_app_menu_sidebar .o_burger_menu_app_name", {
             root: document.body,
         }),
     ).toHaveText("App2");
+    expect(
+        queryAll(".o_app_menu_sidebar .o_quick_launcher .o_app", {
+            root: document.body,
+        }),
+    ).toHaveCount(3, { message: "every app is one tap away" });
 
-    await contains(".oi-apps", { root: document.body }).click();
+    await contains(".o_sidebar_topbar .oi-apps", { root: document.body }).click();
     await animationFrame();
     expect(queryAll(".o_app_menu_sidebar", { root: document.body })).toHaveCount(0);
     expect(queryAll(".o_home_menu", { root: document.body })).toHaveCount(1, {
@@ -162,10 +177,15 @@ test("Burger menu closes when click on menu item", async () => {
     await contains(".o_menu_toggle", { root: document.body }).click();
     expect(queryAll(".o_burger_menu_app", { root: document.body })).toHaveCount(1);
     expect(
-        queryAll(".o_app_menu_sidebar nav.o_burger_menu_content", {
+        queryAll(".o_app_menu_sidebar .o_burger_menu_app_name", {
             root: document.body,
         }),
-    ).toHaveText("App1\nSubMenu");
+    ).toHaveText("App1");
+    expect(
+        queryAll(".o_app_menu_sidebar .o_burger_menu_sections", {
+            root: document.body,
+        }),
+    ).toHaveText("SubMenu");
 
     await click(".o_burger_menu_content li:nth-of-type(1)", { root: document.body });
     await animationFrame();

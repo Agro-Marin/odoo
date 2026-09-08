@@ -3,10 +3,12 @@
 
 import { browser } from "@web/core/browser/browser";
 import { user } from "@web/core/user";
+import { debounce } from "@web/core/utils/timing";
 
 const KEY_PREFIX = "webclient_menu_usage";
 const MAX_ENTRIES = 50;
 const HALF_LIFE_MS = 7 * 24 * 60 * 60 * 1000;
+const SYNC_DELAY_MS = 10_000;
 
 /**
  * @typedef {{ n: number, t: number }} UsageEntry count and last-use timestamp
@@ -17,33 +19,55 @@ function storageKey() {
     return `${KEY_PREFIX}:${user.userId}`;
 }
 
+/** @param {unknown} value @returns {UsageTable} */
+function asTable(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return {};
+    }
+    /** @type {UsageTable} */
+    const table = {};
+    for (const [xmlid, entry] of Object.entries(value)) {
+        const count = Number(/** @type {any} */ (entry)?.n);
+        const at = Number(/** @type {any} */ (entry)?.t);
+        if (count > 0) {
+            table[xmlid] = { n: count, t: at > 0 ? at : 0 };
+        }
+    }
+    return table;
+}
+
 /** @returns {UsageTable} */
-function read() {
+function readLocal() {
     try {
         const raw = browser.localStorage.getItem(storageKey());
-        const parsed = raw ? JSON.parse(raw) : null;
-        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-            ? parsed
-            : {};
+        return asTable(raw ? JSON.parse(raw) : null);
     } catch {
         return {};
     }
 }
 
 /** @param {UsageTable} table */
-function write(table) {
+function writeLocal(table) {
     try {
         browser.localStorage.setItem(storageKey(), JSON.stringify(table));
     } catch {}
 }
 
-/** @param {unknown} entry */
-function isUsed(entry) {
-    return (
-        typeof entry === "object" &&
-        entry !== null &&
-        Number(/** @type {UsageEntry} */ (entry).n) > 0
-    );
+/**
+ * @param {UsageTable} a
+ * @param {UsageTable} b
+ * @returns {UsageTable}
+ */
+export function mergeUsage(a, b) {
+    /** @type {UsageTable} */
+    const merged = { ...a };
+    for (const [xmlid, entry] of Object.entries(b)) {
+        const mine = merged[xmlid];
+        merged[xmlid] = mine
+            ? { n: Math.max(mine.n, entry.n), t: Math.max(mine.t, entry.t) }
+            : entry;
+    }
+    return merged;
 }
 
 /**
@@ -58,11 +82,31 @@ function frecency(entry, now) {
 }
 
 /**
- * What the user opens, and how recently: a per-user table in localStorage that
- * ranks the app grid's recents and the palette's empty query. A count halves
- * every week it goes unused, so a burst of use a month ago ranks below a menu
- * opened twice this morning.
+ * @param {UsageTable} table
+ * @param {number} now
  */
+function evict(table, now) {
+    const xmlids = Object.keys(table);
+    if (xmlids.length <= MAX_ENTRIES) {
+        return;
+    }
+    xmlids
+        .sort((a, b) => frecency(table[a], now) - frecency(table[b], now))
+        .slice(0, xmlids.length - MAX_ENTRIES)
+        .forEach((xmlid) => delete table[xmlid]);
+}
+
+/**
+ * @returns {UsageTable}
+ */
+function usage() {
+    return mergeUsage(asTable(user.settings?.homemenu_usage), readLocal());
+}
+
+const sync = debounce(() => {
+    Promise.resolve(user.setUserSettings("homemenu_usage", usage())).catch(() => {});
+}, SYNC_DELAY_MS);
+
 export const menuUsage = {
     /** @param {{ xmlid?: string }} menu */
     record(menu) {
@@ -70,45 +114,42 @@ export const menuUsage = {
             return;
         }
         const now = Date.now();
-        const table = read();
-        const entry = table[menu.xmlid] || { n: 0, t: 0 };
-        table[menu.xmlid] = { n: entry.n + 1, t: now };
-        const xmlids = Object.keys(table);
-        if (xmlids.length > MAX_ENTRIES) {
-            // One clock reading for the whole eviction: a comparator that
-            // re-reads it scores the same entry differently in two comparisons,
-            // which is not an ordering.
-            xmlids
-                .sort((a, b) => frecency(table[a], now) - frecency(table[b], now))
-                .slice(0, xmlids.length - MAX_ENTRIES)
-                .forEach((xmlid) => delete table[xmlid]);
-        }
-        write(table);
+        const current = usage();
+        const entry = current[menu.xmlid] || { n: 0, t: 0 };
+        current[menu.xmlid] = { n: entry.n + 1, t: now };
+        evict(current, now);
+        writeLocal(current);
+        sync();
     },
 
+    /**
+     * Forget everything this session knows, both halves -- leaving one behind
+     * would let the next read merge it back. Local only, and deliberately: a
+     * pending sync is cancelled rather than turned into a write, so this is
+     * something a caller can do without reaching the server.
+     */
     clear() {
         try {
             browser.localStorage.removeItem(storageKey());
         } catch {}
+        sync.cancel?.();
+        user.updateUserSettings?.("homemenu_usage", null);
     },
 
     /**
-     * The items with a usage entry, most valuable first. Items never opened
-     * are absent: this is the recents list, not a full ordering.
-     *
      * @template {{ xmlid?: string }} T
      * @param {T[]} items
      * @param {number} [limit]
      * @returns {T[]}
      */
     rank(items, limit = Infinity) {
-        const table = read();
+        const current = usage();
         const now = Date.now();
         return items
-            .filter((item) => item.xmlid !== undefined && isUsed(table[item.xmlid]))
+            .filter((item) => item.xmlid !== undefined && current[item.xmlid])
             .map((item) => ({
                 item,
-                score: frecency(table[/** @type {string} */ (item.xmlid)], now),
+                score: frecency(current[/** @type {string} */ (item.xmlid)], now),
             }))
             .sort((a, b) => b.score - a.score)
             .slice(0, limit)

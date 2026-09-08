@@ -15,7 +15,7 @@
                 <t t-call="web.AppBadge"/>
             </a>
         </nav>
-        <button type="button" class="o_quick_launcher_all btn btn-link btn-sm w-100 mt-1" t-on-click="onAllAppsClick">All apps</button>
+        <button t-if="props.showAllApps" type="button" class="o_quick_launcher_all btn btn-link btn-sm w-100 mt-1" t-on-click="onAllAppsClick">All apps</button>
     </div>
 </t>
 

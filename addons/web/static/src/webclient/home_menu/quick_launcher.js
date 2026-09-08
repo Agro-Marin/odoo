@@ -11,15 +11,13 @@ import { computeHomeMenuLayout } from "./home_menu_service.js";
 
 const TILES = 12;
 
-/**
- * The app launcher reachable from inside an app: a popover under the navbar's
- * home toggle with the pinned apps, then the recent ones, then the rest up to
- * a dozen, each with its badge, and a search box that hands off to the palette.
- * The full home menu stays one click away for everything else.
- */
 export class QuickLauncher extends Component {
     static template = "web.QuickLauncher";
-    static props = { close: Function };
+    static props = {
+        close: Function,
+        showAllApps: { type: Boolean, optional: true },
+    };
+    static defaultProps = { showAllApps: true };
 
     /** @type {import("services").ServiceFactories["menu"]} */
     menus;
@@ -37,11 +35,8 @@ export class QuickLauncher extends Component {
         this.homeMenu = useService("home_menu");
         this.command = useService("command");
         this.state = useState({ badges: {} });
-        // The layout, not the home menu's props: the popover reorders
-        // nothing, so it needs neither the reactive wrappers nor the callbacks.
         const { apps, config } = computeHomeMenuLayout(this.menus);
         this.apps = this._pickApps(apps, config);
-        // Counts arrive after the tiles: a slow provider must not hold the popover.
         onMounted(async () => {
             this.state.badges = await loadHomeMenuBadges(
                 /** @type {import("@web/env").OdooEnv} */ (
@@ -58,8 +53,6 @@ export class QuickLauncher extends Component {
      */
     _pickApps(apps, config) {
         const shown = shownApps(config, apps);
-        // Pinned first, then what the user opens, then the rest in the stored
-        // order; the Set keeps the first appearance of each.
         const ordered = [
             ...pinnedApps(config, shown),
             ...menuUsage.rank(shown),
@@ -75,7 +68,6 @@ export class QuickLauncher extends Component {
 
     /** @param {import("./home_menu.js").HomeMenuApp} app */
     onAppClick(app) {
-        // Issue the navigation before the popover unmounts this component.
         const opened = this.menus.selectMenu(app);
         this.props.close();
         return opened;

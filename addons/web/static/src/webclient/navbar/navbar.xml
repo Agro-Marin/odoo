@@ -102,11 +102,12 @@
               <button class="o_sidebar_close oi oi-close btn d-flex align-items-center h-100 bg-transparent border-0 fs-2 text-reset" aria-label="Close menu" title="Close menu" t-on-click.stop="_closeAppMenuSidebar"/>
           </div>
           <nav class="o_burger_menu_content flex-grow-1 flex-shrink-1 overflow-auto o_burger_menu_app">
-                <div t-if="currentApp" class="d-flex align-items-center m-3 mb-0">
+                <QuickLauncher close="() => this._closeAppMenuSidebar()" showAllApps="false"/>
+                <div t-if="currentApp" class="o_burger_menu_app_name d-flex align-items-center m-3 mb-0">
                   <img style="height: 2em;" t-if="currentApp.webIconData" class="o_app_icon me-2" t-attf-src="{{currentApp.webIconData}}" alt=""/>
                   <span class="fs-4 fw-bolder"><t t-esc="currentApp.name"/></span>
                 </div>
-                <ul class="list-unstyled py-2 ps-0 mb-0">
+                <ul class="o_burger_menu_sections list-unstyled py-2 ps-0 mb-0">
                     <t t-foreach="currentAppSections" t-as="subMenu" t-key="subMenu_index">
                       <t t-call="web.SectionMenu">
                           <t t-set="section" t-value="subMenu" />
