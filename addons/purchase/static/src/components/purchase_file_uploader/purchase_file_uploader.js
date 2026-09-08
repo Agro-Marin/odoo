@@ -49,6 +49,7 @@ export class PurchaseFileUploader extends DocumentFileUploader {
                     "You can only upload a bill for a single vendor at a time.",
                 ),
             });
+            return false;
         }
     }
 }
