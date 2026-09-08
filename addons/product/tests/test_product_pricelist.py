@@ -1,6 +1,8 @@
 import time
 from datetime import datetime
 
+from lxml.etree import fromstring
+
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests import Form
@@ -10,6 +12,13 @@ from odoo.addons.product.tests.common import ProductCommon
 
 
 class TestProductPricelist(ProductCommon):
+    def test_visible_filter_label_names_the_pricelist_not_the_item(self):
+        arch = self.env["product.pricelist.item"].get_view(
+            view_id=self.env.ref("product.view_product_pricelist_item_search").id
+        )["arch"]
+        filter_node = fromstring(arch).find(".//filter[@name='visible']")
+        self.assertEqual(filter_node.get("string"), "From Active Pricelist")
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
