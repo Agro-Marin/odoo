@@ -84,8 +84,9 @@ class MixinResourceScheduling(models.AbstractModel):
         result = super().write(vals)
         start_field, end_field = self._get_fields_reservation_date()
         has_dates = bool(start_field and end_field)
+        reactivating = bool(vals.get("active")) and has_dates
 
-        if "active" in vals and has_dates:
+        if "active" in vals and has_dates and not reactivating:
             mirror_active = bool(vals["active"])
             self.env["resource.reservation"].sudo().with_context(
                 active_test=False
@@ -99,7 +100,6 @@ class MixinResourceScheduling(models.AbstractModel):
 
         triggers = self._get_fields_sync_trigger()
         sync_needed = bool(triggers and triggers.intersection(vals.keys()))
-        reactivating = bool(vals.get("active")) and has_dates
         if (sync_needed or reactivating) and not self._reservation_sync_manual:
             self._active_for_sync()._sync_reservations()
         return result
