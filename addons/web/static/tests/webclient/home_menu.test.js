@@ -1,3 +1,5 @@
+import "@web/webclient/home_menu/server_badges";
+
 import {
     advanceTime,
     after,
@@ -32,12 +34,11 @@ import {
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { session } from "@web/session";
-import "@web/webclient/home_menu/server_badges";
 import { loadHomeMenuBadges } from "@web/webclient/home_menu/badges";
-import { HomeMenuGrid } from "@web/webclient/home_menu/home_menu_grid";
 import { HomeMenu } from "@web/webclient/home_menu/home_menu";
-import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
+import { HomeMenuGrid } from "@web/webclient/home_menu/home_menu_grid";
 import { computeHomeMenuProps } from "@web/webclient/home_menu/home_menu_service";
+import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 import { parseHomeMenuConfig, reorderApps } from "@web/webclient/menus/menu_utils";
 import { WebClient } from "@web/webclient/webclient";

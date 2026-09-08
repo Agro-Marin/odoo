@@ -1,6 +1,6 @@
 import { describe, expect, test } from "@odoo/hoot";
-import { OrderSummary } from "@point_of_sale/app/screens/product_screen/order_summary/order_summary";
 import { PosOrderLineRefund } from "@point_of_sale/app/models/pos_order_line_refund";
+import { OrderSummary } from "@point_of_sale/app/screens/product_screen/order_summary/order_summary";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 
 import { definePosModels } from "../data/generate_model_definitions.js";
