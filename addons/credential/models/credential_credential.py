@@ -777,21 +777,31 @@ class CredentialCredential(models.Model):
                 continue
             record.credential_value = record.cached_plaintext or False
 
+    def _parse_plaintext_dict(self) -> dict:
+        self.check_singleton()
+        if self.storage_method != "json":
+            return {}
+        plaintext = self.cached_plaintext
+        if not plaintext:
+            return {}
+        try:
+            parsed = json.loads(plaintext)
+        except json.JSONDecodeError, ValueError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
     @api.depends("cached_plaintext", "storage_method")
     def _compute_credential_data(self):
         for record in self:
-            if record.storage_method != "json":
-                record.credential_data = "{}"
-                continue
-            plaintext = record.cached_plaintext
-            if not plaintext:
-                record.credential_data = "{}"
-                continue
-            try:
-                json.loads(plaintext)
-                record.credential_data = plaintext
-            except json.JSONDecodeError, ValueError:
-                record.credential_data = "{}"
+            # Only the keys no named accessor claims. A password reaches the
+            # form through its own masked field; putting it here too would
+            # render it in clear text and send it to the browser besides.
+            extra = {
+                key: value
+                for key, value in record._parse_plaintext_dict().items()
+                if key not in self._JSON_ACCESSOR_FIELDS
+            }
+            record.credential_data = json.dumps(extra) if extra else "{}"
 
     @api.depends("date_expiration")
     def _compute_is_expired(self):
@@ -843,22 +853,10 @@ class CredentialCredential(models.Model):
         "oauth_client_secret",
     )
 
-    @api.depends("credential_data")
+    @api.depends("cached_plaintext", "storage_method")
     def _compute_credential_accessors(self) -> None:
         for record in self:
-            data = record.credential_data
-            parsed: dict[str, Any] = {}
-            if data and data != "{}":
-                try:
-                    loaded = json.loads(data)
-                    if isinstance(loaded, dict):
-                        parsed = loaded
-                except (json.JSONDecodeError, ValueError, TypeError) as e:
-                    _logger.debug(
-                        "Could not parse credential_data for %s: %s",
-                        record.id or "new",
-                        e,
-                    )
+            parsed: dict[str, Any] = record._parse_plaintext_dict()
             for field_name in self._JSON_ACCESSOR_FIELDS:
                 record[field_name] = parsed.get(field_name, False)
 
@@ -980,9 +978,25 @@ class CredentialCredential(models.Model):
                     % {"error": str(e), "max": MAX_JSON_NESTING_DEPTH},
                 ) from e
 
-            record.credential_value_encrypted = record._encrypt_value(
-                record.credential_data,
-            )
+            claimed = sorted(set(parsed_data) & set(record._JSON_ACCESSOR_FIELDS))
+            if claimed:
+                raise ValidationError(
+                    self.env._(
+                        "Set %(fields)s in its own field, not here. This one "
+                        "carries the keys the vault has no field for, and a "
+                        "secret typed here would be shown in clear text.",
+                    )
+                    % {"fields": ", ".join(claimed)},
+                )
+
+            # Merge rather than replace: the named accessors own their keys and
+            # are not shown here, so writing this field alone must not drop them.
+            owned = {
+                key: value
+                for key, value in record._read_credential_dict_raw().items()
+                if key in record._JSON_ACCESSOR_FIELDS
+            }
+            record.set_credential_dict({**owned, **parsed_data})
 
     def _inverse_credential_json_field(self, field_name: str) -> None:
         for record in self:
@@ -1379,22 +1393,14 @@ class CredentialCredential(models.Model):
         )
 
     def get_credential_dict(self) -> dict[str, Any]:
+        """The whole payload, named accessor keys included.
+
+        Read the decrypted dict rather than `credential_data`, which shows only
+        the keys no named accessor claims so that a password is never rendered
+        in clear text on the form.
+        """
         self.check_singleton()
-
-        if self.storage_method != "json":
-            return {}
-
-        if self.credential_data and self.credential_data != "{}":
-            try:
-                return json.loads(self.credential_data)
-            except json.JSONDecodeError, ValueError:
-                _logger.warning(
-                    "Failed to parse credential_data as JSON for %s %s",
-                    self._name,
-                    self.id,
-                )
-
-        return {}
+        return self._parse_plaintext_dict()
 
     _SECRET_ACCESSOR_PRIORITY = (
         "bearer_token",

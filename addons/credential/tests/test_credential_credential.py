@@ -506,6 +506,63 @@ class TestCredentialSecurityValidations(TransactionCase):
 
         self.assertIn("exceeds maximum size", str(cm.exception))
 
+    def test_the_json_field_never_shows_a_secret_a_named_field_owns(self):
+        # For a `custom` credential the JSON box is the one visible field. A
+        # password put in the payload would be rendered there in clear text and
+        # sent to the browser, beside its own masked field.
+        credential = self.env["credential.credential"].create(
+            {
+                "name": "PAC style login",
+                "category_id": self.category_custom.id,
+                "username": "pac-user",
+                "password": "pac-secret",
+                "credential_data": '{"endpoint": "https://pac.example"}',
+            }
+        )
+        credential.flush_recordset()
+
+        self.assertNotIn("pac-secret", credential.credential_data)
+        self.assertNotIn("pac-user", credential.credential_data)
+        self.assertIn("endpoint", credential.credential_data)
+        # the payload itself still carries everything, for whoever reads it
+        whole = credential.get_credential_dict()
+        self.assertEqual(whole["password"], "pac-secret")
+        self.assertEqual(whole["endpoint"], "https://pac.example")
+
+    def test_editing_the_json_field_keeps_the_keys_it_does_not_own(self):
+        credential = self.env["credential.credential"].create(
+            {
+                "name": "Carrier style login",
+                "category_id": self.category_custom.id,
+                "username": "carrier",
+                "password": "carrier-secret",
+                "credential_data": '{"region": "mx"}',
+            }
+        )
+        credential.flush_recordset()
+
+        credential.credential_data = '{"region": "us"}'
+        credential.flush_recordset()
+        whole = credential.get_credential_dict()
+        self.assertEqual(whole["region"], "us")
+        self.assertEqual(whole["password"], "carrier-secret", "the login was dropped")
+
+    def test_a_secret_typed_into_the_json_field_is_refused_by_name(self):
+        credential = self.env["credential.credential"].create(
+            {
+                "name": "Refuses a claimed key",
+                "category_id": self.category_custom.id,
+                "username": "someone",
+                "password": "their-secret",
+            }
+        )
+        credential.flush_recordset()
+
+        with self.assertRaises(ValidationError) as caught:
+            credential.credential_data = '{"password": "typed-here"}'
+            credential.flush_recordset()
+        self.assertIn("password", str(caught.exception))
+
     def test_an_empty_json_field_does_not_erase_the_username_beside_it(self):
         # credential_data is on the form for every category and empty for all but
         # `custom`, so a plain basic-auth save carries it blank. It owns only the
