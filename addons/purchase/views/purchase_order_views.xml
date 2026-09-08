@@ -898,7 +898,7 @@
                                                     name="product_id"
                                                     widget="many2one_barcode"
                                                     context="{'partner_id': parent.partner_id}"
-                                                    domain="[('purchase_ok', '=', True), '|', ('company_id', '=', False), ('company_id', '=', parent.company_id)]"
+                                                    domain="[('purchase_ok', '=', True), '|', ('company_id', '=', False), ('company_id', 'parent_of', parent.company_id)]"
                                                     readonly="state in ['done', 'cancel']"
                                                     required="not display_type and not is_downpayment"
                                                     force_save="1" />
