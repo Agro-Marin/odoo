@@ -188,11 +188,9 @@ class ProjectProject(models.Model):
         dict_amount_per_currency_id = defaultdict(
             lambda: {"costs": 0.0, "revenues": 0.0}
         )
-        set_currency_ids = {self.currency_id.id}
         cost_ids = []
         revenue_ids = []
         for aal in aal_other_search:
-            set_currency_ids.add(aal["currency_id"][0])
             aal_amount = aal["amount"]
             if aal_amount < 0.0:
                 dict_amount_per_currency_id[aal["currency_id"][0]]["costs"] += (
