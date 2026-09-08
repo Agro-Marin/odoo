@@ -431,17 +431,24 @@ class ProductMergeWizard(models.TransientModel):
         return model_mapping
 
     @api.model
-    def _is_used_in(self, template_ids: list[int], models: dict[str, str]) -> bool:
-        variant_ids = (
+    def _get_excluded_templates(
+        self, template_ids: list[int], models: dict[str, str]
+    ) -> set[int]:
+        templates = (
             self.env["product.template"]
             .browse(template_ids)
             .with_context(active_test=False)
-            .product_variant_ids.ids
         )
-        return any(
-            self.env[model].search_count([(field, "in", variant_ids)])
-            for model, field in models.items()
-        )
+        return {
+            template.id
+            for template in templates
+            if any(
+                self.env[model].search_count(
+                    [(field, "in", template.product_variant_ids.ids)]
+                )
+                for model, field in models.items()
+            )
+        }
 
     def _create_merge_lines_from_query(self, query: SQL) -> None:
         self.check_singleton()
@@ -460,10 +467,12 @@ class ProductMergeWizard(models.TransientModel):
             template_ids = [
                 tmpl_id for tmpl_id in aggr_ids if tmpl_id in accessible_set
             ]
+            if model_mapping:
+                excluded = self._get_excluded_templates(template_ids, model_mapping)
+                template_ids = [
+                    tmpl_id for tmpl_id in template_ids if tmpl_id not in excluded
+                ]
             if len(template_ids) < 2:
-                continue
-
-            if model_mapping and self._is_used_in(template_ids, model_mapping):
                 continue
 
             self.env["product.merge.line"].create(
