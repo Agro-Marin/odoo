@@ -1,10 +1,6 @@
 export function editShopConfiguration(shop) {
     return [
         {
-            trigger: "body",
-            expectUnloadPage: true,
-        },
-        {
             trigger: ".o_main_navbar span:contains('Configuration')",
             run: "click",
         },
