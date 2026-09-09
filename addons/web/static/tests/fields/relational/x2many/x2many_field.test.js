@@ -125,6 +125,50 @@ describe("one2many inline CRUD", () => {
     });
 });
 
+describe("\"Add a line\" position", () => {
+    /** @param {"top" | "bottom"} editable */
+    async function mountTurtles(editable) {
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `
+                <form>
+                    <field name="turtles">
+                        <list editable="${editable}">
+                            <field name="name"/>
+                        </list>
+                    </field>
+                </form>`,
+        });
+    }
+
+    test("editable='top' puts the link above the records", async () => {
+        await mountTurtles("top");
+
+        // The record itself is inserted at index 0 (static_list.js addRecord),
+        // so the link that inserts it belongs there too.
+        expect("tbody tr:first-child .o_field_x2many_list_row_add a").toHaveCount(1);
+        expect("tbody tr:nth-child(2) .o_data_cell").toHaveText("donatello");
+    });
+
+    test("editable='bottom' keeps the link below the records", async () => {
+        await mountTurtles("bottom");
+
+        expect("tbody tr:first-child .o_data_cell").toHaveCount(1);
+        expect("tbody tr:nth-child(2) .o_field_x2many_list_row_add a").toHaveCount(1);
+    });
+
+    test("clicking the top link opens an edit row above the existing record", async () => {
+        await mountTurtles("top");
+        await contains(".o_field_x2many_list_row_add a").click();
+
+        // the new, empty row comes first; "donatello" is pushed down
+        expect("tbody tr:nth-child(2)").toHaveClass("o_selected_row");
+        expect("tbody tr:nth-child(3) .o_data_cell").toHaveText("donatello");
+    });
+});
+
 describe("many2many LINK / UNLINK", () => {
     test("selecting a tag in many2many_tags generates a LINK command on save", async () => {
         onRpc("partner", "web_save", ({ args }) => {

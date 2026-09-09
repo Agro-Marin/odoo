@@ -898,6 +898,16 @@ export class ListRenderer extends Component {
     }
 
     /**
+     * With `editable="top"` the new record is inserted at index 0, so the link
+     * that inserts it belongs above the records rather than under them —
+     * otherwise the user clicks at the bottom of the list and the row appears
+     * at the top.
+     */
+    get createControlsOnTop() {
+        return this.props.editable === "top";
+    }
+
+    /**
      * @param {RelationalRecord} record
      */
     displayDeleteIcon(record) {

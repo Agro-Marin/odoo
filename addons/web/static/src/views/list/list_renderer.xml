@@ -115,6 +115,7 @@
 
  <t t-name="web.ListRenderer.Rows">
  <t t-if="virt and virt.isActive">
+ <t t-if="!props.list.isGrouped and createControlsOnTop" t-call="{{ constructor.createControlsTemplate }}"/>
  <tr t-if="virt.topSpacerHeight > 0" class="o_virtual_spacer">
  <td t-att-colspan="nbCols" t-attf-style="height: {{ virt.topSpacerHeight }}px;"/>
  </tr>
@@ -143,14 +144,15 @@
  <tr t-if="virt.bottomSpacerHeight > 0" class="o_virtual_spacer">
  <td t-att-colspan="nbCols" t-attf-style="height: {{ virt.bottomSpacerHeight }}px;"/>
  </tr>
- <t t-if="!props.list.isGrouped" t-call="{{ constructor.createControlsTemplate }}"/>
+ <t t-if="!props.list.isGrouped and !createControlsOnTop" t-call="{{ constructor.createControlsTemplate }}"/>
  </t>
  <t t-else="">
  <t t-if="!list.isGrouped">
+ <t t-if="createControlsOnTop" t-call="{{ constructor.createControlsTemplate }}"/>
  <t t-foreach="list.records" t-as="record" t-key="record.id">
  <t t-component="rowComponent" t-props="getRowProps(record, group, groupId)"/>
  </t>
- <t t-call="{{ constructor.createControlsTemplate }}"/>
+ <t t-if="!createControlsOnTop" t-call="{{ constructor.createControlsTemplate }}"/>
  <t t-if="!props.list.isGrouped and !props.noContentHelp">
  <tr t-foreach="emptyRowIds" t-as="emptyRowId" t-key="emptyRowId">
  <td t-att-colspan="nbCols">&#8203;</td>
