@@ -28,6 +28,7 @@ from odoo.exceptions import (
     ValidationError,
 )
 from odoo.fields import Domain
+from odoo.libs.text import split_refs
 from odoo.modules.module import get_resource_from_path
 from odoo.tools import SQL, _, config, frozendict, partition, unique
 from odoo.tools.convert import _fix_multiple_roots
@@ -1684,7 +1685,7 @@ class IrUiView(models.Model):
 
     def _postprocess_debug_to_cache(self, tree: _Element) -> None:
         for node in _xpath_groups(tree):
-            groups = node.attrib.get("groups", "").split(",")
+            groups = split_refs(node.attrib.get("groups", ""))
             if "base.group_no_one" in groups:
                 node.attrib["__debug__"] = "True"
                 node.attrib["groups"] = ",".join(
@@ -2213,7 +2214,7 @@ class IrUiView(models.Model):
         def refine(elem: _Element, info: dict[str, Any]) -> None:
             info["validate"] = info["validate"] or elem.get("__validate__")
             if groups := elem.get("groups"):
-                for group_name in groups.replace("!", "").split(","):
+                for group_name in split_refs(groups.replace("!", "")):
                     name_manager.add_required_group(group_name, elem)
 
         name_manager, get_node_info = self._get_arch_scope(

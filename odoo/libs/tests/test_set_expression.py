@@ -98,3 +98,26 @@ class TestUnresolvableCrossReferences(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSetExpressionParsing(unittest.TestCase):
+    def test_whitespace_around_a_ref_is_not_part_of_it(self):
+        defs = _defs()
+        expected = defs.parse("A,B")
+
+        for refs in ("A, B", " A,B ", "A ,\n    B", "\n    A,B"):
+            with self.subTest(refs=refs):
+                self.assertEqual(defs.parse(refs), expected)
+
+    def test_whitespace_around_a_negated_ref_is_not_part_of_it(self):
+        defs = _defs()
+
+        self.assertEqual(defs.parse("A, !B"), defs.parse("A,!B"))
+
+    def test_an_indented_ref_still_resolves_rather_than_going_unknown(self):
+        defs = _defs()
+
+        self.assertEqual(
+            defs.parse("\n        A", raise_if_not_found=False),
+            defs.parse("A"),
+        )

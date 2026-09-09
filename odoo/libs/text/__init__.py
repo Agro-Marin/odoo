@@ -1,6 +1,7 @@
 from .strings import (
     name_length_band,
     similarity_ratio,
+    split_refs,
     remove_accents,
     human_size,
     is_encodable,

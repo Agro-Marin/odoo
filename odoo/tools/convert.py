@@ -27,7 +27,7 @@ except ImportError:
     jingtrang = None
 
 from odoo.exceptions import ValidationError
-from odoo.libs.text import str2bool
+from odoo.libs.text import split_refs, str2bool
 
 if TYPE_CHECKING:
     from odoo.api import Environment
@@ -373,7 +373,7 @@ form: module.record_id""" % (xml_id,)
         from odoo.fields import Command
 
         groups: list[CommandValue] = []
-        for group in rec.get("groups", "").split(","):
+        for group in split_refs(rec.get("groups", "")):
             if group.startswith("-"):
                 group_id = self.id_get(group[1:])
                 groups.append(Command.unlink(group_id))
@@ -633,7 +633,7 @@ form: module.record_id""" % (xml_id,)
             record.append(Field(name="customize_show", eval=el.get("customize_show")))
         groups = el.attrib.pop("groups", None)
         if groups:
-            grp_lst = [("ref('%s')" % x) for x in groups.split(",")]
+            grp_lst = [("ref('%s')" % x) for x in split_refs(groups)]
             record.append(
                 Field(
                     name="group_ids",

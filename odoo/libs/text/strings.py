@@ -6,6 +6,7 @@ __all__ = [
     "name_length_band",
     "remove_accents",
     "similarity_ratio",
+    "split_refs",
     "str2bool",
 ]
 
@@ -13,6 +14,10 @@ import unicodedata
 import warnings
 from difflib import SequenceMatcher
 from typing import Literal
+
+
+def split_refs(value: str) -> list[str]:
+    return [ref.strip() for ref in value.split(",")]
 
 
 def remove_accents(input_str: str) -> str:

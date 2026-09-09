@@ -1,6 +1,8 @@
 import ast
 from typing import TYPE_CHECKING, Literal, NotRequired, TypedDict, cast
 
+from odoo.libs.text import split_refs
+
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable
 
@@ -89,7 +91,10 @@ class SetDefinitions:
     def parse(self, refs: str, raise_if_not_found: bool = True) -> SetExpression:
         positives: list[Leaf] = []
         negatives: list[Leaf] = []
-        for xmlid in refs.split(","):
+        # An unknown ref becomes a leaf nobody belongs to, so an unstripped
+        # one narrows the restriction silently instead of failing. See
+        # `split_refs`.
+        for xmlid in split_refs(refs):
             if xmlid.startswith("!"):
                 negatives.append(
                     ~self.__get_leaf(xmlid.removeprefix("!"), raise_if_not_found)
