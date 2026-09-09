@@ -1231,10 +1231,10 @@ Section  Population                                                  Count
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
 §2.4.4   Other heads: definitions spelled head-first                   131
-§2.4.4   Other heads: definitions spelled tail-first                   167
+§2.4.4   Other heads: definitions spelled tail-first                   171
 §2.4.5   ``X_to_Y`` converter definitions                               95
 §2.4.5   … distinct names                                               54
-§2.4.7   ``_get_*`` definitions                                      6,056
+§2.4.7   ``_get_*`` definitions                                      6,058
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  6
