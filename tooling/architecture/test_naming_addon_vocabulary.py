@@ -212,8 +212,12 @@ class TestResolveIsReservedForAPartialProducer(unittest.TestCase):
             with self.subTest(label):
                 self.assertIsNone(ncv.classify_definition(self.parse(source)), label)
 
-    def test_it_is_gated_in_an_addon_scope_and_held_back_in_core(self):
-        self.assertIn("resolve-total", ncv.UNSWEPT_IN_CORE_KINDS)
+    def test_it_is_now_gated_in_every_scope(self):
+        # It was held back in core while the nineteen went unread. They have
+        # been read -- five were partial by ANNOTATION, six were ordinary
+        # producers and are renamed, eight are the name-resolution sense and are
+        # argued into the allowlist -- so the kind gates everywhere.
+        self.assertNotIn("resolve-total", ncv.UNSWEPT_IN_CORE_KINDS)
         self.assertNotIn("resolve-total", ncv.CORE_ONLY_KINDS)
 
 
@@ -265,9 +269,14 @@ class TestAGetThatAnswersAQuestionIsAPredicate(unittest.TestCase):
 class TestWhatAScopeDeclinesToGateIsStillPrinted(unittest.TestCase):
     """A rule that is neither blocking nor printed has been dropped, not deferred."""
 
-    def test_core_prints_the_resolve_population_it_does_not_gate(self):
+    def test_core_no_longer_prints_a_resolve_population(self):
+        # The complement of the assertion this replaces: core gates the kind
+        # now, so nothing of it may reach the candidate list. A
+        # `resolve-total-review` appearing here again means a finding is being
+        # printed where it should be failing.
         kinds = {v.kind for v in ncv.candidates()}
-        self.assertIn("resolve-total-review", kinds)
+        self.assertNotIn("resolve-total-review", kinds)
+        self.assertTrue(kinds, "the candidate finder returned nothing at all")
 
     def test_an_addon_prints_the_infix_population_it_does_not_gate(self):
         kinds = {v.kind for v in ncv.candidates(addon="stock")}

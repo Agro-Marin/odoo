@@ -419,7 +419,7 @@ class IrJob(models.Model):
 
         env = self.env
         now = env.cr.now().replace(microsecond=0)
-        state, eta, dep_ids = self._resolve_enqueue_state(eta, after)
+        state, eta, dep_ids = self._get_enqueue_state(eta, after)
 
         context = {
             key: env.context[key] for key in ALLOWED_CONTEXT_KEYS if key in env.context
@@ -509,7 +509,7 @@ class IrJob(models.Model):
                 )
             ) from exc
 
-    def _resolve_enqueue_state(
+    def _get_enqueue_state(
         self, eta: Any, after: models.BaseModel | None
     ) -> tuple[str, Any, list[int]]:
         state = JobState.PENDING

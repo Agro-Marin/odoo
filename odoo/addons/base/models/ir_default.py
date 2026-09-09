@@ -130,7 +130,7 @@ class IrDefault(models.Model):
             self._invalidate_defaults_cache()
         return result
 
-    def _resolve_scope(
+    def _get_scope(
         self, user_id: int | bool, company_id: int | bool
     ) -> tuple[int | bool, int | bool]:
         if user_id is True:
@@ -166,7 +166,7 @@ class IrDefault(models.Model):
         company_id: int | bool = False,
         condition: str | bool = False,
     ) -> bool:
-        user_id, company_id = self._resolve_scope(user_id, company_id)
+        user_id, company_id = self._get_scope(user_id, company_id)
 
         try:
             model = self.env[model_name]
@@ -232,7 +232,7 @@ class IrDefault(models.Model):
         company_id: int | bool = False,
         condition: str | bool = False,
     ) -> Any:
-        user_id, company_id = self._resolve_scope(user_id, company_id)
+        user_id, company_id = self._get_scope(user_id, company_id)
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         default = self._get_default_record(field.id, user_id, company_id, condition)
         return json.loads(default.json_value) if default else None

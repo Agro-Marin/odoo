@@ -25,7 +25,7 @@ class ParamSpec(NamedTuple):
     required: bool
 
 
-def _resolve_param_spec_fields(
+def _get_param_spec_fields(
     annotation: Any,
 ) -> tuple[type | None, type | None, bool]:
     allow_none = False
@@ -78,7 +78,7 @@ def get_param_specs(endpoint: typing.Callable) -> dict[str, ParamSpec]:
                     param.name,
                 )
                 continue
-        target, item, allow_none = _resolve_param_spec_fields(annotation)
+        target, item, allow_none = _get_param_spec_fields(annotation)
         if target is None:
             _logger.debug(
                 "%s: %r is annotated %r, which typed routes do not coerce; "

@@ -615,7 +615,7 @@ class IrQweb(models.AbstractModel):
         self, error: Exception, stack: list[QwebStackFrame]
     ) -> QWebErrorInfo:
         frame = stack[-1]
-        ref, ref_name, code, path, html = self._resolve_error_frame(
+        ref, ref_name, code, path, html = self._get_error_frame(
             error, stack, frame, ETREE_REF
         )
 
@@ -645,7 +645,7 @@ class IrQweb(models.AbstractModel):
             surrounding,
         )
 
-    def _resolve_error_frame(
+    def _get_error_frame(
         self,
         error: Exception,
         stack: list[QwebStackFrame],

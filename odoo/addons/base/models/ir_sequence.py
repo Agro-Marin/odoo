@@ -562,7 +562,7 @@ class IrSequence(models.Model):
         )
         return date_range
 
-    def _resolve_sequence_date(self, sequence_date: Any = None) -> Any:
+    def _get_sequence_date(self, sequence_date: Any = None) -> Any:
         return (
             sequence_date
             or self.env.context.get("ir_sequence_date")
@@ -573,7 +573,7 @@ class IrSequence(models.Model):
         self.check_singleton()
         if not self.use_date_range:
             return self
-        dt = self._resolve_sequence_date(sequence_date)
+        dt = self._get_sequence_date(sequence_date)
         return self._get_covering_date_range(dt) or self._create_date_range_seq(dt)
 
     def _next(self, sequence_date: Any = None) -> str:
@@ -586,7 +586,7 @@ class IrSequence(models.Model):
                 else sequence_date
             )
             return self.with_context(ir_sequence_date=ir_sequence_date)._next_do()
-        dt = self._resolve_sequence_date(sequence_date)
+        dt = self._get_sequence_date(sequence_date)
         seq_date = self._get_current_sequence(dt)
         ir_sequence_date = dt.replace(tzinfo=None) if isinstance(dt, datetime) else dt
         return seq_date.with_context(
@@ -609,7 +609,7 @@ class IrSequence(models.Model):
             return self.with_context(ir_sequence_date=ir_sequence_date)._next_do_batch(
                 count
             )
-        dt = self._resolve_sequence_date(sequence_date)
+        dt = self._get_sequence_date(sequence_date)
         seq_date = self._get_current_sequence(dt)
         ir_sequence_date = dt.replace(tzinfo=None) if isinstance(dt, datetime) else dt
         return seq_date.with_context(
@@ -635,7 +635,7 @@ class IrSequence(models.Model):
             return self.with_context(ir_sequence_date=ir_sequence_date).get_next_char(
                 self.number_next_actual
             )
-        dt = self._resolve_sequence_date(sequence_date)
+        dt = self._get_sequence_date(sequence_date)
         date_range = self._get_covering_date_range(dt)
         number_next = date_range.number_next_actual if date_range else 1
         ir_sequence_date = dt.replace(tzinfo=None) if isinstance(dt, datetime) else dt

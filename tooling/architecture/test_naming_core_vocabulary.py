@@ -291,6 +291,30 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
         self.assertIsNone(ncv.trailing_abolished_verb("delete"))
         self.assertIsNone(ncv.trailing_abolished_verb("_lookup"))
 
+    def test_a_resolve_annotated_optional_is_a_partial_producer(self):
+        # The body cannot show it: one `return status`, and whether that is None
+        # is a runtime question. The annotation is the contract.
+        for hint in ("CompletionStatus | None", "Optional[str]", "Union[int, None]"):
+            node = self.parse(f"def _resolve_attempt(job) -> {hint}:\n    return s\n")
+            self.assertTrue(ncv.annotates_optional(node), hint)
+            self.assertIsNone(ncv.classify_definition(node), hint)
+
+    def test_a_resolve_annotated_total_is_still_a_finding(self):
+        # The exclusion must not swallow what the rule is for.
+        node = self.parse(
+            "def _resolve_scope(self, user_id) -> tuple[int, int]:\n"
+            "    return user_id, 1\n"
+        )
+        self.assertFalse(ncv.annotates_optional(node))
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "resolve-total")
+
+    def test_an_unannotated_resolve_is_judged_on_its_body_as_before(self):
+        node = self.parse("def _resolve_thing(self):\n    return 1\n")
+        self.assertFalse(ncv.annotates_optional(node))
+        self.assertIsNotNone(ncv.classify_definition(node))
+
     def test_a_bare_non_assemble_verb_is_not_reported(self):
         # `delete` alone is a Protocol member in orm/runtime/backend.py and the
         # contract in libs/password.py's neighbourhood. §2.4.6 [review], and the
@@ -476,11 +500,13 @@ class TestRealTree(unittest.TestCase):
         # It is allowed to shrink to nothing -- that would mean somebody read
         # them all -- but it must not be silently empty because the finder broke.
         found = ncv.candidates()
-        # Two groups now, not one: bare abolished verbs, and the kinds this
-        # scope declines to gate because nobody has read the population --
-        # `resolve-total` in core. Both are printed for the same reason, so the
-        # assertion is that every kind is a KNOWN candidate kind rather than
-        # that there is only one.
+        # Two sources, and one of them is empty again: bare abolished verbs,
+        # plus whatever kinds a scope declines to gate because nobody has read
+        # the population. `resolve-total` was the second group and its nineteen
+        # have been read, so UNSWEPT_IN_CORE_KINDS is empty and this reduces to
+        # the bare verbs. That is the tighter assertion, not a weaker one -- a
+        # `resolve-total-review` appearing here now FAILS. The set stays a set
+        # because the next unswept rule belongs in it.
         expected = {"bare-review"} | {
             f"{kind}-review" for kind in ncv.UNSWEPT_IN_CORE_KINDS
         }

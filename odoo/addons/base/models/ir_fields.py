@@ -828,7 +828,7 @@ class IrFieldsConverter(models.AbstractModel):
         return action
 
     @api.model
-    def _resolve_cache_and_key(
+    def _get_cache_and_key(
         self, field: ConvertibleField, subfield: str | None, value: Any
     ) -> tuple[Any, tuple | None]:
         cache = self.env.context.get("import_cache")
@@ -843,7 +843,7 @@ class IrFieldsConverter(models.AbstractModel):
         subfield: str | None,
         value: str,
     ) -> tuple[Any, list]:
-        cache, cache_key = self._resolve_cache_and_key(field, subfield, value)
+        cache, cache_key = self._get_cache_and_key(field, subfield, value)
         if cache is not None:
             if (cached := cache.get(cache_key)) is not None:
                 cached_id, cached_warnings = cached

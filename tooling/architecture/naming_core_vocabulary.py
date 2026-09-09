@@ -128,30 +128,43 @@ GOVERNED_ADDONS = ("core", "stock")
 # core could be gated on it only because those five were read one at a time.
 CORE_ONLY_KINDS = frozenset({"infix", "infix-synonym", "trailing"})
 
-# And the same judgement in the other direction. `resolve-total` is gated in an
-# addon scope and NOT in core, which looks backwards -- core is the swept tree --
-# and is not. The rule is new, so its population has been read in exactly one
-# place: stock's six, by hand, which is what earned stock the gate. Core's
-# nineteen have been read by nobody, they are two populations rather than one,
-# and most of them sit in `addons/base` while a sweep is running inside it.
+# `resolve-total` was held back here while core's nineteen went unread, with a
+# note saying to move it out once somebody had read them. They have been read,
+# and they were THREE populations rather than the two that note predicted.
 #
-# The two populations are the reason this cannot be closed by renaming nineteen
-# things. Some are ordinary producers wearing a reserved word -- `_resolve_scope`,
-# `_resolve_enqueue_state`, `_resolve_error_frame`. Others are `resolve` as a
-# term of art from a layer below, which §2.4.3's *reserved, not abolished* rule
-# protects on exactly the terms it protects `reap` and `probe`: `resolve_mro` is
-# C3 linearization, `resolve_specifier_url` is the ESM specification's own verb
-# for its own algorithm, and `resolve_reference` is XML-DSig's. Renaming those
-# would be §2.4.3's "collapsing it destroys information", and telling them from
-# the first group needs a reader, not a predicate.
+# FIVE were partial producers already, and no body test could see it.
+# `_resolve_attempt(job) -> CompletionStatus | None` has a single `return
+# status`; whether that is None is a runtime question. The ANNOTATION answers it,
+# and `annotates_optional` now reads it -- the same evidence
+# `is_declaration_only` takes from `-> str | None` on an extension point, and the
+# stronger of the two, because an annotation is the contract where a body is only
+# today's implementation of it. That removed five findings with a rule instead of
+# five allowlist entries.
 #
-# So core's nineteen are a candidate population and `--candidates` prints them,
-# which is what this file already does for bare abolished verbs: visible without
-# being blocking. The gate's own history is the precedent -- the second core
-# sweep "left the framework tree to a sweep already running inside it, because
-# colliding with a live rename is worse than a floor". Move `resolve-total` out
-# of here once somebody has read the nineteen.
-UNSWEPT_IN_CORE_KINDS = frozenset({"resolve-total"})
+# SIX were ordinary producers wearing a reserved word and are renamed:
+# `_get_scope`, `_get_cache_and_key`, `_get_enqueue_state`, `_get_error_frame`,
+# `_get_sequence_date`, `_get_param_spec_fields`. None of them looks anything up;
+# each computes a value from its arguments.
+#
+# EIGHT are the second SENSE of the word, and this is what the original note was
+# reaching for without quite naming. §2.4.3 reserves `_resolve_` for §2.4.11's
+# partial producer -- the object, or nothing meaning not applicable. The tree also
+# uses `resolve` for NAME RESOLUTION: turn a symbolic reference into the thing it
+# names, total, raising when it names nothing. That sense is a term of art from a
+# layer below on exactly the terms `reap` and `probe` are -- DNS
+# (`_resolve_webhook_candidates`), Python's MRO (`resolve_mro`), XML-DSig's
+# `<Reference URI>` (`resolve_reference`), the asset subsystem's own `Resolution`
+# (`_resolve_path_def`) -- and it reaches our own code too, where a state string
+# becomes a method (`_resolve_runner`) or a dotted @depends path becomes a Field
+# tuple (`resolve_depends`).
+#
+# NO PREDICATE SEPARATES THE TWO SENSES, which is why the eight are argued into
+# the allowlist one at a time rather than carved out by a rule. What the rule CAN
+# do is stop reporting the five the annotation already settles. With those three
+# groups discharged the population is zero, so the kind gates in core like every
+# other, and this set is empty rather than deleted -- the next rule written
+# against an unswept core population belongs in it.
+UNSWEPT_IN_CORE_KINDS: frozenset[str] = frozenset()
 
 # `_sources.is_test_path` calls any path with a `tests` component a test path.
 # That is right for odoo/orm/tests and its siblings and wrong for exactly one
@@ -462,6 +475,47 @@ def answers_a_question(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 RESOLVE_VERB = "resolve"
+
+
+def annotates_optional(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """The return ANNOTATION admits None -- `X | None`, `Optional[X]`, `None`.
+
+    The partial-producer rule reads the body, and a body cannot always show what
+    the declaration already says: `_resolve_attempt(job) -> CompletionStatus |
+    None` has one `return status`, and whether `status` is None is a runtime
+    question no AST answers. The annotation answers it, and it is the stronger
+    evidence of the two -- it is the contract, where a body is only today's
+    implementation of it.
+
+    This is the same reading `is_declaration_only` takes of an extension point
+    annotated `-> str | None` whose body is a bare `return`, and it is applied
+    here for the same reason: where the declaration states the partiality, the
+    reserved word is earned.
+    """
+    return _admits_none(node.returns)
+
+
+def _admits_none(annotation: ast.expr | None) -> bool:
+    if annotation is None:
+        return False
+    if isinstance(annotation, ast.Constant):
+        return annotation.value is None
+    if isinstance(annotation, ast.Name):
+        return annotation.id == "None"
+    if isinstance(annotation, ast.BinOp) and isinstance(annotation.op, ast.BitOr):
+        return _admits_none(annotation.left) or _admits_none(annotation.right)
+    if isinstance(annotation, ast.Subscript):
+        head = annotation.value
+        name = head.attr if isinstance(head, ast.Attribute) else getattr(head, "id", "")
+        if name == "Optional":
+            return True
+        if name == "Union":
+            elts = annotation.slice
+            values = elts.elts if isinstance(elts, ast.Tuple) else [elts]
+            return any(_admits_none(v) for v in values)
+    return False
+
+
 _EMPTY_RECORDSET_CALLS = frozenset({"browse"})
 
 
@@ -738,6 +792,7 @@ def classify_definition(
         verb == RESOLVE_VERB
         and not is_declaration_only(node)
         and not has_not_applicable_path(node)
+        and not annotates_optional(node)
     ):
         why = (
             "`resolve_` is reserved for a PARTIAL producer -- the object, or "
