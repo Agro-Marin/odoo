@@ -6,7 +6,6 @@ import werkzeug.exceptions
 from dateutil.relativedelta import relativedelta
 
 from odoo import _, fields, http, tools
-from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.http import request
 from odoo.tools.translate import LazyTranslate
@@ -158,19 +157,23 @@ class WebsiteProfile(http.Controller):
     # ---------------------------------------------------
     def _profile_edition_preprocess_values(self, user, **kwargs):
         values = {
-            "name": kwargs.get("name"),
-            "website": kwargs.get("website"),
-            "email": kwargs.get("email"),
-            "city": kwargs.get("city"),
-            "country_id": kwargs.get("country_id"),
-            "website_description": kwargs.get("website_description"),
+            key: kwargs[key]
+            for key in (
+                "name",
+                "website",
+                "email",
+                "city",
+                "country_id",
+                "website_description",
+            )
+            if key in kwargs
         }
 
         if "image_1920" in kwargs:
             values["image_1920"] = kwargs.get("image_1920")
 
         if (
-            request.env.uid == user.id
+            request.env.uid == user.id and "website_published" in kwargs
         ):  # the controller allows to edit only its own privacy settings; use partner management for other cases
             values["website_published"] = kwargs.get("website_published")
         return values
@@ -194,15 +197,9 @@ class WebsiteProfile(http.Controller):
             for key in sorted(user._get_self_accessible_fields()[1])
             if key in values
         }
-        if (
-            not user.partner_id._can_edit_country()
-            and whitelisted_values.get("country_id") != user.partner_id.country_id.id
-        ):
-            raise UserError(
-                _(
-                    "Changing the country is not allowed once document(s) have been issued for your account. Please contact us directly for this operation."
-                )
-            )
+        # The country-change lock is enforced by ResUsers.write() itself
+        # (models/res_users.py), so every write path -- not just this one --
+        # is covered; no need to duplicate the check here.
         user.write(whitelisted_values)
 
     # Ranks and Badges
