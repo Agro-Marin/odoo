@@ -250,6 +250,47 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
         )
         self.assertIsNone(ncv.classify_definition(node))
 
+    def test_an_abolished_verb_in_the_last_token_is_reported(self):
+        # nv.infix_abolished_verb scans tokens[1:-1], so the last token is read
+        # by nothing -- classify never reaches it and the infix rule stops one
+        # short of it on purpose.
+        for name in ("_relation_delete", "_compile_and_validate", "_term_lookup"):
+            self.assertIsNone(nv.infix_abolished_verb(name), name)
+            hit = ncv.classify_name(name)
+            self.assertIsNotNone(hit, name)
+            self.assertEqual(hit[0], "trailing", name)
+
+    def test_a_synonym_in_the_last_token_is_reported(self):
+        hit = ncv.classify_name("_get_rows_to_purge")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "trailing")
+
+    def test_the_reserved_orm_read_is_exempt_in_the_last_token(self):
+        # `fetch` is §2.4.3's reserved ORM operation and lands there correctly:
+        # _get_fields_to_fetch names the operand set of fetch().
+        for name in ("_get_fields_to_fetch", "search_fetch", "_prefetch_field_fetch"):
+            self.assertIsNone(ncv.classify_name(name), name)
+
+    def test_domain_is_exempt_in_the_last_token(self):
+        # §2.4.1 makes it right on both sides: the field-hook spelling and the
+        # ordinary Read. 48 of stock's were read by hand and none was a verb.
+        for name in ("_get_company_domain", "_domain_partner_id", "_get_x_domain"):
+            self.assertIsNone(ncv.classify_name(name), name)
+
+    def test_an_assemble_verb_in_the_last_token_is_reported_unconditionally(self):
+        # The shared table makes them payload-only, and that carve-out cannot
+        # survive in this position: a verb that is LAST is what the name ends
+        # with, so it can never also end in `_vals`. Reading payload_only here
+        # makes the branch unreachable and exempts every `_report_build`.
+        hit = ncv.classify_name("_report_build")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "trailing")
+        self.assertIsNone(nv.infix_abolished_verb("_report_build"))
+
+    def test_a_single_token_name_has_no_trailing_position(self):
+        self.assertIsNone(ncv.trailing_abolished_verb("delete"))
+        self.assertIsNone(ncv.trailing_abolished_verb("_lookup"))
+
     def test_a_bare_non_assemble_verb_is_not_reported(self):
         # `delete` alone is a Protocol member in orm/runtime/backend.py and the
         # contract in libs/password.py's neighbourhood. §2.4.6 [review], and the

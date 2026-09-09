@@ -119,7 +119,14 @@ GOVERNED_ADDONS = ("core", "stock")
 # and the `assigned` state on `stock.move` -- rather than a hidden verb. So the
 # body-reading rules travel to an addon scope and the two spelling rules that
 # would need a noun test stay behind.
-CORE_ONLY_KINDS = frozenset({"infix", "infix-synonym"})
+# `trailing` joins them, and its own core population is the argument. Of the five
+# it found there, ONE was a defect and four were nouns sitting in the last
+# position: the seed a colour is hashed from, the comodel-id-lookup SHAPE a
+# domain optimiser rewrites, the `<delete>` element `_tag_<xml tag>` dispatches
+# on, and `batch_cache_fill`, which is a real defect held for a reason of its own
+# (see the allowlist). One in five is a candidate population by any reading, and
+# core could be gated on it only because those five were read one at a time.
+CORE_ONLY_KINDS = frozenset({"infix", "infix-synonym", "trailing"})
 
 # And the same judgement in the other direction. `resolve-total` is gated in an
 # addon scope and NOT in core, which looks backwards -- core is the swept tree --
@@ -613,6 +620,54 @@ def performs_orm_write(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 # identity scan; renaming its middle token would be renaming the question.
 PREDICATE_PREFIXES = frozenset({"is", "has", "can", "should"})
 
+# §2.4.4 says a noun in FRONT of a verb hides it from `classify`, which
+# partitions on the first token. The mirror was open the whole time:
+# `nv.infix_abolished_verb` scans `tokens[1:-1]`, so the LAST token is read by
+# nothing -- `classify` never reaches it and the infix rule stops one short of it
+# on purpose. `_relation_delete`, `_term_lookup` and `_compile_and_validate` all
+# sat in core wearing an abolished verb in that position.
+#
+# Two exclusions, both measured rather than argued from the armchair.
+#
+# `fetch` is §2.4.3's reserved ORM read operation and lands in trailing position
+# constantly and correctly -- `_get_fields_to_fetch` names the operand set of
+# `fetch()`, `search_fetch` is the operation.
+#
+# `domain` lands there constantly too and is right on both sides of §2.4.1: it is
+# the field-hook spelling (`_domain_<field>`) and it is the ordinary Read
+# (`_get_x_domain`). Session odoo-3a read 48 of them in `addons/stock` by hand
+# and not one was an abolished verb in that position.
+#
+# Both are the same shape as the infix rule's own carve-out: a token that is a
+# NOUN where it sits. Without them this rule is noisier than the one it mirrors.
+TRAILING_EXEMPT = frozenset({"fetch", "domain"})
+
+
+def trailing_abolished_verb(name: str) -> tuple[str, str] | None:
+    """An abolished verb or synonym in the LAST token -- §2.4.4's other blind spot."""
+    tokens = name.lstrip("_").split("_")
+    if len(tokens) < 2:
+        return None
+    token = tokens[-1]
+    if token in TRAILING_EXEMPT:
+        return None
+    # The assemble verbs are payload-ONLY in the shared table, and that carve-out
+    # cannot survive here: a verb in the last position is what the name ends
+    # with, so it can never also end in `_vals`. Reading `payload_only` in this
+    # position would make the branch unreachable and quietly exempt every
+    # `_report_build` in the tree. This gate already flags them whatever the tail
+    # in the leading position; the same holds at the other end.
+    if token in ASSEMBLE:
+        return token, "_prepare_* or _get_*"
+    if (entry := nv.ABOLISHED.get(token)) is not None:
+        canonical, payload_only = entry
+        if payload_only:
+            return token, "_prepare_* or _get_*"
+        return token, f"{canonical}*"
+    if (synonym := SYNONYMS.get(token)) is not None:
+        return token, synonym[0]
+    return None
+
 
 def infix_synonym(name: str) -> str | None:
     """A synonym parked behind a noun -- §2.4.4's hiding place, one table over.
@@ -720,6 +775,13 @@ def classify_name(name: str) -> tuple[str, str] | None:
     if (token := infix_synonym(name)) is not None:
         canonical, why = SYNONYMS[token]
         return "infix-synonym", f"`{token}` behind a noun -> {canonical} -- {why}"
+    if (hit := trailing_abolished_verb(name)) is not None:
+        token, canonical = hit
+        why = (
+            f"`{token}` in the LAST token -> {canonical}, with the verb in front "
+            f"-- §2.4.4, unless it is a noun there"
+        )
+        return "trailing", why
     return None
 
 
