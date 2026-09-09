@@ -19,6 +19,11 @@ class SlideEmbed(models.Model):
     website_name = fields.Char("Website", compute="_compute_website_name")
     count_views = fields.Integer("# Views", default=1)
 
+    _slide_id_url_uniq = models.Constraint(
+        "unique nulls not distinct (slide_id, url)",
+        "A slide can only have one view counter per third-party website URL.",
+    )
+
     @api.depends("url")
     def _compute_website_name(self):
         for slide_embed in self:
