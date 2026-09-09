@@ -8,6 +8,13 @@ This runs in ``base`` rather than in ``project`` because the module row itself
 has to be renamed before the graph is assembled: a ``project`` migration runs
 after the loader has already decided that ``project_enterprise`` is installed
 and missing from disk.
+
+It lives under ``1.40`` and not under ``1.39`` even though ``1.39`` is the
+version that introduced the split. Any database already stamped at ``1.39`` --
+which is every database that took the previous sync -- skips a ``1.39`` script
+entirely, because ``_is_migration_applicable`` is exclusive at the installed
+bound: ``installed < script <= target``. The script would never run where it is
+needed most.
 """
 
 import logging
