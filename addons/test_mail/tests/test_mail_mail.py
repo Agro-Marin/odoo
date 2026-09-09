@@ -10,6 +10,7 @@ from socket import gaierror
 from unittest.mock import PropertyMock, call, patch
 
 from freezegun import freeze_time
+from lxml import html
 from markupsafe import Markup
 from OpenSSL.SSL import Error as SSLError
 
@@ -4450,3 +4451,93 @@ class TestMailMailSizeEstimate(MailCommon):
             self.env["mail.mail"]._estimate_email_size(None, None, []),
             self.env["mail.mail"]._estimate_email_size({}, "", []),
         )
+
+
+@tagged("mail_mail")
+class TestMailMailOutgoingMentions(MailCommon):
+    """A partner @mention is a backend link, and a mailbox is the wrong place
+    for it.
+
+    The composer writes mentions as
+    `<a class="o_mail_redirect" href="/odoo/res.partner/<id>">@Name</a>`.
+    `_prepare_outgoing_body` only ran the body through `_replace_local_links`,
+    which makes that URL absolute instead of removing it -- so a customer
+    following a document received a live link into our backend and landed on a
+    login page. The mention has to stay readable and stop being a link.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.test_record = (
+            cls.env["mail.test.gateway"]
+            .with_context(cls._test_context)
+            .create({"name": "Mentions", "email_from": "ignasse@example.com"})
+            .with_context({})
+        )
+
+    def _outgoing(self, body):
+        """The body as the recipient's mail client would receive it."""
+        mail = self.env["mail.mail"].create(
+            {
+                "body_html": body,
+                "email_from": "test.from@mycompany.example.com",
+                "email_to": "dest@test.example.com",
+                "model": self.test_record._name,
+                "res_id": self.test_record.id,
+            }
+        )
+        return html.fromstring(mail._prepare_outgoing_body())
+
+    def test_a_partner_mention_keeps_its_text_and_loses_its_link(self):
+        partner = self.env["res.partner"].create({"name": "Mitchell Admin"})
+        root = self._outgoing(
+            Markup(
+                '<p>Hello <a href="/odoo/res.partner/%s" class="o_mail_redirect"'
+                ' data-oe-id="%s" data-oe-model="res.partner" target="_blank">'
+                "@Mitchell Admin</a>, please review.</p>"
+            )
+            % (partner.id, partner.id)
+        )
+        mention = root.xpath("//a[hasclass('o_mail_redirect')]")
+        self.assertEqual(len(mention), 1, "the mention element must survive")
+        self.assertEqual(mention[0].text, "@Mitchell Admin", "the name is the point")
+        self.assertIsNone(
+            mention[0].get("href"), "an external recipient cannot open it"
+        )
+        self.assertIsNone(mention[0].get("target"))
+        self.assertNotIn(
+            "res.partner/%s" % partner.id,
+            html.tostring(root, encoding="unicode"),
+            "the backend URL must not travel to a mailbox at all",
+        )
+
+    def test_a_channel_mention_is_treated_the_same(self):
+        root = self._outgoing(
+            Markup('<p>Ping <a href="#" class="o-discuss-mention">@everyone</a></p>')
+        )
+        mention = root.xpath("//a[hasclass('o-discuss-mention')]")
+        self.assertEqual(len(mention), 1)
+        self.assertEqual(mention[0].text, "@everyone")
+        self.assertIsNone(mention[0].get("href"))
+
+    def test_an_ordinary_link_is_left_alone(self):
+        """Only mentions lose their href. A real link is why the mail was sent."""
+        root = self._outgoing(
+            Markup('<p>See <a href="https://example.com/offer">our offer</a></p>')
+        )
+        link = root.xpath("//a")
+        self.assertEqual(len(link), 1)
+        self.assertEqual(link[0].get("href"), "https://example.com/offer")
+
+    def test_a_body_without_a_mention_is_returned_untouched(self):
+        """The guard must not reserialise every outgoing body through lxml."""
+        body = Markup("<p>Plain body, no mention.</p>")
+        mail = self.env["mail.mail"].create(
+            {
+                "body_html": body,
+                "email_from": "test.from@mycompany.example.com",
+                "email_to": "dest@test.example.com",
+            }
+        )
+        self.assertEqual(mail._prepare_outgoing_body(), body)

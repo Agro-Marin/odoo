@@ -76,6 +76,11 @@
                             options="{'model': 'model_name', 'comodel': 'res.partner'}"
                             invisible="followers_type != 'generic'"
                             required="state in ['followers', 'remove_followers'] and followers_type == 'generic'" />
+                        <field
+                            name="subtype_ids"
+                            widget="many2many_tags"
+                            placeholder="Default subscriptions"
+                            invisible="state != 'followers'" />
                     </group>
                 </group>
                 <group invisible="state != 'mail_post'">
