@@ -122,6 +122,47 @@ class ProvenanceTests(unittest.TestCase):
         self.assertIn("odoo/orm/fields/base.py", err)
         self.assertFalse((self.dir / "mypy.json").exists())
 
+    def test_a_read_from_a_dirty_tree_warns_without_failing(self):
+        # The `--update` path REFUSES; the read path must NOT, because every
+        # gate invocation goes through it and a provenance doubt is not a
+        # broken build. It warns instead, on stderr, so `--json` and the
+        # `[OK]/[FAIL]` line stay parseable on stdout.
+        (self.dir / "mypy.json").write_text(
+            '{"count": 10, "note": "n", "measured_at": ""}\n', encoding="utf-8"
+        )
+        with mock.patch.object(
+            ratchet, "_dirty_paths", return_value=["odoo/orm/fields/base.py"]
+        ):
+            code, out, err = self._run(["mypy", "--count", "10"])
+        self.assertEqual(code, EXIT_OK, "a dirty tree must not change the verdict")
+        self.assertIn("[OK]", out)
+        self.assertNotIn("note:", out, "the warning belongs on stderr, not stdout")
+        self.assertIn("describes that tree and not the branch", err)
+        self.assertIn("odoo/orm/fields/base.py", err)
+
+    def test_a_read_from_a_clean_tree_says_nothing(self):
+        # Silence is the whole contract: a notice on every clean read would be
+        # noise, and noise is what stops people reading the one that matters.
+        (self.dir / "mypy.json").write_text(
+            '{"count": 10, "note": "n", "measured_at": ""}\n', encoding="utf-8"
+        )
+        code, out, err = self._run(["mypy", "--count", "10"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("[OK]", out)
+        self.assertEqual(err, "")
+
+    def test_a_dirty_tree_does_not_turn_a_failing_verdict_into_a_passing_one(self):
+        (self.dir / "mypy.json").write_text(
+            '{"count": 10, "note": "n", "measured_at": ""}\n', encoding="utf-8"
+        )
+        with mock.patch.object(
+            ratchet, "_dirty_paths", return_value=["odoo/orm/fields/base.py"]
+        ):
+            code, out, err = self._run(["mypy", "--count", "99"])
+        self.assertEqual(code, EXIT_DRIFT)
+        self.assertIn("[FAIL]", out)
+        self.assertIn("describes that tree and not the branch", err)
+
     def test_update_proceeds_when_git_cannot_say_whether_the_tree_is_dirty(self):
         with (
             mock.patch.object(ratchet, "_dirty_paths", return_value=None),

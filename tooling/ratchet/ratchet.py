@@ -49,6 +49,43 @@ def _head_commit(root: str = "") -> str:
     return out.stdout.strip() if out.returncode == 0 else ""
 
 
+def _warn_if_read_from_a_dirty_tree(gate: str, root_arg: str | None) -> None:
+    """Say which tree a READ was compared against, when it is not a commit.
+
+    The `--update` path REFUSES a dirty tree, because a floor is a claim about a
+    commit. The read path had no such notice and could not have one: it does not
+    measure anything, it compares a number the caller measured somewhere this
+    tool cannot see. That silence is the whole failure -- a count taken in a
+    shared checkout carrying five sessions' uncommitted work reads exactly like
+    a count taken at HEAD, and `[OK] ... == baseline` is printed with equal
+    confidence for both.
+
+    Measured instance, 2026-09-09: `fieldhooks` read 219 against a floor of 220
+    from the checkout and 220 from a clean worktree at the same HEAD, and the
+    whole -1 was one session's unlanded hook split. It was handed on as an
+    improvement to bank, and banking it would have written a floor the branch
+    could not meet. Six commits were walked to establish that nothing landed had
+    lowered it; this notice is four lines and would have said so at once.
+
+    A WARNING AND NEVER A FAILURE. Every gate invocation and every CI-shaped
+    caller goes through this path, so refusing here would turn a provenance
+    doubt into a broken build; and it goes to stderr so that `--json` and the
+    `[OK]/[FAIL]` line stay parseable on stdout.
+    """
+    root = root_arg if root_arg is not None else gate_sibling(gate)
+    root = "" if root == "odoo" else root
+    dirty = _dirty_paths(root)
+    if not dirty:
+        return
+    print(
+        f"note: the {root or 'odoo'} tree has {len(dirty)} changed or untracked "
+        f"path(s) (e.g. {dirty[0]!r}), so a count measured in it describes that "
+        f"tree and not the branch. Re-measure on a clean worktree before acting "
+        f"on this verdict.",
+        file=sys.stderr,
+    )
+
+
 def _dirty_paths(root: str = "") -> list[str] | None:
     """Paths the working tree changes against HEAD, or None if git cannot say."""
     try:
@@ -341,6 +378,8 @@ def run(argv: list[str] | None = None) -> int:
         old = f" (was {existing.count})" if existing else ""
         print(f"{verb} baseline {path.name}: count={args.count}{old}")
         return EXIT_OK
+
+    _warn_if_read_from_a_dirty_tree(args.gate, args.root)
 
     if (
         existing is not None
