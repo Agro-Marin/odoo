@@ -80,7 +80,7 @@
         id="menu_tour_action"
         parent="base.menu_user_interface"
         action="tour_action"
-        sequence="5" />
+        sequence="9" />
 
     <record id="tour_export_js_action" model="ir.actions.server">
         <field name="name">Export JS</field>

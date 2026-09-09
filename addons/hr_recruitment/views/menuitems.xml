@@ -27,7 +27,7 @@
         name="By Job Positions"
         parent="menu_crm_case_categ0_act_job"
         action="action_hr_job_interviewer"
-        sequence="1"
+        sequence="2"
         groups="hr_recruitment.group_hr_recruitment_interviewer" />
 
     <menuitem
@@ -35,14 +35,14 @@
         name="By Talent Pools"
         parent="menu_crm_case_categ0_act_job"
         action="action_hr_talent_pool"
-        sequence="2" />
+        sequence="3" />
 
     <menuitem
         id="menu_crm_case_categ_all_app"
         name="All Applications"
         parent="menu_crm_case_categ0_act_job"
         action="crm_case_categ0_act_job"
-        sequence="3" />
+        sequence="13" />
 
     <menuitem
         id="report_hr_recruitment"
@@ -114,7 +114,7 @@
         name="Mediums"
         parent="menu_hr_recruitment_utm"
         action="utm.utm_medium_action"
-        sequence="15"
+        sequence="25"
         groups="base.group_no_one" />
 
     <menuitem

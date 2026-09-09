@@ -243,7 +243,7 @@
         id="menu_pos_session_all"
         parent="menu_point_of_sale"
         action="action_pos_session"
-        sequence="2"
+        sequence="3"
         groups="group_pos_manager" />
 
 </odoo>

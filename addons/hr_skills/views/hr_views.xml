@@ -642,7 +642,7 @@
         name="Skill Types"
         parent="hr.menu_config_employee"
         action="hr_skill_type_action"
-        sequence="7"
+        sequence="9"
         groups="hr.group_hr_user" />
 
     <menuitem

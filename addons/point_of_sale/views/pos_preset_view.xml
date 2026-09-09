@@ -121,7 +121,7 @@
         id="menu_pos_preset"
         parent="menu_point_config_product"
         action="action_pos_preset_form"
-        sequence="3"
+        sequence="4"
         groups="group_pos_preset" />
 
 </odoo>

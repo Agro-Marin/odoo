@@ -957,7 +957,7 @@
         id="menu_calendar_configuration"
         name="Calendar"
         parent="base.menu_custom"
-        sequence="30"
+        sequence="40"
         groups="base.group_no_one" />
 
     <menuitem
@@ -970,6 +970,7 @@
         id="menu_calendar_alarm"
         parent="menu_calendar_configuration"
         action="action_calendar_alarm"
+        sequence="20"
         groups="base.group_no_one" />
 
 </odoo>

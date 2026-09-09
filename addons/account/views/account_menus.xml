@@ -89,7 +89,7 @@
             <menuitem
                 id="menu_account_closing"
                 name="Closing"
-                sequence="20"
+                sequence="30"
                 groups="account.group_account_readonly" />
         </menuitem>
         <menuitem

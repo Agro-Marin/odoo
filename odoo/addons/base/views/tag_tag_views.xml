@@ -77,6 +77,6 @@
         name="Tags"
         parent="base.menu_database_structure"
         action="tag_tag_action"
-        sequence="50" />
+        sequence="63" />
 
 </odoo>

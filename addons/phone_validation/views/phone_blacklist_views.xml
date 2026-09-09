@@ -76,7 +76,7 @@
         id="phone_menu_main"
         name="Phone / SMS"
         parent="base.menu_custom"
-        sequence="3" />
+        sequence="5" />
 
     <menuitem
         id="phone_blacklist_menu"
