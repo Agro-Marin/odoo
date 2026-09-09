@@ -1222,7 +1222,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   316
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 26,246
+§2.4.3   Non-test methods declared on a model class                 26,249
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               100
 §2.4.4   Model methods with an abolished verb behind a noun            132
@@ -1254,7 +1254,7 @@ Section  Population                                                  Count
 §2.4.11  ``_resolve_*`` definitions                                     30
 §2.4.12  ``_set_*`` definitions                                        132
 §2.4.12  ``_update_*`` definitions                                     364
-§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             250
+§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             254
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         2
 §2.4.12  ``_sync_*`` definitions                                        76
 §2.4.12  ``_synchronize_*`` definitions                                  7
