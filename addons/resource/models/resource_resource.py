@@ -19,7 +19,7 @@ from odoo.tools.date_utils import (
 )
 
 from .utils import ResourceSchedule
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 
 if TYPE_CHECKING:
     from odoo.addons.base.models.res_company import ResCompany
@@ -81,7 +81,7 @@ class ResourceResource(models.Model):
         help="Define the working schedule of the resource. If not set, the resource will have fully flexible working hours.",
     )
     tz = fields.Selection(
-        _tz_get,
+        _selection_timezones,
         string="Timezone",
         compute="_compute_tz",
         inverse="_inverse_tz",

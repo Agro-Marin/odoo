@@ -132,10 +132,15 @@ class Website(models.Model):
         string="Number of products in the grid on the shop",
         default=21,
     )
-    shop_ppr = fields.Integer(string="Number of grid columns on the shop", default=3)
+    shop_ppr = fields.Integer(
+        string="Number of grid columns on the shop",
+        default=3,
+    )
 
     shop_gap = fields.Char(
-        string="Grid-gap on the shop", default="16px", required=False
+        string="Grid-gap on the shop",
+        default="16px",
+        required=False,
     )
 
     shop_opt_products_design_classes = fields.Char(
@@ -153,7 +158,7 @@ class Website(models.Model):
     )
 
     shop_default_sort = fields.Selection(
-        selection="_get_product_sort_mapping",
+        selection="_selection_product_sorts",
         required=True,
         default="website_sequence asc",
     )
@@ -321,7 +326,7 @@ class Website(models.Model):
     # === SELECTION METHODS ===#
 
     @staticmethod
-    def _get_product_sort_mapping():
+    def _selection_product_sorts():
         return [
             ("website_sequence asc", _("Featured")),
             ("publish_date desc", _("Newest Arrivals")),

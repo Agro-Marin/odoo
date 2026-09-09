@@ -42,7 +42,7 @@ class ProjectWorkflowStep(models.Model):
     color = fields.Integer(string="Color", export_string_translation=False)
     fold = fields.Boolean(string="Folded")
     task_state = fields.Selection(
-        selection="_get_task_states",
+        selection="_selection_task_states",
         help="When a task is moved into this step, its state is set to this "
         "value. Leave empty to keep the task's state untouched.",
     )
@@ -201,14 +201,14 @@ class ProjectWorkflowStep(models.Model):
             ]
         )
 
-    def _get_task_states(self) -> list[tuple[str, str]]:
+    def _selection_task_states(self) -> list[tuple[str, str]]:
         return (
             self.env["project.task"]._fields["state"]._description_selection(self.env)
         )
 
     @api.constrains("task_state")
     def _check_task_state_in_selection(self) -> None:
-        valid_keys = {key for key, _label in self._get_task_states()}
+        valid_keys = {key for key, _label in self._selection_task_states()}
         for step in self:
             if step.task_state and step.task_state not in valid_keys:
                 raise ValidationError(

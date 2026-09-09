@@ -35,7 +35,7 @@ Only admin users (`group_erp_manager`) can create goal definitions.
    `gamification.quest.enrollment`, `gamification.skill.node.unlock`,
    `gamification.mentorship`.
    If a new module grants karma with a different source model, extend
-   `_get_origin_selection_values()`.
+   `_selection_origin_models()`.
 
 3. **Consolidation:** Karma is the sum of all recorded gains, and the
    consolidated row carries the SUM of the gains it replaces, computed in the
@@ -219,7 +219,7 @@ Other modules can extend gamification by:
 1. **Creating `gamification.goal.definition` records** — define new measurable
    objectives tied to any model (e.g., CRM leads, project tasks).
 
-2. **Extending `_get_origin_selection_values()`** — add new models as karma
+2. **Extending `_selection_origin_models()`** — add new models as karma
    sources if your module grants karma from a new origin.
 
 3. **Overriding `get_gamification_redirection_data()`** — add buttons to the

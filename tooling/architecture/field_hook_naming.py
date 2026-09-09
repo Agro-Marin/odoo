@@ -307,8 +307,15 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
         display = _sources.display(path, ROOT)
         for model, attr, method, field, line in _field_hooks(tree):
             seen[model, attr, method].setdefault(field, (display, line))
-        for _model, method, field, line in _selection_hooks(tree):
-            selection_methods.setdefault(method, (display, line, field))
+        for model, method, field, line in _selection_hooks(tree):
+            # Keyed on (model, method), NOT on method alone. The same spelling on
+            # two models is two hooks with two contracts, and deduping by name
+            # reports the first and hides the rest -- which is how one sweep
+            # collapsed `_get_model_selection` on card.campaign, mail.activity
+            # and whatsapp.template into a single name. A selection hook shared
+            # across models is the canonical case (§2.4.2), so the population
+            # this gate reports has to be able to show both.
+            selection_methods.setdefault((model, method), (display, line, field))
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef) or not nv.is_model_class(node):
                 continue
@@ -348,7 +355,7 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
         ):
             continue
         out.append(Violation(path, line, "domain", method, "", "unmarked"))
-    for method, (path, line, field) in selection_methods.items():
+    for (_model, method), (path, line, field) in selection_methods.items():
         if method.startswith(_SELECTION_PREFIX):
             continue
         out.append(Violation(path, line, SELECTION_ATTR, method, field, "unvalued"))

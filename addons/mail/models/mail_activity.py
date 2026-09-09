@@ -1297,7 +1297,7 @@ class MailActivity(models.Model):
         }
 
     @api.model
-    def _get_model_selection(self) -> list[tuple[str, str]]:
+    def _selection_activity_models(self) -> list[tuple[str, str]]:
         return [
             (model.model, model.name)
             for model in self.env["ir.model"]

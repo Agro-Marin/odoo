@@ -13,7 +13,7 @@ class TransifexCodeTranslation(models.Model):
     value = fields.Text(string="Translation Value")
     module = fields.Char(help="Module this term belongs to")
     lang = fields.Selection(
-        selection="_get_languages", string="Language", validate=False
+        selection="_selection_installed_langs", string="Language", validate=False
     )
     transifex_url = fields.Char(
         "Transifex URL",
@@ -21,7 +21,7 @@ class TransifexCodeTranslation(models.Model):
         help="Propose a modification in the official version of Odoo",
     )
 
-    def _get_languages(self):
+    def _selection_installed_langs(self):
         return self.env["res.lang"].get_installed()
 
     def _compute_transifex_url(self):
@@ -40,7 +40,11 @@ class TransifexCodeTranslation(models.Model):
                     .mapped("name")
                 )
             if langs is None:
-                langs = [lang for lang, _ in self._get_languages() if lang != "en_US"]
+                langs = [
+                    lang
+                    for lang, _ in self._selection_installed_langs()
+                    if lang != "en_US"
+                ]
             self.env.cr.execute(f"SELECT DISTINCT module, lang FROM {self._table}")
             loaded_code_translations = set(self.env.cr.fetchall())
             create_value_list = [

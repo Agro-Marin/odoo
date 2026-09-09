@@ -11,8 +11,8 @@ from odoo.exceptions import AccessDenied, UserError
 class PosPaymentMethod(models.Model):
     _inherit = "pos.payment.method"
 
-    def _get_payment_terminal_selection(self):
-        return super()._get_payment_terminal_selection() + [("qfpay", "QFPay")]
+    def _selection_payment_terminals(self):
+        return super()._selection_payment_terminals() + [("qfpay", "QFPay")]
 
     qfpay_terminal_ip_address = fields.Char("QFPay Terminal IP Address", copy=False)
     qfpay_pos_key = fields.Char(

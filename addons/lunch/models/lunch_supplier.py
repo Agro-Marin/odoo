@@ -9,7 +9,7 @@ from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.tools import float_round
 
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 
 WEEKDAY_TO_NAME = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 CRON_DEPENDS = {"name", "active", "send_by", "automatic_email_time", "moment", "tz"}
@@ -97,7 +97,7 @@ class LunchSupplier(models.Model):
     order_deadline_passed = fields.Boolean(compute="_compute_order_deadline_passed")
 
     tz = fields.Selection(
-        _tz_get,
+        _selection_timezones,
         string="Timezone",
         required=True,
         default=lambda self: self.env.user.tz or "UTC",

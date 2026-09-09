@@ -7,7 +7,7 @@ from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 
 from .lunch_supplier import float_to_time
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 
 _logger = logging.getLogger(__name__)
 WEEKDAY_TO_NAME = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -53,7 +53,7 @@ class LunchAlert(models.Model):
         [("am", "AM"), ("pm", "PM")], default="am", required=True
     )
     tz = fields.Selection(
-        _tz_get,
+        _selection_timezones,
         string="Timezone",
         required=True,
         default=lambda self: self.env.user.tz or "UTC",

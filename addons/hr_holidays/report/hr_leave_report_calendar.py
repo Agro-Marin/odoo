@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.exceptions import ValidationError
 
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 
 
 class HrLeaveReportCalendar(models.Model):
@@ -15,7 +15,7 @@ class HrLeaveReportCalendar(models.Model):
     start_datetime = fields.Datetime(string="From", readonly=True)
     stop_datetime = fields.Datetime(string="To", readonly=True)
     duration_display = fields.Char(related="leave_id.duration_display", readonly=True)
-    tz = fields.Selection(_tz_get, string="Timezone", readonly=True)
+    tz = fields.Selection(_selection_timezones, string="Timezone", readonly=True)
     duration = fields.Float(string="Duration", readonly=True)
     employee_id = fields.Many2one("hr.employee", readonly=True)
     user_id = fields.Many2one("res.users", readonly=True)

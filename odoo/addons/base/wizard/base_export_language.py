@@ -15,7 +15,7 @@ class BaseLanguageExport(models.TransientModel):
     _description = "Language Export"
 
     @api.model
-    def _get_languages(self) -> list[tuple[str, str]]:
+    def _selection_installed_langs(self) -> list[tuple[str, str]]:
         langs = self.env["res.lang"].get_installed()
         return [
             (
@@ -26,7 +26,10 @@ class BaseLanguageExport(models.TransientModel):
 
     name = fields.Char("File Name", readonly=True)
     lang = fields.Selection(
-        _get_languages, string="Language", required=True, default=NEW_LANG_KEY
+        _selection_installed_langs,
+        string="Language",
+        required=True,
+        default=NEW_LANG_KEY,
     )
     format = fields.Selection(
         [("csv", "CSV File"), ("po", "PO File"), ("tgz", "TGZ Archive")],
@@ -49,7 +52,9 @@ class BaseLanguageExport(models.TransientModel):
         domain=[("state", "=", "installed")],
     )
     model_id = fields.Many2one(
-        "ir.model", string="Model to Export", domain=[("transient", "=", False)]
+        "ir.model",
+        string="Model to Export",
+        domain=[("transient", "=", False)],
     )
     model_name = fields.Char(string="Model Name", related="model_id.model")
     domain = fields.Char(string="Model Domain", default="[]")

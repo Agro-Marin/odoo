@@ -8,10 +8,10 @@ class PosPaymentMethod(models.Model):
     _order = "sequence, id"
     _inherit = ["mixin.pos.load"]
 
-    def _get_payment_terminal_selection(self):
+    def _selection_payment_terminals(self):
         return []
 
-    def _get_payment_method_type(self):
+    def _selection_payment_method_types(self):
         selection = [
             ("none", self.env._("None required")),
             ("terminal", self.env._("Terminal")),
@@ -86,7 +86,7 @@ class PosPaymentMethod(models.Model):
         string="Default Receivable Account Name",
     )
     use_payment_terminal = fields.Selection(
-        selection=lambda self: self._get_payment_terminal_selection(),
+        selection=lambda self: self._selection_payment_terminals(),
         string="Use a Payment Terminal",
         help="Record payments with a terminal on this journal.",
     )
@@ -104,7 +104,7 @@ class PosPaymentMethod(models.Model):
     )
     image = fields.Image("Image", max_width=50, max_height=50)
     payment_method_type = fields.Selection(
-        selection=lambda self: self._get_payment_method_type(),
+        selection=lambda self: self._selection_payment_method_types(),
         string="Integration",
         default="none",
         required=True,

@@ -17,7 +17,7 @@ class CardCampaign(models.Model):
     def _default_card_template_id(self):
         return self.env["card.template"].search([], limit=1)
 
-    def _get_model_selection(self):
+    def _selection_campaign_models(self):
         """Hardcoded list of models, checked against actually-present models."""
         allowed_models = [
             "res.partner",
@@ -63,7 +63,7 @@ class CardCampaign(models.Model):
     res_model = fields.Selection(
         string="Model Name",
         compute="_compute_res_model",
-        selection="_get_model_selection",
+        selection="_selection_campaign_models",
         precompute=True,
         readonly=True,
         required=True,
@@ -74,7 +74,7 @@ class CardCampaign(models.Model):
         help="Description below the card and default text when sharing on X"
     )
     preview_record_ref = fields.Reference(
-        string="Preview On", selection="_get_model_selection", required=True
+        string="Preview On", selection="_selection_campaign_models", required=True
     )
     tag_ids = fields.Many2many("card.campaign.tag", string="Tags")
     target_url = fields.Char(string="Post Link")

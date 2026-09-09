@@ -34,7 +34,7 @@ class LoyaltyReward(models.Model):
             result.update({k: v for k, v in defaults.items() if k in fields})
         return result
 
-    def _get_discount_mode_select(self):
+    def _selection_discount_modes(self):
         # The value is provided in the loyalty program's view since we may not have a program_id yet
         #  and makes sure to display the currency related to the program instead of the company's.
         symbol = self.env.context.get(
@@ -82,7 +82,7 @@ class LoyaltyReward(models.Model):
     # Discount rewards
     discount = fields.Float(string="Discount", default=10)
     discount_mode = fields.Selection(
-        selection=_get_discount_mode_select, required=True, default="percent"
+        selection=_selection_discount_modes, required=True, default="percent"
     )
     discount_applicability = fields.Selection(
         selection=[

@@ -183,7 +183,7 @@ class ResCompany(models.Model):
         string="Expects a Chart of Accounts",
         default=True,
     )
-    chart_template = fields.Selection(selection="_chart_template_selection")
+    chart_template = fields.Selection(selection="_selection_chart_templates")
     bank_account_code_prefix = fields.Char(string="Prefix of the bank accounts")
     cash_account_code_prefix = fields.Char(string="Prefix of the cash accounts")
     default_cash_difference_income_account_id = fields.Many2one(
@@ -1293,7 +1293,7 @@ class ResCompany(models.Model):
             .search_count([("company_id", "child_of", self.id)], limit=1)
         )
 
-    def _chart_template_selection(self):
+    def _selection_chart_templates(self):
         return self.env["account.chart.template"]._select_chart_template(
             self.country_id
         )

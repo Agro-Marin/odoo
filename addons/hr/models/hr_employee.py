@@ -965,7 +965,7 @@ class HrEmployee(models.Model):
         return res
 
     @api.model
-    def _lang_get(self):
+    def _selection_installed_langs(self):
         return self.env["res.lang"].get_installed()
 
     @api.model

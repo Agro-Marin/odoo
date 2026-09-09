@@ -36,7 +36,7 @@ class AccountMove(models.Model):
     # Mostly used on reports
     l10n_ar_afip_concept = fields.Selection(
         compute="_compute_l10n_ar_afip_concept",
-        selection="_get_afip_invoice_concepts",
+        selection="_selection_afip_invoice_concepts",
         string="ARCA Concept",
         help="A concept is suggested regarding the type of the products on the invoice.",
     )
@@ -101,7 +101,7 @@ class AccountMove(models.Model):
             AccountMove, self - docs_used_for_inv_and_ref
         )._check_invoice_type_document_type()
 
-    def _get_afip_invoice_concepts(self):
+    def _selection_afip_invoice_concepts(self):
         """Return the list of values of the selection field."""
         return [
             ("1", "Products / Definitive export of goods"),

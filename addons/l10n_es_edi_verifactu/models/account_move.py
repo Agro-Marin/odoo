@@ -51,7 +51,7 @@ class AccountMove(models.Model):
     )
     l10n_es_edi_verifactu_clave_regimen = fields.Selection(
         string="Veri*Factu Regime Key",
-        selection="_l10n_es_edi_verifactu_clave_regimen_selection",
+        selection="_selection_l10n_es_edi_verifactu_clave_regimen",
         compute="_compute_l10n_es_edi_verifactu_clave_regimen",
         store=True,
         readonly=False,
@@ -82,7 +82,7 @@ class AccountMove(models.Model):
     )
 
     @api.model
-    def _l10n_es_edi_verifactu_clave_regimen_selection(self):
+    def _selection_l10n_es_edi_verifactu_clave_regimen(self):
         return [
             # There are different possibilities for the ClaveRegimen field
             # depending on the Impuesto field (IVA / IGIC)
@@ -130,7 +130,7 @@ class AccountMove(models.Model):
         """
         Return dictionary (Veri*Factu Tax Applicability -> set(operation types))
         """
-        clave_regimen_selection = self._l10n_es_edi_verifactu_clave_regimen_selection()
+        clave_regimen_selection = self._selection_l10n_es_edi_verifactu_clave_regimen()
         return {
             "01": {
                 ot

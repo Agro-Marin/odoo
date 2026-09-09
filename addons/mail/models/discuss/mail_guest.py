@@ -10,7 +10,7 @@ from odoo.libs.datetime import all_timezones
 from odoo.tools import consteq, get_lang
 from odoo.tools.misc import limited_field_access_token
 
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
 
 if typing.TYPE_CHECKING:
@@ -45,7 +45,7 @@ class MailGuest(models.Model):
     )
     email = fields.Char()
     lang = fields.Selection(string="Language", selection=_selection_langs)
-    timezone = fields.Selection(string="Timezone", selection=_tz_get)
+    timezone = fields.Selection(string="Timezone", selection=_selection_timezones)
     channel_ids: DiscussChannel = fields.Many2many(
         string="Channels",
         comodel_name="discuss.channel",

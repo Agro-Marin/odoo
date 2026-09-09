@@ -7,8 +7,8 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 class PosPaymentMethod(models.Model):
     _inherit = "pos.payment.method"
 
-    def _get_payment_terminal_selection(self):
-        return super()._get_payment_terminal_selection() + [("stripe", "Stripe")]
+    def _selection_payment_terminals(self):
+        return super()._selection_payment_terminals() + [("stripe", "Stripe")]
 
     # Stripe
     stripe_serial_number = fields.Char(

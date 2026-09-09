@@ -6,7 +6,6 @@ from stdnum.fr import siren
 
 from odoo import api, fields, models
 from odoo.tools import SQL, float_is_zero
-from odoo.tools.misc import get_lang
 
 
 class L10n_FrFecExportWizard(models.TransientModel):

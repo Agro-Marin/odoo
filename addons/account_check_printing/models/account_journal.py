@@ -35,11 +35,11 @@ class AccountJournal(models.Model):
     )
 
     bank_check_printing_layout = fields.Selection(
-        selection="_get_check_printing_layouts",
+        selection="_selection_check_printing_layouts",
         string="Check Layout",
     )
 
-    def _get_check_printing_layouts(self):
+    def _selection_check_printing_layouts(self):
         """Returns available check printing layouts for the company, excluding disabled options"""
         selection = self.company_id._fields["account_check_printing_layout"].selection
         return [(value, label) for value, label in selection if value != "disabled"]

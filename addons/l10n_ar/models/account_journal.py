@@ -6,7 +6,7 @@ class AccountJournal(models.Model):
     _inherit = "account.journal"
 
     l10n_ar_afip_pos_system = fields.Selection(
-        selection="_get_l10n_ar_afip_pos_types_selection",
+        selection="_selection_l10n_ar_afip_pos_types",
         string="ARCA POS System",
         compute="_compute_l10n_ar_afip_pos_system",
         store=True,
@@ -48,7 +48,7 @@ class AccountJournal(models.Model):
                 journal.l10n_ar_is_pos and journal.l10n_ar_afip_pos_system
             )
 
-    def _get_l10n_ar_afip_pos_types_selection(self):
+    def _selection_l10n_ar_afip_pos_types(self):
         """Return the list of values of the selection field."""
         return [
             ("II_IM", _("Pre-printed Invoice")),

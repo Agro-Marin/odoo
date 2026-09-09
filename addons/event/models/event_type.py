@@ -1,6 +1,6 @@
 from odoo import api, fields, models
 
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 
 
 class EventType(models.Model):
@@ -70,7 +70,9 @@ class EventType(models.Model):
         help="It will select this default maximum value when you choose this event",
     )
     default_timezone = fields.Selection(
-        _tz_get, string="Timezone", default=lambda self: self.env.user.tz or "UTC"
+        _selection_timezones,
+        string="Timezone",
+        default=lambda self: self.env.user.tz or "UTC",
     )
     # communication
     event_type_mail_ids = fields.One2many(

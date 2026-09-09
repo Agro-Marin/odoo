@@ -658,7 +658,7 @@
                 t-value="website.get_pricelist_available(show_visible=True)" />
             <t
                 t-set="website_sale_sortable"
-                t-value="website._get_product_sort_mapping()" />
+                t-value="website._selection_product_sorts()" />
 
             <t
                 t-set="hasLeftColumn"

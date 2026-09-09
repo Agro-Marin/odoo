@@ -8,8 +8,8 @@ class PosPaymentMethod(models.Model):
     glory_username = fields.Char("Cash Machine Username")
     glory_password = fields.Char("Cash Machine Password")
 
-    def _get_payment_method_type(self):
-        return super()._get_payment_method_type() + [
+    def _selection_payment_method_types(self):
+        return super()._selection_payment_method_types() + [
             ("glory_cash", "Cash Machine (Glory)")
         ]
 

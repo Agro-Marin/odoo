@@ -32,8 +32,8 @@ class PosPaymentMethod(models.Model):
         string="Razorpay Test Mode", default=False, help="Turn it on when in Test Mode"
     )
 
-    def _get_payment_terminal_selection(self):
-        return super()._get_payment_terminal_selection() + [("razorpay", "Razorpay")]
+    def _selection_payment_terminals(self):
+        return super()._selection_payment_terminals() + [("razorpay", "Razorpay")]
 
     def razorpay_make_refund_request(self, data):
         razorpay = RazorpayPosRequest(self)

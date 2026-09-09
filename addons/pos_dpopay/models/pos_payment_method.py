@@ -48,8 +48,8 @@ class PosPaymentMethod(models.Model):
         help="Bearer token used for authenticating requests. Automatically refreshed when expired.",
     )
 
-    def _get_payment_terminal_selection(self):
-        return super()._get_payment_terminal_selection() + [("dpopay", "DPO Pay")]
+    def _selection_payment_terminals(self):
+        return super()._selection_payment_terminals() + [("dpopay", "DPO Pay")]
 
     def _is_write_forbidden(self, fields):
         # Allow the modification of these fields even if a pos_session is open

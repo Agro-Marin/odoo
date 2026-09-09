@@ -92,7 +92,7 @@ class PosConfig(models.Model):
         default=_self_order_default_user,
     )
     self_ordering_pay_after = fields.Selection(
-        selection=lambda self: self._compute_selection_pay_after(),
+        selection=lambda self: self._selection_pay_after(),
         string="Pay After:",
         default="meal",
         help="Choose when the customer will pay",
@@ -229,7 +229,7 @@ class PosConfig(models.Model):
             ):
                 record.self_ordering_mode = "nothing"
 
-    def _compute_selection_pay_after(self):
+    def _selection_pay_after(self):
         selection_each_label = _("Each Order")
         version_info = service.common.exp_version()["server_version_info"]
         if version_info[-1] == "":

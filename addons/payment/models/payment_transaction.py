@@ -25,7 +25,7 @@ class PaymentTransaction(models.Model):
     _rec_name = "reference"
 
     @api.model
-    def _lang_get(self):
+    def _selection_installed_langs(self):
         return self.env["res.lang"].get_installed()
 
     provider_id = fields.Many2one(
@@ -160,7 +160,9 @@ class PaymentTransaction(models.Model):
         ondelete="restrict",
     )
     partner_name = fields.Char(string="Partner Name")
-    partner_lang = fields.Selection(string="Language", selection=_lang_get)
+    partner_lang = fields.Selection(
+        string="Language", selection=_selection_installed_langs
+    )
     partner_email = fields.Char(string="Email")
     partner_address = fields.Char(string="Address")
     partner_zip = fields.Char(string="Zip")

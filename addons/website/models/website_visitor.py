@@ -9,7 +9,7 @@ from odoo.libs.datetime import all_timezones
 from odoo.tools import SQL, _
 from odoo.tools.misc import _format_time_ago
 
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 
 
 class WebsiteTrack(models.Model):
@@ -19,14 +19,24 @@ class WebsiteTrack(models.Model):
     _log_access = False
 
     visitor_id = fields.Many2one(
-        "website.visitor", ondelete="cascade", index=True, required=True, readonly=True
+        "website.visitor",
+        ondelete="cascade",
+        index=True,
+        required=True,
+        readonly=True,
     )
     page_id = fields.Many2one(
-        "website.page", index=True, ondelete="cascade", readonly=True
+        "website.page",
+        index=True,
+        ondelete="cascade",
+        readonly=True,
     )
     url = fields.Text("Url", index=True)
     visit_datetime = fields.Datetime(
-        "Visit Date", default=fields.Datetime.now, required=True, readonly=True
+        "Visit Date",
+        default=fields.Datetime.now,
+        required=True,
+        readonly=True,
     )
 
     _visitor_id_visit_datetime_idx = models.Index("(visitor_id, visit_datetime)")
@@ -76,7 +86,7 @@ class WebsiteVisitor(models.Model):
         string="Language",
         help="Language from the website when visitor has been created",
     )
-    timezone = fields.Selection(_tz_get, string="Timezone")
+    timezone = fields.Selection(_selection_timezones, string="Timezone")
     email = fields.Char(
         string="Email", compute="_compute_email_phone", compute_sudo=True
     )

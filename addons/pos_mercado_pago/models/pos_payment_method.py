@@ -27,8 +27,8 @@ class PosPaymentMethod(models.Model):
     )
     mp_id_point_smart_complet = fields.Char()
 
-    def _get_payment_terminal_selection(self):
-        return super()._get_payment_terminal_selection() + [
+    def _selection_payment_terminals(self):
+        return super()._selection_payment_terminals() + [
             ("mercado_pago", "Mercado Pago")
         ]
 

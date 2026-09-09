@@ -35,8 +35,8 @@ class PosPaymentMethod(models.Model):
         string="Pine Labs Test Mode", help="Test Pine Labs transaction process."
     )
 
-    def _get_payment_terminal_selection(self):
-        return super()._get_payment_terminal_selection() + [("pine_labs", "Pine Labs")]
+    def _selection_payment_terminals(self):
+        return super()._selection_payment_terminals() + [("pine_labs", "Pine Labs")]
 
     def pine_labs_make_payment_request(self, data):
         """

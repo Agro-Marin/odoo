@@ -43,7 +43,7 @@ class FleetVehicle(models.Model):
         )
         return state if state and state.id else False
 
-    def _get_year_selection(self):
+    def _selection_years(self):
         current_year = datetime.now().year
         return [(str(i), i) for i in range(1970, current_year + 1)]
 
@@ -100,7 +100,10 @@ class FleetVehicle(models.Model):
         check_company=True,
     )
     model_id = fields.Many2one(
-        "fleet.vehicle.model", "Model", tracking=True, required=True
+        "fleet.vehicle.model",
+        "Model",
+        tracking=True,
+        required=True,
     )
     brand_id = fields.Many2one(
         "fleet.vehicle.model.brand",
@@ -110,21 +113,35 @@ class FleetVehicle(models.Model):
         readonly=False,
     )
     log_drivers = fields.One2many(
-        "fleet.vehicle.assignation.log", "vehicle_id", string="Assignment Logs"
+        "fleet.vehicle.assignation.log",
+        "vehicle_id",
+        string="Assignment Logs",
     )
     log_services = fields.One2many(
-        "fleet.vehicle.log.services", "vehicle_id", "Services Logs"
+        "fleet.vehicle.log.services",
+        "vehicle_id",
+        "Services Logs",
     )
     log_contracts = fields.One2many(
-        "fleet.vehicle.log.contract", "vehicle_id", "Contracts"
+        "fleet.vehicle.log.contract",
+        "vehicle_id",
+        "Contracts",
     )
     contract_count = fields.Integer(
-        compute="_compute_count_all", string="Contract Count"
+        compute="_compute_count_all",
+        string="Contract Count",
     )
-    service_count = fields.Integer(compute="_compute_count_all", string="Services")
-    odometer_count = fields.Integer(compute="_compute_count_all", string="Odometer")
+    service_count = fields.Integer(
+        compute="_compute_count_all",
+        string="Services",
+    )
+    odometer_count = fields.Integer(
+        compute="_compute_count_all",
+        string="Odometer",
+    )
     history_count = fields.Integer(
-        compute="_compute_count_all", string="Drivers History Count"
+        compute="_compute_count_all",
+        string="Drivers History Count",
     )
     next_assignation_date = fields.Date(
         "Assignment Date",
@@ -144,7 +161,9 @@ class FleetVehicle(models.Model):
         help="Date when the vehicle's license plate has been cancelled/removed.",
     )
     contract_date_start = fields.Date(
-        string="First Contract Date", default=fields.Date.today, tracking=True
+        string="First Contract Date",
+        default=fields.Date.today,
+        tracking=True,
     )
     color = fields.Char(
         help="Color of the vehicle",
@@ -170,7 +189,7 @@ class FleetVehicle(models.Model):
         readonly=False,
     )
     model_year = fields.Selection(
-        selection="_get_year_selection",
+        selection="_selection_years",
         string="Model Year",
         help="Year of the model",
         compute="_compute_model_year",

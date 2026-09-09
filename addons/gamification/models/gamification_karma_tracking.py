@@ -23,7 +23,7 @@ class GamificationKarmaTracking(models.Model):
     _rec_name = "user_id"
     _order = "tracking_date desc, id desc"
 
-    def _get_origin_selection_values(self) -> list[tuple[str, str]]:
+    def _selection_origin_models(self) -> list[tuple[str, str]]:
         return [
             ("res.users", _("User")),
             ("gamification.streak", _("Streak")),
@@ -48,12 +48,12 @@ class GamificationKarmaTracking(models.Model):
     reason = fields.Text(default=lambda self: _("Add Manually"), string="Description")
     origin_ref = fields.Reference(
         string="Source",
-        selection=lambda self: self._get_origin_selection_values(),
+        selection=lambda self: self._selection_origin_models(),
         default=lambda self: f"res.users,{self.env.user.id}",
     )
     origin_ref_model_name = fields.Selection(
         string="Source Type",
-        selection=lambda self: self._get_origin_selection_values(),
+        selection=lambda self: self._selection_origin_models(),
         compute="_compute_origin_ref_model_name",
         store=True,
         # Derivable from origin_ref before the row exists, so compute it into

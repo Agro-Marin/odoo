@@ -6,21 +6,21 @@ class AccountJournal(models.Model):
 
     l10n_bg_customer_invoice = fields.Selection(
         string="Customer Invoices",
-        selection="_l10n_bg_document_type_selection_values",
+        selection="_selection_l10n_bg_document_types",
         default="01",
     )
     l10n_bg_credit_notes = fields.Selection(
         string="Credit Notes",
-        selection="_l10n_bg_document_type_selection_values",
+        selection="_selection_l10n_bg_document_types",
         default="03",
     )
     l10n_bg_debit_notes = fields.Selection(
         string="Debit Notes",
-        selection="_l10n_bg_document_type_selection_values",
+        selection="_selection_l10n_bg_document_types",
         default="02",
     )
 
-    def _l10n_bg_document_type_selection_values(self):
+    def _selection_l10n_bg_document_types(self):
         return [
             ("01", "01 - Invoice"),
             ("02", "02 - Debit notice"),

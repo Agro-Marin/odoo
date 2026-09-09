@@ -4,7 +4,7 @@ from odoo import models
 class GamificationKarmaTracking(models.Model):
     _inherit = "gamification.karma.tracking"
 
-    def _get_origin_selection_values(self):
-        return super()._get_origin_selection_values() + [
+    def _selection_origin_models(self):
+        return super()._selection_origin_models() + [
             ("forum.post", self.env["ir.model"]._get("forum.post").display_name)
         ]

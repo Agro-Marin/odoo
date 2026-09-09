@@ -47,7 +47,7 @@ class ResConfigSettings(models.TransientModel):
         string="Company has a chart of accounts",
     )
     chart_template = fields.Selection(
-        selection=lambda self: self.env.company._chart_template_selection(),
+        selection=lambda self: self.env.company._selection_chart_templates(),
         default=lambda self: self.env.company.chart_template,
     )
     sale_tax_id = fields.Many2one(

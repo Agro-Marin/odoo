@@ -86,7 +86,7 @@ def _is_descendant_of(candidate: Any, ancestor_id: int) -> bool:
     return False
 
 
-def _lang_get(self) -> list[tuple[str, str]]:
+def _selection_installed_langs(self) -> list[tuple[str, str]]:
     return self.env["res.lang"].get_installed()
 
 
@@ -96,7 +96,7 @@ _tzs = [
 ]
 
 
-def _tz_get(self) -> list[tuple[str, str]]:
+def _selection_timezones(self) -> list[tuple[str, str]]:
     return _tzs
 
 
@@ -212,7 +212,7 @@ class ResPartner(models.Model):
         index=True,
     )
     lang = fields.Selection(
-        _lang_get,
+        _selection_installed_langs,
         string="Language",
         compute="_compute_lang",
         readonly=False,

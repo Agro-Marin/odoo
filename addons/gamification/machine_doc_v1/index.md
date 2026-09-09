@@ -114,7 +114,7 @@ Extension points for other modules:
 - Create `gamification.streak.type` records for activity-based streaks
 - Create `gamification.achievement` records for hidden discovery achievements
 - Create `gamification.quest` records for guided onboarding journeys
-- Extend `_get_origin_selection_values()` to add new karma source models
+- Extend `_selection_origin_models()` to add new karma source models
 - Override `get_gamification_redirection_data()` for rank-reached email buttons
 
 ## Not wired

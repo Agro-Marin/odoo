@@ -73,8 +73,8 @@ class PosPaymentMethod(models.Model):
         }
         return super()._is_write_forbidden(fields - whitelisted_fields)
 
-    def _get_payment_terminal_selection(self):
-        return super()._get_payment_terminal_selection() + [("viva_com", "Viva.com")]
+    def _selection_payment_terminals(self):
+        return super()._selection_payment_terminals() + [("viva_com", "Viva.com")]
 
     def _bearer_token(self, session):
         self.check_singleton()

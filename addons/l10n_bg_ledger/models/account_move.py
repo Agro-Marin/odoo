@@ -6,7 +6,7 @@ class AccountMove(models.Model):
 
     l10n_bg_document_type = fields.Selection(
         string="Document Type (BG)",
-        selection="_l10n_bg_document_type_selection_values",
+        selection="_selection_l10n_bg_document_types",
         compute="_compute_l10n_bg_document_type",
         readonly=False,
         store=True,
@@ -24,7 +24,7 @@ class AccountMove(models.Model):
         ],
     )
 
-    def _l10n_bg_document_type_selection_values(self):
+    def _selection_l10n_bg_document_types(self):
         return [
             ("01", "01 - Invoice"),
             ("02", "02 - Debit notice"),

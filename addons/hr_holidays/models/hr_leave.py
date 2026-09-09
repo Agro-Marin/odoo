@@ -16,7 +16,7 @@ from odoo.tools.misc import clean_context, format_date
 from odoo.tools.translate import _
 
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 from odoo.addons.resource.models.utils import HOURS_PER_DAY
 
 _logger = logging.getLogger(__name__)
@@ -181,7 +181,7 @@ class HrLeave(models.Model):
         related="employee_id.active", string="Employee Active"
     )
     tz_mismatch = fields.Boolean(compute="_compute_tz_mismatch")
-    tz = fields.Selection(_tz_get, compute="_compute_tz")
+    tz = fields.Selection(_selection_timezones, compute="_compute_tz")
     department_id = fields.Many2one(
         "hr.department",
         compute="_compute_department_id",

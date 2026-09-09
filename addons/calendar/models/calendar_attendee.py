@@ -6,7 +6,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools.misc import clean_context
 
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 from odoo.addons.calendar.models.utils import generate_calendar_token
 
 _logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class CalendarAttendee(models.Model):
         "Invitation Token", default=_default_access_token, groups="base.group_system"
     )
     mail_tz = fields.Selection(
-        _tz_get,
+        _selection_timezones,
         compute="_compute_mail_tz",
         help="Timezone used for displaying time in the mail template",
     )

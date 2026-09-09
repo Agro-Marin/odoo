@@ -45,7 +45,7 @@ class MailActivityType(models.Model):
         help="Change the background color of the related activities of this type.",
     )
     res_model = fields.Selection(
-        selection=lambda self: self.env["mail.activity"]._get_model_selection(),
+        selection=lambda self: self.env["mail.activity"]._selection_activity_models(),
         string="Model",
         help="Specify a model if the activity should be specific to a model"
         " and not available when managing activities for other models.",

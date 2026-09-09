@@ -8,8 +8,8 @@ from odoo.addons.payment_mollie import const
 class PosPaymentMethod(models.Model):
     _inherit = "pos.payment.method"
 
-    def _get_payment_terminal_selection(self):
-        return super()._get_payment_terminal_selection() + [("mollie", "Mollie")]
+    def _selection_payment_terminals(self):
+        return super()._selection_payment_terminals() + [("mollie", "Mollie")]
 
     mollie_terminal_id = fields.Char("Mollie Terminal ID", copy=False)
     mollie_payment_provider_id = fields.Many2one(

@@ -1,5 +1,4 @@
 from ast import literal_eval
-from collections import defaultdict
 from contextlib import contextmanager
 from datetime import timedelta
 from unittest.mock import patch
@@ -18,10 +17,10 @@ Delivered-To: {to}
 Received: by mail.my.com (Postfix, from userid xxx)
     id 822ECBFB67; Mon, 24 Oct 2011 07:36:51 +0200 (CEST)
 X-Spam-Checker-Version: SpamAssassin 3.3.1 (2010-03-16) on mail.my.com
-X-Spam-Level: 
+X-Spam-Level:\x20
 X-Spam-Status: No, score=-1.0 required=5.0 tests=ALL_TRUSTED autolearn=ham
     version=3.3.1
-Received: from [192.168.1.146] 
+Received: from [192.168.1.146]\x20
     (Authenticated sender: {email_from})
     by mail.customer.com (Postfix) with ESMTPSA id 07A30BFAB4
     for <{to}>; Mon, 24 Oct 2011 07:36:50 +0200 (CEST)
@@ -376,8 +375,9 @@ class TestCrmCommon(TestSalesCommon, MailCase):
         country_ids=None,
         probabilities=None,
         suffix="",
-        additional_lead_values=defaultdict(None),
+        additional_lead_values=None,
     ):
+        additional_lead_values = additional_lead_values or {}
 
         types = ["lead", "opportunity"]
         leads_data = [
@@ -423,12 +423,12 @@ class TestCrmCommon(TestSalesCommon, MailCase):
                     )
 
         if country_ids:
-            cid_to_country = dict(
-                (country.id, country)
+            cid_to_country = {
+                country.id: country
                 for country in self.env["res.country"].browse(
                     [cid for cid in country_ids if cid]
                 )
-            )
+            }
             for idx, lead_data in enumerate(leads_data):
                 country_id = country_ids[idx % len(country_ids)]
                 country = cid_to_country.get(country_id, self.env["res.country"])
@@ -527,9 +527,9 @@ class TestCrmCommon(TestSalesCommon, MailCase):
         leads = leads.sudo()
 
         fields_all = self.FIELDS_FIRST_SET + self.merge_fields
-        original_opp_values = dict(
-            (fname, opportunity[fname]) for fname in fields_all if fname in opportunity
-        )
+        original_opp_values = {
+            fname: opportunity[fname] for fname in fields_all if fname in opportunity
+        }
 
         def _find_value(lead, fname):
             if lead == opportunity:

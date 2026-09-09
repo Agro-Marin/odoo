@@ -22,7 +22,7 @@ class FleetVehicleModel(models.Model):
     _description = "Model of a vehicle"
     _order = "name asc"
 
-    def _get_year_selection(self):
+    def _selection_years(self):
         current_year = datetime.now().year
         return [(str(i), i) for i in range(1970, current_year + 1)]
 
@@ -57,7 +57,7 @@ class FleetVehicleModel(models.Model):
     vehicle_count = fields.Integer(
         compute="_compute_vehicle_count", search="_search_vehicle_count"
     )
-    model_year = fields.Selection(selection="_get_year_selection", tracking=True)
+    model_year = fields.Selection(selection="_selection_years", tracking=True)
     color = fields.Char(tracking=True)
     seats = fields.Integer(string="Seating Capacity", tracking=True)
     doors = fields.Integer(

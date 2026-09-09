@@ -10,7 +10,7 @@ from odoo.fields import Domain
 from odoo.libs.datetime import localize_standard, timezone
 from odoo.tools.misc import clean_context
 
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 
 MAX_RECURRENT_EVENT = 720
 
@@ -110,7 +110,7 @@ class CalendarRecurrence(models.Model):
     )  # store=False ?
     calendar_event_ids = fields.One2many("calendar.event", "recurrence_id")
     event_tz = fields.Selection(
-        _tz_get,
+        _selection_timezones,
         string="Timezone",
         default=lambda self: self.env.context.get("tz") or self.env.user.tz,
     )

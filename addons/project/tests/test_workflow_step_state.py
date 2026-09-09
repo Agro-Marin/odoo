@@ -78,7 +78,7 @@ class TestProjectWorkflowStepState(TransactionCase):
         self.assertIn(self.step_canceled.task_state, expected_states)
 
     def test_get_task_states(self):
-        task_states = self.step_done._get_task_states()
+        task_states = self.step_done._selection_task_states()
         expected_states = dict(
             self.env["project.task"].fields_get(allfields=["state"])["state"][
                 "selection"
@@ -101,7 +101,7 @@ class TestProjectWorkflowStepState(TransactionCase):
             "_description_selection",
             return_value=selection,
         ):
-            task_states = self.step_done._get_task_states()
+            task_states = self.step_done._selection_task_states()
         self.assertEqual(task_states, selection)
 
     def test_todo_state_from_step(self):
@@ -153,7 +153,7 @@ class TestProjectWorkflowStepState(TransactionCase):
         self.step_todo.task_state = "todo"
         with patch.object(
             type(self.env["project.workflow.step"]),
-            "_get_task_states",
+            "_selection_task_states",
             return_value=[("in_progress", "In Progress")],
         ):
             with self.assertRaises(ValidationError):

@@ -261,7 +261,7 @@ class TestMarketingCardRender(MarketingCardCommon):
         # mismatch preview
 
         with patch(
-            "odoo.addons.marketing_card.models.card_campaign.CardCampaign._get_model_selection",
+            "odoo.addons.marketing_card.models.card_campaign.CardCampaign._selection_campaign_models",
             lambda Model: [("res.partner", "Partner"), ("res.users", "User")],
         ):
             # mismatches without cards

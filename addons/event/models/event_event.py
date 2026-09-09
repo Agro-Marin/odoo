@@ -16,7 +16,7 @@ from odoo.tools.mail import html_to_inner_content, is_html_empty
 from odoo.tools.misc import formatLang
 from odoo.tools.translate import html_translate
 
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 
 _logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class EventEvent(models.Model):
         return self.env["event.type"]._default_event_type_mail_ids()
 
     @api.model
-    def _lang_get(self):
+    def _selection_installed_langs(self):
         return self.env["res.lang"].get_installed()
 
     def _default_question_ids(self):
@@ -253,7 +253,7 @@ class EventEvent(models.Model):
     )
     # Date fields
     date_tz = fields.Selection(
-        _tz_get,
+        _selection_timezones,
         string="Display Timezone",
         required=True,
         compute="_compute_date_tz",
@@ -313,7 +313,7 @@ class EventEvent(models.Model):
         string="Event Share URL", compute="_compute_event_share_url"
     )
     lang = fields.Selection(
-        _lang_get,
+        _selection_installed_langs,
         string="Language",
         help="All the communication emails sent to attendees will be translated in this language.",
     )

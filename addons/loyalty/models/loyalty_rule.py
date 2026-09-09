@@ -22,7 +22,7 @@ class LoyaltyRule(models.Model):
             result.update({k: v for k, v in defaults.items() if k in fields})
         return result
 
-    def _get_reward_point_mode_selection(self):
+    def _selection_reward_point_modes(self):
         # The value is provided in the loyalty program's view since we may not have a program_id yet
         #  and makes sure to display the currency related to the program instead of the company's.
         symbol = self.env.context.get(
@@ -64,7 +64,7 @@ class LoyaltyRule(models.Model):
         related="program_id.portal_point_name", readonly=True
     )
     reward_point_mode = fields.Selection(
-        selection=_get_reward_point_mode_selection, required=True, default="order"
+        selection=_selection_reward_point_modes, required=True, default="order"
     )
 
     minimum_qty = fields.Integer(string="Minimum Quantity", default=1)

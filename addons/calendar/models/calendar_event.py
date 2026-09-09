@@ -19,7 +19,7 @@ from odoo.tools import html2plaintext, html_sanitize, is_html_empty, single_emai
 from odoo.tools.misc import get_lang
 from odoo.tools.translate import _
 
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 from odoo.addons.calendar.models.calendar_attendee import CalendarAttendee
 from odoo.addons.calendar.models.calendar_recurrence import (
     BYDAY_SELECTION,
@@ -384,7 +384,10 @@ class CalendarEvent(models.Model):
         readonly=False,
     )
     event_tz = fields.Selection(
-        _tz_get, string="Timezone", compute="_compute_recurrence", readonly=False
+        _selection_timezones,
+        string="Timezone",
+        compute="_compute_recurrence",
+        readonly=False,
     )
     end_type = fields.Selection(
         END_TYPE_SELECTION,

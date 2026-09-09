@@ -16,10 +16,14 @@ class MailActivityPlan(models.Model):
 
     name = fields.Char("Name", required=True)
     company_id: ResCompany = fields.Many2one(
-        "res.company", default=lambda self: self.env.company
+        "res.company",
+        default=lambda self: self.env.company,
     )
     template_ids: MailActivityPlanTemplate = fields.One2many(
-        "mail.activity.plan.template", "plan_id", string="Activities", copy=True
+        "mail.activity.plan.template",
+        "plan_id",
+        string="Activities",
+        copy=True,
     )
     active = fields.Boolean(default=True)
     res_model_id: IrModel = fields.Many2one(
@@ -34,7 +38,7 @@ class MailActivityPlan(models.Model):
         store=True,
     )
     res_model = fields.Selection(
-        selection=lambda self: self.env["mail.activity"]._get_model_selection(),
+        selection=lambda self: self.env["mail.activity"]._selection_activity_models(),
         string="Model",
         required=True,
         help="Specify a model if the activity should be specific to a model"
@@ -42,7 +46,8 @@ class MailActivityPlan(models.Model):
     )
     steps_count = fields.Count("template_ids")
     has_user_on_demand = fields.Boolean(
-        "Has on demand responsible", compute="_compute_has_user_on_demand"
+        "Has on demand responsible",
+        compute="_compute_has_user_on_demand",
     )
 
     @api.depends("res_model")

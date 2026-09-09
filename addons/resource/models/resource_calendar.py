@@ -18,7 +18,7 @@ from odoo.tools import SQL, date_utils, float_compare
 from odoo.tools.date_utils import float_to_time, localized, to_timezone
 
 from .utils import HOURS_PER_DAY
-from odoo.addons.base.models.res_partner import _tz_get
+from odoo.addons.base.models.res_partner import _selection_timezones
 
 if TYPE_CHECKING:
     from .resource_calendar_attendance import ResourceCalendarAttendance
@@ -170,7 +170,7 @@ class ResourceCalendar(models.Model):
         )
 
     tz = fields.Selection(
-        _tz_get,
+        _selection_timezones,
         string="Timezone",
         required=True,
         default=lambda self: self._default_tz(),
