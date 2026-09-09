@@ -22,6 +22,8 @@ if typing.TYPE_CHECKING:
 
 from .mixin_format_address import ADDRESS_FIELDS
 
+POSITION_FIELDS = ("partner_latitude", "partner_longitude")
+
 SIMILAR_NAME_THRESHOLD_PARAM = "base.partner_name_similarity_threshold"
 DEFAULT_SIMILAR_NAME_THRESHOLD = 0.75
 
@@ -1117,6 +1119,21 @@ class ResPartner(models.Model):
     def _formatting_address_fields(self) -> list[str]:
         return self._address_fields()
 
+    def _is_geolocation_stale(self, vals: dict[str, Any]) -> bool:
+        written_address_fields = [field for field in ADDRESS_FIELDS if field in vals]
+        if not written_address_fields:
+            return False
+        if all(field in vals for field in POSITION_FIELDS):
+            return False
+        for partner in self:
+            for field_name in written_address_fields:
+                current = partner[field_name]
+                if self._fields[field_name].type == "many2one":
+                    current = current.id
+                if (current or False) != (vals[field_name] or False):
+                    return True
+        return False
+
     def _prepare_vals_whole_when_any_set(
         self, field_names: list[str]
     ) -> dict[str, Any]:
@@ -1360,6 +1377,9 @@ class ResPartner(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         vals = dict(vals)
+        if self._is_geolocation_stale(vals):
+            vals["partner_latitude"] = False
+            vals["partner_longitude"] = False
         if "active" in vals and not vals["active"]:
             self.invalidate_recordset(["user_ids"])
             users = (
