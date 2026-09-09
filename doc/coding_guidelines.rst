@@ -1222,7 +1222,7 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   316
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 26,244
+§2.4.3   Non-test methods declared on a model class                 26,247
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               100
 §2.4.4   Model methods with an abolished verb behind a noun            132
@@ -1240,7 +1240,7 @@ Section  Population                                                  Count
 §2.4.7   ``_calculate_*`` model methods                                  6
 §2.4.7   ``_prepare_*`` definitions                                    861
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            38
-§2.4.8   ``_check_*`` definitions                                    1,192
+§2.4.8   ``_check_*`` definitions                                    1,193
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     179
@@ -2079,8 +2079,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **360** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **268**
+**A ``bool`` return does not make a predicate** ``[review]``. **361** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **269**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
