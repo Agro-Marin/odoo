@@ -1,9 +1,12 @@
 import unittest
 
 from odoo.tools.module_data import (
+    CRON_ACTION_SUFFIX,
     READONLY_MERGED_MODULE,
     absorb_readonly_forerunners,
     adopt_xmlids,
+    rehome_cron_xmlids,
+    repair_orphaned_cron_actions,
 )
 
 BaseCase = unittest.TestCase
@@ -137,3 +140,115 @@ class TestAbsorbReadonlyForerunners(BaseCase):
         )
         self.assertEqual(cr.xmlids[1], ("sales_team", "group_sale_readonly"))
         self.assertEqual(cr.xmlids[2], ("sales_team", "access_crm_tag_sale_readonly"))
+
+
+CRON = "ir_cron_find_and_set_documents_expired"
+RENAMED_CRON = "ir_cron_document_expiration_refresh"
+
+
+class TestRehomeCronXmlids(BaseCase):
+    def test_the_server_action_companion_moves_with_its_cron(self):
+        cr = _Cursor(
+            {
+                1: ("document_compliance", CRON),
+                2: ("document_compliance", CRON + CRON_ACTION_SUFFIX),
+                3: ("document_compliance", "view_document_type_form"),
+            }
+        )
+        moved = rehome_cron_xmlids(
+            cr, "document_compliance", "document", {CRON: RENAMED_CRON}
+        )
+        self.assertEqual(moved, 2)
+        self.assertEqual(cr.xmlids[1], ("document", RENAMED_CRON))
+        self.assertEqual(cr.xmlids[2], ("document", RENAMED_CRON + CRON_ACTION_SUFFIX))
+
+    def test_an_unrelated_xmlid_of_the_same_module_is_left_alone(self):
+        cr = _Cursor(
+            {
+                1: ("document_compliance", CRON),
+                2: ("document_compliance", CRON + CRON_ACTION_SUFFIX),
+                3: ("document_compliance", "view_document_type_form"),
+            }
+        )
+        rehome_cron_xmlids(cr, "document_compliance", "document", {CRON: RENAMED_CRON})
+        self.assertEqual(
+            cr.xmlids[3], ("document_compliance", "view_document_type_form")
+        )
+
+    def test_a_database_already_rehomed_moves_nothing(self):
+        already = {
+            1: ("document", RENAMED_CRON),
+            2: ("document", RENAMED_CRON + CRON_ACTION_SUFFIX),
+        }
+        cr = _Cursor(already)
+        self.assertEqual(
+            rehome_cron_xmlids(
+                cr, "document_compliance", "document", {CRON: RENAMED_CRON}
+            ),
+            0,
+        )
+        self.assertEqual(cr.xmlids, already)
+
+
+class _RepairCursor:
+    """Answers the two statements ``repair_orphaned_cron_actions`` issues.
+
+    ``orphans`` are the rows the scan returns; ``taken`` are the (module, name)
+    pairs already spoken for, which is what the UPDATE's NOT EXISTS guards on.
+    """
+
+    def __init__(self, orphans, taken=()):
+        self.orphans = list(orphans)
+        self.taken = set(taken)
+        self.renamed = []
+        self.rowcount = 0
+        self._result = []
+
+    def execute(self, query, params=None):
+        code = " ".join(str(query.code).split())
+        params = list(query.params) if params is None else list(params)
+        if code.startswith("SELECT stale.id, stale.module, stale.name"):
+            self._result = list(self.orphans)
+            self.rowcount = len(self.orphans)
+        elif code.startswith("UPDATE ir_model_data SET module = %s, name = %s"):
+            module, name, data_id = params[0], params[1], params[2]
+            self.rowcount = 0 if (module, name) in self.taken else 1
+            if self.rowcount:
+                self.renamed.append((data_id, module, name))
+                self.taken.add((module, name))
+        else:
+            raise AssertionError(f"unexpected statement: {code}")
+
+    def fetchall(self):
+        return list(self._result)
+
+
+class TestRepairOrphanedCronActions(BaseCase):
+    ORPHAN = (
+        10017696,
+        "document_compliance",
+        CRON + CRON_ACTION_SUFFIX,
+        "document",
+        RENAMED_CRON,
+    )
+
+    def test_the_companion_is_repointed_at_the_cron_it_drives(self):
+        cr = _RepairCursor([self.ORPHAN])
+        self.assertEqual(repair_orphaned_cron_actions(cr), 1)
+        self.assertEqual(
+            cr.renamed,
+            [(10017696, "document", RENAMED_CRON + CRON_ACTION_SUFFIX)],
+        )
+
+    def test_a_database_with_nothing_to_repair_is_a_no_op(self):
+        cr = _RepairCursor([])
+        self.assertEqual(repair_orphaned_cron_actions(cr), 0)
+        self.assertEqual(cr.renamed, [])
+
+    def test_a_name_another_row_already_holds_is_not_taken_from_it(self):
+        cr = _RepairCursor(
+            [self.ORPHAN],
+            taken={("document", RENAMED_CRON + CRON_ACTION_SUFFIX)},
+        )
+        self.assertEqual(repair_orphaned_cron_actions(cr), 0)
+        self.assertEqual(cr.renamed, [])

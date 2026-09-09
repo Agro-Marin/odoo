@@ -233,3 +233,100 @@ def rename_in_stored_expressions(
             f" of {model}" if model else "",
         )
     return rewritten
+
+
+CRON_ACTION_SUFFIX = "_ir_actions_server"
+
+
+def rehome_cron_xmlids(
+    cr: BaseCursor,
+    from_module: str,
+    to_module: str,
+    renamed: Mapping[str, str],
+) -> int:
+    """Move `ir.cron` xmlids together with their server-action companions.
+
+    Loading a cron from XML registers two xmlids, not one: the cron itself and
+    the `ir.actions.server` it delegates to, named `<cron xmlid>_ir_actions_server`.
+    A migration that renames or rehomes only the first leaves the second owned by
+    a module that no longer declares it, and nothing goes wrong until that module
+    is next in `updated_modules`. Then `ir.model.data._process_end()` reads the
+    companion as stale and deletes it, which
+    `ir_cron_ir_actions_server_id_fkey` refuses because it is `RESTRICT`.
+
+    That failure lands in the stale-data sweep, which runs *after* every module
+    has upgraded and committed, so an otherwise complete `-u all` exits non-zero
+    with the whole database already migrated. Renaming the pair together is what
+    keeps the sweep from ever seeing a half-moved cron.
+    """
+    pairs = {}
+    for old, new in renamed.items():
+        pairs[old] = new
+        pairs[old + CRON_ACTION_SUFFIX] = new + CRON_ACTION_SUFFIX
+    return adopt_xmlids(cr, from_module, to_module, (), pairs)
+
+
+def repair_orphaned_cron_actions(cr: BaseCursor) -> int:
+    """Re-point companions left behind by a cron rename that moved only the cron.
+
+    Only the companions that still drive a live `ir.cron` are repaired, because
+    those are the ones whose deletion the foreign key refuses. The companion is
+    re-pointed at the module and name its cron now answers to, never deleted: the
+    server action carries the cron's `state`, `code` and `model_id`, so dropping
+    it would take the schedule with it.
+
+    A companion that drives no cron is ordinary dead data and is left alone --
+    the owning module's own sweep removes it correctly, and a module whose sweep
+    can never run is a different defect that has to name its rows deliberately.
+
+    Idempotent, and safe on a database that has nothing to repair.
+    """
+    cr.execute(
+        SQL(
+            """
+            SELECT stale.id, stale.module, stale.name, cron_data.module, cron_data.name
+              FROM ir_model_data stale
+              JOIN ir_cron cron ON cron.ir_actions_server_id = stale.res_id
+              JOIN ir_model_data cron_data
+                ON cron_data.model = 'ir.cron' AND cron_data.res_id = cron.id
+             WHERE stale.model = 'ir.actions.server'
+               AND stale.name LIKE %s
+               AND NOT EXISTS (
+                   SELECT 1 FROM ir_model_data owner
+                    WHERE owner.model = 'ir.cron'
+                      AND owner.module = stale.module
+                      AND owner.name = left(stale.name, -%s)
+               )
+            """,
+            f"%{CRON_ACTION_SUFFIX}",
+            len(CRON_ACTION_SUFFIX),
+        )
+    )
+    repaired = 0
+    for data_id, old_module, old_name, module, cron_name in cr.fetchall():
+        name = cron_name + CRON_ACTION_SUFFIX
+        cr.execute(
+            SQL(
+                "UPDATE ir_model_data SET module = %s, name = %s "
+                "WHERE id = %s AND NOT EXISTS ("
+                "    SELECT 1 FROM ir_model_data taken"
+                "     WHERE taken.module = %s AND taken.name = %s AND taken.id != %s"
+                ")",
+                module,
+                name,
+                data_id,
+                module,
+                name,
+                data_id,
+            )
+        )
+        if cr.rowcount:
+            repaired += 1
+            _logger.info(
+                "re-pointed %s.%s to %s.%s, the cron it actually drives",
+                old_module,
+                old_name,
+                module,
+                name,
+            )
+    return repaired
