@@ -2,6 +2,7 @@ from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
+from odoo.tools.query import Query
 
 
 @tagged("post_install", "-at_install", "partner_scoring")
@@ -70,6 +71,33 @@ class TestSecurityRules(TransactionCase):
             as_outsider.write({"value_ids": [Command.clear()]})
         with self.assertRaises(AccessError):
             as_outsider.unlink()
+
+    def test_the_rule_domain_outlives_the_request_that_built_it(self):
+        """The domain is cached for the registry's life, so it must hold no Query."""
+        rules = self.env["ir.rule"].with_user(self.outsider)
+        for model in ("partner.score.line", "res.partner.attribute.line"):
+            domain = rules._get_domain_accessible_records(model, "read")
+            self.assertFalse(
+                [c for c in domain.iter_conditions() if isinstance(c.value, Query)],
+                f"the {model} rule caches a Query, and its cursor is closed by the "
+                "time the next request reads the cache",
+            )
+
+    def test_an_archived_partner_keeps_its_lines_readable(self):
+        """Archiving is not a permission: whoever read the partner still reads it."""
+        insider = self.env["res.users"].create(
+            {
+                "name": "Rules Insider",
+                "login": "rules_insider",
+                "company_id": self.company_a.id,
+                "company_ids": [Command.set(self.company_a.ids)],
+                "group_ids": [Command.set([self.env.ref("base.group_user").id])],
+            }
+        )
+        self.line.with_user(insider).read(["attribute_id"])
+        self.hidden.action_archive()
+        self.env.registry.clear_cache()
+        self.line.with_user(insider).read(["attribute_id"])
 
     def test_a_foreign_company_scale_is_not_disclosed(self):
         profile_model = self.env["partner.profile"]

@@ -5,18 +5,25 @@
         The scoring models carry commercial data about a partner but no company
         of their own, so the standard multi-company rule has nothing to attach
         to. They follow the partner instead: whoever may read a partner may
-        read what the engine says about it, and nobody else. Written as a
-        subquery on res.partner so the rule inherits every rule already
+        read what the engine says about it, and nobody else. The rule embeds
+        the read domain of res.partner, so it inherits every rule already
         guarding the partner, the company one and the portal one alike.
         with_user is what drops the sudo the rule domain is evaluated under:
-        without it the subquery answers as superuser and restricts nothing.
+        without it the partner answers as superuser, which has no rules at
+        all, and the condition restricts nothing.
+
+        What goes in the condition must stay a plain domain. A rule domain is
+        cached per user for the life of the registry, so anything it carries
+        outlives the request that built it: _search() would put a Query there,
+        and a Query holds both the cursor it was built on and the ids it read
+        the first time. The next request finds a closed cursor.
     -->
     <record id="rule_partner_score_line_follows_partner" model="ir.rule">
         <field name="name">partner.score.line: follow the partner</field>
         <field name="model_id" ref="model_partner_score_line" />
         <field name="global" eval="True" />
         <field
-            name="domain_force">[('partner_id', 'in', user.with_user(user).env['res.partner']._search([]))]</field>
+            name="domain_force">[('partner_id', 'any', user.with_user(user).env['ir.rule']._get_domain_accessible_records('res.partner', 'read'))]</field>
     </record>
 
     <record id="rule_res_partner_attribute_line_follows_partner" model="ir.rule">
@@ -24,7 +31,7 @@
         <field name="model_id" ref="model_res_partner_attribute_line" />
         <field name="global" eval="True" />
         <field
-            name="domain_force">[('partner_id', 'in', user.with_user(user).env['res.partner']._search([]))]</field>
+            name="domain_force">[('partner_id', 'any', user.with_user(user).env['ir.rule']._get_domain_accessible_records('res.partner', 'read'))]</field>
     </record>
 
     <!--
