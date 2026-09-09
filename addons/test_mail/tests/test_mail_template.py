@@ -416,7 +416,14 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
         contextual action, with dynamic reports involved"""
         self.env.invalidate_all()
         # tm: 22, nightly: +1
-        with self.with_user(self.user_employee.login), self.assertQueryCount(21):
+        # 21 -> 22: the budget disagreed with the annotation one line above it,
+        # and the annotation was right. The extra query is this fork's own
+        # `res.partner.phone` -> `phone_ids`: mail declares it `tracking=2`
+        # (models/res_partner.py), and a tracked Many2many costs a
+        # `res_partner_phone_number_rel` read where a stored Char cost none.
+        # Chased to that query in a debug_sql trace rather than assumed --
+        # it appears exactly once per pass.
+        with self.with_user(self.user_employee.login), self.assertQueryCount(22):
             mail_id = self.test_template_wreports.with_env(self.env).send_mail(
                 self.test_record.id
             )
@@ -445,7 +452,9 @@ class TestMailTemplateLanguages(TestMailTemplateCommon):
         # test_template_send_email_batch, on top of the dynamic-report path.
         # Measured, not inferred -- the trace here carries the same six COPY
         # setup queries and the baseline carried none.
-        with self.with_user(self.user_employee.login), self.assertQueryCount(149):
+        # 149 -> 150 for the same one query as test_template_send_email_wreport
+        # above: the tracked `phone_ids` relation read. Same delta, same cause.
+        with self.with_user(self.user_employee.login), self.assertQueryCount(150):
             template = self.test_template_wreports.with_env(self.env)
             mails_sudo = template.send_mail_batch(self.test_records_batch.ids)
 

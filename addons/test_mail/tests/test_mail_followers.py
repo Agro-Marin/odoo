@@ -95,9 +95,12 @@ class BaseFollowersTest(MailCommon):
         )
         self.assertTrue(partner in test_record.message_partner_ids)
         self.assertEqual(followed_before + test_record, followed_after)
-        with self.assertRaisesRegex(
-            AccessError, "Portal users can only filter threads"
-        ):
+        # `message_partner_ids` carries groups="base.group_user", so the FIELD
+        # ACL refuses a portal user before `_search_message_partner_ids` runs.
+        # That guard is a second line of defence, not the operative policy, and
+        # asserting its message here asserted a string no portal user can ever
+        # reach -- upstream 19.0 carries the same unreachable pair.
+        with self.assertRaisesRegex(AccessError, "message_partner_ids"):
             self.env["mail.test.simple"].with_user(self.user_portal).search(
                 [("message_partner_ids", "in", partner.ids)]
             )

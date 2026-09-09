@@ -883,10 +883,13 @@ class MailMail(models.Model):
         for partner in recipients:
             email_to_normalized = tools.mail.email_normalize_all(partner.email)
             raw_email = (partner.email or "").strip()
-            email_to = [
-                tools.formataddr((partner.name or "", email))
-                for email in email_to_normalized or ([raw_email] if raw_email else [])
-            ]
+            if email_to_normalized:
+                email_to = [
+                    tools.formataddr((partner.name or "", email))
+                    for email in email_to_normalized
+                ]
+            else:
+                email_to = [raw_email] if raw_email else []
             email_list.append(
                 {
                     "email_cc": [],

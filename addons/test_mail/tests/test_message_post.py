@@ -1561,10 +1561,13 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
             [
                 f'"{self.partner_1.name}" <valid.lelitre@agrolait.com>',
             ],
-            # present but unparseable: still attempted, formatted as-is
-            [
-                f'"{self.partner_1.name}" <@wrong>',
-            ],
+            # Present but unparseable: still attempted, and carried RAW. It
+            # cannot be formatted -- `formataddr` raises ValueError on an
+            # address with no '@' -- so the name is not attached to it. The
+            # previous expectation, '"Valid Lelitre" <@wrong>', is what
+            # `formataddr` returns for the string '@wrong' and was unreachable
+            # from 'wrong': every route to it raised instead.
+            ["wrong"],
             # no address at all: no recipient to format (was a literal "False")
             [],
             [],

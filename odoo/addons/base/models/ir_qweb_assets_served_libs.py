@@ -21,7 +21,10 @@ class IrQweb(models.AbstractModel):
     def _get_external_libs_served(self, *, debug_assets: bool) -> dict[str, str]:
         if debug_assets:
             return dict(self._external_libs())
-        self._create_served_libs()
+        try:
+            self._create_served_libs()
+        except _EsmReadonlyDeclined:
+            return dict(self._external_libs())
         return dict(self._served_external_libs_table())
 
     @staticmethod

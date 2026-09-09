@@ -216,6 +216,9 @@ class MixinMailThread(models.AbstractModel):
     ) -> list | NotImplementedType:
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
+        # Second line of defence only: the field declares groups="base.group_user",
+        # so a non-internal user is refused by the field ACL before reaching this.
+        # Kept so that relaxing the ACL cannot silently open follower search.
         if not (self.env.su or self.env.user._is_internal()):
             user_partner = self.env.user.partner_id
             allow_partner_ids = set(
