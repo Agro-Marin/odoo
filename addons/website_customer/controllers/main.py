@@ -26,7 +26,7 @@ class WebsiteCustomer(GoogleMap):
             domain += [("country_id", "=", int(current_country))]
 
         if current_industry and current_industry != "0":
-            domain += [("industry_id", "=", int(current_industry))]
+            domain += [("primary_industry_id", "=", int(current_industry))]
 
         return domain
 
@@ -86,7 +86,7 @@ class WebsiteCustomer(GoogleMap):
                 "|",
                 ("name", "ilike", search_value),
                 ("website_description", "ilike", search_value),
-                ("industry_id.name", "ilike", search_value),
+                ("primary_industry_id.name", "ilike", search_value),
             ]
 
         tag_id = post.get("tag_id")
@@ -96,11 +96,11 @@ class WebsiteCustomer(GoogleMap):
 
         # group by industry, based on customers found with the search(domain)
         industry_groups = Partner.sudo()._read_group(
-            domain, ["industry_id"], ["__count"], order="industry_id"
+            domain, ["primary_industry_id"], ["__count"], order="primary_industry_id"
         )
 
         if industry:
-            domain.append(("industry_id", "=", industry.id))
+            domain.append(("primary_industry_id", "=", industry.id))
             if (
                 not any(ind.id == industry.id for ind, __ in industry_groups)
                 and industry.exists()

@@ -217,11 +217,11 @@
                                                 groups="website.group_website_restricted_editor">
                                                 Enter a short description
                                             </small>
-                                            <t t-if="partner.industry_id">
+                                            <t t-if="partner.primary_industry_id">
                                                 <a
                                                     class="badge mt-3 text-bg-secondary"
-                                                    t-attf-href="/customers/#{ 'industry/%s/' % slug(partner.industry_id) }#{ current_country_id and 'country/%s' % slug(current_country) or '' }"
-                                                    t-out="partner.industry_id.name" />
+                                                    t-attf-href="/customers/#{ 'industry/%s/' % slug(partner.primary_industry_id) }#{ current_country_id and 'country/%s' % slug(current_country) or '' }"
+                                                    t-out="partner.primary_industry_id.name" />
                                             </t>
                                         </div>
                                     </a>
@@ -421,8 +421,8 @@
         name="Partner Details"
         inherit_id="website_partner.partner_detail">
         <xpath expr="//div[hasclass('o_wcrm_contact_details')]" position="inside">
-            <t t-if="partner.industry_id">
-                <span class="badge text-bg-secondary"><t t-out="partner.industry_id.name" /></span>
+            <t t-if="partner.primary_industry_id">
+                <span class="badge text-bg-secondary"><t t-out="partner.primary_industry_id.name" /></span>
             </t>
         </xpath>
     </template>
@@ -470,8 +470,8 @@
                             <a t-attf-href="/customers/#{slug(reference)}">
                                 <span t-field="reference.self" />
                             </a>
-                            <t t-if="reference.industry_id">
-                                <span class="badge ms-1 text-bg-secondary"><t t-out="reference.industry_id.name" /></span>
+                            <t t-if="reference.primary_industry_id">
+                                <span class="badge ms-1 text-bg-secondary"><t t-out="reference.primary_industry_id.name" /></span>
                             </t>
                             <div t-field="reference.website_short_description" />
                         </div>

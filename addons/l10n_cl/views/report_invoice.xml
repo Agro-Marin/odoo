@@ -140,7 +140,7 @@
                 </t>
                 <br />
                 <strong>GIRO:</strong>
-                <span t-out="o.partner_id.industry_id.name or ''" />
+                <span t-out="o.partner_id.primary_industry_id.name or ''" />
             </div>
         </div>
         <div id="references" class="row">

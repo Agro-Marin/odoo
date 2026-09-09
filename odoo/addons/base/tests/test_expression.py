@@ -623,7 +623,11 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
             patch.object(
                 Partner.__class__,
                 "_commercial_fields",
-                lambda self: [c for c in commercial_fields if c != "industry_id"],
+                lambda self: [
+                    c
+                    for c in commercial_fields
+                    if c not in ("industry_ids", "primary_industry_id")
+                ],
             ),
             patch.object(Partner.__class__, "_check_fields"),
         ):
@@ -637,7 +641,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
                                 0,
                                 {
                                     "name": "Child A1",
-                                    "industry_id": industry_1.id,
+                                    "primary_industry_id": industry_1.id,
                                 },
                             ),
                             (
@@ -645,7 +649,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
                                 0,
                                 {
                                     "name": "Child A2",
-                                    "industry_id": industry_2.id,
+                                    "primary_industry_id": industry_2.id,
                                 },
                             ),
                             (
@@ -653,7 +657,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
                                 0,
                                 {
                                     "name": "Child A2",
-                                    "industry_id": industry_3.id,
+                                    "primary_industry_id": industry_3.id,
                                 },
                             ),
                         ],
@@ -666,7 +670,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
                                 0,
                                 {
                                     "name": "Child B1",
-                                    "industry_id": industry_1.id,
+                                    "primary_industry_id": industry_1.id,
                                 },
                             ),
                         ],
@@ -679,7 +683,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
                                 0,
                                 {
                                     "name": "Child C2",
-                                    "industry_id": industry_2.id,
+                                    "primary_industry_id": industry_2.id,
                                 },
                             ),
                             (
@@ -687,25 +691,25 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
                                 0,
                                 {
                                     "name": "Child C3",
-                                    "industry_id": industry_3.id,
+                                    "primary_industry_id": industry_3.id,
                                 },
                             ),
                         ],
                     },
                     {
                         "name": "Partner D",
-                        "industry_id": industry_1.id,
+                        "primary_industry_id": industry_1.id,
                     },
                 ]
             )
         partner_a, partner_b, partner_c, __ = partners
         init_domain = [("id", "in", partners.ids)]
 
-        domain = init_domain + [("child_ids.industry_id", "=", industry_1.id)]
+        domain = init_domain + [("child_ids.primary_industry_id", "=", industry_1.id)]
         result = self._search(Partner, domain, init_domain)
         self.assertEqual(result, partner_a + partner_b)
 
-        domain = init_domain + [("child_ids.industry_id", "!=", industry_1.id)]
+        domain = init_domain + [("child_ids.primary_industry_id", "!=", industry_1.id)]
         result = self._search(Partner, domain, init_domain)
         self.assertEqual(result, partner_a + partner_c)
 
@@ -1743,25 +1747,25 @@ class TestBypassAccess(TransactionExpressionCase):
         p_a = partner_obj.create(
             {
                 "name": "test__A",
-                "industry_id": industries[0].id,
+                "primary_industry_id": industries[0].id,
                 "state_id": states[0].id,
             }
         )
         p_b = partner_obj.create(
             {
                 "name": "test__B",
-                "industry_id": industries[1].id,
+                "primary_industry_id": industries[1].id,
                 "state_id": states[1].id,
             }
         )
         p_c = partner_obj.create(
-            {"name": "test__C", "industry_id": False, "state_id": False}
+            {"name": "test__C", "primary_industry_id": False, "state_id": False}
         )
         p_aa = partner_obj.create(
             {
                 "name": "test__AA",
                 "parent_id": p_a.id,
-                "industry_id": industries[0].id,
+                "primary_industry_id": industries[0].id,
                 "state_id": states[0].id,
             }
         )
@@ -1769,7 +1773,7 @@ class TestBypassAccess(TransactionExpressionCase):
             {
                 "name": "test__AB",
                 "parent_id": p_a.id,
-                "industry_id": industries[1].id,
+                "primary_industry_id": industries[1].id,
                 "state_id": states[1].id,
             }
         )
@@ -1777,7 +1781,7 @@ class TestBypassAccess(TransactionExpressionCase):
             {
                 "name": "test__BA",
                 "parent_id": p_b.id,
-                "industry_id": industries[0].id,
+                "primary_industry_id": industries[0].id,
                 "state_id": states[0].id,
             }
         )
@@ -1895,7 +1899,7 @@ class TestBypassAccess(TransactionExpressionCase):
             partner_obj,
             [
                 "|",
-                ("industry_id.name", "=", industries[0].name),
+                ("primary_industry_id.name", "=", industries[0].name),
                 ("name", "like", "C"),
             ],
         )
@@ -1924,7 +1928,7 @@ class TestBypassAccess(TransactionExpressionCase):
             partner_obj,
             [
                 "|",
-                ("industry_id.name", "=", industries[0].name),
+                ("primary_industry_id.name", "=", industries[0].name),
                 ("name", "like", "C"),
             ],
         )

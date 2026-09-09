@@ -56,7 +56,7 @@ class ResPartner(models.Model):
             if industry := self.env.ref(
                 f"base.res_partner_industry_{industry_code}", raise_if_not_found=False
             ):
-                iap_data["industry_id"] = {
+                iap_data["primary_industry_id"] = {
                     "id": industry.id,
                     "display_name": industry.display_name,
                 }

@@ -95,7 +95,7 @@ class CertificateCertificate(models.Model):
                             # Industry
                             x509.NameAttribute(
                                 ObjectIdentifier("2.5.4.15"),
-                                company_id.partner_id.industry_id.name or "Other",
+                                company_id.partner_id.primary_industry_id.name or "Other",
                             ),
                         ]
                     )

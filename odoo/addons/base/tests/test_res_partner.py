@@ -1257,7 +1257,7 @@ class TestPartnerAddressCompany(TransactionCase):
             {
                 "company_registry": "0477472701",
                 "email": "info@ghoststep.com",
-                "industry_id": cls.test_industries[0].id,
+                "industry_ids": cls.test_industries[0].ids,
                 "is_company": True,
                 "name": "GhostStep",
                 "phone_ids": [Command.create({"number": "+32455001122"})],
@@ -1369,7 +1369,7 @@ class TestPartnerAddressCompany(TransactionCase):
         )
         self.assertEqual(ct1.vat, "BE0477472701", "VAT should come from parent")
         self.assertEqual(
-            ct1.industry_id,
+            ct1.industry_ids,
             self.test_industries[0],
             "Industry should come from parent",
         )
@@ -1687,7 +1687,7 @@ class TestPartnerAddressCompany(TransactionCase):
 
         individual = self.env["res.partner"].create(
             {
-                "industry_id": self.test_industries[0].id,
+                "industry_ids": self.test_industries[0].ids,
                 "is_company": False,
                 "name": "Individual",
                 "ref": "REFINDIVIDUAL",
@@ -1715,7 +1715,9 @@ class TestPartnerAddressCompany(TransactionCase):
             lambda self: sync_commercial_fields + ["ref"],
         ):
             individual.write({"parent_id": company})
-        self.assertFalse(company.industry_id, "Industry is not considered for upstream")
+        self.assertFalse(
+            company.industry_ids, "Industry is not considered for upstream"
+        )
         self.assertEqual(company.ref, "COMPANYREF", "not updated from contact child")
         self.assertEqual(company.vat, "BEINDIVIDUAL")
         for fname, fvalue in self.test_address_values_cmp.items():
@@ -1730,7 +1732,7 @@ class TestPartnerAddressCompany(TransactionCase):
                 "Setting parent with void address should not reset child",
             )
         self.assertEqual(
-            individual.industry_id,
+            individual.industry_ids,
             self.test_industries[0],
             "No upstream sync, but no reset either",
         )
@@ -1805,14 +1807,14 @@ class TestPartnerAddressCompany(TransactionCase):
             [
                 {
                     "company_registry": "123456789",
-                    "industry_id": self.test_industries[0].id,
+                    "industry_ids": self.test_industries[0].ids,
                     "is_company": True,
                     "name": "company 1",
                     "vat": "BE013456789",
                 },
                 {
                     "company_registry": "9876543210",
-                    "industry_id": self.test_industries[0].id,
+                    "industry_ids": self.test_industries[0].ids,
                     "is_company": True,
                     "name": "company 2",
                     "vat": "BE9876543210",
@@ -1828,7 +1830,7 @@ class TestPartnerAddressCompany(TransactionCase):
             company_1,
             "Commercial partner should be recomputed",
         )
-        for fname in ("company_registry", "industry_id", "vat"):
+        for fname in ("company_registry", "industry_ids", "vat"):
             self.assertEqual(
                 contact[fname],
                 company_1[fname],
@@ -1843,7 +1845,7 @@ class TestPartnerAddressCompany(TransactionCase):
             company_1,
             "Commercial partner should be recomputed",
         )
-        for fname in ("company_registry", "industry_id", "vat"):
+        for fname in ("company_registry", "industry_ids", "vat"):
             self.assertEqual(
                 contact_dlr[fname],
                 company_1[fname],
@@ -1857,7 +1859,7 @@ class TestPartnerAddressCompany(TransactionCase):
             company_1,
             "Commercial partner should be recomputed",
         )
-        for fname in ("company_registry", "industry_id", "vat"):
+        for fname in ("company_registry", "industry_ids", "vat"):
             self.assertEqual(
                 contact_dlr[fname],
                 company_1[fname],
@@ -1870,7 +1872,7 @@ class TestPartnerAddressCompany(TransactionCase):
             company_2,
             "Commercial partner should be recomputed",
         )
-        for fname in ("company_registry", "industry_id", "vat"):
+        for fname in ("company_registry", "industry_ids", "vat"):
             self.assertEqual(
                 contact[fname],
                 company_2[fname],
@@ -1881,7 +1883,7 @@ class TestPartnerAddressCompany(TransactionCase):
             company_2,
             "Commercial partner should be recomputed on delivery",
         )
-        for fname in ("company_registry", "industry_id", "vat"):
+        for fname in ("company_registry", "industry_ids", "vat"):
             self.assertEqual(
                 contact_dlr[fname],
                 company_2[fname],
@@ -1892,7 +1894,7 @@ class TestPartnerAddressCompany(TransactionCase):
             company_2,
             "Commercial partner should be recomputed on delivery",
         )
-        for fname in ("company_registry", "industry_id", "vat"):
+        for fname in ("company_registry", "industry_ids", "vat"):
             self.assertEqual(
                 contact_ct[fname],
                 company_2[fname],
@@ -1914,7 +1916,7 @@ class TestPartnerAddressCompany(TransactionCase):
             }
         )
         contact2 = self.env["res.partner"].search([("email", "=", "agr@sunhelm.com")])
-        for fname in ("company_registry", "industry_id", "vat"):
+        for fname in ("company_registry", "industry_ids", "vat"):
             self.assertEqual(
                 contact2[fname],
                 company_2[fname],
@@ -1924,14 +1926,14 @@ class TestPartnerAddressCompany(TransactionCase):
         company_2.write(
             {
                 "company_registry": "new",
-                "industry_id": self.test_industries[1].id,
+                "industry_ids": self.test_industries[1].ids,
                 "vat": "BEnew",
             }
         )
         for partner in contact + contact_dlr + contact_ct + contact2:
             for fname, fvalue in (
                 ("company_registry", "new"),
-                ("industry_id", self.test_industries[1]),
+                ("industry_ids", self.test_industries[1]),
                 ("vat", "BEnew"),
             ):
                 self.assertEqual(
@@ -2026,7 +2028,7 @@ class TestPartnerAddressCompany(TransactionCase):
 
         company = self.env["res.partner"].create(
             {
-                "industry_id": self.test_industries[1].id,
+                "industry_ids": self.test_industries[1].ids,
                 "is_company": True,
                 "name": "Company",
                 "ref": "REFCOMPANY",
@@ -2045,7 +2047,7 @@ class TestPartnerAddressCompany(TransactionCase):
                 company[fname], fvalue, "Parent address should have been kept"
             )
         self.assertEqual(
-            company.industry_id,
+            company.industry_ids,
             self.test_industries[1],
             "Parent commercial field industry should have been kept",
         )
@@ -2066,7 +2068,7 @@ class TestPartnerAddressCompany(TransactionCase):
                 "Setting parent with an address should force contact address, even if set previously",
             )
         self.assertEqual(
-            individual.industry_id,
+            individual.industry_ids,
             self.test_industries[1],
             "Commercial fields should be synced from parent",
         )
@@ -2088,31 +2090,31 @@ class TestPartnerAddressCompany(TransactionCase):
         ):
             company.write(
                 {
-                    "industry_id": False,
+                    "industry_ids": [Command.clear()],
                     "ref": False,
                     "vat": False,
                 }
             )
-        self.assertFalse(individual.industry_id)
+        self.assertFalse(individual.industry_ids)
         self.assertFalse(individual.ref)
         self.assertFalse(individual.vat)
 
-        company.write({"industry_id": self.test_industries[1].id, "vat": "BECOMPANY"})
-        self.assertEqual(individual.industry_id, self.test_industries[1])
+        company.write({"industry_ids": self.test_industries[1].ids, "vat": "BECOMPANY"})
+        self.assertEqual(individual.industry_ids, self.test_industries[1])
         self.assertEqual(individual.vat, "BECOMPANY")
         individual.write(
             {
-                "industry_id": False,
+                "industry_ids": [Command.clear()],
                 "vat": False,
             }
         )
         self.assertEqual(
-            company.industry_id,
+            company.industry_ids,
             self.test_industries[1],
             "No upstream support of reset",
         )
         self.assertEqual(company.vat, "BECOMPANY", "No upstream support of reset")
-        self.assertFalse(individual.industry_id)
+        self.assertFalse(individual.industry_ids)
         self.assertFalse(individual.vat)
 
     def test_company_dependent_commercial_sync(self):

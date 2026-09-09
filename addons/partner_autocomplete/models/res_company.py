@@ -23,7 +23,7 @@ ENRICH_ALLOWED_FIELDS = {
     "zip",
     "state_id",
     "country_id",
-    "industry_id",
+    "primary_industry_id",
     "lang",
     "image_1920",
 }

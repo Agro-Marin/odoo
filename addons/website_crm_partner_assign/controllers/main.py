@@ -411,7 +411,7 @@ class WebsiteCrmPartnerAssign(WebsitePartnerPage, GoogleMap):
             base_partner_domain += [("country_id", "=", country.id)]
         if current_industry:
             base_partner_domain += [
-                ("implemented_partner_ids.industry_id", "in", current_industry.id)
+                ("implemented_partner_ids.primary_industry_id", "in", current_industry.id)
             ]
 
         slug = request.env["ir.http"]._slug

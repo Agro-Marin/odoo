@@ -367,9 +367,25 @@ class ResPartner(models.Model):
     )
     birthdate = fields.Date()
     comment = fields.Html(string="Notes")
-    industry_id = fields.Many2one(
+    industry_ids = fields.Many2many(
         "res.partner.industry",
-        "Industry",
+        relation="res_partner_industry_rel",
+        column1="partner_id",
+        column2="industry_id",
+        string="Industries",
+        help="Every sector this contact operates in. A grower that also runs a "
+        "packing house belongs to two of them at once.",
+    )
+    primary_industry_id = fields.Many2one(
+        "res.partner.industry",
+        string="Primary Industry",
+        compute="_compute_primary_industry_id",
+        store=True,
+        readonly=False,
+        help="The one sector analytics report this contact under, because a sum "
+        "cannot be split across several. Defaults to the first of Industries, and "
+        "returns to it whenever Industries changes and the current pick is no "
+        "longer among them.",
     )
     user_ids: ResUsers = fields.One2many(
         "res.users",
@@ -642,6 +658,12 @@ class ResPartner(models.Model):
         for partner, source in zip(self, sources, strict=True):
             accounts = source.bank_ids.filtered("active")
             partner.main_bank_id = accounts.sorted("sequence")[:1]
+
+    @api.depends("industry_ids")
+    def _compute_primary_industry_id(self) -> None:
+        for partner in self:
+            if partner.primary_industry_id not in partner.industry_ids:
+                partner.primary_industry_id = partner.industry_ids[:1]
 
     @api.depends("user_ids.share", "user_ids.active")
     def _compute_partner_share(self) -> None:
@@ -1157,7 +1179,8 @@ class ResPartner(models.Model):
     def _commercial_fields(self) -> list[str]:
         return self._synced_commercial_fields() + [
             "company_registry",
-            "industry_id",
+            "industry_ids",
+            "primary_industry_id",
         ]
 
     @api.model

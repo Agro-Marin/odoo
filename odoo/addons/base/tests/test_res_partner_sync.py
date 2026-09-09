@@ -26,9 +26,9 @@ class TestPartnerSyncCharacterization(TransactionCase):
                 "is_company": True,
                 "vat": "V0",
                 "company_registry": "REG0",
-                "industry_id": self.env["res.partner.industry"]
+                "industry_ids": self.env["res.partner.industry"]
                 .create({"name": "Char Industry 0"})
-                .id,
+                .ids,
             }
         )
         c1 = self.Partner.create({"name": "c1", "parent_id": co.id})
@@ -40,7 +40,7 @@ class TestPartnerSyncCharacterization(TransactionCase):
 
         new_industry = self.env["res.partner.industry"].create({"name": "Char Ind 1"})
         co.write(
-            {"vat": "V1", "company_registry": "REG1", "industry_id": new_industry.id}
+            {"vat": "V1", "company_registry": "REG1", "industry_ids": new_industry.ids}
         )
 
         for child in (c1, c2, c3):
@@ -49,7 +49,9 @@ class TestPartnerSyncCharacterization(TransactionCase):
                 child.company_registry, "REG1", "registry must reach every descendant"
             )
             self.assertEqual(
-                child.industry_id, new_industry, "industry must reach every descendant"
+                child.industry_ids,
+                new_industry,
+                "industry must reach every descendant",
             )
 
     def test_upstream_sync_asymmetry(self):
@@ -166,7 +168,7 @@ class TestPartnerSyncCharacterization(TransactionCase):
             "company_registry",
             "street",
             "city",
-            "industry_id/.id",
+            "industry_ids/.id",
             "parent_id/id",
         ]
         data = [
@@ -194,7 +196,7 @@ class TestPartnerSyncCharacterization(TransactionCase):
                 child.company_registry, "LOADREG", "registry inherited on import"
             )
             self.assertEqual(
-                child.industry_id, industry, "industry inherited on import"
+                child.industry_ids, industry, "industry inherited on import"
             )
             self.assertEqual(
                 child.street, "Parent Street", "address inherited on import"

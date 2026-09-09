@@ -73,7 +73,7 @@
                     <filter
                         name="group_industry"
                         string="Industry"
-                        context="{'group_by': 'industry_id'}" />
+                        context="{'group_by': 'industry_ids'}" />
                     <filter
                         name="group_type"
                         string="Address Type"
@@ -541,8 +541,14 @@
                                 invisible="parent_id or not is_company"
                                 options="{'placeholder_field': 'company_registry_placeholder'}" />
                             <field
-                                name="industry_id"
+                                name="industry_ids"
+                                widget="many2many_tags"
                                 invisible="not is_company"
+                                options="{'no_create': True}" />
+                            <field
+                                name="primary_industry_id"
+                                invisible="not is_company or not industry_ids"
+                                domain="[('id', 'in', industry_ids)]"
                                 options="{'no_create': True}" />
                             <field
                                 name="tag_ids"
