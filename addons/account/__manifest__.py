@@ -237,6 +237,7 @@ You could use this simplified accounting in case you work with an (external) acc
         "web.assets_tests": [
             "account/static/src/js/tours/tour_utils.js",
             "account/static/src/js/tours/account.js",
+            "account/static/tests/tours/**/*",
             # --- folded from account_reports ---
         ],
         "web.report_assets_common": [
