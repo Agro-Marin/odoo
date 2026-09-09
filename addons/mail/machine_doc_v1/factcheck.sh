@@ -460,8 +460,8 @@ assert_eq "mixin.mail.alias is the other _inherits user (via alias_id)" \
     "$(grep -c '_inherits = {"mail.alias": "alias_id"}' "$MAIL/models/mixin_mail_alias.py")" "1"
 
 # The bracketless except form (Py 3.14 / PEP 758) really is present in controllers.
-except_count=$(grep -rhE 'except [A-Za-z_]+, [A-Za-z_]+:' "$MAIL/controllers" | wc -l)
-assert_eq "bracketless 'except A, B:' occurrences in controllers (valid Py3.14)" "$except_count" "5"
+except_count=$(grep -rhE 'except [A-Za-z_.]+, [A-Za-z_.]+:' "$MAIL/controllers" | wc -l)
+assert_eq "bracketless 'except A, B:' occurrences in controllers (valid Py3.14)" "$except_count" "6"
 assert_eq "CONVENTIONS.md gotcha documents the except A, B form" \
     "$(grep -c 'except A, B' "$DOC/CONVENTIONS.md")" "1"
 
