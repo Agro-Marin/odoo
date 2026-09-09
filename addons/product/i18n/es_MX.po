@@ -61,6 +61,11 @@ msgid "Kilometers"
 msgstr "Kilómetros"
 
 #. module: product
+#: model:res.groups,name:product.group_product_cost_manager
+msgid "Manager"
+msgstr "Gerente"
+
+#. module: product
 #: model:ir.model.fields.selection,name:product.selection__res_config_settings__product_odometer_in_mi__1
 msgid "Miles"
 msgstr "Millas"
@@ -84,6 +89,16 @@ msgstr "Potencia"
 #: model:ir.model.fields,field_description:product.field_res_config_settings__product_power_in_hp
 msgid "Power unit of measure"
 msgstr "Unidad de medida de potencia"
+
+#. module: product
+#: model:res.groups.privilege,name:product.res_groups_privilege_product_cost
+msgid "Product Cost"
+msgstr "Costo del Producto"
+
+#. module: product
+#: model:res.groups,name:product.group_product_cost_readonly
+msgid "Readonly"
+msgstr "Solo lectura"
 
 #. module: product
 #: model:ir.model.fields.selection,name:product.selection__res_config_settings__product_area_in_square_ft__1

@@ -2233,6 +2233,11 @@ msgid "Manage Product Variants"
 msgstr ""
 
 #. module: product
+#: model:res.groups,name:product.group_product_cost_manager
+msgid "Manager"
+msgstr ""
+
+#. module: product
 #: model_terms:ir.ui.view,arch_db:product.product_pricelist_item_form_view
 msgid "Margins"
 msgstr ""
@@ -2970,6 +2975,11 @@ msgid "Product Combo Item"
 msgstr ""
 
 #. module: product
+#: model:res.groups.privilege,name:product.res_groups_privilege_product_cost
+msgid "Product Cost"
+msgstr ""
+
+#. module: product
 #: model:ir.model.fields,field_description:product.field_product_combo__combo_item_count
 #: model:ir.model.fields,field_description:product.field_update_product_attribute_value__product_count
 msgid "Product Count"
@@ -3255,6 +3265,11 @@ msgstr ""
 #. module: product
 #: model:product.attribute.value,name:product.pav_brand_rayban
 msgid "Ray-Ban"
+msgstr ""
+
+#. module: product
+#: model:res.groups,name:product.group_product_cost_readonly
+msgid "Readonly"
 msgstr ""
 
 #. module: product
