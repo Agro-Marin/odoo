@@ -492,12 +492,15 @@ export const dateField = {
                 { label: _t("31/01/%s", today().year), value: true },
             ],
         },
-        placeholderFieldOption(["date", "char"]),
+        placeholderFieldOption(["date", "datetime", "char"]),
     ],
-    supportedTypes: ["date"],
+    // A datetime may be rendered at day precision; a date can never grow a time.
+    // The widget name *is* the display precision, so it is asserted, not defaulted.
+    supportedTypes: ["date", "datetime"],
     extractProps: (staticInfo, dynamicInfo) =>
         extractDateProps(staticInfo, dynamicInfo, {
             numeric: exprToBoolean(staticInfo.options.numeric ?? false),
+            showTime: false,
         }),
     listViewWidth: ({ options }) => dateListViewWidth(options),
     fieldDependencies: ({ type, attrs, options }) => {

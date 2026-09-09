@@ -41,7 +41,7 @@ export class CodeEditor extends Component {
     };
 
     /** @type {string[]} */
-    static MODES = ["javascript", "xml", "qweb", "scss", "python"];
+    static MODES = ["javascript", "xml", "qweb", "scss", "python", "json"];
     /** @type {string[]} */
     static THEMES = ["", "monokai"];
 

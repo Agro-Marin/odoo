@@ -5,17 +5,20 @@ import { click, queryAll, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, onMounted, toRaw, xml } from "@odoo/owl";
 import {
+    clickSave,
+    contains,
     defineModels,
     fields,
     makeMockEnv,
     models,
     mountView,
+    onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { parseFloat, parseMonetary } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
 import { GaugeField } from "@web/fields/display/gauge/gauge_field";
-import { Field } from "@web/fields/field";
+import { Field, resetWidgetMissWarnings } from "@web/fields/field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
 
@@ -26,6 +29,8 @@ class AuditProbe extends models.Model {
     name = fields.Char();
     other = fields.Char();
     date_field = fields.Date();
+    datetime_field = fields.Datetime();
+    url_text = fields.Text();
     int_field = fields.Integer();
     unlisted_max = fields.Integer();
     state = fields.Selection({
@@ -40,6 +45,8 @@ class AuditProbe extends models.Model {
             name: "x",
             other: "",
             date_field: "2024-01-31",
+            datetime_field: "2024-01-31 14:22:07",
+            url_text: "https://example.test/x",
             int_field: 7,
             unlisted_max: 20,
             state: "a",
@@ -412,4 +419,94 @@ test("Field evaluates readonly/required once per render", async () => {
     });
 
     expect(lookups).toBe(3);
+});
+
+/**
+ * Collect the widget/type warnings `getFieldFromRegistry` emits while mounting.
+ * The registry de-duplicates them process-wide, so the reset is what keeps this
+ * assertion from passing vacuously after an earlier test consumed the key.
+ *
+ * @param {() => Promise<void>} workload
+ * @returns {Promise<string[]>}
+ */
+async function widgetTypeWarnings(workload) {
+    resetWidgetMissWarnings();
+    /** @type {string[]} */
+    const warnings = [];
+    patchWithCleanup(console, {
+        warn: (/** @type {any[]} */ ...args) => warnings.push(args.join(" ")),
+    });
+    await workload();
+    return warnings.filter((w) => /don't support the type|Missing widget/.test(w));
+}
+
+test("the date widget renders a datetime at day precision", async () => {
+    const warnings = await widgetTypeWarnings(async () => {
+        await mountView({
+            type: "form",
+            resModel: "audit.probe",
+            resId: 1,
+            arch: `<form><field name="datetime_field" widget="date" readonly="1"/></form>`,
+        });
+    });
+    const cell = ".o_field_widget[name=datetime_field]";
+    expect(warnings).toEqual([]);
+    expect(cell).toHaveText(/2024/);
+    expect(/\d{1,2}:\d{2}/.test(queryFirst(cell)?.textContent || "")).toBe(false);
+});
+
+test("the date widget still edits a datetime at full precision", async () => {
+    await mountView({
+        type: "form",
+        resModel: "audit.probe",
+        resId: 1,
+        arch: `<form><field name="datetime_field" widget="date"/></form>`,
+    });
+    await contains(".o_field_widget[name=datetime_field] button").click();
+    await animationFrame();
+    const edited = queryFirst(".o_field_widget[name=datetime_field] input");
+    expect(/\d{1,2}:\d{2}/.test(/** @type {any} */ (edited)?.value || "")).toBe(true);
+});
+
+test("statinfo renders a selection's label, not its stored key", async () => {
+    const warnings = await widgetTypeWarnings(async () => {
+        await mountView({
+            type: "form",
+            resModel: "audit.probe",
+            resId: 1,
+            arch: `<form><field name="state" widget="statinfo"/></form>`,
+        });
+    });
+    expect(warnings).toEqual([]);
+    expect(".o_field_widget[name=state] .o_stat_value").toHaveText("A");
+});
+
+test("the url widget links a text field", async () => {
+    const warnings = await widgetTypeWarnings(async () => {
+        await mountView({
+            type: "form",
+            resModel: "audit.probe",
+            resId: 1,
+            arch: `<form><field name="url_text" widget="url" readonly="1"/></form>`,
+        });
+    });
+    expect(warnings).toEqual([]);
+    expect(".o_field_widget[name=url_text] a").toHaveAttribute(
+        "href",
+        "https://example.test/x",
+    );
+});
+
+test("the ace widget prints a json field instead of stringifying the object", async () => {
+    const warnings = await widgetTypeWarnings(async () => {
+        await mountView({
+            type: "form",
+            resModel: "json.probe",
+            resId: 1,
+            arch: `<form><field name="flags" widget="ace" options="{'mode': 'json'}"/></form>`,
+        });
+    });
+    expect(warnings).toEqual([]);
+    const shown = queryFirst(".o_field_widget[name=flags]")?.textContent || "";
+    expect(shown).not.toInclude("[object Object]");
 });

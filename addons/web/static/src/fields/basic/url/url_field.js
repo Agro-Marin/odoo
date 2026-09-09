@@ -51,7 +51,7 @@ export const urlField = {
             help: _t("Fixed label shown instead of the URL itself."),
         }),
     ],
-    supportedTypes: ["char"],
+    supportedTypes: ["char", "text"],
     extractProps: ({ attrs, options, placeholder }, dynamicInfo) => ({
         placeholder,
         text: attrs.text,

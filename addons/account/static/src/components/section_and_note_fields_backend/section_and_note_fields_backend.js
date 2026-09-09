@@ -587,6 +587,27 @@ export const sectionAndNoteFieldOne2Many = {
     ...x2ManyField,
     component: SectionAndNoteFieldOne2Many,
     additionalClasses: [...(x2ManyField.additionalClasses || []), "o_field_one2many"],
+    supportedOptions: [
+        ...(x2ManyField.supportedOptions || []),
+        {
+            label: _t("Collapsible composition"),
+            name: "hide_composition",
+            type: "boolean",
+            help: _t("Let a section collapse the composition of the lines it holds."),
+        },
+        {
+            label: _t("Collapsible prices"),
+            name: "hide_prices",
+            type: "boolean",
+            help: _t("Let a section collapse the price columns of the lines it holds."),
+        },
+        {
+            label: _t("Subsections"),
+            name: "subsections",
+            type: "boolean",
+            help: _t("Offer to nest a subsection under a top-level section."),
+        },
+    ],
     extractProps: (staticInfo, dynamicInfo) => ({
         ...x2ManyField.extractProps(staticInfo, dynamicInfo),
         aggregatedFields: staticInfo.attrs.aggregated_fields

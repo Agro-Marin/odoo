@@ -60,7 +60,15 @@ const statInfoField = {
             help: _t("Render the figure without the field label beneath it."),
         }),
     ],
-    supportedTypes: ["float", "integer", "monetary", "char", "one2many", "many2one"],
+    supportedTypes: [
+        "float",
+        "integer",
+        "monetary",
+        "char",
+        "selection",
+        "one2many",
+        "many2one",
+    ],
     isEmpty: () => false,
     fieldDependencies: ({ options }) =>
         options.label_field

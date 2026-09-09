@@ -7,13 +7,15 @@ import { colorScheme } from "@web/core/color_scheme";
 import { ModelEvent } from "@web/core/events";
 import { formatText } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
-import { useBus } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { fieldHandleFor } from "@web/fields/field_handle";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+
+const JSON_INDENT = 2;
 
 export class AceField extends FieldComponent {
     static template = "web.AceField";
@@ -33,9 +35,10 @@ export class AceField extends FieldComponent {
         this.state = useState({});
         this.isDirty = false;
         this.setFieldDirty = useFieldDirtySignal();
+        this.notification = useService("notification");
         useRecordObserver((record) => {
             if (this.editedValue === undefined || !this.isDirty) {
-                /** @type {any} */ (this.state).initialValue = formatText(
+                /** @type {any} */ (this.state).initialValue = this.serialize(
                     fieldHandleFor(record, this.props.name).value,
                 );
             }
@@ -62,6 +65,40 @@ export class AceField extends FieldComponent {
     get theme() {
         return colorScheme.isDark ? "monokai" : "";
     }
+    /** @returns {boolean} */
+    get isJson() {
+        return this.field.definition.type === "json";
+    }
+
+    /**
+     * Render a record value as editor text. A json value arrives parsed, so it
+     * has to be printed; every other supported type is already a string.
+     *
+     * @param {any} value
+     * @returns {string}
+     */
+    serialize(value) {
+        if (!this.isJson) {
+            return formatText(value);
+        }
+        return value === false || value === undefined
+            ? ""
+            : JSON.stringify(value, null, JSON_INDENT);
+    }
+
+    /**
+     * Turn editor text back into a record value.
+     *
+     * @param {string} text
+     * @returns {any}
+     * @throws {SyntaxError} when a json field holds malformed text
+     */
+    deserialize(text) {
+        if (!this.isJson) {
+            return text;
+        }
+        return text.trim() ? JSON.parse(text) : false;
+    }
 
     handleChange(editedValue) {
         if (/** @type {any} */ (this.state).initialValue !== editedValue) {
@@ -76,7 +113,19 @@ export class AceField extends FieldComponent {
     async commitChanges() {
         if (!this.props.readonly && this.isDirty) {
             if (/** @type {any} */ (this.state).initialValue !== this.editedValue) {
-                await this.field.update(this.editedValue);
+                let value;
+                try {
+                    value = this.deserialize(this.editedValue);
+                } catch {
+                    // Refuse the write rather than store malformed json. The
+                    // buffer stays dirty, so the author keeps what they typed.
+                    this.notification.add(
+                        _t("Invalid JSON: your changes to this field were not saved."),
+                        { type: "danger" },
+                    );
+                    return;
+                }
+                await this.field.update(value);
             }
             this.isDirty = false;
             this.setFieldDirty(false);
@@ -94,7 +143,7 @@ export const aceField = {
             type: "string",
         },
     ],
-    supportedTypes: ["text", "html"],
+    supportedTypes: ["text", "html", "json"],
     extractProps: ({ options }) => ({
         mode: options.mode,
     }),
