@@ -67,10 +67,10 @@ class Base(models.AbstractModel):
         )
         if query.is_empty():
             if not self.env.su:
-                self._determine_fields_to_fetch(specification.keys())
+                self._get_fields_to_fetch(specification.keys())
             return {"length": 0, "records": []}
 
-        fields_to_fetch = self._determine_fields_to_fetch(specification.keys())
+        fields_to_fetch = self._get_fields_to_fetch(specification.keys())
         records = self._fetch_query(query, fields_to_fetch)
         values_records = records.web_read(specification)
         return self._format_web_search_read_results(

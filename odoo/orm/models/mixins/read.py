@@ -69,7 +69,7 @@ class ReadMixin(_ModelStubs):
                     f for f in fields if isinstance(f, str) and f in _model_fields
                 ]
             if not self and not self.env.su:
-                self._determine_fields_to_fetch(fields)
+                self._get_fields_to_fetch(fields)
         self._origin.fetch(fields)
         prof.mark("fetch")
         result = self._read_format(fnames=fields, load=load)
@@ -282,7 +282,7 @@ class ReadMixin(_ModelStubs):
 
         prof = _OrmProfile(_orm_read)
 
-        fields_to_fetch = self._determine_fields_to_fetch(
+        fields_to_fetch = self._get_fields_to_fetch(
             field_names, ignore_when_in_cache=True
         )
 
@@ -323,7 +323,7 @@ class ReadMixin(_ModelStubs):
                 msg = "read"
                 raise self.env["ir.rule"]._prepare_access_error(msg, forbidden)
 
-    def _determine_fields_to_fetch(
+    def _get_fields_to_fetch(
         self,
         field_names: Collection[str] | None = None,
         ignore_when_in_cache: bool = False,

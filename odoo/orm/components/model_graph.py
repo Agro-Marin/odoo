@@ -371,11 +371,11 @@ class ModelGraph:
         if field not in state.triggers:
             return TriggerTree()
 
-        self._prepare_missing_trees(state)
+        self._add_missing_trees(state)
         return state.trees[field]
 
     @staticmethod
-    def _prepare_missing_trees(state: _TriggerState) -> None:
+    def _add_missing_trees(state: _TriggerState) -> None:
         missing = [field for field in state.triggers if field not in state.trees]
         if missing:
             state.trees.update(state.get_index().get_trees(missing))
@@ -451,7 +451,7 @@ class ModelGraph:
 
     def freeze(self) -> None:
         state = self._state
-        self._prepare_missing_trees(state)
+        self._add_missing_trees(state)
         for field in state.triggers:
             self._is_modifying_relations(state, field)
         if state.recompute_order is None:

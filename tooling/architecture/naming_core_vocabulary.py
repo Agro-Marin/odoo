@@ -119,6 +119,14 @@ SYNONYMS: dict[str, tuple[str, str]] = {
     "sweep": ("_remove_", "sweeping is purging -- the Removal row"),
     "seed": ("create", "seeding is creating"),
     "scan": ("_get_ or _read_", "reading a source and returning what is in it"),
+    "determine": (
+        "_get_ or the operation itself",
+        (
+            "determining is deciding, which every method does -- take the Read "
+            "row where it returns the value and §2.4.9's domain operation "
+            "where it performs one"
+        ),
+    ),
     "refresh": (
         "_reset_ / _invalidate_ / _rebuild_",
         "names neither the drop nor the rebuild, which is what §2.4.17 exists to say",
@@ -276,6 +284,72 @@ def owns_its_return(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     return not (_mutated_roots(node) - created)
 
 
+# §2.4.21: a prefix is a claim, and where the claim is about the RETURN the test
+# is the body. `_get_` is §2.4.3's Read row -- "the return value feeds anything
+# else" -- and `_prepare_` is the Payload row, whose entire content is a promise
+# about what comes back. Neither survives a body that returns nothing.
+RETURN_CLAIM_VERBS = frozenset({"get", "prepare"})
+
+# The ORM write calls that are evidence a producer performs what it claims only
+# to describe (§2.4.7 for the payload row, §2.4.11 for the read one). `write` is
+# NOT among them and its absence is the rule: §2.4.3 reserves read/write for a
+# method whose object is a FILE, so a call spelled `write` is as likely to be a
+# filestore as a recordset -- `ir.attachment._prepare_content_vals` ends in
+# `backend.write(data, checksum)` and is a correct payload builder. `create` and
+# `unlink` have no such twin.
+ORM_WRITE_CALLS = frozenset({"create", "unlink"})
+
+# `Command.create([...])` builds a one2many payload; it is what a `_prepare_*`
+# is FOR, and matching on the attribute name alone would flag the canonical use
+# of the canonical prefix.
+_COMMAND_RECEIVERS = frozenset({"Command", "fields"})
+
+
+def is_declaration_only(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """A Protocol member or an ABC stub: `...` or `pass`, and no body at all.
+
+    Its name comes from the contract it declares, so the body cannot be evidence
+    about it -- there is no body.
+    """
+    body = [
+        n
+        for n in node.body
+        if not (
+            isinstance(n, ast.Expr)
+            and isinstance(n.value, ast.Constant)
+            and isinstance(n.value.value, str)
+        )
+    ]
+    if not body:
+        return True
+    return len(body) == 1 and (
+        isinstance(body[0], ast.Pass)
+        or (
+            isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and body[0].value.value is Ellipsis
+        )
+    )
+
+
+def performs_orm_write(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    for child in ast.walk(node):
+        if not (
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Attribute)
+            and child.func.attr in ORM_WRITE_CALLS
+        ):
+            continue
+        receiver = child.func.value
+        root = receiver
+        while isinstance(root, ast.Attribute):
+            root = root.value
+        if isinstance(root, ast.Name) and root.id in _COMMAND_RECEIVERS:
+            continue
+        return True
+    return False
+
+
 # §2.4.8's three predicate prefixes, plus the modal §2.4.20 reads onto them.
 # A predicate does not perform the operation its tail names -- it answers a
 # question ABOUT it -- so the verb behind one of these is the subject and not a
@@ -330,6 +404,19 @@ def classify_definition(
             f"Read row; a collector that fills a caller's container is not"
         )
         return ("accumulate", why)
+    if verb in RETURN_CLAIM_VERBS and not is_declaration_only(node):
+        if not returns_a_value(node) and not nv._always_raises(node):
+            why = (
+                f"`{verb}_` is a promise about the return and this returns "
+                f"nothing -- §2.4.21; take the row the body satisfies"
+            )
+            return ("empty-return", why)
+        if "or_create" not in stem and performs_orm_write(node):
+            why = (
+                "it creates or unlinks records under a name that promises only "
+                "to describe them -- §2.4.11's _get_or_create_*, or §2.4.7"
+            )
+            return ("producer-writes", why)
     if verb == "check" and returns_a_value(node) and not raises(node):
         why = (
             "`check_` promises a raise on failure and this returns instead -- "

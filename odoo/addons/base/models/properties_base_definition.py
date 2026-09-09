@@ -56,10 +56,10 @@ class PropertiesBaseDefinition(models.Model):
         self, model_name: str, field_name: str
     ) -> Self:
         return self.browse(
-            self._get_definition_id_for_property_field(model_name, field_name)
+            self._get_or_create_definition_id_for_property_field(model_name, field_name)
         )
 
-    def _get_definition_id_for_property_field(
+    def _get_or_create_definition_id_for_property_field(
         self, model_name: str, field_name: str
     ) -> int:
         memo = self.env.cr.cache.get(DEFINITION_MEMO_CACHE_KEY)

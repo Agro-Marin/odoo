@@ -217,14 +217,14 @@ def _init_model_class_attributes_once(model_cls: type[BaseModel]):
 def setup_model_classes(env: Environment):
     registry = env.registry
 
-    _prepare_setup(registry["ir.model"])
+    _reset_setup(registry["ir.model"])
 
     if registry.loaded_modules:
         _add_manual_models(env)
 
     models_classes = list(registry.values())
     for model_cls in models_classes:
-        _prepare_setup(model_cls)
+        _reset_setup(model_cls)
 
     for model_cls in models_classes:
         _setup(model_cls, env)
@@ -236,7 +236,7 @@ def setup_model_classes(env: Environment):
         model_cls(env, (), ())._post_model_setup__()
 
 
-def _prepare_setup(model_cls: type[BaseModel]):
+def _reset_setup(model_cls: type[BaseModel]):
     if model_cls._setup_done__:
         if model_cls.__bases__ != model_cls._base_classes__:
             raise TypeError(
@@ -286,7 +286,7 @@ def _setup_phases(model_cls: type[BaseModel], env: Environment) -> None:
 
     model_cls._setup_done__ = True
     for field in model_cls._fields.values():
-        field.prepare_setup()
+        field.reset_setup()
 
     _check_rec_name(model_cls)
     _check_active_name(model_cls)

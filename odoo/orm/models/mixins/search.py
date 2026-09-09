@@ -88,7 +88,7 @@ class SearchMixin(_ModelStubs):
 
         if query.is_empty():
             if not self.env.su:
-                self._determine_fields_to_fetch(field_names)
+                self._get_fields_to_fetch(field_names)
             prof.stop("fields")
             prof.report(
                 _orm_read,
@@ -102,7 +102,7 @@ class SearchMixin(_ModelStubs):
                 tracker.record("search", self._name, 0, frozenset(field_names or ()))
             return self.browse()
 
-        fields_to_fetch = self._determine_fields_to_fetch(field_names)
+        fields_to_fetch = self._get_fields_to_fetch(field_names)
         prof.mark("fields")
 
         result = self._fetch_query(query, fields_to_fetch)

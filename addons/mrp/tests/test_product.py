@@ -159,7 +159,7 @@ class TestMrpProductIsKits(TestMrpCommon):
             with self.subTest(model=model):
                 field = self.env[model]._fields["is_kit"]
                 self.assertIs(
-                    field.determine_domain(self.env[model], "in", [True, False]),
+                    field.get_search_domain(self.env[model], "in", [True, False]),
                     NotImplemented,
                 )
 

@@ -415,7 +415,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         model_classes = list(self.models.values())
 
         for model_cls in model_classes:
-            registration._prepare_setup(model_cls)
+            registration._reset_setup(model_cls)
 
         for model_cls in model_classes:
             registration._setup(model_cls, env)

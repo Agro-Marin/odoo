@@ -17,13 +17,13 @@ if typing.TYPE_CHECKING:
 _orm_compute = logging.getLogger("odoo.orm.compute")
 
 
-def determine(
+def call_hook(
     needle: str | Callable[..., typing.Any] | None,
     records: ModelLike,
     *args: object,
 ) -> typing.Any:
     if not is_recordset(records):
-        msg = "Determination requires a subject recordset"
+        msg = "Hook dispatch requires a subject recordset"
         raise TypeError(msg)
     if isinstance(needle, str):
         method = getattr(records, needle)
@@ -32,13 +32,13 @@ def determine(
         method = needle
         call_args = (records, *args)
     else:
-        msg = "Determination requires a callable or method name"
+        msg = "Hook dispatch requires a callable or method name"
         raise TypeError(msg)
 
     name = getattr(method, "__name__", "")
     if name.startswith("__"):
         msg = (
-            f"Determination refuses {name!r}: a dunder cannot be a compute, "
+            f"Hook dispatch refuses {name!r}: a dunder cannot be a compute, "
             f"inverse, search or group_expand target"
         )
         raise TypeError(msg)
@@ -182,15 +182,15 @@ def compute_value(field: Field, records: ModelLike, validate: bool = True) -> No
     )
 
 
-def determine_inverse(field: Field, records: ModelLike) -> None:
+def apply_inverse(field: Field, records: ModelLike) -> None:
     prof = _OrmProfile(_orm_compute)
 
-    determine(field.inverse, records)
+    call_hook(field.inverse, records)
 
     prof.stop()
     prof.report(
         _orm_compute,
-        "determine_inverse %s.%s: %d records",
+        "apply_inverse %s.%s: %d records",
         field.model_name,
         field.name,
         len(records),

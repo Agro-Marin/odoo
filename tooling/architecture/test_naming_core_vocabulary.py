@@ -115,7 +115,7 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
             "emit_record",
             "_reap_dead_jobs",
             "probe_connectable",
-            "determine_inverse",
+            "apply_inverse",
         ):
             self.assertIsNone(ncv.classify_name(name), name)
 
@@ -181,6 +181,68 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
 
     def test_a_check_that_returns_nothing_is_not_reported(self):
         node = self.parse("def _check_date(self):\n    self._assert_ok()\n")
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_producer_that_returns_nothing_is_reported(self):
+        for source in (
+            "def _get_thing(self):\n    self.thing = 1\n",
+            "def _prepare_thing_vals(self, state):\n    state.thing = 1\n",
+        ):
+            hit = ncv.classify_definition(self.parse(source))
+            self.assertIsNotNone(hit, source)
+            self.assertEqual(hit[0], "empty-return")
+
+    def test_a_producer_that_always_raises_is_not_reported(self):
+        # `ir.qweb`'s restricted rendering mode declines _get_field, _get_widget
+        # and _get_asset_nodes. The name is the parent's; renaming the override
+        # unhooks it.
+        node = self.parse(
+            "def _get_field(self, *args):\n"
+            "    msg = 'not allowed here'\n"
+            "    raise NotImplementedError(msg)\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_protocol_member_is_not_reported(self):
+        for source in (
+            "def _get_thing(self) -> int: ...\n",
+            "def _prepare_thing(self):\n    pass\n",
+        ):
+            self.assertIsNone(ncv.classify_definition(self.parse(source)), source)
+
+    def test_a_producer_that_creates_records_is_reported(self):
+        node = self.parse(
+            "def _get_definition_id(self, name):\n"
+            "    return self.sudo().create({'name': name}).id\n"
+        )
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "producer-writes")
+
+    def test_a_get_or_create_is_already_the_answer(self):
+        node = self.parse(
+            "def _get_or_create_definition_id(self, name):\n"
+            "    return self.sudo().create({'name': name}).id\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_payload_builder_may_call_Command_create(self):
+        # `Command.create([...])` IS a one2many payload; matching the attribute
+        # name alone would flag the canonical use of the canonical prefix.
+        node = self.parse(
+            "def _prepare_line_vals(self, lines):\n"
+            "    return {'line_ids': [Command.create(v) for v in lines]}\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_file_write_is_not_an_orm_write(self):
+        # §2.4.3 reserves read/write for a method whose object is a FILE, so a
+        # call spelled `write` is not evidence -- ir.attachment's
+        # _prepare_content_vals ends in backend.write(data, checksum).
+        node = self.parse(
+            "def _prepare_content_vals(self, data, backend):\n"
+            "    return {'size': len(data), **backend.write(data)}\n"
+        )
         self.assertIsNone(ncv.classify_definition(node))
 
     def test_a_bare_non_assemble_verb_is_not_reported(self):

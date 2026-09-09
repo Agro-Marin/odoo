@@ -40,7 +40,7 @@ class MixinPropertiesBaseDefinition(models.AbstractModel):
         properties_base_definition_id = (
             self.env["properties.base.definition"]
             .sudo()
-            ._get_definition_id_for_property_field(self._name, "properties")
+            ._get_or_create_definition_id_for_property_field(self._name, "properties")
         )
 
         if not isinstance(value, Iterable):
@@ -52,7 +52,7 @@ class MixinPropertiesBaseDefinition(models.AbstractModel):
         parent = (
             self.env["properties.base.definition"]
             .sudo()
-            ._get_definition_id_for_property_field(self._name, "properties")
+            ._get_or_create_definition_id_for_property_field(self._name, "properties")
         )
         for vals in vals_list:
             vals["properties_base_definition_id"] = parent
@@ -63,7 +63,9 @@ class MixinPropertiesBaseDefinition(models.AbstractModel):
             parent = (
                 self.env["properties.base.definition"]
                 .sudo()
-                ._get_definition_id_for_property_field(self._name, "properties")
+                ._get_or_create_definition_id_for_property_field(
+                    self._name, "properties"
+                )
             )
             return SQL("%s", parent)
 

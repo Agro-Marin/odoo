@@ -25,7 +25,7 @@ def test_every_memo_key_is_registered():
     assert keys == set(ORM_CLASS_MEMOS), (
         f"own_class_memo call-site keys {sorted(keys)} diverged from "
         f"helpers.ORM_CLASS_MEMOS {sorted(ORM_CLASS_MEMOS)}; register new memo "
-        f"keys there so registration._prepare_setup discards them on re-setup"
+        f"keys there so registration._reset_setup discards them on re-setup"
     )
 
 

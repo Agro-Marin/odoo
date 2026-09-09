@@ -1166,7 +1166,7 @@ Section  Population                                                  Count
 §2.4.11  … performing an ORM read                                        4
 §2.4.11  … doing something else entirely                                22
 §2.4.11  ``_find_or_create_*`` methods                                   1
-§2.4.11  ``_get_or_create_*`` methods                                   30
+§2.4.11  ``_get_or_create_*`` methods                                   31
 §2.4.11  ``_resolve_*`` definitions                                     39
 §2.4.12  ``_set_*`` definitions                                        124
 §2.4.12  ``_update_*`` definitions                                     355
@@ -3848,6 +3848,57 @@ this rule's finding and the other is the rule working correctly, and one
 substitution will touch before running it, not the call sites** -- there were
 three files' worth here, and no test would have caught it, because the
 constraint went on working under its new name.
+
+**A producer's prefix is a claim about the return, and the same body test
+settles it** ``[gate naming_core_vocabulary]``. ``_get_`` is the Read row and
+``_prepare_`` is the Payload row; both are promises about what comes back, and
+neither survives a body that returns nothing. ``Field.prepare_setup`` set
+``self._setup_done = False`` and ``registration._prepare_setup`` discarded a
+class's memo attributes -- both **reset** state for the setup phase and produce
+nothing, and both are ``reset_setup``. ``_prepare_missing_trees`` filled
+``state.trees`` and is ``_add_missing_trees``.
+
+* **Two exclusions, and each is a class of name rather than an exception.** A
+  producer that always **raises** is refusing on behalf of a name it did not
+  choose: ``ir.qweb``'s restricted rendering mode declines ``_get_field``,
+  ``_get_widget`` and ``_get_asset_nodes``, and renaming those unhooks the
+  override from its parent. A Protocol member or an ABC stub has no body to
+  read at all. Neither is in the allowlist, because neither is a judgement --
+  they are what the rule means.
+* **The one that IS a judgement is in the allowlist**, and it is the shape no
+  AST can see: ``profiler.py``'s tracing collector overrides
+  ``Collector._get_stack_trace`` and returns ``None`` because it has none to
+  give. It calls no ``super()``, so ``_overrides_same_name`` cannot find it.
+* **The converse claim is §2.4.11's**: a producer that **creates** records is
+  not describing them. ``properties.base.definition``'s
+  ``_get_definition_id_for_property_field`` searched, created when it found
+  nothing, and returned the id, under a name promising only a read; it is
+  ``_get_or_create_definition_id_for_property_field``.
+* **``write`` is deliberately not evidence of an ORM write, and its absence is
+  the rule.** §2.4.3 reserves ``read``/``write`` for a method whose object is a
+  **file**, so a call spelled ``write`` is as likely to be the filestore --
+  ``ir.attachment._prepare_content_vals`` ends in
+  ``backend.write(data, checksum)`` and is a correct payload builder.
+  ``Command.create([...])`` is excluded for the mirror reason: it **is** a
+  one2many payload, so matching the attribute name alone would flag the
+  canonical use of the canonical prefix. ``create`` and ``unlink`` on anything
+  else have no such twin.
+
+**``determine`` is in the synonym table after all, and the case for holding it
+out was wrong in an instructive way** ``[gate naming_core_vocabulary]``. It was
+excluded twice on the grounds that core's population is a *dispatch* question,
+which §2.4.9 leaves provisional -- and that reading came from the two members
+that dispatch, not from the family. Read whole, the nine split cleanly on the
+test this section already uses: four **return** a value and are the Read row
+(``Field.determine_domain`` returns a ``Domain`` and is ``get_search_domain``,
+``determine_group_expand`` returns groups and is ``get_expanded_groups``, both
+``_determine_fields_to_fetch`` are ``_get_fields_to_fetch``), two **perform**
+one and take the operation's own verb (``determine_inverse`` is
+``apply_inverse``, which is the word ``_create_apply_inverses`` in the same
+package had been using for it all along), one **assigns** and is ``set_key``,
+and the dispatcher itself is ``call_hook``. **A family that looks
+undecidable often contains two families**, and the census that says so is
+reading the bodies rather than the names.
 
 **``_show_`` is a fourth predicate prefix, on §2.4.8's terms** ``[review]``, at
 **16** definitions under **12** names. It answers a question about the subject

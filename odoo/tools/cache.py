@@ -141,7 +141,7 @@ class ormcache:
     def __call__(self, method: C) -> C:
         assert not hasattr(self, "method"), "ormcache is already bound to a method"
         self.method = method
-        self.determine_key()
+        self.set_key()
         assert self.key is not None, "ormcache.key not initialized"
 
         _key = self.key
@@ -225,7 +225,7 @@ class ormcache:
     def get_cache_generation(self, model: BaseModel) -> int:
         return model.pool.ormcache_lrus[self.cache_name].generation
 
-    def determine_key(self) -> None:
+    def set_key(self) -> None:
         assert self.method is not None
         if self.skiparg is not None:
             self.key = lambda *args, **kwargs: (
@@ -268,7 +268,7 @@ class ormcache_context(ormcache):
         self.keys = keys
         super().__init__(*args)
 
-    def determine_key(self) -> None:
+    def set_key(self) -> None:
         assert self.method is not None
         sign = signature(self.method)
         cont_expr = (
@@ -276,7 +276,7 @@ class ormcache_context(ormcache):
         )
         keys_expr = "tuple(%s.get(k) for k in %r)" % (cont_expr, self.keys)
         self.args += (keys_expr,)
-        super().determine_key()
+        super().set_key()
 
 
 class _StatsLine:

@@ -5,7 +5,7 @@ from typing import override
 from odoo.libs.sql import pg_varchar
 from odoo.tools.misc import SENTINEL, Sentinel, merge_sequences
 
-from .base import Field, _logger, _prepare_fast_get, determine, resolve_mro
+from .base import Field, _logger, _prepare_fast_get, call_hook, resolve_mro
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -194,7 +194,7 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
     def _description_selection(self, env: Environment) -> list[SelectValue]:
         selection = self._get_selection()
         if isinstance(selection, str) or callable(selection):
-            selection = determine(selection, env[self.model_name])
+            selection = call_hook(selection, env[self.model_name])
             return [(str(key), str(label)) for key, label in selection]
 
         if not env.lang:
@@ -220,7 +220,7 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
     def get_values(self, env: Environment) -> list[str]:
         selection = self._get_selection()
         if isinstance(selection, str) or callable(selection):
-            selection = determine(
+            selection = call_hook(
                 selection, env[self.model_name].with_context(lang="en_US")
             )
         return [value for value, _ in selection]

@@ -25,7 +25,7 @@ def _as_model(stub: object) -> BaseModel:
 
 
 class _StubField:
-    determine_domain: typing.Any = None
+    get_search_domain: typing.Any = None
 
     def _optimize_condition(self, condition, model, level):
         return condition
@@ -355,11 +355,11 @@ class TestBooleanSearchableTautology(unittest.TestCase):
         model = _StubModel()
         field = _StubField("flag", "boolean", search=True)
 
-        def determine_domain(model, operator, value):
+        def get_search_domain(model, operator, value):
             calls.append((operator, sorted(value)))
             return [("a", "in", [1])]
 
-        field.determine_domain = determine_domain
+        field.get_search_domain = get_search_domain
         model._fields["flag"] = field
         return model
 

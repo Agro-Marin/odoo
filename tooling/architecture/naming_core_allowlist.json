@@ -23,6 +23,7 @@
     "check_company_domain_parent_of": "protocol -- a canned implementation of _check_company_domain, assigned to it by name on dozens of models. Renaming it without the hook hides the pairing, which is the only thing that says what it is for",
     "check_companies_domain_parent_of": "protocol -- as check_company_domain_parent_of, for the company_ids side",
     "check_values": "raises, one frame down -- the failure path is _check_module's raise and the return is the argument passed straight back for chaining. The gate's proxy is one frame deep and this is what it costs",
-    "_check_hostname_callback": "raises, one frame down -- match_hostname raises on a certificate that does not match; the bool is pyOpenSSL's verify-callback contract, not an answer this method invented"
+    "_check_hostname_callback": "raises, one frame down -- match_hostname raises on a certificate that does not match; the bool is pyOpenSSL's verify-callback contract, not an answer this method invented",
+    "_get_stack_trace": "override -- tools/profiler.py declares it on Collector returning a real trace and the tracing subclass returns None because it has none to give. The name is the parent's contract; renaming the override unhooks it, and it calls no super() so _overrides_same_name cannot see that"
   }
 }

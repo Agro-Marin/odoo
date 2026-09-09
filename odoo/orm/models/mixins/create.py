@@ -172,9 +172,7 @@ class CreateMixin(_ModelStubs):
         self, new_vals_list: list[ValuesType]
     ) -> tuple[list[dict], dict]:
         data_list = []
-        determine_inverses: defaultdict[typing.Any, OrderedSet] = defaultdict(
-            OrderedSet
-        )
+        inverses_by_hook: defaultdict[typing.Any, OrderedSet] = defaultdict(OrderedSet)
         bypass_access_ids: defaultdict[Field, OrderedSet] = defaultdict(OrderedSet)
 
         for vals in new_vals_list:
@@ -197,7 +195,7 @@ class CreateMixin(_ModelStubs):
                     inherited[field.related_field.model_name][key] = val
                 elif field.inverse and field not in precomputed:
                     inversed[key] = val
-                    determine_inverses[field.inverse].add(field)
+                    inverses_by_hook[field.inverse].add(field)
                 elif not field.store and not field.compute:
                     cached_only[key] = val
                 if (
@@ -212,7 +210,7 @@ class CreateMixin(_ModelStubs):
 
         for field, co_ids in bypass_access_ids.items():
             self.env[field.comodel_name].browse(co_ids).check_access("read")
-        return data_list, determine_inverses
+        return data_list, inverses_by_hook
 
     def _create_parent_records(self, data_list: list[dict]) -> None:
         for model_name, parent_name in self._inherits.items():
@@ -231,13 +229,13 @@ class CreateMixin(_ModelStubs):
                 for parent, data in zip(parents, parent_data_list, strict=True):
                     data["stored"][parent_name] = parent.id
 
-    def _create_apply_inverses(self, data_list: list[dict], determine_inverses) -> None:
+    def _create_apply_inverses(self, data_list: list[dict], inverses_by_hook) -> None:
         protected_fields = [(data["protected"], data["record"]) for data in data_list]
         with self.env.protecting(protected_fields):
             for data in data_list:
                 if vals := data["cached_only"]:
                     data["record"]._update_cache(vals)
-            for fields in determine_inverses.values():
+            for fields in inverses_by_hook.values():
                 inv_names = {field.name for field in fields}
                 inv_rec_ids = []
                 for data in data_list:
@@ -254,7 +252,7 @@ class CreateMixin(_ModelStubs):
                     inv_rec_ids.append(record.id)
 
                 inv_records = self.browse(inv_rec_ids)
-                next(iter(fields)).determine_inverse(inv_records)
+                next(iter(fields)).apply_inverse(inv_records)
                 inv_relational_fnames = [
                     field.name
                     for field in fields
@@ -284,7 +282,7 @@ class CreateMixin(_ModelStubs):
         prof.mark("acl")
 
         new_vals_list = self._prepare_create_values(vals_list)
-        data_list, determine_inverses = self._create_partition_values(new_vals_list)
+        data_list, inverses_by_hook = self._create_partition_values(new_vals_list)
         prof.mark("prep")
 
         self._create_parent_records(data_list)
@@ -293,7 +291,7 @@ class CreateMixin(_ModelStubs):
         records = self._create(data_list)
         prof.mark("sql")
 
-        self._create_apply_inverses(data_list, determine_inverses)
+        self._create_apply_inverses(data_list, inverses_by_hook)
         prof.mark("trigger")
 
         self._check_created(data_list)

@@ -9,7 +9,7 @@ from odoo.orm.domain.ast import Domain, DomainCondition
 
 
 class _StubField:
-    determine_domain: typing.Any = None
+    get_search_domain: typing.Any = None
 
     def _optimize_condition(self, condition, model, level):
         return condition
@@ -142,7 +142,7 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
         field = _StubField("f", "char")
         field.search = True
 
-        def determine_domain(model, op, value):
+        def get_search_domain(model, op, value):
             calls.append(op)
             handler = handlers.get(op, NotImplemented)
             if isinstance(handler, Exception):
@@ -151,7 +151,7 @@ class TestFieldSearchMethodLadder(unittest.TestCase):
                 return handler(value)
             return handler
 
-        field.determine_domain = determine_domain
+        field.get_search_domain = get_search_domain
         return field
 
     def _model(self, handlers, calls, name="f"):

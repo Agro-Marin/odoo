@@ -77,7 +77,7 @@ class TestOrmcacheDeterminesKey(unittest.TestCase):
     def _key_of(self, method, *args, **kwargs):
         deco = ormcache("a")
         deco.method = method
-        deco.determine_key()
+        deco.set_key()
         return deco.key(*args, **kwargs)
 
     def test_non_literal_default_decorates_without_syntaxerror(self):

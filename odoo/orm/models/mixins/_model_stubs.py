@@ -196,7 +196,7 @@ class _ModelStubs:
         def _convert_to_column_properties_definition(
             self, value: typing.Any
         ) -> typing.Any: ...
-        def _determine_fields_to_fetch(
+        def _get_fields_to_fetch(
             self,
             field_names: Collection[str] | None = None,
             ignore_when_in_cache: bool = False,

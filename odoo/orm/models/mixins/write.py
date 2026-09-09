@@ -17,7 +17,7 @@ from ._model_stubs import _ModelStubs
 
 class _WriteFieldPlan(typing.NamedTuple):
     field_values: list
-    determine_inverses: dict
+    inverses_by_hook: dict
     fnames_modifying_relations: list
     protected: set
     x2m_inverse_fnames: list
@@ -78,7 +78,7 @@ class WriteMixin(_ModelStubs):
             if field.inverse:
                 if field.is_x2many:
                     plan.x2m_inverse_fnames.append(fname)
-                plan.determine_inverses[field.inverse].append(field)
+                plan.inverses_by_hook[field.inverse].append(field)
             if self.pool.is_modifying_relations(field):
                 plan.fnames_modifying_relations.append(fname)
             if field.inverse or (field.compute and not field.readonly):
@@ -104,10 +104,10 @@ class WriteMixin(_ModelStubs):
             if to_compute:
                 self._recompute_recordset(to_compute)
 
-    def _write_determine_inverses(
-        self, determine_inverses: dict, real_recs: Self, vals: ValuesType
+    def _write_apply_inverses(
+        self, inverses_by_hook: dict, real_recs: Self, vals: ValuesType
     ) -> None:
-        for fields in determine_inverses.values():
+        for fields in inverses_by_hook.values():
             for field in fields:
                 if (
                     not field.store
@@ -117,7 +117,7 @@ class WriteMixin(_ModelStubs):
                     field.mark_dirty(real_recs, vals[field.name])
 
             try:
-                fields[0].determine_inverse(real_recs)
+                fields[0].apply_inverse(real_recs)
             except AccessError as e:
                 if fields[0].inherited:
                     description = self.env["ir.model"]._get(self._name).name
@@ -152,7 +152,7 @@ class WriteMixin(_ModelStubs):
 
         plan = self._write_classify_fields(vals)
         field_values = plan.field_values
-        determine_inverses = plan.determine_inverses
+        inverses_by_hook = plan.inverses_by_hook
         protected = plan.protected
         self._write_settle_protected(plan, vals)
         prof.mark("classify")
@@ -180,11 +180,11 @@ class WriteMixin(_ModelStubs):
             if self._parent_store and self._parent_name in vals:
                 self.flush_model([self._parent_name])
 
-            inverse_fields = [f.name for fs in determine_inverses.values() for f in fs]
+            inverse_fields = [f.name for fs in inverses_by_hook.values() for f in fs]
             real_recs._check_fields(vals, inverse_fields)
             prof.mark("validate")
 
-            self._write_determine_inverses(determine_inverses, real_recs, vals)
+            self._write_apply_inverses(inverses_by_hook, real_recs, vals)
 
             real_recs._check_fields(inverse_fields)
 

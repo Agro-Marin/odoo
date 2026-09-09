@@ -3,10 +3,10 @@ import functools
 import pytest
 
 from odoo import api, fields, models
-from odoo.orm.fields.base import determine
+from odoo.orm.fields.base import call_hook
 from odoo.orm.model_test_env import model_test_env
 
-_MOD = "test_determine_dispatch"
+_MOD = "test_hook_dispatch"
 
 
 def _inverse_generic(self, offset):
@@ -15,7 +15,7 @@ def _inverse_generic(self, offset):
 
 
 class DetermineWidget(models.Model):
-    _name = "determine.widget"
+    _name = "hook.widget"
     _module = _MOD
     _description = "Determine Widget"
 
@@ -32,26 +32,26 @@ class DetermineWidget(models.Model):
 
 def test_a_partialmethod_is_a_usable_inverse():
     with model_test_env(DetermineWidget) as env:
-        record = env["determine.widget"].create([{"qty": 2}])
+        record = env["hook.widget"].create([{"qty": 2}])
         record.write({"label": "abcd"})
         assert record.qty == 5
 
 
 def test_both_needle_shapes_reject_a_dunder_the_same_way():
     with model_test_env(DetermineWidget) as env:
-        model = env["determine.widget"]
+        model = env["hook.widget"]
         with pytest.raises(TypeError, match="dunder"):
-            determine("__len__", model)
+            call_hook("__len__", model)
         with pytest.raises(TypeError, match="dunder"):
-            determine(type(model).__len__, model)
+            call_hook(type(model).__len__, model)
 
 
 def test_a_needle_that_is_neither_says_so():
     with model_test_env(DetermineWidget) as env:
         with pytest.raises(TypeError, match="callable or method name"):
-            determine(None, env["determine.widget"])
+            call_hook(None, env["hook.widget"])
 
 
 def test_a_non_recordset_subject_says_so():
     with pytest.raises(TypeError, match="subject recordset"):
-        determine("anything", object())  # type: ignore[arg-type]
+        call_hook("anything", object())  # type: ignore[arg-type]

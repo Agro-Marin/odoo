@@ -22,7 +22,7 @@ class TestPropertiesBaseDefinition(TransactionCase):
         self.env.cr.cache.pop(DEFINITION_MEMO_CACHE_KEY, None)
 
     def _get_definition_id(self):
-        return self.Definition._get_definition_id_for_property_field(
+        return self.Definition._get_or_create_definition_id_for_property_field(
             self.MODEL, self.FIELD
         )
 

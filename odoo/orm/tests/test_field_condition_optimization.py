@@ -30,7 +30,7 @@ def _field(field_class, name, **attrs):
     field.related = None
     field.company_dependent = False
     field.search = None
-    field.determine_domain = None
+    field.get_search_domain = None
     for key, value in attrs.items():
         setattr(field, key, value)
     return field

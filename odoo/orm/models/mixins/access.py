@@ -11,7 +11,7 @@ from odoo.tools.translate import LazyTranslate, _
 
 from ... import decorators as api
 from ...domain import Domain
-from ...fields.base import determine
+from ...fields.base import call_hook
 from ...helpers import to_record_ids
 from ...primitives import NO_ACCESS
 from ._model_stubs import _ModelStubs
@@ -48,7 +48,7 @@ class AccessMixin(_ModelStubs):
         if write_groups == NO_ACCESS:
             return False
         if callable(write_groups):
-            return bool(determine(write_groups, self))
+            return bool(call_hook(write_groups, self))
         return self.env.user.has_groups(write_groups)
 
     @api.model

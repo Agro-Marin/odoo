@@ -43,7 +43,7 @@ from . import (
 from . import (
     _field_setup as _setup,
 )
-from ._field_compute import determine
+from ._field_compute import call_hook
 from ._field_convert import _FieldConvertMixin
 from ._field_description import _FieldDescriptionMixin
 from ._field_metadata import _FieldMetadataMixin
@@ -66,7 +66,7 @@ if typing.TYPE_CHECKING:
     M = typing.TypeVar("M", bound=BaseModel)
 
 
-__all__ = ["COMPANY_DEPENDENT_FIELDS", "Field", "determine", "resolve_mro"]
+__all__ = ["COMPANY_DEPENDENT_FIELDS", "Field", "call_hook", "resolve_mro"]
 
 _NO_ARGS: Mapping[str, typing.Any] = ReadonlyDict({})
 
@@ -326,7 +326,7 @@ class Field[T](
             value = self.default
             self.default = lambda model: value
 
-    def prepare_setup(self) -> None:
+    def reset_setup(self) -> None:
         self._setup_done = False
 
     def setup(self, model: BaseModel) -> None:
@@ -745,15 +745,15 @@ class Field[T](
     def compute_value(self, records: ModelLike, validate: bool = True) -> None:
         _compute.compute_value(self, records, validate)
 
-    def determine_inverse(self, records: ModelLike) -> None:
-        _compute.determine_inverse(self, records)
+    def apply_inverse(self, records: ModelLike) -> None:
+        _compute.apply_inverse(self, records)
 
-    def determine_domain(
+    def get_search_domain(
         self, records: BaseModel, operator: str, value: typing.Any
     ) -> typing.Any:
-        return determine(self.search, records, operator, value)
+        return call_hook(self.search, records, operator, value)
 
-    def determine_group_expand(
+    def get_expanded_groups(
         self, records: BaseModel, values: typing.Any, domain: DomainType
     ) -> typing.Any:
-        return determine(self.group_expand, records, values, domain)
+        return call_hook(self.group_expand, records, values, domain)

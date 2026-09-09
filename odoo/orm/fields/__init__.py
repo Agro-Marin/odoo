@@ -1,7 +1,7 @@
 from .base import (
     COMPANY_DEPENDENT_FIELDS,
     Field,
-    determine,
+    call_hook,
     resolve_mro,
 )
 
@@ -45,7 +45,7 @@ __all__ = [
     "Reference",
     "Selection",
     "Text",
+    "call_hook",
     "check_property_field_value_name",
-    "determine",
     "resolve_mro",
 ]

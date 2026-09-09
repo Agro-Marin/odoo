@@ -66,10 +66,10 @@ class Base(models.AbstractModel):
 
         if field.relational:
             values = self.env[field.comodel_name].browse(value.id for value in values)
-            expand_values = field.determine_group_expand(self, values, domain)
+            expand_values = field.get_expanded_groups(self, values, domain)
             all_record_ids = tuple(unique(expand_values._ids + values._ids))
         else:
-            expand_values = field.determine_group_expand(self, values, domain)
+            expand_values = field.get_expanded_groups(self, values, domain)
 
         is_desc = any(
             parts[0] == groupby_spec.lower() and len(parts) > 1 and parts[1] == "desc"
