@@ -88,6 +88,7 @@ GATES = {
     "exchange_vocabulary": ["--check"],
     "credential_storage": ["--check"],
     "payment_vocabulary": ["--check"],
+    "module_category_vocabulary": ["--check"],
     "module_depends_installable": ["--check"],
     "external_dependency_pins": ["--check"],
 }

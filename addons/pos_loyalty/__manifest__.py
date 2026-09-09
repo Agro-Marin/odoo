@@ -1,7 +1,7 @@
 {
     "name": "Point of Sale - Coupons & Loyalty",
     "version": "2.0",
-    "category": "Sales/Point Of Sale",
+    "category": "Sales/Point of Sale",
     "sequence": 6,
     "summary": "Use Coupons, Gift Cards and Loyalty programs in Point of Sale",
     "author": "Odoo S.A.",

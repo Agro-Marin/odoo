@@ -1,7 +1,7 @@
 {
     "name": "HTML Builder",
     "version": "0.1",
-    "category": "Uncategorized",
+    "category": "Hidden",
     "summary": "Generic html builder",
     "description": """
     This addon contains a generic html builder application. It is designed to be

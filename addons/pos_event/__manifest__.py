@@ -1,7 +1,7 @@
 {
     "name": "POS - Event",
     "version": "1.0",
-    "category": "Technical",
+    "category": "Hidden",
     "summary": "Link module between Point of Sale and Event",
     "author": "Odoo S.A.",
     "license": "LGPL-3",

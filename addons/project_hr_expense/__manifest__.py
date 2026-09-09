@@ -1,7 +1,7 @@
 {
     "name": "Project Expenses",
     "version": "1.0",
-    "category": "Services/expenses",
+    "category": "Services/Project",
     "summary": "Project expenses",
     "description": "Bridge created to add the number of expenses linked to an AA to a project form",
     "author": "Odoo S.A.",

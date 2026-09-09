@@ -1,7 +1,7 @@
 {
     "name": "Cloud Storage S3",
     "version": "19.0.3.1.0",
-    "category": "Technical Settings",
+    "category": "Hidden/Tools",
     "summary": "Store attachments in Amazon S3, with an optional local mirror",
     "author": "AgroMarin",
     "website": "https://www.agromarin.mx",

@@ -1,7 +1,7 @@
 {
     "name": "Cloud Storage Azure",
     "version": "1.0",
-    "category": "Technical Settings",
+    "category": "Hidden/Tools",
     "summary": "Store chatter attachments in the Azure cloud",
     "author": "Odoo S.A.",
     "license": "LGPL-3",

@@ -1,5 +1,6 @@
 {
     "name": "Website Mail Group",
+    "category": "Website/Website",
     "version": "1.0",
     "summary": "Add a website snippet for the mail groups.",
     "author": "Odoo S.A.",

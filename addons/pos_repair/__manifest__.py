@@ -1,6 +1,6 @@
 {
     "name": "POS - Repair",
-    "category": "Technical",
+    "category": "Hidden",
     "summary": "Link module between Point of Sale and Repair",
     "author": "Odoo S.A.",
     "license": "LGPL-3",

@@ -1,6 +1,6 @@
 {
     "name": "IoT Sylvac Calipers",
-    "category": "Administration/IoT",
+    "category": "Supply Chain/IoT",
     "summary": "Read a Sylvac digital caliper over serial or Bluetooth",
     "description": """
 Adds the IoT Box drivers for Sylvac digital measuring instruments, over serial

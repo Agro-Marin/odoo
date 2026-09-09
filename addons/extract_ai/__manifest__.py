@@ -1,7 +1,7 @@
 {
     "name": "Document Extraction - AI Readers",
     "version": "19.0.1.0.0",
-    "category": "Technical",
+    "category": "Hidden",
     "summary": "Generative strategies for extract, on the api_ai registry",
     "description": """
 Document Extraction - AI Readers

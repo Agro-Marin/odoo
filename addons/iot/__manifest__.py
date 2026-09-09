@@ -1,6 +1,6 @@
 {
     "name": "Internet of Things",
-    "category": "Administration/IoT",
+    "category": "Supply Chain/IoT",
     "sequence": 250,
     "summary": "Connect and manage IoT Boxes and the devices attached to them.",
     "description": """

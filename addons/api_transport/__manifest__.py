@@ -1,7 +1,7 @@
 {
     "name": "API Transport",
     "version": "19.0.1.22.0",
-    "category": "Technical",
+    "category": "Hidden",
     "sequence": 5,
     "summary": "Inbound and outbound API transport with auth, rate limiting, retry and logging",
     "description": """

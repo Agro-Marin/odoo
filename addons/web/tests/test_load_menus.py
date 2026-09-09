@@ -244,3 +244,39 @@ class LoadMenusSearchTests(HttpCase):
             menus[menu.id]["web_category"],
             "a menu with no xmlid has no heading, and asks for none",
         )
+
+    def test_category_carries_the_order_its_group_sits_in(self):
+        base_menu = self.env.ref("base.menu_administration")
+        category = self.env.ref("base.module_base").category_id
+        while category.parent_id:
+            category = category.parent_id
+        menus = self.env["ir.ui.menu"].load_menus(False)
+        self.assertEqual(
+            menus[base_menu.id]["web_category_sequence"],
+            category.sequence,
+            "the client has no other way to order the groups: menus are ordered "
+            "by their own sequence, so grouping alone puts the headings in the "
+            "order the first app of each happens to appear",
+        )
+
+    def test_a_leaf_category_does_not_head_a_group_of_its_own(self):
+        # base declared five categories whose xml id path names a parent that
+        # exists and which carried no parent_id, so each read as a top-level
+        # application. On a database that loads the data file before any
+        # manifest asks for the path -- which is any database where the module
+        # arrives later -- the launcher heads its apps with the leaf, and
+        # Invoicing sits beside Accounting as a separate group.
+        # module_category_vocabulary.py is the gate; this pins the five.
+        for leaf, parent in (
+            ("accounting_accounting", "accounting"),
+            ("services_helpdesk", "services"),
+            ("human_resources_appraisals", "human_resources"),
+            ("human_resources_referrals", "human_resources"),
+            ("sales_sign", "sales"),
+        ):
+            self.assertEqual(
+                self.env.ref(f"base.module_category_{leaf}").parent_id,
+                self.env.ref(f"base.module_category_{parent}"),
+                f"module_category_{leaf} heads a launcher group of its own "
+                f"unless it declares module_category_{parent} as its parent",
+            )

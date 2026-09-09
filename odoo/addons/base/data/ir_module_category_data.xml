@@ -19,11 +19,6 @@
         <field name="parent_id" ref="module_category_accounting" />
     </record>
 
-    <record id="module_category_payroll_localization" model="ir.module.category">
-        <field name="name">Payroll Localization</field>
-        <field name="visible" eval="0" />
-    </record>
-
     <record
         id="module_category_accounting_localizations_account_charts"
         model="ir.module.category">
@@ -35,6 +30,7 @@
     <record id="module_category_accounting_accounting" model="ir.module.category">
         <field name="name">Invoicing</field>
         <field name="sequence">4</field>
+        <field name="parent_id" ref="module_category_accounting" />
     </record>
 
     <record id="module_category_sales" model="ir.module.category">
@@ -45,6 +41,12 @@
     <record id="module_category_human_resources" model="ir.module.category">
         <field name="name">Human Resources</field>
         <field name="sequence">45</field>
+    </record>
+
+    <record id="module_category_payroll_localization" model="ir.module.category">
+        <field name="name">Payroll Localization</field>
+        <field name="visible" eval="0" />
+        <field name="parent_id" ref="module_category_human_resources" />
     </record>
 
     <record id="module_category_marketing" model="ir.module.category">
@@ -88,6 +90,7 @@
             User : Access to referral, share job, gain points, buy rewards
             Administrator : edit rewards and more</field>
         <field name="sequence">11</field>
+        <field name="parent_id" ref="module_category_human_resources" />
     </record>
 
     <record id="module_category_human_resources_appraisals" model="ir.module.category">
@@ -96,6 +99,7 @@
             name="description">A user without any rights on Appraisals will be able to see the
             application, create and manage appraisals for himself and the people he's manager of.</field>
         <field name="sequence">15</field>
+        <field name="parent_id" ref="module_category_human_resources" />
     </record>
 
     <record id="module_category_sales_sign" model="ir.module.category">
@@ -103,6 +107,7 @@
         <field
             name="description">Helps you sign and complete your documents easily.</field>
         <field name="sequence">25</field>
+        <field name="parent_id" ref="module_category_sales" />
     </record>
 
     <record id="module_category_services" model="ir.module.category">
@@ -114,6 +119,7 @@
         <field name="name">Helpdesk</field>
         <field name="description" />
         <field name="sequence">14</field>
+        <field name="parent_id" ref="module_category_services" />
     </record>
 
     <record id="module_category_services_appointment" model="ir.module.category">
@@ -141,9 +147,10 @@
         <field name="sequence">55</field>
     </record>
 
-    <record id="module_category_internet_of_things_(iot)" model="ir.module.category">
+    <record id="module_category_supply_chain_iot" model="ir.module.category">
         <field name="name">Internet of Things (IoT)</field>
         <field name="sequence">60</field>
+        <field name="parent_id" ref="module_category_supply_chain" />
     </record>
 
     <record

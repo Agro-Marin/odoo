@@ -1,6 +1,6 @@
 {
     "name": "2FA Invite mail",
-    "category": "Extra Tools",
+    "category": "Hidden/Tools",
     "description": """
 2FA Invite mail
 ===============

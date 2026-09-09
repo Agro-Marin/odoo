@@ -1,6 +1,6 @@
 {
     "name": "IoT Belgian Fiscal Data Module",
-    "category": "Administration/IoT",
+    "category": "Supply Chain/IoT",
     "summary": "Talk to a Belgian fiscal data module attached to an IoT Box",
     "description": """
 Adds the IoT Box driver for the Belgian fiscal data module (blackbox). The

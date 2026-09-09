@@ -1,7 +1,7 @@
 {
     "name": "POS Restaurant Stripe",
     "version": "1.0",
-    "category": "Point of Sale",
+    "category": "Sales/Point of Sale",
     "sequence": 6,
     "summary": "Adds American style tipping to Stripe",
     "author": "Odoo S.A.",

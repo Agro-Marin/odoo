@@ -1,6 +1,6 @@
 {
     "name": "IoT Payment Terminal",
-    "category": "Administration/IoT",
+    "category": "Supply Chain/IoT",
     "summary": "Shared ctypes scaffolding for payment terminals driven over a vendor library",
     "description": """
 Base driver for payment terminals whose vendor ships a C library rather than a

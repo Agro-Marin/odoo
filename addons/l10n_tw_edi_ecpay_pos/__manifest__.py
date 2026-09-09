@@ -2,7 +2,7 @@
 
 {
     "name": "Taiwan - E-invoicing Pos",
-    "category": "Point of sale/Localizations/EDI",
+    "category": "Accounting/Localizations/EDI",
     "summary": "ECpay E-invoice bridge module for POS",
     "description": """
         This bridge module allows the user to input Ecpay information in pos for sending their invoices to the Ecpay system

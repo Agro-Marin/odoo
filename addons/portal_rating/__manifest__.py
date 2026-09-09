@@ -1,7 +1,7 @@
 {
     "name": "Portal Rating",
     "version": "1.0",
-    "category": "Services",
+    "category": "Services/Project",
     "description": """
 Bridge module adding rating capabilities on portal. It includes notably
 inclusion of rating directly within the customer portal discuss widget.

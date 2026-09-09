@@ -35,6 +35,7 @@ export function menuHref(menu) {
  * @property {string} [module]
  * @property {string[]} [models]
  * @property {string} [category]
+ * @property {number} [categorySequence]
  * @property {string[]} [keywords]
  * @property {string[]} [searchTerms]
  * @property {string} [webIconData]
@@ -123,6 +124,7 @@ export function computeAppsAndMenuItems(menuTree) {
         }
         if (menuItem.webCategory) {
             item.category = menuItem.webCategory;
+            item.categorySequence = menuItem.webCategorySequence || 0;
         }
         if (menuItem.webKeywords) {
             item.keywords = menuItem.webKeywords

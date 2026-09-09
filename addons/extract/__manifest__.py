@@ -1,7 +1,7 @@
 {
     "name": "Document Extraction",
     "version": "19.0.1.1.0",
-    "category": "Technical",
+    "category": "Hidden",
     "sequence": 10,
     "summary": "Format-agnostic, strategy-agnostic field extraction from documents",
     "description": """

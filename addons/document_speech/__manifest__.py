@@ -1,7 +1,7 @@
 {
     "name": "Documents - Speech",
     "version": "19.0.1.0.0",
-    "category": "Technical",
+    "category": "Hidden",
     "summary": "Transcribe a stored recording, and file spoken text as a document",
     "description": """
 Documents - Speech

@@ -1,6 +1,6 @@
 {
     "name": "POS Self Order Sale",
-    "category": "Sales/Point Of Sale",
+    "category": "Sales/Point of Sale",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

@@ -125,22 +125,30 @@ export class HomeMenuGrid {
         if (this.query() || this.editing() || apps.length <= SECTIONED_FROM) {
             return flat;
         }
-        /** @type {Map<string, HomeMenuApp[]>} */
+        /** @type {Map<string, { apps: HomeMenuApp[], sequence: number }>} */
         const byCategory = new Map();
         for (const app of apps) {
             const category = app.category || _t("Other");
             const section = byCategory.get(category);
             if (section) {
-                section.push(app);
+                section.apps.push(app);
             } else {
-                byCategory.set(category, [app]);
+                // An app whose module names no category heads no group of its
+                // own, so "Other" collects them and sorts after every real
+                // heading rather than at ir.module.category's implicit 0.
+                const sequence = app.category ? app.categorySequence || 0 : Infinity;
+                byCategory.set(category, { apps: [app], sequence });
             }
         }
         if (byCategory.size < 2) {
             return flat;
         }
+        const ordered = [...byCategory].sort(
+            ([leftName, left], [rightName, right]) =>
+                left.sequence - right.sequence || leftName.localeCompare(rightName),
+        );
         let offset = this.pinnedApps.length;
-        return [...byCategory].map(([category, sectionApps]) => {
+        return ordered.map(([category, { apps: sectionApps }]) => {
             const section = { category, apps: sectionApps, offset };
             offset += sectionApps.length;
             return section;

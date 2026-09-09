@@ -1,7 +1,7 @@
 {
     "name": "POS Self Order Razorpay",
     "version": "1.0",
-    "category": "Sales/Point Of Sale",
+    "category": "Sales/Point of Sale",
     "summary": "Addon for the Self Order App that allows customers to pay by Razorpay POS Terminal.",
     "author": "Odoo S.A.",
     "license": "LGPL-3",

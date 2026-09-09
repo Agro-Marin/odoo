@@ -1,5 +1,6 @@
 {
     "name": "Point of Sale online payment",
+    "category": "Sales/Point of Sale",
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [

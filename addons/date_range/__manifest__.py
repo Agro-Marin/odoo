@@ -1,7 +1,7 @@
 {
     "name": "Date Range",
     "version": "19.0.1.1.0",
-    "category": "Technical",
+    "category": "Hidden",
     "summary": "Named periods of time, reusable as a filter on any date field",
     "description": """
 Date Range

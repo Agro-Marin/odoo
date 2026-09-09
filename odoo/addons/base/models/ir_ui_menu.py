@@ -313,6 +313,7 @@ class IrUiMenu(models.Model):
                 "web_icon": menu.web_icon,
                 "web_keywords": menu.web_keywords,
                 "web_category": False,
+                "web_category_sequence": 0,
                 "web_icon_data": (
                     attachment["datas"].decode()
                     if attachment and attachment["datas"]
@@ -334,10 +335,11 @@ class IrUiMenu(models.Model):
             menu_dict["action_res_model"] = info["res_model"] if info else False
             menu_dict["children"] = children_dict[menu_dict["id"]]
 
-        for menu_id, category in self._get_app_categories(
+        for menu_id, (category, sequence) in self._get_app_categories(
             children_dict[False], menus_dict
         ).items():
             menus_dict[menu_id]["web_category"] = category
+            menus_dict[menu_id]["web_category_sequence"] = sequence
 
         menus_dict["root"] = {
             "id": False,
@@ -348,13 +350,22 @@ class IrUiMenu(models.Model):
 
     def _get_app_categories(
         self, root_menu_ids: list[int], menus_dict: dict
-    ) -> dict[int, str]:
-        """Group heading for each app: the top of its module's category tree.
+    ) -> dict[int, tuple[str, int]]:
+        """Group heading for each app, and the order its group sits in.
 
-        The leaf category is very nearly the app itself -- measured over a
-        22-app database it yields 17 categories, 12 of them holding one app,
-        so it names more groups than it saves rows. Its root names eight, of
-        sizes that read: Sales, Supply Chain, Productivity, Accounting.
+        The heading is the top of the module's category tree. The leaf category
+        is very nearly the app itself -- measured over a 22-app database it
+        yields 17 categories, 12 of them holding one app, so it names more
+        groups than it saves rows. Its root names eight, of sizes that read:
+        Sales, Supply Chain, Productivity, Accounting.
+
+        The sequence travels with the name because the client has no other way
+        to order the groups. Menus are ordered by their own sequence, so
+        grouping them alone puts the headings in the order the first app of
+        each happens to appear -- Productivity before Sales because Calendar
+        outranks CRM. `ir.module.category.sequence` is the field that already
+        answers this, and it is the same order the Apps store and the
+        access-rights page use.
         """
         modules_by_menu = {}
         for menu_id in root_menu_ids:
@@ -379,7 +390,7 @@ class IrUiMenu(models.Model):
             while category and category.parent_id:
                 category = category.parent_id
             if category:
-                categories[menu_id] = category.name
+                categories[menu_id] = (category.name, category.sequence)
         return categories
 
     @classmethod

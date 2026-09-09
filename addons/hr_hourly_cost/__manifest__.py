@@ -1,7 +1,7 @@
 {
     "name": "Employee Hourly Wage",
     "version": "1.0",
-    "category": "Services/Employee Hourly Cost",
+    "category": "Services/Timesheets",
     "summary": "Employee Hourly Wage",
     "description": """
 This module assigns an hourly wage to employees to be used by other modules.

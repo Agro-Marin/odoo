@@ -1,7 +1,7 @@
 {
     "name": "Cloud Storage",
     "version": "1.0",
-    "category": "Technical Settings",
+    "category": "Hidden/Tools",
     "summary": "Store chatter attachments in the cloud",
     "author": "Odoo S.A.",
     "license": "LGPL-3",

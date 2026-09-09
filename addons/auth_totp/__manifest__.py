@@ -1,6 +1,6 @@
 {
     "name": "Two-Factor Authentication (TOTP)",
-    "category": "Extra Tools",
+    "category": "Hidden/Tools",
     "description": """
 Two-Factor Authentication (TOTP)
 ================================

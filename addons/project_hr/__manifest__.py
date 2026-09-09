@@ -1,7 +1,7 @@
 {
     "name": "Project HR",
     "version": "1.1",
-    "category": "Project",
+    "category": "Services/Project",
     "summary": "Replace user assignees in project with HR employees",
     "description": """
         Bridge module that makes hr.employee the primary assignee identity

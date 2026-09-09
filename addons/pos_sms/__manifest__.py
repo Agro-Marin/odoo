@@ -1,6 +1,6 @@
 {
     "name": "POS - SMS",
-    "category": "Send sms to customer for order confirmation",
+    "category": "Sales/Point of Sale",
     "description": "This module integrates the Point of Sale with SMS",
     "author": "Odoo S.A.",
     "license": "LGPL-3",

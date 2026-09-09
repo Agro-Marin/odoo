@@ -1443,6 +1443,11 @@ test("a hidden app is decluttered from the grid, not hidden from the search", as
 });
 
 test("the grid takes category headings once it stops fitting on a screen", async () => {
+    // Sales 5 and Supply Chain 25 are ir.module.category's own sequences. The
+    // even-numbered apps -- Supply Chain -- come first in the app list, so an
+    // order that follows the apps would head with SUPPLY CHAIN. It does not:
+    // the heading order is the category order, which is what the Apps store and
+    // the access-rights page already use.
     const make = (/** @type {number} */ count) =>
         Array.from({ length: count }, (_, i) => ({
             actionID: 100 + i,
@@ -1454,6 +1459,7 @@ test("the grid takes category headings once it stops fitting on a screen", async
             webIcon: false,
             xmlid: `app.${i}`,
             category: i % 2 ? "Sales" : "Supply Chain",
+            categorySequence: i % 2 ? 5 : 25,
         }));
     mockService("menu", {
         getMenuAsTree: () => EMPTY_TREE,
@@ -1468,8 +1474,8 @@ test("the grid takes category headings once it stops fitting on a screen", async
         },
     });
     expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual(
-        ["SUPPLY CHAIN", "SALES"],
-        { message: "in the order their first app sits in, not alphabetical" },
+        ["SALES", "SUPPLY CHAIN"],
+        { message: "by ir.module.category.sequence, not by which app comes first" },
     );
     expect(queryAllAttributes(".o_apps_section .o_app", "id").slice(0, 3)).toEqual([
         "result_app_0",
@@ -1483,18 +1489,97 @@ test("the grid takes category headings once it stops fitting on a screen", async
             section.apps.map((app) => app.label),
         ]),
     ).toEqual([
+        ["Sales", 0, ["App 1", "App 3", "App 5", "App 7", "App 9", "App 11"]],
         [
             "Supply Chain",
-            0,
+            6,
             ["App 0", "App 2", "App 4", "App 6", "App 8", "App 10", "App 12"],
         ],
-        ["Sales", 7, ["App 1", "App 3", "App 5", "App 7", "App 9", "App 11"]],
     ]);
 
     await searchFor("app 1");
     expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual([], {
         message: "a query has its own order",
     });
+});
+
+test("category headings follow the sequence, and fall back to the name", async () => {
+    // The pin above cannot tell "sorted by sequence" from "sorted by name",
+    // because Sales sorts before Supply Chain either way. Here the sequences
+    // contradict the alphabet, and the equal pair settles what happens on a tie.
+    const make = (/** @type {{ */ heads) =>
+        heads.flatMap(({ category, sequence }, group) =>
+            Array.from({ length: 5 }, (_, i) => ({
+                actionID: 100 + group * 5 + i,
+                href: `/odoo/action-${100 + group * 5 + i}`,
+                appID: group * 5 + i + 1,
+                id: group * 5 + i + 1,
+                label: `App ${group}-${i}`,
+                parents: "",
+                webIcon: false,
+                xmlid: `app.${group}.${i}`,
+                category,
+                categorySequence: sequence,
+            })),
+        );
+    mockService("menu", {
+        getMenuAsTree: () => EMPTY_TREE,
+        selectMenu: async () => {},
+    });
+
+    const apps = make([
+        { category: "Alpha", sequence: 70 },
+        { category: "Zulu", sequence: 5 },
+        { category: "Mike", sequence: 5 },
+    ]);
+    await mountWithCleanup(HomeMenu, {
+        props: {
+            apps,
+            reorderApps: (/** @type {string[]} */ o) => reorderApps(apps, o),
+        },
+    });
+    expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual(
+        ["MIKE", "ZULU", "ALPHA"],
+        {
+            message:
+                "sequence decides, and two categories sharing one sequence are " +
+                "ordered by name rather than by Map insertion",
+        },
+    );
+});
+
+test("an app whose module names no category sorts after every heading", async () => {
+    // "Other" is not a category and has no sequence. Taking the 0 that
+    // ir.module.category would imply would put it FIRST, ahead of Invoicing at
+    // 4 -- the bucket for apps nobody classified heading the whole grid.
+    const make = (/** @type {number} */ count) =>
+        Array.from({ length: count }, (_, i) => ({
+            actionID: 100 + i,
+            href: `/odoo/action-${100 + i}`,
+            appID: i + 1,
+            id: i + 1,
+            label: `App ${i}`,
+            parents: "",
+            webIcon: false,
+            xmlid: `app.${i}`,
+            ...(i % 2 ? { category: "Human Resources", categorySequence: 45 } : {}),
+        }));
+    mockService("menu", {
+        getMenuAsTree: () => EMPTY_TREE,
+        selectMenu: async () => {},
+    });
+
+    const thirteen = make(13);
+    await mountWithCleanup(HomeMenu, {
+        props: {
+            apps: thirteen,
+            reorderApps: (/** @type {string[]} */ o) => reorderApps(thirteen, o),
+        },
+    });
+    expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual(
+        ["HUMAN RESOURCES", "OTHER"],
+        { message: "the unclassified bucket sorts last, not at sequence 0" },
+    );
 });
 
 test("a grid that fits on a screen is the overview, and takes no headings", async () => {

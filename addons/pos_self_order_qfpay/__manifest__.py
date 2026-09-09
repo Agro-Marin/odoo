@@ -1,6 +1,6 @@
 {
     "name": "POS Self Order QFPay",
-    "category": "Sales/Point Of Sale",
+    "category": "Sales/Point of Sale",
     "summary": "Addon for the Self Order App that allows customers to pay by QFPay.",
     "author": "Odoo S.A.",
     "license": "LGPL-3",

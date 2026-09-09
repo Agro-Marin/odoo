@@ -1,6 +1,6 @@
 {
     "name": "IoT Worldline Terminal",
-    "category": "Administration/IoT",
+    "category": "Supply Chain/IoT",
     "summary": "Drive a Worldline payment terminal from an IoT Box",
     "description": """
 Adds the IoT Box driver for Worldline payment terminals over the vendor CTEP

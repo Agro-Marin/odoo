@@ -1,7 +1,7 @@
 {
     "name": "Cloud Storage Google",
     "version": "1.0",
-    "category": "Technical Settings",
+    "category": "Hidden/Tools",
     "summary": "Store chatter attachments in the Google cloud",
     "author": "Odoo S.A.",
     "license": "LGPL-3",

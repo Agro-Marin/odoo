@@ -1,7 +1,7 @@
 {
     "name": "POS Self Order Pine Labs",
     "version": "1.0",
-    "category": "Sales/Point Of Sale",
+    "category": "Sales/Point of Sale",
     "summary": "An addon for the Self Order App (KIOSK) that allows customers to pay using the Pine Labs POS Terminal.",
     "author": "Odoo IN Pvt Ltd",
     "license": "LGPL-3",

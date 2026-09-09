@@ -79,6 +79,7 @@ class IrUiMenu(models.Model):
                     "webIcon": web_icon,
                     "webKeywords": menu.get("web_keywords"),
                     "webCategory": menu.get("web_category"),
+                    "webCategorySequence": menu.get("web_category_sequence") or 0,
                     "webIconData": web_icon_data,
                     "webIconDataMimetype": menu["web_icon_data_mimetype"],
                 }

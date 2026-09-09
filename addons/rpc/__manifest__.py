@@ -1,6 +1,6 @@
 {
     "name": "RPC endpoints",
-    "category": "Extra Tools",
+    "category": "Hidden/Tools",
     "description": """Standard Odoo RPC endpoints to models
 =====================================
 

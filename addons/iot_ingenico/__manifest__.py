@@ -1,6 +1,6 @@
 {
     "name": "IoT Ingenico Terminal",
-    "category": "Administration/IoT",
+    "category": "Supply Chain/IoT",
     "summary": "Drive an Ingenico payment terminal from an IoT Box",
     "description": """
 Adds the IoT Box driver for Ingenico payment terminals, which speak a socket

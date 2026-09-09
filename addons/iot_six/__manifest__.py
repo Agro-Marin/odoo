@@ -1,6 +1,6 @@
 {
     "name": "IoT Six Terminal",
-    "category": "Administration/IoT",
+    "category": "Supply Chain/IoT",
     "summary": "Drive a Six payment terminal from an IoT Box",
     "description": """
 Adds the IoT Box driver for Six payment terminals over the vendor TIM library,

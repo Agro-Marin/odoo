@@ -1,7 +1,7 @@
 {
     "name": "Geocoding",
     "version": "3.0",
-    "category": "Technical",
+    "category": "Hidden",
     "description": """
 Geocoding
 =========

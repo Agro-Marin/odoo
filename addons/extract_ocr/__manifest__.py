@@ -1,7 +1,7 @@
 {
     "name": "Document Extraction - Local OCR",
     "version": "19.0.1.0.0",
-    "category": "Technical",
+    "category": "Hidden",
     "summary": "Read a scan locally, with no key and no per-page charge",
     "description": """
 Document Extraction - Local OCR

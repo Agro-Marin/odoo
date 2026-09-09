@@ -1,7 +1,7 @@
 {
     "name": "Document Extraction - Barcodes",
     "version": "19.0.1.0.0",
-    "category": "Technical",
+    "category": "Hidden",
     "summary": "Read barcodes and QR codes off a document's pages",
     "description": """
 Document Extraction - Barcodes

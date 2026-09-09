@@ -1,7 +1,7 @@
 {
     "name": "Encrypted Field Mixin",
     "version": "19.0.1.0.0",
-    "category": "Technical",
+    "category": "Hidden",
     "sequence": 5,
     "summary": "Fernet encryption at rest for any model's fields",
     "description": """

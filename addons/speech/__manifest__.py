@@ -1,7 +1,7 @@
 {
     "name": "Speech",
     "version": "19.0.1.0.0",
-    "category": "Technical",
+    "category": "Hidden",
     "sequence": 10,
     "summary": "Transcription and synthesis for every stored recording",
     "description": """

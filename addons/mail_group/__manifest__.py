@@ -1,5 +1,6 @@
 {
     "name": "Mail Group",
+    "category": "Productivity/Discuss",
     "version": "1.1",
     "summary": "Manage your mailing lists",
     "description": """

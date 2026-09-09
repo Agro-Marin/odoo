@@ -59,6 +59,7 @@ export class HomeMenu extends Component {
                     parents: String,
                     module: { type: String, optional: true },
                     category: { type: String, optional: true },
+                    categorySequence: { type: Number, optional: true },
                     models: { type: Array, element: String, optional: true },
                     keywords: { type: Array, element: String, optional: true },
                     searchTerms: { type: Array, element: String, optional: true },

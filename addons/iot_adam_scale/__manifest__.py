@@ -1,6 +1,6 @@
 {
     "name": "IoT Adam Equipment Scales",
-    "category": "Administration/IoT",
+    "category": "Supply Chain/IoT",
     "summary": "Read an Adam Equipment electronic scale over serial",
     "description": """
 Adds the IoT Box driver for Adam Equipment electronic scales connected over

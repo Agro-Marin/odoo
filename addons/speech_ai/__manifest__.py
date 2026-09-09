@@ -1,7 +1,7 @@
 {
     "name": "Speech - AI Engines",
     "version": "19.0.1.0.0",
-    "category": "Technical",
+    "category": "Hidden",
     "sequence": 10,
     "summary": "Transcription and synthesis engines on the api_ai registry",
     "description": """

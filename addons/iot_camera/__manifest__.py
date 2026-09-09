@@ -1,6 +1,6 @@
 {
     "name": "IoT Camera",
-    "category": "Administration/IoT",
+    "category": "Supply Chain/IoT",
     "summary": "Capture pictures from a camera attached to an IoT Box",
     "description": """
 Adds the IoT Box interface and driver for USB cameras.

@@ -1,7 +1,7 @@
 {
     "name": "API AI",
     "version": "19.0.1.16.0",
-    "category": "Technical",
+    "category": "Hidden",
     "sequence": 10,
     "summary": "AI provider registry, orchestration and vendor clients",
     "description": """
