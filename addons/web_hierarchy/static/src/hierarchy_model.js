@@ -581,6 +581,18 @@ export class HierarchyModel extends Model {
     }
 
     /**
+     * @override
+     * Answers whether the last load found anything. `Model` says yes
+     * unconditionally, which is what keeps a view from ever reaching sample
+     * data.
+     *
+     * @returns {Boolean}
+     */
+    hasData() {
+        return this.resIds.length > 0;
+    }
+
+    /**
      * Get default child field name when no child field name is given to the view
      *
      * @returns {String} default child field name to use
@@ -597,15 +609,6 @@ export class HierarchyModel extends Model {
      */
     get childFieldName() {
         return this.declaredChildFieldName || this.defaultChildFieldName;
-    }
-
-    /**
-     * Get default domain to use, when no domain is given in the config
-     *
-     * @returns {import("@web/core/domain").DomainListRepr} default domain
-     */
-    get defaultDomain() {
-        return [[this.parentFieldName, "=", false]];
     }
 
     /**
@@ -714,19 +717,23 @@ export class HierarchyModel extends Model {
             return;
         }
         const managerData = await this.keepLast.add(this._fetchManager(node));
-        if (managerData) {
-            const parentNode = new HierarchyNode(
-                this,
-                this.config,
-                managerData,
-                node.tree,
-                null,
-                false,
-            );
-            parentNode.createChildNodes();
-            node.setParentNode(parentNode);
-            this.notify({ scrollTarget: "up" });
+        if (!managerData) {
+            this.notification.add(_t("The parent record is no longer available."), {
+                type: "warning",
+            });
+            return;
         }
+        const parentNode = new HierarchyNode(
+            this,
+            this.config,
+            managerData,
+            node.tree,
+            null,
+            false,
+        );
+        parentNode.createChildNodes();
+        node.setParentNode(parentNode);
+        this.notify({ scrollTarget: "up" });
     }
 
     /**
@@ -885,35 +892,29 @@ export class HierarchyModel extends Model {
      */
     async _loadData(config, reload = false) {
         const resIds = reload ? this.resIds : config.resIds;
-        let onlyRoots = false;
-        let domain = config.domain;
         if (resIds?.length > 0) {
-            domain = [["id", "in", resIds]];
-        } else if (this.isSearchDefaultOrEmpty()) {
-            // If the current SearchModel query is the default one
-            // configured for the action or there is no search query, an
-            // additional constraint is added to only display "root"
-            // records (without a parent).
-            onlyRoots = true;
-            domain = !domain.length
-                ? this.defaultDomain
-                : Domain.and([this.defaultDomain, domain]).toList({});
+            return this._formatData(
+                await this._hierarchyRead([["id", "in", resIds]], config, false),
+            );
         }
-        let result = await this._hierarchyRead(domain, config);
-        if (!result.length && onlyRoots) {
-            // No root matched: the records the user is after all have a parent,
-            // so answer with them rather than with an empty view.
-            result = await this._hierarchyRead(config.domain, config);
-        }
-        return this._formatData(result);
+        // If the current SearchModel query is the default one configured for
+        // the action, or there is no search query, only the "root" records
+        // (without a parent) are displayed. `hierarchy_read` falls back to the
+        // domain alone when no root matches it, in the same request: doing that
+        // here cost a second round trip on every load that focuses a record.
+        const onlyRoots = this.isSearchDefaultOrEmpty();
+        return this._formatData(
+            await this._hierarchyRead(config.domain, config, onlyRoots),
+        );
     }
 
     /**
      * @param {import("@web/core/domain").DomainListRepr} domain
      * @param {Object} config model config
+     * @param {Boolean} onlyRoots prefer the records that have no parent
      * @returns {Promise<Object[]>}
      */
-    _hierarchyRead(domain, config) {
+    _hierarchyRead(domain, config, onlyRoots) {
         return this.orm.call(
             this.resModel,
             "hierarchy_read",
@@ -923,6 +924,7 @@ export class HierarchyModel extends Model {
                 this.parentFieldName,
                 this.declaredChildFieldName,
                 orderByToString(config.orderBy),
+                onlyRoots,
             ],
             { context: this.context },
         );
@@ -1009,26 +1011,29 @@ export class HierarchyModel extends Model {
             ],
             [["id", "!=", node.resId]],
         ]);
-        const result = await this.orm.webSearchRead(this.resModel, domain.toList({}), {
-            context: this.context,
-            specification: this._getFieldsSpec(),
-            order: orderByToString(this.config.orderBy),
-        });
-        let managerData = {};
-        if (result?.length) {
-            const children = [];
-            for (const data of result.records) {
-                if (data.id === node.parentResId) {
-                    managerData = data;
-                } else {
-                    children.push(data);
-                }
-            }
-            if (!this.declaredChildFieldName && children.length) {
-                await this._fetchDescendants(children);
-            }
-            managerData[this.childFieldName] = children;
+        const { records = [] } = await this.orm.webSearchRead(
+            this.resModel,
+            domain.toList({}),
+            {
+                context: this.context,
+                specification: this._getFieldsSpec(),
+                order: orderByToString(this.config.orderBy),
+            },
+        );
+        const managerData = records.find((data) => data.id === node.parentResId);
+        if (!managerData) {
+            // The record behind parentResId did not come back: archived, hidden
+            // by a record rule, or deleted since the child was read. The domain
+            // also matches the siblings, so the answer can be non-empty without
+            // holding the parent -- returning an empty object here used to mint
+            // a node with no record behind it, and hang those siblings on it.
+            return null;
         }
+        const children = records.filter((data) => data.id !== node.parentResId);
+        if (!this.declaredChildFieldName && children.length) {
+            await this._fetchDescendants(children);
+        }
+        managerData[this.childFieldName] = children;
         return managerData;
     }
 
@@ -1304,9 +1309,11 @@ export class HierarchyModel extends Model {
             domainsOr.push([[this.parentFieldName, "in", expandedTreeParentResIds]]);
         }
         let domain = Domain.or(domainsOr);
-        const globalDomain = this.globalDomain;
-        if (globalDomain.length) {
-            domain = Domain.and([domain, globalDomain]);
+        // The whole search domain, not just the action's half of it: records the
+        // user has filtered out must not walk back into the view because
+        // something was dropped next to them.
+        if (this.config.domain?.length) {
+            domain = Domain.and([domain, this.config.domain]);
         }
         return domain.toList({});
     }

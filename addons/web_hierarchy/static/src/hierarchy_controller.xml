@@ -13,10 +13,7 @@
     </t>
     <t t-name="web_hierarchy.HierarchyView">
         <div t-attf-class="o_hierarchy_view {{ env.isSmall ? 'o_action_delegate_scroll' : '' }} {{ props.className }}" t-ref="root">
-            <!-- No sample data: the hierarchy uses useModel, not useModelWithSampleData,
-                 and SampleServer has no hierarchy_read. Reading model.useSampleModel here
-                 would be a permanently false test. -->
-            <Layout className="'d-flex'" display="props.display">
+            <Layout className="(model.useSampleModel ? 'o_view_sample_data' : '') + ' d-flex'" display="props.display">
                 <t t-set-slot="control-panel-additional-actions">
                     <CogMenu/>
                 </t>

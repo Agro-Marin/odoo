@@ -7,7 +7,13 @@ class Base(models.AbstractModel):
     @api.model
     @api.readonly
     def hierarchy_read(
-        self, domain, specification, parent_field, child_field=None, order=None
+        self,
+        domain,
+        specification,
+        parent_field,
+        child_field=None,
+        order=None,
+        only_roots=False,
     ):
         """Read the records matching ``domain`` together with what the hierarchy
         view needs to know about their place in the tree.
@@ -20,10 +26,20 @@ class Base(models.AbstractModel):
         A domain matching exactly one record is the "focus on this record" case:
         its parent and its siblings are returned along with it, so that the view
         has a branch to draw rather than a lone card.
+
+        ``only_roots`` restricts the search to the records that have no parent,
+        and falls back to ``domain`` alone when none of them matches. Both
+        searches happen here because the client cannot express the fallback
+        without a second round trip, and it pays that round trip on every
+        "show me this record's hierarchy" link.
         """
         specification = dict(specification)
         specification.setdefault(parent_field, {"fields": {"display_name": {}}})
-        records = self.search(domain, order=order)
+        records = self.search(
+            [(parent_field, "=", False), *domain] if only_roots else domain, order=order
+        )
+        if not records and only_roots:
+            records = self.search(domain, order=order)
         if not records:
             return []
 
@@ -60,13 +76,22 @@ class Base(models.AbstractModel):
         With a parent, that is the parent plus the children of both, so the view
         draws ``record`` among its siblings under its own manager. Without one,
         ``record`` is already a root and only its children are missing.
+
+        The parent is searched for rather than read off the field, so that it is
+        subject to the same rules as everything else in the answer. Reading it
+        off the field let an archived parent through while archiving a sibling
+        correctly removed it, and while the view's own "show the parent" button
+        -- which goes through a plain search -- refused to fetch it at all.
         """
-        if record[parent_field]:
-            record += record[parent_field]
-            siblings_domain = [
-                ("id", "not in", record.ids),
-                (parent_field, "in", record.ids),
-            ]
+        if not record[parent_field]:
+            branch_domain = [(parent_field, "=", record.id), ("id", "!=", record.id)]
         else:
-            siblings_domain = [(parent_field, "=", record.id), ("id", "!=", record.id)]
-        return record + self.search(siblings_domain, order=order)
+            parent_id = record[parent_field].id
+            branch_domain = [
+                "&",
+                ("id", "!=", record.id),
+                "|",
+                ("id", "=", parent_id),
+                (parent_field, "in", [parent_id, record.id]),
+            ]
+        return record + self.search(branch_domain, order=order)

@@ -250,3 +250,76 @@ class TestWebHierarchyView(TransactionCase):
             order="name asc",
         )
         self.assertEqual([r["id"] for r in result], [alpha.id, beta.id])
+
+    # ── only_roots ──────────────────────────────────────────────────────
+
+    def test_only_roots_restricts_to_parentless_records(self):
+        """only_roots keeps the records that have no parent."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        child = Partner.create({"name": "Child", "parent_id": parent.id})
+        result = Partner.hierarchy_read(
+            [("id", "in", [parent.id, child.id])],
+            {"name": {}},
+            "parent_id",
+            only_roots=True,
+        )
+        self.assertEqual([r["id"] for r in result], [parent.id, child.id])
+        self.assertEqual(result[0]["parent_id"], False)
+
+    def test_only_roots_falls_back_within_one_request(self):
+        """When no root matches, the domain alone answers -- here, not in a second call."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        child = Partner.create({"name": "Child", "parent_id": parent.id})
+        with_roots = Partner.hierarchy_read(
+            [("id", "=", child.id)], {"name": {}}, "parent_id", only_roots=True
+        )
+        without = Partner.hierarchy_read(
+            [("id", "=", child.id)], {"name": {}}, "parent_id", only_roots=False
+        )
+        self.assertEqual([r["id"] for r in with_roots], [r["id"] for r in without])
+        self.assertIn(parent.id, [r["id"] for r in with_roots])
+
+    def test_only_roots_returns_nothing_when_the_domain_matches_nothing(self):
+        """The fallback answers the domain, not the whole table."""
+        result = self.env["res.partner"].hierarchy_read(
+            [("id", "=", 0)], {"name": {}}, "parent_id", only_roots=True
+        )
+        self.assertEqual(result, [])
+
+    # ── archived records ────────────────────────────────────────────────
+
+    def test_archived_parent_is_left_out_like_any_archived_record(self):
+        """An archived parent obeys active_test, as an archived sibling already did."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        child = Partner.create({"name": "Child", "parent_id": parent.id})
+        sibling = Partner.create({"name": "Sibling", "parent_id": parent.id})
+
+        active = Partner.hierarchy_read(
+            [("id", "=", child.id)], {"name": {}}, "parent_id"
+        )
+        self.assertEqual({r["id"] for r in active}, {parent.id, child.id, sibling.id})
+
+        parent.active = False
+        archived_parent = Partner.hierarchy_read(
+            [("id", "=", child.id)], {"name": {}}, "parent_id"
+        )
+        self.assertNotIn(
+            parent.id,
+            [r["id"] for r in archived_parent],
+            "an archived parent is no more visible here than in any other view",
+        )
+        self.assertEqual({r["id"] for r in archived_parent}, {child.id, sibling.id})
+
+    def test_archived_parent_comes_back_with_active_test_off(self):
+        """The whole payload obeys one switch, so the caller can still ask for it."""
+        Partner = self.env["res.partner"]
+        parent = Partner.create({"name": "Parent"})
+        child = Partner.create({"name": "Child", "parent_id": parent.id})
+        parent.active = False
+        result = Partner.with_context(active_test=False).hierarchy_read(
+            [("id", "=", child.id)], {"name": {}}, "parent_id"
+        )
+        self.assertIn(parent.id, [r["id"] for r in result])

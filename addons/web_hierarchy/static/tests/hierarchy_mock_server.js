@@ -6,7 +6,8 @@ import { onRpc } from "@web/../tests/web_test_helpers";
  * in step: a double that answers a different question tests nothing.
  */
 function hierarchyRead({ model, args, kwargs }) {
-    const [domain, specification, parentFieldName, childFieldName, order] = args;
+    const [domain, specification, parentFieldName, childFieldName, order, onlyRoots] =
+        args;
     const readKwargs = { ...kwargs, order };
     if (!(parentFieldName in specification)) {
         specification[parentFieldName] = { fields: { display_name: {} } };
@@ -15,30 +16,35 @@ function hierarchyRead({ model, args, kwargs }) {
         this.env[model].web_search_read(searchDomain, specification, readKwargs)
             ?.records || [];
 
-    const records = search(domain);
+    let records = search(
+        onlyRoots ? [[parentFieldName, "=", false], ...domain] : domain,
+    );
+    if (!records.length && onlyRoots) {
+        records = search(domain);
+    }
     if (!records.length) {
         return [];
     }
     const isFocusedOnOneRecord = records.length === 1;
     if (isFocusedOnOneRecord) {
         const record = records[0];
-        if (record[parentFieldName]) {
-            records.push(...search([["id", "=", record[parentFieldName].id]]));
-            const knownIds = records.map((rec) => rec.id);
-            records.push(
-                ...search([
-                    ["id", "not in", knownIds],
-                    [parentFieldName, "in", knownIds],
-                ]),
-            );
-        } else {
-            records.push(
-                ...search([
-                    [parentFieldName, "=", record.id],
-                    ["id", "!=", record.id],
-                ]),
-            );
-        }
+        const parentResId = record[parentFieldName] && record[parentFieldName].id;
+        records.push(
+            ...search(
+                parentResId
+                    ? [
+                          "&",
+                          ["id", "!=", record.id],
+                          "|",
+                          ["id", "=", parentResId],
+                          [parentFieldName, "in", [parentResId, record.id]],
+                      ]
+                    : [
+                          [parentFieldName, "=", record.id],
+                          ["id", "!=", record.id],
+                      ],
+            ),
+        );
     }
     if (childFieldName) {
         return records;

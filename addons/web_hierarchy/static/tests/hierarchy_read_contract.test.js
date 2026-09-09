@@ -10,7 +10,8 @@ import "./hierarchy_mock_server.js";
 
 /**
  * What the real `Base.hierarchy_read` answers, captured from a live database
- * (`res.partner`, ids renumbered 1..n, `order="id asc"`). The mock in
+ * (`res.partner`, ids renumbered 1..n, `order="id asc"`, both values of
+ * `only_roots`). The mock in
  * `hierarchy_mock_server.js` stands in for that method in every other suite in
  * this module, so a mock that answers a different question makes those suites
  * agree with nothing. Regenerate by re-running the probe against a scratch db.
@@ -28,6 +29,18 @@ const CONTRACT = [
         runs: [
             {
                 domainIds: [1],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [1],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 1,
@@ -60,6 +73,28 @@ const CONTRACT = [
         runs: [
             {
                 domainIds: [1],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [1],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 1,
@@ -80,6 +115,28 @@ const CONTRACT = [
             },
             {
                 domainIds: [2],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [2],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 2,
@@ -100,6 +157,7 @@ const CONTRACT = [
             },
             {
                 domainIds: [1, 2],
+                onlyRoots: false,
                 expected: [
                     {
                         id: 1,
@@ -114,12 +172,55 @@ const CONTRACT = [
                 ],
             },
             {
+                domainIds: [1, 2],
+                onlyRoots: true,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
                 domainIds: [1, 2, 3],
+                onlyRoots: false,
                 expected: [
                     {
                         id: 1,
                         parent: false,
                         childIds: [2, 3],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [1, 2, 3],
+                onlyRoots: true,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
                     },
                     {
                         id: 2,
@@ -162,6 +263,23 @@ const CONTRACT = [
         runs: [
             {
                 domainIds: [1],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [3],
+                    },
+                ],
+            },
+            {
+                domainIds: [1],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 1,
@@ -177,6 +295,28 @@ const CONTRACT = [
             },
             {
                 domainIds: [2],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 2,
+                        childIds: [4],
+                    },
+                ],
+            },
+            {
+                domainIds: [2],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 2,
@@ -197,6 +337,28 @@ const CONTRACT = [
             },
             {
                 domainIds: [3],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 3,
+                        parent: 2,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 4,
+                        parent: 3,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [3],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 3,
@@ -217,6 +379,23 @@ const CONTRACT = [
             },
             {
                 domainIds: [4],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 4,
+                        parent: 3,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 2,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [4],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 4,
@@ -232,6 +411,7 @@ const CONTRACT = [
             },
             {
                 domainIds: [1, 3],
+                onlyRoots: false,
                 expected: [
                     {
                         id: 1,
@@ -242,6 +422,22 @@ const CONTRACT = [
                         id: 3,
                         parent: 2,
                         childIds: [4],
+                    },
+                ],
+            },
+            {
+                domainIds: [1, 3],
+                onlyRoots: true,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [3],
                     },
                 ],
             },
@@ -274,6 +470,23 @@ const CONTRACT = [
         runs: [
             {
                 domainIds: [1, 2],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [3],
+                    },
+                    {
+                        id: 2,
+                        parent: false,
+                        childIds: [4],
+                    },
+                ],
+            },
+            {
+                domainIds: [1, 2],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 1,
@@ -289,6 +502,23 @@ const CONTRACT = [
             },
             {
                 domainIds: [3],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [3],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 3,
@@ -304,6 +534,7 @@ const CONTRACT = [
             },
             {
                 domainIds: [1, 2, 3, 4],
+                onlyRoots: false,
                 expected: [
                     {
                         id: 1,
@@ -324,6 +555,22 @@ const CONTRACT = [
                         id: 4,
                         parent: 2,
                         childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [1, 2, 3, 4],
+                onlyRoots: true,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [3],
+                    },
+                    {
+                        id: 2,
+                        parent: false,
+                        childIds: [4],
                     },
                 ],
             },
@@ -361,6 +608,38 @@ const CONTRACT = [
         runs: [
             {
                 domainIds: [1],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 4,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 5,
+                        parent: 1,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [1],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 1,
@@ -391,6 +670,38 @@ const CONTRACT = [
             },
             {
                 domainIds: [2],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 4,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 5,
+                        parent: 1,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [2],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 2,
@@ -421,6 +732,7 @@ const CONTRACT = [
             },
             {
                 domainIds: [1, 2, 3],
+                onlyRoots: false,
                 expected: [
                     {
                         id: 1,
@@ -434,6 +746,37 @@ const CONTRACT = [
                     },
                     {
                         id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [1, 2, 3],
+                onlyRoots: true,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 4,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 5,
                         parent: 1,
                         childIds: [],
                     },
@@ -473,6 +816,33 @@ const CONTRACT = [
         runs: [
             {
                 domainIds: [2],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [5],
+                    },
+                    {
+                        id: 4,
+                        parent: 2,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [2],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 2,
@@ -498,6 +868,33 @@ const CONTRACT = [
             },
             {
                 domainIds: [3],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [4],
+                    },
+                    {
+                        id: 5,
+                        parent: 3,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [3],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 3,
@@ -523,6 +920,28 @@ const CONTRACT = [
             },
             {
                 domainIds: [1],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [4],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [5],
+                    },
+                ],
+            },
+            {
+                domainIds: [1],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 1,
@@ -543,6 +962,7 @@ const CONTRACT = [
             },
             {
                 domainIds: [1, 2],
+                onlyRoots: false,
                 expected: [
                     {
                         id: 1,
@@ -553,6 +973,27 @@ const CONTRACT = [
                         id: 2,
                         parent: 1,
                         childIds: [4],
+                    },
+                ],
+            },
+            {
+                domainIds: [1, 2],
+                onlyRoots: true,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [4],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [5],
                     },
                 ],
             },
@@ -595,6 +1036,33 @@ const CONTRACT = [
         runs: [
             {
                 domainIds: [3],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 3,
+                        parent: 2,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 4,
+                        parent: 3,
+                        childIds: [],
+                    },
+                    {
+                        id: 5,
+                        parent: 3,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [3],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 3,
@@ -620,6 +1088,33 @@ const CONTRACT = [
             },
             {
                 domainIds: [2],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 2,
+                        childIds: [4, 5],
+                    },
+                    {
+                        id: 6,
+                        parent: 1,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [2],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 2,
@@ -645,6 +1140,7 @@ const CONTRACT = [
             },
             {
                 domainIds: [1, 4],
+                onlyRoots: false,
                 expected: [
                     {
                         id: 1,
@@ -654,6 +1150,27 @@ const CONTRACT = [
                     {
                         id: 4,
                         parent: 3,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [1, 4],
+                onlyRoots: true,
+                expected: [
+                    {
+                        id: 1,
+                        parent: false,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [3],
+                    },
+                    {
+                        id: 6,
+                        parent: 1,
                         childIds: [],
                     },
                 ],
@@ -682,6 +1199,23 @@ const CONTRACT = [
         runs: [
             {
                 domainIds: [2, 3],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 3,
+                        parent: 1,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [2, 3],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 2,
@@ -724,6 +1258,28 @@ const CONTRACT = [
         runs: [
             {
                 domainIds: [3],
+                onlyRoots: false,
+                expected: [
+                    {
+                        id: 3,
+                        parent: 2,
+                        childIds: [],
+                    },
+                    {
+                        id: 2,
+                        parent: 1,
+                        childIds: [],
+                    },
+                    {
+                        id: 4,
+                        parent: 2,
+                        childIds: [],
+                    },
+                ],
+            },
+            {
+                domainIds: [3],
+                onlyRoots: true,
                 expected: [
                     {
                         id: 3,
@@ -784,11 +1340,12 @@ for (const fixture of CONTRACT) {
                     "parent_id",
                     undefined,
                     "id asc",
+                    run.onlyRoots,
                 ],
                 { context: {} },
             );
             expect(normalize(result)).toEqual(run.expected, {
-                message: `${fixture.name} / domain ids ${JSON.stringify(run.domainIds)}`,
+                message: `${fixture.name} / domain ids ${JSON.stringify(run.domainIds)} / only_roots ${run.onlyRoots}`,
             });
         }
     });

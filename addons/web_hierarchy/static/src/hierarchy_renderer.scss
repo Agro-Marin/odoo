@@ -75,3 +75,12 @@ $o-chart-line-color: #ababb1;
         }
     }
 }
+
+// Sample records are a picture of the view, not something to read or click.
+.o_hierarchy_view .o_view_sample_data {
+    .o_hierarchy_node,
+    .o_hierarchy_parent_node_container,
+    .o_hierarchy_separator {
+        @include o-sample-data-disabled;
+    }
+}

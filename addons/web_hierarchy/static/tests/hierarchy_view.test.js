@@ -1876,3 +1876,177 @@ test("collapses the right branch when the branch is the first node ever minted",
     );
     expect(".o_hierarchy_row").toHaveCount(3);
 });
+
+test("fetching a parent the server will not return adds no phantom card", async () => {
+    // The parent id lives on the child, but the record behind it is not
+    // readable: archived, hidden by a record rule, or deleted between two
+    // requests. Every read then answers without it.
+    onRpc("hierarchy_read", () => [
+        { id: 2, name: "Alice", parent_id: { id: 1, display_name: "Ghost" } },
+    ]);
+    const getModel = captureModel();
+    await mountView({ type: "hierarchy", resModel: "hr.employee" });
+    expect(".o_hierarchy_node").toHaveCount(1);
+    expect(".o_hierarchy_node_container button .fa-chevron-up").toHaveCount(1);
+
+    onRpc("hr.employee", "web_search_read", () => ({ length: 0, records: [] }));
+    await contains(".o_hierarchy_node_container button .fa-chevron-up").click();
+
+    expect(".o_hierarchy_node").toHaveCount(1, {
+        message: "no card is minted for a parent that was never read",
+    });
+    expect(getModel().resIds).toEqual([2]);
+});
+
+test("a parent the server hides while answering with its other children", async () => {
+    // Worse shape: the domain is `id = parent OR parent_id = parent`, so the
+    // siblings match even when the parent itself does not. The children were
+    // then hung on an empty object and rendered as a card with no record.
+    onRpc("hierarchy_read", () => [
+        { id: 2, name: "Alice", parent_id: { id: 1, display_name: "Ghost" } },
+    ]);
+    const getModel = captureModel();
+    await mountView({ type: "hierarchy", resModel: "hr.employee" });
+    expect(".o_hierarchy_node").toHaveCount(1);
+
+    onRpc("hr.employee", "web_search_read", () => ({
+        length: 1,
+        records: [{ id: 3, name: "Bob", parent_id: { id: 1, display_name: "Ghost" } }],
+    }));
+    await contains(".o_hierarchy_node_container button .fa-chevron-up").click();
+
+    expect(getModel().resIds.filter((resId) => resId === undefined)).toEqual([], {
+        message: "no node stands for a record that was never read",
+    });
+    expect(".o_hierarchy_node").toHaveCount(1);
+});
+
+test("a drop does not let filtered-out records back into the view", async () => {
+    // The reload after a drop asks for the new parent's children. That answer
+    // has to obey the same search the view is under, or dropping next to a
+    // record silently reveals the ones the user filtered away.
+    Employee._records = [
+        { id: 1, name: "Root", parent_id: false, child_ids: [2, 3] },
+        { id: 2, name: "Alice", parent_id: 1, child_ids: [] },
+        { id: 3, name: "Bob", parent_id: 1, child_ids: [4] },
+        { id: 4, name: "Hidden", parent_id: 3, child_ids: [] },
+    ];
+    await mountView({
+        type: "hierarchy",
+        resModel: "hr.employee",
+        arch: Employee._views.hierarchy.replace(
+            "<hierarchy>",
+            "<hierarchy draggable='1'>",
+        ),
+        searchViewArch: `
+            <search>
+                <filter name="no_hidden" domain="[['name', '!=', 'Hidden']]"/>
+            </search>
+        `,
+    });
+    await enableFilters(["no_hidden"]);
+    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual([
+        "Root",
+        "Alice\nRoot",
+        "Bob\nRoot",
+    ]);
+
+    await contains(
+        ".o_hierarchy_node_container:has(.o_hierarchy_node_content:contains('Alice')) .o_hierarchy_node",
+    ).dragAndDrop(
+        ".o_hierarchy_node_container:has(.o_hierarchy_node_content:contains('Bob')) .o_hierarchy_node",
+    );
+
+    expect(queryAllTexts(".o_hierarchy_node_content")).not.toInclude("Hidden\nBob", {
+        message: "the filtered-out sibling stays out",
+    });
+    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual([
+        "Root",
+        "Bob\nRoot",
+        "Alice\nBob",
+    ]);
+});
+
+test("focusing a record costs one hierarchy_read, not two", async () => {
+    // `hierarchy_res_id` is the "show me this record's hierarchy" link. The
+    // record it names has a parent, so the root-only search matches nothing and
+    // the answer has to come from the fallback -- which used to be a second
+    // request from the client.
+    Employee._records.push({ id: 5, name: "Lisa", parent_id: 2, child_ids: [] });
+    Employee._records.find((rec) => rec.id === 2).child_ids.push(5);
+    onRpc("hierarchy_read", ({ args }) => {
+        expect.step(`hierarchy_read only_roots=${args[5]}`);
+    });
+    await mountView({
+        type: "hierarchy",
+        resModel: "hr.employee",
+        context: { hierarchy_res_id: 5 },
+    });
+
+    expect.verifySteps(["hierarchy_read only_roots=true"]);
+    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual([
+        "Georges\nAlbert",
+        "Lisa\nGeorges",
+    ]);
+});
+
+test("draws sample records behind the no-content helper", async () => {
+    Employee._records = [];
+    await mountView({
+        type: "hierarchy",
+        resModel: "hr.employee",
+        arch: Employee._views.hierarchy.replace(
+            "<hierarchy>",
+            `<hierarchy sample="1">`,
+        ),
+        noContentHelp: "<p>No one here yet</p>",
+    });
+
+    expect(".o_content").toHaveClass("o_view_sample_data");
+    expect(".o_view_nocontent").toHaveCount(1);
+    // One root and its direct reports: the sample answer imposes that shape,
+    // because the generated parent ids are random and describe cycles.
+    expect(".o_hierarchy_row").toHaveCount(2);
+    expect(".o_hierarchy_node").toHaveCount(5);
+    expect(".o_hierarchy_row:eq(0) .o_hierarchy_node").toHaveCount(1);
+    expect(".o_hierarchy_row:eq(1) .o_hierarchy_node").toHaveCount(4);
+    // Real generated values, and no name drawn twice.
+    const names = queryAllTexts(".o_hierarchy_node_content").map(
+        (t) => t.split("\n")[0],
+    );
+    expect(names.every((name) => name.length > 0)).toBe(true);
+    expect(new Set(names).size).toBe(5);
+});
+
+test("no sample records once the model has any", async () => {
+    await mountView({
+        type: "hierarchy",
+        resModel: "hr.employee",
+        arch: Employee._views.hierarchy.replace(
+            "<hierarchy>",
+            `<hierarchy sample="1">`,
+        ),
+        noContentHelp: "<p>No one here yet</p>",
+    });
+
+    expect(".o_content").not.toHaveClass("o_view_sample_data");
+    expect(".o_view_nocontent").toHaveCount(0);
+    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual([
+        "Albert",
+        "Georges\nAlbert",
+        "Josephine\nAlbert",
+    ]);
+});
+
+test("sample data is off unless the view asks for it", async () => {
+    Employee._records = [];
+    await mountView({
+        type: "hierarchy",
+        resModel: "hr.employee",
+        noContentHelp: "<p>No one here yet</p>",
+    });
+
+    expect(".o_content").not.toHaveClass("o_view_sample_data");
+    expect(".o_view_nocontent").toHaveCount(1);
+    expect(".o_hierarchy_node").toHaveCount(0);
+});

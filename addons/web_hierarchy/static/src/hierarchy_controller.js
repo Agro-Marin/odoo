@@ -2,7 +2,7 @@
 import { Component, useRef } from "@odoo/owl";
 
 import { useBus } from "@web/core/utils/hooks";
-import { useModel } from "@web/model/model";
+import { useModelWithSampleData } from "@web/model/model";
 import {
     addFieldDependencies,
     extractFieldsFromArchInfo,
@@ -45,7 +45,7 @@ export class HierarchyController extends Component {
         }
         addFieldDependencies(activeFields, fields, additionalFields);
         const modelConfig = this.props.state?.modelState?.config || {};
-        this.model = useModel(this.props.Model, {
+        this.model = useModelWithSampleData(this.props.Model, {
             config: modelConfig,
             resModel: this.props.resModel,
             activeFields,
@@ -72,7 +72,8 @@ export class HierarchyController extends Component {
     }
 
     get displayNoContent() {
-        return this.model.resIds.length === 0;
+        // Sample records are drawn behind the helper, not instead of it.
+        return this.model.useSampleModel || !this.model.hasData();
     }
 
     async openRecord(node, newWindow) {

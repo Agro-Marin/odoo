@@ -24,6 +24,7 @@ HIERARCHY_VALID_ATTRIBUTES = {
     "icon",
     "draggable",
     "default_order",
+    "sample",
 }
 
 CARD_TEMPLATE_NAME = "hierarchy-box"

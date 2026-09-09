@@ -4,8 +4,10 @@
     <t t-name="web_hierarchy.HierarchyRenderer">
         <div class="o_hierarchy_renderer o_renderer w-100 d-flex justify-content-center" t-ref="renderer">
             <div class="o_hierarchy_container d-flex flex-column w-100 w-lg-75 h-100 p-2">
-                <t t-foreach="rows" t-as="row" t-key="row_index">
-                    <t t-set="previousRow" t-value="!row_first ? rows[row_index - 1] : null"/>
+                <!-- `rows` walks the whole forest; ask for it once, not once per row. -->
+                <t t-set="allRows" t-value="rows"/>
+                <t t-foreach="allRows" t-as="row" t-key="row_index">
+                    <t t-set="previousRow" t-value="!row_first ? allRows[row_index - 1] : null"/>
                     <t t-if="!row_first">
                         <div t-if="row.parentNode and previousRow.nodes.length > 1"
                             class="o_hierarchy_parent_node_container d-flex justify-content-center"
