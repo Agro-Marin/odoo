@@ -1210,8 +1210,8 @@ Section  Population                                                  Count
 =======  =========================================================  ======
 §2.4.1   Field hooks the declaring model also calls on ``self``         12
 §2.4.1   Field hooks exempt from the dedication test                     0
-§2.4.1   Names wearing a hook prefix with no binding                   150
-§2.4.1   … definitions under those names                               215
+§2.4.1   Names wearing a hook prefix with no binding                   151
+§2.4.1   … definitions under those names                               216
 §2.4.2   Single-field ``@api.onchange`` hooks                          383
 §2.4.2   … spelled ``_onchange_<field>``                               277
 §2.4.2   ``@api.ondelete`` hooks                                       168
@@ -1262,7 +1262,7 @@ Section  Population                                                  Count
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      353
 §2.4.13  Methods on plain classes in model files                       414
 §2.4.13  … such classes                                                166
-§2.4.13  Functions nested inside model methods                         578
+§2.4.13  Functions nested inside model methods                         580
 §2.4.14  Private method names reached from stored Python               114
 §2.4.14  … code blocks reaching them                                   123
 §2.4.14  … shipped data files holding those blocks                      71

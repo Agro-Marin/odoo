@@ -379,7 +379,8 @@
                                         <t
                                             t-call="project.portal_my_tasks_priority_widget_template" />
                                     </div>
-                                    <div t-if="task.date_end"><strong>Deadline:</strong> <span t-field="task.date_end" t-options="{&quot;widget&quot;: &quot;datetime&quot;}" /></div>
+                                    <div t-if="task.planned_date_begin"><strong>Planned Date:</strong> <span t-field="task.planned_date_begin" t-options="{&quot;widget&quot;: &quot;datetime&quot;}" /><i class="fa-solid fa-right-long" /><span t-field="task.date_end" t-options="{&quot;widget&quot;: &quot;datetime&quot;}" /></div>
+                                    <div t-elif="task.date_end"><strong>Deadline:</strong> <span t-field="task.date_end" t-options="{&quot;widget&quot;: &quot;datetime&quot;}" /></div>
                                     <div name="portal_my_task_planned_hours">
                                         <strong t-if="task.planned_hours &gt; 0">Planned Time:</strong>
                                         <t

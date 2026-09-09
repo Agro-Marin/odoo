@@ -4,6 +4,10 @@
     <template id="project_sharing_portal" name="Project Sharing View Embed">
         <t t-call="web.layout">
             <t t-set="head_project_sharing">
+                <meta
+                    name="viewport"
+                    content="width=device-width, initial-scale=1, user-scalable=no" />
+                <meta name="theme-color" content="#875A7B" />
                 <script type="text/javascript">
                     odoo.__session_info__ = <t t-out="json.dumps(session_info)" />;
                     // Prevent the menu_service to load anything. In an ideal world, Project Sharing assets would only contain

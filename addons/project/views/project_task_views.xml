@@ -23,6 +23,11 @@
                     operator="child_of"
                     invisible="context.get('template_project')" />
                 <filter
+                    name="conflict_task"
+                    string="Tasks in Conflict"
+                    context="{'highlight_conflicting_task': 1}"
+                    invisible="1" />
+                <filter
                     string="Unassigned"
                     name="unassigned"
                     domain="[('user_ids', '=', False)]" />
@@ -579,7 +584,41 @@
                         string="Personal Stage" />
                 </header>
                 <!-- Used in inherited views to display the eventual warnings -->
-                <t name="warning_section" />
+                <t name="warning_section">
+                    <div
+                        role="alert"
+                        class="alert alert-warning d-flex flex-wrap gap-3"
+                        invisible="not planning_overlap">
+                        <div class="d-flex align-items-center">
+                            <i
+                                class="fa-solid fa-random me-2"
+                                role="img"
+                                title="Planning overlap" />
+                            <field
+                                name="planning_overlap"
+                                widget="html"
+                                nolabel="1"
+                                class="m-0" />
+                        </div>
+                        <a
+                            name="action_view_overlapping_tasks"
+                            type="object"
+                            class="alert-link ms-auto"
+                            invisible="not planning_overlap">
+                            Check it out <i class="oi oi-chevron-right ms-2" />
+                        </a>
+                    </div>
+                    <div
+                        role="alert"
+                        class="alert alert-warning d-flex align-items-center"
+                        invisible="not dependency_warning">
+                        <i
+                            class="fa-solid fa-exclamation-circle me-2"
+                            role="img"
+                            title="Dependency warning" />
+                        <field name="dependency_warning" widget="html" class="m-0" />
+                    </div>
+                </t>
                 <field name="is_overallocated" invisible="1" />
                 <div
                     class="alert alert-warning d-flex align-items-center"
@@ -770,13 +809,20 @@
                             name="lost_reason_id"
                             options="{'no_create': True}"
                             invisible="state != 'canceled'" />
-                        <label for="date_end" />
+                        <label for="date_end" invisible="planned_date_begin" />
+                        <label
+                            for="date_end"
+                            string="Planned Date"
+                            invisible="not planned_date_begin" />
                         <div
                             id="date_deadline_and_recurring_task"
                             class="d-inline-flex w-100">
+                            <field name="planned_date_begin" invisible="1" />
                             <field
                                 name="date_end"
                                 nolabel="1"
+                                widget="daterange"
+                                options="{'start_date_field': 'planned_date_begin'}"
                                 decoration-danger="date_end and date_end &lt; current_date and state not in ['done', 'canceled']" />
                             <field
                                 name="recurring_task"
@@ -901,8 +947,13 @@
                                     name="date_end"
                                     string="Planned Date"
                                     optional="show"
+                                    widget="daterange"
+                                    options="{'start_date_field': 'planned_date_begin'}"
                                     readonly="state in ['done', 'canceled']"
                                     decoration-danger="date_end and date_end &lt; current_date and state not in ['done', 'canceled']" />
+                                <field
+                                    name="planned_date_begin"
+                                    column_invisible="True" />
                                 <field
                                     name="priority"
                                     widget="priority"
@@ -1015,7 +1066,12 @@
                                     name="date_end"
                                     invisible="state in ['done', 'canceled']"
                                     optional="hide"
+                                    widget="daterange"
+                                    options="{'start_date_field': 'planned_date_begin'}"
                                     decoration-danger="date_end and date_end &lt; current_date" />
+                                <field
+                                    name="planned_date_begin"
+                                    column_invisible="True" />
                                 <field
                                     name="priority"
                                     widget="priority"
@@ -1290,9 +1346,25 @@
                                 options="{'color_field': 'color'}" />
                             <field
                                 t-if="record.date_end.raw_value"
-                                invisible="state in ['done', 'canceled']"
+                                invisible="planned_date_begin or not date_end or state in ['done', 'canceled']"
                                 name="date_end"
                                 widget="remaining_days" />
+                            <t
+                                t-set="cls"
+                                t-value="(luxon.DateTime.fromISO(record.date_end.raw_value) &lt; luxon.DateTime.local() and !['done', 'canceled'].includes(record.state.raw_value)) ? 'text-danger' : ''" />
+                            <div
+                                invisible="not planned_date_begin"
+                                t-attf-class="d-flex align-items-center #{cls}">
+                                <field
+                                    name="planned_date_begin"
+                                    widget="daterange"
+                                    options="{'end_date_field': 'date_end'}"
+                                    class="w-100" />
+                            </div>
+                            <field
+                                name="planning_overlap"
+                                class="text-danger o_planning_overlap"
+                                invisible="not context.get('is_form_gantt', False)" />
                             <field name="task_properties" widget="properties" />
                             <field
                                 name="displayed_image_id"
@@ -1433,8 +1505,11 @@
                 <field
                     name="date_end"
                     optional="hide"
-                    widget="remaining_days"
-                    invisible="state in ['done', 'canceled']" />
+                    widget="daterange"
+                    options="{'start_date_field': 'planned_date_begin'}"
+                    decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']"
+                    invisible="not project_id" />
+                <field name="planned_date_begin" column_invisible="True" />
                 <field name="priority" widget="priority" optional="show" width="70px" />
                 <field
                     name="tag_ids"
@@ -1547,7 +1622,8 @@
         <field name="priority" eval="2" />
         <field name="arch" type="xml">
             <calendar
-                date_start="date_end"
+                date_start="planned_date_start"
+                date_stop="date_end"
                 string="Tasks"
                 mode="month"
                 color="step_color"

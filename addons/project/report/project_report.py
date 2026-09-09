@@ -117,6 +117,7 @@ class ReportProjectTaskUser(models.Model):
         domain="[('allow_dependencies', '=', True), ('id', '!=', id)]",
     )
     description = fields.Text(readonly=True)
+    planned_date_begin = fields.Datetime("Start date", readonly=True)
     is_template = fields.Boolean(readonly=True)
     has_template_ancestor = fields.Boolean(readonly=True)
 
@@ -130,6 +131,7 @@ class ReportProjectTaskUser(models.Model):
                 t.date_closed,
                 t.date_last_status_change,
                 t.date_end,
+                t.planned_date_begin,
                 t.display_in_project,
                 t.project_id,
                 t.priority,
@@ -162,6 +164,7 @@ class ReportProjectTaskUser(models.Model):
                 t.date_closed,
                 t.date_last_status_change,
                 t.date_end,
+                t.planned_date_begin,
                 t.project_id,
                 t.priority,
                 t.name,

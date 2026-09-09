@@ -8,6 +8,10 @@ export function patchCommonRenderer(CommonRenderer) {
             const classesToAdd = super.eventClassNames(info);
             const { event } = info;
             const record = this.props.model.records[event.id];
+            const highlightIds = this.props.model.highlightIds;
+            if (record && highlightIds?.length && !highlightIds.includes(record.id)) {
+                classesToAdd.push("opacity-25");
+            }
             if (record) {
                 const { state, is_closed } = record.rawRecord;
                 const isTaskClosed =

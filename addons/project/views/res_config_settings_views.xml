@@ -35,6 +35,7 @@
                     <block title="Time Management" name="project_time">
                         <setting
                             id="log_time_tasks_setting"
+                            string="Timesheets"
                             help="Track time spent on projects and tasks">
                             <field name="module_hr_timesheet" />
                         </setting>

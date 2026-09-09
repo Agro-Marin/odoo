@@ -426,7 +426,7 @@ SearchBar.setup  enterprise  :keep
 SearchBarMenu.setup  enterprise  :triage
 SearchModel._getCategoryDomain  odoo  :promote
 SearchModel._getContext  enterprise  :promote
-SearchModel._getDomain  odoo enterprise  :promote
+SearchModel._getDomain  odoo  :promote
 SearchModel._getFieldDomain  enterprise  :promote
 SearchModel._importState  odoo enterprise  :promote
 SearchModel._notify  odoo  :promote

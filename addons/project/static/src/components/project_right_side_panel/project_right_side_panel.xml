@@ -6,6 +6,7 @@
             <ProjectRightSidePanelSection
                 name="'stat_buttons'"
                 header="false"
+                canBeClosed="false"
                 show="!!state.data.buttons"
             >
                 <div class="o_form_view">

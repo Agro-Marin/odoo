@@ -137,6 +137,8 @@ export class ProjectTask extends models.Model {
     predecessor_ids = fields.Many2many({ relation: "project.task" });
     closed_predecessor_count = fields.Integer();
     is_closed = fields.Boolean();
+    planned_date_start = fields.Date({ string: "Date Start" });
+    planning_overlap = fields.Html();
     is_template = fields.Boolean({ string: "Is Template", default: false });
     triage_id = fields.Many2one({ relation: "project.triage" });
 

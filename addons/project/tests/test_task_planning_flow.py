@@ -1,0 +1,748 @@
+from datetime import datetime
+
+from dateutil.relativedelta import relativedelta
+from freezegun import freeze_time
+from markupsafe import Markup
+
+from odoo import Command, fields
+from odoo.tests import Form, TransactionCase
+
+from odoo.addons.mail.tests.common import mail_new_test_user
+
+
+class TestTaskPlanningFlow(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env.company.resource_calendar_id.tz = "Europe/Brussels"
+        cls.project_user = mail_new_test_user(
+            cls.env,
+            login="Armande",
+            name="Armande Project_user",
+            email="armande.project_user@example.com",
+            notification_type="inbox",
+            groups="project.group_project_user",
+        )
+
+        cls.project_test_user = mail_new_test_user(
+            cls.env,
+            login="Armando",
+            name="Armando Project_user",
+            email="armando.project_user@example.com",
+            notification_type="inbox",
+            groups="project.group_project_user",
+        )
+
+        cls.project_test = cls.env["project.project"].create(
+            {
+                "name": "Project Test",
+            }
+        )
+
+        cls.portal_user = mail_new_test_user(
+            cls.env,
+            login="portal_project",
+            name="Portal_user",
+            email="portal_project_user@example.com",
+            notification_type="email",
+            groups="base.group_portal",
+        )
+
+    def create_tasks(self, nb=40):
+        now = datetime.combine(datetime.now(), datetime.min.time())
+        hour_start = [6, 11]
+        hour_end = [10, 15]
+        users = [
+            self.project_test_user,
+            self.project_user,
+            self.project_user | self.project_test_user,
+        ]
+
+        self.env["project.task"].with_context(tracking_disable=True).create(
+            [
+                {
+                    "name": "Fsm task " + str(i),
+                    "user_ids": users[i % 3],
+                    "project_id": self.project_test.id,
+                    "planned_date_begin": now
+                    + relativedelta(days=i / 2, hour=hour_start[i % 2]),
+                    "date_end": now + relativedelta(days=i / 2, hour=hour_end[i % 2]),
+                }
+                for i in range(nb)
+            ]
+        )
+
+    @freeze_time("2023-01-02")
+    def test_default_allocated_hours_when_creating_tasks(self):
+        # Add allocated_hours to the task form view so that we can read its value
+        form_view = self.env["ir.ui.view"].create(
+            {
+                "name": "Test Form",
+                "model": "project.task",
+                "type": "form",
+                "inherit_id": self.env.ref("project.view_task_form2").id,
+                "arch": """
+                <form position="inside">
+                    <field name="allocated_hours"/>
+                </form>
+            """,
+            }
+        )
+
+        data = [
+            {
+                "scales": ["day", "week"],
+                "dates": (datetime(2023, 1, 2), datetime(2023, 1, 2, 23, 59, 59)),
+                "expected_dates": (
+                    datetime(2023, 1, 2),
+                    datetime(2023, 1, 2, 23, 59, 59),
+                ),
+                "expected_allocated_hours": 8.0,
+                "dates_message": """
+                    For day and week scale, planned_date_begin and date_end should be the same as the ones selected by the user,
+                    they should not be modified according to the user calendar.
+                """,
+                "allocated_hours_message": "scheduled_hours is the intersection between the selected dates and the user calendar; allocated_hours is the reservation-derived commitment and is not date-derived in this fork.",
+                "second_date_deadline": datetime(2023, 1, 2, 13, 0, 0),
+                "second_expected_allocated_hours": 5.0,
+            },
+            {
+                "scales": ["month", "year"],
+                "dates": (datetime(2023, 1, 2), datetime(2023, 1, 6, 23, 59, 59)),
+                "expected_dates": (
+                    datetime(2023, 1, 2, 7, 0),
+                    datetime(2023, 1, 6, 16, 0, 0),
+                ),
+                "expected_allocated_hours": 40.0,
+                "dates_message": "For month and year scale, planned_date_begin and date_end should be modified according to the user calendar.",
+                "allocated_hours_message": "allocated_hours should be computed according to the modified dates.",
+                "second_date_deadline": datetime(2023, 1, 5, 22, 0, 0),
+                "second_expected_allocated_hours": 32.0,
+            },
+        ]
+
+        for datum in data:
+            for scale in datum["scales"]:
+                with Form(
+                    self.env["project.task"].with_context(
+                        {
+                            "default_planned_date_begin": datum["dates"][0],
+                            "default_date_end": datum["dates"][1],
+                            "scale": scale,
+                        }
+                    ),
+                    form_view,
+                ) as task:
+                    task.name = "Test"
+                    task.user_ids = self.project_user
+                    task.project_id = self.project_test
+                    self.assertEqual(
+                        task.scheduled_hours,
+                        datum["expected_allocated_hours"],
+                        datum["allocated_hours_message"],
+                    )
+                    self.assertEqual(
+                        (task.planned_date_begin, task.date_end),
+                        datum["expected_dates"],
+                        datum["dates_message"],
+                    )
+                    task.date_end = datum["second_date_deadline"]
+                    self.assertEqual(
+                        task.scheduled_hours,
+                        datum["second_expected_allocated_hours"],
+                        "Scheduled hours should be recomputed when the planned dates are modified",
+                    )
+                    task.planned_date_begin = False
+                    self.assertEqual(
+                        task.allocated_hours,
+                        0.0,
+                        "Allocated hours should be 0 as there is no planned_date_begin",
+                    )
+
+    def test_planning_overlap(self):
+        task_A = self.env["project.task"].create(
+            {
+                "name": "Fsm task 1",
+                "user_ids": self.project_user,
+                "project_id": self.project_test.id,
+                "planned_date_begin": datetime.now(),
+                "date_end": datetime.now() + relativedelta(hours=4),
+                "allocated_hours": 4,
+            }
+        )
+        task_B = self.env["project.task"].create(
+            {
+                "name": "Fsm task 2",
+                "user_ids": self.project_user,
+                "project_id": self.project_test.id,
+                "planned_date_begin": datetime.now() + relativedelta(hours=2),
+                "date_end": datetime.now() + relativedelta(hours=6),
+                "allocated_hours": 4,
+            }
+        )
+        # Never read; it is the third overlapping task, and it is what makes
+        # task_B's count 2 rather than 1.
+        self.env["project.task"].create(
+            {
+                "name": "Fsm task 2",
+                "user_ids": self.project_user,
+                "project_id": self.project_test.id,
+                "planned_date_begin": datetime.now() + relativedelta(hours=5),
+                "date_end": datetime.now() + relativedelta(hours=7),
+                "allocated_hours": 2,
+            }
+        )
+        task_D = self.env["project.task"].create(
+            {
+                "name": "Fsm task 2",
+                "user_ids": self.project_user,
+                "project_id": self.project_test.id,
+                "planned_date_begin": datetime.now() + relativedelta(hours=8),
+                "date_end": datetime.now() + relativedelta(hours=9),
+                "allocated_hours": 1,
+            }
+        )
+        self.assertEqual(
+            task_A.planning_overlap,
+            Markup("<p>Armande Project_user has 1 tasks at the same time.</p>"),
+        )
+        self.assertEqual(
+            task_B.planning_overlap,
+            Markup("<p>Armande Project_user has 2 tasks at the same time.</p>"),
+        )
+        self.assertFalse(
+            task_D.planning_overlap, "No task should be overlapping with task_D"
+        )
+
+    def test_planned_date_consistency_for_tasks(self):
+        """This test ensures that a task can not have date start set, if its date end is False"""
+        task_1 = self.env["project.task"].create(
+            [
+                {
+                    "name": "Task 1",
+                    "user_ids": self.project_user,
+                    "project_id": self.project_test.id,
+                    "planned_date_begin": "2021-09-27 06:00:00",
+                    "date_end": "2021-09-28 15:00:00",
+                }
+            ]
+        )
+
+        task_1.planned_date_begin = False
+        self.assertFalse(
+            task_1.planned_date_begin, "the planned date begin should be set to False"
+        )
+        self.assertEqual("2021-09-28", task_1.date_end.strftime("%Y-%m-%d"))
+
+        task_1.write({"planned_date_begin": "2021-09-27 06:00:00"})
+        self.assertEqual(
+            "2021-09-27",
+            task_1.planned_date_begin.strftime("%Y-%m-%d"),
+            "the planned date begin should be set to the new date",
+        )
+        self.assertEqual(
+            "2021-09-28",
+            task_1.date_end.strftime("%Y-%m-%d"),
+            "the planned date end should be set",
+        )
+
+        task_1.date_end = False
+        self.assertFalse(
+            task_1.planned_date_begin, "the planned date begin should be set to False"
+        )
+        self.assertFalse(task_1.date_end, "the planned date end should be set to False")
+
+        task_1.write({"date_end": "2021-09-27 06:00:00"})
+        self.assertFalse(
+            task_1.planned_date_begin, "the planned date begin should not be updated"
+        )
+        self.assertEqual("2021-09-27", task_1.date_end.strftime("%Y-%m-%d"))
+
+    def test_editing_task_planned_date(self):
+        """Check writing dates to a task:
+        - when writing to a single task, write dates as given
+        - when writing to multiple tasks, write dates as given if any task already had dates
+        - otherwise, modify dates according to assignee's or company's schedule
+        """
+
+        def get_hours(task):
+            return task.planned_date_begin.hour, task.date_end.hour
+
+        self.env.company.resource_calendar_id.tz = "UTC"
+        self.project_user.resource_calendar_id = self.env.company.resource_calendar_id
+        self.project_test_user.resource_calendar_id = self.env[
+            "resource.calendar"
+        ].create(
+            {
+                "tz": "UTC",
+                "attendance_ids": [
+                    Command.create(
+                        {
+                            "name": day,
+                            "dayofweek": day,
+                            "day_period": "afternoon",
+                            "hour_from": 12,
+                            "hour_to": 19,
+                        }
+                    )
+                    for day in "12345"
+                ],
+            }
+        )
+
+        tasks = task_A, task_B, task_C = self.env["project.task"].create(
+            [
+                {
+                    "name": "Task A - Armande",
+                    "user_ids": self.project_user.ids,
+                    "project_id": self.project_test.id,
+                },
+                {
+                    "name": "Task B - Armando",
+                    "user_ids": self.project_test_user.ids,
+                    "project_id": self.project_test.id,
+                },
+                {
+                    "name": "Task C - Planned",
+                    "user_ids": (self.project_user + self.project_test_user).ids,
+                    "project_id": self.project_test.id,
+                    # Wednesday 05:00:00 -> 10:00:00
+                    "planned_date_begin": "2024-08-27 05:00:00",
+                    "date_end": "2024-08-27 10:00:00",
+                },
+            ]
+        )
+
+        self.assertEqual(
+            get_hours(task_C),
+            (5, 10),
+            "Create shouldn't overwrite hours",
+        )
+
+        (task_A + task_C).write(
+            {
+                # Monday 00:00:00 -> 23:59:59 CET
+                "planned_date_begin": "2024-08-26 00:00:00",
+                "date_end": "2024-08-26 23:59:59",
+            }
+        )
+        self.assertListEqual(
+            [get_hours(task_A), get_hours(task_C)],
+            [(0, 23), (0, 23)],
+            "Write shouldn't modify hours when batch processes includes task with dates",
+        )
+
+        task_B.write(
+            {
+                # Tuesday 16:00:00 -> 21:00:00 CET
+                "planned_date_begin": "2024-08-27 16:00:00",
+                "date_end": "2024-08-27 21:00:00",
+            }
+        )
+        self.assertEqual(
+            get_hours(task_B), (16, 21), "Hand-picked hours shouldn't change"
+        )
+
+        tasks.date_end = False
+        self.assertFalse(
+            any(task.planned_date_begin for task in tasks),
+            "Removing deadline should also remove planned_date_begin",
+        )
+
+        tasks.write(
+            {
+                # Tuesday 16:00:00 -> 22:00:00 CET
+                "planned_date_begin": "2024-08-27 16:00:00",
+                "date_end": "2024-08-27 22:00:00",
+            }
+        )
+        self.assertListEqual(
+            [get_hours(task) for task in tasks],
+            # Per the docstring above, each task follows its OWN assignee's
+            # schedule: task A's single assignee is on the company calendar
+            # (ending 17:00 UTC), task B's is on the 12:00-19:00 calendar built
+            # for this test, and task C has two assignees, which
+            # `_get_tasks_by_resource_calendar_dict` sends to the company
+            # calendar. This used to read [(16, 19)] * 3 -- one calendar's
+            # result on every task -- because write() computed the per-calendar
+            # grouping and then wrote a single shared `vals`, so whichever
+            # calendar came last in iteration order overwrote the rest.
+            [(16, 17), (16, 19), (16, 17)],
+            "Batched tasks should be planned using each assignee's schedule",
+        )
+
+        tasks.write(
+            {
+                "date_end": False,
+                "user_ids": self.project_user.ids,
+            }
+        )
+        (task_B + task_C).write(
+            {
+                "planned_date_begin": "2024-03-24 06:00:00",
+                "date_end": "2024-03-30 15:00:00",
+            }
+        )
+        self.assertEqual(
+            "2024-03-25",
+            task_B.planned_date_begin.strftime("%Y-%m-%d"),
+            "the planned date begin should be the first working day found according to the resource calendar of the user assigned and the start datetime selected by the user",
+        )
+        self.assertEqual(
+            "2024-03-29",
+            task_B.date_end.strftime("%Y-%m-%d"),
+            "the planned date end should be the last working day found according to the resource calendar of the user assigned and the end datetime selected by the user",
+        )
+        self.assertEqual(
+            "2024-03-25",
+            task_C.planned_date_begin.strftime("%Y-%m-%d"),
+            "the planned date begin should be the first working day found according to the resource calendar of the user assigned and the start datetime selected by the user",
+        )
+        self.assertEqual(
+            "2024-03-29",
+            task_C.date_end.strftime("%Y-%m-%d"),
+            "the planned date end should be the last working day found according to the resource calendar of the user assigned and the end datetime selected by the user",
+        )
+
+        tasks.write(
+            {
+                "planned_date_begin": "2024-03-24 06:00:00",
+                "date_end": "2024-03-30 15:00:00",
+            }
+        )
+        self.assertEqual(
+            "2024-03-24",
+            task_A.planned_date_begin.strftime("%Y-%m-%d"),
+            "the planned date begin should be the one selected by the user",
+        )
+        self.assertEqual(
+            "2024-03-30",
+            task_A.date_end.strftime("%Y-%m-%d"),
+            "the planned date end should be the one selected by the user",
+        )
+        self.assertEqual(
+            "2024-03-24",
+            task_B.planned_date_begin.strftime("%Y-%m-%d"),
+            "the planned date begin should be the one selected by the user",
+        )
+        self.assertEqual(
+            "2024-03-30",
+            task_B.date_end.strftime("%Y-%m-%d"),
+            "the planned date end should be the one selected by the user",
+        )
+        self.assertEqual(
+            "2024-03-24",
+            task_C.planned_date_begin.strftime("%Y-%m-%d"),
+            "the planned date begin should be the one selected by the user",
+        )
+        self.assertEqual(
+            "2024-03-30",
+            task_C.date_end.strftime("%Y-%m-%d"),
+            "the planned date end should be the one selected by the user",
+        )
+
+    @freeze_time("2023-01-02")
+    def test_cancelling_future_task_reset_planned_date(self):
+        task = self.env["project.task"].create(
+            {
+                "name": "Task",
+                "project_id": self.project_test.id,
+            }
+        )
+        # 1) Cancel a task which has no begin date or deadline
+        task.state = "canceled"
+        self.assertFalse(task.planned_date_begin, "The begin date should remain unset")
+        self.assertFalse(task.date_end, "The deadline should remain unset")
+
+        # 2) Cancel a task which has only a deadline
+        task.date_end = datetime.now() + relativedelta(hours=4)
+        task.state = "canceled"
+        self.assertFalse(task.planned_date_begin, "The begin date should remain unset")
+        self.assertEqual(
+            task.date_end,
+            datetime.now() + relativedelta(hours=4),
+            "The deadline should not have changed",
+        )
+
+        # 3) Cancel a task which has both a begin date and a deadline, the begin date being prior than today's date (this is not a future task)
+        task.planned_date_begin = datetime.now() - relativedelta(hours=1)
+        task.state = "canceled"
+        self.assertEqual(
+            task.planned_date_begin,
+            datetime.now() - relativedelta(hours=1),
+            "The begin date should not have changed as this is not a future task",
+        )
+        self.assertEqual(
+            task.date_end,
+            datetime.now() + relativedelta(hours=4),
+            "The deadline should not have changed as this is not a future task",
+        )
+
+        # 4) Cancel a task which has both a begin date and a deadline, the begin date being later than today's date (this is future task)
+        task.planned_date_begin = datetime.now() + relativedelta(hours=1)
+        task.state = "canceled"
+        self.assertFalse(
+            task.planned_date_begin,
+            "The begin date should be reset as this is a future task",
+        )
+        self.assertFalse(
+            task.date_end, "The deadline should be reset as this is a future task"
+        )
+
+    def test_duplicate_doesnt_copy_planned_date_begin(self):
+        project = self.env["project.project"].create(
+            {
+                "name": "Project",
+            }
+        )
+        task = self.env["project.task"].create(
+            {
+                "name": "Task",
+                "project_id": project.id,
+                "planned_date_begin": "2021-09-23",
+            }
+        )
+        self.assertFalse(
+            project.copy().task_ids.planned_date_begin,
+            "The task's date fields shouldn't be copied on project duplication",
+        )
+        self.assertFalse(
+            task.copy().planned_date_begin,
+            "The task's date fields shouldn't be copied on task duplication",
+        )
+
+    def test_plan_task_in_calendar(self):
+        self.project_test_user.resource_calendar_id = self.env[
+            "resource.calendar"
+        ].create(
+            {
+                "name": "Test Calendar : 36 Hours/Week",
+                "company_id": self.env.company.id,
+                "tz": "Europe/Brussels",
+                "hours_per_week": 36.0,
+                "full_time_required_hours": 36.0,
+                "attendance_ids": [
+                    Command.create(
+                        {
+                            "name": "Attendance",
+                            "dayofweek": dayofweek,
+                            "hour_from": hour_from,
+                            "hour_to": hour_to,
+                            "day_period": day_period,
+                        }
+                    )
+                    for dayofweek, hour_from, hour_to, day_period in [
+                        ("0", 8.0, 12.0, "morning"),
+                        ("0", 12.0, 13.0, "lunch"),
+                        ("0", 13.0, 17, "afternoon"),
+                        ("1", 8.0, 12.0, "morning"),
+                        ("1", 12.0, 13.0, "lunch"),
+                        ("1", 13.0, 17, "afternoon"),
+                        ("2", 8.0, 12.0, "morning"),
+                        ("2", 12.0, 13.0, "lunch"),
+                        ("2", 13.0, 17, "afternoon"),
+                        ("3", 14.0, 18, "afternoon"),
+                        ("4", 8.0, 12.0, "morning"),
+                        ("4", 12.0, 13.0, "lunch"),
+                        ("4", 13.0, 17, "afternoon"),
+                    ]
+                ],
+            }
+        )
+        task1, task2, task3, task4, task5, task6 = (
+            self.env["project.task"]
+            .with_context(tz="Europe/Brussels")
+            .create(
+                [
+                    {"name": "Task 1", "user_ids": self.project_user.ids},
+                    {
+                        "name": "Task 2",
+                        "user_ids": self.project_user.ids,
+                        "allocated_hours": 2,
+                    },
+                    {
+                        "name": "Task 3",
+                        "user_ids": self.project_test_user.ids,
+                        "allocated_hours": 2,
+                    },
+                    {
+                        "name": "Task 4",
+                        "user_ids": (self.project_user + self.project_test_user).ids,
+                        "allocated_hours": 2,
+                    },
+                    {
+                        "name": "Task 5",
+                        "user_ids": self.project_user.ids,
+                        "allocated_hours": 10,
+                    },
+                    {
+                        "name": "Task 6",
+                        "user_ids": (self.project_user + self.project_test_user).ids,
+                        "allocated_hours": 10,
+                    },
+                ]
+            )
+        )
+        vals = {
+            "planned_date_begin": "2021-09-23 11:00:00",
+            "date_end": "2021-09-23 12:00:00",
+        }
+        task1.plan_task_in_calendar(vals)
+        self.assertEqual(
+            fields.Datetime.to_string(task1.planned_date_begin),
+            "2021-09-23 11:00:00",
+            "Should be the start date given in the vals",
+        )
+        self.assertEqual(
+            fields.Datetime.to_string(task1.date_end),
+            "2021-09-23 12:00:00",
+            "Should be the end date given in the vals",
+        )
+
+        task1.write({"planned_date_begin": False, "date_end": False})
+        task1.plan_task_in_calendar({"date_end": "2021-09-23 12:00:00"})
+        self.assertFalse(task1.planned_date_begin)
+        self.assertEqual(
+            fields.Datetime.to_string(task1.date_end),
+            "2021-09-23 12:00:00",
+            "Should be the end date given in the vals",
+        )
+        task1.write(
+            {"planned_date_begin": False, "date_end": False, "allocated_hours": 0}
+        )
+        task1.with_context(task_calendar_plan_full_day=True).plan_task_in_calendar(
+            {
+                "planned_date_begin": "2021-09-23 07:00:00",
+                "date_end": "2021-09-23 19:00:00",
+            }
+        )
+        self.assertEqual(task1.planned_date_begin, datetime(2021, 9, 23, 6, 0, 0))
+        self.assertEqual(task1.date_end, datetime(2021, 9, 23, 15, 0, 0))
+        # The full day is 8 working hours.  Assert it on scheduled_hours, as
+        # test_default_allocated_hours_when_creating_tasks already does:
+        # allocated_hours is the reservation-derived commitment, and this
+        # assignee is a bare user with no employee, so nothing is committed.
+        self.assertEqual(task1.scheduled_hours, 8)
+
+        task2.plan_task_in_calendar(vals)
+        self.assertEqual(
+            fields.Datetime.to_string(task2.planned_date_begin),
+            "2021-09-23 11:00:00",
+            "Should be the start date given in the vals",
+        )
+        self.assertEqual(
+            fields.Datetime.to_string(task2.date_end),
+            "2021-09-23 13:00:00",
+            "Should take into account the allocated hours set on the task and the working calendar of users assigned",
+        )
+
+        task2.write(
+            {"planned_date_begin": False, "date_end": False, "allocated_hours": 2}
+        )
+        task2.with_context(task_calendar_plan_full_day=True).plan_task_in_calendar(
+            {"date_end": "2021-09-03 19:00:00"}
+        )
+        self.assertFalse(task2.planned_date_begin)
+        self.assertEqual(
+            fields.Datetime.to_string(task2.date_end),
+            "2021-09-03 19:00:00",
+            "Should take into account the allocated hours set on the task and the working calendar of users assigned",
+        )
+        task2.write(
+            {"planned_date_begin": False, "date_end": False, "allocated_hours": 2}
+        )
+        task2.with_context(task_calendar_plan_full_day=True).plan_task_in_calendar(
+            {
+                "planned_date_begin": "2021-09-03 07:00:00",
+                "date_end": "2021-09-03 19:00:00",
+            }
+        )
+        self.assertEqual(
+            fields.Datetime.to_string(task2.planned_date_begin),
+            "2021-09-03 07:00:00",
+            "Should be the start date given in the vals",
+        )
+        self.assertEqual(
+            fields.Datetime.to_string(task2.date_end),
+            "2021-09-03 09:00:00",
+            "Should take into account the allocated hours set on the task and the working calendar of users assigned",
+        )
+
+        task3.plan_task_in_calendar(vals)
+        self.assertEqual(
+            fields.Datetime.to_string(task3.planned_date_begin),
+            "2021-09-23 11:00:00",
+            "Should be the start date given in the vals",
+        )
+        self.assertEqual(
+            fields.Datetime.to_string(task3.date_end),
+            "2021-09-23 14:00:00",
+            "Should take into account the allocated hours set on the task and the working calendar of users assigned",
+        )
+
+        task4.plan_task_in_calendar(vals)
+        self.assertEqual(
+            fields.Datetime.to_string(task4.planned_date_begin),
+            "2021-09-23 11:00:00",
+            "Should be the start date given in the vals",
+        )
+        self.assertEqual(
+            fields.Datetime.to_string(task4.date_end),
+            "2021-09-23 14:00:00",
+            "Should take into account the allocated hours set on the task and the working calendar of users assigned",
+        )
+        task4.write(
+            {"planned_date_begin": False, "date_end": False, "allocated_hours": 2}
+        )
+        task4.with_context(task_calendar_plan_full_day=True).plan_task_in_calendar(
+            {"date_end": "2021-09-03 19:00:00"}
+        )
+        self.assertFalse(task4.planned_date_begin)
+        self.assertEqual(
+            fields.Datetime.to_string(task4.date_end),
+            "2021-09-03 19:00:00",
+            "Should take into account the allocated hours set on the task and the working calendar of users assigned",
+        )
+        task4.write(
+            {"planned_date_begin": False, "date_end": False, "allocated_hours": 2}
+        )
+        task4.with_context(task_calendar_plan_full_day=True).plan_task_in_calendar(
+            {
+                "planned_date_begin": "2021-09-03 07:00:00",
+                "date_end": "2021-09-03 19:00:00",
+            }
+        )
+        self.assertEqual(
+            fields.Datetime.to_string(task4.planned_date_begin),
+            "2021-09-03 07:00:00",
+            "Should be the start date given in the vals",
+        )
+        self.assertEqual(
+            fields.Datetime.to_string(task4.date_end),
+            "2021-09-03 09:00:00",
+            "Should take into account the allocated hours set on the task and the working calendar of users assigned",
+        )
+
+        task5.plan_task_in_calendar(vals)
+        self.assertEqual(
+            fields.Datetime.to_string(task5.planned_date_begin),
+            "2021-09-23 11:00:00",
+            "Should be the start date given in the vals",
+        )
+        self.assertEqual(
+            fields.Datetime.to_string(task5.date_end),
+            "2021-09-24 13:00:00",
+            "Should take into account the allocated hours set on the task and the working calendar of users assigned",
+        )
+
+        task6.plan_task_in_calendar(vals)
+        self.assertEqual(
+            fields.Datetime.to_string(task6.planned_date_begin),
+            "2021-09-23 11:00:00",
+            "Should be the start date given in the vals",
+        )
+        self.assertEqual(
+            fields.Datetime.to_string(task6.date_end),
+            "2021-09-24 14:00:00",
+            "Should take into account the allocated hours set on the task and the working calendar of users assigned",
+        )

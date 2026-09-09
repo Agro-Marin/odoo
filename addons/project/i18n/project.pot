@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-02 04:20+0000\n"
-"PO-Revision-Date: 2026-09-02 04:20+0000\n"
+"POT-Creation-Date: 2026-09-09 02:47+0000\n"
+"PO-Revision-Date: 2026-09-09 02:47+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -120,6 +120,12 @@ msgstr ""
 #. odoo-python
 #: code:addons/project/models/project_project.py:0
 msgid "%(name)s's Tasks Analysis"
+msgstr ""
+
+#. module: project
+#. odoo-python
+#: code:addons/project/models/project_task.py:0
+msgid "%(partner)s has %(amount)s tasks at the same time."
 msgstr ""
 
 #. module: project
@@ -319,7 +325,7 @@ msgid ""
 "                            <t t-out=\"object.project_id.company_id.name or ''\">YourCompany</t>\n"
 "                        </td></tr>\n"
 "                        <tr><td style=\"opacity: 0.5;\">\n"
-"                            <t t-out=\"object.project_id.company_id.phone or ''\">1 650-123-4567</t>\n"
+"                            <t t-out=\"object.project_id.company_id.phone_ids._primary().number or ''\">1 650-123-4567</t>\n"
 "                            <t t-if=\"object.project_id.company_id.email\">\n"
 "                                | <a t-attf-href=\"mailto:{{ object.project_id.company_id.email }}\" style=\"text-decoration:none; color: #454748;\" t-out=\"object.project_id.company_id.email or ''\">info@yourcompany.com</a>\n"
 "                            </t>\n"
@@ -372,8 +378,20 @@ msgid "<i class=\"fa-regular fa-lightbulb pe-2\" title=\"Info\"/>"
 msgstr ""
 
 #. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_task_form2
+msgid ""
+"<i class=\"fa-solid fa-exclamation-circle me-2\" role=\"img\" "
+"title=\"Dependency warning\"/>"
+msgstr ""
+
+#. module: project
 #: model_terms:ir.ui.view,arch_db:project.project_task_view_activity
 msgid "<i class=\"fa-solid fa-lock\"/> Private"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_task_form2
+msgid "<i class=\"fa-solid fa-random me-2\" role=\"img\" title=\"Planning overlap\"/>"
 msgstr ""
 
 #. module: project
@@ -525,6 +543,11 @@ msgstr ""
 #. module: project
 #: model_terms:ir.ui.view,arch_db:project.portal_my_task
 msgid "<strong>Milestone:</strong>"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.portal_my_task
+msgid "<strong>Planned Date:</strong>"
 msgstr ""
 
 #. module: project
@@ -711,6 +734,11 @@ msgstr ""
 #: model:ir.model.fields,field_description:project.field_project_task__message_needaction
 #: model:ir.model.fields,field_description:project.field_project_update__message_needaction
 msgid "Action Needed"
+msgstr ""
+
+#. module: project
+#: model:ir.model,name:project.model_ir_actions_act_window
+msgid "Action Window"
 msgstr ""
 
 #. module: project
@@ -1005,6 +1033,11 @@ msgstr ""
 #. module: project
 #: model:ir.model.fields,help:project.field_project_share_wizard__share_link
 msgid "Anyone with this link can access the project in read mode."
+msgstr ""
+
+#. module: project
+#: model:ir.model,name:project.model_home_menu_badge
+msgid "App Launcher Tile Counts"
 msgstr ""
 
 #. module: project
@@ -1540,6 +1573,11 @@ msgid ""
 msgstr ""
 
 #. module: project
+#: model_terms:ir.ui.view,arch_db:project.view_task_form2
+msgid "Check it out <i class=\"oi oi-chevron-right ms-2\"/>"
+msgstr ""
+
+#. module: project
 #. odoo-javascript
 #: code:addons/project/static/src/js/tours/project.js:0
 msgid ""
@@ -1777,8 +1815,8 @@ msgid "Contact"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_task__partner_phone
-msgid "Contact Number"
+#: model:ir.model.fields,field_description:project.field_project_task__phone_ids
+msgid "Contact Numbers"
 msgstr ""
 
 #. module: project
@@ -2483,6 +2521,8 @@ msgstr ""
 #. module: project
 #: model:ir.model.fields,field_description:project.field_account_analytic_account__display_name
 #: model:ir.model.fields,field_description:project.field_digest_digest__display_name
+#: model:ir.model.fields,field_description:project.field_home_menu_badge__display_name
+#: model:ir.model.fields,field_description:project.field_ir_actions_act_window__display_name
 #: model:ir.model.fields,field_description:project.field_ir_ui_menu__display_name
 #: model:ir.model.fields,field_description:project.field_mail_message__display_name
 #: model:ir.model.fields,field_description:project.field_mixin_project_pm__display_name
@@ -3133,6 +3173,8 @@ msgstr ""
 #. module: project
 #: model:ir.model.fields,field_description:project.field_account_analytic_account__id
 #: model:ir.model.fields,field_description:project.field_digest_digest__id
+#: model:ir.model.fields,field_description:project.field_home_menu_badge__id
+#: model:ir.model.fields,field_description:project.field_ir_actions_act_window__id
 #: model:ir.model.fields,field_description:project.field_ir_ui_menu__id
 #: model:ir.model.fields,field_description:project.field_mail_message__id
 #: model:ir.model.fields,field_description:project.field_mixin_project_pm__id
@@ -4650,11 +4692,19 @@ msgid "Plan work in time-boxed iterations with velocity tracking"
 msgstr ""
 
 #. module: project
+#. odoo-python
+#: code:addons/project/controllers/portal.py:0
 #: model_terms:ir.ui.view,arch_db:project.edit_project
 #: model_terms:ir.ui.view,arch_db:project.project_project_view_form_simplified_template
+#: model_terms:ir.ui.view,arch_db:project.project_sharing_project_task_view_form
 #: model_terms:ir.ui.view,arch_db:project.view_project
 #: model_terms:ir.ui.view,arch_db:project.view_task_form2
 msgid "Planned Date"
+msgstr ""
+
+#. module: project
+#: model:ir.model.fields,field_description:project.field_project_task__planned_date_start
+msgid "Planned Date Start"
 msgstr ""
 
 #. module: project
@@ -6172,6 +6222,14 @@ msgstr ""
 #. module: project
 #. odoo-python
 #: code:addons/project/models/project_task.py:0
+msgid ""
+"Some tasks weren't planned because the closest available starting date was "
+"too far ahead in the future"
+msgstr ""
+
+#. module: project
+#. odoo-python
+#: code:addons/project/models/project_task.py:0
 msgid "Sorry. You can't set a task as its parent task."
 msgstr ""
 
@@ -6304,6 +6362,7 @@ msgstr ""
 
 #. module: project
 #: model:ir.model.fields,field_description:project.field_project_task__planned_date_begin
+#: model:ir.model.fields,field_description:project.field_report_project_task_user__planned_date_begin
 msgid "Start date"
 msgstr ""
 
@@ -6747,6 +6806,13 @@ msgstr ""
 #. module: project
 #. odoo-python
 #: code:addons/project/models/project_task.py:0
+#: model_terms:ir.ui.view,arch_db:project.view_task_search_form_base
+msgid "Tasks in Conflict"
+msgstr ""
+
+#. module: project
+#. odoo-python
+#: code:addons/project/models/project_task.py:0
 #: model:ir.model.fields,field_description:project.field_project_task__recurring_count
 msgid "Tasks in Recurrence"
 msgstr ""
@@ -7151,6 +7217,14 @@ msgstr ""
 #. module: project
 #. odoo-python
 #: code:addons/project/models/project_task.py:0
+msgid ""
+"This task cannot be planned before the following tasks on which it depends: "
+"%(task_list)s"
+msgstr ""
+
+#. module: project
+#. odoo-python
+#: code:addons/project/models/project_task.py:0
 msgid "This task has sub-tasks, so it can't be private."
 msgstr ""
 
@@ -7204,6 +7278,11 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:project.edit_project
 #: model_terms:ir.ui.view,arch_db:project.res_config_settings_view_form
 msgid "Time Management"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.res_config_settings_view_form
+msgid "Timesheets"
 msgstr ""
 
 #. module: project
@@ -7539,7 +7618,6 @@ msgstr ""
 
 #. module: project
 #: model:ir.model.fields,field_description:project.field_project_task__repeat_type
-#: model:ir.model.fields,field_description:project.field_project_task_recurrence__repeat_type
 #: model:ir.model.fields.selection,name:project.selection__project_task__repeat_type__until
 msgid "Until"
 msgstr ""
@@ -8057,13 +8135,6 @@ msgid "Your managers decide which feedback is accepted"
 msgstr ""
 
 #. module: project
-#. odoo-javascript
-#: code:addons/project/static/src/views/analytic_account_form/analytic_account_form_controller.js:0
-#: code:addons/project/static/src/views/analytic_account_list/analytic_account_list_controller.js:0
-msgid "\\t- ${"
-msgstr ""
-
-#. module: project
 #: model_terms:ir.ui.view,arch_db:project.edit_project
 msgid "alias"
 msgstr ""
@@ -8272,6 +8343,11 @@ msgstr ""
 #. odoo-python
 #: code:addons/project/models/project_task.py:0
 msgid "task"
+msgstr ""
+
+#. module: project
+#: model:ir.ui.menu,web_keywords:project.menu_project_root
+msgid "task, timesheet, milestone, deadline, sprint, backlog"
 msgstr ""
 
 #. module: project
