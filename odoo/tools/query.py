@@ -265,15 +265,30 @@ class Query:
             (SQL(" WHERE %s", self.where_clause) if self._where_clauses else SQL.EMPTY),
         )
 
-    def get_result_ids(self) -> tuple[int, ...]:
-        if self._ids is None:
-            if self._empty_by_construction:
-                self._ids = ()
-            else:
+    def get_result_ids(self, env: Environment | None = None) -> tuple[int, ...]:
+        """Ids of the rows matched by this query.
+
+        :param env: environment to execute on, when the caller has a live one.
+            A query may outlive the request that built it -- a record rule
+            domain is cached across requests, and the queries inside it come
+            along -- and by then its own environment holds a closed cursor.
+        :return: the matched ids
+        """
+        if self._empty_by_construction:
+            self._ids = ()
+            return self._ids
+
+        if env is None or env.cr is self._env.cr:
+            if self._ids is None:
                 self._ids = tuple(
                     id_ for (id_,) in self._env.execute_query(self.select())
                 )
-        return self._ids
+            return self._ids
+
+        # Another transaction: the result is neither read from nor written to
+        # the memo, which belongs to the cursor that built this query and would
+        # otherwise hand back rows read in a transaction that already ended.
+        return tuple(id_ for (id_,) in env.execute_query(self.select()))
 
     def set_result_ids(self, ids: Iterable[int], ordered: bool = True) -> None:
         if self._joins or self._where_clauses or self.limit is not None or self.offset:
