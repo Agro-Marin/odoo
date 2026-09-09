@@ -20,6 +20,7 @@ import {
     mountWithCleanup,
     onRpc,
     patchWithCleanup,
+    serverState,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
@@ -76,6 +77,22 @@ test("href attribute with path on home menu apps", async () => {
     defineMenus([{ id: 1, actionID: 339, actionPath: "my-path" }]);
     await mountWebClient();
     expect(".o_home_menu .o_app").toHaveAttribute("href", "/odoo/my-path");
+});
+
+test.tags("desktop");
+test("href attribute on home menu apps carries the debug flag", async () => {
+    serverState.debug = "assets";
+    defineMenus([{ id: 1, actionID: 339 }]);
+    await mountWebClient();
+    expect(".o_home_menu .o_app").toHaveAttribute("href", "/odoo/action-339?debug=assets");
+});
+
+test.tags("desktop");
+test("href attribute with path on home menu apps carries the debug flag", async () => {
+    serverState.debug = "assets";
+    defineMenus([{ id: 1, actionID: 339, actionPath: "my-path" }]);
+    await mountWebClient();
+    expect(".o_home_menu .o_app").toHaveAttribute("href", "/odoo/my-path?debug=assets");
 });
 
 test.tags("desktop");

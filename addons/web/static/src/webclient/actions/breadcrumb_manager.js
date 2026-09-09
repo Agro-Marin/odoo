@@ -142,7 +142,12 @@ export function buildBreadcrumbs(stack, am) {
                 return controller.props?.type === "form";
             },
             get url() {
-                return am.router.stateToUrl(controller.state);
+                // Copy rather than assign: controller.state is the live state
+                // the router pushes for THIS window.
+                const state = odoo.debug
+                    ? { ...controller.state, debug: odoo.debug }
+                    : controller.state;
+                return am.router.stateToUrl(state);
             },
             onSelected() {
                 am.restore(controller.jsId);
