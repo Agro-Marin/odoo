@@ -3,7 +3,7 @@ import unittest
 from odoo.libs.filesystem.mimetypes import (
     MIMETYPE_HEAD_SIZE,
     UNKNOWN_MIMETYPE,
-    _check_olecf,
+    _get_olecf_mimetype,
     _odoo_guess_mimetype,
     guess_mimetype,
 )
@@ -135,7 +135,7 @@ class TestOlecfStreamNames(unittest.TestCase):
     def test_word_stream_away_from_the_first_sector(self):
         data = self._olecf("WordDocument")
         self.assertFalse(data.startswith(b"\xec\xa5\xc1\x00", 0x200))
-        self.assertEqual(_check_olecf(data), "application/msword")
+        self.assertEqual(_get_olecf_mimetype(data), "application/msword")
         self.assertEqual(_odoo_guess_mimetype(data), "application/msword")
 
     def test_excel_and_powerpoint_streams(self):
@@ -145,15 +145,15 @@ class TestOlecfStreamNames(unittest.TestCase):
             ("PowerPoint Document", "application/vnd.ms-powerpoint"),
         ):
             with self.subTest(stream=stream):
-                self.assertEqual(_check_olecf(self._olecf(stream)), expected)
+                self.assertEqual(_get_olecf_mimetype(self._olecf(stream)), expected)
 
     def test_first_sector_signature_still_wins(self):
         data = self.OLE_MAGIC + b"\0" * (0x200 - 8) + b"\xec\xa5\xc1\x00" + b"\0" * 512
-        self.assertEqual(_check_olecf(data), "application/msword")
+        self.assertEqual(_get_olecf_mimetype(data), "application/msword")
 
     def test_unknown_olecf_is_still_rejected(self):
         data = self.OLE_MAGIC + b"\0" * 2048
-        self.assertIs(_check_olecf(data), False)
+        self.assertIs(_get_olecf_mimetype(data), False)
 
 
 if __name__ == "__main__":

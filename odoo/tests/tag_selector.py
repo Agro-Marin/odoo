@@ -83,7 +83,7 @@ class TagsSelector:
             ]
         return test._test_params
 
-    def check_and_select(self, test: Any) -> bool:
+    def select_test(self, test: Any) -> bool:
         matches = self._matcher(test)
         if matches is None or not self._selects(matches):
             test._test_params = []

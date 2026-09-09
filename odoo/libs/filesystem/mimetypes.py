@@ -32,7 +32,7 @@ _ooxml_dirs = {
 }
 
 
-def _check_ooxml(data: bytes) -> str | Literal[False]:
+def _get_ooxml_mimetype(data: bytes) -> str | Literal[False]:
     with io.BytesIO(data) as f, zipfile.ZipFile(f) as z:
         filenames = z.namelist()
         if "[Content_Types].xml" not in filenames:
@@ -57,7 +57,7 @@ _mime_validator = re.compile(
 )
 
 
-def _check_open_container_format(data: bytes) -> str | Literal[False]:
+def _get_open_container_mimetype(data: bytes) -> str | Literal[False]:
     with io.BytesIO(data) as f, zipfile.ZipFile(f) as z:
         if "mimetype" not in z.namelist():
             return False
@@ -98,7 +98,7 @@ _ppt_pattern = re.compile(
 _OLECF_SCAN_LIMIT = 1 << 16
 
 
-def _check_olecf(data: bytes) -> str | Literal[False]:
+def _get_olecf_mimetype(data: bytes) -> str | Literal[False]:
     offset = 0x200
     head = data[:_OLECF_SCAN_LIMIT]
     if data.startswith(b"\xec\xa5\xc1\x00", offset):
@@ -113,13 +113,13 @@ def _check_olecf(data: bytes) -> str | Literal[False]:
     return False
 
 
-def _check_svg(data: bytes) -> str | None:
+def _get_svg_mimetype(data: bytes) -> str | None:
     if b"<svg" in data and b"/svg" in data:
         return "image/svg+xml"
     return None
 
 
-def _check_webp(data: bytes) -> str | None:
+def _get_webp_mimetype(data: bytes) -> str | None:
     if data[8:15] == b"WEBPVP8":
         return "image/webp"
     return None
@@ -151,7 +151,7 @@ _mime_mappings = (
         "text/xml",
         [b"<"],
         [
-            _check_svg,
+            _get_svg_mimetype,
         ],
     ),
     _Entry("image/x-icon", [b"\x00\x00\x01\x00"], []),
@@ -159,18 +159,18 @@ _mime_mappings = (
         "image/webp",
         [b"RIFF"],
         [
-            _check_webp,
+            _get_webp_mimetype,
         ],
     ),
     _Entry(
         "application/msword",
         [b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", b"\x0d\x44\x4f\x43"],
-        [_check_olecf],
+        [_get_olecf_mimetype],
     ),
     _Entry(
         "application/zip",
         [b"PK\x03\x04"],
-        [_check_ooxml, _check_open_container_format],
+        [_get_ooxml_mimetype, _get_open_container_mimetype],
     ),
 )
 
@@ -271,23 +271,23 @@ def _probe_mimetype(bin_data: bytes, default: str) -> str:
         mimetype = _odoo_guess_mimetype(bin_data, default)
     if mimetype in _olecf_mimetypes:
         try:
-            if msoffice_mimetype := _check_olecf(bin_data):
+            if msoffice_mimetype := _get_olecf_mimetype(bin_data):
                 return msoffice_mimetype
         except Exception:
             _logger_guess_mimetype.warning(
-                "Sub-checker '_check_olecf' of type '%s' failed",
+                "Sub-checker '_get_olecf_mimetype' of type '%s' failed",
                 mimetype,
                 exc_info=True,
             )
     if mimetype == "application/zip":
         try:
-            if msoffice_mimetype := _check_ooxml(bin_data):
+            if msoffice_mimetype := _get_ooxml_mimetype(bin_data):
                 return msoffice_mimetype
         except zipfile.BadZipFile:
             pass
         except Exception:
             _logger_guess_mimetype.warning(
-                "Sub-checker '_check_ooxml' of type '%s' failed",
+                "Sub-checker '_get_ooxml_mimetype' of type '%s' failed",
                 mimetype,
                 exc_info=True,
             )

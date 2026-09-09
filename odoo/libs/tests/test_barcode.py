@@ -3,9 +3,9 @@ from unittest import mock
 
 import odoo.libs.barcode as barcode_module
 from odoo.libs.barcode import (
-    check_barcode_encoding,
     createBarcodeDrawing,
     get_barcode_font,
+    is_barcode_encoding_valid,
 )
 
 
@@ -41,23 +41,23 @@ class TestBarcodeFontInitFallback(unittest.TestCase):
 
 class TestCheckBarcodeEncoding(unittest.TestCase):
     def test_empty_value_does_not_raise(self):
-        self.assertFalse(check_barcode_encoding("", "ean13"))
-        self.assertFalse(check_barcode_encoding("", "ean8"))
+        self.assertFalse(is_barcode_encoding_valid("", "ean13"))
+        self.assertFalse(is_barcode_encoding_valid("", "ean8"))
 
     def test_unknown_encoding_returns_false(self):
-        self.assertFalse(check_barcode_encoding("12345", "code128"))
+        self.assertFalse(is_barcode_encoding_valid("12345", "code128"))
 
     def test_valid_ean13(self):
-        self.assertTrue(check_barcode_encoding("2022071416014", "ean13"))
+        self.assertTrue(is_barcode_encoding_valid("2022071416014", "ean13"))
 
     def test_wrong_length_returns_false(self):
-        self.assertFalse(check_barcode_encoding("123", "ean13"))
+        self.assertFalse(is_barcode_encoding_valid("123", "ean13"))
 
     def test_any_encoding(self):
-        self.assertTrue(check_barcode_encoding("whatever", "any"))
+        self.assertTrue(is_barcode_encoding_valid("whatever", "any"))
 
     def test_returns_bool(self):
-        self.assertIsInstance(check_barcode_encoding("abc", "ean13"), bool)
+        self.assertIsInstance(is_barcode_encoding_valid("abc", "ean13"), bool)
 
 
 if __name__ == "__main__":

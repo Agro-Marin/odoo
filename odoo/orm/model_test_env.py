@@ -362,7 +362,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
             )
 
     @staticmethod
-    def _collect_model_defs(
+    def _get_model_defs(
         model_defs: list[type[BaseModel]],
     ) -> list[type[BaseModel]]:
         from .models.metaclass import MetaModel
@@ -392,7 +392,7 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
         return all_defs
 
     def _setup_registry(self, model_defs: list[type[BaseModel]]) -> None:
-        all_defs = self._collect_model_defs(model_defs)
+        all_defs = self._get_model_defs(model_defs)
 
         for model_name, fallback in _FALLBACK_MODELS:
             if not any(getattr(cls, "_name", None) == model_name for cls in all_defs):

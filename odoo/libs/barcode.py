@@ -6,10 +6,10 @@ from typing import Any
 _logger = logging.getLogger(__name__)
 
 __all__ = [
-    "check_barcode_encoding",
     "createBarcodeDrawing",
     "get_barcode_check_digit",
     "get_barcode_font",
+    "is_barcode_encoding_valid",
 ]
 _barcode_init_lock: RLock = RLock()
 
@@ -95,7 +95,7 @@ _BARCODE_SIZES = {
 }
 
 
-def check_barcode_encoding(barcode: str, encoding: str) -> bool:
+def is_barcode_encoding_valid(barcode: str, encoding: str) -> bool:
     encoding = encoding.lower()
     if encoding == "any":
         return True

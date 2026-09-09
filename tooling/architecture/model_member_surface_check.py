@@ -154,7 +154,7 @@ KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
     "ir.qweb": frozenset({"_pregenerate_assets_bundles"}),
     "ir.rule": frozenset({"_get_domain_accessible_records", "_prepare_access_error"}),
     "ir.ui.view": frozenset(
-        {"_render_template", "_check_custom_views", "_check_module_views"}
+        {"_render_template", "_has_valid_custom_views", "_check_module_views"}
     ),
     "res.company": frozenset({"root_id"}),
     "res.device.log": frozenset({"_update_device"}),

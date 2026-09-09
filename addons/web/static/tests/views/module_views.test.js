@@ -17,13 +17,13 @@ function makeEnv({ resModel = "ir.module.module", viewType = "list", call } = {}
     };
 }
 
-test("isDisplayed swallows a rejected check_module_update", async () => {
+test("isDisplayed swallows a rejected has_pending_module_update", async () => {
     const isDisplayed = getIsDisplayed();
     const env = makeEnv({ call: () => Promise.reject(new Error("boom")) });
     expect(await isDisplayed(env)).toBe(false);
 });
 
-test("isDisplayed memoizes check_module_update per action", async () => {
+test("isDisplayed memoizes has_pending_module_update per action", async () => {
     let calls = 0;
     const isDisplayed = getIsDisplayed();
     const env = makeEnv({

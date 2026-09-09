@@ -87,7 +87,7 @@ export class BarcodeParser {
     /**
      * Checks if the barcode string is encoded with the provided encoding.
      *
-     * Mirrors `odoo.libs.barcode.check_barcode_encoding`, including its reading
+     * Mirrors `odoo.libs.barcode.is_barcode_encoding_valid`, including its reading
      * of a leading zero on a 13-digit code as "this is really a UPC-A" -- the
      * server and the client have to agree on what an EAN-13 is, or the same
      * scan resolves to different products on either side.

@@ -1,4 +1,4 @@
-from odoo.libs.barcode import check_barcode_encoding, get_barcode_check_digit
+from odoo.libs.barcode import get_barcode_check_digit, is_barcode_encoding_valid
 from odoo.tests.common import TransactionCase
 
 
@@ -10,36 +10,36 @@ class TestBarcode(TransactionCase):
         self.assertEqual(get_barcode_check_digit("0" * 5 + ean13), int(ean13[-1]))
 
     def test_barcode_encoding(self):
-        self.assertTrue(check_barcode_encoding("20220006", "ean8"))
-        self.assertTrue(check_barcode_encoding("93855341", "ean8"))
-        self.assertTrue(check_barcode_encoding("2022071416014", "ean13"))
-        self.assertTrue(check_barcode_encoding("9745213796142", "ean13"))
+        self.assertTrue(is_barcode_encoding_valid("20220006", "ean8"))
+        self.assertTrue(is_barcode_encoding_valid("93855341", "ean8"))
+        self.assertTrue(is_barcode_encoding_valid("2022071416014", "ean13"))
+        self.assertTrue(is_barcode_encoding_valid("9745213796142", "ean13"))
 
         self.assertFalse(
-            check_barcode_encoding("2022a006", "ean8"),
+            is_barcode_encoding_valid("2022a006", "ean8"),
             "should contains digits only",
         )
         self.assertFalse(
-            check_barcode_encoding("20220000", "ean8"), "incorrect check digit"
+            is_barcode_encoding_valid("20220000", "ean8"), "incorrect check digit"
         )
         self.assertFalse(
-            check_barcode_encoding("93855341", "ean13"),
+            is_barcode_encoding_valid("93855341", "ean13"),
             "ean13 is a 13-digits barcode",
         )
         self.assertFalse(
-            check_barcode_encoding("9745213796142", "ean8"),
+            is_barcode_encoding_valid("9745213796142", "ean8"),
             "ean8 is a 8-digits barcode",
         )
         self.assertFalse(
-            check_barcode_encoding("9745213796148", "ean13"),
+            is_barcode_encoding_valid("9745213796148", "ean13"),
             "incorrect check digit",
         )
         self.assertFalse(
-            check_barcode_encoding("2022!71416014", "ean13"),
+            is_barcode_encoding_valid("2022!71416014", "ean13"),
             "should contains digits only",
         )
         self.assertFalse(
-            check_barcode_encoding("0022071416014", "ean13"),
+            is_barcode_encoding_valid("0022071416014", "ean13"),
             "when starting with one zero, it indicates that a 12-digit UPC-A code follows",
         )
 

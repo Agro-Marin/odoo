@@ -499,7 +499,7 @@ class EsbuildCompiler:
             esbuild_process.run_esbuild(
                 self.name, argv, timeout_s, "", _t0, node_path=node_path
             )
-            files, metafile = esbuild_process.collect_group_output(
+            files, metafile = esbuild_process.get_group_output(
                 self.name,
                 out_dir,
                 metafile_path,

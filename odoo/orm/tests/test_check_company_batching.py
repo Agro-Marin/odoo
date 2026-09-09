@@ -31,11 +31,11 @@ def _env():
 
 
 def _violations(records):
-    groups = records._check_company_candidates(["left_id", "right_id"], [])
+    groups = records._get_company_check_candidates(["left_id", "right_id"], [])
     return [
         (rank, record.id, name, corecords.ids)
         for rank, record, name, corecords in sorted(
-            records._check_company_violations(groups)
+            records._get_company_violations(groups)
         )
     ]
 
@@ -106,7 +106,7 @@ def test_records_of_different_companies_are_grouped_separately():
             {"name": "also", "company_id": elsewhere.id, "left_id": there_other.id}
         )
 
-        groups = (ok + bad + also_ok)._check_company_candidates(["left_id"], [])
+        groups = (ok + bad + also_ok)._get_company_check_candidates(["left_id"], [])
 
         assert len(groups) == 2
         reported = [(v[1], v[2]) for v in _violations(ok + bad + also_ok)]
@@ -117,6 +117,6 @@ def test_candidates_skip_empty_corecords():
     with _env() as env:
         thing = env["ccb.thing"].create({"name": "t", "company_id": 1})
 
-        groups = thing._check_company_candidates(["left_id", "right_id"], [])
+        groups = thing._get_company_check_candidates(["left_id", "right_id"], [])
 
         assert groups == {}

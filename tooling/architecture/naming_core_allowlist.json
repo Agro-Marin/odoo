@@ -17,6 +17,12 @@
     "populate_model": "domain verb -- as populate_field",
     "populate_models": "domain verb -- as populate_field",
     "_populate_models_named": "domain verb -- as populate_field; it is the cli/populate.py entry point for the same subcommand",
-    "invalidate_addon_scan_cache": "noun -- the addon scan is the cached thing (_esbuild_addon_scan_cache), not an act this method performs; §2.4.4's 'unless it is a noun', and _invalidate_ is already §2.4.17's canonical"
+    "invalidate_addon_scan_cache": "noun -- the addon scan is the cached thing (_esbuild_addon_scan_cache), not an act this method performs; §2.4.4's 'unless it is a noun', and _invalidate_ is already §2.4.17's canonical",
+    "_check_access": "reserved -- `check_access` is the ORM access operation and this is its overridable half: the public one raises, and this returns the raise's material to it (the forbidden records and the error factory). Renaming half a pair splits one contract",
+    "_check_company_domain": "protocol -- the check_company mechanism resolves this name on the comodel, exactly as a search hook's contract is a domain (§2.4.1's _search_* exemption). It returns a Domain and would otherwise be _get_domain_*; it is declared on 400+ models across four repositories and a core-only gate must not force that rename",
+    "check_company_domain_parent_of": "protocol -- a canned implementation of _check_company_domain, assigned to it by name on dozens of models. Renaming it without the hook hides the pairing, which is the only thing that says what it is for",
+    "check_companies_domain_parent_of": "protocol -- as check_company_domain_parent_of, for the company_ids side",
+    "check_values": "raises, one frame down -- the failure path is _check_module's raise and the return is the argument passed straight back for chaining. The gate's proxy is one frame deep and this is what it costs",
+    "_check_hostname_callback": "raises, one frame down -- match_hostname raises on a certificate that does not match; the bool is pyOpenSSL's verify-callback contract, not an answer this method invented"
   }
 }

@@ -123,7 +123,7 @@ class AssetsBundle:
             return False
         return True
 
-    def _collect_external_assets(
+    def _get_external_assets_matching(
         self, external_assets: Sequence[str], css: bool, js: bool
     ) -> list[str]:
         kept = []
@@ -207,7 +207,9 @@ class AssetsBundle:
         self._checksum_cache = {}
         self._native_module_data_cache: dict[bool, NativeModuleData] = {}
         self.is_debug_assets = debug_assets
-        self.external_assets = self._collect_external_assets(external_assets, css, js)
+        self.external_assets = self._get_external_assets_matching(
+            external_assets, css, js
+        )
         self._collect_files(files, css, js)
 
         for index, stylesheet in enumerate(self.stylesheets):

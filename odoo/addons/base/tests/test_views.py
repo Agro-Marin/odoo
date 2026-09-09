@@ -2137,7 +2137,7 @@ class TestViews(ViewCase):
 
     def test_custom_view_validation(self):
         model = "ir.actions.act_url"
-        validate = partial(self.View._check_custom_views, model)
+        validate = partial(self.View._has_valid_custom_views, model)
 
         vid = self._insert_view(
             name="base view",
@@ -5823,25 +5823,29 @@ class TestValidationTools(common.BaseCase):
 class TestAccessibilityChecks(common.BaseCase):
     def test_dropdown_menu(self):
         self.assertEqual(
-            view_validation.check_dropdown_menu(E.div({"class": "dropdown-menu"})),
+            view_validation.get_dropdown_menu_warnings(
+                E.div({"class": "dropdown-menu"})
+            ),
             ["dropdown-menu class must have menu role"],
         )
         self.assertEqual(
-            view_validation.check_dropdown_menu(
+            view_validation.get_dropdown_menu_warnings(
                 E.div({"class": "dropdown-menu", "role": "menu"})
             ),
             [],
         )
-        self.assertEqual(view_validation.check_dropdown_menu(E.div()), [])
+        self.assertEqual(view_validation.get_dropdown_menu_warnings(E.div()), [])
         self.assertEqual(
-            view_validation.check_dropdown_menu(
+            view_validation.get_dropdown_menu_warnings(
                 E.div({"t-attf-class": "dropdown-menu #{x}"})
             ),
             ["dropdown-menu class must have menu role"],
         )
 
     def test_progress_bar(self):
-        warnings = view_validation.check_progress_bar(E.div({"class": "o_progressbar"}))
+        warnings = view_validation.get_progress_bar_warnings(
+            E.div({"class": "o_progressbar"})
+        )
         self.assertEqual(
             warnings,
             [
@@ -5860,25 +5864,25 @@ class TestAccessibilityChecks(common.BaseCase):
                 "aria-valuemax": "2",
             }
         )
-        self.assertEqual(view_validation.check_progress_bar(fully_specified), [])
+        self.assertEqual(view_validation.get_progress_bar_warnings(fully_specified), [])
 
     def test_class_accessibility_modal_and_button(self):
         self.assertEqual(
-            view_validation.check_class_accessibility(
+            view_validation.get_class_accessibility_warnings(
                 E.div({"class": "modal"}), "modal"
             ),
             ['"modal" class should only be used with "dialog" role'],
         )
         self.assertEqual(
             len(
-                view_validation.check_class_accessibility(
+                view_validation.get_class_accessibility_warnings(
                     E.div({"class": "btn"}), "btn"
                 )
             ),
             1,
         )
         self.assertEqual(
-            view_validation.check_class_accessibility(
+            view_validation.get_class_accessibility_warnings(
                 E.button({"class": "btn"}), "btn"
             ),
             [],
@@ -5886,17 +5890,19 @@ class TestAccessibilityChecks(common.BaseCase):
 
     def test_fa_accessibility(self):
         parent = E.div(E.i({"class": "fa-star"}))
-        warnings = view_validation.check_class_accessibility(parent[0], "fa-star")
+        warnings = view_validation.get_class_accessibility_warnings(
+            parent[0], "fa-star"
+        )
         self.assertEqual(len(warnings), 1)
         self.assertIn("must have title", warnings[0])
         self.assertEqual(
-            view_validation.check_fa_class_accessibility(
+            view_validation.get_fa_class_accessibility_warnings(
                 E.div(E.i({"class": "fa-star", "aria-label": "Star"}))[0], "desc"
             ),
             [],
         )
         self.assertEqual(
-            view_validation.check_fa_class_accessibility(
+            view_validation.get_fa_class_accessibility_warnings(
                 E.div(E.i({"class": "fa-star"}), "  labelled  ")[0], "desc"
             ),
             [],

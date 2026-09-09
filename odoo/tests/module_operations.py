@@ -51,7 +51,7 @@ def cycle(db_name: str, module_id: int, module_name: str) -> None:
 
 
 def addons_path(value: str) -> Any:
-    return config._check_addons_path(
+    return config._parse_addons_path(
         config.options_index["addons_path"], "--addons-path", value
     )
 

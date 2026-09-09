@@ -56,6 +56,11 @@ class TestTheScanReachesSomething(unittest.TestCase):
 
 
 class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
+    def parse(self, source: str):
+        import ast
+
+        return ast.parse(source).body[0]
+
     def test_a_leading_abolished_verb_is_reported(self):
         hit = ncv.classify_name("_validate_thing")
         self.assertIsNotNone(hit)
@@ -114,6 +119,70 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
         ):
             self.assertIsNone(ncv.classify_name(name), name)
 
+    def test_a_collector_that_returns_what_it_made_is_reported(self):
+        node = self.parse(
+            "def _collect_stats(rows):\n"
+            "    stats = {}\n"
+            "    for row in rows:\n"
+            "        stats[row] = 1\n"
+            "    return stats\n"
+        )
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "accumulate")
+
+    def test_a_collector_that_fills_a_parameter_is_not_reported(self):
+        # The product is the caller's container and the return is bookkeeping.
+        # Four of core's eleven value-returning collectors are this shape.
+        node = self.parse(
+            "def _collect_batch(rows, batch):\n"
+            "    info = None\n"
+            "    for row in rows:\n"
+            "        info = row\n"
+            "        batch.append(row)\n"
+            "    return info\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_collector_that_fills_its_receiver_is_not_reported(self):
+        node = self.parse(
+            "def collect_field(self, name):\n    self.seen.add(name)\n    return name\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_collector_that_fills_a_closure_variable_is_not_reported(self):
+        # `seen` is free here: the enclosing function made it, so the product is
+        # out there and not in the return.
+        node = self.parse(
+            "def collect(field):\n    seen.add(field)\n    return field\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_collector_that_returns_nothing_is_not_reported(self):
+        node = self.parse("def _collect_files(self):\n    self.files = []\n")
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_check_that_returns_and_never_raises_is_reported(self):
+        node = self.parse("def _check_svg(data):\n    return b'<svg' in data\n")
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "check-returns")
+
+    def test_a_check_that_raises_is_not_reported(self):
+        # The Validation row IS this: raises on failure. A pass-through return
+        # beside a raise is still a check.
+        node = self.parse(
+            "def _check_name(self, name):\n"
+            "    if not name:\n"
+            "        raise ValueError(name)\n"
+            "    return name\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_a_check_that_returns_nothing_is_not_reported(self):
+        node = self.parse("def _check_date(self):\n    self._assert_ok()\n")
+        self.assertIsNone(ncv.classify_definition(node))
+
     def test_a_bare_non_assemble_verb_is_not_reported(self):
         # `delete` alone is a Protocol member in orm/runtime/backend.py and the
         # contract in libs/password.py's neighbourhood. §2.4.6 [review], and the
@@ -159,10 +228,16 @@ class TestTheAllowlistIsArgued(unittest.TestCase):
         # gate would flag the name, or if the candidate finder would raise it as
         # a question -- `fetch` is the second kind, and the entry is what makes
         # it a reservation rather than an open question.
+        # Two of the rules read a body, so the name alone cannot answer this any
+        # more: the tree is rescanned with the allowlist off and an entry earns
+        # its place if a real definition under that name comes back.
+        reported = {v.name for v in ncv.measure(apply_allowlist=False)}
         unreachable = {
             name
             for name in self.raw["names"]
-            if ncv.classify_name(name) is None and not ncv.is_bare_abolished(name)
+            if name not in reported
+            and ncv.classify_name(name) is None
+            and not ncv.is_bare_abolished(name)
         }
         self.assertEqual(
             unreachable,
@@ -217,6 +292,24 @@ class TestItCatchesAPlantedRegression(unittest.TestCase):
         found = self.plant("def _sweep_stale_rows(cr):\n    return cr\n")
         self.assertEqual([v.name for v in found], ["_sweep_stale_rows"])
         self.assertEqual(found[0].kind, "synonym")
+
+    def test_a_body_aware_rule_fails_the_gate_end_to_end(self):
+        # classify_name cannot see either of these; measure() must be calling
+        # classify_definition, and this is what says so.
+        found = self.plant(
+            "def _check_webp(data):\n"
+            "    return data[:4] == b'RIFF'\n"
+            "\n"
+            "def _collect_stats(rows):\n"
+            "    stats = {}\n"
+            "    for row in rows:\n"
+            "        stats[row] = 1\n"
+            "    return stats\n"
+        )
+        self.assertEqual(
+            sorted((v.name, v.kind) for v in found),
+            [("_check_webp", "check-returns"), ("_collect_stats", "accumulate")],
+        )
 
     def test_an_allowlisted_name_does_not_fail_the_gate(self):
         found = self.plant("def append_paths(self, paths):\n    return paths\n")

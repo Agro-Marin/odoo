@@ -669,7 +669,7 @@ class IrModuleModule(models.Model):
         return True
 
     @api.model
-    def check_module_update(self) -> bool:
+    def has_pending_module_update(self) -> bool:
         return bool(
             self.sudo().search_count([("state", "in", PENDING_STATES)], limit=1)
         )

@@ -188,7 +188,7 @@ def postprocess_output(
     return bundle_text, metafile, sourcemap
 
 
-def collect_group_output(
+def get_group_output(
     name: str,
     out_dir: Path,
     metafile_path: str,

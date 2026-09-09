@@ -279,7 +279,7 @@ def att_names(name):
     yield f"t-attf-{name}"
 
 
-def check_dropdown_menu(node):
+def get_dropdown_menu_warnings(node):
     warnings = []
     if any("dropdown-menu" in node.get(cl, "") for cl in att_names("class")):
         if node.get("role") != "menu":
@@ -287,7 +287,7 @@ def check_dropdown_menu(node):
     return warnings
 
 
-def check_progress_bar(node):
+def get_progress_bar_warnings(node):
     warnings = []
     if any("o_progressbar" in node.get(cl, "") for cl in att_names("class")):
         if node.get("role") != "progressbar":
@@ -301,7 +301,7 @@ def check_progress_bar(node):
     return warnings
 
 
-def check_fa_class_accessibility(node, description):
+def get_fa_class_accessibility_warnings(node, description):
     valid_aria_attrs = {
         *att_names("title"),
         *att_names("aria-label"),
@@ -355,7 +355,7 @@ def check_fa_class_accessibility(node, description):
     ]
 
 
-def check_class_accessibility(node, expr):
+def get_class_accessibility_warnings(node, expr):
     warnings = []
     classes = set(expr.split(" "))
     if "modal" in classes and node.get("role") != "dialog":
@@ -383,7 +383,7 @@ def check_class_accessibility(node, expr):
             )
     if any(klass.startswith("fa-") for klass in classes):
         description = f"A <{node.tag}> with fa class ({expr})"
-        warnings += check_fa_class_accessibility(node, description)
+        warnings += get_fa_class_accessibility_warnings(node, description)
     if any(klass.startswith("btn") for klass in classes):
         if (
             node.tag in ("a", "button", "select")

@@ -1,6 +1,6 @@
 import unittest
 
-from odoo.libs.barcode import check_barcode_encoding, get_barcode_check_digit
+from odoo.libs.barcode import get_barcode_check_digit, is_barcode_encoding_valid
 
 
 class TestRejectsNonDigits(unittest.TestCase):
@@ -57,22 +57,22 @@ class TestCheckDigitStillCorrect(unittest.TestCase):
 
 class TestCheckBarcodeEncodingUnaffected(unittest.TestCase):
     def test_letters_return_false(self):
-        self.assertFalse(check_barcode_encoding("abcdefgh", "ean8"))
+        self.assertFalse(is_barcode_encoding_valid("abcdefgh", "ean8"))
 
     def test_empty_returns_false(self):
-        self.assertFalse(check_barcode_encoding("", "ean13"))
+        self.assertFalse(is_barcode_encoding_valid("", "ean13"))
 
     def test_wrong_length_returns_false(self):
-        self.assertFalse(check_barcode_encoding("123", "ean8"))
+        self.assertFalse(is_barcode_encoding_valid("123", "ean8"))
 
     def test_valid_ean8(self):
-        self.assertTrue(check_barcode_encoding("96385074", "ean8"))
+        self.assertTrue(is_barcode_encoding_valid("96385074", "ean8"))
 
     def test_any_encoding(self):
-        self.assertTrue(check_barcode_encoding("whatever", "any"))
+        self.assertTrue(is_barcode_encoding_valid("whatever", "any"))
 
     def test_unknown_encoding(self):
-        self.assertFalse(check_barcode_encoding("96385074", "gs1-128"))
+        self.assertFalse(is_barcode_encoding_valid("96385074", "gs1-128"))
 
 
 if __name__ == "__main__":

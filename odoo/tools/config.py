@@ -74,17 +74,17 @@ class _OdooOption(optparse.Option):
             "float": lambda _option, _opt, value: float(value),
             "string": lambda _option, _opt, value: str(value),
             "choice": optparse.check_choice,
-            "bool": self.config._check_bool,
-            "path": self.config._check_path,
-            "comma": self.config._check_comma,
-            "addons_path": self.config._check_addons_path,
-            "upgrade_path": self.config._check_upgrade_path,
-            "pre_upgrade_scripts": self.config._check_scripts,
+            "bool": self.config._parse_bool,
+            "path": self.config._parse_path,
+            "comma": self.config._parse_comma,
+            "addons_path": self.config._parse_addons_path,
+            "upgrade_path": self.config._parse_upgrade_path,
+            "pre_upgrade_scripts": self.config._parse_scripts,
             "smtp_ssl": self.config._check_smtp_ssl,
         }
         return {
             **{name: _accept_none(check) for name, check in checkers.items()},
-            "without_demo": self.config._check_without_demo,
+            "without_demo": self.config._parse_without_demo,
         }
 
     @classproperty
@@ -1885,11 +1885,11 @@ class configmanager:
         return False
 
     @classmethod
-    def _check_addons_path(
+    def _parse_addons_path(
         cls, option: optparse.Option, opt: str, value: str
     ) -> list[str]:
         ad_paths = []
-        for path in map(cls._normalize, cls._check_comma(option, opt, value)):
+        for path in map(cls._normalize, cls._parse_comma(option, opt, value)):
             if any(ch in path for ch in "*?["):
                 anchor = Path(path).anchor
                 ad_paths.extend(
@@ -1923,11 +1923,11 @@ class configmanager:
         return ad_paths
 
     @classmethod
-    def _check_upgrade_path(
+    def _parse_upgrade_path(
         cls, option: optparse.Option, opt: str, value: str
     ) -> list[str]:
         upgrade_path = []
-        for path in map(cls._normalize, cls._check_comma(option, opt, value)):
+        for path in map(cls._normalize, cls._parse_comma(option, opt, value)):
             if not Path(path).is_dir():
                 cls._log(
                     logging.WARNING,
@@ -1949,9 +1949,9 @@ class configmanager:
         return upgrade_path
 
     @classmethod
-    def _check_scripts(cls, option: optparse.Option, opt: str, value: str) -> list[str]:
+    def _parse_scripts(cls, option: optparse.Option, opt: str, value: str) -> list[str]:
         pre_upgrade_scripts = []
-        for path in map(cls._normalize, cls._check_comma(option, opt, value)):
+        for path in map(cls._normalize, cls._parse_comma(option, opt, value)):
             if not Path(path).is_file():
                 cls._log(
                     logging.WARNING,
@@ -1974,7 +1974,7 @@ class configmanager:
         )
 
     @classmethod
-    def _check_bool(cls, option: optparse.Option | None, opt: str, value: str) -> bool:
+    def _parse_bool(cls, option: optparse.Option | None, opt: str, value: str) -> bool:
         if value.lower() in ("1", "yes", "true", "on"):
             return True
         if value.lower() in ("0", "no", "false", "off"):
@@ -1992,7 +1992,7 @@ class configmanager:
         if value == "none":
             return False
         try:
-            return cls._check_bool(option, opt, value)
+            return cls._parse_bool(option, opt, value)
         except optparse.OptionValueError:
             raise optparse.OptionValueError(
                 f"option {opt}: invalid value: {value!r}; expected a boolean, "
@@ -2000,21 +2000,21 @@ class configmanager:
             ) from None
 
     @classmethod
-    def _check_comma(
+    def _parse_comma(
         cls, option: optparse.Option | None, opt: str, value: str
     ) -> list[str]:
         return [v for s in value.split(",") if (v := s.strip())]
 
     @classmethod
-    def _check_path(cls, option: optparse.Option, opt: str, value: str) -> str:
+    def _parse_path(cls, option: optparse.Option, opt: str, value: str) -> str:
         return cls._normalize(value)
 
     @classmethod
-    def _check_without_demo(
+    def _parse_without_demo(
         cls, option: optparse.Option | None, opt: str, value: str
     ) -> bool:
         try:
-            return not cls._check_bool(option, opt, value)
+            return not cls._parse_bool(option, opt, value)
         except optparse.OptionValueError:
             cls._log(
                 logging.WARNING,
@@ -2090,7 +2090,7 @@ class configmanager:
             for name, value in items:
                 if name == "without_demo":
                     name = "with_demo"
-                    value = str(self._check_without_demo(None, "without_demo", value))
+                    value = str(self._parse_without_demo(None, "without_demo", value))
                 option = self.options_index.get(name)
                 if not option:
                     if name not in self.aliases:

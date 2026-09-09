@@ -1102,7 +1102,7 @@ class _ModuleLoader:
         View = self.env["ir.ui.view"]
         for model in self.registry:
             try:
-                View._check_custom_views(model)
+                View._has_valid_custom_views(model)
             except Exception as e:
                 _logger.warning("invalid custom view(s) for model %s: %s", model, e)
 

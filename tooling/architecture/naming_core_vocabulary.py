@@ -119,7 +119,6 @@ SYNONYMS: dict[str, tuple[str, str]] = {
     "sweep": ("_remove_", "sweeping is purging -- the Removal row"),
     "seed": ("create", "seeding is creating"),
     "scan": ("_get_ or _read_", "reading a source and returning what is in it"),
-    "gather": ("_get_", "the Read row"),
     "refresh": (
         "_reset_ / _invalidate_ / _rebuild_",
         "names neither the drop nor the rebuild, which is what §2.4.17 exists to say",
@@ -162,6 +161,121 @@ def core_files(root: Path | None = None) -> list[Path]:
     ]
 
 
+# §2.4.3's Read row canonical is `_get_`, and its discriminator is the RETURN --
+# "the return value feeds anything else". A `collect_*` is that row exactly when
+# the value it returns is the value it produced. Where it fills a container it
+# did not create -- a parameter, an attribute of its receiver, a closure variable
+# of the function around it -- the product is that container and the return is
+# bookkeeping: a loop variable, a recursion handle, a token-stream state. That is
+# the Addition row acting on somebody else's object, and no rename this gate can
+# name would improve it.
+#
+# The distinction is why `collect` was held out of `SYNONYMS` when the synonym
+# table landed. It is not cosmetic: of core's twenty-six `collect_*`, eleven
+# return a value and only seven of those own it. A rule that stopped at "returns
+# something" would have demanded `_get_` from all eleven, and four of the answers
+# would have been lies.
+ACCUMULATE_VERBS = frozenset({"collect", "gather"})
+
+_MUTATING_METHODS = frozenset(
+    {
+        "append",
+        "appendleft",
+        "add",
+        "clear",
+        "difference_update",
+        "discard",
+        "extend",
+        "insert",
+        "intersection_update",
+        "pop",
+        "popitem",
+        "remove",
+        "setdefault",
+        "sort",
+        "symmetric_difference_update",
+        "update",
+    }
+)
+
+
+def _root_name(node: ast.expr) -> str | None:
+    while isinstance(node, ast.Attribute | ast.Subscript):
+        node = node.value
+    return node.id if isinstance(node, ast.Name) else None
+
+
+def _names_bound_in(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    """Every name the function itself creates, parameters included.
+
+    A container is the function's own product when the function made it. The
+    parameters count as bound but NOT as created -- `_owns_its_return` subtracts
+    them, because a container handed in belongs to the caller.
+    """
+    bound: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store):
+            bound.add(child.id)
+    return bound
+
+
+def _mutated_roots(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    roots: set[str] = set()
+    for child in ast.walk(node):
+        if (
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Attribute)
+            and child.func.attr in _MUTATING_METHODS
+            and (root := _root_name(child.func.value)) is not None
+        ):
+            roots.add(root)
+        targets: list[ast.expr] = []
+        if isinstance(child, ast.Assign):
+            targets = list(child.targets)
+        elif isinstance(child, ast.AugAssign | ast.AnnAssign):
+            targets = [child.target]
+        for target in targets:
+            if (
+                isinstance(target, ast.Attribute | ast.Subscript)
+                and (root := _root_name(target)) is not None
+            ):
+                roots.add(root)
+    return roots
+
+
+def returns_a_value(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    for child in ast.walk(node):
+        if isinstance(child, ast.Return) and child.value is not None:
+            if not (
+                isinstance(child.value, ast.Constant) and child.value.value is None
+            ):
+                return True
+        if isinstance(child, ast.Yield | ast.YieldFrom):
+            return True
+    return False
+
+
+def raises(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    return any(isinstance(child, ast.Raise) for child in ast.walk(node))
+
+
+def owns_its_return(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """The value it returns is a value it made, not one it was handed."""
+    if not returns_a_value(node):
+        return False
+    args = node.args
+    parameters = {
+        a.arg
+        for a in (*args.posonlyargs, *args.args, *args.kwonlyargs)
+        if a is not None
+    }
+    for extra in (args.vararg, args.kwarg):
+        if extra is not None:
+            parameters.add(extra.arg)
+    created = _names_bound_in(node) - parameters
+    return not (_mutated_roots(node) - created)
+
+
 # §2.4.8's three predicate prefixes, plus the modal §2.4.20 reads onto them.
 # A predicate does not perform the operation its tail names -- it answers a
 # question ABOUT it -- so the verb behind one of these is the subject and not a
@@ -183,6 +297,45 @@ def infix_synonym(name: str) -> str | None:
     for token in tokens[1:-1]:
         if token in SYNONYMS:
             return token
+    return None
+
+
+# §2.4.20: a public `check_*` that returns instead of raising is the Validation
+# row's blind spot, and the row's discriminator is what the method does ON
+# FAILURE. `_check_*` promises a raise; where the answer is *returns something*,
+# the prefix is wrong whatever the underscore, and no gate aimed at internals
+# sees it because no @api.constrains binds it.
+#
+# The proxy is mechanical -- the body returns a value and raises nothing -- and
+# it IS a proxy: a check whose failure path is a helper's raise reads from here
+# exactly like a read. Those are argued into the allowlist rather than renamed,
+# which is the honest shape for a rule whose test is one frame deep.
+def classify_definition(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> tuple[str, str] | None:
+    """Return (kind, why) for a definition the vocabulary refuses, else None.
+
+    The name alone settles most of it; two rules need the body, because their
+    discriminator is a claim about behaviour rather than about spelling.
+    """
+    if (hit := classify_name(node.name)) is not None:
+        return hit
+    stem = node.name.lstrip("_")
+    verb, _, rest = stem.partition("_")
+    if not rest:
+        return None
+    if verb in ACCUMULATE_VERBS and owns_its_return(node):
+        why = (
+            f"{verb} -> _get_ -- it returns the value it made, which is the "
+            f"Read row; a collector that fills a caller's container is not"
+        )
+        return ("accumulate", why)
+    if verb == "check" and returns_a_value(node) and not raises(node):
+        why = (
+            "`check_` promises a raise on failure and this returns instead -- "
+            "§2.4.20; take the row the body satisfies (_get_, _is_, _parse_)"
+        )
+        return ("check-returns", why)
     return None
 
 
@@ -223,14 +376,23 @@ def is_bare_abolished(name: str) -> bool:
     return not rest and verb not in ASSEMBLE and verb in nv.ABOLISHED
 
 
-def measure(root: Path | None = None) -> list[Violation]:
+def measure(
+    root: Path | None = None, *, apply_allowlist: bool = True
+) -> list[Violation]:
+    """Every definition the vocabulary refuses.
+
+    `apply_allowlist=False` is what the allowlist's own test needs: two of the
+    rules read a body, so "would this name be reported" cannot be answered from
+    the name, and an entry that hides nothing has to be caught by rescanning
+    without it.
+    """
     files = core_files(root)
     if not files:
         raise RuntimeError(
             f"no Python files under {root or CORE} -- refusing to report a count "
             f"from an empty scan"
         )
-    allowed = load_allowlist()
+    allowed = load_allowlist() if apply_allowlist else {}
     found: list[Violation] = []
     for path in files:
         tree = _ast_cache.parse_file(path)
@@ -239,7 +401,7 @@ def measure(root: Path | None = None) -> list[Violation]:
                 continue
             if node.name in allowed or nv._overrides_same_name(node):
                 continue
-            if (hit := classify_name(node.name)) is None:
+            if (hit := classify_definition(node)) is None:
                 continue
             found.append(
                 Violation(

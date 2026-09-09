@@ -3,7 +3,7 @@ import re
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
-from odoo.libs.barcode import check_barcode_encoding, get_barcode_check_digit
+from odoo.libs.barcode import get_barcode_check_digit, is_barcode_encoding_valid
 
 _logger = logging.getLogger(__name__)
 
@@ -194,24 +194,24 @@ class BarcodeNomenclature(models.Model):
         for rule in self.rule_ids:
             cur_barcode, converted = barcode, False
             # A UPC-A restated as EAN-13 always gains a leading zero, and
-            # `check_barcode_encoding` reads a leading zero as "this is really a
+            # `is_barcode_encoding_valid` reads a leading zero as "this is really a
             # UPC-A". So the converted code can never validate as EAN-13: the
             # conversion has to stand in for the encoding check, not precede it.
             if (
                 rule.encoding == "ean13"
                 and self.upc_ean_conv in ("upc2ean", "always")
-                and check_barcode_encoding(barcode, "upca")
+                and is_barcode_encoding_valid(barcode, "upca")
             ):
                 cur_barcode, converted = "0" + barcode, True
             elif (
                 rule.encoding == "upca"
                 and self.upc_ean_conv in ("ean2upc", "always")
                 and barcode[:1] == "0"
-                and check_barcode_encoding(barcode[1:], "upca")
+                and is_barcode_encoding_valid(barcode[1:], "upca")
             ):
                 cur_barcode, converted = barcode[1:], True
 
-            if not converted and not check_barcode_encoding(barcode, rule.encoding):
+            if not converted and not is_barcode_encoding_valid(barcode, rule.encoding):
                 continue
 
             match = self._match_pattern(cur_barcode, rule.pattern)

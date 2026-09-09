@@ -301,7 +301,7 @@ def _keep_logging_ormcache_stats() -> bool:
     return False
 
 
-def _collect_ormcache_stats(show_size: bool) -> tuple[_CacheStats, _CacheUsage] | None:
+def _get_ormcache_stats(show_size: bool) -> tuple[_CacheStats, _CacheUsage] | None:
     from odoo.modules.registry import Registry
 
     cache_stats: _CacheStats = defaultdict(dict)
@@ -437,7 +437,7 @@ def _format_ormcache_stats(
 def _log_ormcache_stats(show_size: bool) -> None:
     global _logger_state  # noqa: PLW0603  process-wide cache-stats logging state
     try:
-        collected = _collect_ormcache_stats(show_size)
+        collected = _get_ormcache_stats(show_size)
         if collected is None:
             return
         log_msgs = _format_ormcache_stats(*collected, show_size)

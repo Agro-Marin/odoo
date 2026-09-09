@@ -48,7 +48,7 @@ cogMenuRegistry.add(
                             return Boolean(
                                 await services.orm.silent.call(
                                     "ir.module.module",
-                                    "check_module_update",
+                                    "has_pending_module_update",
                                     [],
                                     {},
                                 ),

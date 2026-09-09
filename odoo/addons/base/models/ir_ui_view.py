@@ -36,13 +36,13 @@ from odoo.tools.template_inheritance import apply_inheritance_specs, locate_node
 from odoo.tools.translate import TRANSLATED_ATTRS, xml_translate
 from odoo.tools.view_validation import (
     att_names,
-    check_class_accessibility,
-    check_dropdown_menu,
-    check_fa_class_accessibility,
-    check_progress_bar,
+    get_class_accessibility_warnings,
     get_dict_asts,
     get_domain_value_names,
+    get_dropdown_menu_warnings,
     get_expression_field_names,
+    get_fa_class_accessibility_warnings,
+    get_progress_bar_warnings,
     valid_view,
 )
 
@@ -2647,11 +2647,11 @@ class IrUiView(models.Model):
             self._check_progress_bar(node)
 
     def _check_dropdown_menu(self, node: _Element) -> None:
-        for msg in check_dropdown_menu(node):
+        for msg in get_dropdown_menu_warnings(node):
             self._log_view_warning(msg, node)
 
     def _check_progress_bar(self, node: _Element) -> None:
-        for msg in check_progress_bar(node):
+        for msg in get_progress_bar_warnings(node):
             self._log_view_warning(msg, node)
 
     def _is_qweb_based_view(self, view_type: str) -> bool:
@@ -2850,11 +2850,11 @@ class IrUiView(models.Model):
             )
 
     def _check_classes(self, node: _Element, expr: str) -> None:
-        for msg in check_class_accessibility(node, expr):
+        for msg in get_class_accessibility_warnings(node, expr):
             self._log_view_warning(msg, node)
 
     def _check_fa_class_accessibility(self, node: _Element, description: str) -> None:
-        for msg in check_fa_class_accessibility(node, description):
+        for msg in get_fa_class_accessibility_warnings(node, description):
             self._log_view_warning(msg, node)
 
     def _check_qweb_directive(
@@ -3060,7 +3060,7 @@ class IrUiView(models.Model):
         return self.env["ir.qweb"]._render(template, values)
 
     @api.model
-    def _check_custom_views(self, model: str) -> bool:
+    def _has_valid_custom_views(self, model: str) -> bool:
         rec = self.browse(
             id_
             for (id_,) in self.env.execute_query(

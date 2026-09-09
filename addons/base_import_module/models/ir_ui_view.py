@@ -5,9 +5,9 @@ class IrUiView(models.Model):
     _inherit = "ir.ui.view"
 
     @api.model
-    def _check_custom_views(self, model):
+    def _has_valid_custom_views(self, model):
         # views from imported modules should be considered as custom views
-        result = super()._check_custom_views(model)
+        result = super()._has_valid_custom_views(model)
 
         self.env.cr.execute(
             """

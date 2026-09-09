@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
-from odoo.libs.barcode import check_barcode_encoding
+from odoo.libs.barcode import is_barcode_encoding_valid
 from odoo.tools.mail import html2plaintext, is_html_empty
 from odoo.tools.translate import LazyTranslate
 
@@ -306,7 +306,7 @@ class ProductProduct(models.Model):
         self.valid_ean = False
         for product in self:
             if product.barcode:
-                product.valid_ean = check_barcode_encoding(
+                product.valid_ean = is_barcode_encoding_valid(
                     product.barcode.rjust(14, "0"), "gtin14"
                 )
 

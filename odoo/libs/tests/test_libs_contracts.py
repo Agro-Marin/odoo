@@ -13,7 +13,7 @@ from lxml import etree
 from PIL import Image
 
 from odoo.libs._vendor.useragents import UserAgentParser
-from odoo.libs.barcode import check_barcode_encoding
+from odoo.libs.barcode import is_barcode_encoding_valid
 from odoo.libs.collections.frozen_dict import freehash
 from odoo.libs.collections.misc import Collector
 from odoo.libs.collections.ordered_set import LastOrderedSet, OrderedSet
@@ -73,14 +73,14 @@ class TestGuessMimetypeDefault:
 class TestCheckBarcodeEncoding:
     @pytest.mark.parametrize("encoding", ["ean8", "ean13", "gtin14", "upca", "sscc"])
     def test_empty_barcode(self, encoding):
-        assert check_barcode_encoding("", encoding) is False
+        assert is_barcode_encoding_valid("", encoding) is False
 
     def test_known_good_values_still_pass(self):
-        assert check_barcode_encoding("20220006", "ean8")
-        assert check_barcode_encoding("2022071416014", "ean13")
+        assert is_barcode_encoding_valid("20220006", "ean8")
+        assert is_barcode_encoding_valid("2022071416014", "ean13")
 
     def test_ean13_leading_zero_still_rejected(self):
-        assert check_barcode_encoding("0022071416014", "ean13") is False
+        assert is_barcode_encoding_valid("0022071416014", "ean13") is False
 
 
 class TestLowerLoggingReentrancy:

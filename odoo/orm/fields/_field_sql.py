@@ -372,7 +372,7 @@ class _FieldSqlMixin(_FieldStubs):
             value = self._inequality_comparand(value, records)
             can_be_null = pyop(null_value, value)
 
-        def check_inequality(rec):
+        def is_inequality_satisfied(rec):
             rec_value = getter(rec)
             try:
                 if rec_value is False or rec_value is None:
@@ -381,7 +381,7 @@ class _FieldSqlMixin(_FieldStubs):
             except ValueError, TypeError:
                 return False
 
-        return check_inequality
+        return is_inequality_satisfied
 
     def filter_function(
         self, records: M, field_expr: str, operator: str, value: typing.Any

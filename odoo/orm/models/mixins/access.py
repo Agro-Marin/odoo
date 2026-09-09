@@ -185,7 +185,7 @@ class AccessMixin(_ModelStubs):
             return Domain("company_id", "in", unquote(f"{companies} + [False]"))
         return Domain("company_id", "in", to_record_ids(companies) + [False])
 
-    def _check_company_candidates(
+    def _get_company_check_candidates(
         self, regular_fields: list[str], property_fields: list[str]
     ) -> dict[tuple, list[tuple]]:
         groups: dict[tuple, list[tuple]] = defaultdict(list)
@@ -221,7 +221,7 @@ class AccessMixin(_ModelStubs):
                 offset += len(names)
         return groups
 
-    def _check_company_violations(
+    def _get_company_violations(
         self, groups: dict[tuple, list[tuple]]
     ) -> Iterator[tuple[int, Self, str, Self]]:
         for (name, _companies_ids), entries in groups.items():
@@ -269,11 +269,11 @@ class AccessMixin(_ModelStubs):
             )
             return
 
-        candidates = self._check_company_candidates(regular_fields, property_fields)
+        candidates = self._get_company_check_candidates(regular_fields, property_fields)
         inconsistencies = [
             (record, name, corecords)
             for _rank, record, name, corecords in sorted(
-                self._check_company_violations(candidates), key=itemgetter(0)
+                self._get_company_violations(candidates), key=itemgetter(0)
             )
         ]
 

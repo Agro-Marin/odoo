@@ -38,9 +38,9 @@ from odoo.exceptions import (
 from odoo.fields import Domain
 from odoo.http import request, root
 from odoo.libs.barcode import (
-    check_barcode_encoding,
     createBarcodeDrawing,
     get_barcode_font,
+    is_barcode_encoding_valid,
 )
 from odoo.libs.json import loads as json_loads
 from odoo.service import security
@@ -1802,7 +1802,7 @@ class IrActionsReport(models.Model):
             if not kwargs["quiet"]:
                 kwargs["barBorder"] = 0
 
-        if barcode_type in ("EAN8", "EAN13") and not check_barcode_encoding(
+        if barcode_type in ("EAN8", "EAN13") and not is_barcode_encoding_valid(
             value, barcode_type
         ):
             barcode_type = "Code128"
@@ -1929,7 +1929,7 @@ class IrActionsReport(models.Model):
         stream.close()
         return converted
 
-    def _collect_saved_attachment_streams(
+    def _get_saved_attachment_streams(
         self,
         report: Self,
         res_ids: list[int] | None,
@@ -1984,7 +1984,7 @@ class IrActionsReport(models.Model):
         report_sudo = self._get_report(report_ref)
         has_duplicated_ids = self._has_duplicated_ids(res_ids)
 
-        collected_streams = self._collect_saved_attachment_streams(
+        collected_streams = self._get_saved_attachment_streams(
             report_sudo, res_ids, has_duplicated_ids
         )
 

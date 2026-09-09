@@ -721,7 +721,7 @@ class IrModelFields(models.Model):
                 _("This column contains module data and cannot be removed!")
             )
 
-        records, failed_dependencies = self._collect_field_dependencies()
+        records, failed_dependencies = self._get_dependent_fields_and_failures()
         self = records
 
         if failed_dependencies:
@@ -805,7 +805,7 @@ class IrModelFields(models.Model):
         if attachments:
             attachments.write({"res_field": self.name})
 
-    def _collect_field_dependencies(self) -> tuple[Self, list[tuple]]:
+    def _get_dependent_fields_and_failures(self) -> tuple[Self, list[tuple]]:
         records = self
         fields_ = OrderedSet()
         failed_dependencies = []

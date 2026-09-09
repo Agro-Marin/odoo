@@ -1,7 +1,7 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
-from odoo.libs.barcode import check_barcode_encoding
+from odoo.libs.barcode import is_barcode_encoding_valid
 
 from ..const import INVENTORY_REFERENCE_PACKAGE_RELOCATED
 
@@ -284,7 +284,7 @@ class StockPackage(models.Model):
     @api.depends("name")
     def _compute_valid_sscc(self):
         for package in self:
-            package.valid_sscc = bool(package.name) and check_barcode_encoding(
+            package.valid_sscc = bool(package.name) and is_barcode_encoding_valid(
                 package.name, "sscc"
             )
 

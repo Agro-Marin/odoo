@@ -1,6 +1,6 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.libs.barcode import check_barcode_encoding
+from odoo.libs.barcode import is_barcode_encoding_valid
 
 
 class L10n_Es_Edi_FacturaeAc_Role_Type(models.Model):
@@ -60,7 +60,7 @@ class ResPartner(models.Model):
         for p in self:
             if not p.l10n_es_edi_facturae_ac_physical_gln:
                 continue
-            if not check_barcode_encoding(
+            if not is_barcode_encoding_valid(
                 p.l10n_es_edi_facturae_ac_physical_gln, "ean13"
             ):
                 raise ValidationError(_("The Physical GLN entered is not valid."))
@@ -70,7 +70,7 @@ class ResPartner(models.Model):
         for p in self:
             if not p.l10n_es_edi_facturae_ac_logical_operational_point:
                 continue
-            if not check_barcode_encoding(
+            if not is_barcode_encoding_valid(
                 p.l10n_es_edi_facturae_ac_logical_operational_point, "ean13"
             ):
                 raise ValidationError(

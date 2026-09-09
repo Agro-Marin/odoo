@@ -672,7 +672,7 @@ class ChromeBrowser:
             _logger.info("heap %d (allocated %d)", r["usedSize"], r["totalSize"])
 
         @run_coroutine
-        def _check_form():
+        def _report_dirty_form():
             node_id = 0
 
             with contextlib.suppress(Exception):

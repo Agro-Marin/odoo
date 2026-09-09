@@ -1156,7 +1156,7 @@ Section  Population                                                  Count
 §2.4.7   ``_calculate_*`` model methods                                  7
 §2.4.7   ``_prepare_*`` definitions                                    841
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            39
-§2.4.8   ``_check_*`` definitions                                    1,193
+§2.4.8   ``_check_*`` definitions                                    1,190
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     177
@@ -3798,6 +3798,56 @@ subject. ``can_scan_identity`` asks whether a field's cache admits an identity
 scan, and renaming its middle token renames the question rather than the
 operation. The carve-out is in the gate, and the four definitions it protects
 sit on one module.
+
+**Two of the gate's rules read the body, because their discriminator is a claim
+about behaviour** ``[gate naming_core_vocabulary]``. Every other rule in it is a
+statement about spelling and answers from the name; these two cannot.
+
+* **A ``collect_*`` is the Read row exactly when the value it returns is the
+  value it made.** Where it fills a container it did not create -- a parameter,
+  an attribute of its receiver, a closure variable of the function around it --
+  the product is that container and the return is bookkeeping: a loop variable, a
+  recursion handle, a token-stream state. That is the Addition row acting on
+  somebody else's object, and ``_get_`` would be a lie about where the answer
+  comes out. The distinction is not cosmetic: of core's twenty-six
+  ``collect_*``, eleven return a value and only **seven** own it, so a rule that
+  stopped at *returns something* would have been wrong four times out of eleven.
+  ``_collect_split_pdf_streams`` and ``_get_saved_attachment_streams`` sit a
+  hundred lines apart in one file and are now spelled differently, which is the
+  rule speaking rather than an inconsistency.
+* **A ``check_*`` that returns instead of raising is the Validation row's blind
+  spot**, which the paragraph above already argues for the public spelling. The
+  gate's proxy is mechanical -- the body returns a value and raises nothing --
+  and it **is** a proxy: a check whose failure path is a helper's raise reads
+  from here exactly like a read. ``safe_eval``'s ``check_values`` and
+  ``ir_mail_server``'s ``_check_hostname_callback`` are that shape and are
+  argued into the allowlist rather than renamed. **A rule whose test is one
+  frame deep should say so in the allowlist rather than in a comment nobody
+  reads.**
+
+**The prefix that survives a ``check_`` is not always a predicate**
+``[review]``. Asking *what row does the body satisfy* rather than *what is the
+opposite of check* is what separates four answers a single substitution would
+have collapsed into one. ``odoo/tools/config.py``'s six were ``optparse``
+**type checkers**, reached through a ``TYPE_CHECKER`` dict mapping a type name
+to a callable -- nothing dispatches on the spelling, and each takes one string
+and returns one typed value, which is §2.4.3's reserved ``parse``.
+``view_validation``'s four return a **list of warning strings** and are
+``get_*_warnings``. The five in ``libs/filesystem/mimetypes.py`` return a
+**mimetype or a falsy** and are ``_get_*_mimetype``. Only ``libs/barcode.py``'s
+answered a question about its subject with a ``bool``, and only that one became
+a predicate.
+
+**A whole-word substitution is a claim that the name is unique, and it is
+usually false** ``[review]``. §2.4.20 makes this point about a name that is also
+an XML id; the commoner case is a second definition of the same name elsewhere
+in the tree. ``config._check_path`` is an ``optparse`` type checker and
+``ir.actions.actions._check_path`` is an ``@api.constrains`` that raises: one is
+this rule's finding and the other is the rule working correctly, and one
+``sed`` on ``\b_check_path\b`` renamed both. **Read the definition sites a
+substitution will touch before running it, not the call sites** -- there were
+three files' worth here, and no test would have caught it, because the
+constraint went on working under its new name.
 
 **``_show_`` is a fourth predicate prefix, on §2.4.8's terms** ``[review]``, at
 **16** definitions under **12** names. It answers a question about the subject
