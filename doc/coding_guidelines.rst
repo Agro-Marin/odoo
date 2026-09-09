@@ -1210,40 +1210,40 @@ Section  Population                                                  Count
 =======  =========================================================  ======
 §2.4.1   Field hooks the declaring model also calls on ``self``         13
 §2.4.1   Field hooks exempt from the dedication test                     0
-§2.4.1   Names wearing a hook prefix with no binding                   151
-§2.4.1   … definitions under those names                               216
-§2.4.2   Single-field ``@api.onchange`` hooks                          386
-§2.4.2   … spelled ``_onchange_<field>``                               280
-§2.4.2   ``@api.ondelete`` hooks                                       169
+§2.4.1   Names wearing a hook prefix with no binding                   164
+§2.4.1   … definitions under those names                               229
+§2.4.2   Single-field ``@api.onchange`` hooks                          389
+§2.4.2   … spelled ``_onchange_<field>``                               283
+§2.4.2   ``@api.ondelete`` hooks                                       170
 §2.4.2   … spelled ``_unlink_except_*``                                109
-§2.4.2   ``@api.constrains`` hooks                                     686
-§2.4.2   … spelled ``_check_*``                                        634
-§2.4.2   … with a first token carrying no rule                          47
-§2.4.2   … binding exactly one field                                   316
-§2.4.2   … of those, spelled ``_check_<field>``                        141
-§2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 26,254
-§2.4.3   Stems spelled with two or more verbs of one family              1
-§2.4.3   Groups of methods sharing a byte-identical body               100
+§2.4.2   ``@api.constrains`` hooks                                     695
+§2.4.2   … spelled ``_check_*``                                        637
+§2.4.2   … with a first token carrying no rule                          49
+§2.4.2   … binding exactly one field                                   321
+§2.4.2   … of those, spelled ``_check_<field>``                        142
+§2.4.2   Multi-field constraints named for one trigger                  61
+§2.4.3   Non-test methods declared on a model class                 26,991
+§2.4.3   Stems spelled with two or more verbs of one family              3
+§2.4.3   Groups of methods sharing a byte-identical body               103
 §2.4.4   Model methods with an abolished verb behind a noun            132
-§2.4.4   ``fields`` family: definitions spelled head-first             219
+§2.4.4   ``fields`` family: definitions spelled head-first             220
 §2.4.4   ``fields`` family: distinct names spelled head-first           99
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
-§2.4.4   Other heads: definitions spelled head-first                   131
-§2.4.4   Other heads: definitions spelled tail-first                   175
-§2.4.5   ``X_to_Y`` converter definitions                               96
-§2.4.5   … distinct names                                               54
-§2.4.7   ``_get_*`` definitions                                      6,131
+§2.4.4   Other heads: definitions spelled head-first                   152
+§2.4.4   Other heads: definitions spelled tail-first                   188
+§2.4.5   ``X_to_Y`` converter definitions                              103
+§2.4.5   … distinct names                                               56
+§2.4.7   ``_get_*`` definitions                                      6,332
 §2.4.7   Abolished payload verbs, the four between them                  0
-§2.4.7   ``_generate_*`` definitions                                   136
+§2.4.7   ``_generate_*`` definitions                                   153
 §2.4.7   ``_calculate_*`` model methods                                  6
-§2.4.7   ``_prepare_*`` definitions                                    858
+§2.4.7   ``_prepare_*`` definitions                                    873
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            38
-§2.4.8   ``_check_*`` definitions                                    1,193
-§2.4.8   ``_validate_*`` definitions                                     0
-§2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
-§2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     179
+§2.4.8   ``_check_*`` definitions                                    1,207
+§2.4.8   ``_validate_*`` definitions                                     4
+§2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           1
+§2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     183
 §2.4.10  ``_raise_*`` model methods                                     17
 §2.4.10  … raising unconditionally                                      10
 §2.4.11  ``_find_*`` methods                                            26
@@ -1251,21 +1251,21 @@ Section  Population                                                  Count
 §2.4.11  … doing something else entirely                                22
 §2.4.11  ``_find_or_create_*`` methods                                   1
 §2.4.11  ``_get_or_create_*`` methods                                   32
-§2.4.11  ``_resolve_*`` definitions                                     30
-§2.4.12  ``_set_*`` definitions                                        132
-§2.4.12  ``_update_*`` definitions                                     364
-§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             254
+§2.4.11  ``_resolve_*`` definitions                                     31
+§2.4.12  ``_set_*`` definitions                                        136
+§2.4.12  ``_update_*`` definitions                                     367
+§2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             258
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         2
 §2.4.12  ``_sync_*`` definitions                                        76
 §2.4.12  ``_synchronize_*`` definitions                                  7
-§2.4.12  ``_post_*`` definitions                                       143
-§2.4.13  Module-level functions under ``models/`` and ``wizard/``      355
-§2.4.13  Methods on plain classes in model files                       414
-§2.4.13  … such classes                                                166
-§2.4.13  Functions nested inside model methods                         590
-§2.4.14  Private method names reached from stored Python               115
-§2.4.14  … code blocks reaching them                                   124
-§2.4.14  … shipped data files holding those blocks                      72
+§2.4.12  ``_post_*`` definitions                                       144
+§2.4.13  Module-level functions under ``models/`` and ``wizard/``      359
+§2.4.13  Methods on plain classes in model files                       419
+§2.4.13  … such classes                                                168
+§2.4.13  Functions nested inside model methods                         657
+§2.4.14  Private method names reached from stored Python               118
+§2.4.14  … code blocks reaching them                                   127
+§2.4.14  … shipped data files holding those blocks                      75
 §2.4.14  Classes implementing ``_get_report_values``                    19
 §2.4.14  … ``get_values``                                               12
 §2.4.14  … ``set_values``                                               21
@@ -1911,12 +1911,12 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 23.4 % of every method in this repository's
+**``_get_`` is not a default.** It is 23.5 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 686
+deriving and computing. The split that matters is against ``_prepare_``: 705
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 858 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 873 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -2850,8 +2850,8 @@ alone held six with no verb at all: ``fallback_loc``, ``next_move``,
   fix: nothing outside the method can collide with the name, so nothing pushes
   back on a private spelling. The freedom and the drift are one fact.
 * **The backlog inside it is drained, and that was always the point**
-  ``[gate doc_restated_counts]``: of them, **0** open with a verb the abolished
-  table reports and **7** with a reserved one. It was 8 and 7 when this
+  ``[gate doc_restated_counts]``: of them, **8** open with a verb the abolished
+  table reports and **8** with a reserved one. It was 8 and 7 when this
   bullet was written, which is what made the population worth naming as a
   discipline rather than as debt -- and the gate that could see it did not exist
   yet, so the eight were swept by hand. ``naming_vocabulary.py`` measures this
@@ -3456,7 +3456,7 @@ not a type-checker, not a test tier, not ``grep -r --include=*.py``.
 
 **``field`` is a ``Field``; a field's name is ``field_name``**
 ``[gate doc_restated_counts]``. A parameter name is the only type statement most
-call sites ever see. **94** parameters annotated ``field_name`` are ``str`` and
+call sites ever see. **95** parameters annotated ``field_name`` are ``str`` and
 **0** are a ``Field``, against ``field``'s **134** ``Field`` and **17** ``str``.
 One direction is clean; the other is the backlog. The ORM breaks the rule in the
 package that states it, and ``lifecycle.py``'s
