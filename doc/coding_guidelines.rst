@@ -1181,6 +1181,27 @@ rots. The rule that works is checkable by the person it binds:
   §2.4.13's nested backlog to **0** left a bullet whose grammar still called it a
   backlog -- a stale figure one level up, and one no gate can see. Reword in the
   same commit.
+* **Transfer the rows as anchored hunks; do NOT copy the file back.** The
+  worktree is where you MEASURE. Writing its whole ``coding_guidelines.rst`` over
+  the checkout's is a whole-file write into a file several sessions hold hunks in,
+  which is §2.4.20's own destruction wearing the look of housekeeping -- ``cp``
+  out of a worktree is the same shape as ``git checkout --``. Apply each changed
+  row to the live file and re-read its anchor immediately before writing.
+* **A worktree carrying your edit will tell you the tree is already fresh.**
+  ``git checkout --detach`` moves an uncommitted file forward with you, so a
+  ``--check`` run after re-pointing the worktree reads the answer you brought
+  rather than the tree: it reported *fresh* against a tip whose fifteen rows were
+  stale, and discarding the edit showed them all. Verifying that YOUR figures are
+  true of a commit and asking whether THAT COMMIT's doc is fresh are the same
+  command and different questions -- the second one is only answered by a tree
+  you have not written to.
+* **Re-read the tip after measuring and refuse to transfer if it moved.** One
+  ``git rev-parse`` before and after. On an evening with five sessions landing,
+  the tip moved four times in a few minutes and the guard refused twice before
+  letting a bank through; the figures happened to be identical at all four tips,
+  which is exactly why the check has to be mechanical rather than a judgement
+  about whether the move "could have mattered". It is the difference between a
+  figure that describes a commit and one that describes a moment.
 
 .. census-table-start
 
