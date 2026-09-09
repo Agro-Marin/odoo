@@ -1,6 +1,5 @@
 from odoo import Command, _, api, fields, models
 from odoo.db.schema import column_exists, create_column
-from odoo.fields import Domain
 
 
 class StockPicking(models.Model):
@@ -13,11 +12,6 @@ class StockPicking(models.Model):
         store=True,
         inverse="_inverse_sale_id",
         index="btree_not_null",
-    )
-    days_to_deliver = fields.Datetime(
-        compute="_compute_days_to_deliver",
-        search="_search_days_to_deliver",
-        copy=False,
     )
 
     def _get_fields_linking_orders(self):
@@ -50,20 +44,6 @@ class StockPicking(models.Model):
                 else:
                     picking.move_type = "one"
 
-    def _days_to_deliver_domain(self):
-        return self._effective_transfer_domain() & Domain(
-            "location_dest_id.usage",
-            "=",
-            "customer",
-        )
-
-    @api.depends("state", "location_dest_id.usage", "date_done")
-    def _compute_days_to_deliver(self):
-        self._compute_effective_transfer_date(
-            "days_to_deliver",
-            self._days_to_deliver_domain(),
-        )
-
     def _is_on_manufacturing_route(self):
         self.check_singleton()
         return False
@@ -89,14 +69,6 @@ class StockPicking(models.Model):
             )
             self._add_reference(reference)
         self.move_ids._reassign_sale_lines(self.sale_id)
-
-    @api.model
-    def _search_days_to_deliver(self, operator, value):
-        return self._search_effective_transfer_date(
-            operator,
-            value,
-            self._days_to_deliver_domain(),
-        )
 
     def _log_less_quantities_than_expected(self, moves):
         def _keys_in_groupby(sale_line):

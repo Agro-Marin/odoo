@@ -39,17 +39,6 @@ class StockPicking(models.Model):
     def _get_source_order_date_paths(self):
         return [f"{field}.date_order" for field in self._get_fields_linking_orders()]
 
-    def _effective_transfer_domain(self):
-        return Domain([("state", "=", "done"), ("date_done", "!=", False)])
-
-    def _compute_effective_transfer_date(self, field_name, domain):
-        effective = self.filtered_domain(domain)
-        for picking in self:
-            picking[field_name] = picking.date_done if picking in effective else False
-
-    def _search_effective_transfer_date(self, operator, value, domain):
-        return Domain.AND([domain, Domain("date_done", operator, value)])
-
     def _get_action_transfer_matching(self, name, res_model, list_view_xmlid):
         self.check_singleton()
         return {

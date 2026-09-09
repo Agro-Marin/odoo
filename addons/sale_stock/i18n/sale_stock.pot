@@ -980,11 +980,6 @@ msgid "Date Planned Forecast"
 msgstr ""
 
 #. module: sale_stock
-#: model:ir.model.fields,field_description:sale_stock.field_stock_picking__days_to_deliver
-msgid "Days To Deliver"
-msgstr ""
-
-#. module: sale_stock
 #: model:ir.model.fields,help:sale_stock.field_sale_delivery_line_match__product_uom_id
 msgid "Default unit of measure used for all stock operations."
 msgstr ""
