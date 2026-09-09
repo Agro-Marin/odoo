@@ -572,7 +572,7 @@ class ProductTemplate(models.Model):
             )
         return action
 
-    def _resolve_diagram_products(self):
+    def _get_diagram_products(self):
         Product = self.env["product.product"]
         if self.env.context.get("default_product_id"):
             products = Product.browse(self.env.context["default_product_id"])
@@ -588,7 +588,7 @@ class ProductTemplate(models.Model):
         return templates.product_variant_ids
 
     def action_view_routes_diagram(self):
-        products = self._resolve_diagram_products()
+        products = self._get_diagram_products()
         if (
             not self.env.user.has_group("stock.group_stock_multi_warehouses")
             and len(products) == 1

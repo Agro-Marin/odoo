@@ -144,7 +144,7 @@ class StockRuleSelection(models.Model):
     def _get_rule_from_hierarchy(self, candidates, product_id, locations, values):
         intercomp_transit = self._get_intercomp_transit_location()
         intercomp_customers = self.env["stock.location"]
-        if self._check_intercomp_location(locations):
+        if self._has_intercomp_transit_location(locations):
             intercomp_customers = self.env.ref(
                 "stock.stock_location_customers", raise_if_not_found=False
             )
@@ -247,7 +247,7 @@ class StockRuleSelection(models.Model):
         )
 
     @api.model
-    def _check_intercomp_location(self, locations):
+    def _has_intercomp_transit_location(self, locations):
         if not locations.filtered(lambda location: location.usage == "transit"):
             return False
         return self._get_intercomp_transit_location().id in locations.ids
@@ -261,7 +261,7 @@ class StockRuleSelection(models.Model):
     @api.model
     def _get_rule_location_domain(self, locations):
         location_ids = locations.ids
-        if self._check_intercomp_location(locations):
+        if self._has_intercomp_transit_location(locations):
             customers_location = self.env.ref(
                 "stock.stock_location_customers", raise_if_not_found=False
             )

@@ -354,23 +354,21 @@ class TestProductTemplateAuditFixes(TransactionCase):
         other = self.Tmpl.create({"name": "V19b", "type": "consu", "is_storable": True})
         resolved = tmpl.with_context(
             default_product_id=other.product_variant_id.id
-        )._resolve_diagram_products()
+        )._get_diagram_products()
         self.assertEqual(resolved, other.product_variant_id)
 
     def test_diagram_products_falls_back_to_self(self):
         tmpl = self.Tmpl.create({"name": "V20", "type": "consu", "is_storable": True})
-        self.assertEqual(tmpl._resolve_diagram_products(), tmpl.product_variant_ids)
+        self.assertEqual(tmpl._get_diagram_products(), tmpl.product_variant_ids)
 
     def test_diagram_products_falls_back_to_active_id(self):
         tmpl = self.Tmpl.create({"name": "V21", "type": "consu", "is_storable": True})
-        resolved = self.Tmpl.with_context(active_id=tmpl.id)._resolve_diagram_products()
+        resolved = self.Tmpl.with_context(active_id=tmpl.id)._get_diagram_products()
         self.assertEqual(resolved, tmpl.product_variant_ids)
 
     def test_diagram_products_ignores_empty_context_ids(self):
         tmpl = self.Tmpl.create({"name": "V22", "type": "consu", "is_storable": True})
-        resolved = tmpl.with_context(
-            default_product_id=False
-        )._resolve_diagram_products()
+        resolved = tmpl.with_context(default_product_id=False)._get_diagram_products()
         self.assertEqual(resolved, tmpl.product_variant_ids)
 
     def test_default_responsible_still_applies(self):

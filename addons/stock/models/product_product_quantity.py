@@ -434,7 +434,7 @@ class ProductProductQuantity(models.Model):
                 ),
             ]
         )
-        expired_quant = self._expired_quant_domain(domain_quant, to_date)
+        expired_quant = self._get_expired_quant_domain_at_date(domain_quant, to_date)
         domain_move_in_done_lines = domain_move_out_done_lines = None
         if dates_in_the_past:
             state_done_future = Domain([("state", "=", "done"), ("date", ">", to_date)])
@@ -462,7 +462,7 @@ class ProductProductQuantity(models.Model):
             move_out_done_lines=domain_move_out_done_lines,
         )
 
-    def _expired_quant_domain(self, domain_quant, to_date):
+    def _get_expired_quant_domain_at_date(self, domain_quant, to_date):
         pass
 
     def _read_quantities(self, scope):

@@ -107,7 +107,7 @@ class StockQuantReservation(models.Model):
             lighter = [pkg for pkg in real_packages if pkg[1] < 1]
             qty_by_package = heavier + [(None, 1)] * singles_count + lighter
             taken_packages = get_least_packages(qty_by_package, qty)
-            return self._least_packages_domain(taken_packages, domain)
+            return self._get_least_packages_domain(taken_packages, domain)
         except MemoryError:
             _logger.info(
                 "Ran out of memory while trying to use the least_packages strategy to get quants. Domain: %s",
@@ -115,7 +115,7 @@ class StockQuantReservation(models.Model):
             )
             return domain
 
-    def _least_packages_domain(self, taken_packages, domain):
+    def _get_least_packages_domain(self, taken_packages, domain):
         single_count = sum(1 for pkg in taken_packages if pkg[0] is None)
         selected_single_items = []
         if single_count:

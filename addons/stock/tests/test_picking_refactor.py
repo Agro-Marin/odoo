@@ -126,7 +126,7 @@ class TestPickingRefactor(TestStockCommon):
         self.assertFalse(receipt.show_allocation)
         self.assertEqual(
             receipt.show_allocation,
-            bool(receipt._get_show_allocation(receipt.picking_type_id)),
+            bool(receipt._is_allocation_shown(receipt.picking_type_id)),
         )
 
         delivery = self.PickingObj.create(
@@ -152,7 +152,7 @@ class TestPickingRefactor(TestStockCommon):
         self.assertTrue(receipt.show_allocation)
         self.assertEqual(
             receipt.show_allocation,
-            bool(receipt._get_show_allocation(receipt.picking_type_id)),
+            bool(receipt._is_allocation_shown(receipt.picking_type_id)),
         )
 
     def test_action_split_transfer_requires_single_record(self):
@@ -366,7 +366,7 @@ class TestPickingRefactor(TestStockCommon):
             receipts |= receipt
         receipts.invalidate_recordset(["show_allocation"])
         self.assertEqual(
-            bool(receipts._get_show_allocation(self.picking_type_in)),
+            bool(receipts._is_allocation_shown(self.picking_type_in)),
             any(receipts.mapped("show_allocation")),
         )
 
@@ -667,7 +667,7 @@ class TestPickingRefactor(TestStockCommon):
             picking_a._get_show_allocation_map(excluded_pickings=pair)[picking_a],
         )
         self.assertFalse(
-            pair._get_show_allocation(picking_a.picking_type_id),
+            pair._is_allocation_shown(picking_a.picking_type_id),
             "demand inside the evaluated set must not trigger the batch-level "
             "allocation button",
         )

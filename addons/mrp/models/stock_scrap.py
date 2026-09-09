@@ -58,7 +58,7 @@ class StockScrap(models.Model):
                 message, recommended_location = (
                     self.env["stock.quant"]
                     .sudo()
-                    ._check_serial_number(
+                    ._get_serial_number_warning(
                         self.product_id,
                         self.lot_id,
                         self.company_id,

@@ -26,7 +26,7 @@ class ProductProduct(models.Model):
         from_date = from_date or fields.Datetime.today()
         return from_date + datetime.timedelta(days=self.expiration_time)
 
-    def _expired_quant_domain(self, domain_quant, to_date):
+    def _get_expired_quant_domain_at_date(self, domain_quant, to_date):
         if not self.env.context.get("with_expiration"):
             return None
         max_date = (

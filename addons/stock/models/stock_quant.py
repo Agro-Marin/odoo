@@ -303,7 +303,7 @@ class StockQuant(models.Model):
             )
 
     @api.model
-    def _check_serial_number(
+    def _get_serial_number_warning(
         self,
         product_id,
         lot_id,
@@ -487,16 +487,16 @@ class StockQuant(models.Model):
             StockQuant, self.with_context(inventory_mode=True)
         )._load_records_write(values)
 
-    def _stock_user_domain(self, domain):
+    def _get_stock_user_domain(self, domain):
         return domain if self.env.user.has_group("stock.group_stock_user") else "[]"
 
     def _domain_location_id(self):
-        return self._stock_user_domain(
+        return self._get_stock_user_domain(
             "[('usage', 'in', ['internal', 'transit'])] if context.get('inventory_mode') else []"
         )
 
     def _domain_lot_id(self):
-        return self._stock_user_domain(
+        return self._get_stock_user_domain(
             "[] if not context.get('inventory_mode') else"
             " [('product_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.product' else"
             " [('product_id.product_tmpl_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.template' else"
@@ -504,7 +504,7 @@ class StockQuant(models.Model):
         )
 
     def _domain_product_id(self):
-        return self._stock_user_domain(
+        return self._get_stock_user_domain(
             "[] if not context.get('inventory_mode') else"
             " [('is_storable', '=', True), ('product_tmpl_id', 'in', context.get('product_tmpl_ids', []) + [context.get('product_tmpl_id', 0)])] if context.get('product_tmpl_ids') or context.get('product_tmpl_id') else"
             " [('is_storable', '=', True)]"
@@ -617,7 +617,9 @@ class StockQuant(models.Model):
             message, _recommended_location = (
                 self.env["stock.quant"]
                 .sudo()
-                ._check_serial_number(self.product_id, self.lot_id, self.company_id)
+                ._get_serial_number_warning(
+                    self.product_id, self.lot_id, self.company_id
+                )
             )
             if message:
                 return {"warning": {"title": _("Warning"), "message": message}}

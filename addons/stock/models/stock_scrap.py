@@ -209,7 +209,7 @@ class StockScrap(models.Model):
         message, recommended_location = (
             self.env["stock.quant"]
             .sudo()
-            ._check_serial_number(
+            ._get_serial_number_warning(
                 self.product_id,
                 self.lot_id,
                 self.company_id,
@@ -364,7 +364,7 @@ class StockScrap(models.Model):
     def _should_check_available_qty(self):
         return self.product_id.is_storable
 
-    def check_available_qty(self):
+    def has_available_qty(self):
         self.check_singleton()
         if not self._should_check_available_qty():
             return True
@@ -386,7 +386,7 @@ class StockScrap(models.Model):
         self.check_singleton()
         if self.product_uom_id.is_zero(self.scrap_qty):
             raise UserError(_("You can only enter positive quantities."))
-        if self.check_available_qty():
+        if self.has_available_qty():
             return self._action_done()
         else:
             self._check_shortfall_is_not_an_unnamed_lot()

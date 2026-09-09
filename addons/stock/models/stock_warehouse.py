@@ -511,7 +511,7 @@ class StockWarehouse(models.Model):
     def unlink(self):
         if not self.env.context.get("_force_unlink"):
             self._unlink_except_in_use()
-        leftovers = [warehouse._collect_owned_records() for warehouse in self]
+        leftovers = [warehouse._get_owned_records() for warehouse in self]
 
         for owned in leftovers:
             for records in owned.config:
@@ -562,7 +562,7 @@ class StockWarehouse(models.Model):
                 )
             )
 
-    def _collect_owned_records(self):
+    def _get_owned_records(self):
         self.check_singleton()
         locations = (
             self.env["stock.location"]

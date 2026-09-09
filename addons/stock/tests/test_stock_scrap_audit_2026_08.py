@@ -47,7 +47,7 @@ class TestScrapDiagnosesAnUnnamedLot(TransactionCase):
     def test_lot_less_stock_of_a_tracked_product_is_still_scrappable(self):
         self.Quant._update_available_quantity(self.product, self.stock, 3.0)
         scrap = self._scrap()
-        self.assertTrue(scrap.check_available_qty())
+        self.assertTrue(scrap.has_available_qty())
         scrap.action_validate()
         self.env.flush_all()
         self.assertEqual(scrap.state, "done")

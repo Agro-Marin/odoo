@@ -65,7 +65,7 @@ class StockWarehouseRoute(models.Model):
             rules_list = self._prepare_rule_vals(
                 rules, values=route_data["rules_values"]
             )
-            self._find_existing_rule_or_create(rules_list)
+            self._sync_rules(rules_list)
             if route_data["route_create_values"].get(
                 "warehouse_selectable", False
             ) or route_data.get("route_update_values", {}).get(
@@ -376,7 +376,7 @@ class StockWarehouseRoute(models.Model):
             ],
         }
 
-    def _find_existing_rule_or_create(self, rules_list):
+    def _sync_rules(self, rules_list):
         Rule = self.env["stock.rule"]
         if not rules_list:
             return
@@ -579,7 +579,7 @@ class StockWarehouseRoute(models.Model):
         mto_vals = self._prepare_routable_global_route_rule_vals().get("mto_pull_id")
         if not mto_vals:
             return
-        self._find_existing_rule_or_create(
+        self._sync_rules(
             self._prepare_rule_vals(
                 routings, mto_vals["create_values"], name_suffix="MTO"
             )

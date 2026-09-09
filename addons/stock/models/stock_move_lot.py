@@ -67,7 +67,7 @@ class StockMoveLot(models.Model):
             return None
 
         base_location = self.picking_id.location_id or self.location_id
-        quant_domain = self._extra_lot_quant_domain(extra_lot_names)
+        quant_domain = self._get_extra_lot_quant_domain(extra_lot_names)
         minimal_quantity = product.uom_id._compute_quantity(1, self.product_uom_id)
         if self._should_bypass_reservation():
             nb_of_exceed = max(len(extra_lot_names) - nb_of_assignable_sml, 0)
@@ -104,7 +104,7 @@ class StockMoveLot(models.Model):
                 assigned_quantity += sml_quantity
         return assigned_quantity, assignable_quantity, nb_of_assignable_sml
 
-    def _extra_lot_quant_domain(self, extra_lot_names):
+    def _get_extra_lot_quant_domain(self, extra_lot_names):
         extra_lot_ids = {
             rec["id"]
             for rec in self.env["stock.lot"]
@@ -801,8 +801,8 @@ class StockMoveLot(models.Model):
     def _check_quantity(self):
         serial_moves = self.filtered(lambda m: m.product_id.tracking == "serial")
         if not serial_moves:
-            return None
-        return (
+            return
+        (
             self.env["stock.quant"]
             .sudo()
             .search(

@@ -167,9 +167,14 @@ class StockLocationBlock(models.Model):
         if is_internal_flag(
             self.env.context, CONTEXT_BLOCK_SKIP_HOOKS
         ) or BLOCK_GOVERNED_FIELDS.isdisjoint(vals):
-            return self.browse()
+            return
         self._check_block_governance(vals)
-        if "block_type" not in vals:
+
+    def _filtered_block_type_transitioning(self, vals):
+        if (
+            is_internal_flag(self.env.context, CONTEXT_BLOCK_SKIP_HOOKS)
+            or "block_type" not in vals
+        ):
             return self.browse()
         return self.filtered(
             lambda location: vals["block_type"] != (location.block_type or "none"),

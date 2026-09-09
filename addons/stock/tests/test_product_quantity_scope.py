@@ -314,7 +314,9 @@ class TestProductQuantityScope(TransactionCase):
             fresh_qty_forecast=True,
         )
         self.assertIsNone(
-            StockProductProduct._expired_quant_domain(scoped, Domain.TRUE, None),
+            StockProductProduct._get_expired_quant_domain_at_date(
+                scoped, Domain.TRUE, None
+            ),
             "stock alone must not narrow on a column it does not define",
         )
 

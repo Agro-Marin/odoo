@@ -305,7 +305,7 @@ class StockPickingTypeDashboard(models.Model):
         )
         (sequences - still_referenced).sudo().unlink()
 
-    def _sequence_scope_domain(self):
+    def _get_sequence_scope_domain(self):
         self.check_singleton()
         return Domain("company_id", "=", self.company_id.id) & Domain(
             "warehouse_id", "=", self.warehouse_id.id or False
@@ -313,7 +313,7 @@ class StockPickingTypeDashboard(models.Model):
 
     def _get_clashing_picking_type(self):
         self.check_singleton()
-        domain = self._sequence_scope_domain() & Domain(
+        domain = self._get_sequence_scope_domain() & Domain(
             "sequence_code", "=", self.sequence_code
         )
         if self._origin.id:
@@ -335,7 +335,7 @@ class StockPickingTypeDashboard(models.Model):
             self.env["stock.picking.type"]
             .with_context(active_test=False)
             .search(
-                self._sequence_scope_domain()
+                self._get_sequence_scope_domain()
                 & Domain("sequence_code", "=like", f"{pattern}%")
             )
             .mapped("sequence_code")

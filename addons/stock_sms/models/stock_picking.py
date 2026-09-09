@@ -16,7 +16,7 @@ class StockPicking(models.Model):
         warn_sms_pickings = self.browse()
         for picking in self:
             is_delivery = (
-                picking.company_id._get_text_validation("sms")
+                picking.company_id._is_text_confirmation_enabled("sms")
                 and picking.picking_type_id.code == "outgoing"
                 and picking.partner_id.phone_ids
             )
@@ -24,7 +24,7 @@ class StockPicking(models.Model):
                 is_delivery
                 and not modules.module.current_test
                 and not picking.company_id.has_received_warning_stock_sms
-                and picking.company_id._get_text_validation("sms")
+                and picking.company_id._is_text_confirmation_enabled("sms")
             ):
                 warn_sms_pickings |= picking
         return warn_sms_pickings
@@ -51,7 +51,7 @@ class StockPicking(models.Model):
         if not self.env.context.get("skip_sms") and not modules.module.current_test:
             pickings = self.filtered(
                 lambda p: (
-                    p.company_id._get_text_validation("sms")
+                    p.company_id._is_text_confirmation_enabled("sms")
                     and p.picking_type_id.code == "outgoing"
                     and p.partner_id.phone_ids
                 )

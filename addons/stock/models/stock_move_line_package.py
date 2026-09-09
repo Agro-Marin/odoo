@@ -145,7 +145,7 @@ class StockMoveLinePackage(models.Model):
         from_package_wizard=False,
     ):
         move_lines = all_lines or self
-        action = move_lines._prepare_action_choose_destination()
+        action = move_lines._action_open_choose_destination()
         if action:
             return action
         if self._should_display_put_in_pack_wizard(
@@ -274,7 +274,7 @@ class StockMoveLinePackage(models.Model):
         picking_type = self.picking_type_id
         return len(picking_type) == 1 and picking_type.set_package_type
 
-    def _prepare_action_choose_destination(self):
+    def _action_open_choose_destination(self):
         if len(self.location_dest_id) > 1:
             view_id = self.env.ref("stock.stock_package_destination_form_view").id
             wiz = self.env["stock.package.destination"].create(

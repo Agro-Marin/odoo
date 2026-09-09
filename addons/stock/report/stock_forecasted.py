@@ -92,7 +92,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             return self.env["product.product"].browse(product_ids)
         return self.env["product.product"]
 
-    def _get_product_quantities(self, res, product_template_ids, product_ids):
+    def _add_products(self, res, product_template_ids, product_ids):
         if "product" not in res:
             res["product"] = {}
         products = self._get_products(product_template_ids, product_ids)
@@ -131,7 +131,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             res["product"][product.id]["qty"]["in"] += qty_in.get(product.id, 0.0)
             res["product"][product.id]["qty"]["out"] += qty_out.get(product.id, 0.0)
 
-    def _get_product_leadtime(self, res, product_template_ids, product_ids):
+    def _add_product_leadtime(self, res, product_template_ids, product_ids):
         products = self._get_products(product_template_ids, product_ids)
         location = self._get_warehouse().lot_stock_id
         for product in products:
@@ -192,11 +192,11 @@ class StockForecasted_Product_Product(models.AbstractModel):
             )
         }
 
-        self._get_product_quantities(res, product_template_ids, product_ids)
+        self._add_products(res, product_template_ids, product_ids)
         self._add_product_quantities(
             res, product_template_ids, product_ids, "draft_picking_qty", in_sum, out_sum
         )
-        self._get_product_leadtime(res, product_template_ids, product_ids)
+        self._add_product_leadtime(res, product_template_ids, product_ids)
 
         return res
 

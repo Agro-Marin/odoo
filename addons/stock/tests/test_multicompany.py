@@ -168,14 +168,14 @@ class TestCompanyStockProvisioning(TransactionCase):
         company = self.env["res.company"].create({"name": "Text Co"})
         company.stock_text_confirmation = True
         company.stock_confirmation_type = "sms"
-        self.assertTrue(company._get_text_validation("sms"))
+        self.assertTrue(company._is_text_confirmation_enabled("sms"))
         self.assertFalse(
-            company._get_text_validation("whatsapp"),
+            company._is_text_confirmation_enabled("whatsapp"),
             "a channel other than the configured one must not validate",
         )
         company.stock_text_confirmation = False
         self.assertFalse(
-            company._get_text_validation("sms"),
+            company._is_text_confirmation_enabled("sms"),
             "text confirmation disabled must never validate",
         )
 

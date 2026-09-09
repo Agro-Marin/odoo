@@ -128,7 +128,7 @@ class StockPickingAvailability(models.Model):
                     return result
         return result
 
-    def _get_show_allocation(self, picking_type_id):
+    def _is_allocation_shown(self, picking_type_id):
         if not picking_type_id or picking_type_id.code == "outgoing":
             return False
         return any(

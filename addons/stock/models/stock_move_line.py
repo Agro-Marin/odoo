@@ -626,7 +626,7 @@ class StockMoveLine(models.Model):
             message, recommended_location = (
                 self.env["stock.quant"]
                 .sudo()
-                ._check_serial_number(
+                ._get_serial_number_warning(
                     self.product_id,
                     self.lot_id,
                     self.company_id,
@@ -689,7 +689,7 @@ class StockMoveLine(models.Model):
             self._classify_done_lines()
         )
         (
-            mls_without_lot | mls_needing_lot_check._resolve_done_lots()
+            mls_without_lot | mls_needing_lot_check._update_done_lots()
         )._check_lots_supplied()
 
         mls_to_delete.unlink()
@@ -755,7 +755,7 @@ class StockMoveLine(models.Model):
             self.browse(ml_ids_tracked_without_lot),
         )
 
-    def _resolve_done_lots(self):
+    def _update_done_lots(self):
         ml_ids_tracked_without_lot = OrderedSet()
         ml_ids_to_create_lot = OrderedSet()
         groups = self.grouped(lambda ml: (ml.product_id, ml.company_id))
@@ -1011,7 +1011,7 @@ class StockMoveLine(models.Model):
 
     @api.model
     def _log_message(self, thread, tracked_record, template, vals):
-        data = self._resolve_logged_relations(tracked_record, vals)
+        data = self._get_logged_relations(tracked_record, vals)
         thread.message_post_with_source(
             template,
             render_values={"move": tracked_record, "vals": data},
@@ -1019,7 +1019,7 @@ class StockMoveLine(models.Model):
         )
 
     @api.model
-    def _resolve_logged_relations(self, tracked_record, vals):
+    def _get_logged_relations(self, tracked_record, vals):
         data = dict(vals)
         for field, render_key in LOGGED_RELATIONS:
             if field not in data:

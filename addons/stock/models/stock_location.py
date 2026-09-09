@@ -399,7 +399,8 @@ class StockLocation(models.Model):
         return locations
 
     def write(self, vals):
-        transitioning = self._check_block_governance_before_write(vals)
+        self._check_block_governance_before_write(vals)
+        transitioning = self._filtered_block_type_transitioning(vals)
 
         if "cyclic_inventory_frequency" in vals:
             self._check_cyclic_inventory_frequency(vals["cyclic_inventory_frequency"])

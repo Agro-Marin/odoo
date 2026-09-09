@@ -109,7 +109,7 @@ class StockMoveLineQuant(models.Model):
                 continue
             corrections = []
             for ml in lines:
-                data = ml._resolve_logged_relations(ml, vals)
+                data = ml._get_logged_relations(ml, vals)
                 if RENDERED_KEYS & set(data):
                     corrections.append({"move": ml, "vals": data})
             if not corrections:

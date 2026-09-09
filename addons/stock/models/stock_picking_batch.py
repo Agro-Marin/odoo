@@ -320,7 +320,7 @@ class StockPickingBatch(models.Model):
         if not self.env.user.has_group("stock.group_reception_report"):
             return
         for batch in self:
-            batch.show_allocation = batch.picking_ids._get_show_allocation(
+            batch.show_allocation = batch.picking_ids._is_allocation_shown(
                 batch.picking_type_id
             )
 

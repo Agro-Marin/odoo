@@ -1706,7 +1706,7 @@ class MrpProduction(models.Model):
                 message, _dummy = (
                     self.env["stock.quant"]
                     .sudo()
-                    ._check_serial_number(self.product_id, sn, self.company_id)
+                    ._get_serial_number_warning(self.product_id, sn, self.company_id)
                 )
                 if message:
                     messages.append(message)
