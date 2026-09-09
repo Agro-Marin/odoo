@@ -12,6 +12,8 @@ from naming_vocabulary import (
     _python_files,
     classify,
     collection_head_order,
+    governed_definitions,
+    governs_module_helpers,
     is_model_class,
     measure,
 )
@@ -287,3 +289,134 @@ def test_constrains_census_sizes_the_family_it_exempts():
         "0 or all of them means the decorator is no longer being read"
     )
     assert 0 < c.constrains_unruled < c.constrains_hooks - c.constrains_canonical
+
+
+# §2.4.13's three populations. Each fixture is a real addon layout rather than a
+# bare file, because the scope test is `__manifest__.py` above a models/ wizard/
+# wizards/ directory and a fixture that skips either half would pass while
+# measuring nothing.
+HELPERS = """
+    def make_widget_vals(record):
+        return {}
+
+
+    class Helper:
+        def _fetch_rows(self):
+            return []
+
+
+    class WidgetLine(models.Model):
+        _name = "widget.line"
+
+        def _get_lines(self):
+            def _retrieve_bucket(key):
+                return key
+
+            return _retrieve_bucket
+"""
+
+
+def _addon(tmp_path, subdir="models", manifest=True):
+    module = tmp_path / "widget"
+    package = module / subdir
+    package.mkdir(parents=True)
+    if manifest:
+        (module / "__manifest__.py").write_text("{'name': 'widget'}\n")
+    (package / "widget_line.py").write_text(textwrap.dedent(HELPERS))
+    return module
+
+
+@pytest.mark.parametrize("subdir", ["models", "wizard", "wizards"])
+def test_an_addon_helper_file_is_governed_in_all_three_directories(tmp_path, subdir):
+    assert governs_module_helpers(_addon(tmp_path, subdir) / subdir / "widget_line.py")
+
+
+def test_all_three_uncounted_populations_are_measured(tmp_path):
+    found = {v.name for v in measure([_addon(tmp_path)])}
+    assert found == {"make_widget_vals", "_fetch_rows", "_retrieve_bucket"}, (
+        "§2.4.13 governs a module-level function, a plain-class method and a "
+        f"nested def in an addon models/ file; measured {sorted(found)}"
+    )
+
+
+def test_a_definition_is_counted_once_however_deeply_nested(tmp_path):
+    module = tmp_path / "widget"
+    (module / "models").mkdir(parents=True)
+    (module / "__manifest__.py").write_text("{'name': 'widget'}\n")
+    (module / "models" / "deep.py").write_text(
+        textwrap.dedent("""
+            class WidgetLine(models.Model):
+                _name = "widget.line"
+
+                def _get_lines(self):
+                    def outer():
+                        def _retrieve_bucket(key):
+                            return key
+
+                        return _retrieve_bucket
+
+                    return outer
+        """)
+    )
+    # `ast.walk` from every function reaches the innermost `def` once per
+    # enclosing frame, so this is the assertion that keeps a doubly nested name
+    # from being reported twice and inflating the floor.
+    assert [v.name for v in measure([module])] == ["_retrieve_bucket"]
+
+
+def test_a_helper_outside_models_and_wizard_is_not_governed(tmp_path):
+    outside = _addon(tmp_path, "controllers")
+    assert not governs_module_helpers(outside / "controllers" / "widget_line.py")
+    assert measure([outside]) == []
+
+
+def test_a_models_directory_with_no_manifest_above_it_is_not_an_addon(tmp_path):
+    loose = _addon(tmp_path, manifest=False)
+    assert not governs_module_helpers(loose / "models" / "widget_line.py")
+    assert measure([loose]) == []
+
+
+def test_the_core_package_keeps_the_narrow_population(tmp_path):
+    # `naming_core_vocabulary.py` reads every function under odoo/odoo/ on
+    # sharper rules and holds a hard zero with an argued allowlist. Widening
+    # this gate over the same tree would ask one question twice and answer it
+    # two ways -- `append_paths` being §2.4.13's own example of a name that gate
+    # allowlists and this one would report.
+    core_file = ROOT / "odoo" / "addons" / "base" / "models" / "ir_asset_paths.py"
+    if not core_file.is_file():
+        pytest.skip(f"{core_file} has moved; the scope claim needs a new witness")
+    assert not governs_module_helpers(core_file)
+
+
+def test_a_model_method_is_still_counted_without_the_widening(tmp_path):
+    # The narrow population is not conditional on the addon test: a model class
+    # in a file the widening does not reach is measured exactly as before.
+    (tmp_path / "sale_order.py").write_text(
+        textwrap.dedent("""
+            class SaleOrder(models.Model):
+                _name = "sale.order"
+
+                def _validate_amount(self):
+                    pass
+
+                def helper():
+                    pass
+        """)
+    )
+    assert not governs_module_helpers(tmp_path / "sale_order.py")
+    assert [v.name for v in measure([tmp_path])] == ["_validate_amount"]
+
+
+def test_governed_definitions_reads_a_file_without_measuring_it(tmp_path):
+    module = _addon(tmp_path)
+    path = module / "models" / "widget_line.py"
+    names = [n.name for n in governed_definitions(path, ast.parse(path.read_text()))]
+    assert sorted(names) == [
+        "_fetch_rows",
+        "_get_lines",
+        "_retrieve_bucket",
+        "make_widget_vals",
+    ], (
+        "the population is every definition the vocabulary reaches, compliant "
+        f"ones included; classify() is what narrows it. Got {sorted(names)}"
+    )

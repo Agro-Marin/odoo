@@ -663,6 +663,79 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
     )
 
 
+# §2.4.13 gives the vocabulary three populations this gate could not see. It
+# governs "every function in the core package `odoo/`, at module level and on
+# plain classes alike", and in an addon it governs "the module's own helpers
+# too" -- a function declared at module level under `models/` or `wizard/`, a
+# method on a plain class in the same file, and a function nested inside either.
+# `measure()` implemented the scope as a class-membership test, so all three
+# were counted by `census()` and gated by nothing; the section says so in as
+# many words, and adds that the nested one is the largest and the cheapest to
+# repair, a nested `def` having no binding, no override and no call site outside
+# the body that declares it.
+#
+# The core package is deliberately NOT widened here. `naming_core_vocabulary.py`
+# already reads every function under `odoo/odoo/` on sharper rules and holds a
+# hard zero with an argued allowlist, so widening this gate over the same tree
+# would ask one question twice and answer it two ways -- `append_paths` is the
+# case in point, a name §2.4.13 argues is correct and that gate allowlists.
+# `__manifest__.py` is what tells the two apart, being exactly what makes a
+# directory an addon and exactly what the core package has none of.
+ADDON_HELPER_DIRS = frozenset({"models", "wizard", "wizards"})
+
+
+@functools.cache
+def _is_addon_directory(directory: Path) -> bool:
+    return any(
+        (parent / "__manifest__.py").is_file()
+        for parent in (directory, *directory.parents)
+    )
+
+
+def governs_module_helpers(path: Path) -> bool:
+    if path.is_relative_to(ROOT / "odoo"):
+        return False
+    return bool(ADDON_HELPER_DIRS & set(path.parts)) and _is_addon_directory(
+        path.parent
+    )
+
+
+def governed_definitions(
+    path: Path, tree: ast.Module
+) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Every definition the vocabulary reaches in one file, each exactly once."""
+    found: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
+    seen: set[int] = set()
+
+    def take(node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        if id(node) not in seen:
+            seen.add(id(node))
+            found.append(node)
+
+    widened = governs_module_helpers(path)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and (is_model_class(node) or widened):
+            for item in node.body:
+                if isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
+                    take(item)
+    if widened:
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                take(node)
+        # A `def` at any depth inside any other one. Walking from every function
+        # rather than from the module reaches a closure inside a closure, and
+        # `take` is what keeps the deeper ones from being counted once per
+        # enclosing frame.
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                for inner in ast.walk(node):
+                    if inner is not node and isinstance(
+                        inner, ast.FunctionDef | ast.AsyncFunctionDef
+                    ):
+                        take(inner)
+    return found
+
+
 def measure(roots: list[Path] | None = None) -> list[Violation]:
 
     roots = roots or [ROOT / r for r in SCAN_ROOTS]
@@ -676,24 +749,19 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
     out: list[Violation] = []
     for path in files:
         tree = _ast_cache.parse_file(path)
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.ClassDef) or not is_model_class(node):
+        for item in governed_definitions(path, tree):
+            hit = classify(item.name)
+            if hit is None or _overrides_same_name(item):
                 continue
-            for item in node.body:
-                if not isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
-                    continue
-                hit = classify(item.name)
-                if hit is None or _overrides_same_name(item):
-                    continue
-                out.append(
-                    Violation(
-                        path=_sources.display(path, ROOT),
-                        line=item.lineno,
-                        name=item.name,
-                        verb=hit[0],
-                        canonical=hit[1],
-                    )
+            out.append(
+                Violation(
+                    path=_sources.display(path, ROOT),
+                    line=item.lineno,
+                    name=item.name,
+                    verb=hit[0],
+                    canonical=hit[1],
                 )
+            )
     out.sort(key=lambda v: (v.path, v.line))
     return out
 
