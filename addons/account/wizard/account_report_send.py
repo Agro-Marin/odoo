@@ -1,5 +1,6 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.documents import mimetype_for
 from odoo.tools.misc import get_lang
 
 
@@ -128,12 +129,13 @@ class AccountReportSend(models.TransientModel):
         """
         # Extend to add placeholders based on the checkboxes.
         self.check_singleton()
-        filename = f"{partner.name} - {self.account_report_id.get_default_report_filename(self.report_options, 'pdf')}"
+        extension = "pdf"
+        filename = f"{partner.name} - {self.account_report_id.get_default_report_filename(self.report_options, extension)}"
         return [
             {
                 "id": f"placeholder_{filename}",
                 "name": filename,
-                "mimetype": "application/pdf",
+                "mimetype": mimetype_for(extension),
                 "placeholder": True,
             }
         ]

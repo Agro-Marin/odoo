@@ -20,6 +20,6 @@ rawArch  web
 setDisplayName  web odoo enterprise
 viewArch  web
 viewId  web odoo enterprise
-viewSwitcherEntries  web enterprise
+viewSwitcherEntries  web odoo enterprise
 viewType  web odoo enterprise
 views  web enterprise agromarin

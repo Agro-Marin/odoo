@@ -29,7 +29,7 @@ export class AccountReportListRenderer extends ListRenderer {
         this.optionalActiveFields = this.computeOptionalActiveFields();
         this.columns = this.getActiveColumns();
 
-        this.props.list._config.orderBy = [
+        this.props.list.config.orderBy = [
             {
                 name: "sequence",
                 asc: true,
