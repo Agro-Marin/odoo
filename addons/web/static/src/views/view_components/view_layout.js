@@ -25,7 +25,8 @@ import { ActionHelper } from "@web/views/action_helper";
  *
  * @typedef ViewLayoutProps
  * @property {Record<string, any>} [slots]
- * @property {string} [className]
+ * @property {string} [className] on the view root
+ * @property {string} [contentClassName] on `Layout`'s content, beside the sample-data class
  * @property {Record<string, any>} [display]
  * @property {Record<string, any>} [searchBarToggler] from {@link useViewChassis}
  * @property {boolean} [searchBar]
@@ -43,6 +44,7 @@ export class ViewLayout extends Component {
     static props = {
         slots: { type: Object, optional: true },
         className: { type: String, optional: true },
+        contentClassName: { type: String, optional: true },
         display: { type: Object, optional: true },
         searchBarToggler: { type: Object, optional: true },
         searchBar: { type: Boolean, optional: true },
@@ -72,7 +74,12 @@ export class ViewLayout extends Component {
 
     /** @returns {string} */
     get layoutClassName() {
-        return this.props.useSampleModel ? "o_view_sample_data" : "";
+        return [
+            this.props.useSampleModel ? "o_view_sample_data" : "",
+            this.props.contentClassName || "",
+        ]
+            .filter(Boolean)
+            .join(" ");
     }
 }
 
