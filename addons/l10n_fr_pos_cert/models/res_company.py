@@ -55,7 +55,7 @@ class ResCompany(models.Model):
         and raises an error with the result.
         """
 
-        def build_order_info(order):
+        def get_order_info(order):
             entry_reference = _("(Receipt ref.: %s)")
             order_reference_string = (
                 order.pos_reference and entry_reference % order.pos_reference
@@ -105,8 +105,8 @@ class ResCompany(models.Model):
             orders.invalidate_recordset()
 
             orders_sorted_date = orders.sorted(lambda o: o.date_order)
-            start_order_info = build_order_info(orders_sorted_date[0])
-            end_order_info = build_order_info(orders_sorted_date[-1])
+            start_order_info = get_order_info(orders_sorted_date[0])
+            end_order_info = get_order_info(orders_sorted_date[-1])
 
             report_dict.update(
                 {

@@ -11,7 +11,7 @@ from odoo.addons.l10n_ro_edi_stock.tests.common import TestL10nRoEdiStockCommon
 
 
 @patch(
-    "odoo.addons.l10n_ro_edi_stock.models.etransport_api.ETransportAPI._make_etransport_request"
+    "odoo.addons.l10n_ro_edi_stock.models.etransport_api.ETransportAPI._send_etransport_request"
 )
 @tagged("post_install_l10n", "post_install", "-at_install")
 class TestETransportFlows(TestL10nRoEdiStockCommon):

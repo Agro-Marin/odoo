@@ -17,7 +17,7 @@ NS_DOWNLOAD = {
 NS_SIGNATURE = {"ns": "http://www.w3.org/2000/09/xmldsig#"}
 
 
-def make_efactura_request(
+def send_efactura_request(
     session, company, endpoint, params, data=None
 ) -> dict[str, str | bytes]:
     """
@@ -93,7 +93,7 @@ def _request_ciusro_send_invoice(
     :param move_type: ``move_type`` field from ``account.move`` object, used for the request parameter
     :return: Result dictionary -> {'error': `str`} | {'key_loading': `str`}
     """
-    result = make_efactura_request(
+    result = send_efactura_request(
         session=requests,
         company=company,
         endpoint="upload" if is_b2b else "uploadb2c",
@@ -138,7 +138,7 @@ def _request_ciusro_fetch_status(company, key_loading, session):
     :param session: ``requests.Session()`` object
     :return: {'error': `str`} | {'key_download': `str`, 'state_status': ['nok', 'ok']} | {}
     """
-    result = make_efactura_request(
+    result = send_efactura_request(
         session=session,
         company=company,
         endpoint="stareMesaj",
@@ -191,7 +191,7 @@ def _request_ciusro_download_answer(company, key_download, session):
             } -> When the invoice is accepted
         }
     """
-    result = make_efactura_request(
+    result = send_efactura_request(
         session=session,
         company=company,
         endpoint="descarcare",
@@ -294,7 +294,7 @@ def _request_ciusro_synchronize_invoices(company, session, nb_days=1):
     :param nb_days(optional,default=1): ``int`` the number of days for which the request should be made, min=1, max=60
     :return: {'error': `str`} | {'sent_invoices_messages': [`dict`], 'sent_invoices_refused_messages': [`dict`], 'received_bills_messages': [`dict`]}
     """
-    result = make_efactura_request(
+    result = send_efactura_request(
         session=session,
         company=company,
         endpoint="listaMesajeFactura",

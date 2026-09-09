@@ -2463,7 +2463,7 @@ class AccountMove(models.Model):
         }
 
     def _l10n_it_edi_base_export_check(self):
-        def build_error(message, records):
+        def prepare_error(message, records):
             return {
                 "message": message,
                 **(
@@ -2485,7 +2485,7 @@ class AccountMove(models.Model):
                 and move._l10n_it_edi_services_or_goods() == "both"
             )
         ):
-            errors["l10n_it_edi_move_rc_mixed_product_types"] = build_error(
+            errors["l10n_it_edi_move_rc_mixed_product_types"] = prepare_error(
                 message=_(
                     "Cannot apply Reverse Charge to bills which contains both services and goods."
                 ),
@@ -2503,7 +2503,7 @@ class AccountMove(models.Model):
                 message = _(
                     "Partner(s) belongs to the Public Administration, please fill out Origin Document Type field in the Electronic Invoicing tab."
                 )
-                errors["move_missing_origin_document"] = build_error(
+                errors["move_missing_origin_document"] = prepare_error(
                     message=message, records=moves
                 )
             if moves := pa_moves.filtered(
@@ -2513,7 +2513,7 @@ class AccountMove(models.Model):
                 )
             ):
                 message = _("The Origin Document Date cannot be in the future.")
-                errors["l10n_it_edi_move_future_origin_document_date"] = build_error(
+                errors["l10n_it_edi_move_future_origin_document_date"] = prepare_error(
                     message=message, records=moves
                 )
         if pa_moves := self.filtered(
@@ -2528,7 +2528,7 @@ class AccountMove(models.Model):
                 message = _(
                     "CIG/CUP fields of partner(s) are present, please fill out Origin Document Type field in the Electronic Invoicing tab."
                 )
-                errors["move_missing_origin_document_field"] = build_error(
+                errors["move_missing_origin_document_field"] = prepare_error(
                     message=message, records=moves
                 )
         return errors

@@ -27,7 +27,7 @@ test("Iban Widget full flow", async () => {
         bank_ids: [bankId],
     });
     await start();
-    onRpc("res.partner.bank", "check_iban", (params) => {
+    onRpc("res.partner.bank", "is_valid_iban", (params) => {
         const iban = params.args[1].replace(/\s/g, "");
         return iban === validIban;
     });

@@ -15,7 +15,7 @@ def pretty_iban(iban):
     """return iban in groups of four characters separated by a single space"""
     iban = normalize_iban(iban)
     try:
-        validate_iban(iban)
+        check_iban(iban)
         iban = " ".join([iban[i : i + 4] for i in range(0, len(iban), 4)])
     except ValidationError:
         pass
@@ -75,7 +75,7 @@ def get_iban_part(iban, number_kind):
     )
 
 
-def validate_iban(iban):
+def check_iban(iban):
     """Raise ValidationError if iban is not a well-formed, checksum-valid IBAN."""
     iban = normalize_iban(iban)
     if not iban:
@@ -121,7 +121,7 @@ class ResPartnerBank(models.Model):
     @api.model
     def _get_acc_type(self, acc_number):
         try:
-            validate_iban(acc_number)
+            check_iban(acc_number)
             return "iban"
         except ValidationError:
             return super()._get_acc_type(acc_number)
@@ -146,7 +146,7 @@ class ResPartnerBank(models.Model):
             return vals
         vals = dict(vals)
         try:
-            validate_iban(vals["acc_number"])
+            check_iban(vals["acc_number"])
             vals["acc_number"] = pretty_iban(vals["acc_number"])
         except ValidationError:
             pass
@@ -165,11 +165,11 @@ class ResPartnerBank(models.Model):
     def _check_iban(self):
         for bank in self:
             if bank.acc_type == "iban":
-                validate_iban(bank.acc_number)
+                check_iban(bank.acc_number)
 
-    def check_iban(self, iban=""):
+    def is_valid_iban(self, iban=""):
         try:
-            validate_iban(iban)
+            check_iban(iban)
             return True
         except ValidationError:
             return False

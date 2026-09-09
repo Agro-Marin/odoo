@@ -22,7 +22,7 @@ export class IbanWidget extends CharField {
             } else {
                 this.state.isValidIBAN = await this.orm.call(
                     "res.partner.bank",
-                    "check_iban",
+                    "is_valid_iban",
                     [[], iban],
                 );
             }

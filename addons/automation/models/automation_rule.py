@@ -1505,7 +1505,7 @@ class AutomationRule(models.Model):
 
     def _register_hook(self):
 
-        def make_create():
+        def prepare_patched_create():
             @api.model_create_multi
             def create(self, vals_list, **kw):
                 automations = self.env["automation.rule"]._get_actions(
@@ -1527,7 +1527,7 @@ class AutomationRule(models.Model):
 
             return create
 
-        def make_write():
+        def prepare_patched_write():
             def write(self, vals, **kw):
                 if self.env.context.get("__automation_bookkeeping"):
                     return write.origin(self, vals, **kw)
@@ -1565,7 +1565,7 @@ class AutomationRule(models.Model):
 
             return write
 
-        def make_compute_field_value():
+        def prepare_patched_compute_field_value():
 
             def _compute_field_value(self, field, validate=True):
                 stored_fnames = [
@@ -1617,7 +1617,7 @@ class AutomationRule(models.Model):
 
             return _compute_field_value
 
-        def make_unlink():
+        def prepare_patched_unlink():
             def unlink(self, **kwargs):
                 automations = self.env["automation.rule"]._get_actions(
                     self,
@@ -1636,7 +1636,7 @@ class AutomationRule(models.Model):
 
             return unlink
 
-        def make_onchange(automation_rule_id):
+        def prepare_patched_onchange(automation_rule_id):
             def automation_onchange(self):
                 automation_rule = self.env["automation.rule"].browse(automation_rule_id)
 
@@ -1675,7 +1675,7 @@ class AutomationRule(models.Model):
 
             return automation_onchange
 
-        def make_message_post():
+        def prepare_patched_message_post():
             def _message_post(self, *args, **kwargs):
                 message = _message_post.origin(self, *args, **kwargs)
                 message_sudo = message.sudo().with_context(active_test=False)
@@ -1744,16 +1744,20 @@ class AutomationRule(models.Model):
 
             if automation_rule.trigger in CREATE_WRITE_SET:
                 if automation_rule.trigger in CREATE_TRIGGERS:
-                    patch(Model, "create", make_create())
+                    patch(Model, "create", prepare_patched_create())
                 if automation_rule.trigger in WRITE_TRIGGERS:
-                    patch(Model, "write", make_write())
-                    patch(Model, "_compute_field_value", make_compute_field_value())
+                    patch(Model, "write", prepare_patched_write())
+                    patch(
+                        Model,
+                        "_compute_field_value",
+                        prepare_patched_compute_field_value(),
+                    )
 
             elif automation_rule.trigger == "on_unlink":
-                patch(Model, "unlink", make_unlink())
+                patch(Model, "unlink", prepare_patched_unlink())
 
             elif automation_rule.trigger == "on_change":
-                method = make_onchange(automation_rule.id)
+                method = prepare_patched_onchange(automation_rule.id)
                 onchange_methods = Model._onchange_methods
                 for field in automation_rule.on_change_field_ids:
                     onchange_methods.setdefault(field.name, []).append(method)
@@ -1762,7 +1766,7 @@ class AutomationRule(models.Model):
                 automation_rule.model_id.is_mail_thread
                 and automation_rule.trigger in MAIL_TRIGGERS
             ):
-                patch(Model, "message_post", make_message_post())
+                patch(Model, "message_post", prepare_patched_message_post())
 
     def _search_time_based_automation_records(self, *, until):
         automation = self.check_singleton()

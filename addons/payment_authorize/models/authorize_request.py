@@ -158,7 +158,7 @@ class AuthorizeAPI:
             )[-4:]
         return res
 
-    def delete_customer_profile(self, profile_id):
+    def remove_customer_profile(self, profile_id):
         """Delete a customer profile
 
         :param str profile_id: the id of the customer profile in the Authorize.net backend

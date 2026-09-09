@@ -30,7 +30,7 @@ def _cleanup_errors(errors: list[str]) -> list[str]:
 
 class ETransportAPI:
     def get_status(self, company_id, document_load_id, session=None):
-        return self._make_etransport_request(
+        return self._send_etransport_request(
             company=company_id,
             endpoint=f"stareMesaj/{document_load_id}",
             method="get",
@@ -39,14 +39,14 @@ class ETransportAPI:
 
     def upload_data(self, company_id, data):
         cif = company_id.vat.replace("RO", "")
-        return self._make_etransport_request(
+        return self._send_etransport_request(
             company=company_id,
             endpoint=f"upload/ETRANSP/{cif}/2",
             method="post",
             data=data,
         )
 
-    def _make_etransport_request(
+    def _send_etransport_request(
         self, company, endpoint: str, method: str, session=None, data=None
     ) -> dict:
         api_env = "test" if company.l10n_ro_edi_test_env else "prod"

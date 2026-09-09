@@ -379,7 +379,7 @@ class ImDispatch(threading.Thread):
     def is_healthy(self):
         return not stop_event.is_set() and (not self._ever_started or self.is_alive())
 
-    def _ensure_started(self):
+    def _start_if_stopped(self):
         with contextlib.suppress(RuntimeError):
             if not self.is_alive():
                 self.start()
@@ -398,7 +398,7 @@ class ImDispatch(threading.Thread):
                     if not ws_set:
                         del self._channels_to_ws[channel]
         websocket.subscribe(channels, last)
-        self._ensure_started()
+        self._start_if_stopped()
 
     def unsubscribe(self, websocket):
         with self._lock:

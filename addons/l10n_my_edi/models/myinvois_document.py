@@ -943,13 +943,13 @@ class MyInvoisDocument(models.Model):
         :return: A dict of the format: {submission_uid: {'error': '', 'statuses': {record: document_statuses}}}
         """
 
-        def _make_deep_default_dict():
-            return defaultdict(_make_deep_default_dict)
+        def prepare_deep_default_dict():
+            return defaultdict(prepare_deep_default_dict)
 
         if not self:
             return None
 
-        results = _make_deep_default_dict()
+        results = prepare_deep_default_dict()
         for proxy_user, records in self.grouped(
             lambda r: r._myinvois_get_proxy_user()
         ).items():

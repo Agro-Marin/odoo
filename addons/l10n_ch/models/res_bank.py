@@ -8,19 +8,19 @@ from odoo.tools import LazyTranslate, street_split
 from odoo.tools.misc import mod10r
 
 from odoo.addons.account_iban.models.res_partner_bank import (
+    check_iban,
     get_iban_part,
     normalize_iban,
     pretty_iban,
-    validate_iban,
 )
 from odoo.addons.base.models.res_bank import sanitize_account_number
 
 _lt = LazyTranslate(__name__)
 
 
-def validate_qr_iban(qr_iban):
+def check_qr_iban(qr_iban):
     # Check first if it's a valid IBAN.
-    validate_iban(qr_iban)
+    check_iban(qr_iban)
 
     # We sanitize first so that check_qr_iban_range() can extract correct IID from IBAN to validate it.
     sanitized_qr_iban = sanitize_account_number(qr_iban)
@@ -82,7 +82,7 @@ class ResPartnerBank(models.Model):
     def _compute_l10n_ch_qr_iban(self):
         for record in self:
             try:
-                validate_qr_iban(record.acc_number)
+                check_qr_iban(record.acc_number)
                 valid_qr_iban = True
             except ValidationError:
                 valid_qr_iban = False
@@ -95,7 +95,7 @@ class ResPartnerBank(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get("l10n_ch_qr_iban"):
-                validate_qr_iban(vals["l10n_ch_qr_iban"])
+                check_qr_iban(vals["l10n_ch_qr_iban"])
                 vals["l10n_ch_qr_iban"] = pretty_iban(
                     normalize_iban(vals["l10n_ch_qr_iban"])
                 )
@@ -103,7 +103,7 @@ class ResPartnerBank(models.Model):
 
     def write(self, vals):
         if vals.get("l10n_ch_qr_iban"):
-            validate_qr_iban(vals["l10n_ch_qr_iban"])
+            check_qr_iban(vals["l10n_ch_qr_iban"])
             vals["l10n_ch_qr_iban"] = pretty_iban(
                 normalize_iban(vals["l10n_ch_qr_iban"])
             )

@@ -21,7 +21,7 @@ class ApprovalRequestPrediction(models.Model):
     def _predict_outcomes(self) -> dict[int, tuple[str | bool, float]]:
         stats_cache: dict[tuple[int, int], list] = {}
 
-        def _fetch_bucket(category_id: int, partner_id: int) -> list:
+        def get_stats_bucket(category_id: int, partner_id: int) -> list:
             cache_key = (category_id, partner_id)
             if cache_key in stats_cache:
                 return stats_cache[cache_key]
@@ -46,7 +46,7 @@ class ApprovalRequestPrediction(models.Model):
                 predictions[request.id] = (False, 0.0)
                 continue
 
-            rows = _fetch_bucket(
+            rows = get_stats_bucket(
                 request.category_id.id,
                 request.partner_id.id if request.partner_id else False,
             )

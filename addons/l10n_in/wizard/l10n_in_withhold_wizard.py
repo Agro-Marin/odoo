@@ -394,7 +394,7 @@ class L10n_InWithholdWizard(models.TransientModel):
         Prepare the move lines for the withhold entry
         """
 
-        def append_vals(quantity, price_unit, debit, credit, account_id, tax_ids):
+        def prepare_line_vals(quantity, price_unit, debit, credit, account_id, tax_ids):
             return {
                 "quantity": quantity,
                 "price_unit": price_unit,
@@ -426,7 +426,7 @@ class L10n_InWithholdWizard(models.TransientModel):
             else self.base
         )
         vals.append(
-            append_vals(
+            prepare_line_vals(
                 1.0,
                 self.base,
                 debit,
@@ -450,7 +450,9 @@ class L10n_InWithholdWizard(models.TransientModel):
             else 0.0
         )
         vals.append(
-            append_vals(1.0, total_amount, debit, credit, withholding_account_id, False)
+            prepare_line_vals(
+                1.0, total_amount, debit, credit, withholding_account_id, False
+            )
         )
 
         # Create move line for the tax amount
@@ -464,7 +466,9 @@ class L10n_InWithholdWizard(models.TransientModel):
             if withhold_type in ("in_withhold", "out_refund_withhold")
             else total_tax
         )
-        vals.append(append_vals(1.0, total_tax, debit, credit, partner_account, False))
+        vals.append(
+            prepare_line_vals(1.0, total_tax, debit, credit, partner_account, False)
+        )
 
         return vals
 

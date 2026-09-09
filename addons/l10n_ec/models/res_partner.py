@@ -6,7 +6,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 
-def verify_final_consumer(vat):
+def is_final_consumer(vat):
     return vat == "9" * 13  # final consumer is identified with 9999999999999
 
 
@@ -30,7 +30,7 @@ class PartnerIdTypeEc(enum.Enum):
         Returns ID code for move and partner based on subset of Table 2 of SRI's ATS specification
         """
         partner_id_type = partner._l10n_ec_get_identification_type()
-        if partner.vat and verify_final_consumer(partner.vat):
+        if partner.vat and is_final_consumer(partner.vat):
             return cls.FINAL_CONSUMER
         elif move_type.startswith("in_"):
             if partner_id_type == "ruc":  # includes final consumer
@@ -91,7 +91,7 @@ class ResPartner(models.Model):
                 and partner.l10n_latam_identification_type_id in (it_ruc, it_dni)
                 and partner.vat
             ):
-                final_consumer = verify_final_consumer(partner.vat)
+                final_consumer = is_final_consumer(partner.vat)
                 if not final_consumer:
                     if (
                         partner.l10n_latam_identification_type_id.id == it_dni.id

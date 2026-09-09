@@ -576,7 +576,7 @@ class CrmTeam(models.Model):
             )
         )
 
-        def _assign_lead(
+        def update_lead_assignment(
             lead, members, member_leads, members_quota, assign_lst, optional_lst=None
         ):
             member_found = next(
@@ -647,7 +647,7 @@ class CrmTeam(models.Model):
 
             for lead in preferred_leads.sorted(lambda lead: (-lead.probability, id)):
                 counter += 1
-                member_found = _assign_lead(
+                member_found = update_lead_assignment(
                     lead,
                     members_to_assign_wpref,
                     preferred_leads_per_member,
@@ -670,7 +670,7 @@ class CrmTeam(models.Model):
             }
             for lead in to_assign.sorted(lambda lead: (-lead.probability, id)):
                 counter += 1
-                member_found = _assign_lead(
+                member_found = update_lead_assignment(
                     lead,
                     members_to_assign,
                     leads_per_member,

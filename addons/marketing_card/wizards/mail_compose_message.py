@@ -59,17 +59,17 @@ class MailComposeMessage(models.TransientModel):
         for card, body in card_body_pairs:
             if body:
 
-                def fill_card_image_url(match):
+                def replace_card_image_url(match):
                     return Markup('src="{}"').format(card._get_path("card.jpg"))
 
-                def fill_card_preview_url(match):
+                def replace_card_preview_url(match):
                     return Markup('href="{}"').format(card._get_path("preview"))
 
                 body_is_markup = False
                 if isinstance(body, Markup):
                     body_is_markup = True
-                body = re.sub(CARD_IMAGE_URL, fill_card_image_url, body)
-                body = re.sub(CARD_PREVIEW_URL, fill_card_preview_url, body)
+                body = re.sub(CARD_IMAGE_URL, replace_card_image_url, body)
+                body = re.sub(CARD_PREVIEW_URL, replace_card_preview_url, body)
                 if body_is_markup:
                     body = Markup(body)
             bodies.append(body)

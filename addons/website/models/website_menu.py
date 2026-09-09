@@ -273,7 +273,7 @@ class WebsiteMenu(models.Model):
     def get_tree(self, website_id, menu_id=None):
         website = self.env["website"].browse(website_id)
 
-        def make_tree(node):
+        def prepare_menu_node(node):
             menu_node = {
                 "fields": {
                     "id": node.id,
@@ -288,11 +288,11 @@ class WebsiteMenu(models.Model):
                 "is_homepage": node.url == (website.homepage_url or "/"),
             }
             for child in node.child_id:
-                menu_node["children"].append(make_tree(child))
+                menu_node["children"].append(prepare_menu_node(child))
             return menu_node
 
         menu = (menu_id and self.browse(menu_id)) or website.menu_id
-        return make_tree(menu)
+        return prepare_menu_node(menu)
 
     _SAVE_ALLOWED_FIELDS = frozenset(
         {

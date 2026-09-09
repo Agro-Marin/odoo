@@ -2,11 +2,11 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.account_iban.models.res_partner_bank import (
+    check_iban,
     get_bban_from_iban,
     get_iban_part,
     normalize_iban,
     pretty_iban,
-    validate_iban,
 )
 
 # Canonical valid Belgian IBAN (Wikipedia example), 16 chars.
@@ -38,34 +38,34 @@ class TestAccountIban(TransactionCase):
         self.assertEqual(get_bban_from_iban(VALID_IBAN), "539007547034")
 
     def test_validate_iban_accepts_valid(self):
-        """validate_iban returns None (no error) for a well-formed IBAN."""
-        self.assertIsNone(validate_iban(VALID_IBAN))
+        """check_iban returns None (no error) for a well-formed IBAN."""
+        self.assertIsNone(check_iban(VALID_IBAN))
 
     def test_validate_iban_empty_raises(self):
         """An empty IBAN is rejected."""
         with self.assertRaises(ValidationError):
-            validate_iban("")
+            check_iban("")
 
     def test_validate_iban_unknown_country_raises(self):
         """An IBAN whose country code is not in the template map is rejected."""
         with self.assertRaises(ValidationError):
-            validate_iban("ZZ68539007547034")
+            check_iban("ZZ68539007547034")
 
     def test_validate_iban_wrong_length_raises(self):
         """An IBAN of the wrong length for its country is rejected."""
         with self.assertRaises(ValidationError):
-            validate_iban("BE123")
+            check_iban("BE123")
 
     def test_validate_iban_bad_check_digits_raises(self):
         """Tampering with the check digits fails the mod-97 validation."""
         with self.assertRaises(ValidationError):
-            validate_iban("BE69539007547034")
+            check_iban("BE69539007547034")
 
     def test_check_iban_returns_bool(self):
-        """res.partner.bank.check_iban returns True for valid, False for invalid."""
+        """res.partner.bank.is_valid_iban returns True for valid, False for invalid."""
         Bank = self.env["res.partner.bank"]
-        self.assertTrue(Bank.check_iban(VALID_IBAN))
-        self.assertFalse(Bank.check_iban("not-an-iban"))
+        self.assertTrue(Bank.is_valid_iban(VALID_IBAN))
+        self.assertFalse(Bank.is_valid_iban("not-an-iban"))
 
     def test_create_does_not_mutate_caller_vals(self):
         """create() must not rewrite acc_number in the caller's own vals dict."""

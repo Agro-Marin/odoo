@@ -391,7 +391,7 @@ class HrAttendanceOvertimeRule(models.Model):
         self, min_check_in, max_check_out, attendances, schedules_intervals_by_employee
     ):
 
-        def _fill_overtime(employees, rules, intervals, attendances_intervals):
+        def update_overtime(employees, rules, intervals, attendances_intervals):
             if not intervals:
                 return
             for employee in employees:
@@ -409,7 +409,7 @@ class HrAttendanceOvertimeRule(models.Model):
                         Intervals(attendance_intervals_list)
                     )
 
-        def _build_day_rule_intervals(employees, rule, intervals):
+        def get_day_rule_intervals(employees, rule, intervals):
             timing_intervals_by_employee = defaultdict(Intervals)
             start = min(rule.timing_start, rule.timing_stop)
             stop = max(rule.timing_start, rule.timing_stop)
@@ -463,7 +463,7 @@ class HrAttendanceOvertimeRule(models.Model):
 
         for timing_type, rules in self.grouped("timing_type").items():
             if timing_type == "leave":
-                _fill_overtime(
+                update_overtime(
                     employees,
                     rules,
                     intervals_by_timing_type["leave"],
@@ -477,7 +477,7 @@ class HrAttendanceOvertimeRule(models.Model):
                     outside_calendar_intervals = intervals_by_timing_type["schedule"][
                         calendar.id
                     ]
-                    _fill_overtime(
+                    update_overtime(
                         employees,
                         calendar_rules,
                         outside_calendar_intervals,
@@ -485,10 +485,10 @@ class HrAttendanceOvertimeRule(models.Model):
                     )
             else:
                 for rule in rules:
-                    timing_intervals_by_employee = _build_day_rule_intervals(
+                    timing_intervals_by_employee = get_day_rule_intervals(
                         employees, rule, intervals_by_timing_type[timing_type]
                     )
-                    _fill_overtime(
+                    update_overtime(
                         employees,
                         rule,
                         timing_intervals_by_employee,
