@@ -30,7 +30,7 @@ class AddIotBox(models.TransientModel):
 
     offline_pairing_token = fields.Char(
         "Token",
-        default=lambda self: self._compute_pairing_token(),
+        default=lambda self: self._default_offline_pairing_token(),
         readonly=True,
         store=False,
     )
@@ -206,7 +206,7 @@ class AddIotBox(models.TransientModel):
             "target": "new",
         }
 
-    def _compute_pairing_token(self):
+    def _default_offline_pairing_token(self):
         icp_sudo = self.env["ir.config_parameter"].sudo()
         token = self.env["iot.box"]._default_token()
         url = self.get_base_url()

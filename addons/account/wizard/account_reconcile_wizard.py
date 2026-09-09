@@ -92,7 +92,7 @@ class AccountReconcileWizard(models.TransientModel):
     )
     edit_mode_reco_currency_id = fields.Many2one(
         comodel_name="res.currency",
-        compute="_compute_edit_mode_reco_currency",
+        compute="_compute_edit_mode_reco_currency_id",
     )
     edit_mode = fields.Boolean(
         compute="_compute_edit_mode",

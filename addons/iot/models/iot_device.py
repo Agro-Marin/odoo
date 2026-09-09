@@ -68,7 +68,7 @@ class IotDevice(models.Model):
     is_scanner = fields.Boolean(
         string="Is Scanner",
         compute="_compute_is_scanner",
-        inverse="_set_scanner",
+        inverse="_inverse_is_scanner",
         help="Manually switch the device type between keyboard and scanner",
     )
     subtype = fields.Selection(
@@ -104,7 +104,7 @@ class IotDevice(models.Model):
         for device in self:
             device.is_scanner = device.type == "scanner"
 
-    def _set_scanner(self):
+    def _inverse_is_scanner(self):
         for device in self:
             device.type = "scanner" if device.is_scanner else "keyboard"
 

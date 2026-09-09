@@ -42,7 +42,7 @@ class MixinAnalytic(models.AbstractModel):
             order,
         )
 
-        accrual_records = self.search(Domain.AND([domain, self._get_accrual_domain()]))
+        accrual_records = self.search(Domain.AND([domain, self._get_domain_accrual()]))
 
         patched_rows = []
         for row in rows:
@@ -63,7 +63,7 @@ class MixinAnalytic(models.AbstractModel):
         return patched_rows
 
     @api.model
-    def _get_accrual_domain(self):
+    def _get_domain_accrual(self):
         return [("product_id", "!=", False)]
 
     @api.model

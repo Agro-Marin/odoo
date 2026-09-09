@@ -116,7 +116,7 @@ class TestChangeLockDateWizardShape(TransactionCase):
         wizard = self.env["account.change.lock.date"].create(
             {"tax_lock_date": "2019-06-30"}
         )
-        domain = wizard._get_posted_tax_closings_in_locked_period_domain()
+        domain = wizard._get_domain_posted_tax_closings_in_locked_period()
         self.assertIn(
             ("company_id", "child_of", wizard.company_id.id),
             domain,

@@ -24,7 +24,9 @@ class IotBox(models.Model):
         default=True,
     )
     version = fields.Char("Image Version", readonly=True)
-    version_commit_url = fields.Html(readonly=True, compute="_compute_commit_url")
+    version_commit_url = fields.Html(
+        readonly=True, compute="_compute_version_commit_url"
+    )
     company_id = fields.Many2one("res.company", "Company")
     ssl_certificate_end_date = fields.Datetime(
         "SSL Certificate End Date", readonly=True
@@ -150,7 +152,7 @@ class IotBox(models.Model):
         return None
 
     @api.depends("version")
-    def _compute_commit_url(self):
+    def _compute_version_commit_url(self):
         base_url = "https://www.github.com/odoo/odoo/commit/"
         for box in self:
             if box.version and "#" in box.version:

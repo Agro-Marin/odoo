@@ -5,12 +5,12 @@ class DiscoveredIotBox(models.TransientModel):
     _name = "iot.discovered.box"
     _description = "An IoT box that is in pairing mode"
 
-    name = fields.Char(compute="_compute_box_name")
+    name = fields.Char(compute="_compute_name")
     add_iot_box_wizard_id = fields.Many2one("add.iot.box")
     serial_number = fields.Char(readonly=True)
     pairing_code = fields.Char(readonly=True)
 
-    def _compute_box_name(self):
+    def _compute_name(self):
         for box in self:
             box.name = _(
                 "IoT Box %(serial_n)s %(pairing_code)s",

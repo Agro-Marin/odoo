@@ -271,7 +271,7 @@ class AccountChangeLockDate(models.TransientModel):
             )
             wizard.show_draft_entries_warning = bool(draft_entries)
 
-    def _get_posted_tax_closings_in_locked_period_domain(self):
+    def _get_domain_posted_tax_closings_in_locked_period(self):
         self.check_singleton()
         return [
             ("company_id", "child_of", self.company_id.id),
@@ -290,7 +290,7 @@ class AccountChangeLockDate(models.TransientModel):
             wizard.show_posted_tax_closing_warning = bool(
                 wizard.tax_lock_date
                 and self.env["account.move"].search(
-                    wizard._get_posted_tax_closings_in_locked_period_domain(), limit=1
+                    wizard._get_domain_posted_tax_closings_in_locked_period(), limit=1
                 )
             )
 
@@ -473,7 +473,7 @@ class AccountChangeLockDate(models.TransientModel):
     def action_show_posted_tax_closing_in_locked_period(self):
         self.check_singleton()
         posted_closings = self.env["account.move"].search(
-            self._get_posted_tax_closings_in_locked_period_domain()
+            self._get_domain_posted_tax_closings_in_locked_period()
         )
         return self.env["account.return"].action_view_tax_return_view(
             additional_return_domain=[

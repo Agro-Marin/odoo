@@ -11,8 +11,8 @@ class AccountMove(models.Model):
         store=True,
         copy=False,
     )
-    show_signature_area = fields.Boolean(compute="_compute_signature")
-    signature = fields.Binary(compute="_compute_signature")
+    show_signature_area = fields.Boolean(compute="_compute_signature_area")
+    signature = fields.Binary(compute="_compute_signature_area")
 
     @api.depends("state", "move_type", "invoice_user_id", "company_id.signing_user")
     def _compute_signing_user(self):
@@ -42,7 +42,7 @@ class AccountMove(models.Model):
     @api.depends(
         "state", "signing_user", "company_id.sign_invoice", "invoice_pdf_report_id"
     )
-    def _compute_signature(self):
+    def _compute_signature_area(self):
         is_portal_user = self.env.user.has_group("base.group_portal")
         moves_not_to_sign = self.filtered(
             lambda inv: (

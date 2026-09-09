@@ -182,7 +182,7 @@ class AccountReconcileWizard(models.TransientModel):
                 wizard.edit_mode_amount = 0.0
 
     @api.depends("move_line_ids")
-    def _compute_edit_mode_reco_currency(self):
+    def _compute_edit_mode_reco_currency_id(self):
         for wizard in self:
             if wizard.edit_mode:
                 wizard.edit_mode_reco_currency_id = wizard.move_line_ids.currency_id

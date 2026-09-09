@@ -48,7 +48,7 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.signing_user",
         help="Select a user here to override every signature on invoice by this user's signature",
     )
-    module_sign = fields.Boolean(string="Sign", compute="_compute_module_sign_status")
+    module_sign = fields.Boolean(string="Sign", compute="_compute_module_sign")
 
     deferred_expense_journal_id = fields.Many2one(
         comodel_name="account.journal",
@@ -103,7 +103,7 @@ class ResConfigSettings(models.TransientModel):
     module_account_auto_transfer = fields.Boolean(string="Enable Auto Transfer")
 
     @api.depends("sign_invoice")
-    def _compute_module_sign_status(self):
+    def _compute_module_sign(self):
         sign_installed = "sign" in self.env["ir.module.module"]._installed()
         for settings in self:
             settings.module_sign = sign_installed or settings.company_id.sign_invoice

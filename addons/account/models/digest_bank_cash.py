@@ -7,10 +7,10 @@ class DigestDigest(models.Model):
 
     kpi_account_bank_cash = fields.Boolean("Bank & Cash Moves")
     kpi_account_bank_cash_value = fields.Monetary(
-        compute="_compute_kpi_account_total_bank_cash_value"
+        compute="_compute_kpi_account_bank_cash_value"
     )
 
-    def _compute_kpi_account_total_bank_cash_value(self):
+    def _compute_kpi_account_bank_cash_value(self):
         if not self.env.user.has_group("account.group_account_user"):
             raise AccessError(
                 _("Do not have access, skip this data for user's digest email")

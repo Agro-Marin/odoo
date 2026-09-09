@@ -61,7 +61,7 @@ class AccountMove(models.Model):
                 for line in move.invoice_line_ids - previous_lines:
                     line._onchange_name_predictive()
 
-    def _get_outstanding_bank_statement_lines_domain(self):
+    def _get_domain_outstanding_bank_statement_lines(self):
         self.check_singleton()
         return [
             ("parent_state", "=", "posted"),
@@ -106,7 +106,7 @@ class AccountMove(models.Model):
         lines_by_move = {}
         for moves in moves_by_scope.values():
             lines = self.env["account.move.line"].search(
-                moves[0]._get_outstanding_bank_statement_lines_domain()
+                moves[0]._get_domain_outstanding_bank_statement_lines()
             )
             for move in moves:
                 lines_by_move[move.id] = lines
@@ -223,7 +223,7 @@ class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
     move_attachment_ids = fields.One2many(
-        "ir.attachment", compute="_compute_attachment", exportable=False
+        "ir.attachment", compute="_compute_move_attachment_ids", exportable=False
     )
     full_amount_switch_html = fields.Html(
         compute="_compute_full_amount_switch_html", exportable=False
@@ -359,7 +359,7 @@ class AccountMoveLine(models.Model):
                 markupsafe.Markup("<div class='text-muted'>%s</div>") % extra_text
             )
 
-    def _compute_attachment(self):
+    def _compute_move_attachment_ids(self):
         id_model2attachments = {
             (res_model, res_id): attachments
             for res_model, res_id, attachments in self.env["ir.attachment"]._read_group(
