@@ -241,7 +241,7 @@ class MailAliasDomain(models.Model):
         )
 
     @api.model
-    def _get_domain_names(self) -> tuple[str, ...]:
+    def _get_alias_domain_names(self) -> tuple[str, ...]:
         return self._get_config().names
 
     @api.model

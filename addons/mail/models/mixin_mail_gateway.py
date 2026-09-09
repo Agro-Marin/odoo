@@ -162,7 +162,7 @@ class MixinMailGateway(models.AbstractModel):
         if bounce_from := self.env.company.bounce_email:
             return formataddr(("MAILER-DAEMON", bounce_from))
 
-        alias_domain_names = self.env["mail.alias.domain"]._get_domain_names()
+        alias_domain_names = self.env["mail.alias.domain"]._get_alias_domain_names()
         catchall_aliases = self.env["mail.alias.domain"]._get_catchall_emails()
         recipients = _normalize_emails(
             decode_message_header(message, "To", separator=",")

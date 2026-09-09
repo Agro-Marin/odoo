@@ -253,7 +253,7 @@ paths — to avoid leaking unpublished related records; the single-record path
 
 | File | Model | Kind | Role |
 |------|-------|------|------|
-| `assets.py` | `website.assets` | ABSTRACT | SCSS/JS customization: `save_asset`/`reset_asset` (RPC), `make_scss_customization` (palettes, local Google fonts). |
+| `assets.py` | `website.assets` | ABSTRACT | SCSS/JS customization: `save_asset`/`reset_asset` (RPC), `update_scss_customization` (palettes, local Google fonts). |
 | `html_text_processor.py` | `website.html.text.processor` | ABSTRACT | HTML/snippet text processing for configurator / ai_website (context-cache based, no stored fields). |
 | `website_configurator_feature.py` | `website.configurator.feature` | NEW | Configurator feature catalog (`_check_module_xor_page_view`). |
 | `res_company.py` | `res.company` | EXT | `website_id` (compute/store, first website); can't archive a company with a website. |

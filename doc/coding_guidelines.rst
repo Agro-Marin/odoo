@@ -5253,7 +5253,7 @@ running elements in the page margin boxes.
 * Also supported, and preferable to hacks: ``string-set`` running headers,
   ``target-counter()`` with ``leader('.')`` for tables of contents, named
   ``@page`` rules for landscape annexes, and ``float: footnote``.
-* PDF/A-3 with Factur-X and XMP metadata is native -- see ``_build_pdf_options``.
+* PDF/A-3 with Factur-X and XMP metadata is native -- see ``_prepare_pdf_options``.
   The same ``data["__pdf_options__"]`` channel takes ``dpi`` and ``jpeg_quality``,
   the two file-size levers for image-heavy reports.
 

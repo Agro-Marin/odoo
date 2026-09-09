@@ -239,7 +239,7 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
 
 8. **Restricted ("static") rendering resolves an expression's declared root.**
    `mail_allowed_qweb_expressions` (`models/base.py`) is the security boundary for
-   non-`group_mail_template_editor` users. `_resolve_static_expression`
+   non-`group_mail_template_editor` users. `_get_static_expression_value`
    (`models/mixin_mail_render.py`) honours the root the expression names — `object`
    or `user` — and raises `SyntaxError` on any other; an unknown root is refused,
    not guessed. Do not go back to `expr.split(".")[1:]` against the record — that

@@ -89,7 +89,7 @@ def _iv(base: bytes, counter: int) -> bytes:
     return base[:4] + (counter ^ mask).to_bytes(8, "big")
 
 
-def _derive_key(
+def _get_key_and_nonce(
     salt: bytes,
     private_key: ec.EllipticCurvePrivateKey,
     device: dict[str, Any],
@@ -132,7 +132,7 @@ def _encrypt_payload(
 ) -> bytes:
     private_key = ec.generate_private_key(ec.SECP256R1())
     salt = os.urandom(16)
-    (key, nonce) = _derive_key(salt=salt, private_key=private_key, device=device)
+    (key, nonce) = _get_key_and_nonce(salt=salt, private_key=private_key, device=device)
     overhead = 1 + 16
     chunk_size = record_size - overhead
 

@@ -9,8 +9,8 @@ from odoo.fields import Domain
 from odoo.tools import SQL, Query
 
 from odoo.addons.mail.tools.access_scan import (
+    get_accessible_query,
     prepare_document_access_error,
-    scan_accessible_query,
 )
 
 _logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ class MailMessage(models.Model):
 
         pid = self.env.user.partner_id.id
 
-        return scan_accessible_query(
+        return get_accessible_query(
             self,
             domain,
             offset,

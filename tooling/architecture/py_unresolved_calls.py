@@ -12,6 +12,22 @@ scan cannot see the class of; an entry there is a claim about the receiver,
 checked at the call site before it is added. The floor is the count, not
 zero: what the ratchet buys immediately is that the next rename cannot add
 one.
+
+READING ONE OVER THE FLOOR. A count one above the floor is usually a MISSING
+`EXTERNAL` ENTRY rather than a broken call, and the report cannot tell you
+which -- a correct entry and a missing one look identical in it. Do not read
+the list. Diff the gate's OUTPUT between the floor's `measured_at` commit and
+HEAD, by file and name with the line numbers STRIPPED:
+
+    <worktree-at-floor>/…/py_unresolved_calls.py --top 0 \\
+        | sed 's/^  //;s/:[0-9]*  / /' | sort > old.txt   # same for HEAD
+    comm -13 old.txt new.txt
+
+Stripping the line numbers is not optional: eight of the sixteen sites moved
+between the floor and the commit that added the seventeenth, so a diff that
+keeps them reports eight spurious pairs and buries the one real entry. Three
+readings of the list by two sessions found no candidate; one stripped diff
+named it immediately (`_Marshaller__dump`, stdlib's mangled attribute).
 """
 
 from __future__ import annotations

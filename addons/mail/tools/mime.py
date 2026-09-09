@@ -187,7 +187,7 @@ def _alternative(part: EmailMessage, stop_at_first_body: bool) -> _Fragment:
     children = _children(part)
     if not children:
         return _Fragment("", [], False)
-    fragments = [_assemble(child, stop_at_first_body) for child in children]
+    fragments = [_get_fragment(child, stop_at_first_body) for child in children]
     best = max(
         enumerate(children),
         key=lambda pair: (_alternative_rank(pair[1].get_content_type()), pair[0]),
@@ -206,7 +206,7 @@ def _sequence(parts: list[EmailMessage], stop_at_first_body: bool) -> _Fragment:
     for child in parts:
         if stop_at_first_body and body:
             break
-        fragment = _assemble(child, stop_at_first_body)
+        fragment = _get_fragment(child, stop_at_first_body)
         if fragment.body:
             body = add_html_content(body, fragment.body, plaintext=False)
         attachments.extend(fragment.attachments)
@@ -214,7 +214,7 @@ def _sequence(parts: list[EmailMessage], stop_at_first_body: bool) -> _Fragment:
     return _Fragment(body, attachments, html)
 
 
-def _assemble(part: EmailMessage, stop_at_first_body: bool) -> _Fragment:
+def _get_fragment(part: EmailMessage, stop_at_first_body: bool) -> _Fragment:
     if part.get_content_maintype() != "multipart":
         return _leaf(part, stop_at_first_body)
     if part.get_content_type() == "multipart/alternative":
@@ -231,7 +231,7 @@ def extract_payload(
     attachments = []
     if save_original:
         attachments.append(Attachment("original_email.eml", message.as_bytes(), {}))
-    fragment = _assemble(message, stop_at_first_body=is_bounce)
+    fragment = _get_fragment(message, stop_at_first_body=is_bounce)
     body = fragment.body
     if fragment.html:
         body = html_sanitize(body, sanitize_tags=False, strip_classes=True)

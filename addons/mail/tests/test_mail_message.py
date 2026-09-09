@@ -293,7 +293,7 @@ class TestMailMessageFetchParams(common.MailCommon):
 
 @tagged("-at_install", "post_install", "mail_message")
 class TestMailMessageMarkAllAsRead(common.MailCommon):
-    def _make_thread_messages(self, thread, count):
+    def _create_thread_messages(self, thread, count):
         return (
             self.env["mail.message"]
             .sudo()
@@ -328,7 +328,7 @@ class TestMailMessageMarkAllAsRead(common.MailCommon):
     @users("employee")
     def test_mark_all_as_read_never_materialises_a_message(self):
         thread = self.env["res.partner"].sudo().create({"name": "Thread"})
-        messages = self._make_thread_messages(thread, 20)
+        messages = self._create_thread_messages(thread, 20)
         self._notify(messages[:2])
         domain = [("model", "=", "res.partner"), ("res_id", "=", thread.id)]
 
@@ -360,7 +360,7 @@ class TestMailMessageMarkAllAsRead(common.MailCommon):
     @users("employee")
     def test_mark_all_as_read_still_refuses_a_restricted_field(self):
         thread = self.env["res.partner"].sudo().create({"name": "Thread"})
-        self._notify(self._make_thread_messages(thread, 1))
+        self._notify(self._create_thread_messages(thread, 1))
         self.assertFalse(self.env.user.has_group("base.group_system"))
         with self.assertRaises(AccessError):
             self.env["mail.message"].mark_all_as_read(

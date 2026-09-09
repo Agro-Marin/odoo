@@ -151,7 +151,7 @@ class MailActivityPlanTemplate(models.Model):
             return base_date + delta
         return base_date - delta
 
-    def _determine_responsible(
+    def _get_responsible_and_complaints(
         self, on_demand_responsible: ResUsers, applied_on_record: models.BaseModel
     ) -> dict:
         self.check_singleton()

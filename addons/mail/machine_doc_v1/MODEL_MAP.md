@@ -345,7 +345,7 @@ Fields: `res_model_id`/`res_model`/`res_id`/`res_name`, `activity_type_id`, `act
 `recommended_activity_type_id`, `active`.
 Methods: `action_feedback(...)`, `action_done(...)`, `_action_done(...)`,
 `action_feedback_schedule_next(...)`, `action_cancel()`, `action_notify()`,
-`get_activity_data(...)`, `activity_format()`, `_gc_delete_old_overdue_activities()`.
+`get_activity_data(...)`, `activity_format()`, `_gc_remove_old_overdue_activities()`.
 
 ### `mail.template` (`mail_template.py`)
 Fields: `name`, `model_id`/`model`, `subject`, `email_from`, `use_default_to`, `email_to`,

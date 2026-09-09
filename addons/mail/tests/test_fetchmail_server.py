@@ -88,10 +88,10 @@ class TestIncomingMailTransport(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls._certificate = cls._build_self_signed_certificate()
+        cls._certificate = cls._create_self_signed_certificate()
 
     @classmethod
-    def _build_self_signed_certificate(cls):
+    def _create_self_signed_certificate(cls):
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes, serialization
         from cryptography.hazmat.primitives.asymmetric import rsa

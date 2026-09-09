@@ -14,8 +14,8 @@ from odoo.tools import Query
 from odoo.tools.misc import clean_context
 
 from odoo.addons.mail.tools.access_scan import (
+    get_accessible_query,
     prepare_document_access_error,
-    scan_accessible_query,
 )
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 
@@ -151,7 +151,7 @@ class MailScheduledMessage(models.Model):
                 if res_id in postable_ids[res_model]
             ]
 
-        return scan_accessible_query(
+        return get_accessible_query(
             self,
             domain,
             offset,

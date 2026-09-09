@@ -19,7 +19,7 @@ class MailActivityPlanTemplate(models.Model):
                     _("Fleet Manager is limited to Employee plans.")
                 )
 
-    def _determine_responsible(self, on_demand_responsible, employee):
+    def _get_responsible_and_complaints(self, on_demand_responsible, employee):
         if (
             self.responsible_type == "fleet_manager"
             and self.plan_id.res_model == "hr.employee"
@@ -40,4 +40,4 @@ class MailActivityPlanTemplate(models.Model):
                 "error": error,
                 "warning": warning,
             }
-        return super()._determine_responsible(on_demand_responsible, employee)
+        return super()._get_responsible_and_complaints(on_demand_responsible, employee)

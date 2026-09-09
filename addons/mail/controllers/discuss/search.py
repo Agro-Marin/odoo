@@ -18,10 +18,12 @@ class SearchController(http.Controller):
     def search(self, term: str, limit: int = 10) -> dict:
         limit = clamp_limit(limit, default=10)
         store = Store()
-        self.get_search_store(store, search_term=term, limit=limit)
+        self._search_results_to_store(store, search_term=term, limit=limit)
         return store.get_result()
 
-    def get_search_store(self, store: Store, search_term: str, limit: int) -> None:
+    def _search_results_to_store(
+        self, store: Store, search_term: str, limit: int
+    ) -> None:
         base_domain = Domain("name", "ilike", search_term) & Domain(
             "channel_type",
             "in",

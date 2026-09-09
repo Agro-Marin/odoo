@@ -1633,7 +1633,7 @@ class AdvancedResponsibleNotifiedTest(MailCommon):
         self.assertTrue(bool(mail_notification.mail_mail_id))
         self.assertEqual(mail_notification.mail_mail_id.state, "outgoing")
 
-    def _assign_one_user_each(self, count, users):
+    def _create_records_one_user_each(self, count, users):
         """Create `count` records, each assigned to a different user, and return
         the queries that cost plus the records."""
         vals = [
@@ -1678,8 +1678,8 @@ class AdvancedResponsibleNotifiedTest(MailCommon):
                 for index in range(20)
             ]
         )
-        few_queries, _few = self._assign_one_user_each(2, users)
-        many_queries, many_records = self._assign_one_user_each(20, users)
+        few_queries, _few = self._create_records_one_user_each(2, users)
+        many_queries, many_records = self._create_records_one_user_each(20, users)
         self.assertLessEqual(
             many_queries - few_queries,
             30,

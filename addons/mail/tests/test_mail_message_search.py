@@ -15,7 +15,7 @@ class TestMailMessageSearchChunking(MailCommon):
         cls.admin_partner = cls.user_admin.partner_id
         cls.comment_subtype = cls.env.ref("mail.mt_comment").id
 
-    def _make_messages(self, pattern):
+    def _create_messages(self, pattern):
         vals = []
         for accessible in pattern:
             if accessible:
@@ -48,7 +48,7 @@ class TestMailMessageSearchChunking(MailCommon):
 
     def test_full_scan_returns_only_accessible(self):
         pattern = [True, False, True, False, True]
-        msgs = self._make_messages(pattern)
+        msgs = self._create_messages(pattern)
         expected = sorted(
             (m.id for m, acc in zip(msgs, pattern, strict=True) if acc), reverse=True
         )
@@ -61,7 +61,7 @@ class TestMailMessageSearchChunking(MailCommon):
 
     def test_pagination_past_long_inaccessible_run(self):
         pattern = [True] * 10 + [False] * 90
-        msgs = self._make_messages(pattern)
+        msgs = self._create_messages(pattern)
         accessible = sorted(
             (m.id for m, acc in zip(msgs, pattern, strict=True) if acc), reverse=True
         )
@@ -84,7 +84,7 @@ class TestMailMessageSearchChunking(MailCommon):
 
     def test_interleaved_accessibility_across_chunk_boundary(self):
         pattern = [i % 3 == 0 for i in range(100)]
-        msgs = self._make_messages(pattern)
+        msgs = self._create_messages(pattern)
         accessible = sorted(
             (m.id for m, acc in zip(msgs, pattern, strict=True) if acc), reverse=True
         )
@@ -98,8 +98,8 @@ class TestMailMessageSearchChunking(MailCommon):
         self.assertEqual(rebuilt, accessible)
 
     def test_small_page_scan_is_bounded_and_thread_size_independent(self):
-        small = self._make_messages([True] * 40)
-        big = self._make_messages([True] * 400)
+        small = self._create_messages([True] * 40)
+        big = self._create_messages([True] * 400)
 
         def scan_queries(ids):
             captured = []

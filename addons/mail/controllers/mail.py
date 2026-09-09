@@ -82,7 +82,7 @@ class MailController(http.Controller):
         return request.redirect(f"/web/login?{urlencode({'redirect': mail_view_url})}")
 
     @classmethod
-    def _check_token(cls, token: str) -> bool:
+    def _is_token_valid(cls, token: str) -> bool:
         base_link = request.httprequest.path
         MailThread = request.env["mixin.mail.thread"]
         params = {
@@ -102,10 +102,10 @@ class MailController(http.Controller):
         return False
 
     @classmethod
-    def _check_token_and_record_or_redirect(
+    def _get_token_record_and_redirect(
         cls, model: str, res_id: int, token: str
     ) -> tuple:
-        comparison = cls._check_token(token)
+        comparison = cls._is_token_valid(token)
         if not comparison:
             _logger.warning("Invalid token in route %s", request.httprequest.url)
             return comparison, None, cls._redirect_to_generic_fallback(model, res_id)
@@ -296,7 +296,7 @@ class MailController(http.Controller):
             res_id, pid = int(res_id), int(pid)
         except TypeError, ValueError:
             raise NotFound from None
-        comparison, record, __ = MailController._check_token_and_record_or_redirect(
+        comparison, record, __ = MailController._get_token_record_and_redirect(
             model, res_id, token
         )
         if not comparison or not record:

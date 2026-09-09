@@ -661,13 +661,13 @@ class TestPlanScheduleShape(ActivityScheduleCase):
         )
 
     def test_the_responsible_is_resolved_once_per_template_and_record(self):
-        """`_determine_responsible` feeds both errors and warnings, so it is
+        """`_get_responsible_and_complaints` feeds both errors and warnings, so it is
         asked once for both -- hr walks a management chain inside it."""
         wizard = self._wizard()
         Template = type(self.env["mail.activity.plan.template"])
         with patch.object(
             Template,
-            "_determine_responsible",
+            "_get_responsible_and_complaints",
             autospec=True,
             side_effect=lambda template, on_demand, record: {
                 "responsible": self.user_admin,
@@ -685,13 +685,13 @@ class TestPlanScheduleShape(ActivityScheduleCase):
 
     def test_the_preview_asks_the_template_who_is_responsible(self):
         """Even when the template names one outright: hr and hr_fleet answer
-        through `_determine_responsible`, and the preview read `responsible_id`
+        through `_get_responsible_and_complaints`, and the preview read `responsible_id`
         past them."""
         wizard = self._wizard(self.records[:1])
         Template = type(self.env["mail.activity.plan.template"])
         with patch.object(
             Template,
-            "_determine_responsible",
+            "_get_responsible_and_complaints",
             autospec=True,
             side_effect=lambda template, on_demand, record: {
                 "responsible": self.user_employee,
@@ -716,7 +716,7 @@ class TestPlanScheduleShape(ActivityScheduleCase):
         Template = type(self.env["mail.activity.plan.template"])
         with patch.object(
             Template,
-            "_determine_responsible",
+            "_get_responsible_and_complaints",
             autospec=True,
             side_effect=lambda template, on_demand, record: {
                 "responsible": self.env.user,
@@ -752,7 +752,7 @@ class TestPlanScheduleShape(ActivityScheduleCase):
         Template = type(self.env["mail.activity.plan.template"])
         with patch.object(
             Template,
-            "_determine_responsible",
+            "_get_responsible_and_complaints",
             autospec=True,
             side_effect=lambda template, on_demand, record: {
                 "responsible": self.user_employee,

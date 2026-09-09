@@ -2209,7 +2209,7 @@ class TestMailAliasDomainConfigCache(TestMailAliasCommon):
         """The five accessors must not drift from the tuple's order."""
         config = self.env["mail.alias.domain"]._get_config()
         Domain = self.env["mail.alias.domain"]
-        self.assertEqual(config.names, Domain._get_domain_names())
+        self.assertEqual(config.names, Domain._get_alias_domain_names())
         self.assertEqual(config.bounce_emails, Domain._get_bounce_emails())
         self.assertEqual(config.catchall_emails, Domain._get_catchall_emails())
         self.assertEqual(config.default_from_emails, Domain._get_default_from_emails())

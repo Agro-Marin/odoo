@@ -161,7 +161,7 @@ patch(WebClient.prototype, {
     async _getApplicationServerKey() {
         const vapid_public_key_base64 = await this.orm.call(
             USER_DEVICES_MODEL,
-            "get_web_push_vapid_public_key",
+            "get_or_create_web_push_vapid_public_key",
         );
         const padding = "=".repeat((4 - (vapid_public_key_base64.length % 4)) % 4);
         const base64 = (vapid_public_key_base64 + padding)

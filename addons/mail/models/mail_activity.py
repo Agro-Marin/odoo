@@ -18,8 +18,8 @@ from odoo.tools.misc import clean_context, get_lang
 
 from odoo.addons.mail.tools import activity_calendar
 from odoo.addons.mail.tools.access_scan import (
+    get_accessible_query,
     prepare_document_access_error,
-    scan_accessible_query,
     stable_order,
 )
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
@@ -831,7 +831,7 @@ class MailActivity(models.Model):
         def allowed(rows: list[tuple]) -> set[int]:
             return self._accessible_ids(rows, "read")
 
-        return scan_accessible_query(
+        return get_accessible_query(
             self,
             domain,
             offset,

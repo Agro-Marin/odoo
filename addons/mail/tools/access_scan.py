@@ -1,7 +1,7 @@
 __all__ = [
+    "get_accessible_ids",
+    "get_accessible_query",
     "prepare_document_access_error",
-    "scan_accessible_ids",
-    "scan_accessible_query",
     "stable_order",
 ]
 
@@ -41,7 +41,7 @@ def stable_order(order: str | None, tiebreak: str = "id ASC") -> str | None:
     return order
 
 
-def scan_accessible_ids(
+def get_accessible_ids(
     model: models.BaseModel,
     domain: DomainType,
     offset: int,
@@ -104,7 +104,7 @@ class _RescannedCountQuery(Query):
         return len(self._rescan(limit))
 
 
-def scan_accessible_query(
+def get_accessible_query(
     model: models.BaseModel,
     domain: DomainType,
     offset: int,
@@ -120,7 +120,7 @@ def scan_accessible_query(
     **kwargs,
 ) -> Query:
     scan = functools.partial(
-        scan_accessible_ids,
+        get_accessible_ids,
         model,
         domain,
         base_search=base_search,

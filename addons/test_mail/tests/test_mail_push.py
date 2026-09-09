@@ -145,7 +145,7 @@ class TestWebPushRecipientLanguage(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.env["res.lang"]._activate_lang("fr_FR")
-        cls.env["mail.push.device"].get_web_push_vapid_public_key()
+        cls.env["mail.push.device"].get_or_create_web_push_vapid_public_key()
         cls.record = cls.env["mail.test.simple"].create({"name": "Pushed"})
         cls.user_en = cls._push_user("push_en", "en_US")
         cls.user_fr = cls._push_user("push_fr", "fr_FR")
@@ -272,7 +272,7 @@ class TestWebPushAuthorSuppression(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.env["mail.push.device"].get_web_push_vapid_public_key()
+        cls.env["mail.push.device"].get_or_create_web_push_vapid_public_key()
         cls.actor = cls._device_user("actor")
         cls.declared = cls._device_user("declared")
         cls.record = cls.env["mail.test.simple"].create({"name": "OnBehalf"})
@@ -403,7 +403,7 @@ class TestWebPushNotification(SMSCommon):
         # generate keys and devices
         cls.vapid_public_key = cls.env[
             "mail.push.device"
-        ].get_web_push_vapid_public_key()
+        ].get_or_create_web_push_vapid_public_key()
         cls.env["mail.push.device"].sudo().create(
             [
                 {
@@ -1197,7 +1197,7 @@ class TestWebPushNotification(SMSCommon):
         ).unlink()
         new_vapid_public_key = self.env[
             "mail.push.device"
-        ].get_web_push_vapid_public_key()
+        ].get_or_create_web_push_vapid_public_key()
         self.assertNotEqual(self.vapid_public_key, new_vapid_public_key)
         with self.assertRaises(InvalidVapidError):
             self.env["mail.push.device"].register_devices(

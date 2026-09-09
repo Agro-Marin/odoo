@@ -187,8 +187,8 @@ class MailActivitySchedule(models.TransientModel):
                     errors.add(_("The records must belong to the same company."))
             if scheduler.plan_id:
                 if applied_on:
-                    plan_errors, plan_warnings = scheduler._check_plan_templates(
-                        applied_on
+                    plan_errors, plan_warnings = (
+                        scheduler._get_plan_template_errors_and_warnings(applied_on)
                     )
                     errors |= plan_errors
                     warnings |= plan_warnings
@@ -348,7 +348,7 @@ class MailActivitySchedule(models.TransientModel):
         # The preview stands for one record. With several (or none) the rule is
         # asked against an empty one, and a complaint -- error or warning -- is
         # how it says the answer depends on the record it was not given.
-        result = template._determine_responsible(
+        result = template._get_responsible_and_complaints(
             self.plan_on_demand_user_id, applied_on
         )
         if not applied_on and (result["error"] or result["warning"]):
@@ -451,7 +451,7 @@ class MailActivitySchedule(models.TransientModel):
         for template in templates:
             date_deadline = template._get_date_deadline(self.plan_date)
             for record in applied_on:
-                responsible = template._determine_responsible(
+                responsible = template._get_responsible_and_complaints(
                     self.plan_on_demand_user_id, record
                 )["responsible"]
                 record_ids_by_group[(template, responsible, date_deadline)].append(
@@ -505,12 +505,14 @@ class MailActivitySchedule(models.TransientModel):
             "domain": [("id", "in", applied_on.ids)],
         }
 
-    def _check_plan_templates(self, applied_on: models.BaseModel) -> tuple[set, set]:
+    def _get_plan_template_errors_and_warnings(
+        self, applied_on: models.BaseModel
+    ) -> tuple[set, set]:
         self.check_singleton()
         errors, warnings = set(), set()
         for activity_template in self.plan_id.template_ids:
             for record in applied_on:
-                responsible = activity_template._determine_responsible(
+                responsible = activity_template._get_responsible_and_complaints(
                     self.plan_on_demand_user_id, record
                 )
                 if responsible["error"]:

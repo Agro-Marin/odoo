@@ -600,7 +600,9 @@ class MixinMailRender(models.AbstractModel):
         return {"object": record, "user": self.env.user}
 
     @api.model
-    def _resolve_static_expression(self, expression: str, record: models.Model) -> Any:
+    def _get_static_expression_value(
+        self, expression: str, record: models.Model
+    ) -> Any:
         roots = self._static_expression_roots(record)
         root, *path = expression.strip().split(".")
         if root not in roots:
@@ -615,7 +617,7 @@ class MixinMailRender(models.AbstractModel):
     @api.model
     def _get_static_value(self, expression: str, record: models.Model) -> Any:
         try:
-            value = self._resolve_static_expression(expression, record)
+            value = self._get_static_expression_value(expression, record)
         except KeyError:
             return None
         if isinstance(value, models.BaseModel):

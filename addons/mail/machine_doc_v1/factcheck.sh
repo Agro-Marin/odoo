@@ -776,8 +776,8 @@ assert_eq "the parity pin holding the rule's two spellings exists" \
 # the root allow-list (object, user) it enforced is what actually matters, so pin that.
 assert_eq "_render_regex_resolve is gone" \
     "$(grep -rE 'def _render_regex_resolve\(' "$MAIL" --include='*.py' | wc -l)" "0"
-assert_eq "_resolve_static_expression replaces it" \
-    "$(grep -cE 'def _resolve_static_expression\(' "$MAIL/models/mixin_mail_render.py")" "1"
+assert_eq "_get_static_expression_value replaces it" \
+    "$(grep -cE 'def _get_static_expression_value\(' "$MAIL/models/mixin_mail_render.py")" "1"
 # The two roots became one table, `_static_expression_roots`, rather than a
 # branch each -- so assert the table names both and that a root outside it is
 # refused rather than guessed.
@@ -790,7 +790,7 @@ assert_eq "an unknown root is refused, not guessed" \
 assert_eq "the allow-list itself is still on base.py" \
     "$(grep -cE 'def mail_allowed_qweb_expressions\(' "$MAIL/models/base.py")" "1"
 assert_eq "CONVENTIONS.md gotcha 8 names the current helper" \
-    "$(grep -c '_resolve_static_expression' "$DOC/CONVENTIONS.md")" "1"
+    "$(grep -c '_get_static_expression_value' "$DOC/CONVENTIONS.md")" "1"
 
 # ASSET_LAYERS cited a formatters.js path that does not exist. Pin the manifest string.
 assert_eq "mail.assets_public re-includes web/static/src/core/formatters.js" \

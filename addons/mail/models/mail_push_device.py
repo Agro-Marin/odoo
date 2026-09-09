@@ -48,7 +48,7 @@ class MailPushDevice(models.Model):
     )
 
     @api.model
-    def get_web_push_vapid_public_key(self) -> str:
+    def get_or_create_web_push_vapid_public_key(self) -> str:
         ir_params_sudo = self.env["ir.config_parameter"].sudo()
         public_key = "mail.web_push_vapid_public_key"
         public_key_value = ir_params_sudo.get_param(public_key)

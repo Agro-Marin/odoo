@@ -554,7 +554,7 @@ class TestDiscussChannelInvariants(MailCommon):
 
         self.assertFalse(channel.sudo().sfu_channel_uuid, "the call must stay p2p")
 
-    def _make_group_channel(self, size):
+    def _create_group_channel(self, size):
         internal = self.env.ref("base.group_user")
         group = self.env["res.groups"].create({"name": f"Auto {size}"})
         self.env["res.users"].create(
@@ -573,8 +573,8 @@ class TestDiscussChannelInvariants(MailCommon):
         return group, channel
 
     def test_auto_subscribe_of_a_newcomer_does_not_scale_with_the_membership(self):
-        small_group, small = self._make_group_channel(2)
-        big_group, big = self._make_group_channel(12)
+        small_group, small = self._create_group_channel(2)
+        big_group, big = self._create_group_channel(12)
         newcomer = self.env["res.users"].create(
             {
                 "name": "Newcomer",
@@ -624,7 +624,7 @@ class TestDiscussChannelInvariants(MailCommon):
         self.assertIn(newcomer.partner_id, big.channel_member_ids.partner_id)
 
     def test_auto_subscribe_ignores_a_partner_outside_the_groups(self):
-        _group, channel = self._make_group_channel(1)
+        _group, channel = self._create_group_channel(1)
         outsider = new_test_user(self.env, "inv_auto_out", groups="base.group_user")
 
         channel._subscribe_users_automatically(partners=outsider.partner_id)

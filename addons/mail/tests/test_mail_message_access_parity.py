@@ -629,11 +629,11 @@ class TestMailMessageNotifiedParentCreate(MailCommon):
             }
         )
         foreign_res_id = cls.env["ir.cron"].sudo().search([], limit=1).id
-        cls.child_same = cls._make_child("res.partner", cls.doc.id)
-        cls.child_foreign = cls._make_child("ir.cron", foreign_res_id)
+        cls.child_same = cls._create_child_message("res.partner", cls.doc.id)
+        cls.child_foreign = cls._create_child_message("ir.cron", foreign_res_id)
 
     @classmethod
-    def _make_child(cls, model, res_id):
+    def _create_child_message(cls, model, res_id):
         # author is NOT the notified employee, so the "own message" grant does
         # not apply and only the notified-parent grant can clear the child.
         return (

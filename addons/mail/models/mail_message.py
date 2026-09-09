@@ -507,7 +507,7 @@ class MailMessage(models.Model):
                 del values["attachment_ids"]
             if "body" in values:
                 values["body"], inline_commands = self._extract_body_attachments(
-                    values, *self._resolve_thread_target(values)
+                    values, *self._get_thread_target(values)
                 )
                 if inline_commands:
                     values["attachment_ids"] = [
@@ -551,7 +551,7 @@ class MailMessage(models.Model):
             self.env["res.partner"].sudo().browse(authors).fetch(list(field_names))
 
     @api.model
-    def _resolve_thread_target(
+    def _get_thread_target(
         self, values: dict
     ) -> tuple[str | None, int | Literal[False]]:
         model = values.get("model", self.env.context.get("default_model"))
@@ -572,7 +572,7 @@ class MailMessage(models.Model):
         for index, values in enumerate(vals_list):
             if "reply_to" in values:
                 continue
-            model, res_id = self._resolve_thread_target(values)
+            model, res_id = self._get_thread_target(values)
             by_group[(model, bool(res_id))].append((index, res_id, values))
 
         self._prefetch_authors(
@@ -1000,7 +1000,7 @@ class MailMessage(models.Model):
     def _get_message_id(self, values: dict) -> str:
         if values.get("reply_to_force_new"):
             return tools.mail.generate_tracking_message_id("reply_to")
-        model, res_id = self._resolve_thread_target(values)
+        model, res_id = self._get_thread_target(values)
         if res_id:
             return tools.mail.generate_tracking_message_id(f"{res_id}-{model}")
         return tools.mail.generate_tracking_message_id("private")

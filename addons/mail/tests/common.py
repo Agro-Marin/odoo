@@ -2378,7 +2378,7 @@ class MailCommon(MailCase):
         endpoint = endpoint or "https://test.odoo.com/webpush/user"
         cls.vapid_public_key = cls.env[
             "mail.push.device"
-        ].get_web_push_vapid_public_key()
+        ].get_or_create_web_push_vapid_public_key()
         return (
             cls.env["mail.push.device"]
             .sudo()

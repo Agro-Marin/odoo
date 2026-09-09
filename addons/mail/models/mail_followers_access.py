@@ -4,7 +4,7 @@ from odoo import api, models
 from odoo.exceptions import AccessError
 from odoo.tools import SQL
 
-from odoo.addons.mail.tools.access_scan import scan_accessible_query
+from odoo.addons.mail.tools.access_scan import get_accessible_query
 
 if typing.TYPE_CHECKING:
     from odoo.api import DomainType
@@ -60,7 +60,7 @@ class MailFollowers(models.Model):
                     )
             return own | self.env["mail.message"]._find_allowed_doc_ids(model_ids)
 
-        return scan_accessible_query(
+        return get_accessible_query(
             self,
             domain,
             offset,
