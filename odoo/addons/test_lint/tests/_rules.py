@@ -211,6 +211,14 @@ RULES: tuple[Rule, ...] = (
         "source term",
     ),
     Rule(
+        "null-exempt-composite-unique",
+        "E8517",
+        "a composite UNIQUE naming a column that may be NULL enforces nothing on "
+        "the rows where it is empty, because PostgreSQL counts NULLs as distinct "
+        "-- say NULLS NOT DISTINCT if the key must hold there, or make the "
+        "exemption explicit with a partial WHERE <column> IS NOT NULL",
+    ),
+    Rule(
         "row-counter-in-test",
         "E8516",
         "read cr.sql_statement_count: sql_log_count is incremented by the ROW "
@@ -346,6 +354,12 @@ CHECKERS: tuple[Checker, ...] = (
     Checker(_row_counter, _in_tests, frozenset({"row-counter-in-test"})),
 )
 
-CROSS_UNIT_RULES = frozenset({"unique-over-translated-column", "unreadable-source"})
+CROSS_UNIT_RULES = frozenset(
+    {
+        "unique-over-translated-column",
+        "null-exempt-composite-unique",
+        "unreadable-source",
+    }
+)
 
 EMITTED = frozenset(rule for checker in CHECKERS for rule in checker.rules)

@@ -90,8 +90,8 @@ class TestPythonLint(LintCase):
         parallel_rows, parallel_units = _py_scan._run_parallel(sample, 4)
         self.assertEqual(sorted(parallel_rows), sorted(serial_rows))
         self.assertEqual(
-            sorted(path for path, _infos in parallel_units),
-            sorted(path for path, _infos in serial_units),
+            sorted(path for path, *_infos in parallel_units),
+            sorted(path for path, *_infos in serial_units),
         )
 
     def test_the_corpus_is_not_empty(self):

@@ -5,7 +5,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from . import _checker_translated_unique, lint_case
+from . import _checker_null_unique, _checker_translated_unique, lint_case
 from ._rules import (
     ALIASES,
     CHECKERS,
@@ -140,17 +140,20 @@ def scan_one(path: str, in_module: bool) -> tuple[list[Row], list]:
                     message.strip(),
                 )
             )
-    return out, _checker_translated_unique.collect(tree)
+    return out, (
+        _checker_translated_unique.collect(tree),
+        _checker_null_unique.collect(tree),
+    )
 
 
 def scan_many(entries: list[tuple[str, bool]]) -> tuple[list[Row], list]:
     rows: list[Row] = []
     units: list = []
     for path, in_module in entries:
-        file_rows, infos = scan_one(path, in_module)
+        file_rows, (translated, null_unique) = scan_one(path, in_module)
         rows.extend(file_rows)
-        if infos:
-            units.append((path, infos))
+        if translated or null_unique:
+            units.append((path, translated, null_unique))
     return rows, units
 
 
@@ -230,7 +233,15 @@ def findings() -> dict[str, list[Finding]]:
     for rule, path, lineno, col, message in rows:
         by_rule.setdefault(rule, []).append(Finding(path, lineno, rule, message, col))
 
-    for violation in _checker_translated_unique.violations(units):
+    cross = [
+        *_checker_translated_unique.violations(
+            [(path, translated) for path, translated, _null in units]
+        ),
+        *_checker_null_unique.violations(
+            [(path, null_unique) for path, _translated, null_unique in units]
+        ),
+    ]
+    for violation in cross:
         if is_test_path(violation.path):
             continue
         by_rule.setdefault(violation.rule, []).append(
@@ -250,8 +261,10 @@ def findings() -> dict[str, list[Finding]]:
 def translated_unique_scale() -> tuple[int, int]:
     _rows, units, _jobs = _scan()
     return (
-        sum(len(infos) for _path, infos in units),
-        sum(len(info.rules) for _path, infos in units for info in infos),
+        sum(len(translated) for _path, translated, _null in units),
+        sum(
+            len(info.rules) for _path, translated, _null in units for info in translated
+        ),
     )
 
 

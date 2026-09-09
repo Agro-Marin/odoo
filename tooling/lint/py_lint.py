@@ -60,9 +60,15 @@ def _rules_module():
         "_checker_sql",
         "_checker_unlink",
         "_checker_translated_unique",
+        "_checker_null_unique",
     ):
         _load(dependency)
-    return _load("_rules"), _load("_suppression"), _load("_checker_translated_unique")
+    return (
+        _load("_rules"),
+        _load("_suppression"),
+        _load("_checker_translated_unique"),
+        _load("_checker_null_unique"),
+    )
 
 
 def python_files(roots: list[str]) -> list[str]:
@@ -93,9 +99,10 @@ def in_an_addon(path: str) -> bool:
 def scan(roots: list[str]):
     import ast
 
-    rules, suppression, translated = _rules_module()
+    rules, suppression, translated, null_unique = _rules_module()
     findings = []
     units = []
+    null_units = []
     for path in python_files(roots):
         try:
             raw = Path(path).read_bytes()
@@ -142,10 +149,16 @@ def scan(roots: list[str]):
         infos = translated.collect(tree)
         if infos:
             units.append((path, infos))
+        null_infos = null_unique.collect(tree)
+        if null_infos:
+            null_units.append((path, null_infos))
 
     findings.extend(
         (violation.rule, violation.path, violation.lineno, str(violation))
-        for violation in translated.violations(units)
+        for violation in (
+            *translated.violations(units),
+            *null_unique.violations(null_units),
+        )
         if not rules.is_test_path(violation.path)
     )
     return findings

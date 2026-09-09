@@ -1,4 +1,5 @@
 from . import test_dunderinit
+from . import test_null_unique
 from . import test_translated_unique
 from . import test_checkers
 from . import test_python_lint
