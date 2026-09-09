@@ -150,7 +150,12 @@ class SaleOrder(models.Model):
         return updated_line
 
     def _filter_can_send_abandoned_cart_mail(self):
-        # Prevent carts with expired/sold out tickets from being subject of reminder emails
+        # Prevent carts whose tickets cannot be bought right now from being
+        # subject of reminder emails. `sale_available` excludes three cases,
+        # not two: a ticket whose sale window has not opened yet, one whose
+        # window has closed, and one that is sold out - and "sold out" here
+        # also covers the event-level `event_registrations_sold_out` flag, not
+        # only the ticket's own seats.
         return (
             super()
             ._filter_can_send_abandoned_cart_mail()
