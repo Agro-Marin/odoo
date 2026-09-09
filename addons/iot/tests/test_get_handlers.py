@@ -1,6 +1,7 @@
 import collections
 import io
 import pathlib
+import re
 import zipfile
 
 from odoo.modules.module import Manifest
@@ -126,4 +127,95 @@ class TestHandlerNamespace(HttpCase):
             clashes,
             "these handler paths are claimed by more than one module, and the "
             "box would silently keep one of them: %s" % clashes,
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestHandlerDependencies(HttpCase):
+    """A handler that imports another handler needs both in the same zip.
+
+    Before the driver split one module shipped the payment terminals and their
+    shared base together, so the question could not arise. Nine modules ship
+    them now and the edges cross module boundaries, while the import path is
+    ``odoo.addons.iot_drivers.iot_handlers.*`` whoever shipped the file -- so
+    the import reads as internal and is not.
+    """
+
+    _IMPORT = re.compile(r"odoo\.addons\.iot_drivers\.iot_handlers\.(\w+)\.(\w+)")
+
+    def _shippers(self):
+        """handler path -> the module that ships it, and each module's manifest."""
+        ships, manifests = {}, {}
+        for manifest in Manifest.all_addon_manifests():
+            handlers = pathlib.Path(manifest.path) / "iot_handlers"
+            if not handlers.is_dir():
+                continue
+            manifests[manifest.name] = manifest
+            for handler in handlers.glob("*/*.py"):
+                if handler.name.startswith(("_", ".")):
+                    continue
+                ships[f"{handler.parent.name}.{handler.stem}"] = manifest.name
+        return ships, manifests
+
+    def _edges(self, ships):
+        """(importer, provider, handler) for every cross-module handler import."""
+        edges = set()
+        for manifest in Manifest.all_addon_manifests():
+            handlers = pathlib.Path(manifest.path) / "iot_handlers"
+            if not handlers.is_dir():
+                continue
+            for handler in handlers.glob("*/*.py"):
+                for kind, name in self._IMPORT.findall(handler.read_text()):
+                    provider = ships.get(f"{kind}.{name}")
+                    if provider and provider != manifest.name:
+                        edges.add((manifest.name, provider, f"{kind}/{name}.py"))
+        return edges
+
+    def _closure(self, name, seen=None):
+        seen = seen if seen is not None else set()
+        manifest = Manifest.for_addon(name, display_warning=False)
+        for dep in manifest["depends"] if manifest else []:
+            if dep not in seen:
+                seen.add(dep)
+                self._closure(dep, seen)
+        return seen
+
+    def test_a_handler_never_imports_one_its_module_cannot_guarantee(self):
+        ships, manifests = self._shippers()
+        edges = self._edges(ships)
+        self.assertTrue(edges, "the scan found no cross-module handler imports")
+
+        broken = []
+        for importer, provider, handler in sorted(edges):
+            if provider == "iot_drivers":
+                continue  # shipped unconditionally by the controller
+            if manifests[provider]["iot_handlers_always"]:
+                continue  # ships whether or not anyone installed it
+            if provider not in self._closure(importer):
+                broken.append(f"{importer} imports {handler} from {provider}")
+        self.assertFalse(
+            broken,
+            "these modules ship a handler importing another module's handler "
+            "without depending on it, so the box can receive one without the "
+            "other: %s" % broken,
+        )
+
+    def test_a_dated_image_never_drops_a_provider_and_keeps_its_importer(self):
+        """``iot_handlers_in_image`` withholds a module's handlers from a dated
+        box. Withholding a provider while still sending its importer would ship
+        an import of a file that is not there."""
+        ships, manifests = self._shippers()
+        broken = []
+        for importer, provider, handler in sorted(self._edges(ships)):
+            if provider == "iot_drivers":
+                continue
+            if (
+                manifests[provider]["iot_handlers_in_image"]
+                and not manifests[importer]["iot_handlers_in_image"]
+            ):
+                broken.append(f"{importer} keeps {handler}, but {provider} is withheld")
+        self.assertFalse(
+            broken,
+            "a dated box would receive these handlers without what they "
+            "import: %s" % broken,
         )
