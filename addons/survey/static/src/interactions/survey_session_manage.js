@@ -228,13 +228,18 @@ export class SurveySessionManage extends Interaction {
      *
      * @param {Event} ev
      */
-    onNext(ev) {
+    async onNext(ev) {
         const screenToDisplay = this.getNextScreen();
         switch (screenToDisplay) {
             case "userInputs":
                 this.chartUpdateState({ showInputs: true });
                 break;
             case "results":
+                // Close the question server-side *before* the answers go up, so a
+                // late submission cannot slip in between the two.
+                await this.waitFor(
+                    rpc(`/survey/session/disable_answers/${this.surveyAccessToken}`)
+                );
                 this.chartUpdateState({ showAnswers: true });
                 // when showing results, stop refreshing answers
                 clearInterval(this.resultsRefreshInterval);
@@ -506,10 +511,10 @@ export class SurveySessionManage extends Interaction {
      *
      * @param {KeyboardEvent} ev
      */
-    onKeyDown(ev) {
+    async onKeyDown(ev) {
         const hotkey = getActiveHotkey(ev);
         if (hotkey === "arrowright" || hotkey === "space") {
-            this.onNext(ev);
+            await this.onNext(ev);
         } else if (hotkey === "arrowleft") {
             this.onBack(ev);
         }
@@ -619,7 +624,7 @@ export class SurveySessionManage extends Interaction {
         ) {
             this.addListener(surveyManagerEl, "time_up", async () => {
                 if (this.currentScreen === "question" && this.isScoredQuestion) {
-                    this.onNext();
+                    await this.onNext();
                 }
             });
             this.timerEl.dispatchEvent(

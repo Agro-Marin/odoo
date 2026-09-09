@@ -1036,9 +1036,7 @@ class Survey(http.Controller):
             if not next_page:
                 if (
                     survey_sudo.users_can_go_back
-                    and answer_sudo.user_input_line_ids.filtered(
-                        lambda a: a.skipped and a.question_id.constr_mandatory
-                    )
+                    and answer_sudo._get_skipped_questions()
                 ):
                     answer_sudo.write(
                         {
@@ -1080,6 +1078,23 @@ class Survey(http.Controller):
         answer_sudo.invalidate_recordset(["state"])
         if answer_sudo.state == "done":
             return {}, {"error": "unauthorized"}
+
+        # The host has revealed the correct answers for the question on screen, so
+        # it stops taking them: otherwise an attendee who sat it out copies the
+        # answer off the screen and scores like the ones who knew it.
+        if (
+            answer_sudo.is_session_answer
+            and not answer_sudo.test_entry
+            and not survey_sudo.session_question_can_answer
+        ):
+            return {}, {
+                "error": "validation",
+                "fields": {
+                    survey_sudo.session_question_id.id: _(
+                        "We do not accept submissions for this question anymore."
+                    )
+                },
+            }
 
         questions, page_or_question_id = survey_sudo._get_survey_questions(
             answer=answer_sudo,
@@ -1304,9 +1319,7 @@ class Survey(http.Controller):
                 "is_html_empty": is_html_empty,
                 "review": review,
                 "survey": survey_sudo,
-                "answer": answer_sudo
-                if survey_sudo.scoring_type != "scoring_without_answers"
-                else answer_sudo.browse(),
+                "answer": answer_sudo,
                 "questions_to_display": answer_sudo._get_print_questions(),
                 "scoring_display_correction": survey_sudo.scoring_type
                 in ["scoring_with_answers", "scoring_with_answers_after_page"]

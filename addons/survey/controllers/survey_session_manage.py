@@ -72,6 +72,21 @@ class UserInputSession(http.Controller):
         )
 
     @http.route(
+        "/survey/session/disable_answers/<string:survey_token>",
+        type="jsonrpc",
+        auth="user",
+        website=True,
+    )
+    def survey_session_disable_answers(
+        self, survey_token: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        """Called when the host reveals the answers, to stop accepting more."""
+        survey = self._fetch_from_token(survey_token)
+        if survey and survey.session_state == "in_progress":
+            survey.session_question_can_answer = False
+        return {}
+
+    @http.route(
         "/survey/session/next_question/<string:survey_token>",
         type="jsonrpc",
         auth="user",
@@ -94,6 +109,7 @@ class UserInputSession(http.Controller):
             now = datetime.datetime.now(UTC)
             survey.sudo().write(
                 {
+                    "session_question_can_answer": True,
                     "session_question_id": next_question.id,
                     "session_question_start_time": fields.Datetime.now()
                     + relativedelta(seconds=1),

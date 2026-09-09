@@ -424,6 +424,13 @@ class SurveySurvey(models.Model):
         copy=False,
         help="The current question of the survey session.",
     )
+    session_question_can_answer = fields.Boolean(
+        "Current Question Accepts Answers",
+        default=True,
+        copy=False,
+        help="Turned off when the host reveals the answers, so that attendees who "
+        "have not answered yet cannot copy the ones on screen.",
+    )
     session_start_time = fields.Datetime("Current Session Start Time", copy=False)
     session_question_start_time = fields.Datetime(
         "Current Question Start Time",
