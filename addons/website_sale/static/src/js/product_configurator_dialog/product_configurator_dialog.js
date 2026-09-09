@@ -66,6 +66,6 @@ patch(ProductConfiguratorDialog.prototype, {
             // is not a frontend module.
             return _t("Total: %s", this.getFormattedTotal());
         }
-        return super.totalMessage(...arguments);
+        return super.totalMessage;
     },
 });
