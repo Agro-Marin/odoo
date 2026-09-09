@@ -91,7 +91,6 @@ class TestModuleManifest(_ManifestCase):
                 "icon": "/base/static/description/icon.png",
                 "init_xml": [],
                 "installable": True,
-                "iot_handlers_always": False,
                 "iot_handlers_in_image": False,
                 "images": [],
                 "images_preview_theme": {},

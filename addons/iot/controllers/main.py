@@ -21,7 +21,6 @@ from odoo.tools.misc import str2bool
 _logger = logging.getLogger(__name__)
 
 _iot_logger = logging.getLogger(__name__ + ".iot_log")
-# We want to catch any log level that the IoT send
 _iot_logger.setLevel(logging.DEBUG)
 
 _logger = logging.getLogger(__name__)
@@ -44,10 +43,6 @@ def ensure_unique_name(name):
 
 
 class IoTBoxLookup:
-    """Resolving a box from the identifier it reports, shared by the controllers
-    a box talks to. Not an ``http.Controller`` itself: it declares no route and
-    must not have any inherited into it."""
-
     def _search_box(self, identifier):
         return (
             request.env["iot.box"]
@@ -58,53 +53,26 @@ class IoTBoxLookup:
 
 class IoTController(IoTBoxLookup, http.Controller):
     def _get_handler_modules(self, box):
-        """Names of the modules whose ``iot_handlers/`` ship to ``box``.
-
-        Two manifest keys let a module opt out of the default "installed means
-        shipped" rule. ``iot_handlers_always`` ships a driver even when nobody
-        has installed it, so the box can report a device the database cannot yet
-        act on. ``iot_handlers_in_image`` marks a driver a dated box image
-        already carries from git; re-sending it would overwrite the git copy
-        with the database's, so those are withheld from such boxes and custom
-        drivers still travel.
-        """
         installed = set(
             request.env["ir.module.module"]
             .sudo()
             .search([("state", "=", "installed")])
             .mapped("name")
         )
-        always, in_image = set(), set()
-        for manifest in Manifest.all_addon_manifests():
-            if manifest["iot_handlers_always"]:
-                always.add(manifest.name)
-            if manifest["iot_handlers_in_image"]:
-                in_image.add(manifest.name)
+        in_image = {
+            manifest.name
+            for manifest in Manifest.all_addon_manifests()
+            if manifest["iot_handlers_in_image"]
+        }
 
-        modules = installed | always | {"iot_drivers"}
+        modules = installed | {"iot_drivers"}
         if re.search(r"\d{4}\.\d{2}\.\d{2}", box.version):
             modules -= in_image
 
-        # `iot_drivers` ships to every box, dated image or not, and the old
-        # blocklist this replaced withheld it from dated ones. The box makes
-        # that unsafe: `download_iot_handlers` calls `delete_iot_handlers`
-        # first, which empties the whole handler directory, and only then
-        # extracts. Withholding a module therefore DELETES its handlers rather
-        # than preserving the git copy the blocklist's comment claimed to
-        # protect, and the git checkout that could restore them runs earlier in
-        # the same boot and only when the branch changed. A box that lost the
-        # driver framework this way has no drivers at all.
         return sorted(modules | {"iot_drivers"})
 
     @http.route("/iot/get_handlers", type="http", auth="public", csrf=False)
     def get_handlers(self, identifier, auto):
-        """Return a zip file containing all the IoT handlers for the given IoT Box.
-
-        :param identifier: The identifier of the IoT Box.
-        :param auto: If True, the IoT Box will automatically update its handlers.
-        :return: A zip file containing all the IoT handlers.
-        """
-        # Check if identifier is of one of the IoT Boxes
         box = self._search_box(identifier)
         if not box or (auto == "True" and not box.drivers_auto_update):
             raise werkzeug.exceptions.Unauthorized(
@@ -169,16 +137,6 @@ class IoTController(IoTBoxLookup, http.Controller):
     def iot_box_send_websocket(
         self, session_id, iot_box_identifier, device_identifier, status, **kwargs
     ):
-        """Called by the IoT Box once an operation is over. We then forward
-        the acknowledgment to the user who made the request to inform him
-        of the success of the operation.
-
-        :param session_id: ID of the operation
-        :param iot_box_identifier: The IP of the IoT box (used to find the box)
-        :param device_identifier: The IoT device identifier
-        :param status: Status of the last action (success, error, ...)
-        :param kwargs:
-        """
         box = self._search_box(iot_box_identifier)
         if not box:
             _logger.warning(
@@ -223,13 +181,6 @@ class IoTController(IoTBoxLookup, http.Controller):
 
     @http.route("/iot/box/webrtc_answer", type="jsonrpc", auth="public")
     def iot_box_webrtc_answer(self, iot_box_identifier, answer):
-        """Called by the IoT Box after receiving a WebRTC offer from a user.
-        The IoT box sends its WebRTC answer and we forward it to the user so
-        they can establish the connection.
-
-        :param iot_box_identifier: The identifier (serial number) of the IoT box
-        :param answer: The WebRTC answer object
-        """
         box = self._search_box(iot_box_identifier)
         if not box:
             _logger.warning(

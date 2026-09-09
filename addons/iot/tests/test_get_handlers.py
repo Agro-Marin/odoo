@@ -45,17 +45,20 @@ class TestHandlerShipping(HttpCase):
         self.assertIn("drivers/printer_driver_base.py", names)
         self.assertIn("interfaces/serial_interface.py", names)
 
-    def test_a_driver_marked_always_ships_while_uninstalled(self):
-        """``iot_handlers_always`` replaced a hardcoded module name in this
-        controller. The box has to be able to report a fiscal data module
-        before anyone installs the app that acts on one."""
-        self.assertNotEqual(
+    def test_a_driver_that_must_always_be_present_installs_itself(self):
+        """The box has to report a fiscal data module before anyone installs the
+        app that acts on one, and the database has to be able to READ what it
+        reports. Shipping the driver without installing its module gives the
+        first and not the second: the error codes and the device subtype are
+        named only by that module. ``iot_blackbox_be`` is ``auto_install`` on
+        ``iot`` so both hold."""
+        self.assertEqual(
             self.env["ir.module.module"]
             .sudo()
             .search([("name", "=", "iot_blackbox_be")], limit=1)
             .state,
             "installed",
-            "this test is about a module that is NOT installed",
+            "iot_blackbox_be should have auto-installed alongside iot",
         )
         self._box()
         self.assertIn("drivers/serial_blackbox_driver.py", self._names(self._fetch()))
@@ -188,7 +191,7 @@ class TestHandlerDependencies(HttpCase):
         return seen
 
     def test_a_handler_never_imports_one_its_module_cannot_guarantee(self):
-        ships, manifests = self._shippers()
+        ships, _manifests = self._shippers()
         edges = self._edges(ships)
         self.assertTrue(edges, "the scan found no cross-module handler imports")
 
@@ -196,8 +199,6 @@ class TestHandlerDependencies(HttpCase):
         for importer, provider, handler in sorted(edges):
             if provider == "iot_drivers":
                 continue  # shipped unconditionally by the controller
-            if manifests[provider]["iot_handlers_always"]:
-                continue  # ships whether or not anyone installed it
             if provider not in self._closure(importer):
                 broken.append(f"{importer} imports {handler} from {provider}")
         self.assertFalse(
@@ -225,4 +226,28 @@ class TestHandlerDependencies(HttpCase):
             broken,
             "a dated box would receive these handlers without what they "
             "import: %s" % broken,
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestDeviceTypesAreReadable(HttpCase):
+    def test_every_device_type_the_box_can_report_can_also_be_read(self):
+        """A driver that ships must also be installed, or the server sees a
+        device it cannot interpret.
+
+        The registry entry that names a device's error codes lives in the same
+        module as its driver. When the driver shipped to the box without its
+        module being installed, a fiscal data module reporting a failure inside
+        its response body was read as a success, because the `normalize` hook
+        that rewrites such an event was not loaded.
+        """
+        backend = [
+            asset.path
+            for asset in self.env["ir.asset"]._get_asset_paths("web.assets_backend", {})
+        ]
+        self.assertTrue(
+            any("fdm_messages" in path for path in backend),
+            "iot_blackbox_be registers how a fiscal data module's events are "
+            "read; without it in the bundle an error in the response body is "
+            "reported to the user as a success",
         )

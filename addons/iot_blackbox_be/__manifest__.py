@@ -20,7 +20,7 @@ driver only reports the device; pos_blackbox_be carries the fiscal rules.
             "iot_blackbox_be/static/tests/**/*",
         ],
     },
-    "iot_handlers_always": True,
     "iot_handlers_in_image": True,
     "installable": True,
+    "auto_install": True,
 }
