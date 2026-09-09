@@ -800,7 +800,7 @@ class AccountBankStatementLine(models.Model):
             other_lines -= liquidity_lines
         return liquidity_lines, suspense_lines, other_lines
 
-    def _synchronize_from_moves(self, changed_fields):
+    def _sync_from_moves(self, changed_fields):
         if self.env.context.get("skip_account_move_synchronization"):
             return
         if "line_ids" not in changed_fields:

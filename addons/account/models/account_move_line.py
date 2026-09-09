@@ -2265,7 +2265,7 @@ class AccountMoveLine(models.Model):
             lambda line, fnames: (line, dict.fromkeys(fnames)),
         )
 
-        lines.move_id._synchronize_business_models(["line_ids"])
+        lines.move_id._sync_business_models(["line_ids"])
         lines.filtered(
             lambda l: l.parent_state == "draft"
         ).analytic_line_ids.with_context(skip_analytic_sync=True).unlink()
@@ -2408,7 +2408,7 @@ class AccountMoveLine(models.Model):
             tracking_snapshot = self._snapshot_tracked_values(vals)
 
             result = super().write(vals)
-            self.move_id._synchronize_business_models(["line_ids"])
+            self.move_id._sync_business_models(["line_ids"])
             if any(field in vals for field in ["account_id", "currency_id"]):
                 self._check_account_is_usable()
 

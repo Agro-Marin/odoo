@@ -3923,12 +3923,12 @@ class AccountMove(models.Model):
             "date": format_date(self.env, line.discount_date),
         }
 
-    def _synchronize_business_models(self, changed_fields):
+    def _sync_business_models(self, changed_fields):
         if self.env.context.get("skip_account_move_synchronization"):
             return
 
         self_sudo = self.sudo()
-        self_sudo.statement_line_id._synchronize_from_moves(changed_fields)
+        self_sudo.statement_line_id._sync_from_moves(changed_fields)
 
     def copy_data(self, default=None):
         default = dict(default or {})
@@ -4248,7 +4248,7 @@ class AccountMove(models.Model):
                     self.flush_recordset()
                     self._hash_moves()
 
-            self._synchronize_business_models(set(vals.keys()))
+            self._sync_business_models(set(vals.keys()))
 
             if "tax_totals" in vals:
                 super().write({"tax_totals": vals["tax_totals"]})
