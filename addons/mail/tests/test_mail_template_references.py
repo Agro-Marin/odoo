@@ -3,9 +3,6 @@ import re
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 
-# Every field of a template that is itself an inline template. A rename breaks
-# `partner_to` as readily as a body, and more quietly: the mail then addresses
-# nobody instead of raising.
 EXPRESSION_FIELDS = (
     "body_html",
     "subject",
@@ -21,6 +18,7 @@ EXPRESSION_FIELDS = (
 OBJECT_CHAIN = re.compile(r"\bobject((?:\.[a-z_][a-z0-9_]*)+)")
 MODEL_LITERAL = re.compile(r"""env\[['"]([a-z_][a-z0-9_.]*)['"]\]""")
 HASATTR_GUARD = re.compile(r"hasattr\(\s*object\s*,\s*['\"]([a-z_0-9]+)['\"]")
+MEMBERSHIP_GUARD = re.compile(r"['\"]([a-z_0-9]+)['\"]\s+in\s+object\b")
 
 
 @tagged("mail_tools", "-at_install", "post_install")
@@ -97,15 +95,12 @@ class TestMailTemplateReferences(TransactionCase):
                 continue
             model = self.env[model_name]
             for body in self._expressions(template):
-                # `hasattr(object, 'x')` is how a template reads a field that
-                # only exists when some other module is installed. Guarded is
-                # not broken.
-                guarded = set(HASATTR_GUARD.findall(body))
+                guarded = set(HASATTR_GUARD.findall(body)) | set(
+                    MEMBERSHIP_GUARD.findall(body)
+                )
                 for chain in sorted(set(OBJECT_CHAIN.findall(body))):
-                    if chain.strip(".").split(".")[0] in guarded:
-                        continue
                     name = self._broken_hop(model, chain)
-                    if name:
+                    if name and name not in guarded:
                         broken.append(
                             f"{template.name} (id {template.id}): "
                             f"object{chain} -- no {name!r}"
