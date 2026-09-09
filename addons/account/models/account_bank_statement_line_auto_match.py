@@ -1,6 +1,6 @@
 import logging
 
-from odoo import api, fields, models, modules, tools
+from odoo import api, fields, models, modules, service
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import SQL, float_compare
@@ -17,7 +17,12 @@ class AccountBankStatementLine(models.Model):
         self, batch_size=None, limit_time=0, company_id=None
     ):
         if limit_time <= 0:
-            cron_limit_time = tools.config["limit_time_real_cron"] or -1
+            # `limit_time_real_cron` DEFAULTS to -1, meaning "inherit
+            # --limit-time-real" (itself 120), and reading the option directly
+            # cannot see that: -1 fell through to the 180 default, so the cron
+            # budgeted itself 50% longer than the server's own request limit.
+            # The service helper resolves the inheritance.
+            cron_limit_time = service.get_cron_real_time_budget() or -1
             limit_time = cron_limit_time if 0 < cron_limit_time < 180 else 180
 
         if limit_time and not batch_size:
