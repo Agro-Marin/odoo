@@ -4,14 +4,12 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useModel } from "@web/model/model";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
-import { CogMenu } from "@web/search/cog_menu/cog_menu";
-import { Layout } from "@web/search/layout";
 import { usePager } from "@web/search/pager_hook";
-import { SearchBar } from "@web/search/search_bar/search_bar";
 import { standardViewProps } from "@web/views/standard_view_props";
+import { useViewChassis, ViewLayout } from "@web/views/view_components";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
 export class ActivityController extends Component {
-    static components = { Layout, SearchBar, CogMenu };
+    static components = { ViewLayout };
     static props = {
         ...standardViewProps,
         Model: Function,
@@ -22,6 +20,7 @@ export class ActivityController extends Component {
 
     setup() {
         this.model = useState(useModel(this.props.Model, this.modelParams));
+        this.chassis = useViewChassis();
 
         this.dialog = useService("dialog");
         this.action = useService("action");
@@ -49,6 +48,22 @@ export class ActivityController extends Component {
                     : undefined,
             };
         });
+    }
+
+    /**
+     * `ViewLayout` puts `className` on the view root, and this view adds one
+     * more class there on a small screen. Extending the chassis props is how a
+     * view varies one of them without the component growing a hook for it.
+     *
+     * @returns {Record<string, any>}
+     */
+    get chassisProps() {
+        return {
+            ...this.chassis.props,
+            className:
+                this.props.className +
+                (this.ui.isSmall ? " o_action_delegate_scroll" : ""),
+        };
     }
 
     get modelParams() {

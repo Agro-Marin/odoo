@@ -61,14 +61,19 @@ STATIC_TEMPLATE = re.compile(r"""static\s+template\s*=\s*["'`](?P<name>[^"'`]+)[
 
 # View types whose controller template still hand-rolls the chassis, each with
 # why. Shrink-only: a type that takes ViewLayout leaves this mapping in the same
-# commit. A reason of "single-record" is a permanent exemption rather than debt
-# -- `ViewLayout` is the multi-record control panel, and a form's is a different
-# thing (no search bar, a status indicator, its own breadcrumb behaviour).
+# commit. **A reason is a classification, not a queue position.** "not yet
+# converted" is debt; the other two are decisions and may stay forever --
+# `ViewLayout` is the multi-record control panel and a form's is a different
+# thing, and gantt's chassis is already complete, so converting it would delete
+# working slots and restore nothing.
 PINNED_HANDROLLED: dict[str, str] = {
     "form": "single-record: its control panel is not this chassis",
-    "activity": "not yet converted",
+    "gantt": (
+        "chassis complete, deliberately not converted: every part renders, and "
+        "its five hand-rolled slots include the buttonTemplate call every gantt "
+        "subclass hangs its toolbar on (web_gantt's owner, 2026-09-08)"
+    ),
     "calendar": "not yet converted",
-    "gantt": "not yet converted",
     "graph": "not yet converted",
     "grid": "not yet converted",
     "hierarchy": "not yet converted",

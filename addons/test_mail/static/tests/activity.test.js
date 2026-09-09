@@ -15,7 +15,7 @@ import { ActivityRenderer } from "@mail/views/web/activity/activity_renderer";
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { keyDown, waitFor } from "@odoo/hoot-dom";
 import { animationFrame, disableAnimations, mockDate } from "@odoo/hoot-mock";
-import { onMounted, onWillUnmount } from "@odoo/owl";
+import { markup, onMounted, onWillUnmount } from "@odoo/owl";
 import { MailTestActivity } from "@test_mail/../tests/mock_server/models/mail_test_activity";
 import { defineTestMailModels } from "@test_mail/../tests/test_mail_test_helpers";
 import {
@@ -148,6 +148,34 @@ beforeEach(async () => {
             activity_ids: [mailActivityIds[1], mailActivityIds[2]],
         },
     ]);
+});
+
+test("activity view: the control panel carries a search bar", async () => {
+    // The suite is `describe.current.tags("desktop")`, so the toggler button --
+    // which renders only on a small screen -- is asserted in
+    // activity_mobile.test.js instead.
+    await start();
+    registerArchs(archs);
+    await openView({
+        res_model: "mail.test.activity",
+        views: [[false, "activity"]],
+    });
+    await contains(".o_cp_searchview");
+});
+
+test("activity view: an empty view shows the action's no-content help", async () => {
+    // There was nowhere for it to render before: the controller mounted
+    // `Layout` directly, and `Layout` has no no-content branch, so an activity
+    // view with nothing in it said nothing.
+    await start();
+    registerArchs(archs);
+    await openView({
+        res_model: "mail.test.activity",
+        views: [[false, "activity"]],
+        domain: [["id", "=", 0]],
+        noContentHelp: markup`<p class="o_act_help">nothing scheduled</p>`,
+    });
+    await contains(".o_view_nocontent .o_act_help");
 });
 
 test("activity view: simple activity rendering", async () => {
