@@ -87,6 +87,43 @@ const COLORS_XL = [
 ];
 
 /**
+ * The palettes above are picked against the bright view background. On the dark
+ * one (`$o-dark-view-background-color`, #151d2e) the deep end of every hue ramp
+ * sinks into it: 13 of the 32 `xl` swatches land under the 3:1 non-text
+ * contrast floor, and `graph_chart_config` paints the y axis title with
+ * `getColor(15, "xl")` — #105F53, a 2.23:1 label nobody can read.
+ *
+ * Lifting the whole ramp by one factor per palette clears the floor while
+ * keeping the spacing between the shades of a hue, which per-swatch correction
+ * does not: raising each colour only as far as it needs collapses "Blue #3" and
+ * "Blue #4" onto each other.
+ *
+ * `sm` is absent on purpose — its darkest swatch already sits at 4.94:1.
+ *
+ * @type {[string, string[], number][]}
+ */
+const DARK_PALETTES = [
+    ["md", COLORS_MD, 0.05],
+    ["lg", COLORS_LG, 0.25],
+    ["xl", COLORS_XL, 0.3],
+];
+
+/** @type {Record<string, string[]>} */
+const darkPalettes = {};
+
+/**
+ * @param {string} paletteName
+ * @returns {string[]}
+ */
+function getDarkPalette(paletteName) {
+    if (!(paletteName in darkPalettes)) {
+        const [, colors, factor] = DARK_PALETTES.find(([name]) => name === paletteName);
+        darkPalettes[paletteName] = colors.map((color) => lightenColor(color, factor));
+    }
+    return darkPalettes[paletteName];
+}
+
+/**
  * @param {string} paletteName
  * @returns {string[]}
  */
@@ -97,11 +134,11 @@ export function getColors(paletteName) {
         case "sm":
             return COLORS_SM;
         case "md":
-            return COLORS_MD;
+            return colorScheme.isDark ? getDarkPalette("md") : COLORS_MD;
         case "lg":
-            return COLORS_LG;
+            return colorScheme.isDark ? getDarkPalette("lg") : COLORS_LG;
         default:
-            return COLORS_XL;
+            return colorScheme.isDark ? getDarkPalette("xl") : COLORS_XL;
     }
 }
 

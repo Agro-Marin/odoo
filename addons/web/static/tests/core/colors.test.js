@@ -25,6 +25,26 @@ function withScheme(isDark) {
     });
 }
 
+/**
+ * WCAG 2.1 relative luminance / contrast ratio, so the palettes can be held to
+ * a measurable floor rather than to a screenshot.
+ *
+ * @param {string} a
+ * @param {string} b
+ * @returns {number}
+ */
+function contrastRatio(a, b) {
+    const luminance = (hex) => {
+        const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+        const [r, g, blue] = channels.map((c) =>
+            c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4,
+        );
+        return 0.2126 * r + 0.7152 * g + 0.0722 * blue;
+    };
+    const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (light + 0.05) / (dark + 0.05);
+}
+
 describe("palette selection", () => {
     test("a numeric size picks the smallest palette that fits", () => {
         /** @type {[number, "sm" | "md" | "lg" | "xl"][]} */
@@ -62,6 +82,42 @@ describe("palette selection", () => {
         expect(getColors("odoo")).toEqual(["#875A7B", "#A5D8D7", "#DCD0D9"]);
         withScheme(true);
         expect(getColors("odoo")).toEqual(["#6B3E66", "#147875", "#5A395A"]);
+    });
+
+    test("the sm/md/lg/xl palettes follow the colour scheme too", () => {
+        withScheme(false);
+        const bright = Object.fromEntries(
+            ["sm", "md", "lg", "xl"].map((name) => [name, getColors(name)]),
+        );
+        withScheme(true);
+        // sm already clears the contrast floor unchanged, the others must not.
+        expect(getColors("sm")).toEqual(bright.sm);
+        for (const name of ["md", "lg", "xl"]) {
+            expect(getColors(name)).not.toEqual(bright[name], {
+                message: `the ${name} palette has a dark variant`,
+            });
+            expect(getColors(name)).toHaveLength(bright[name].length);
+        }
+    });
+
+    test("every swatch clears 3:1 against the dark view background", () => {
+        // $o-dark-view-background-color === $o-dark-gray-200 (palette_dark.scss:11,260)
+        const DARK_VIEW_BG = "#151d2e";
+        withScheme(true);
+        for (const name of ["sm", "md", "lg", "xl"]) {
+            for (const [index, color] of getColors(name).entries()) {
+                expect(contrastRatio(color, DARK_VIEW_BG)).toBeGreaterThan(3, {
+                    message: `${name}[${index}] = ${color}`,
+                });
+            }
+        }
+    });
+
+    test("the y axis title of a dark graph is readable text", () => {
+        // graph_chart_config.js paints it with getColor(15, "xl") in dark mode,
+        // so it owes the 4.5:1 text floor, not just the 3:1 non-text one.
+        withScheme(true);
+        expect(contrastRatio(getColor(15, "xl"), "#151d2e")).toBeGreaterThan(4.5);
     });
 
     test("the index wraps in both directions", () => {
