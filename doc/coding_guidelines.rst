@@ -1234,7 +1234,7 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   167
 §2.4.5   ``X_to_Y`` converter definitions                               95
 §2.4.5   … distinct names                                               54
-§2.4.7   ``_get_*`` definitions                                      6,051
+§2.4.7   ``_get_*`` definitions                                      6,056
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  6
@@ -1251,7 +1251,7 @@ Section  Population                                                  Count
 §2.4.11  … doing something else entirely                                22
 §2.4.11  ``_find_or_create_*`` methods                                   1
 §2.4.11  ``_get_or_create_*`` methods                                   32
-§2.4.11  ``_resolve_*`` definitions                                     35
+§2.4.11  ``_resolve_*`` definitions                                     30
 §2.4.12  ``_set_*`` definitions                                        124
 §2.4.12  ``_update_*`` definitions                                     362
 §2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             249
