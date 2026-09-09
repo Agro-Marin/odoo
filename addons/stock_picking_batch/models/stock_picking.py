@@ -83,7 +83,7 @@ class StockPicking(models.Model):
         to_assign_ids = set()
         if not any(picking.state == "done" for picking in self):
             return res
-        if self and self.env.context.get("pickings_to_detach"):
+        if self.env.context.get("pickings_to_detach"):
             pickings_to_detach = self.env["stock.picking"].browse(
                 self.env.context["pickings_to_detach"]
             )
