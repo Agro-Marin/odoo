@@ -103,6 +103,11 @@ export class Model extends SignalStore {
     async load(_params) {}
 
     /**
+     * Whether the last load found anything. Override it in any model whose view
+     * supports sample data: `useModelWithSampleData` reaches for the sample ORM
+     * only when this answers false, so the default below turns `sample="1"`
+     * into a no-op.
+     *
      * @returns {boolean}
      */
     hasData() {
@@ -270,6 +275,15 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         component.props.useSampleModel &&
         (!("useSampleModel" in globalState) || globalState.useSampleModel);
     if (useSampleModel && model.hasData === Model.prototype.hasData) {
+        // `Model.hasData()` answers true unconditionally and the sample ORM is
+        // reached only when it answers false, so a view that asks for sample
+        // data without overriding it silently gets none, and reading either
+        // file alone says the feature is supported.
+        // This says the model can *receive* sample data, not that the view ends
+        // up with any: `web_gantt` overrides `hasData`, reaches the sample ORM
+        // and draws its rows, while its own sample answers `records: []` and no
+        // pill is ever drawn. Silence here does not cover what a view type's
+        // sample mock chooses to return.
         console.warn(
             `${ModelClass.name} asks for sample data but does not override hasData().` +
                 ` Model.hasData() answers true unconditionally, so the sample model is` +
