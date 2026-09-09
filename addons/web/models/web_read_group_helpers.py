@@ -31,7 +31,7 @@ def OR(domains: Iterable) -> list:
     return list(Domain.OR(domains))
 
 
-def _visible_display_name(record: models.BaseModel) -> str:
+def _get_visible_display_name(record: models.BaseModel) -> str:
     if not record._filtered_display_name_access():
         return ""
     return record.sudo().display_name
@@ -227,7 +227,7 @@ class Base(models.AbstractModel):
                 if not value:
                     return False, [(field_name, "not any", [])]
                 id_ = value.id
-                return (id_, _visible_display_name(value)), [(field_name, "=", id_)]
+                return (id_, _get_visible_display_name(value)), [(field_name, "=", id_)]
 
             return formatter_many2many
 
@@ -237,7 +237,7 @@ class Base(models.AbstractModel):
                 if not value:
                     return False, [(field_name, "=", False)]
                 id_ = value.id
-                return (id_, _visible_display_name(value)), [(field_name, "=", id_)]
+                return (id_, _get_visible_display_name(value)), [(field_name, "=", id_)]
 
             return formatter_many2one
 
