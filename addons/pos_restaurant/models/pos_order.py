@@ -20,6 +20,12 @@ class PosOrder(models.Model):
         "restaurant.order.course", "order_id", string="Courses"
     )
 
+    @api.model
+    def _load_pos_data_fields(self, config):
+        params = super()._load_pos_data_fields(config)
+        params += ["table_id", "customer_count", "course_ids"]
+        return params
+
     def _get_open_order(self, order):
         config_id = self.env["pos.session"].browse(order.get("session_id")).config_id
         if not config_id.module_pos_restaurant:
