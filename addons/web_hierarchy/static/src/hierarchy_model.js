@@ -59,7 +59,7 @@ export class HierarchyNode {
      * @returns {HierarchyNode} ancestor node
      */
     get ancestorNode() {
-        return this.parentNode ? this.ancestorNode : this;
+        return this.parentNode ? this.parentNode.ancestorNode : this;
     }
 
     /**
