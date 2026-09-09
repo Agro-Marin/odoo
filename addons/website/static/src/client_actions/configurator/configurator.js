@@ -868,11 +868,12 @@ export class Store {
             .filter((feature) => feature.module_state !== "installed")
             .forEach((feature) => {
                 // need to check id, since we set to undefined in mount() to avoid the auto next screen on back button
-                feature.selected |=
-                    id &&
-                    feature.website_config_preselection.includes(
-                        WEBSITE_PURPOSES[id].name,
-                    );
+                feature.selected =
+                    feature.selected ||
+                    (id &&
+                        feature.website_config_preselection.includes(
+                            WEBSITE_PURPOSES[id].name,
+                        ));
             });
         this.selectedPurpose = id;
     }

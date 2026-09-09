@@ -9,7 +9,7 @@ export class BackgroundVideo extends Interaction {
     dynamicSelectors = {
         ...this.dynamicSelectors,
         _dropdown: () => this.el.closest(".dropdown-menu")?.parentElement,
-        _modal: () => this.el.closest("modal"),
+        _modal: () => this.el.closest(".modal"),
     };
     dynamicContent = {
         _document: {
