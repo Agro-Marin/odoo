@@ -45,8 +45,20 @@ class ProductCommon(UomCommon):
 
     @classmethod
     def get_default_groups(cls):
+        # Every product this fixture builds carries a list_price and a
+        # standard_price, and both fields are gated by write_groups. That check
+        # fires on create as well as on write, so a fixture user allowed to
+        # create a product but not to price it cannot build the fixture at all,
+        # and the whole class errors in setUpClass before a single test runs.
+        # Grant the two privileges here, where the fields are written, rather
+        # than widening either group for real users.
         groups = super().get_default_groups()
-        return groups | cls.quick_ref("product.group_product_manager")
+        return (
+            groups
+            | cls.quick_ref("product.group_product_manager")
+            | cls.quick_ref("product.group_product_price_manager")
+            | cls.quick_ref("product.group_product_cost_manager")
+        )
 
     @classmethod
     def _enable_pricelists(cls):

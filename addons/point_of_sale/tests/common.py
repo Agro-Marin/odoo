@@ -31,6 +31,17 @@ def archive_products(env):
 
 class CommonPosTest(ValuationReconciliationTestCommon):
     @classmethod
+    def get_default_groups(cls):
+        # The POS fixtures flip `available_in_pos` on the products they build,
+        # and that field is gated on the sales manager group. point_of_sale
+        # does not depend on sales_team, so resolve it optionally, the way
+        # AccountTestInvoicingCommon resolves mrp, purchase and stock.
+        no_group = cls.env["res.groups"].browse()
+        return super().get_default_groups() | (
+            cls.env.ref("sales_team.group_sale_manager", False) or no_group
+        )
+
+    @classmethod
     def setUpClass(cls):
         super().setUpClass()
         archive_products(cls.env)
@@ -495,6 +506,17 @@ class CommonPosTest(ValuationReconciliationTestCommon):
 
 
 class TestPoSCommon(ValuationReconciliationTestCommon):
+    @classmethod
+    def get_default_groups(cls):
+        # The POS fixtures flip `available_in_pos` on the products they build,
+        # and that field is gated on the sales manager group. point_of_sale
+        # does not depend on sales_team, so resolve it optionally, the way
+        # AccountTestInvoicingCommon resolves mrp, purchase and stock.
+        no_group = cls.env["res.groups"].browse()
+        return super().get_default_groups() | (
+            cls.env.ref("sales_team.group_sale_manager", False) or no_group
+        )
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
