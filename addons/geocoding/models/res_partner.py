@@ -1,5 +1,8 @@
 from odoo import _, api, fields, models, modules
 
+ADDRESS_FIELDS = ("street", "street2", "zip", "city", "state_id", "country_id")
+COORDINATE_FIELDS = ("partner_latitude", "partner_longitude")
+
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
@@ -7,20 +10,31 @@ class ResPartner(models.Model):
     date_localization = fields.Date(string="Geolocation Date")
 
     def write(self, vals):
-        # Reset latitude/longitude in case we modify the address without
-        # updating the related geolocation fields
-        if any(
-            field in vals
-            for field in ["street", "zip", "city", "state_id", "country_id"]
-        ) and not all(
-            "partner_%s" % field in vals for field in ["latitude", "longitude"]
-        ):
-            vals = dict(
-                vals,
-                partner_latitude=0.0,
-                partner_longitude=0.0,
-            )
+        if self._is_geolocation_stale(vals):
+            vals = dict(vals, partner_latitude=0.0, partner_longitude=0.0)
         return super().write(vals)
+
+    def _is_geolocation_stale(self, vals):
+        """Whether `vals` moves the address without supplying a new position.
+
+        Both coordinates have to be supplied together: a write carrying only
+        one of them describes no point, so the stored pair is dropped rather
+        than left half-updated. A write restating the address a partner
+        already has moves nothing and keeps its coordinates.
+        """
+        written_address_fields = [field for field in ADDRESS_FIELDS if field in vals]
+        if not written_address_fields:
+            return False
+        if all(field in vals for field in COORDINATE_FIELDS):
+            return False
+        for partner in self:
+            for field_name in written_address_fields:
+                current = partner[field_name]
+                if self._fields[field_name].type == "many2one":
+                    current = current.id
+                if (current or False) != (vals[field_name] or False):
+                    return True
+        return False
 
     @api.model
     def _geo_localize(self, street="", zip_code="", city="", state="", country=""):
