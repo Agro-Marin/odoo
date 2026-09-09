@@ -6289,7 +6289,6 @@ class TestInvisibleField(TransactionCaseWithUserDemo):
             "product_expiry",
             "product_margin",
             "project",
-            "project_enterprise",
             "project_timesheet_forecast",
             "project_timesheet_holidays",
             "project_todo",
