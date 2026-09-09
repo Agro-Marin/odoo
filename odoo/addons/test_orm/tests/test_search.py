@@ -16,8 +16,8 @@ class TestSubqueries(TransactionCase):
             LEFT JOIN "res_partner" AS "test_orm_multi__partner"
             ON ("test_orm_multi"."partner" = "test_orm_multi__partner"."id")
             WHERE ("test_orm_multi"."partner" IS NOT NULL AND (
-                "test_orm_multi__partner"."name" LIKE %s
-                AND "test_orm_multi__partner"."email" LIKE %s
+                "test_orm_multi__partner"."email" LIKE %s
+                AND "test_orm_multi__partner"."name" LIKE %s
             ))
             ORDER BY "test_orm_multi"."id"
         """
@@ -39,8 +39,8 @@ class TestSubqueries(TransactionCase):
             LEFT JOIN "res_partner" AS "test_orm_multi__partner"
             ON ("test_orm_multi"."partner" = "test_orm_multi__partner"."id")
             WHERE ("test_orm_multi"."partner" IS NOT NULL AND (
-                "test_orm_multi__partner"."name" LIKE %s
-                OR "test_orm_multi__partner"."email" LIKE %s
+                "test_orm_multi__partner"."email" LIKE %s
+                OR "test_orm_multi__partner"."name" LIKE %s
             ))
             ORDER BY "test_orm_multi"."id"
         """
@@ -63,8 +63,8 @@ class TestSubqueries(TransactionCase):
             WHERE ("test_orm_multi"."partner" IS NULL OR "test_orm_multi"."partner" NOT IN (
                 SELECT "res_partner"."id"
                 FROM "res_partner"
-                WHERE ("res_partner"."name" LIKE %s
-                    AND "res_partner"."email" LIKE %s
+                WHERE ("res_partner"."email" LIKE %s
+                    AND "res_partner"."name" LIKE %s
                 )
             ))
             ORDER BY "test_orm_multi"."id"
@@ -89,8 +89,8 @@ class TestSubqueries(TransactionCase):
             WHERE ("test_orm_multi"."partner" IS NULL OR "test_orm_multi"."partner" NOT IN (
                 SELECT "res_partner"."id"
                 FROM "res_partner"
-                WHERE ("res_partner"."name" LIKE %s
-                    OR "res_partner"."email" LIKE %s
+                WHERE ("res_partner"."email" LIKE %s
+                    OR "res_partner"."name" LIKE %s
                 )
             ))
             ORDER BY "test_orm_multi"."id"
@@ -120,8 +120,8 @@ class TestSubqueries(TransactionCase):
             LEFT JOIN "res_partner" AS "test_orm_multi__partner"
                 ON ("test_orm_multi"."partner" = "test_orm_multi__partner"."id")
             WHERE ("test_orm_multi"."partner" IS NOT NULL AND (
-                "test_orm_multi__partner"."name" LIKE %s
-                OR "test_orm_multi__partner"."email" LIKE %s
+                "test_orm_multi__partner"."email" LIKE %s
+                OR "test_orm_multi__partner"."name" LIKE %s
             ))
             ORDER BY "test_orm_multi"."id"
         """
@@ -149,7 +149,7 @@ class TestSubqueries(TransactionCase):
             WHERE ("test_orm_multi"."partner" IS NULL OR "test_orm_multi"."partner" NOT IN (
                 SELECT "res_partner"."id"
                 FROM "res_partner"
-                WHERE ("res_partner"."name" LIKE %s OR "res_partner"."email" LIKE %s)
+                WHERE ("res_partner"."email" LIKE %s OR "res_partner"."name" LIKE %s)
             ))
             ORDER BY "test_orm_multi"."id"
         """
@@ -175,8 +175,8 @@ class TestSubqueries(TransactionCase):
             WHERE ("test_orm_multi"."partner" IS NOT NULL AND (
                 "test_orm_multi__partner"."email" LIKE %s
                 AND (
-                    "test_orm_multi__partner"."name" LIKE %s
-                    OR "test_orm_multi__partner"."email" LIKE %s
+                    "test_orm_multi__partner"."email" LIKE %s
+                    OR "test_orm_multi__partner"."name" LIKE %s
                 )
             ))
             ORDER BY "test_orm_multi"."id"
