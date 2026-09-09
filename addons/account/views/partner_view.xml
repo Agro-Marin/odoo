@@ -286,6 +286,14 @@
                                 groups="base.group_no_one" />
                         </group>
                         <group
+                            string="Fiscal Information"
+                            name="fiscal_information"
+                            groups="account.group_account_invoice,account.group_account_readonly">
+                            <field
+                                name="property_account_position_id"
+                                options="{'no_create': True, 'no_open': True}" />
+                        </group>
+                        <group
                             id="invoice_send_settings"
                             name="invoice_send_settings"
                             string="Customer Invoices"
@@ -333,16 +341,6 @@
                         <p>Accounting-related settings are managed on <button name="open_commercial_entity" type="object" string="the parent company" class="oe_link" /></p>
                     </div>
                 </page>
-            </xpath>
-            <xpath expr="//group[@name='misc']" position="before">
-                <group
-                    string="Fiscal Information"
-                    name="fiscal_information"
-                    groups="account.group_account_invoice,account.group_account_readonly">
-                    <field
-                        name="property_account_position_id"
-                        options="{'no_create': True, 'no_open': True}" />
-                </group>
             </xpath>
             <group name="sale" position="inside">
                 <field
