@@ -1262,7 +1262,7 @@ Section  Population                                                  Count
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      353
 §2.4.13  Methods on plain classes in model files                       414
 §2.4.13  … such classes                                                166
-§2.4.13  Functions nested inside model methods                         580
+§2.4.13  Functions nested inside model methods                         581
 §2.4.14  Private method names reached from stored Python               114
 §2.4.14  … code blocks reaching them                                   123
 §2.4.14  … shipped data files holding those blocks                      71
