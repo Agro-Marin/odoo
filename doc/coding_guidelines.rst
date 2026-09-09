@@ -1664,16 +1664,31 @@ tuples over **one fixed tree**, so what it establishes is the delta rather than
 either absolute: the change moves head-first 131 → 273 and tail-first 177 →
 **355**, declaring **186** new backlog items and reclassifying 328 names.
 
-**Those two "before" figures are UNANCHORABLE, not merely unlabelled**, which is
-why they are given as a delta and must not be "corrected" to a frozen reading
-later. Walked with absolute SHAs, ``heads_tail_first`` reads 173 at the tip and
-171-175 across the preceding 110 commits -- and never **177**, on any of them or
-on the dirty checkout. The asymmetry is the tell: the head-first **131** matches
-the tree exactly while the tail-first **177** matches nothing, and a pair taken
-from one tree would be stale together or fresh together. So the scan differed
-between the two halves -- §4's scan-moved-under-a-fixed-tree, occurring *inside*
-a measurement whose whole subject is a scan change. The delta survives because
-both halves were taken the same way; the absolutes have no commit to name.
+**Those two "before" figures name no POPULATION, which is a different fault from
+naming no commit and has the opposite repair.** There are two head/tail counts
+over this tree and the sentence does not say which it means:
+
+========================================  ====  ====
+Population                                head  tail
+========================================  ====  ====
+``census()`` -- model-class methods        131   173
+``governed_definitions()`` -- the gate's   131   176
+========================================  ====  ====
+
+Same tree, same scan, different denominators: ``census()`` walks model classes,
+while the gate's own population adds module-level functions and closures under an
+addon's ``models/``/``wizard/``. **All three extra definitions are tail-first**,
+which is exactly why the head-first **131** agrees with the census row nine lines
+above and the tail-first figure does not. The census table states 173; the gate
+sees 176; the quoted 177 is neither, and off by one from the gate's.
+
+**A figure that names no population reads exactly like a stale one, and the two
+have opposite repairs** -- a stale figure wants re-measuring, and this one wants a
+denominator. Nothing on the page distinguishes them, which is why the first
+diagnosis of this pair was that they anchored to no commit: the walk that produced
+that reading was correct and the conclusion drawn from it was not. So either name
+the population beside the number, or state only the delta -- which is what this
+paragraph does, and which is immune to the question.
 
 **The seven are a caveat
 about how to READ the number, never a correction to bank** -- banking 170 would
