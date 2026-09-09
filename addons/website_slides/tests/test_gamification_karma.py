@@ -153,6 +153,11 @@ class TestKarmaGain(common.SlidesCase):
         # 74 predated the fork's quiz→survey.question rework. The per-user slide
         # fields are now correctly keyed per uid (depends_context), so reading
         # them for two members no longer collides on one shared cache entry.
+        # This bound is not architecturally O(1) in the number of members/
+        # channels; a future batching fix that lowers it is welcome, but any
+        # bump of this literal should first check whether the new count still
+        # scales with the fixture size here (4 members, 2 channels) rather
+        # than blindly re-measuring and pasting in whatever comes out.
         with self.assertQueryCount(76):
             channel_partners._post_completion_update_hook()
 
@@ -180,6 +185,8 @@ class TestKarmaGain(common.SlidesCase):
 
         # now, remove the membership in batch, on multiple users - karma should not move as we only archive membership
         # Recalibrated from 9 alongside the count above (resurrected test).
+        # Same caveat as the 76 above: re-derive against this fixture's size
+        # before bumping, don't just paste in a new measurement.
         with self.assertQueryCount(10):
             (self.channel | self.channel_2)._remove_membership(users.partner_id.ids)
 
