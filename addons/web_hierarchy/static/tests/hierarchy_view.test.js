@@ -1822,3 +1822,57 @@ test("moving a root away from its tree leaves no tree behind", async () => {
     });
     expectForestToIndexEveryRenderedNode(getModel());
 });
+
+test("collapses the right branch when the branch is the first node ever minted", async () => {
+    // The node to collapse is looked up as expandedParentNodeIds.at(depth + 1).
+    // Fetching a parent mints a fresh id for it and demotes the old root, so the
+    // very first node the model ever created can end up at that index. A
+    // truthiness test on the id skips it when the id is 0 and the branch stays
+    // open. Load once (no search facet) so that node 0 is still on screen.
+    Employee._records = [
+        { id: 1, name: "M", parent_id: false, child_ids: [2, 3] },
+        { id: 2, name: "A", parent_id: 1, child_ids: [4, 5] },
+        { id: 3, name: "B", parent_id: 1, child_ids: [] },
+        { id: 4, name: "A1", parent_id: 2, child_ids: [] },
+        { id: 5, name: "A2", parent_id: 2, child_ids: [] },
+    ];
+    const getModel = captureModel();
+    await mountView({
+        type: "hierarchy",
+        resModel: "hr.employee",
+        arch: Employee._views.hierarchy.replace(
+            "<hierarchy>",
+            "<hierarchy draggable='1'>",
+        ),
+        domain: [["id", "in", [2, 4, 5]]],
+    });
+    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual([
+        "A\nM",
+        "A1\nA",
+        "A2\nA",
+    ]);
+    const branchIds = () =>
+        getModel().root.trees[0].root.descendantsParentNodes.map((n) => n.id);
+    expect(branchIds()).toEqual([0], {
+        message: "A is the first node the model minted",
+    });
+
+    // Fetch A's manager: M is minted with a fresh id and node 0 becomes its child.
+    await contains(".o_hierarchy_node_container button .fa-chevron-up").click();
+    expect(branchIds().indexOf(0)).toBe(1, {
+        message: "node 0 now sits where .at(depth + 1) looks",
+    });
+
+    // Drop the leaf A1 onto B, a leaf whose parent is the new root: depth is 0,
+    // so the branch to collapse is node 0 -- A, which still holds A2.
+    await contains(
+        ".o_hierarchy_node_container:has(.o_hierarchy_node_content:contains('A1')) .o_hierarchy_node",
+    ).dragAndDrop(
+        ".o_hierarchy_node_container:has(.o_hierarchy_node_content:contains('B')) .o_hierarchy_node",
+    );
+    expect(queryAllTexts(".o_hierarchy_node_content")).toEqual(
+        ["M", "B\nM", "A\nM", "A1\nB"],
+        { message: "A collapsed: A2 is no longer displayed" },
+    );
+    expect(".o_hierarchy_row").toHaveCount(3);
+});
