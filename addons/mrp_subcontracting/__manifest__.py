@@ -96,6 +96,23 @@
                 "remove",
                 "web/static/src/webclient/clickbot/clickbot.js",
             ),
+            # Two templates under webclient/ EXTEND parents this bundle does not
+            # carry: pivot_renderer_mobile extends web.PivotRenderer, declared in
+            # views/pivot/, and res_config_edition extends the widget template in
+            # views/settings/widgets/. The portal renders neither a pivot nor a
+            # settings form, so excluding those two view directories is right and
+            # pulling them in to satisfy an xpath would be the wrong repair. An
+            # extension whose parent is absent is what the client reports as
+            # "Missing (extension) parent templates", and it aborts the whole
+            # template load rather than skipping the orphan.
+            (
+                "remove",
+                "web/static/src/webclient/mobile/pivot_renderer_mobile.xml",
+            ),
+            (
+                "remove",
+                "web/static/src/webclient/settings_form_view/res_config_edition.xml",
+            ),
             (
                 "remove",
                 "web/static/src/views/form/button_box/*.scss",
