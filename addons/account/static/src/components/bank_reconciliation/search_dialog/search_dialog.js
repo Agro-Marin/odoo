@@ -94,7 +94,7 @@ export class BankRecSelectCreateDialog extends SelectCreateDialog {
         // When being in the list view with more element than the limit and doing a select all, the user has the
         // possibility to select more element than the limit. In this case the isDomainSelected is True
         if (controller.isDomainSelected) {
-            const { resModel, context } = controller.model.root._config;
+            const { resModel, context } = controller.model.root;
             selectedLines = await this.orm.read(
                 resModel,
                 resIds,
@@ -103,7 +103,7 @@ export class BankRecSelectCreateDialog extends SelectCreateDialog {
             );
         } else {
             selectedLines = Object.values(controller.model.root.records)
-                .filter((record) => resIds.includes(record._config.resId))
+                .filter((record) => resIds.includes(record.resId))
                 .map((record) => {
                     const data = record.data;
                     return {
