@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 export const UNSYNC_QUEUE_STORE = "pos.unsync.queue";
 

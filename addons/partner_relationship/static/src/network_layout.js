@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 
 export const NODE_WIDTH = 170;

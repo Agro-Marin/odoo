@@ -1,3 +1,4 @@
+// @ts-check
 const snapshot = (value) => (Array.isArray(value) ? [...value] : value);
 
 export class OptimisticUpdates {

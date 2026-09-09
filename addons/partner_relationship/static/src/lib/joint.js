@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 
 let joint = null;

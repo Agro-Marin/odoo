@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { serializeDate } from "@web/core/l10n/dates";

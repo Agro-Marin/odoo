@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import {
@@ -20,7 +21,6 @@ export class Many2ManyTagsAvatarEmployeeErrorField extends Many2ManyTagsAvatarEm
         TagsList: Many2ManyAvatarUserTagsListError,
     };
 
-    /** @override */
     getTagProps(record) {
         return {
             ...super.getTagProps(record),

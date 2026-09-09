@@ -21,8 +21,19 @@ export class Many2ManyAvatarUserTagsList extends TagsList {
 }
 
 /**
- * @param {typeof import("@odoo/owl").Component} T
- * @returns {typeof T}
+ * Adds the user-chatter behaviour to a relational field component.
+ *
+ * The constraint goes on `@template`, not on `@param`. Writing
+ * `@param {typeof Component} T` WIDENS the argument to the base class, so every
+ * member the wrapped component declares -- `getTagProps` and its neighbours --
+ * is erased for every subclass of the result, and `@returns {typeof T}` then
+ * hands that widened type on. A constrained template keeps the same guarantee
+ * about what may be passed in while preserving what was actually passed, and
+ * letting the return be INFERRED from the class expression adds this mixin's own
+ * members on top.
+ *
+ * @template {typeof import("@odoo/owl").Component} T
+ * @param {T} T
  */
 const WithUserChatter = (T) =>
     class UserChatterMixin extends T {
