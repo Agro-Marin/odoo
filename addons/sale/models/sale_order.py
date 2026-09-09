@@ -910,7 +910,7 @@ class SaleOrder(models.Model):
     def _get_merge_group_description(self):
         return _("- Customer\n- Currency\n- Delivery address")
 
-    def _merge_metadata_refs(self, target, sources):
+    def _merge_update_metadata_refs(self, target, sources):
         all_refs = [target.client_order_ref] + list(sources.mapped("client_order_ref"))
         target.client_order_ref = ", ".join(filter(None, all_refs))
 
@@ -1278,7 +1278,7 @@ class SaleOrder(models.Model):
     def _get_order_lines_price_updatable(self):
         return self.line_ids.filtered(lambda line: not line.display_type)
 
-    def _nothing_to_invoice_error_message(self):
+    def _get_nothing_to_invoice_error_message(self):
         return _(
             "Cannot create an invoice. No items are available to invoice.\n\n"
             "To resolve this issue, please ensure that:\n"
@@ -1753,7 +1753,7 @@ class SaleOrder(models.Model):
         self.check_singleton()
         return self.create_uid
 
-    def _can_confirm_proper_state(self):
+    def _check_confirm_state(self):
         orders_wrong_state = self.filtered(lambda order: order.state != "draft")
         if orders_wrong_state:
             confirmed_orders = orders_wrong_state.filtered(
@@ -1787,7 +1787,7 @@ class SaleOrder(models.Model):
                 ),
             )
 
-    def _can_confirm_analytic_distribution(self):
+    def _check_confirm_analytic_distribution(self):
         self.line_ids._check_analytic_distribution()
 
     def _get_fields_state_frozen(self):

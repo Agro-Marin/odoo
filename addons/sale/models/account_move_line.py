@@ -61,7 +61,7 @@ class AccountMoveLine(models.Model):
         values_list = super()._prepare_analytic_lines()
 
         move_to_reinvoice = self.env["account.move.line"]
-        if values_list and self._sale_can_be_reinvoice():
+        if values_list and self._sale_can_be_reinvoiced():
             move_to_reinvoice = self
 
         if move_to_reinvoice.filtered(
@@ -110,7 +110,7 @@ class AccountMoveLine(models.Model):
             move_line._sale_check_order_accepts_expense(sale_order)
             price = move_line._sale_get_invoice_price(sale_order)
 
-            if not move_line._sale_reinvoice_is_mergeable():
+            if not move_line._sale_is_reinvoice_mergeable():
                 sale_line_values_to_create.append(
                     move_line._sale_prepare_sale_line_values(
                         sale_order,
@@ -161,12 +161,12 @@ class AccountMoveLine(models.Model):
 
     def _sale_take_sequence(self, sequences, order):
         if order.id not in sequences:
-            sequences[order.id] = self._sale_next_expense_sequence(order)
+            sequences[order.id] = self._sale_get_next_expense_sequence(order)
         sequence = sequences[order.id]
         sequences[order.id] = sequence + 1
         return sequence
 
-    def _sale_reinvoice_is_mergeable(self):
+    def _sale_is_reinvoice_mergeable(self):
         self.check_singleton()
         return (
             self.product_id.expense_policy == "sales_price"
@@ -205,7 +205,7 @@ class AccountMoveLine(models.Model):
     def _sale_prepare_sale_line_values(self, order, price, sequence=None):
         self.check_singleton()
         if sequence is None:
-            sequence = self._sale_next_expense_sequence(order)
+            sequence = self._sale_get_next_expense_sequence(order)
         fpos = order.fiscal_position_id or self.env[
             "account.fiscal.position"
         ].with_company(order.company_id)._get_fiscal_position(order.partner_id)
@@ -227,7 +227,7 @@ class AccountMoveLine(models.Model):
             "analytic_distribution": self.analytic_distribution,
         }
 
-    def _sale_next_expense_sequence(self, order):
+    def _sale_get_next_expense_sequence(self, order):
         last_line = self.env["sale.order.line"].search(
             [("order_id", "=", order.id)], order="sequence desc", limit=1
         )
@@ -271,7 +271,7 @@ class AccountMoveLine(models.Model):
             )
         return price_unit
 
-    def _sale_can_be_reinvoice(self):
+    def _sale_can_be_reinvoiced(self):
         self.check_singleton()
         if self.sale_line_ids:
             return False

@@ -281,7 +281,7 @@ class MixinOrderInvoice(models.AbstractModel):
 
         if not invoice_vals_list:
             if self.env.context.get("raise_if_nothing_to_invoice", True):
-                raise UserError(self._nothing_to_invoice_error_message())
+                raise UserError(self._get_nothing_to_invoice_error_message())
             return self.env["account.move"]
 
         if not grouped:
@@ -413,5 +413,5 @@ class MixinOrderInvoice(models.AbstractModel):
     def _post_create_invoices(self, moves):
         return moves
 
-    def _nothing_to_invoice_error_message(self):
+    def _get_nothing_to_invoice_error_message(self):
         return _("There is nothing to invoice for this order.")

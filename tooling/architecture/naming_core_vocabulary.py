@@ -170,7 +170,35 @@ CORE = ROOT / "odoo"
 # somebody re-measuring in that worktree, and by nothing else -- every session
 # had correctly read every scope as 0 in the shared checkout, where everyone's
 # uncommitted renames are present and the gate will never run.
-GOVERNED_ADDONS = ("core", "stock", "web", "sale", "purchase", "point_of_sale")
+#
+# `purchase_stock` is the seventh and it tests the clause above rather than
+# following it: its renames are already landed (`9773cf7de066`), so the row does
+# NOT travel in their commit. The session that made them flagged the mismatch
+# themselves rather than adding the row quietly, which is the right instinct and
+# is why this note exists. The clause is satisfied in substance and that is what
+# it is for -- the rule protects against a row asserting a zero that is true of
+# somebody's working tree and false of the branch, and here the zero is on the
+# branch: measured in a detached worktree at `9773cf7de066`, allowlist off, 0.
+# Read the clause as "the row may not precede its renames", not as "the row must
+# share their commit".
+#
+# THE MEASUREMENT THAT SETTLED IT WAS WRONG THE FIRST TIME, in the direction that
+# would have blocked this row. An ad-hoc probe calling `classify_definition`
+# directly reported `purchase` at 1 on the branch -- `_collect_qty_changes`,
+# [accumulate] -- while the gate read 0 from the same tree. The gate was right:
+# `measure()` skips a node when `nv._overrides_same_name` holds, and that method
+# calls `super()._collect_qty_changes(...)`. A probe that reaches past the entry
+# point asks a NEIGHBOURING question and answers it correctly, which is worse
+# than failing. Measure a scope with `measure()`.
+GOVERNED_ADDONS = (
+    "core",
+    "stock",
+    "web",
+    "sale",
+    "purchase",
+    "point_of_sale",
+    "purchase_stock",
+)
 
 # `addons/mail` was swept against every rule that travels and is NOT here yet,
 # and one kind is the whole reason. Everything else the rules reach was renamed
@@ -904,6 +932,30 @@ def performs_orm_write(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 # identity scan; renaming its middle token would be renaming the question.
 PREDICATE_PREFIXES = frozenset({"is", "has", "can", "should"})
 
+
+def _is_abstract_raise(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """The whole body is one `raise` -- an abstract member, not a validator.
+
+    `nv._always_raises` asks a DIFFERENT question and must not be reused here: it
+    tests whether the LAST statement is a raise, which is true of every validator
+    that guards with an early `return` and ends by raising. Substituting it
+    exempted `_check_confirm_state` and `_check_confirm_lines_have_product` --
+    two of the eight this rule was written for -- and the count still looked
+    plausible, because it went from 8 to 6 rather than to 0. A helper whose name
+    fits is not a helper whose question fits.
+    """
+    body = [
+        n
+        for n in node.body
+        if not (
+            isinstance(n, ast.Expr)
+            and isinstance(n.value, ast.Constant)
+            and isinstance(n.value.value, str)
+        )
+    ]
+    return len(body) == 1 and isinstance(body[0], ast.Raise)
+
+
 # §2.4.22: a method whose whole body is one ORM shaping call hands back the
 # receiver reshaped, and §2.4.3's vocabulary has no row for it -- every verb
 # there names a method that PRODUCES something, and `self.filtered(...)`,
@@ -1297,6 +1349,48 @@ def infix_synonym(name: str) -> str | None:
 # it IS a proxy: a check whose failure path is a helper's raise reads from here
 # exactly like a read. Those are argued into the allowlist rather than renamed,
 # which is the honest shape for a rule whose test is one frame deep.
+#
+# `predicate-raises` IS THAT RULE'S MIRROR and nobody had written it. §2.4.3's
+# Predicate row says in its own words "never raises, no side effect"; the
+# Validation row is the one that "raises on failure". So a `_is_`/`_has_`/
+# `_can_`/`_should_` on a body that raises and returns nothing is asserting the
+# opposite of what it does, and it reads a body, so it travels to an addon scope
+# on the same terms as the other four.
+#
+# Measured before landing, allowlist off: core 0, stock 0, web 0, point_of_sale
+# 0, account 0, mail 0 -- and sale 1, purchase 2, base_order 5. All eight were
+# one family, the confirm/cancel guard registry on `mixin.order`, and all eight
+# are renamed in the same commit as this rule, because `sale` and `purchase` are
+# governed and a rule that lands ahead of its renames turns their hard zeros red.
+#
+# TWO THINGS THIS RULE CANNOT SEE, and the family is the argument for saying so
+# rather than trusting the count:
+#
+# * `_can_confirm` and `_can_cancel` were the same defect and this test reads
+#   them as CLEAN. They raise only indirectly -- through `_run_check_registry`,
+#   which `getattr`s a list of method names -- so `raises(node)` is false on
+#   their own bodies. Anything mechanical finds eight here and the real family
+#   was ten. A body test cannot follow a dispatch.
+# * The registry's members are STRINGS, so renaming one without its list leaves
+#   `getattr` raising AttributeError at confirm time, and no import, lint or
+#   gate sees it. Worse in one place: `agromarin/credit_management_approval`
+#   REMOVES a name from the list under `contextlib.suppress(ValueError)`, so a
+#   missed rename there does not even raise -- it silently stops removing, and a
+#   credit check fires on confirm in the configuration built to skip it. The
+#   check that catches this is not a gate, it is resolving every string literal
+#   in a `*_validation_methods` list against the set of names actually defined
+#   in the workspace; it read 0 unresolvable after this sweep.
+#
+# `_always_raises` is the carve-out and it is a CLASS of name rather than an
+# exception, on the same terms `is_declaration_only` is one for the return-claim
+# rules. A body whose whole content is `raise NotImplementedError` is an abstract
+# member declaring a contract for its overrides, and the docstring above it
+# usually says "Returns True if ..." -- the name describes what the OVERRIDE
+# returns, so the base has no body to be judged on. Measured over the whole
+# bundled tree after this sweep: the rule finds exactly two,
+# `mixin.google.calendar.sync._is_google_insertion_blocked` and its Microsoft
+# twin, and both are that shape. Without the carve-out they are the rule's only
+# survivors anywhere in `addons/`, and both are correctly named.
 def classify_definition(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
     cls: ast.ClassDef | None = None,
@@ -1379,6 +1473,18 @@ def classify_definition(
             "§2.4.20; take the row the body satisfies (_get_, _is_, _parse_)"
         )
         return ("check-returns", why)
+    if (
+        verb in PREDICATE_PREFIXES
+        and raises(node)
+        and not returns_a_value(node)
+        and not _is_abstract_raise(node)
+    ):
+        why = (
+            "a predicate prefix on a body that RAISES and returns nothing -- "
+            "§2.4.3's Predicate row says 'never raises, no side effect', and the "
+            "Validation row is the one that raises on failure; take `_check_*`"
+        )
+        return ("predicate-raises", why)
     return None
 
 

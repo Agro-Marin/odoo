@@ -62,11 +62,11 @@ class TestExpenseReinvoicePrice(TransactionCase):
 
     def test_line_with_a_policy_is_reinvoiceable(self):
         line = self._bill_line(self._product("cost"))
-        self.assertTrue(line._sale_can_be_reinvoice())
+        self.assertTrue(line._sale_can_be_reinvoiced())
 
     def test_line_without_a_policy_is_not_reinvoiceable(self):
         line = self._bill_line(self._product("no"))
-        self.assertFalse(line._sale_can_be_reinvoice())
+        self.assertFalse(line._sale_can_be_reinvoiced())
 
     def test_line_already_tied_to_an_order_is_not_reinvoiced_twice(self):
         product = self._product("cost")
@@ -79,4 +79,4 @@ class TestExpenseReinvoicePrice(TransactionCase):
             }
         )
         line.sale_line_ids = [Command.set(order_line.ids)]
-        self.assertFalse(line._sale_can_be_reinvoice())
+        self.assertFalse(line._sale_can_be_reinvoiced())

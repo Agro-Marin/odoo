@@ -4,7 +4,7 @@ from odoo import Command, models
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    def _sale_can_be_reinvoice(self):
+    def _sale_can_be_reinvoiced(self):
         self.check_singleton()
         if self.expense_id:
             return (
@@ -12,7 +12,7 @@ class AccountMoveLine(models.Model):
                 and self.expense_id.sale_order_id
                 and self.display_type == "product"
             )
-        return super()._sale_can_be_reinvoice()
+        return super()._sale_can_be_reinvoiced()
 
     def _get_so_mapping_from_expense(self):
         mapping_from_expense = {}

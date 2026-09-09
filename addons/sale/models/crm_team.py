@@ -101,11 +101,11 @@ class CrmTeam(models.Model):
 
     def _compute_dashboard_button_name(self):
         super()._compute_dashboard_button_name()
-        if self._in_sale_scope():
+        if self._is_in_sale_scope():
             self.dashboard_button_name = _("Sales Analysis")
 
     def action_primary_channel_button(self):
-        if self._in_sale_scope():
+        if self._is_in_sale_scope():
             return self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "sale.action_sale_report_so_salesteam"
             )
@@ -114,5 +114,5 @@ class CrmTeam(models.Model):
     def update_invoiced_target(self, value):
         return self.write({"invoiced_target": round(float(value or 0))})
 
-    def _in_sale_scope(self):
+    def _is_in_sale_scope(self):
         return self.env.context.get("in_sales_app")

@@ -1054,7 +1054,7 @@ class PurchaseOrder(models.Model):
         for line, date in updated_dates:
             line._update_date_commitment(date)
 
-    def _can_confirm_analytic_distribution(self):
+    def _check_confirm_analytic_distribution(self):
         if not self.env.context.get("validate_analytic"):
             return
 
@@ -1103,13 +1103,13 @@ class PurchaseOrder(models.Model):
                 ),
             )
 
-    def _get_can_cancel_validation_methods(self):
+    def _get_cancel_validation_methods(self):
         return [
-            *super()._get_can_cancel_validation_methods(),
-            "_can_cancel_except_invoiced",
+            *super()._get_cancel_validation_methods(),
+            "_check_cancel_except_invoiced",
         ]
 
-    def _can_cancel_except_invoiced(self):
+    def _check_cancel_except_invoiced(self):
         orders_with_posted_invoices = self.filtered(
             lambda order: order.invoice_ids.filtered(lambda inv: inv.state == "posted"),
         )

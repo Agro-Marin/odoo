@@ -639,18 +639,18 @@ class MixinOrder(models.AbstractModel):
         for method_name in method_names:
             getattr(self, method_name)(*args)
 
-    def _can_confirm(self):
-        self._run_check_registry(self._get_can_confirm_validation_methods())
+    def _check_confirm_allowed(self):
+        self._run_check_registry(self._get_confirm_validation_methods())
 
-    def _get_can_confirm_validation_methods(self):
+    def _get_confirm_validation_methods(self):
         return [
-            "_can_confirm_proper_state",
-            "_can_confirm_has_lines",
-            "_can_confirm_lines_have_product",
-            "_can_confirm_analytic_distribution",
+            "_check_confirm_state",
+            "_check_confirm_has_lines",
+            "_check_confirm_lines_have_product",
+            "_check_confirm_analytic_distribution",
         ]
 
-    def _can_confirm_proper_state(self):
+    def _check_confirm_state(self):
         orders_wrong_state = self.filtered(lambda order: order.state != "draft")
         if not orders_wrong_state:
             return
@@ -683,7 +683,7 @@ class MixinOrder(models.AbstractModel):
         self.check_singleton()
         return True
 
-    def _can_confirm_has_lines(self):
+    def _check_confirm_has_lines(self):
         orders_without_lines = self.filtered(
             lambda order: not order.line_ids and order._requires_lines_to_confirm()
         )
@@ -700,7 +700,7 @@ class MixinOrder(models.AbstractModel):
                 ),
             )
 
-    def _can_confirm_lines_have_product(self):
+    def _check_confirm_lines_have_product(self):
         orders_without_line_product = self.filtered(
             lambda order: any(
                 not line.display_type
@@ -734,19 +734,19 @@ class MixinOrder(models.AbstractModel):
             ),
         )
 
-    def _can_confirm_analytic_distribution(self):
+    def _check_confirm_analytic_distribution(self):
         pass
 
-    def _can_cancel(self):
-        self._run_check_registry(self._get_can_cancel_validation_methods())
+    def _check_cancel_allowed(self):
+        self._run_check_registry(self._get_cancel_validation_methods())
 
-    def _get_can_cancel_validation_methods(self):
+    def _get_cancel_validation_methods(self):
         return [
-            "_can_cancel_check_state",
-            "_can_cancel_except_locked",
+            "_check_cancel_state",
+            "_check_cancel_except_locked",
         ]
 
-    def _can_cancel_check_state(self):
+    def _check_cancel_state(self):
         cancelled_orders = self.filtered(lambda order: order.state == "cancel")
         if cancelled_orders:
             raise UserError(
@@ -760,7 +760,7 @@ class MixinOrder(models.AbstractModel):
                 ),
             )
 
-    def _can_cancel_except_locked(self):
+    def _check_cancel_except_locked(self):
         orders_locked = self.filtered(lambda order: order.locked)
         if orders_locked:
             raise UserError(
@@ -773,14 +773,14 @@ class MixinOrder(models.AbstractModel):
             )
 
     def action_confirm(self):
-        self._can_confirm()
+        self._check_confirm_allowed()
         self.write(self._prepare_confirmation_values())
         self.with_context(self._get_confirmation_context())._action_confirm()
         self.filtered(lambda order: order._should_be_locked()).action_lock()
         return True
 
     def action_cancel(self):
-        self._can_cancel()
+        self._check_cancel_allowed()
         return self._action_cancel()
 
     def action_draft(self):

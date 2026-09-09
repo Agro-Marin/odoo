@@ -76,10 +76,10 @@ class AccountMoveLine(models.Model):
             )
         return original_lines
 
-    def _sale_can_be_reinvoice(self):
+    def _sale_can_be_reinvoiced(self):
         self.check_singleton()
         return (
             self.move_type != "entry"
             and self.display_type != "cogs"
-            and super()._sale_can_be_reinvoice()
+            and super()._sale_can_be_reinvoiced()
         )

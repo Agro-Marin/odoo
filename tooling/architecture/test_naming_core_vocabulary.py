@@ -200,6 +200,57 @@ class TestThePredicateStillRecognisesWhatItIsNamedFor(unittest.TestCase):
         node = self.parse("def _check_date(self):\n    self._assert_ok()\n")
         self.assertIsNone(ncv.classify_definition(node))
 
+    def test_a_predicate_that_raises_is_reported(self):
+        # The mirror of `check-returns`. §2.4.3's Predicate row says "never
+        # raises, no side effect"; the Validation row is the one that raises on
+        # failure, so this asserts the opposite of what it does.
+        node = self.parse(
+            "def _can_confirm_state(self):\n"
+            "    wrong = self.filtered(lambda o: o.state != 'draft')\n"
+            "    if not wrong:\n"
+            "        return\n"
+            "    raise UserError('nope')\n"
+        )
+        hit = ncv.classify_definition(node)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "predicate-raises")
+
+    def test_an_abstract_predicate_whose_whole_body_raises_is_not_reported(self):
+        # A base declaring a contract for its overrides. The name describes what
+        # the OVERRIDE returns, so there is no body to judge it on -- a class of
+        # name, like `is_declaration_only`, not an allowlist entry.
+        node = self.parse(
+            "def _is_insertion_blocked(self, user):\n"
+            '    """Returns True if insertion should be blocked."""\n'
+            "    raise NotImplementedError\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
+    def test_the_abstract_test_is_not_always_raises(self):
+        # `nv._always_raises` asks whether the LAST statement is a raise, which
+        # is true of every validator that guards with an early return. Reusing it
+        # here exempted two of the eight definitions the rule was written for,
+        # and the count stayed plausible because it fell to 6 rather than to 0.
+        guarded = self.parse(
+            "def _can_confirm_state(self):\n"
+            "    if not self.wrong:\n"
+            "        return\n"
+            "    raise UserError('nope')\n"
+        )
+        self.assertTrue(nv._always_raises(guarded))
+        self.assertFalse(ncv._is_abstract_raise(guarded))
+        self.assertEqual(ncv.classify_definition(guarded)[0], "predicate-raises")
+
+    def test_a_predicate_that_raises_but_also_returns_is_not_reported(self):
+        # It answers a question and raises on a bad argument, which is ordinary.
+        node = self.parse(
+            "def _is_ok(self, x):\n"
+            "    if x is None:\n"
+            "        raise ValueError(x)\n"
+            "    return x > 0\n"
+        )
+        self.assertIsNone(ncv.classify_definition(node))
+
     def test_a_producer_that_returns_nothing_is_reported(self):
         for source in (
             "def _get_thing(self):\n    self.thing = 1\n",
