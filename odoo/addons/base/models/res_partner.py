@@ -427,6 +427,10 @@ class ResPartner(models.Model):
         "access or with a limited access created for sharing data.",
     )
 
+    self = fields.Many2one(
+        comodel_name="res.partner",
+        compute="_compute_self",
+    )
     application_statistics = fields.Json(
         string="Stats",
         compute="_compute_application_statistics",
@@ -960,6 +964,10 @@ class ResPartner(models.Model):
     def _compute_contact_address(self) -> None:
         for partner in self:
             partner.contact_address = partner._display_address()
+
+    def _compute_self(self) -> None:
+        for partner in self:
+            partner.self = partner.id
 
     @api.depends("is_company", "parent_id.commercial_partner_id")
     def _compute_commercial_partner_id(self) -> None:
