@@ -8,9 +8,7 @@ import { useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
-/**
- * @param {typeof import("@odoo/owl").Component} Base
- */
+/** @param {typeof import("@odoo/owl").Component} Base */
 export const FileUploadDropzoneRendererMixin = (Base) =>
     class extends Base {
         static components = {

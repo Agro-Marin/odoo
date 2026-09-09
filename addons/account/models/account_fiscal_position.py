@@ -313,9 +313,6 @@ class AccountFiscalPosition(models.Model):
             unique(
                 tax_id
                 for tax in taxes
-                # `tax_map` is keyed by database ids, but an onchange hands us
-                # NewId-wrapped records; keying on the NewId misses every entry
-                # and silently returns the unmapped tax.
                 for tax_id in tax_map.get(tax._origin.id or tax.id, [tax.id])
             )
         )

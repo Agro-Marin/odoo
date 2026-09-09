@@ -28,8 +28,6 @@
     clear: both;
     float: right;
     min-width: 260px;
-    /* The max-width ensures that the widget is not too wide in larger screens,
-     but does not affect the width once the screen size decreases */
     max-width: 400px;
     margin-left: auto;
 }
@@ -39,8 +37,6 @@
 }
 
 @media (max-width: 991.98px) {
-    /* The purpose is to put the narration below the totals in the tab 'Invoice Lines'
-    instead of above for the mobile view */
     .o_form_view .oe_invoice_lines_tab {
         display: flex;
         flex-direction: column-reverse;

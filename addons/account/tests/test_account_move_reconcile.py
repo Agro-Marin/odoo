@@ -7439,7 +7439,6 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             receivable_lines.matched_debit_ids | receivable_lines.matched_credit_ids
         )[0]
         self.env.flush_all()
-        # exactly what the previous json.dumps() write left in the jsonb column
         partial.draft_caba_move_vals = json.dumps(partial.draft_caba_move_vals)
         self.env.flush_all()
         partial.invalidate_recordset(["draft_caba_move_vals"])
@@ -7485,8 +7484,6 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         partials = (
             receivable_lines.matched_debit_ids | receivable_lines.matched_credit_ids
         )
-        # The invoice side is 100 USD and the payment side 200 EUR; only the latter
-        # is comparable with the payment's own amount_signed.
         self.assertRecordValues(
             partials,
             [{"debit_amount_currency": 100.0, "credit_amount_currency": 200.0}],
@@ -7503,11 +7500,6 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             .create(wizard_vals)
             ._create_payments()
         )
-        # A posted payment with a journal entry and no outstanding account is the
-        # only shape whose state _get_to_update_payments decides. It cannot be
-        # reached by clearing the payment method line's account, because
-        # _compute_outstanding_account_id depends on payment_channel_id and
-        # not on its payment_account_id, so the stored value never recomputes.
         self.env.flush_all()
         self.env.cr.execute(
             SQL(
@@ -7578,9 +7570,6 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
 
     def test_one_full_reconcile_per_group_when_an_exchange_difference_is_created(self):
-        # The exchange difference re-enters _reconcile_plan, which re-derives the same
-        # closure and finds it fully reconciled again. A second account.full.reconcile
-        # for it repoints every line at the newcomer and leaves the first with nothing.
         currency = self.other_currency
         debit_line = self.create_line_for_reconciliation(
             1200.0, 3600.0, currency, "2016-01-01"
@@ -7607,9 +7596,6 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
         )
 
     def test_matching_number_invariants_hold_after_the_raw_sql_write(self):
-        # _update_matching_number writes matching_number with execute_values, which
-        # no @api.constrains sees. Run the constraint here so the invariants it
-        # states are checked against what that statement actually produced.
         currency = self.env.company.currency_id
         full_a = self.create_line_for_reconciliation(1000, 1000, currency, "2016-01-01")
         full_b = self.create_line_for_reconciliation(

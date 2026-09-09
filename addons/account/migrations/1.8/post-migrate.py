@@ -7,10 +7,6 @@ def migrate(cr, version):
     if not version:
         return
 
-    # account.reconcile.model.line.amount became a non-stored compute: nothing searched,
-    # ordered or grouped on it, and a stored copy could be written to directly, leaving
-    # the effective amount disagreeing with the amount_string the form shows. Odoo leaves
-    # the orphan column behind, so drop it here rather than keep a shadow of the value.
     cr.execute(
         """
         ALTER TABLE account_reconcile_model_line
@@ -19,11 +15,6 @@ def migrate(cr, version):
     )
     _logger.info("account.reconcile.model.line: dropped the orphan `amount` column")
 
-    # match_amount_min / match_amount_max are read in SQL by the matching engine, where a
-    # never-written column is NULL and every comparison against it is NULL -- so a model
-    # whose amount filter was set after creation matched nothing at all, silently, while
-    # the ORM and the form both reported 0.0. The engine now COALESCEs, and these rows are
-    # normalised so the column agrees with what has always been displayed.
     cr.execute(
         """
         UPDATE account_reconcile_model
@@ -38,12 +29,6 @@ def migrate(cr, version):
         cr.rowcount,
     )
 
-    # A label filter with no text used to be inert in both directions, because
-    # ILIKE '%' || NULL || '%' is NULL and so is its negation. The matcher now reads
-    # `not_contains` the way it is written, which would turn such a model from matching
-    # nothing into matching everything -- and an automated one would then reconcile the
-    # whole backlog on the first write. They are archived instead: that preserves what
-    # they actually did, and a constraint now refuses the shape on the next edit.
     cr.execute(
         """
         UPDATE account_reconcile_model

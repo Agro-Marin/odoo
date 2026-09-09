@@ -7,8 +7,6 @@ from odoo.tools import SQL, Query
 
 
 class MixinCompanySplit(models.AbstractModel):
-    """Split a record shared by several companies back into one per company."""
-
     _name = "mixin.company.split"
     _description = "Per-company record split"
 
@@ -16,26 +14,12 @@ class MixinCompanySplit(models.AbstractModel):
         raise NotImplementedError
 
     def _unmerge_copy_defaults(self):
-        """Values every split copy starts from, beyond its company and the
-        ``check_company`` fields the mixin narrows on its own."""
         return {}
 
     def _unmerge_finalize(self, new_record_by_company):
-        """Last step, after every record's ``company_ids`` has settled.
-
-        `_unmerge_copy_defaults` runs while the original still holds all of its
-        companies, so a value that must be unique *across* membership -- a tax
-        name -- cannot be set there without colliding with the original.
-        """
         return
 
     def _unmerge_split_sidecars(self, new_record_by_company):
-        """Repoint references to records the split *copied* rather than shared.
-
-        The remaps below follow references to the record itself. A model whose
-        copies carry their own children -- a tax and its distribution lines --
-        has to send each company's traffic to its own copy's children here.
-        """
         return
 
     def action_unmerge(self):
@@ -139,9 +123,6 @@ class MixinCompanySplit(models.AbstractModel):
 
         self._unmerge_reassign_company_fields(base_company)
 
-        # Only now does every record -- the original included -- hold exactly
-        # the companies it will keep. A model with a uniqueness rule that spans
-        # membership can only set the colliding values here.
         self._unmerge_finalize(new_record_by_company)
 
         self._unmerge_log_split(new_records, base_company)
@@ -185,10 +166,6 @@ class MixinCompanySplit(models.AbstractModel):
         }
         new_by_company = {}
         for company in companies_to_update:
-            # `company_ids` is written AFTER the copy, never as a copy default.
-            # Passing it in `default` fires every compute that depends on it,
-            # and on account.tax that includes the ones seeding default
-            # distribution lines -- which then land on top of the copied ones.
             new = self.copy(
                 default={
                     **self._unmerge_copy_defaults(),
@@ -377,10 +354,6 @@ class MixinCompanySplit(models.AbstractModel):
     def _unmerge_migrate_company_dependent_fields(
         self, new_records, new_id_by_company_id
     ):
-        # A model with no company_dependent field has nothing to carve up, and
-        # the statements below would be built with an empty SET clause --
-        # `SET  FROM ...`, which Postgres rejects outright. account.account has
-        # `code_store`; account.tax has none.
         if not any(field.company_dependent for field in self._fields.values()):
             return
         new_id_by_company_id_json = json.dumps(new_id_by_company_id)

@@ -24,7 +24,6 @@
                             <field
                                 name="info"
                                 decoration-danger="display_type == 'account'" />
-                            <!-- needed to make onchange work -->
                             <field name="sequence" column_invisible="1" />
                             <field name="grouping_key" column_invisible="1" />
                             <field name="display_type" column_invisible="1" />

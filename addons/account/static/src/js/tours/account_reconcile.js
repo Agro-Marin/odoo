@@ -35,12 +35,8 @@ registry.category("web_tour.tours").add("account_accountant_tour", {
     steps: () => [
         ...accountTourSteps.goToAccountMenu().map((step) => ({
             ...step,
-            // A little hack since the user will come from the account tour which we make sure to make him go to the
-            // dashboard in endSteps(), so we want to resume from there.
             isActive: ["auto"].concat(step.isActive || []),
         })),
-        // The tour will stop here if there is at least 1 vendor bill in the database.
-        // While not ideal, it is ok, since that means the user obviously knows how to create a vendor bill...
         {
             trigger: 'a[name="action_create_vendor_bill"]',
             content: markup(

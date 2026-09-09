@@ -372,11 +372,9 @@
         </div>
     </template>
 
-    <!-- Render required_fields as form inputs (selection fields only); the surrounding form tag is not emitted. -->
     <template id="portal_invoice_required_fields_form">
         <t t-foreach="required_fields" t-as="required_field">
             <div t-attf-class="mb-3 col-xl-6">
-                <!-- Preselect the value submitted in the form data, else the field's own default -->
                 <t
                     t-set="field_info"
                     t-value="env[required_field.model]._fields[required_field.name]" />

@@ -1440,12 +1440,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         self.assertTotalAmounts(invoice, tax_details)
 
     def test_archived_group_of_taxes_still_flattens_to_its_children(self):
-        """Archiving a group of taxes must not change what its posted moves report.
-
-        The flattening used to come from an ORM search over active taxes only, so an
-        archived group stopped being expanded and every child tax line it had produced
-        dropped out of the report.
-        """
         child_affecting_base = self.env["account.tax"].create(
             {
                 "name": "child_affecting_base",
@@ -1498,7 +1492,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         tax_group.active = False
         while_archived = self._get_tax_details()
 
-        # pin the shape too: comparing two empty result sets would pass vacuously
         self.assertEqual(len(while_active), 3)
         self.assertEqual(
             sum(x["tax_amount"] for x in while_active),
@@ -1508,12 +1501,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         self.assertTotalAmounts(invoice, while_archived)
 
     def test_base_tax_line_mapping_conditions_chain_super(self):
-        """Every override of the seam must chain ``super()``.
-
-        The conditions are ANDed into a single join condition, so an override that
-        returns only its own silently drops the conditions of every other installed
-        module -- with no error and no visible symptom beyond wrong amounts.
-        """
         marker = SQL("/* chained */ TRUE")
         with patch.object(
             AccountMoveLineTaxDetails,
@@ -1526,14 +1513,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         self.assertIn(marker.code, [condition.code for condition in conditions])
 
     def test_last_cents_dispatch_walks_a_total_order(self):
-        """The LAG dispatching the last cents must order by the same total order the
-        cumulated sum was built with.
-
-        ``(tax_id, base_line_id)`` alone is not one: a base line carries one row per
-        ``src_line_id`` whenever an upstream tax affects its base. Ties there leave
-        PostgreSQL free to pick an arbitrary peer, which misallocates the rows and
-        breaks the telescoping that makes them add up to the tax line balance.
-        """
 
         def squash(sql_text):
             return re.sub(r"\s*([(),])\s*", r"\1", " ".join(sql_text.split()))
@@ -1543,7 +1522,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
             ._get_query_tax_details_from_domain([("id", "=", 0)])
             .code
         )
-        # the pair: what the cumulated sum walks, and what the LAG differences
         self.assertIn(
             squash(
                 "OVER (PARTITION BY tax_line.id"
@@ -1558,7 +1536,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
             ),
             code,
         )
-        # and no dispatch window may stop at a prefix that leaves src_line_id out
         self.assertNotIn(
             squash(
                 "OVER (PARTITION BY sub.tax_line_id"
@@ -1568,8 +1545,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         )
 
     def _create_imported_entry_with_one_tax_line(self, tax_name):
-        """A journal entry as an import produces one: a single hand-made tax line over two
-        base lines, which the exact matching cannot fully reconcile."""
         tax = self.env["account.tax"].create(
             {
                 "name": tax_name,
@@ -1629,14 +1604,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         return move
 
     def test_fallback_covers_a_partially_matched_tax_line(self):
-        """A tax line that matched SOME of its base lines must still have the others
-        approximated.
-
-        The fallback used to be all-or-nothing per tax line: one matched pair switched it
-        off for the whole tax line, the unmatched base lines vanished from the report, and
-        their share of the tax was silently reallocated onto the survivors -- understating
-        the declared taxable base while declaring the full tax.
-        """
         move = self._create_imported_entry_with_one_tax_line("partial_match_tax")
         base_lines = move.line_ids.filtered(lambda x: x.tax_ids and not x.tax_line_id)
 
@@ -1662,17 +1629,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         self.assertTotalAmounts(move, with_fallback)
 
     def test_fallback_does_not_duplicate_a_base_across_sibling_tax_lines(self):
-        """When one tax posts two tax lines that partition the base lines between them,
-        neither may claim the other's.
-
-        A misc entry with base lines of opposite sign does exactly that -- and the two tax
-        lines sit on *different* repartitions (invoice vs refund), so any test keyed on the
-        tax line's identity rather than on its tax lets each claim the other's base.
-
-        This one is green against HEAD: it guards the fix for
-        ``test_fallback_covers_a_partially_matched_tax_line`` from being written the
-        obvious way, not a defect HEAD has.
-        """
         tax = self.env["account.tax"].create(
             {
                 "name": "sign_split_tax",
@@ -1728,7 +1684,6 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
                 )
 
     def test_fallback_rows_are_flagged(self):
-        """A consumer cannot audit a figure it cannot tell apart from an exact one."""
         self._create_imported_entry_with_one_tax_line("flagged_fallback_tax")
 
         tax_details = self._get_tax_details(fallback=True)

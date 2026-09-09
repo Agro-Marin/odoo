@@ -86,9 +86,6 @@ class AccountJournal(models.Model):
         }
 
     def _render_sample_bill_attachment(self, company, ref, invoice_date):
-        # a weasyprint render per click buys a real user a realistic sample and buys
-        # a test run nothing; current_test catches the invocations test_enable alone
-        # does not, which is the pair the rest of this module already guards on
         if tools.config["test_enable"] or modules.module.current_test:
             return self.env["ir.attachment"]
         address = [

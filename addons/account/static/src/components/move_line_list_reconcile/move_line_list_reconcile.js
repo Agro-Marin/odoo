@@ -39,7 +39,7 @@ export class AccountMoveLineReconcileListRenderer extends AccountMoveLineListRen
 
     setup() {
         super.setup();
-        this.props.list.groups?.map((group) => this.toggleGroup(group)); // unfold the first groups (account_id)
+        this.props.list.groups?.map((group) => this.toggleGroup(group));
     }
 }
 

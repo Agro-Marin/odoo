@@ -58,6 +58,5 @@ test("bank_rec_list_many2one_multi_id widget works in multi-edit", async () => {
     await runAllTimers();
     await clickFieldDropdownItem("statement_id", 'Create "New Statement"');
 
-    // Confirm the multi-edit dialog
     await contains(".modal .btn-primary").click();
 });

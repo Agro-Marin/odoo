@@ -1,11 +1,3 @@
-# `status_in_payment` folds a move's lifecycle, whether it has been sent, and its
-# settlement into the one status a list view shows. The name said none of that,
-# and read as a state *inside* a payment -- which is the model next door.
-#
-# The field is computed and not stored, so there is no column: what needs moving
-# is the places a database records the name. Views, filters and actions that ship
-# in data files are reloaded by this upgrade; these statements are for the ones a
-# user built by hand, which nothing reloads.
 MODEL = "account.move"
 
 OLD = "status_in_payment"

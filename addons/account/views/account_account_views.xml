@@ -37,7 +37,6 @@
                     </div>
                 </button>
             </xpath>
-            <!-- Tax field in accounting page -->
             <xpath expr="//field[@name='account_type']" position="after">
                 <field
                     name="tax_ids"

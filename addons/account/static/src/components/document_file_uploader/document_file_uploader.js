@@ -49,16 +49,12 @@ export class DocumentFileUploader extends Component {
         return this.props.resModel;
     }
 
-    /**
-     * @returns {string}
-     */
+    /** @returns {string} */
     getUploadMethod() {
         return "create_document_from_attachment";
     }
 
-    /**
-     * @returns {Promise<number[]|string>}
-     */
+    /** @returns {Promise<number[]|string>} */
     async getUploadIds() {
         return "";
     }

@@ -61,8 +61,6 @@ export class BankRecStatementLine extends KanbanRecord {
         return classes;
     }
 
-    // ACTION METHODS
-
     openStatementCreate() {
         this.action.doAction("account.action_bank_statement_form_bank_rec_widget", {
             additionalContext: {
@@ -101,7 +99,6 @@ export class BankRecStatementLine extends KanbanRecord {
         this.record.load();
     }
 
-    // HELPER METHODS
     _updateLinesState() {
         const suspenseId = this.recordData.journal_id?.suspense_account_id.id;
         const defaultId = this.recordData.journal_id?.default_account_id.id;
@@ -187,11 +184,9 @@ export class BankRecStatementLine extends KanbanRecord {
     }
 
     selectStatementLine(event) {
-        // In case we are on a mobile device, we want to keep the old onClick behaviour
         if (this.recordData.is_reconciled && event?.pointerType !== "mouse") {
             this.state.isUnfolded = !this.isUnfolded;
         }
-        // Update the chatter with the last selected element
         this.bankReconciliation.selectStatementLine(this.record);
     }
 
@@ -258,13 +253,7 @@ export class BankRecStatementLine extends KanbanRecord {
         return this.recordData.activity_ids.count;
     }
 
-    /**
-     * Total number of attachments on the statement line and its related records:
-     * the line/move itself, its move lines (excluding attachments already linked to
-     * the statement), and the lines reconciled against those move lines.
-     *
-     * @returns {number} Attachment count; greater than 0 means attachments exist.
-     */
+    /** @returns {number} */
     get hasAttachment() {
         const statementAttachment =
             this.recordData.bank_statement_attachment_ids.records.map(

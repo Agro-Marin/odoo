@@ -28,9 +28,7 @@ export class AccountTypeSelection extends SelectionField {
         return SECTIONS;
     }
 
-    /**
-     * @returns {Array<{label: string, choices: Array, section: string}>}
-     */
+    /** @returns {Array<{label: string, choices: Array, section: string}>} */
     get groups() {
         const choices = this.choices;
         const claimed = new Set();

@@ -18,7 +18,6 @@ def is_pdf(file_data: FileData) -> bool:
 
 
 def tree_satisfies(test: Callable[[Any], Any]) -> Predicate:
-    """True when there is a tree and ``test(tree)`` is truthy."""
 
     def matches(file_data: FileData) -> bool:
         tree = file_data["xml_tree"]

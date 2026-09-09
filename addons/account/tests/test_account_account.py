@@ -821,7 +821,6 @@ class TestAccountAccount(TestAccountMergeCommon):
         )
 
     def test_name_search_under_a_move_type_accepts_the_default_domain(self):
-        # domain defaults to None, and the move_type branch feeds it to Domain.AND
         results = (
             self.env["account.account"]
             .with_context(move_type="out_invoice")

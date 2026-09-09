@@ -32,9 +32,7 @@ function dashboardBlob(dragDropSettings) {
     });
 }
 
-/**
- * @param {boolean} isMember
- */
+/** @param {boolean} isMember */
 function mockDropGroup(isMember) {
     patchWithCleanup(user, {
         async hasGroup(group) {

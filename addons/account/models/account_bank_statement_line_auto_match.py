@@ -7,10 +7,6 @@ from odoo.tools import SQL, float_compare
 
 _logger = logging.getLogger(__name__)
 
-# How many consecutive auto-reconcile rounds may retire no statement line before
-# the cron gives up. A round that retires nothing has changed nothing, so the next
-# one can only fail identically; the allowance is small because it exists to absorb
-# a transient failure, not to keep retrying a broken one.
 MAX_BARREN_CRON_ROUNDS = 3
 
 
@@ -47,9 +43,6 @@ class AccountBankStatementLine(models.Model):
                         company_id
                     )
                 )
-            # `order="id"`, not `cron_last_check ASC NULLS FIRST, id`: the domain just
-            # above pins `cron_last_check` to NULL, so it is the same value on every row
-            # the search can return and cannot order anything.
             st_lines = self.search(domain, limit=limit, order="id")
             _logger.info(
                 "_cron_try_auto_reconcile_statement_lines found %s statement lines",
@@ -99,13 +92,6 @@ class AccountBankStatementLine(models.Model):
                     retired += 1
             return retired
 
-        # A round that retires nothing has changed nothing, so repeating it can only
-        # fail the same way. That is not hypothetical: a failure raised *before* any
-        # line is selected leaves `st_lines` empty, so `rollback_and_retire` has
-        # nothing to give up on, and the only other exits are "no lines left" and the
-        # time limit -- which is not armed at all unless a `batch_size` was passed.
-        # Measured before this guard: 7857 failed rounds in 2.1s with the packaged
-        # `batch_size=100`, and no return at all on the method's own defaults.
         barren_rounds = 0
 
         while not is_limit_time_exceeded():

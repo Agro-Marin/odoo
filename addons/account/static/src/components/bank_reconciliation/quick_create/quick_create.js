@@ -8,8 +8,6 @@ export class BankRecQuickCreateController extends KanbanQuickCreateController {
     static template = "account.BankRecQuickCreateController";
 
     showFormDialogInError(e) {
-        // Override because in the case of the bank rec widget, we do not want the bank statement line form view to be
-        // opened when an error occurs. Instead, we close the quick create and display the error.
         this.props.onCancel();
         throw e;
     }

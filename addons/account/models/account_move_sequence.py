@@ -113,8 +113,6 @@ class AccountMove(models.Model):
             else:
                 where_string += " AND move_type NOT IN ('out_refund', 'in_refund') "
         elif self.journal_id.payment_sequence:
-            # The edge is stored on the payment, so this asks the payment table.
-            # `account_move` is the query's unaliased FROM, so it qualifies here.
             exists = (
                 "EXISTS (SELECT 1 FROM account_payment p"
                 " WHERE p.move_id = account_move.id)"

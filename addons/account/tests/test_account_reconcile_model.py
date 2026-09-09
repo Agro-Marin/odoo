@@ -27,7 +27,6 @@ class TestAccountReconcileModel(AccountTestInvoicingCommon):
         )
         return self.env["account.reconcile.model"].create({"name": name, **kw})
 
-    # -- label filter --------------------------------------------------------
     def test_match_regex_without_a_param_is_rejected(self):
         with self.assertRaises(ValidationError):
             self._model("no regex param", match_label="match_regex")
@@ -37,7 +36,6 @@ class TestAccountReconcileModel(AccountTestInvoicingCommon):
             self._model("bad regex", match_label="match_regex", match_label_param="([")
 
     def test_contains_without_a_param_is_rejected(self):
-        """Left unset the SQL predicate is NULL, so the model matches nothing at all."""
         for mode in ("contains", "not_contains"):
             with self.subTest(mode=mode), self.assertRaises(ValidationError):
                 self._model(f"no param {mode}", match_label=mode)
@@ -46,9 +44,7 @@ class TestAccountReconcileModel(AccountTestInvoicingCommon):
         model = self._model("param only", match_label_param="ignored")
         self.assertFalse(model.match_label)
 
-    # -- amount --------------------------------------------------------------
     def test_non_finite_amounts_are_rejected(self):
-        """float() accepts these silently and they reach a journal item as inf/nan."""
         for bad in ("inf", "-inf", "Infinity", "nan", "1e400", "abc", "9" * 400):
             with self.subTest(bad=bad), self.assertRaises(ValidationError):
                 self._model(
@@ -65,7 +61,6 @@ class TestAccountReconcileModel(AccountTestInvoicingCommon):
                 )
 
     def test_either_decimal_separator_is_accepted(self):
-        """The regex path has always read '1 234,56'; the typed path now agrees."""
         for text, expected in (
             ("1.5", 1.5),
             ("1,5", 1.5),
@@ -122,8 +117,6 @@ class TestAccountReconcileModel(AccountTestInvoicingCommon):
         self.assertEqual(model.line_ids.amount, 0.0)
 
     def test_amount_is_not_stored_so_it_cannot_drift(self):
-        """A stored copy could be written to directly, leaving the effective amount
-        disagreeing with the amount_string the form shows."""
         model = self._model(
             "no drift",
             line_ids=[
@@ -143,7 +136,6 @@ class TestAccountReconcileModel(AccountTestInvoicingCommon):
         model.line_ids.invalidate_recordset()
         self.assertEqual(model.line_ids.amount, 10.0)
 
-    # -- proposability -------------------------------------------------------
     def test_a_journal_restricted_model_can_be_proposed(self):
         journal = self.company_data["default_journal_bank"]
         model = self._model(
@@ -157,7 +149,6 @@ class TestAccountReconcileModel(AccountTestInvoicingCommon):
     def test_a_model_with_no_condition_is_not_proposed(self):
         self.assertFalse(self._model("no condition").can_be_proposed)
 
-    # -- duplication ---------------------------------------------------------
     def test_copy_marks_the_duplicate(self):
         model = self._model("Bank Fees")
         self.assertEqual(model.copy().name, "Bank Fees (copy)")
@@ -168,8 +159,6 @@ class TestAccountReconcileModel(AccountTestInvoicingCommon):
         self.assertEqual(model.copy().name, "Taken (copy) (copy)")
 
     def test_copy_carries_the_marker_into_every_language(self):
-        """The marker count used to be reconstructed by replaying a capped loop; past
-        the cap the copy silently kept the source language's name in every language."""
         self.env["res.lang"]._activate_lang("fr_FR")
         model = self._model("Zeta")
         model.with_context(lang="fr_FR").name = "Zeta FR"
@@ -179,7 +168,6 @@ class TestAccountReconcileModel(AccountTestInvoicingCommon):
         self.assertEqual(copied.with_context(lang="en_US").name.count("(copy)"), 13)
         self.assertTrue(copied.with_context(lang="fr_FR").name.startswith("Zeta FR"))
 
-    # -- stat action ---------------------------------------------------------
     def test_reconcile_stat_action_is_scoped_to_the_model(self):
         model = self._model("stat")
         action = model.action_reconcile_stat()

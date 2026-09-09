@@ -124,10 +124,6 @@ class IrModuleModule(models.Model):
                     env.company,
                 )
 
-            # Single slot by design: `write()` only reaches here once per
-            # registry build (guarded by `not was_installed and is_installed`
-            # on `account`'s own installation), and `_register_hook()` below
-            # consumes and deletes it before the registry is used again.
             self.env.registry._auto_install_template = try_loading
         return res
 
@@ -142,9 +138,6 @@ class IrModuleModule(models.Model):
             if self.env.registry.loaded:
                 load_account_translations(self.env)
             else:
-                # Single slot by design: `_load_module_terms` for `account`
-                # runs once per registry build, consumed and deleted by
-                # `_register_hook()` below before the registry is used again.
                 self.env.registry._delayed_account_translator = (
                     load_account_translations
                 )

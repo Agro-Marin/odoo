@@ -2,37 +2,6 @@
 <odoo>
 
     <data noupdate="0">
-        <!--
-            Read-only is the lowest rung of the Accounting privilege, and every
-            rung above it implies it. It sees everything the app shows: journal
-            entries, the chart, tax configuration, the reports, and changes
-            nothing; its read rules on account.move and account.analytic.line
-            exist so that scope holds whatever other hats the reader wears.
-
-            Invoicing only (account):
-            ```
-            group_account_readonly ⇨ group_account_invoice ⇨ group_account_manager
-            group_account_invoice ⇨ group_account_basic ⇨ group_account_user   (both hidden)
-            ```
-
-            Invoicing + Accounting (accountant):
-            ```
-            group_account_readonly ⇨ group_account_invoice ⇨ group_account_basic
-            group_account_basic ⇨ group_account_user ⇨ group_account_manager
-            ```
-
-            `group_account_invoice` creates and edits invoices, refunds and payments.
-            `group_account_basic` adds bank reconciliation, not journal entries.
-            `group_account_user` is the accountant: everything except advanced config.
-            `group_account_manager` edits the configuration the accountant cannot.
-
-            A write affordance on a model Read-only reads is gated on the rung that
-            writes it, so the idiom in views is the pair
-            `account.group_account_invoice,account.group_account_readonly`: the one
-            who transacts, or the one who may only look. stock, sales_team,
-            purchase and mrp carry the same rung under the same rules
-            (tooling/architecture/readonly_tiers.py).
-        -->
         <record id="res_groups_privilege_accounting" model="res.groups.privilege">
             <field name="name">Accounting</field>
             <field name="category_id" ref="base.module_category_accounting" />
@@ -62,7 +31,8 @@
         <record id="group_account_basic" model="res.groups">
             <field name="name">Invoicing &amp; Banks</field>
             <field name="sequence">30</field>
-            <field name="comment">adds the accounting dashboard, bank management and follow-up reports.</field>
+            <field
+                name="comment">adds the accounting dashboard, bank management and follow-up reports.</field>
             <field name="privilege_id" ref="res_groups_privilege_accounting" />
             <field
                 name="implied_ids"
@@ -75,7 +45,8 @@
                 eval="[Command.link(ref('group_account_basic'))]" />
         </record>
         <record id="group_fiscal_year" model="res.groups">
-            <field name="name">Allow to define fiscal years of more or less than a year</field>
+            <field
+                name="name">Allow to define fiscal years of more or less than a year</field>
         </record>
         <record id="group_account_manager" model="res.groups">
             <field name="name">Administrator</field>
@@ -98,10 +69,6 @@
         <record id="group_partial_purchase_deductibility" model="res.groups">
             <field name="name">Partial Purchase Deductibility</field>
         </record>
-        <!--
-            Bank privilege and group controlling who can "trust" a partner bank account
-            (allow_out_payment)
-        -->
         <record id="res_group_privilege_accounting_bank" model="res.groups.privilege">
             <field name="name">Bank</field>
             <field name="sequence">50</field>
@@ -242,7 +209,6 @@
             <field
                 name="domain_force">[('company_id', 'parent_of', company_ids)]</field>
         </record>
-        <!-- Billing record rules for account.move and account.move.line -->
         <record id="account_move_see_all" model="ir.rule">
             <field name="name">All Journal Entries</field>
             <field name="model_id" ref="model_account_move" />
@@ -267,7 +233,6 @@
                 name="groups"
                 eval="[Command.link(ref('account.group_account_invoice'))]" />
         </record>
-        <!-- Portal for invoice move and invoice move lines -->
         <record id="account_invoice_rule_portal" model="ir.rule">
             <field name="name">Portal Personal Account Invoices</field>
             <field name="model_id" ref="account.model_account_move" />
@@ -286,10 +251,6 @@
                 'in_refund')), ('move_id.partner_id','child_of',[user.commercial_partner_id.id])]</field>
             <field name="groups" eval="[Command.link(ref('base.group_portal'))]" />
         </record>
-        <!--
-            Some modules (i.e. sale) restrict the access for some users
-            We want the readonly group to still have the read access on all moves.
-        -->
         <record id="account_move_rule_group_readonly" model="ir.rule">
             <field name="name">Readonly Move</field>
             <field name="model_id" ref="model_account_move" />
@@ -312,10 +273,6 @@
             <field name="perm_create" eval="False" />
             <field name="perm_unlink" eval="False" />
         </record>
-        <!--
-            Some modules (i.e. sale) restrict the access for some users
-            We want the invoice group to still have all access on all moves.
-        -->
         <record id="account_move_rule_group_invoice" model="ir.rule">
             <field name="name">Readonly Move</field>
             <field name="model_id" ref="model_account_move" />
@@ -353,11 +310,6 @@
             <field name="model_id" ref="model_account_report_external_value" />
             <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         </record>
-        <!--
-            Allow billing officers to access res.partner.bank.
-            HR restricts this model to keep employee bank accounts
-            out of reach of non HR users.
-        -->
         <record id="ir_rule_res_partner_bank_billing_officers" model="ir.rule">
             <field name="name">Billing: Allow accessing employee bank accounts</field>
             <field name="model_id" ref="base.model_res_partner_bank" />

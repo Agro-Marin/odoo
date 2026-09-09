@@ -97,13 +97,6 @@ class AccountReportLine(models.Model):
         string="Hide if Zero",
         help="This line and its children will be hidden when all of their columns are 0.",
     )
-    # copy=False on all five shortcuts below. They are write-only conveniences whose
-    # effect already lives in expression_ids, which _copy_hierarchy copies explicitly.
-    # Left copyable, copy_data picked up whatever happened to be in cache: a line whose
-    # shortcut had just been written copied the value too, the inverse re-created the
-    # balance expression on the copied line, and _copy_hierarchy's own expression copy
-    # then hit account_report_expression_line_label_uniq. With a cold cache the same
-    # field read False and the copy was fine -- so the outcome depended on the cache.
     domain_formula = fields.Char(
         string="Domain Formula Shortcut",
         help="Internal field to shorten expression_ids creation for the domain engine",
@@ -195,20 +188,11 @@ class AccountReportLine(models.Model):
                 )
 
     def _compute_user_groupby(self):
-        # Seeded once, at create. There is no @api.depends on purpose: a later recompute
-        # could only either leave the value alone or overwrite the user's own grouping,
-        # and the try/except that used to sit here could not repair anything -- whatever
-        # it assigned, _check_groupby re-raised on the same write.
         for report_line in self:
             report_line.user_groupby = report_line.groupby
 
     @api.constrains("parent_id")
     def _check_groupby_no_child(self):
-        # One direction only, and not for want of symmetry: the message reads as if a
-        # line with children may not carry a groupby, but account_reports relies on
-        # the reverse being allowed -- test_all_reports_generation sets user_groupby
-        # on Bank Reconciliation lines that have children, and the engine computes
-        # them. Guarding that end refuses seven of its subtests.
         for report_line in self:
             if report_line.parent_id.groupby or report_line.parent_id.user_groupby:
                 raise ValidationError(
@@ -250,9 +234,6 @@ class AccountReportLine(models.Model):
             )
 
     def _copy_hierarchy(self, copied_report):
-        # _check_parent_report keeps a line and its parent in one report, so every
-        # parent is inside `self`. Rows predating that constraint are copied as roots
-        # rather than dropped, which is what the recursive walk this replaced did.
         line_ids = set(self.ids)
         lines_by_parent_id = defaultdict(self.browse)
         for line in self:
@@ -303,11 +284,6 @@ class AccountReportLine(models.Model):
                 vals["report_line_id"] = copied_line_by_id[
                     expression.report_line_id.id
                 ].id
-                # Rewritten here rather than by a second pass over the created
-                # expressions: the mapping is complete before the first create, and a
-                # write per aggregation expression is a write the copy does not need --
-                # measured at 80 expression.write() calls for 40 aggregations, each one
-                # re-running the formula constraint and the tax-tag branch of write().
                 if expression.engine == "aggregation":
                     for key in ("formula", "subformula"):
                         if vals.get(key):
@@ -379,11 +355,6 @@ class AccountReportLine(models.Model):
                 ).unlink()
                 continue
 
-            # figure_type is listed even when it is False: the shortcut owns every
-            # field of the expression it maintains, and writing an incomplete vals over
-            # an existing balance expression left the previous engine's figure_type
-            # behind -- an account_codes expression rendered as a percentage because
-            # the line once carried external_formula.
             vals = {
                 "report_line_id": report_line.id,
                 "label": "balance",

@@ -50,9 +50,6 @@ export class BankRecSelectCreateDialog extends SelectCreateDialog {
         }
 
         let selectedLinesSum;
-        // When the suspense currency differs from the company one, the remaining amount cannot be
-        // computed reliably because of exchange rates. In that case, unless the selected lines all
-        // share the suspense currency, we hide the remaining amount.
         if (
             this.suspenseAccountLine.currency_id.id !==
             this.suspenseAccountLine.company_currency_id.id
@@ -93,8 +90,6 @@ export class BankRecSelectCreateDialog extends SelectCreateDialog {
         }
 
         let selectedLines;
-        // When being in the list view with more element than the limit and doing a select all, the user has the
-        // possibility to select more element than the limit. In this case the isDomainSelected is True
         if (controller.isDomainSelected) {
             const { resModel, context } = controller.model.root;
             selectedLines = await this.orm.read(

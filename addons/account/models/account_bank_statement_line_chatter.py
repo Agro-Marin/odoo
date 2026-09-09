@@ -8,13 +8,6 @@ class AccountBankStatementLine(models.Model):
 
     def _get_last_5_minutes_messages(self, body):
         self.check_singleton()
-        # `=` rather than `ilike`: the needle is the note body itself, and every `_`
-        # or `%` it contains is a LIKE wildcard, so an unrelated message that merely
-        # fits the pattern would silence a real note. Verified that both the SQL and
-        # the in-memory path wildcard those characters.
-        #
-        # Searched rather than filtered off `move_id.message_ids`, which would load
-        # the move's whole chatter to look at the last five minutes of it.
         return self.env["mail.message"].search(
             [
                 ("model", "=", self.move_id._name),

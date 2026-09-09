@@ -15,7 +15,6 @@
                         <button name="action_post" type="object" string="Confirm" />
                     </header>
                     <field name="company_currency_id" column_invisible="True" />
-                    <!-- <field name="suitable_journal_ids" column_invisible="True"/> -->
                     <field
                         name="available_payment_channel_ids"
                         column_invisible="True" />
@@ -309,7 +308,6 @@
                             string="Duplicated Payments" />
                     </div>
                     <sheet>
-                        <!-- Invisible fields -->
                         <field name="id" invisible="1" />
                         <field name="is_sent" invisible="1" />
                         <field name="need_cancel_request" invisible="1" />
@@ -320,7 +318,6 @@
                         <field name="require_partner_bank_account" invisible="1" />
                         <field name="available_payment_channel_ids" invisible="1" />
                         <field name="available_partner_bank_ids" invisible="1" />
-                        <!-- <field name="suitable_journal_ids" invisible="1"/> -->
                         <field name="country_code" invisible="1" />
                         <field name="partner_type" invisible="1" />
                         <field name="reconciled_invoices_type" invisible="1" />
@@ -332,7 +329,6 @@
                         <field name="currency_id" invisible="1" />
 
                         <div class="oe_button_box" name="button_box">
-                            <!-- Invoice stat button -->
                             <button
                                 name="button_open_invoices"
                                 type="object"
@@ -352,7 +348,6 @@
                                 </div>
                             </button>
 
-                            <!-- Bill stat button -->
                             <button
                                 name="button_open_bills"
                                 type="object"
@@ -367,7 +362,6 @@
                                 </div>
                             </button>
 
-                            <!-- Statement stat button -->
                             <button
                                 name="button_open_statement_lines"
                                 type="object"
@@ -380,7 +374,6 @@
                                 </div>
                             </button>
 
-                            <!-- Journal Entry button -->
                             <button
                                 name="button_open_journal_entry"
                                 type="object"
@@ -470,9 +463,6 @@
                                     invisible="not show_partner_bank_account or partner_type != 'supplier' or payment_type == 'inbound'"
                                     required="require_partner_bank_account" />
 
-                                <!-- Always readonly in practice, but readonly="1" is not set: the
-                                framework
-                                would apply it to the other partner_bank_id fields above, making them uneditable -->
                                 <field
                                     name="partner_bank_id"
                                     string="Company Bank Account"
@@ -491,7 +481,6 @@
                             </group>
                         </group>
                         <group>
-                            <!-- Empty notebook for localizations that need to add a page -->
                             <notebook name="payment_notebook" colspan="2" />
                         </group>
                     </sheet>
@@ -511,7 +500,6 @@
                 </graph>
             </field>
         </record>
-        <!-- ACTIONS -->
         <record id="action_account_all_payments" model="ir.actions.act_window">
             <field name="name">Payments</field>
             <field name="res_model">account.payment</field>
@@ -585,7 +573,6 @@
                 </p>
             </field>
         </record>
-        <!-- Multi-record server action: post the selected payments -->
         <record id="action_account_confirm_payments" model="ir.actions.server">
             <field name="name">Post Payments</field>
             <field name="model_id" ref="account.model_account_payment" />

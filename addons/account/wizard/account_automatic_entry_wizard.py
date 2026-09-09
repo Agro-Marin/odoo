@@ -155,9 +155,6 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                     (record.total_amount / balance_total) * 100, 100
                 )
             else:
-                # No reference amount to compute a ratio against: 100% is the
-                # explicit convention here, not a byproduct of dividing
-                # total_amount by itself.
                 record.percentage = 100
 
     @api.depends("move_line_ids")

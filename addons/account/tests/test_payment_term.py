@@ -1071,8 +1071,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                     }
                 )
 
-    # -- a payment term is immediate only when nothing defers the due date --
-
     def test_is_immediate_false_for_deferred_delay_types(self):
         for delay_type in (
             "days_after_end_of_month",
@@ -1097,8 +1095,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
             due_date = term.line_ids._get_due_date(datetime.date(2026, 8, 10))
             self.assertNotEqual(due_date, datetime.date(2026, 8, 10))
             self.assertFalse(term.is_immediate)
-
-    # -- the printed early payment discount is the posted one --
 
     def _create_early_discount_invoice(
         self, price, cash_rounding=None, move_type="out_invoice"
@@ -1183,8 +1179,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
             move._get_early_payment_discount_details()["amount_due"], 980.0
         )
 
-    # -- the percent sum is the term's invariant, whichever side writes it --
-
     def test_percent_sum_is_checked_on_a_direct_line_write(self):
         with self.assertRaises(ValidationError):
             self.pay_term_today.line_ids.write({"value_amount": 50.0})
@@ -1205,8 +1199,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
             [(line.value, line.value_amount) for line in term.line_ids],
             [("fixed", 0.0), ("percent", 100.0)],
         )
-
-    # -- defaults must not overwrite what the user chose --
 
     def test_company_change_keeps_a_manual_tax_reduction(self):
         term = self.pay_term_today
@@ -1240,8 +1232,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
             model.default_get(["example_amount", "example_date"]),
             {"example_amount": 777.0, "example_date": datetime.date(2030, 1, 1)},
         )
-
-    # -- nothing is due on an invoice that asks for nothing --
 
     def test_zero_total_invoice_has_no_installment_amounts(self):
         term = self.env["account.payment.term"].create(
@@ -1278,8 +1268,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertEqual(
             self._payment_term_line(move).mapped("amount_currency"), [0.0, 0.0]
         )
-
-    # -- the preview answers to every field the due date is built from --
 
     def test_example_preview_follows_the_delay_type(self):
         term = self.env["account.payment.term"].create(
@@ -1330,8 +1318,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         term.invalidate_recordset(["line_ids"])
         self.assertEqual(term.line_ids.mapped("value_amount"), [70.0, 30.0])
 
-    # -- the preview answers to the tax reduction scheme, once there is tax --
-
     def _discount_term(self, scheme):
         return self.env["account.payment.term"].create(
             {
@@ -1350,9 +1336,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         )
 
     def _preview_discount(self, term, **context):
-        # example_amount and example_tax_amount are unstored defaults: they are
-        # produced once per record, so the context has to be there when the value
-        # is first read, which is what the client does when it opens the form
         term.invalidate_recordset()
         return term.with_context(**context).example_preview_discount
 
@@ -1408,8 +1391,6 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
                 example_amount=totals["total_amount_currency"],
                 example_tax_amount=totals["tax_amount_currency"],
             )
-            # fields.Html sanitises the compute, which entity-encodes the
-            # non-breaking space formatLang puts before the amount
             rendered = str(preview).replace("&nbsp;", "\xa0")
             self.assertIn(
                 formatLang(self.env, posted, currency_obj=move.currency_id),

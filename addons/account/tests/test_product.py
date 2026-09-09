@@ -252,8 +252,6 @@ class TestProduct(AccountTestInvoicingCommon):
                 "and the comodel that goes with it",
             )
 
-    # -- company scoping of taxes and accounts -----------------------------
-
     def _product_carrying_two_companies_taxes(self):
         return (
             self.env["product.template"]
@@ -421,8 +419,6 @@ class TestProduct(AccountTestInvoicingCommon):
             self.company_data["default_account_expense"],
         )
 
-    # -- unit of measure ----------------------------------------------------
-
     def _post_invoice_for(self, product, uom):
         move = self.env["account.move"].create(
             {
@@ -520,8 +516,6 @@ class TestProduct(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.assertEqual(product.uom_id, kilogram)
 
-    # -- combo products -----------------------------------------------------
-
     def test_a_combo_product_carries_no_taxes_however_it_is_created(self):
         base = self.env["product.template"].create({"name": "ZZ Combo Item"})
         combo = self.env["product.combo"].create(
@@ -556,8 +550,6 @@ class TestProduct(AccountTestInvoicingCommon):
         )
         product.write({"type": "combo", "combo_ids": [(6, 0, combo.ids)]})
         self.assertFalse(product.sudo().taxes_id)
-
-    # -- import lookup ----------------------------------------------------------
 
     def test_import_lookup_finds_a_name_that_ilike_cannot(self):
         Product = self.env["product.product"]

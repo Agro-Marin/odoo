@@ -315,9 +315,6 @@ class TestAccountJournal(AccountTestInvoicingCommon, HttpCase):
         )
 
     def test_batch_type_change_on_same_named_journals_does_not_crash(self):
-        # Two journals sharing a name derive the same mail alias; a batch type
-        # change used to regenerate that alias per-journal with no cross-record
-        # dedup, so the second journal's alias creation raised a UserError.
         company = self.env.company
         journals = self.env["account.journal"].create(
             [
@@ -544,8 +541,6 @@ class TestAccountJournalAllowedAccounts(AccountTestInvoicingCommon):
             invoice.invoice_line_ids.write({"account_id": self.outsider.id})
 
     def test_the_journal_own_accounts_never_need_listing(self):
-        # 31 of the 72 whitelists shipped by marin_data omit at least one of these,
-        # so a check without the exemption breaks those journals outright.
         self.journal.default_account_id = self.income
         self.journal.allowed_account_ids = self.receivable
 
@@ -575,14 +570,6 @@ class TestAccountJournalAllowedAccounts(AccountTestInvoicingCommon):
         self.assertTrue(self.journal.allowed_account_ids)
 
     def test_a_cancelled_entry_does_not_pin_the_list(self):
-        """A voided entry is not an accounting fact and must not freeze config.
-
-        The check re-reads every existing item on each write to the field, so
-        without a state filter one cancelled entry on an unlisted account makes
-        the list permanently unwidenable -- the operator cannot add the account
-        either, if it belongs to another company. That is not hypothetical: a
-        single cancelled 2024 payment held journal EFC01 in exactly that state.
-        """
         invoice = self._invoice(self.outsider)
         invoice.action_post()
         invoice.action_cancel()
@@ -859,8 +846,6 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_a_falsy_alias_name_asks_for_no_alias(self):
-        # A nameless mail.alias in the database used to make the uniqueness lookup
-        # match, and the literal False was then suffixed into an address.
         self.env["mail.alias"].create(
             {"alias_model_id": self.env["ir.model"]._get_id("account.move")}
         )
@@ -878,8 +863,6 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
                 self.assertFalse(journal.alias_id)
 
     def test_a_colliding_alias_is_suffixed_with_the_real_code(self):
-        # The suffix is vals["code"], which on a create that lets the code be
-        # generated was simply absent -- the alias came out "...-none".
         first, second = self.env["account.journal"].create(
             [
                 {"name": "Same Name", "type": "sale"},
@@ -1118,8 +1101,6 @@ class TestAccountJournalAlias(AccountTestInvoicingCommon, MailCommon):
 
 @tagged("post_install", "-at_install")
 class TestAccountJournalTypeDefaults(AccountTestInvoicingCommon):
-    """Create, write and the form onchange must agree on what a journal type implies."""
-
     def _create(self, journal_type, code, **vals):
         return self.env["account.journal"].create(
             {"name": f"T {code}", "type": journal_type, "code": code, **vals}
@@ -1262,8 +1243,6 @@ class TestAccountJournalCodeAndCopy(AccountTestInvoicingCommon):
         self.assertTrue(values.get("code", "").startswith("BILL"))
 
     def test_writing_an_unusable_alias_on_several_journals_that_share_a_name(self):
-        # The recovery alias is derived per journal from its name, so two journals with
-        # the SAME name derived the same alias and mail.alias refused the write.
         journals = self.env["account.journal"].create(
             [
                 {"name": "Twins", "type": "sale", "code": "TWN1"},
@@ -1305,9 +1284,6 @@ class TestAccountJournalCodeAndCopy(AccountTestInvoicingCommon):
             )
 
     def test_a_code_spelled_out_later_in_the_batch_is_still_reserved(self):
-        # The generated code used to be picked against the stored codes alone, so a
-        # code the caller spells out on a LATER vals of the same batch could be
-        # handed to an earlier journal and the two collided on the unique index.
         journals = self.env["account.journal"].create(
             [
                 {"name": "Auto", "type": "bank"},
@@ -1321,8 +1297,6 @@ class TestAccountJournalCodeAndCopy(AccountTestInvoicingCommon):
         self.assertIn("BNK2", codes)
 
     def test_unnamed_journals_of_one_type_are_named_apart(self):
-        # The "(n)" suffix comes from the code, which used to be generated after the
-        # name, so every unnamed journal of a type was called "Bank (1)".
         journals = self.env["account.journal"].create(
             [{"type": "bank"} for _ in range(3)]
         )
@@ -1331,8 +1305,6 @@ class TestAccountJournalCodeAndCopy(AccountTestInvoicingCommon):
         self.assertEqual(len(set(names)), 3, f"names must be distinct, got {names}")
 
     def test_several_unnamed_sale_journals_can_be_created_at_once(self):
-        # With no name and no code, every one of them derived the alias from the type
-        # alone -- "sale" three times over -- and mail.alias refused the batch.
         journals = self.env["account.journal"].create(
             [{"type": "sale"} for _ in range(3)]
         )
@@ -1343,9 +1315,6 @@ class TestAccountJournalCodeAndCopy(AccountTestInvoicingCommon):
 @tagged("post_install", "-at_install")
 class TestAccountJournalTypeMetadata(AccountTestInvoicingCommon):
     def test_the_type_families_are_derived_from_one_dict(self):
-        # LIQUIDITY/DOCUMENT/CASH_DIFFERENCE used to be three hand-kept tuples that a
-        # new journal type had to be added to separately. They are now derived, so
-        # this pins the memberships the rest of the module branches on.
         from odoo.addons.account.models.account_journal import (
             CASH_DIFFERENCE_TYPES,
             DOCUMENT_TYPES,
@@ -1441,9 +1410,6 @@ class TestAccountJournalNotifications(AccountTestInvoicingCommon):
         )
 
     def test_arriving_einvoices_notify_the_journals_subscribers(self):
-        # This used to send nothing at all: a guard retired the old digest template in
-        # favour of the per-invoice one, but the two localisations that fetch inbound
-        # e-invoices still called the retired method, so their subscribers heard nothing.
         journal = self.company_data["default_journal_purchase"]
         journal.incoming_einvoice_notification_email = "a@example.com, b@example.com"
         moves = self._bill(journal) | self._bill(journal)
@@ -1472,10 +1438,6 @@ class TestAccountJournalNotifications(AccountTestInvoicingCommon):
 @tagged("post_install", "-at_install")
 class TestAccountJournalDefaultAccountHook(AccountTestInvoicingCommon):
     def test_the_localisation_hook_is_told_the_type_on_a_type_change(self):
-        # l10n_dk and friends override _prepare_liquidity_account_vals and read
-        # vals["type"] to pick a balance-sheet tag. Creating a journal passes it;
-        # switching one to bank used to hand over the name and nothing else, so the
-        # account came out untagged.
         journal = self.env["account.journal"].create(
             {"name": "Switcher", "type": "general", "code": "THK1"}
         )

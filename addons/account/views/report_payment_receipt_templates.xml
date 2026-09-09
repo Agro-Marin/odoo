@@ -50,13 +50,9 @@
                     <t
                         t-set="invoices"
                         t-value="o.reconciled_invoice_ids or o.reconciled_bill_ids" />
-                    <!-- Read the partials once per invoice: they were walked twice,
-                        once for otherCurrency and once for the rows below, and
-                        each walk crosses matched_debit_ids/matched_credit_ids. -->
                     <t
                         t-set="partials_per_invoice"
                         t-value="{inv.id: inv._get_reconciled_invoices_partials()[0] for inv in invoices}" />
-                    <!-- otherCurrency: set when a payment currency differs from its invoice currency -->
                     <t
                         t-set="otherCurrency"
                         t-value="any(inv.currency_id != par[2].currency_id for inv in invoices for par in partials_per_invoice[inv.id])" />
@@ -71,7 +67,6 @@
                     </thead>
                     <tbody>
                         <t t-foreach="invoices" t-as="inv">
-                            <!-- MOVE -->
                             <t t-if="inv.move_type != 'entry'">
                                 <tr>
                                     <td><span t-field="inv.invoice_date">2023-01-01</span></td>
@@ -80,7 +75,6 @@
                                     <td t-if="otherCurrency" />
                                     <td class="text-end"><span t-field="inv.amount_total">100.00 USD</span></td>
                                 </tr>
-                                <!-- PAYMENTS/REVERSALS -->
                                 <tr t-foreach="partials_per_invoice[inv.id]" t-as="par">
                                     <t t-set="payment" t-value="par[2]" />
                                     <td><span t-field="payment.move_id.date">2023-01-05</span></td>
@@ -96,11 +90,9 @@
                                     <t
                                         t-set="currencyInvoice"
                                         t-value="inv.currency_id" />
-                                    <!-- Amount In Currency: filled only when payment and invoice currencies differ -->
                                     <td t-if="otherCurrency" class="text-end"><span t-if="currencyPayment != currencyInvoice" t-out="amountPayment" t-options="{'widget': 'monetary', 'display_currency': currencyPayment}">50.00 EUR</span></td>
                                     <td class="text-end"><span t-out="amountInvoice" t-options="{'widget': 'monetary', 'display_currency': currencyInvoice}">25.00 USD</span></td>
                                 </tr>
-                                <!-- BALANCE -->
                                 <tr>
                                     <td />
                                     <td><strong>Due Amount for <span t-field="inv.name">INV001</span></strong></td>

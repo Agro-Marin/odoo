@@ -33,9 +33,7 @@ export class ReceiptSelector extends RadioField {
         });
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get items() {
         const original_items = super.items;
         if (this.type !== "selection") {

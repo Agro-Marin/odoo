@@ -55,13 +55,6 @@ def split_etree_on_tag(tree, tag):
 
 
 def extract_pdf_embedded_files(filename, content):
-    """The `(name, bytes)` pairs a PDF carries inside it.
-
-    The reading itself moved to `odoo.tools.documents`, where it is registered
-    as the `children` reader of the document layer, so a strategy handed a
-    Factur-X PDF can reach the XML that carries the fields without going through
-    this mixin. This stays as the shape the importer's `file_data` dicts want.
-    """
     if not content:
         return []
     return [
@@ -359,11 +352,6 @@ class MixinAccountDocumentImport(models.AbstractModel):
 
     @api.model
     def _import_file_type_rules(self):
-        """``(file_type, predicate)`` pairs, most specific first.
-
-        An override prepends its own and returns ``super()``'s after them, so
-        the module loaded last is asked first and ``pdf`` is the fallback.
-        """
         return [("pdf", is_pdf)]
 
     @api.model

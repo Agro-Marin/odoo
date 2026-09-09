@@ -5,7 +5,6 @@ import { click } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { defineModels, mountWithCleanup } from "@web/../tests/web_test_helpers";
 
-// Due to dependency with mail module, we have to define their models for our tests.
 defineModels(mailModels);
 
 describe.current.tags("desktop");

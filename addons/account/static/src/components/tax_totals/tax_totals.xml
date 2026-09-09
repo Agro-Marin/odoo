@@ -79,7 +79,6 @@
                     </td>
                 </tr>
 
-                <!-- Total amount with all taxes-->
                 <tr>
                     <td class="o_td_label">
                         <label class="o_form_label o_tax_total_label">Total</label>

@@ -190,7 +190,6 @@
                     string="To Review"
                     domain="[('checked', '=', False), ('state', '!=', 'draft')]" />
                 <separator />
-                <!-- not_paid & partial -->
                 <filter
                     name="open"
                     string="To pay"
@@ -363,7 +362,6 @@
                     widget="char_with_placeholder_field_to_check"
                     placeholder="/"
                     readonly="state != 'draft'" />
-                <!-- Read by the char_with_placeholder_field_to_check widget on name -->
                 <field
                     name="checked"
                     column_invisible="True"
@@ -426,10 +424,8 @@
                         invisible="context.get('default_move_type') not in ('out_invoice', 'out_refund', 'out_receipt', 'in_invoice', 'in_refund','in_receipt')" />
                 </header>
                 <field name="made_sequence_gap" column_invisible="True" />
-                <!-- Read by the account_tree list renderer -->
                 <field name="duplicated_ref_ids" column_invisible="True" />
                 <field name="is_exact_move_duplicate" column_invisible="True" />
-                <!-- Read by the char_with_placeholder_field_to_check widget on name -->
                 <field
                     name="checked"
                     column_invisible="True"
@@ -559,9 +555,6 @@
         <field name="priority">999</field>
         <field name="arch" type="xml">
             <xpath expr="//list" position="attributes">
-                <!-- Opening a row runs the model's own "go to the business document"
-                    button, which the base list controller already dispatches for
-                    `action` + `type`. -->
                 <attribute name="action">action_view_business_doc</attribute>
                 <attribute name="type">object</attribute>
                 <attribute name="create">false</attribute>
@@ -570,7 +563,6 @@
                 <attribute name="column_invisible">True</attribute>
             </xpath>
             <xpath expr="//field[@name='name']" position="after">
-                <!-- Draft moves display '/' as name; display_name also states the move type -->
                 <field
                     name="display_name"
                     placeholder="/"
@@ -706,7 +698,6 @@
         <field name="arch" type="xml">
             <form string="Account Entry" js_class="account_move_form">
                 <header>
-                    <!-- Post -->
                     <button
                         name="action_post"
                         string="Post"
@@ -725,7 +716,6 @@
                         data-hotkey="q"
                         context="{'validate_analytic': True, 'disable_abnormal_invoice_detection': False}"
                         invisible="hide_post_button or move_type == 'entry' or display_inactive_currency_warning" />
-                    <!-- Send (only invoices) -->
                     <button
                         name="action_invoice_sent"
                         string="Send"
@@ -749,7 +739,6 @@
                         string="Print"
                         type="object"
                         invisible="state != 'posted' or (not is_being_sent and not invoice_pdf_report_id) or move_type in ('in_invoice','in_refund','in_receipt')" />
-                    <!-- Register Payment (only invoices / receipts) -->
                     <button
                         name="action_register_payment"
                         id="account_invoice_payment_btn"
@@ -760,7 +749,6 @@
                         context="{'dont_redirect_to_payments': True, 'display_account_trust': True}"
                         data-hotkey="g"
                         groups="account.group_account_invoice" />
-                    <!-- Register Payment (only invoices / receipts, with outstanding payments) -->
                     <button
                         name="action_register_payment"
                         id="account_invoice_payment_secondary_btn"
@@ -770,7 +758,6 @@
                         invisible="(                             state != 'posted'                             or payment_state not in ('not_paid', 'partial', 'in_payment')                             or move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund', 'out_receipt', 'in_receipt')                             or not invoice_has_outstanding                         )"
                         context="{'dont_redirect_to_payments': True, 'display_account_trust': True}"
                         groups="account.group_account_invoice" />
-                    <!-- Preview (only customer invoices) -->
                     <button
                         name="preview_invoice"
                         title="Preview invoice"
@@ -778,7 +765,6 @@
                         string="Preview"
                         data-hotkey="o"
                         invisible="move_type not in ('out_invoice', 'out_refund') or state in ('draft', 'cancel')" />
-                    <!-- Reverse -->
                     <button
                         name="%(action_view_account_move_reversal)d"
                         string="Reverse Entry"
@@ -793,7 +779,6 @@
                         groups="account.group_account_invoice"
                         invisible="move_type not in ('out_invoice', 'in_invoice') or state != 'posted'"
                         data-hotkey="shift+n" />
-                    <!-- Cancel -->
                     <button
                         name="action_cancel"
                         string="Cancel Entry"
@@ -828,7 +813,6 @@
                         groups="account.group_account_invoice"
                         invisible="state != 'posted' or show_reset_to_draft_button or not need_cancel_request"
                         data-hotkey="w" />
-                    <!-- Review -->
                     <button
                         name="button_set_checked"
                         type="object"
@@ -849,14 +833,12 @@
                         groups="account.group_account_secured" />
                 </header>
 
-                <!-- General warnings computed from `_get_alerts` -->
                 <div class="m-0" id="alerts" invisible="not alerts">
                     <field
                         name="alerts"
                         class="o_field_html"
                         widget="actionable_errors" />
                 </div>
-                <!-- Duplicate check -->
                 <div
                     class="d-flex alert alert-danger w-100 d-flex align-items-center gap-1"
                     invisible="not is_exact_move_duplicate"
@@ -903,7 +885,6 @@
                             duplicate</span>
                     </button>
                 </div>
-                <!-- Outstanding credits / debits -->
                 <div
                     groups="account.group_account_invoice,account.group_account_readonly"
                     class="alert alert-info"
@@ -940,7 +921,6 @@
                         <a class="alert-link" href="#outstanding" role="button">outstanding credits</a>
                     </bold>
                     listed below for this vendor. </div>
-                <!-- Inactive currency warning -->
                 <div
                     class="alert alert-warning"
                     role="alert"
@@ -1037,7 +1017,6 @@
                         title="Sent"
                         bg_color="gray_ribbon"
                         invisible="not is_move_sent or payment_state != 'not_paid' or move_type not in ('out_invoice', 'out_refund', 'out_receipt')" />
-                    <!-- Payment status for invoices / receipts -->
                     <widget
                         name="web_ribbon"
                         title="Sent"
@@ -1072,7 +1051,6 @@
                         invisible="payment_state != 'invoicing_legacy'"
                         tooltip="This entry has been generated through the Invoicing app, before installing Accounting. It has been disabled by the 'Invoicing Switch Threshold Date' setting so that it does not impact your accounting." />
 
-                    <!-- Invisible fields -->
                     <field name="id" invisible="1" />
                     <field name="state" invisible="1" />
                     <field name="company_id" invisible="1" />
@@ -1115,9 +1093,7 @@
                     <field name="show_delivery_date" invisible="1" />
                     <field name="is_being_sent" invisible="1" />
                     <field name="show_update_fpos" invisible="1" />
-                    <field name="is_sale_installed" invisible="1"/> <!-- Needed in the view to
-                    trigger the compute for the ProductLabelSectionAndNoteListRender in JS -->
-
+                    <field name="is_sale_installed" invisible="1" />
                     <div class="oe_title">
                         <span class="o_form_label">
                             <field
@@ -1283,7 +1259,6 @@
                                 invisible="move_type not in ('in_invoice', 'in_refund', 'in_receipt')"
                                 readonly="is_move_sent and state != 'draft'" />
 
-                            <!-- Payment terms and due date (invoices / receipts) -->
                             <div
                                 class="o_td_label"
                                 invisible="move_type not in ('out_invoice', 'out_refund', 'in_invoice', 'in_refund', 'out_receipt', 'in_receipt')">
@@ -1316,7 +1291,6 @@
                             <field
                                 name="taxable_supply_date_placeholder"
                                 invisible="1" />
-                            <!-- Needed for the placeholder widget -->
                             <field
                                 name="taxable_supply_date"
                                 invisible="not show_taxable_supply_date"
@@ -1444,7 +1418,6 @@
                                             context="{'order_id': parent.id}" />
                                     </control>
 
-                                    <!-- Invisible fields -->
                                     <field name="partner_id" column_invisible="True" />
                                     <field name="currency_id" column_invisible="True" />
                                     <field name="company_id" column_invisible="True" />
@@ -1462,7 +1435,6 @@
                                         name="collapse_composition"
                                         column_invisible="True" />
 
-                                    <!-- Displayed fields -->
                                     <field name="sequence" widget="handle" />
                                     <field
                                         name="product_id"
@@ -1497,8 +1469,6 @@
                                         width="92px"
                                         options="{'no_create': True, 'quantity_field': 'quantity'}"
                                         groups="uom.group_uom" />
-                                    <!-- Kept in the view without the uom group so
-                                    _compute_product_uom_id still runs on product_id change -->
                                     <field
                                         name="product_uom_id"
                                         column_invisible="True" />
@@ -1537,7 +1507,6 @@
                                         column_invisible="parent.move_type in ['in_invoice', 'in_refund', 'in_receipt'] or parent.company_price_include == 'tax_excluded'" />
                                 </list>
                                 <kanban class="o_kanban_mobile">
-                                    <!-- Displayed fields -->
                                     <templates>
                                         <t t-name="card">
                                             <div
@@ -1593,7 +1562,6 @@
                                         </t>
                                     </templates>
 
-                                    <!-- Other fields -->
                                     <field name="tax_calculation_rounding_method" />
                                     <field name="currency_id" />
                                     <field name="company_currency_id" />
@@ -1601,7 +1569,6 @@
                                     <field name="move_type" />
                                 </kanban>
 
-                                <!-- Form view to cover mobile use -->
                                 <form>
                                     <sheet>
                                         <field
@@ -1732,7 +1699,6 @@
                                     default_order="sequence, id"
                                     decoration-muted="display_type in ('line_section', 'line_note')">
 
-                                    <!-- Invisible fields -->
                                     <field name="tax_line_id" column_invisible="True" />
                                     <field
                                         name="company_currency_id"
@@ -1751,7 +1717,6 @@
                                         name="account_type"
                                         column_invisible="True" />
 
-                                    <!-- Displayed fields -->
                                     <field
                                         name="account_id"
                                         invisible="display_type in ('line_section', 'line_note')"
@@ -1826,7 +1791,6 @@
                                         options="{'no_create': True}"
                                         domain="[                                             ('applicability', '=', 'taxes'),                                             '|', ('country_id', '=', parent.tax_country_id),                                             ('country_id', '=', False),                                         ]" />
 
-                                    <!-- Buttons -->
                                     <button
                                         name="action_automatic_entry"
                                         string="Cut-Off"
@@ -1838,7 +1802,6 @@
                                         invisible="account_internal_group not in ('income', 'expense')"
                                         context="{'default_action': 'change_period'}" />
                                 </list>
-                                <!-- Form view to cover mobile use -->
                                 <form>
                                     <group>
                                         <field
@@ -1942,12 +1905,7 @@
                                     <field
                                         name="company_id"
                                         groups="base.group_multi_company" />
-                                    <field name="invoice_incoterm_placeholder" invisible="1"/>    <!--
-                                    Needed for placeholder_field -->
-                                    <field
-                                        name="invoice_incoterm_id"
-                                        options="{'placeholder_field': 'invoice_incoterm_placeholder'}"
-                                        invisible="move_type in ('out_receipt', 'in_receipt')" />
+                                    <field name="invoice_incoterm_placeholder" invisible="1" />                                    <field name="invoice_incoterm_id" options="{'placeholder_field': 'invoice_incoterm_placeholder'}" invisible="move_type in ('out_receipt', 'in_receipt')" />
                                     <field
                                         name="incoterm_location"
                                         invisible="move_type in ('out_receipt', 'in_receipt')" />
@@ -2066,7 +2024,6 @@
         </field>
     </record>
 
-    <!-- ACTIONS -->
     <record id="action_move_journal_line" model="ir.actions.act_window">
         <field name="name">Journal Entries</field>
         <field name="res_model">account.move</field>
@@ -2182,7 +2139,6 @@
         <field
             name="context">{'default_move_type': 'in_invoice', 'display_account_trust': True}</field>
         <field name="help" type="html">
-            <!-- An owl component should be displayed instead -->
             <p class="o_view_nocontent_smiling_face">
                 Create a vendor bill
             </p>
@@ -2205,7 +2161,6 @@
         <field
             name="context">{'search_default_in_invoice': 1, 'search_default_in_receipt': 1, 'default_move_type': 'in_invoice', 'display_account_trust': True}</field>
         <field name="help" type="html">
-            <!-- An owl component should be displayed instead -->
             <p class="o_view_nocontent_smiling_face">
                 Create a vendor bill
             </p>
@@ -2245,7 +2200,6 @@
         <field name="context">{'default_move_type': 'entry'}</field>
     </record>
 
-    <!-- LEGACY: kept so the previous actions keep their path -->
     <record id="action_move_out_refund_type" model="ir.actions.act_window">
         <field name="name">Credit Notes</field>
         <field name="res_model">account.move</field>

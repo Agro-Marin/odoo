@@ -67,9 +67,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         return SHOW_ALL_ITEMS_TOOLTIP;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     buildRowApi() {
         const rec = (record) => this.resolveRowRecord(record);
         return {
@@ -99,9 +97,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         };
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     getRowProps(record, group, groupId) {
         return {
             ...super.getRowProps(record, group, groupId),
@@ -502,9 +498,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         await this.props.list.applyCommands(commands, { sort: true });
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     async sortDrop(dataRowId, dataGroupId, options) {
         await super.sortDrop(dataRowId, dataGroupId, options);
 

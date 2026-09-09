@@ -36,11 +36,8 @@ class MatchingLink extends Component {
         const matchValue = this.props.record.data[this.props.name];
         const matchColorValue = matchValue.replace("P", "");
         if (matchColorValue === "*") {
-            // reserve color code 0 for multi partial matches
             return 0;
         } else {
-            // there is 12 available color palette for 'o_tag_color_*'
-            // since the color code 0 has been reserved by 'P*', we can only use color codes between 1 and 11
             return (parseInt(matchColorValue) % 11) + 1;
         }
     }

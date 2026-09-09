@@ -84,7 +84,7 @@ class AccountMoveLine extends models.Model {
     ];
 
     _views = {
-        kanban: /* xml */ `
+        kanban: `
             <kanban js_class="bank_rec_dialog_kanban">
                 <field name="currency_id"/>
                 <field name="company_currency_id"/>
@@ -100,7 +100,7 @@ class AccountMoveLine extends models.Model {
                 </templates>
             </kanban>
         `,
-        search: /* xml */ `
+        search: `
             <search>
                 <field name="partner_id"/>
             </search>

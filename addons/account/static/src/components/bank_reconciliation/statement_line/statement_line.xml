@@ -56,7 +56,6 @@
                                     />
                                 </span>
                             </div>
-                            <!-- Only available on large screen -->
                             <div class="o_button_line d-none d-md-flex align-items-start">
                                 <BankRecButtonList t-props="buttonListProps" suspenseAccountLine="suspenseAccountLine" t-if="!recordData.is_reconciled or (userCanReview and !recordData.checked)"/>
                                 <span class="badge rounded-pill py-1 ps-1" t-att-class="{ 'pe-1': !isUnfolded, 'text-success bg-success-subtle': !hasInvalidAnalytics, 'text-warning bg-warning-subtle': hasInvalidAnalytics}" t-if="recordData.is_reconciled">
@@ -86,10 +85,8 @@
                             <div class="d-none d-md-block text-end" t-on-click.stop="toggleUnfold" t-if="recordData.is_reconciled">
                                 <i class="oi" t-att-class="{'oi-chevron-up': isUnfolded, 'oi-chevron-down': !isUnfolded}"/>
                             </div>
-                            <div class="d-none d-md-block" t-else=""/> <!-- To keep empty space if no chevron -->
-                        </div>
+                            <div class="d-none d-md-block" t-else=""/>                        </div>
 
-                        <!-- Only available on small screen -->
                         <div class="o_row d-md-none">
                             <span class="text-truncate o_payment_ref"
                                   t-esc="recordData.payment_ref"

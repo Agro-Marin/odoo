@@ -658,18 +658,9 @@ class TestAccountJournalDashboard(TestAccountJournalDashboardCommon):
 
 @tagged("post_install", "-at_install")
 class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
-    """The dashboard sums each journal twice: SUM(amount_residual_signed) when the
-    document company's currency is the dashboard currency, and a sign reconstructed
-    over the unsigned amount_residual otherwise. The two must agree, so every test
-    here crosses a foreign-currency journal with a move type whose residual is
-    negative -- the cell the rest of the suite never reaches.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # rate 1.0 makes the two branches numerically comparable: any difference
-        # left is sign, not FX.
         cls.par_currency = cls.setup_other_currency("GBP", rates=[("1900-01-01", 1.0)])
 
     def _journal_in(self, jtype, code, currency):
@@ -720,7 +711,6 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
 
     @freeze_time("2019-06-01")
     def test_credit_note_subtracts_in_a_foreign_currency_journal(self):
-        """An out_refund reduces what customers owe on both branches."""
         expected = format_amount(self.env, 700, self.par_currency)
 
         journal = self._journal_in("sale", "FXS1", self.par_currency)
@@ -730,7 +720,6 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
 
     @freeze_time("2019-06-01")
     def test_credit_note_agrees_across_both_currency_branches(self):
-        """The company-currency journal is the control: same shape, same number."""
         company_currency = self.company_data["currency"]
         control = self._journal_in("sale", "FXS2", None)
         self._post(control, "out_invoice", 1000, company_currency)
@@ -747,7 +736,6 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
 
     @freeze_time("2019-06-01")
     def test_vendor_receipt_adds_in_a_foreign_currency_journal(self):
-        """An in_receipt is money owed, like a bill: it adds, it does not subtract."""
         expected = format_amount(self.env, 1400, self.par_currency)
 
         journal = self._journal_in("purchase", "FXP1", self.par_currency)
@@ -757,7 +745,6 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
 
     @freeze_time("2019-06-01")
     def test_every_invoice_type_keeps_its_residual_sign(self):
-        """One journal per type, so a wrong sign shows up as a sign, not a total."""
         cases = [
             ("sale", "out_invoice", 100),
             ("sale", "out_refund", -100),
@@ -770,7 +757,6 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
             with self.subTest(move_type=move_type):
                 journal = self._journal_in(jtype, f"FX{index}", self.par_currency)
                 self._post(journal, move_type, 100, self.par_currency)
-                # the dashboard flips purchase for display, so undo that here
                 display = signed if jtype == "sale" else -signed
                 self.assertEqual(
                     self._sums(journal)[1],
@@ -778,10 +764,6 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
                 )
 
     def test_the_negative_residual_set_is_the_outbound_set(self):
-        """The dashboard signs amount_residual from get_outbound_types rather than a
-        literal, so this pins the two together: a move type added to one without the
-        other is what produced the mis-signed sum this class was written for.
-        """
         self.assertEqual(
             sorted(self.env["account.move"].get_outbound_types()),
             ["in_invoice", "in_receipt", "out_refund"],
@@ -790,12 +772,6 @@ class TestAccountJournalDashboardSigns(TestAccountJournalDashboardCommon):
 
 @tagged("post_install", "-at_install")
 class TestAccountJournalToCheckValue(TestAccountJournalDashboardCommon):
-    """number_to_check counts documents queued for review and to_check_balance is what
-    that queue is worth. The two must be drawn from the same population: a residual is
-    0 on a paid invoice and on every misc entry, so it counts documents it cannot
-    value.
-    """
-
     def setUp(self):
         super().setUp()
         self.journal = self.env["account.journal"].create(
@@ -908,10 +884,6 @@ class TestAccountJournalToCheckValue(TestAccountJournalDashboardCommon):
 
 @tagged("post_install", "-at_install")
 class TestAccountJournalEntryPresence(TestAccountJournalDashboardCommon):
-    """has_entries and has_posted_entries drive whether the kanban card renders its
-    empty-journal helper at all, and nothing else asserted them.
-    """
-
     def _journal(self, code):
         return self.env["account.journal"].create(
             {
@@ -950,7 +922,6 @@ class TestAccountJournalEntryPresence(TestAccountJournalDashboardCommon):
         self._invoice(drafted)
         self._invoice(posted).action_post()
 
-        # one recordset, so a batching mistake shows up as a crossed answer
         (empty + drafted + posted).invalidate_recordset()
         self.assertEqual(
             [(j.has_entries, j.has_posted_entries) for j in (empty, drafted, posted)],

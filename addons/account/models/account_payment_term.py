@@ -464,8 +464,6 @@ class AccountPaymentTermLine(models.Model):
     ):
         self.check_singleton()
         if self.value == "fixed":
-            # with nothing to allocate there is no rate, and a fixed amount would
-            # otherwise be booked against a total that does not exist
             if not rate:
                 return 0.0, 0.0
             return (

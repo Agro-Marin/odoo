@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
- <!-- Add "secured" indicator to the posted state -->
 
  <t t-name="account.MoveStatusBarSecuredField.ItemLabel">
  <span t-esc="item.label" />

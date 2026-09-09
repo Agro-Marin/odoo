@@ -14,8 +14,6 @@ class _FakeAccount:
 
 @tagged("post_install", "-at_install")
 class TestFiscalCountryGroupCodes(common.TransactionCase):
-    """A Json field reads an empty list back as False, so this one never is."""
-
     def test_a_company_without_a_fiscal_country_still_yields_a_list(self):
         company = self.env["res.company"].create({"name": "No Fiscal Country Co"})
         self.assertFalse(company.account_fiscal_country_id)
@@ -31,7 +29,6 @@ class TestFiscalCountryGroupCodes(common.TransactionCase):
         company = self.env["res.company"].create({"name": "No Fiscal Country Co 2"})
         partner = self.env["res.partner"].create({"name": "Scoped"})
         scoped = partner.with_context(allowed_company_ids=[company.id])
-        # this is the read that raised "'bool' object is not iterable"
         self.assertIsInstance(scoped.fiscal_country_group_codes, list)
 
     def test_a_company_with_a_fiscal_country_reports_its_groups(self):
@@ -335,9 +332,6 @@ class TestResCompanyCategoryDefaults(common.TransactionCase):
                 ]
             )
         )
-        # Not an exhaustive list: `stock_account` and its dependants seed further
-        # product.category defaults on company creation, so asserting the whole
-        # set makes this test a function of which modules happen to be installed.
         self.assertEqual(
             sorted(category_defaults.field_id.mapped("name")),
             [

@@ -211,13 +211,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             )
 
     def test_payment_date_equality_means_due_by(self):
-        # `=` on payment_date is "due by", not "due on" -- account payment runs ask
-        # for the items payable as of a date. The consequence, which is what this
-        # pins, is that `!=` is the complement of `<=` and so means `>`: a line due
-        # EARLIER than the value is excluded. Both halves are measured here because
-        # the negative one is emergent -- _search_payment_date returns NotImplemented
-        # and the domain layer negates the positive search -- and would change
-        # silently if that negation ever did.
         journal = self.company_data["default_journal_misc"]
         debit_account = self.company_data["default_account_expense"]
         credit_account = self.company_data["default_account_revenue"]
@@ -329,18 +322,9 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         )
 
     def test_every_computed_line_field_declares_dependencies(self):
-        # The generalisation of the parent_id assertion above. A compute whose
-        # declared set is empty is never invalidated, so it answers with whatever
-        # it computed first -- the failure mode that left discount_allocation_needed
-        # frozen when its @api.depends was moved onto a helper that is no field's
-        # compute. Each exemption below is a compute that is deliberately driven by
-        # something other than a dependency; anything else must declare one.
         deliberately_undeclared = {
-            # precompute + _conditional_add_to_compute drive these two; depending on
-            # move_id.partner_id would fight _inverse_partner_id.
             "account_id",
             "partner_id",
-            # mixin computes with no dependency of their own.
             "analytic_coverage",
             "move_attachment_ids",
         }
@@ -359,11 +343,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             "never invalidated; add the dependency, or add the field here with the "
             "reason it does not need one",
         )
-        # The two halves are asserted separately because half the exemptions name
-        # fields another module adds. Comparing the sets whole made the verdict a
-        # function of the addons path: with enterprise absent, analytic_coverage and
-        # move_attachment_ids are in no registry, and the gate failed for naming
-        # fields it could not see rather than for anything about this module.
         self.assertFalse(
             (deliberately_undeclared & set(model._fields)) - undeclared,
             "this exemption is no longer needed: the field declares a dependency "
@@ -420,10 +399,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         )
 
     def test_price_subtotal_follows_amount_currency_on_an_entry(self):
-        # On an entry, _prepare_product_base_line_for_taxes_computation reads
-        # amount_currency in place of price_unit, so price_subtotal is a function of
-        # it. price_subtotal is stored: an undeclared dependency here persists the
-        # stale figure to the column, it does not merely stale the cache.
         journal = self.company_data["default_journal_misc"]
         debit_account = self.company_data["default_account_expense"]
         credit_account = self.company_data["default_account_revenue"]
@@ -649,15 +624,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
             )
 
     def _parse_method_source(self, method):
-        # inspect.getsource takes its line span from the IMPORTED code object and
-        # re-reads those lines from disk, so an edit to account_move_line.py while
-        # this server is up hands back a block starting mid-statement. What that
-        # produces downstream names neither the file nor the reason -- a TypeError
-        # out of ast.get_docstring, a StopIteration out of a node search -- so the
-        # shape is checked here, once, for every test that introspects source.
-        # A shifted block fails two different ways depending on where it lands --
-        # it may not parse at all, or it may parse into something that is not a
-        # def -- so both are caught, not just the second.
         try:
             tree = ast.parse(textwrap.dedent(inspect.getsource(method)))
         except SyntaxError:
@@ -744,9 +710,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         )
 
     def test_partial_amounts_at_par_clamps_to_what_is_left(self):
-        # Extracted arithmetic, called directly: at par the partial in each foreign
-        # currency is the rate applied to the reconciliation amount, but never more
-        # than the side actually still has outstanding.
         company_currency = self.company_data["currency"]
         foreign = self.setup_other_currency("EUR", rates=[("2024-01-01", 0.5)])
         context = {
@@ -775,8 +738,6 @@ class TestMarinAccountMoveLineFixes(AccountTestInvoicingCommon):
         )
 
     def test_partial_amounts_at_par_ignores_rates_in_exchange_line_mode(self):
-        # exchange_line_mode says the only thing left between the two lines is the
-        # exchange difference, so neither rate may be applied a second time.
         company_currency = self.company_data["currency"]
         foreign = self.setup_other_currency("EUR", rates=[("2024-01-01", 0.5)])
         context = {

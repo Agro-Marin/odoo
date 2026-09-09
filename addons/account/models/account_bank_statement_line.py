@@ -24,8 +24,6 @@ _RUNNING_BALANCE_TRIGGERS = frozenset(
     {"amount", "date", "sequence", "journal_id", "statement_id", "state"}
 )
 
-# Changing what a transaction is worth invalidates the entries built from it;
-# changing what it is called does not.
 _AMOUNT_SYNCED_FIELDS = frozenset(
     {"amount", "amount_currency", "foreign_currency_id", "currency_id"}
 )
@@ -163,10 +161,6 @@ class AccountBankStatementLine(models.Model):
         "(journal_id, company_id, internal_index) WHERE statement_id IS NULL"
     )
     _main_idx = models.Index("(journal_id, company_id, internal_index)")
-    # journal_id and company_id are _inherits-delegated to account.move, so an ORM
-    # domain on them lands on the joined move and never on the local columns: the
-    # three indexes above serve only the raw SQL in _compute_running_balance. A
-    # search ordered by _order has nothing to walk without this one.
     _internal_index_idx = models.Index("(internal_index)")
 
     @api.depends("foreign_currency_id", "date", "amount", "company_id", "currency_id")
@@ -183,11 +177,6 @@ class AccountBankStatementLine(models.Model):
                 )
 
     def _is_amount_currency_unset(self):
-        # An importer supplies the bank's own instructed amount, which no rate table
-        # can reproduce; the ORM forgets that a stored compute was written by hand as
-        # soon as a dependency moves, so refusing to overwrite a recorded value is the
-        # only thing keeping it. Zero therefore means "not recorded yet", and is the
-        # gesture that asks for a fresh conversion.
         return not self.amount_currency
 
     @api.depends("journal_id.currency_id", "company_id.currency_id")
@@ -246,10 +235,6 @@ class AccountBankStatementLine(models.Model):
         )
         anchor_index, balance = self.env.cr.fetchone() or (None, 0.0)
 
-        # Everything before the window collapses into one number: the statement that
-        # anchors it is the last one that can reset the balance, so no row in between
-        # has to reach Python. Without an anchor there is no statement at all before
-        # the window, and the sum runs from the start of the journal.
         self.env.cr.execute(
             SQL(
                 """
@@ -492,11 +477,6 @@ class AccountBankStatementLine(models.Model):
 
     @api.model
     def _invalidate_running_balance(self):
-        # running_balance is a projection over every earlier line of the journal, so
-        # no @api.depends can express it and the ORM never drops it on its own. One
-        # amount moves every balance after it: the whole field goes, not a recordset.
-        # account.bank.statement calls this too -- the projection reads its
-        # balance_start and first_line_index, which move without touching a line.
         self.env["account.bank.statement.line"].invalidate_model(["running_balance"])
 
     @api.model
@@ -510,10 +490,6 @@ class AccountBankStatementLine(models.Model):
         limit=None,
         order=None,
     ) -> list[dict]:
-        # Each group's balance is the one its last line carries, and _order makes that
-        # the greatest internal_index. Asking for the maxima as one more aggregate puts
-        # them in the rows already being built, so the anchors cost a single search
-        # instead of one per group, and need no matching back to their group.
         borrow_anchor = self._shows_running_balance(groupby) and (
             _ANCHOR_AGGREGATE not in aggregates
         )
@@ -892,10 +868,6 @@ class AccountBankStatementLine(models.Model):
             move_vals["partner_id"] = self.partner_id.id
 
         if not rebuild:
-            # Renaming a transaction, or naming its partner, says nothing about the
-            # entries it was matched against — only its amounts do. Rebuilding here
-            # would drop the counterparts, and the ledger refuses to delete a posted
-            # journal item, so every reconciled line used to fail this write.
             common_vals = self._prepare_move_line_common_vals()
             move_vals["line_ids"] = [
                 Command.update(

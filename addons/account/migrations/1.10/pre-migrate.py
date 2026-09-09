@@ -1,13 +1,5 @@
 from odoo.db import schema
 
-# `is_reconciled` and `is_matched` said nothing about which side they described:
-# one is the counterpart matched against invoices, the other the liquidity line
-# matched against a bank statement. Both now say so.
-#
-# Every statement below is scoped to `account.payment`. `is_reconciled` is also a
-# field of `account.bank.statement.line` -- where it means a third thing again --
-# and `is_matched` one of `remote.call.recording`; an unscoped rewrite would take
-# those with it.
 MODEL = "account.payment"
 
 RENAMES = (
@@ -45,8 +37,6 @@ def migrate(cr, version):
             (f"field_account_payment__{new}", f"field_account_payment__{old}"),
         )
 
-        # A view of another model reaches these through a payment-side path, so
-        # take the dotted forms too rather than only `model = account.payment`.
         cr.execute(
             f"""
             UPDATE ir_ui_view
@@ -81,9 +71,6 @@ def migrate(cr, version):
             """,
             (MODEL,),
         )
-        # `ir.actions.server` stores Python in a database column, and the UI edits
-        # it, so the shipped data files are only the half a grep can see.
-        # Scope it to actions bound to the payment.
         cr.execute(
             f"""
             UPDATE ir_act_server a

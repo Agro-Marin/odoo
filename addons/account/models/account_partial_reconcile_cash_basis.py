@@ -280,8 +280,6 @@ class AccountPartialReconcile(models.Model):
         )
         if caba_treatment != "tax":
             return amount_currency
-        # The last partial of a fully paid move absorbs the rounding drift the
-        # per-partial percentages leave on the transition account.
         if (
             move_values["is_fully_paid"]
             or line.currency_id.compare_amounts(
@@ -473,8 +471,6 @@ class AccountPartialReconcile(models.Model):
     def _has_outdated_draft_caba_move_vals(self, collected_per_move=None):
         self.check_singleton()
         stored = self.draft_caba_move_vals
-        # Rows written before this field held a JSON object carry the serialized
-        # string; decoding them keeps the comparison structural instead of textual.
         if isinstance(stored, str):
             stored = json.loads(stored)
         return self._get_draft_caba_move_vals(collected_per_move) != stored

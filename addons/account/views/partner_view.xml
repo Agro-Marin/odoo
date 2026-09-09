@@ -205,9 +205,7 @@
             </div>
 
             <field name="vat" position="before">
-                <field name="partner_vat_placeholder" invisible="1"/> <!-- Read by the
-                placeholder_field option on vat -->
-            </field>
+                <field name="partner_vat_placeholder" invisible="1" />            </field>
             <field name="vat" position="attributes">
                 <attribute name="options">{'placeholder_field': 'partner_vat_placeholder'}</attribute>
             </field>
@@ -227,18 +225,12 @@
         </field>
     </record>
 
-    <!-- Partners Extension -->
     <record id="view_partner_property_form" model="ir.ui.view">
         <field name="name">res.partner.property.form.inherit</field>
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="priority">2</field>
         <field name="arch" type="xml">
-            <!-- Scoped to `group[@name='misc']`, not a bare `//field[@name='company_id']`:
-                `base.view_partner_form` has a second, unrelated `company_id` node nested
-                inside `child_ids`'s own subview (contact_internal group), which sorts
-                first in document order and would otherwise silently absorb this field
-                into the wrong scope (t24923 EO9.18.7). -->
             <xpath
                 expr="//group[@name='misc']/field[@name='company_id']"
                 position="after">

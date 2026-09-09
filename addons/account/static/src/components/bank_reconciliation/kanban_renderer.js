@@ -31,9 +31,6 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
         this.orm = useService("orm");
         this.ui = useService("ui");
         this.bankReconciliation = useBankReconciliation();
-        // Hydrate the persisted chatter-visibility flag now that the
-        // renderer is mounting. The service defers this read so it does
-        // not pollute storage I/O steps in unrelated core tests.
         this.bankReconciliation.hydrateChatterState();
         this.globalState = useState({
             resModel: this.env.model.config.resModel,
@@ -74,10 +71,8 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
     }
 
     /**
-     * Prepare the initial bank reconciliation widget info on load or when records changes
-     *
-     * @param {Array<Object>} records - Bank statement line records
-     * @returns {Promise<void>} Resolves when all computations are done
+     * @param {Array<Object>} records
+     * @returns {Promise<void>}
      */
     async prepareInitialState(records) {
         await Promise.all([
@@ -96,18 +91,11 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
         this.bankReconciliation.selectStatementLine(statementLine);
     }
 
-    /**
-        Override.
-    **/
     cancelQuickCreate() {
         this.globalState.quickCreate.isVisible = false;
     }
 
-    /**
-        Override.
-    **/
     async validateQuickCreate(recordId, mode) {
-        // When adding a record, some information needs to be recomputed
         await this.bankReconciliation.updateAvailableReconcileModels(recordId);
         await this.env.model.load();
         await this.getJournalTotalAmount();
@@ -131,7 +119,6 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
         return value;
     }
 
-    // ACTION METHODS
     async actionOpenBankGL() {
         const actionData = await this.orm.call(
             "account.journal",
@@ -159,15 +146,12 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
         this.action.doAction(action);
     }
 
-    // GETTER METHODS
-
     get quickCreateContext() {
         return {
             ...this.globalState.context,
         };
     }
 
-    // TODO: remove in master
     get hideCurrentBalance() {
         return false;
     }
@@ -180,22 +164,16 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
         return _t("Current Balance");
     }
 
-    // hide no content helper if quick create is visible and there is no data either isGrouped or not
     get showNoContentHelper() {
         return !this.isQuickCreateVisible && !this.props.list.model.hasData();
     }
 
-    /**
-    Prepares a list of statements based on the statement_id of the bank statement line records.
-    Statements are only displayed above the first line of the statement (all lines might not be visible in the kanban)
-    **/
     get statementGroups() {
         const statementGroups = {};
         let lastStatementId = null;
         for (const record of this.env.model.root.records) {
             const statementId = record.data.statement_id?.id;
             if (statementId && statementId !== lastStatementId) {
-                // Add the statement group information to the statementGroups object
                 statementGroups[record.data.id] = {
                     statementId: statementId,
                     name: record.data.statement_name,

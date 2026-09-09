@@ -7,9 +7,6 @@ def migrate(cr, version):
     if not version:
         return
 
-    # allowed_account_ids became enforced in this version. Existing posted items are
-    # never re-validated, so an upgrade cannot fail here -- but the next write to one
-    # of these journals will, and the operator is better told now than then.
     cr.execute(
         """
         SELECT j.id, j.code, count(DISTINCT aml.account_id)

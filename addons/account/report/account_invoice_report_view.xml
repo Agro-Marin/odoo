@@ -57,7 +57,6 @@
         </field>
     </record>
 
-    <!-- Custom reports (aka filters) -->
     <record id="filter_invoice_report_salespersons" model="ir.filters">
         <field name="name">By Salespersons</field>
         <field name="model_id">account.invoice.report</field>

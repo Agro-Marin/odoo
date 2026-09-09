@@ -3,21 +3,6 @@ from odoo.tools import SQL, Query
 
 
 def _sql_affecting_base_tax_ids(alias: SQL, line_id: SQL) -> SQL:
-    """
-    This table builds a reference table based on the tax_ids field, with the following changes:
-      - flatten the group of taxes
-      - exclude the taxes having 'is_base_affected' set to False.
-    Those allow to match only base_line_1 when finding the base lines of tax_line_1, as we need to find
-    base lines having a 'affecting_base_tax_ids' ending with [10_affect_base, 20], not only containing
-    '10_affect_base'. Otherwise, base_line_2/3 would also be matched.
-    In our example, as all the taxes are set to be affected by previous ones affecting the base, the
-    result is similar to the table 'account_move_line_account_tax_rel':
-    Id                 Tax_ids
-    -------------------------------------------
-    base_line_1        [10_affect_base, 20]
-    base_line_2        [10_affect_base, 5]
-    base_line_3        [10_affect_base, 5]
-    """
     return SQL(
         """
         LEFT JOIN LATERAL (
@@ -42,8 +27,6 @@ def _sql_affecting_base_tax_ids(alias: SQL, line_id: SQL) -> SQL:
 
 
 def _sql_taxable_base(sign_of: SQL, amount: SQL) -> SQL:
-    # a fixed-amount tax is spread over quantity, not over the base; the sign comes from the
-    # base LINE even where the summed amount is a dispatched share of it
     return SQL(
         """CASE WHEN tax.amount_type = 'fixed'
             THEN CASE WHEN %(sign_of)s < 0 THEN -1 ELSE 1 END * ABS(COALESCE(base_line.quantity, 1.0))
@@ -85,12 +68,6 @@ def _sql_prorata_share(
 
 
 def _sql_dispatched_amount(share: SQL, partition: SQL, order: SQL) -> SQL:
-    """Dispatch the last cents: each row takes the delta of the rounded cumulated prorata.
-
-    ``order`` must be a total order over the partition — the same one the cumulated sum was
-    built with. Ties there leave the LAG picking an arbitrary peer, which both misallocates
-    the rows and breaks the telescoping that makes them add up to ``total_amount``.
-    """
     return SQL(
         "%(share)s - LAG(%(share)s, 1, 0.0) OVER (PARTITION BY %(partition)s ORDER BY %(order)s)",
         share=share,
@@ -522,8 +499,6 @@ class AccountMoveLine(models.Model):
     def _get_sql_tax_amount_affecting_base_to_dispatch(
         self, table_references: SQL, search_condition: SQL
     ) -> SQL:
-        # Both dispatch steps walk their rows in the same total order they
-        # accumulated them in.
         partition = SQL("tax_line.id, account_move_line.id")
         order = SQL("tax_line.tax_line_id, base_line.id")
         return SQL(

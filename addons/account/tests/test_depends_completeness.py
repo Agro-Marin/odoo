@@ -1,10 +1,3 @@
-"""`account`'s computed fields must declare what they read.
-
-Both fields here went stale for the rest of the transaction that changed their
-input, and neither was visible to `depends_audit`: it examines only computes
-that declare nothing, and both declared something.
-"""
-
 from odoo.tests import tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon

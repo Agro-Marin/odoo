@@ -85,12 +85,6 @@ class TestFiscalPosition(common.TransactionCase):
         assert_fp(self.george, self.be_nat, "Forced position has max precedence")
 
     def _create_tax_group_for_company(self, country):
-        """A tax cannot be created without one.
-
-        `account.tax.tax_group_id` is required and precomputed, and its compute
-        searches the company's groups: with none, the precompute finds nothing
-        and the insert fails on the NOT NULL column instead of saying so.
-        """
         self.env.company.country_id = country
         return self.env["account.tax.group"].create(
             {
@@ -133,13 +127,6 @@ class TestFiscalPosition(common.TransactionCase):
         self.assertEqual(mapped_taxes, self.dst1_tax | self.dst2_tax)
 
     def test_map_tax_and_account_from_an_onchange_record(self):
-        """`tax_map` and `account_map` are keyed by database ids.
-
-        An onchange evaluates against NewId-wrapped records, so keying the
-        lookup on `record.id` misses every entry and silently returns the
-        *unmapped* tax or account -- a line priced in a form is then priced
-        without its fiscal position.
-        """
         self._create_tax_group_for_company(self.us)
         src_tax = self.env["account.tax"].create({"name": "SRC-NEW", "amount": 7.0})
         fpos = self.fp.create({"name": "FP-NEWID"})

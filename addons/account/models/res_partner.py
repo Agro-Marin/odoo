@@ -23,11 +23,6 @@ SEARCH_MODE_RANK_FIELDS = {
     "supplier": "supplier_rank",
 }
 
-#: A partner with no receivable/payable line at all still *displays* a balance of
-#: 0.0, so the search has to answer for those rows too. The comparison decides
-#: whether 0.0 is a match; the negation turns "partners that match" into
-#: "partners that do not", which is the only form that can reach a partner the
-#: aggregate never groups.
 ASSET_DIFFERENCE_COMPARISONS = {
     "<": lambda balance, operand: balance < operand,
     "<=": lambda balance, operand: balance <= operand,
@@ -446,9 +441,6 @@ class ResPartner(models.Model):
             )
 
     def _compute_available_invoice_template_pdf_report_ids(self):
-        # Assigning the recordset to `self` as a whole loses every record but the
-        # last: a computed One2many resolves the write per record against a single
-        # command list. The loop is not redundant.
         reports = self.env[
             "account.move"
         ]._get_available_invoice_template_pdf_report_ids()

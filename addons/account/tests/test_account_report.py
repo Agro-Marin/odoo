@@ -208,10 +208,6 @@ class TestAccountReport(AccountTestInvoicingCommon):
         self.assertFalse(column.exists())
 
     def test_writing_one_option_filter_with_the_root_keeps_the_others_inherited(self):
-        # Option filters must keep one compute each. Fields sharing a compute form one
-        # group in registry.field_computed, and write() protects the whole group as soon
-        # as any one member is in vals -- so this write, which is what a module update
-        # replays from a variant's XML, would resolve every other filter to False.
         root = self._create_report(
             "Inherit Root", filter_partner=True, filter_journals=True
         )
@@ -301,15 +297,10 @@ class TestAccountReport(AccountTestInvoicingCommon):
         )
 
     def test_refused_report_deletion_keeps_its_lines(self):
-        # ondelete methods run in alphabetical order, so the hook that unlinks the
-        # child lines must not be a separate method sorting before the variant guard.
         root = self._create_report("Guarded Root")
         line = self._create_line(root, "kept", "account_codes", "400", code="KEEPME")
         self._create_report("Guarded Variant", root_report_id=root.id)
 
-        # Not self.assertRaises: it opens a savepoint (tests/common.py::_assertRaises),
-        # which rolls back whatever the refused unlink had already written and would
-        # make the assertions below pass no matter what.
         try:
             root.unlink()
         except UserError:
@@ -477,7 +468,7 @@ class TestAccountReport(AccountTestInvoicingCommon):
             ]
         )
         report.flush_recordset()
-        report.copy()  # warm
+        report.copy()
 
         with self.assertQueryCount(default=10, accountman=10):
             copied = report.copy()
@@ -604,10 +595,6 @@ class TestAccountReport(AccountTestInvoicingCommon):
             middle.section_report_ids = leaf
 
     def test_grouping_a_line_that_already_has_children_stays_allowed(self):
-        # The constraint message reads as if this were forbidden, and guarding it
-        # refuses seven subtests of account_reports' test_all_reports_generation,
-        # which sets user_groupby on Bank Reconciliation lines that have children.
-        # Only the other direction -- a child under a grouped line -- is enforced.
         report = self._create_report("Groupby Late")
         parent = self._create_line(report, "parent", "account_codes", "400")
         self._create_line(
@@ -627,10 +614,6 @@ class TestAccountReport(AccountTestInvoicingCommon):
             )
 
     def test_renumbering_a_report_is_not_refused_for_a_half_applied_state(self):
-        # The report builder saves a drag as one Command.update per line, applied one
-        # line write at a time. A per-line ordering check sees the parent already
-        # moved and the child not yet, and refuses an ordering that is legal once the
-        # write finishes. This is what keeps the check on line_ids.
         report = self._create_report("Reseq Legal")
         parent = self._create_line(report, "parent", "account_codes", "400", sequence=1)
         child = self._create_line(
@@ -679,9 +662,6 @@ class TestAccountReport(AccountTestInvoicingCommon):
         )
 
     def test_copying_a_report_whose_lines_were_built_by_a_shortcut(self):
-        # copy_data used to pick the non-stored shortcut fields up out of the cache,
-        # so the copied line re-ran the inverse and _copy_hierarchy then created a
-        # second balance expression on it. Warm and cold cache have to agree.
         report = self._create_report(
             "Shortcut Copy", country_id=self.env.ref("base.us").id
         )
@@ -709,9 +689,6 @@ class TestAccountReport(AccountTestInvoicingCommon):
         )
 
     def test_the_ordering_check_reads_the_sequences_just_written(self):
-        # line_ids is served from cache in the order it was loaded, so the check has
-        # to re-sort on the written values -- an unsorted walk lets a child that now
-        # precedes its parent through.
         report = self._create_report("Order Cache")
         parent = self._create_line(report, "parent", "account_codes", "400", sequence=1)
         child = self._create_line(
@@ -735,7 +712,7 @@ class TestAccountReport(AccountTestInvoicingCommon):
                 sequence=index,
             )
         report.flush_recordset()
-        report.copy()  # warm
+        report.copy()
 
         with self.assertQueryCount(default=6, accountman=6):
             copied = report.copy()

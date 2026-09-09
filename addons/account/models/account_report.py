@@ -443,9 +443,6 @@ class AccountReport(models.Model):
 
         tags_to_move = tag_model.browse()
         for tag in source_tags:
-            # Moving a tag whose name already exists in the destination country would
-            # violate account_account_tag_name_src_uniq; moving one that a report
-            # staying behind still points at would take the tag away from that report.
             users = reports_by_tag[(tag.name, tag.country_id.id)]
             if tag.name not in destination_names and users <= moving_reports:
                 tags_to_move += tag
@@ -483,11 +480,6 @@ class AccountReport(models.Model):
     def _unlink_if_no_variant(self):
         if self.variant_report_ids:
             raise UserError(_("You can't delete a report that has variants."))
-        # Same hook as the guard above on purpose. ondelete methods are collected
-        # with inspect.getmembers, so they run in alphabetical order of their name:
-        # a separate hook would destroy these lines before the guard refused the
-        # delete. The lines have to go through the ORM because the database cascade
-        # on report_id bypasses their own ondelete and leaves their tax tags behind.
         self.line_ids.unlink()
 
     def _get_copied_name(self):

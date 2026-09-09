@@ -647,8 +647,6 @@ class AccountJournal(models.Model):
             )
 
     def _get_draft_sales_purchases_rows(self):
-        # both amount columns are own-direction positive here, unlike the
-        # residual-based aggregation below which is receivable-positive
         select = [
             "account_move.journal_id",
             (
@@ -851,9 +849,6 @@ class AccountJournal(models.Model):
         ]
 
     def _get_to_check_aggregation_selects(self):
-        # a review queue is measured by what the documents are worth, not by what is
-        # still owed on them: amount_residual_signed is 0 on a paid invoice and on
-        # every misc entry, so a residual here counts documents it cannot value
         return [
             SQL("journal_id"),
             SQL("company_id"),
@@ -866,9 +861,6 @@ class AccountJournal(models.Model):
                 self.env["account.move"].get_outbound_types(),
             ),
             SQL("COUNT(*)"),
-            # deliberately not _get_to_pay_select: an unreviewed document needs review
-            # whether or not it is releasable to pay, so account_3way_match's gate on
-            # release_to_pay must not narrow this one
             SQL("TRUE AS to_pay"),
         ]
 

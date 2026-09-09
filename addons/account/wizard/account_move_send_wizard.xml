@@ -9,7 +9,6 @@
                 <field name="move_id" invisible="1" />
                 <field name="attachments_not_supported" invisible="1" />
 
-                <!-- Warnings -->
                 <div class="m-0" id="alerts" invisible="not alerts">
                     <field
                         name="alerts"
@@ -17,7 +16,6 @@
                         widget="actionable_errors" />
                 </div>
 
-                <!-- EDIs and Sending method -->
                 <div class="m-0" id="extra_edis">
                     <field
                         name="extra_edi_checkboxes"
@@ -26,7 +24,6 @@
                     <field name="sending_method_checkboxes" widget="json_checkboxes" />
                 </div>
 
-                <!-- PDF template -->
                 <field name="pdf_report_id" invisible="1" />
                 <group
                     invisible="not display_pdf_report_id or 'email' in sending_methods">
@@ -35,7 +32,6 @@
                         options="{'no_create': True, 'no_edit': True}" />
                 </group>
 
-                <!-- Mail composer -->
                 <div invisible="'email' not in sending_methods">
                     <field name="model" invisible="1" />
                     <field name="res_ids" invisible="1" />

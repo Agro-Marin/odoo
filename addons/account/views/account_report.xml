@@ -52,7 +52,6 @@
             <field name="binding_model_id" ref="model_account_payment" />
             <field name="binding_type">report</field>
         </record>
-        <!-- A4 with a larger top margin (52 vs 30) to fit the statement header -->
         <record id="paperformat_euro_bank_statement" model="report.paperformat">
             <field name="name">A4 - statement</field>
             <field name="format">A4</field>

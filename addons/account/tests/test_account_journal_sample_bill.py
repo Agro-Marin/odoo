@@ -8,15 +8,9 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("post_install", "-at_install")
 class TestAccountJournalSampleBill(AccountTestInvoicingCommon):
-    """The sample vendor bill is offered by the bill-upload guide and clicked by
-    account_accountant's onboarding tour, and no Python test reached it.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # the action refuses to run outside demo mode; bind the xmlid it looks for
-        # so these assertions do not depend on how the database was seeded
         if not cls.env.ref("base.res_partner_2", raise_if_not_found=False):
             partner = cls.env["res.partner"].create({"name": "Sample Vendor"})
             cls.env["ir.model.data"].create(
@@ -46,10 +40,6 @@ class TestAccountJournalSampleBill(AccountTestInvoicingCommon):
         self.assertEqual(bill.ref, "DE%s" % bill.invoice_date.strftime("%Y%m"))
 
     def test_no_weasyprint_render_happens_under_test(self):
-        """The guard is the reason this action is affordable in a tour. Outside a
-        test run the same call returns one attachment, so the assertion below is a
-        statement about the guard rather than about weasyprint being unavailable.
-        """
         attachments = self._purchase_journal._render_sample_bill_attachment(
             self.env.company, "DE202601", self.env.cr.now().date()
         )

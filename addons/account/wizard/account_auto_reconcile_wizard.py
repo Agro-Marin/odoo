@@ -7,8 +7,6 @@ from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPE
 
 
 class AccountAutoReconcileWizard(models.TransientModel):
-    """Runs automatic reconciliation over a set of statement lines for a company and date range."""
-
     _name = "account.auto.reconcile.wizard"
     _description = "Account automatic reconciliation wizard"
     _check_company_auto = True

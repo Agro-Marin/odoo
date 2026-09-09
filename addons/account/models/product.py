@@ -74,9 +74,6 @@ class ProductTemplate(models.Model):
 
     def _get_product_accounts(self, fiscal_pos=None):
         self.check_singleton()
-        # Every tier resolves against `env.company`: the caller posts the result
-        # into that company's journal, and `check_company` already forbids using
-        # a company-bound product anywhere else.
         company = self.env.company
         accounts = {
             "income": (
@@ -93,9 +90,6 @@ class ProductTemplate(models.Model):
         return self._map_product_accounts(accounts, fiscal_pos)
 
     def _map_product_accounts(self, accounts, fiscal_pos):
-        # Subclasses add keys of their own, and not all of them are accounts:
-        # `stock_account` contributes a journal, which a fiscal position must
-        # not rewrite. Each contributor decides by calling this on its own keys.
         if not fiscal_pos:
             return accounts
         return {
@@ -228,10 +222,6 @@ class ProductTemplate(models.Model):
         return products
 
     def write(self, vals):
-        # A posted journal item stores its quantity in its own unit; changing the
-        # product's unit afterwards silently reinterprets every one of them. The
-        # check belongs on the transition, so a write that leaves the unit alone
-        # -- including one that rewrites the same value -- stays allowed.
         if "uom_id" in vals:
             self.filtered(
                 lambda product: product.uom_id.id != vals["uom_id"]
@@ -243,9 +233,6 @@ class ProductTemplate(models.Model):
 
     def _get_list_price(self, price):
         self.check_singleton()
-        # `taxes_id` holds every company's default sale tax on purpose (see
-        # `_force_default_tax`), so the active company's subset is the only one
-        # that may be stripped from a price quoted in that company.
         taxes = self.taxes_id._filter_taxes_by_company(self.env.company)
         if not taxes:
             return super()._get_list_price(price)
@@ -398,13 +385,6 @@ class ProductProduct(models.Model):
         return threshold
 
     def _get_name_recall_domain(self, name):
-        """Candidates worth scoring for `name`.
-
-        A `name ilike` prefilter can only return names that *contain* the
-        searched one, so it can never offer the near-miss the scoring exists to
-        catch. Trigram similarity can, and it is what the GIN index on
-        `product_template.name` is built for.
-        """
         if not self.pool.has_trigram:
             return Domain("name", "ilike", name)
 
@@ -461,9 +441,6 @@ class ProductProduct(models.Model):
         }
 
     def _get_import_product_classification_specs(self):
-        """Classification codes an inbound document may carry, contributed by
-        whichever module defines the field and its comodel.
-        """
         return []
 
     def _get_classification_record(self, spec, code):

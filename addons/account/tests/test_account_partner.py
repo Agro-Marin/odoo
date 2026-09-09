@@ -305,8 +305,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
 
         Partner = self.env["res.partner"]
         self.assertIn(partner, Partner.search([("credit", ">", 0)]))
-        # `credit = 0` compiles to `id NOT IN (<partners that owe something>)`;
-        # one NULL in that subquery makes NOT IN match nothing at all.
         for op, operand in ((">=", 0), ("=", 0), ("<=", 0)):
             self.assertTrue(
                 Partner.search([("credit", op, operand)]),
@@ -375,9 +373,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         self.assertNotIn(debtor, Partner.search([("credit", "=", 0)]))
 
     def test_credit_search_supports_the_orm_normalised_operators(self):
-        # The optimiser rewrites `= x` to `in {x}` and a numeric 0 to False; a
-        # search method that raises instead of returning NotImplemented poisons
-        # the ORM's own decomposition and the whole filter fails.
         Partner = self.env["res.partner"]
         for domain in (
             [("credit", "in", [0])],
@@ -389,9 +384,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             Partner.search(domain)
 
     def test_days_sales_outstanding_is_group_restricted_like_credit(self):
-        # It divides by `credit`; leaving it ungated turns a plain read into an
-        # AccessError naming a field the caller never asked for -- or, when the
-        # user cannot see the moves either, into a silently wrong 0.0.
         Partner = self.env["res.partner"]
         self.assertEqual(
             Partner._fields["days_sales_outstanding"].groups,
@@ -439,9 +431,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         )
 
     def test_move_counts_use_two_different_company_scopes(self):
-        # account_move_count is scoped by env.companies (account_move_comp_rule),
-        # customer_invoice_count by env.company (_check_company_domain). Neither is
-        # wrong; both must key their cache on the context they actually read.
         other = self.setup_other_company()
         accountant = new_test_user(
             self.env,
@@ -485,8 +474,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             visible.customer_invoice_count, 1, "counts only the active company"
         )
 
-        # Same env, fewer companies enabled, WITHOUT invalidating: without
-        # depends_context("allowed_company_ids") the first read is handed back.
         one = as_user(
             context=dict(as_user.context, allowed_company_ids=[self.env.company.id])
         )
@@ -528,8 +515,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         partner.with_company(self.env.company).invoice_edi_format_store = edi_format
         partner.with_company(other["company"]).invoice_edi_format_store = edi_format
 
-        # A jsonb scalar makes jsonb_each_text raise; this runs from uninstall hooks,
-        # where a crash would abort the uninstall.
         malformed = self.env["res.partner"].create({"name": "EdiMalformed"})
         self.env.flush_all()
         self.env.cr.execute(
@@ -607,9 +592,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         )
 
     def test_available_invoice_templates_survive_a_multi_record_read(self):
-        # Assigning the recordset to `self` as a whole in the compute keeps only the
-        # last record, which empties the domain of invoice_template_pdf_report_id for
-        # every other row on screen.
         self.env.ref("account.account_invoices").copy({"name": "Template variant"})
         self.env.registry.clear_cache()
         self.env.invalidate_all()
@@ -626,8 +608,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             [len(p.available_invoice_template_pdf_report_ids) for p in partners],
             [expected] * 3,
         )
-        # A single journal cannot show the fault: the lossy assignment keeps the
-        # LAST record, which is the only record. Two are required.
         self.env["account.journal"].create(
             {"name": "Second Sales", "code": "SAL2", "type": "sale"}
         )
@@ -640,10 +620,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         )
 
     def test_company_registry_placeholder_reaches_the_company(self):
-        # `base` declares res.company.company_registry_placeholder as
-        # related="partner_id.company_registry_placeholder". A field declared related
-        # in one module and compute in another resolves to the RELATED, so account's
-        # own compute never ran and the company field was False on every database.
         japan = self.env["res.country"].search([("code", "=", "JP")], limit=1)
         self.assertTrue(japan, "sanity: JP is one of the seeded reference countries")
         expected = _ref_company_registry["jp"]
@@ -662,7 +638,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             "the company reads the placeholder through base's related field",
         )
 
-        # The never-executed compute keyed on the fiscal country first; keep that.
         belgium = self.env["res.country"].search([("code", "=", "BE")], limit=1)
         company.partner_id.country_id = belgium
         company.account_fiscal_country_id = japan
@@ -674,8 +649,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         )
 
     def test_vat_placeholder_comes_from_a_seam_not_a_reverse_import(self):
-        # account_vat DEPENDS ON account, so account must not import its private
-        # _ref_vat dict; it asks through a method account_vat overrides.
         Partner = self.env["res.partner"]
         japan = self.env["res.country"].search([("code", "=", "JP")], limit=1)
         self.assertEqual(Partner._get_expected_vat_format(False), "")
@@ -693,8 +666,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             self.assertIn(expected, partner.partner_vat_placeholder)
             self.assertIn(expected, company.company_vat_placeholder)
         else:
-            # account_vat DEPENDS ON account, so `-i account` alone leaves it out.
-            # The old module-level import leaked its data anyway; the seam must not.
             self.assertEqual(expected, "")
             self.assertNotIn("7000012050002", partner.partner_vat_placeholder)
             self.assertNotIn("7000012050002", company.company_vat_placeholder)
@@ -710,10 +681,6 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             )
 
     def test_vendor_bills_button_agrees_with_what_it_opens(self):
-        # The badge counted `env.company` bills and rolled children up; the action
-        # had no company filter and filtered on the partner alone. So the number and
-        # the list disagreed twice over, and `invisible="supplier_invoice_count == 0"`
-        # hid the button entirely whenever the ACTIVE company had no bills.
         other = self.setup_other_company()
         parent = self.env["res.partner"].create({"name": "BillParent"})
         child = self.env["res.partner"].create(

@@ -73,10 +73,6 @@
                                 <span class="small fw-bold ms-1"> - <field name="company_id" /></span>
                             </t>
                         </span>
-                        <!-- alias_email is empty unless the alias has BOTH a name and a
-                            domain; alias_id's display_name falls back to the translated
-                            "Inactive Alias" placeholder, which used to render here as
-                            though it were the bill submission address. -->
                         <div
                             t-att-title="dashboard.title"
                             t-if="journal_type == 'purchase' &amp;&amp; record.alias_email.raw_value &amp;&amp; !journal_is_empty">
@@ -98,7 +94,6 @@
                             t-set="dashboard" />
                         <t t-value="record.type.raw_value" t-set="journal_type" />
                         <div class="container">
-                            <!-- For bank, cash and credit -->
                             <div
                                 t-if="journal_type == 'bank' || journal_type == 'cash' || journal_type == 'credit'"
                                 class="row"
@@ -165,7 +160,6 @@
 
                             </div>
 
-                            <!-- For purchase and sale -->
                             <div
                                 t-if="journal_type == 'purchase' || journal_type == 'sale'"
                                 class="row">
@@ -244,7 +238,6 @@
                                 </div>
                             </div>
 
-                            <!-- For general and situation -->
                             <div
                                 t-if="journal_type == 'general' || journal_type == 'situation'"
                                 class="row"
@@ -368,8 +361,6 @@
                     </t>
 
                     <t t-name="JournalBodyBankCash">
-                        <!-- Left: Bank Setup button while the journal has no bank account
-                            and no statement source, then the Transactions button -->
                         <div
                             id="dashboard_bank_cash_left"
                             class="col mb-3 mb-sm-0 o_kanban_primary_left">
@@ -382,8 +373,6 @@
                                 <button id="all_transactions_btn" type="object" name="open_action" class="btn btn-primary">Transactions</button>
                             </div>
                         </div>
-                        <!-- Right: balances, outstanding payments, misc. operations and journal
-                        checks -->
                         <div
                             id="dashboard_bank_cash_right"
                             class="col-auto"

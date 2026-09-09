@@ -1,21 +1,3 @@
-"""Collapsing per-company duplicates of one tax into a single shared record.
-
-Stage 3 let a tax carry several companies; on its own that only helps taxes
-created afterwards. This wizard is what reaches a live database, where l10n_mx
-alone has instantiated 138 taxes per company.
-
-Two guards here have no counterpart in the account merge wizard, and both are
-the discriminating cases -- a wizard that merged everything would satisfy every
-other assertion in this file:
-
-* distributions must match. Same rate, different repartition accounts or tag
-  grids, is not the same tax, and merging would silently re-point every future
-  entry onto the survivor's accounts.
-* journal items must survive. `account.move.line.tax_repartition_line_id` is
-  `ondelete="restrict"`, so a merge that does not re-point them first fails on
-  any tax that has ever posted an entry.
-"""
-
 from odoo import Command
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
@@ -33,16 +15,7 @@ class TestAccountTaxMergeWizard(AccountTestInvoicingCommon):
         cls.company_b = cls.company_data_2["company"]
         cls.country = cls.company_a.account_fiscal_country_id
         cls.company_b.account_fiscal_country_id = cls.country
-        # Merging taxes presupposes their distribution accounts are already
-        # shared -- you collapse the chart first, then the taxes that post into
-        # it. account.account has been multi-company since before this work, so
-        # widening one is the whole fixture.
         cls.shared_account = cls.company_data["default_account_revenue"].sudo()
-        # `code` is company_dependent, so a new member company needs one of its
-        # own or `_check_code_is_unique` refuses the write -- and it cannot
-        # simply reuse company A's, because company B's own chart already has
-        # that code. account.account orders code_mapping_ids ahead of
-        # company_ids for exactly this, which is why both go in one write.
         code_in_b = (
             cls.env["account.account"]
             .with_company(cls.company_b)
@@ -112,7 +85,6 @@ class TestAccountTaxMergeWizard(AccountTestInvoicingCommon):
     def _lines(self, wizard):
         return wizard.wizard_line_ids.filtered(lambda l: l.display_type == "tax")
 
-    # ------------------------------------------------------------------
     def test_merge_two_identical_taxes(self):
         tax_a = self._tax(self.company_a)
         tax_b = self._tax(self.company_b)
@@ -173,11 +145,6 @@ class TestAccountTaxMergeWizard(AccountTestInvoicingCommon):
         )
 
     def test_two_taxes_of_one_company_cannot_share_a_name(self):
-        # The wizard carries a same-company guard, but `_constrains_name` gets
-        # there first: two taxes of one company may not share the name that
-        # would put them in the same merge group. The guard stays as defence in
-        # depth for data that predates the constraint; this is what actually
-        # protects a live database.
         self._tax(self.company_a)
         with self.assertRaises(ValidationError):
             self._tax(self.company_a)
@@ -197,11 +164,6 @@ class TestAccountTaxMergeWizard(AccountTestInvoicingCommon):
     def test_taxes_with_a_different_distribution_shape_are_refused(self):
         tax_a = self._tax(self.company_a)
         tax_b = self._tax(self.company_b)
-        # Same rate, same accounts, but split across two lines instead of one.
-        # The totals still add to 100, so the model accepts it -- only the
-        # wizard's signature comparison can tell these apart.
-        # Both sides have to move together: the model requires the invoice and
-        # refund distributions to have the same number of lines.
         (
             tax_b.invoice_repartition_line_ids + tax_b.refund_repartition_line_ids
         ).filtered(lambda line: line.repartition_type == "tax").write(

@@ -68,9 +68,6 @@ class TestTaxesCountryConstraint(AccountTestInvoicingCommon):
             {
                 "name": "Foreign VAT registration",
                 "country_id": self.foreign_country.id,
-                # `account_vat` validates a fiscal position's foreign_vat through the
-                # same checksum as a partner's, so this has to be a real German
-                # number -- it is the one account_vat's own error message offers.
                 "foreign_vat": "DE123456788",
                 "company_id": self.company_data["company"].id,
             }
@@ -148,8 +145,6 @@ class TestTaxCountryIsPerRecord(AccountTestInvoicingCommon):
         self.assertEqual(at_home.tax_country_id, home_country)
 
     def test_the_order_of_the_batch_does_not_decide_the_answer(self):
-        """The failure is last-group-wins, so it hides whenever the batch is
-        ordered the convenient way round."""
         abroad = self._bill(self.foreign_position)
         at_home = self._bill()
         home_country = self.company_data["company"].account_fiscal_country_id
@@ -160,7 +155,6 @@ class TestTaxCountryIsPerRecord(AccountTestInvoicingCommon):
         self.assertEqual(at_home.tax_country_id, home_country)
 
     def test_a_single_move_is_unaffected_either_way(self):
-        """The case that masks it: one group, so nothing overwrites anything."""
         abroad = self._bill(self.foreign_position)
 
         abroad._update_tax_country_id()

@@ -18,17 +18,13 @@ export class DynamicSelectionField extends SelectionField {
         );
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get options() {
         const availableOptions = this.availableOptions;
         return super.options.filter((x) => availableOptions.includes(x[0]));
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     get string() {
         if (this.type === "selection") {
             return this.props.record.data[this.props.name] !== false

@@ -6,14 +6,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("post_install", "-at_install")
 class TestTaxesRepartitionAmounts(AccountTestInvoicingCommon):
-    """The repartition lines of a tax must add up to that tax's own amount.
-
-    Nothing asserted this before, which is how `_add_tax_repartition_amounts` came to
-    seed its two currency columns from different pipeline stages: the foreign column
-    from the raw amounts, the company column from `tax_data['tax_amount']`, whose
-    meaning flips from foreign to company currency once the rounding pass has run.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -98,14 +90,6 @@ class TestTaxesRepartitionAmounts(AccountTestInvoicingCommon):
                         )
 
     def test_repartition_lines_sum_to_the_tax_amount_when_not_rounded(self):
-        """The `rounded=False` path is what compute_all uses.
-
-        It reads the raw amounts, and the per-line figures it produces are rounded to
-        the currency, so the target is the *rounded* raw amount -- each in its own
-        currency. Seeding the company column from the foreign figure is the currency
-        mix-up this asserts against; at rate 4.0 it is wrong by a factor of four, not
-        by a cent.
-        """
         company_currency = self.env.company.currency_id
         for factors in self.FACTORS:
             tax = self._make_tax(factors)
@@ -132,11 +116,6 @@ class TestTaxesRepartitionAmounts(AccountTestInvoicingCommon):
                         )
 
     def test_single_full_repartition_line_carries_the_whole_tax(self):
-        """A lone 100% repartition line must equal the tax exactly, in both modes.
-
-        This is the argument-free form of the invariant: no distribution to reason
-        about, so any difference is a seeding error.
-        """
         tax = self._make_tax([100.0])
         company_currency = self.env.company.currency_id
         for price_unit in self.PRICES:

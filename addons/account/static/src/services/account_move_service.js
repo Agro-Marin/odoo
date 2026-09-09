@@ -37,10 +37,7 @@ export class AccountMoveService {
         await this.action.doAction(downloadAction);
     }
 
-    /**
-     * @param {{resModel: string, resId: number, context?: Object,
-     * onClose?: Function}} params
-     */
+    /** @param {{resModel: string, resId: number, context?: Object, */
     openBusinessDoc({ resModel, resId, context, onClose }) {
         return this.action.doActionButton({
             type: "object",

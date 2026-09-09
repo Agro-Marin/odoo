@@ -73,7 +73,7 @@ class AccountMoveLine extends models.Model {
     ];
 
     _views = {
-        list: /* xml */ `
+        list: `
             <list js_class="bank_rec_dialog_list" string="Account Move Line">
                 <field name="date"/>
                 <field name="name"/>
@@ -83,12 +83,12 @@ class AccountMoveLine extends models.Model {
                 <field name="currency_id"/>
             </list>
         `,
-        search: /* xml */ `
+        search: `
             <search>
                 <field name="partner_id"/>
             </search>
         `,
-        kanban: /* xml */ `
+        kanban: `
             <kanban>
                 <field name="date"/>
                 <field name="name"/>
@@ -97,7 +97,7 @@ class AccountMoveLine extends models.Model {
                 </templates>
             </kanban>
         `,
-        form: /* xml */ `
+        form: `
             <form/>
         `,
     };
@@ -113,7 +113,6 @@ class Partner extends models.Model {
     ];
 }
 
-// Due to dependency with mail module, we have to define their models for our tests.
 defineModels({ ...mailModels, AccountMoveLine, Partner });
 
 beforeEach(() => {
@@ -167,26 +166,21 @@ test("BankRecSelectCreateDialog list view single currency", async () => {
 
     expect("div[name='remaining_amount']").toHaveText("Balance: $ 100.00");
     expect("div.o_facet_values > small.o_facet_value").toHaveText("Jean Pierre");
-    // Check that we have 4 checkboxes (Select all + 3 elements)
     let checkboxes = queryAll(".form-check > .form-check-input[type='checkbox']");
     expect(checkboxes.length).toBe(4);
-    // Select an element already fetch
     await click(checkboxes[2]);
     await animationFrame();
-    // Unselect this element
     await click(checkboxes[2]);
     await animationFrame();
 
     await click("div.o_facet_values > button.o_facet_remove");
     await animationFrame();
-    // Check that we have 6 checkboxes (Select all + 5 elements)
     checkboxes = queryAll(".form-check > .form-check-input[type='checkbox']");
     expect(checkboxes.length).toBe(6);
 
     await click(checkboxes[4]);
     await animationFrame();
     await animationFrame();
-    // Check that the balance is correctly affected by the selection
     expect("div[name='remaining_amount']").toHaveText("Balance: $ 0.00");
 
     await click(checkboxes[4]);
@@ -281,7 +275,6 @@ test("BankRecSelectCreateDialog list view multi currencies", async () => {
     await animationFrame();
     expect("div[name='remaining_amount']").toHaveText("Balance: 100.00 €");
 
-    // Different currencies cannot be computed together
     await click(checkboxes[4]);
     await animationFrame();
     await animationFrame();

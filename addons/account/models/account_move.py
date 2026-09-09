@@ -7068,15 +7068,6 @@ class AccountMove(models.Model):
 
     @api.model
     def _has_full_accounting(self):
-        """Whether the Accounting app is installed.
-
-        There is no flag for it. `accountant` overrides
-        `_get_invoice_in_payment_state` to open the intermediate `in_payment`
-        state, so the value that helper returns is how the tree states which app
-        is present -- and asking it here, once and by name, is what keeps callers
-        from inferring it from a display label in whichever polarity they
-        happened to write.
-        """
         return self._get_invoice_in_payment_state() == "in_payment"
 
     def _get_name_invoice_report(self):

@@ -17,7 +17,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         return {}
 
     def _last_message_text(self, record):
-        """`preview` renders the body but truncates it; these bodies are longer."""
         body = record.message_ids[0].body
         return " ".join(tools.mail.html_to_inner_content(body).split())
 
@@ -136,7 +135,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
         self.flush_tracking()
 
-        # Both lines belong to one write, so both belong to one message.
         preview = self._last_message_text(self.company_data["default_tax_sale"])
         self.assertIn(
             "New Invoice repartition line 4: -100.0 (Factor Percent) None (Account) None (Tax Grids) False (Use in tax closing)",
@@ -187,7 +185,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
         self.flush_tracking()
 
-        # Both lines belong to one write, so both belong to one message.
         preview = self._last_message_text(self.company_data["default_tax_sale"])
         self.assertIn(
             "Invoice repartition line 3: 0.0 -100.0 (Factor Percent) None ['TaxTag12345'] (Tax Grids)",
@@ -224,7 +221,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
         self.flush_tracking()
 
-        # Both lines belong to one write, so both belong to one message.
         preview = self._last_message_text(self.company_data["default_tax_sale"])
         self.assertIn("Invoice repartition line 1: 100.0 0.0 (Factor Percent)", preview)
         self.assertIn(
@@ -254,7 +250,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         )
         self.flush_tracking()
 
-        # Both lines belong to one write, so both belong to one message.
         preview = self._last_message_text(self.company_data["default_tax_sale"])
         self.assertIn(
             "Removed Invoice repartition line 3: 0.0 (Factor Percent) None (Account) None (Tax Grids) False (Use in tax closing)",
@@ -474,7 +469,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
             "{('invoice', 1): {'factor_percent': 100.0, 'account': 'X', "
             "'tax_grids': None, 'use_in_tax_closing': True}}"
         )
-        # A snapshot written under another language must not break the diff.
         tax._prepare_repartition_lines_log_body(old_translated, new_neutral)
 
         old_neutral = (
@@ -488,12 +482,6 @@ class TestAccountTax(AccountTestInvoicingCommon):
         self.assertIn("Use in tax closing", body)
 
     def test_one_write_logs_one_message(self):
-        """Repartition-line changes used to post a message each, mid-loop.
-
-        Odoo's convention is one message per write: two ordinary tracked fields
-        produce one, and so must a tracked field changed alongside a repartition
-        line.
-        """
         self.set_up_and_use_tax()
         tax = self.company_data["default_tax_sale"]
         rep_line = tax.invoice_repartition_line_ids.filtered(

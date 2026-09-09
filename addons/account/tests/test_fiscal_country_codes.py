@@ -5,20 +5,10 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("post_install", "-at_install")
 class TestFiscalCountryCodes(AccountTestInvoicingCommon):
-    """`fiscal_country_codes` drives `invisible=` expressions in localisation
-    views, so every model exposing it has to answer for the companies that are
-    active right now.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.other_company = cls.setup_other_company(name="Fiscal Codes Co")["company"]
-        # Creating the company IN another country would demand that country's
-        # localisation module, and `AccountTestInvoicingCommon` skips the whole
-        # class when it is absent -- silently, since a skipped setUpClass reports
-        # as a pass. Only the fiscal country matters here, so it is written
-        # directly.
         cls.other_company.account_fiscal_country_id = cls.quick_ref("base.be")
         cls.both_companies = cls.env.company | cls.other_company
 
@@ -69,10 +59,6 @@ class TestFiscalCountryCodes(AccountTestInvoicingCommon):
                 )
 
     def test_a_company_bound_record_answers_for_its_own_company(self):
-        # Not a partner: `res.partner` also appends its own `country_code`, which
-        # a new partner inherits from the company creating it, so the answer is
-        # legitimately two codes there. `account.payment.term` carries a
-        # `company_id` and nothing else.
         term = self.env["account.payment.term"].create(
             {
                 "name": "ZZ Bound",
@@ -113,15 +99,7 @@ class TestFiscalCountryCodes(AccountTestInvoicingCommon):
             partner.fiscal_country_codes,
         )
 
-    # A `related` is a legitimate way to expose the field: it forwards another
-    # model's answer rather than recomputing it. The one model that names the
-    # field for something else is listed, not silently tolerated.
     _NOT_THE_ACTIVE_COMPANIES_ANSWER = {
-        # related="company_country_id.code": this fiscal position's own company's
-        # country, a single code, not the active companies' set. The four
-        # localisation views that read it here want exactly that, so it is left
-        # alone -- but the shared name means the same expression says two things
-        # depending on which form it sits on.
         "account.fiscal.position",
     }
 
@@ -138,11 +116,6 @@ class TestFiscalCountryCodes(AccountTestInvoicingCommon):
         )
 
     def test_no_model_recomputes_fiscal_country_codes_on_its_own(self):
-        """The field was defined five times in `account` alone and four more in
-        localisations, one of them as a `default=` on an unstored field, which
-        does not re-evaluate when the active companies change. Every definition
-        now comes from the mixin or forwards one that does.
-        """
         offenders = []
         for name in sorted(self.env.registry.models):
             model = self.env[name]

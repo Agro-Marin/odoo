@@ -15,10 +15,6 @@ export class BankRecKanbanController extends KanbanController {
         super.setup();
         this.orm = useService("orm");
         this.bankReconciliation = useBankReconciliation();
-        // Pull the persisted chatter-visibility flag now that the bank
-        // reconciliation view is actually mounting. The service defers this
-        // storage read so pages that never reach the widget do not log a
-        // getItem step in unrelated tests.
         this.bankReconciliation.hydrateChatterState();
         useSubEnv({
             bus: this.bankReconciliation.bus,

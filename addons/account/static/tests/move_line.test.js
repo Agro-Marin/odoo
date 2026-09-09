@@ -153,8 +153,7 @@ test("No preview on small devices", async () => {
             },
         })}`,
     ]);
-    // weak test, no guarantee to wait long enough for the potential attachment preview to show
-    await contains(".o_attachment_preview", { count: 0 }); // The preview component shouldn't be mounted for small screens
+    await contains(".o_attachment_preview", { count: 0 });
     await click(":nth-child(1 of .o_group_header)");
     await contains(".o_data_row", { count: 2 });
     await waitForSteps([
@@ -182,8 +181,7 @@ test("No preview on small devices", async () => {
     ]);
     await click(":nth-child(1 of .o_data_row) :nth-child(2 of .o_data_cell)");
     await contains(":nth-child(1 of .o_data_row) :nth-child(2 of .o_data_cell) input");
-    // weak test, no guarantee to wait long enough for the potential attachment preview to show
-    await contains(".o_attachment_preview", { count: 0 }); // The preview component shouldn't be mounted for small screens even when clicking on a line without attachment
+    await contains(".o_attachment_preview", { count: 0 });
     await click(":nth-child(2 of .o_group_header)");
     await contains(".o_data_row", { count: 4 });
     await waitForSteps([
@@ -211,8 +209,7 @@ test("No preview on small devices", async () => {
     ]);
     await click(":nth-child(4 of .o_data_row) :nth-child(2 of .o_data_cell)");
     await contains(":nth-child(4 of .o_data_row) :nth-child(2 of .o_data_cell) input");
-    // weak test, no guarantee to wait long enough for the potential attachment preview to show
-    await contains(".o_attachment_preview", { count: 0 }); // The preview component shouldn't be mounted for small screens even when clicking on a line with attachment
+    await contains(".o_attachment_preview", { count: 0 });
     await waitForSteps([], { message: "no extra rpc should be done" });
 });
 
@@ -315,12 +312,11 @@ test("Fetch and preview of attachments on big devices", async () => {
     await waitForSteps([], { message: "no extra rpc should be done" });
     await click(":nth-child(3 of .o_group_header)");
     await contains(".o_data_row", { count: 6 });
-    // weak test, no guarantee to wait long enough for the potential attachment to change
     await contains(
         `.o_attachment_preview iframe[data-src='/web/static/lib/pdfjs/web/viewer.html?file=${encodeURIComponent(
             getOrigin() + "/web/content/1",
         )}#pagemode=none']`,
-    ); // The previewer content shouldn't change without clicking on another line from another account.move
+    );
     await waitForSteps([
         `/web/dataset/call_kw/account.move.line/web_search_read - ${JSON.stringify({
             kwargs: {

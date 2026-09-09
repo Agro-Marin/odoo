@@ -1577,10 +1577,6 @@ class AccountPaymentRegister(models.TransientModel):
             filtered_lines = batch_result["lines"] & lines_to_pay
             if not filtered_lines:
                 continue
-            # batch_result may still be the same dict cached on the
-            # self.batches compute field (when self.group_payment is
-            # True, the rebuild above is skipped) - never mutate it in
-            # place, build a fresh dict instead.
             batch_result = {**batch_result, "lines": filtered_lines}
             filtered_batches.append(batch_result)
             to_process.append(

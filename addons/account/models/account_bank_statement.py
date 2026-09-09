@@ -3,8 +3,6 @@ from odoo.exceptions import UserError
 from odoo.tools import SQL
 from odoo.tools.misc import formatLang
 
-# A statement anchors the running balance of every line after it, and its own
-# balance_start is where that balance restarts.
 _RUNNING_BALANCE_TRIGGERS = frozenset(
     {"balance_start", "first_line_index", "journal_id", "line_ids"}
 )
@@ -405,9 +403,6 @@ class AccountBankStatement(models.Model):
 
     def write(self, vals):
         if len(self) != 1 and "attachment_ids" in vals:
-            # An attachment carries one res_id, so the same ones cannot be filed
-            # under several statements. Drop them here rather than in the caller's
-            # dict, which the caller may still be holding.
             vals = {
                 key: value for key, value in vals.items() if key != "attachment_ids"
             }

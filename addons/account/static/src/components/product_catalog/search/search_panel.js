@@ -29,9 +29,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
         onWillStart(async () => await this.loadSections());
     }
 
-    /**
-     * @param {Error} error
-     */
+    /** @param {Error} error */
     _notifySectionError(error) {
         console.error("[product_catalog] section operation failed:", error);
         this.notification.add(_t("The sections could not be updated. Please retry."), {

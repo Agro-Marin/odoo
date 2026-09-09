@@ -63,7 +63,6 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
         self.env.flush_all()
 
     def test_draft_payment_can_be_deleted(self):
-        """Control for test_posted_payment_can_be_deleted: the draft path must stay green."""
         payment = self.env["account.payment"].create(
             {
                 "amount": 5.0,
@@ -181,7 +180,6 @@ class TestPaymentAudit(AccountTestInvoicingCommon):
         self.env.flush_all()
 
     def test_sync_survives_several_liquidity_lines(self):
-        """Control for test_sync_survives_several_counterpart_lines: this side is handled."""
         payment = self._payment()
         payment.action_draft()
         self.env.flush_all()

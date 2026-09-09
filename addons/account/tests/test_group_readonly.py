@@ -72,8 +72,6 @@ class TestAccountGroupReadonly(TransactionCase):
         self.assertFalse(writable, f"these rows are not read-only: {sorted(writable)}")
 
     def test_readonly_sees_journal_entries_and_reports(self):
-        # Asserted on menus that survive every composition: enterprise's
-        # accountant re-parents the app under a root of its own.
         visible = (
             self.env["ir.ui.menu"].with_user(self.user_readonly)._get_visible_menu_ids()
         )

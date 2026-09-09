@@ -256,11 +256,6 @@
         </menuitem>
     </menuitem>
 
-    <!--
-        ═══════════════════════════
-        ACCOUNTING > CLOSING
-        ═══════════════════════════
-    -->
     <menuitem
         id="menu_action_secure_entries"
         name="Secure Entries"
@@ -269,11 +264,6 @@
         sequence="80"
         groups="base.group_no_one,account.group_account_secured" />
 
-    <!--
-        ═══════════════════════════
-        REVIEW > LOGS
-        ═══════════════════════════
-    -->
     <menuitem
         id="menu_account_audit_trail"
         name="Audit Trail"

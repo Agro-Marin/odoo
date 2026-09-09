@@ -259,13 +259,6 @@ class AccountPartialReconcile(models.Model):
         return matched_payments
 
     def _get_payment_comparable_amount(self, payment):
-        """Return what ``self`` settles of ``payment``, in the payment's currency.
-
-        ``amount_signed`` is in the payment's currency, so the side of the partial
-        it is compared against is the side carrying that same currency. The two
-        sides hold different figures as soon as they differ, and a partial whose
-        sides both differ from the payment says nothing about it: ``None``.
-        """
         self.check_singleton()
         if payment.currency_id == self.debit_currency_id:
             amount = self.debit_amount_currency
@@ -276,15 +269,6 @@ class AccountPartialReconcile(models.Model):
         return amount if payment.payment_type == "inbound" else -amount
 
     def _get_to_update_payments(self, from_state):
-        """Return payments that reached the opposite state through ``self``.
-
-        An exact partial can represent a later bank reconciliation, so its payment
-        need not be an endpoint. Multiple partials, however, are aggregated only for
-        an endpoint payment; otherwise unrelated invoice partials could be counted.
-
-        ``self`` is deduplicated first: the aggregation below sums one contribution
-        per partial, and a recordset holding the same partial twice would double it.
-        """
         self = self.union()
         candidate_payments = self._prefetch_payment_state_fields().filtered(
             lambda payment: (

@@ -246,7 +246,6 @@ class AccountAccount(models.Model):
         if not move_type:
             return super().name_search(name, domain, operator, limit)
 
-        # domain defaults to None, and every Domain.AND below would reject that
         domain = domain or []
         partner = self.env.context.get("partner_id")
         suggested_accounts = (
@@ -318,9 +317,6 @@ class AccountAccount(models.Model):
                 )
             )
 
-        # Deprecating an account is archiving it since `deprecated` was folded into
-        # `active`; the guard kept reading the old key, so the ORM rejected the write
-        # before it could ever be true and this never fired.
         if vals.get("active") is False and self.env[
             "account.tax.repartition.line"
         ].search_count(
@@ -730,11 +726,6 @@ class AccountAccount(models.Model):
             bypass_access=True,
         )
         if not filter_never_used_accounts:
-            # Query._joins is private: keyed by alias, valued (kind, table, condition).
-            # Widening this one join to a RIGHT JOIN is what lets an account with zero
-            # matching account.move.line rows still appear in the result below (the
-            # public Domain/search API has no "outer join" primitive to express that).
-            # A Query internals change that touches this shape needs to update this call.
             _kind, rhs_table, condition = query._joins["account_move_line__account_id"]
             query._joins["account_move_line__account_id"] = (
                 SQL("RIGHT JOIN"),

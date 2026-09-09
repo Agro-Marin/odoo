@@ -6,8 +6,6 @@ from odoo.tools import SQL
 
 
 class AccountTaxMergeWizard(models.TransientModel):
-    """Collapse per-company duplicates of one tax into a single shared record."""
-
     _name = "account.tax.merge.wizard"
     _inherit = ["mixin.merge"]
     _description = "Tax merge wizard"
@@ -37,14 +35,8 @@ class AccountTaxMergeWizard(models.TransientModel):
         res["tax_ids"] = [fields.Command.set(self.env.context.get("active_ids"))]
         return res
 
-    # ------------------------------------------------------------------
-    # what makes two taxes the same tax
-    # ------------------------------------------------------------------
     @api.model
     def _get_grouping_key(self, tax):
-        # Stricter than the account wizard's, and deliberately so: an account is
-        # a classification two companies may reasonably name differently, while
-        # a tax is a rate. Everything that changes what it computes is in here.
         return (
             tax.name,
             tax.type_tax_use,
@@ -60,7 +52,6 @@ class AccountTaxMergeWizard(models.TransientModel):
 
     @api.model
     def _get_repartition_signature(self, tax):
-        """What each distribution line does, independent of its id."""
         return tuple(
             (
                 line.document_type,
@@ -121,9 +112,6 @@ class AccountTaxMergeWizard(models.TransientModel):
                 len(group) < 2 for group in selectable.grouped("grouping_key").values()
             )
 
-    # ------------------------------------------------------------------
-    # the merge
-    # ------------------------------------------------------------------
     def action_merge(self):
         for wizard in self:
             selected = wizard.wizard_line_ids.filtered(
@@ -148,13 +136,6 @@ class AccountTaxMergeWizard(models.TransientModel):
         }
 
     def _get_merge_tables_excluded(self, model):
-        # The generic repoint moves EVERY foreign key naming account.tax onto
-        # the survivor, and account_tax_repartition_line.tax_id is one of them.
-        # Left in, the survivor ends up holding both taxes' distribution lines --
-        # eight where four belong -- and because the repoint is raw SQL no
-        # constraint objects at the time. The removed taxes keep their own lines
-        # and take them along when they are deleted; the journal items that
-        # referenced them were already moved by _repoint_repartition_lines.
         return super()._get_merge_tables_excluded(model) | {
             self.env["account.tax.repartition.line"]._table
         }
@@ -173,13 +154,6 @@ class AccountTaxMergeWizard(models.TransientModel):
 
     @api.model
     def _repoint_repartition_lines(self, taxes_to_remove, tax_to_merge_into):
-        """Move journal items onto the surviving tax's distribution lines.
-
-        `account.move.line.tax_repartition_line_id` is `ondelete="restrict"`, so
-        without this the delete below fails outright on any tax that has ever
-        posted an entry. The pairing is positional and safe *because* the merge
-        already refused any group whose distribution signatures differ.
-        """
 
         def ordered(tax):
             return tax.repartition_line_ids._sorted_for_positional_pairing()
@@ -222,8 +196,6 @@ class AccountTaxMergeWizard(models.TransientModel):
             "account.tax", taxes_to_remove, tax_to_merge_into
         )
 
-        # `name` is translated, so it is a jsonb column: keep every language any
-        # of the merged taxes had rather than only the survivor's.
         names = dict(
             self.env.execute_query(
                 SQL(
@@ -331,9 +303,6 @@ class AccountTaxMergeWizardLine(models.TransientModel):
                         owner.setdefault(company, line.tax_id)
 
     def _update_info_repartition_conflict(self):
-        # Two taxes with the same rate but different distribution accounts or
-        # tag grids are not the same tax, and merging them would silently
-        # re-point every future entry onto the survivor's accounts.
         reference = None
         signature_of = self.wizard_id._get_repartition_signature
         for line in self:

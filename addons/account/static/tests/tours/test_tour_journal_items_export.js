@@ -40,7 +40,6 @@ registry.category("web_tour.tours").add("account_accountant_journal_items_export
             trigger: "button.o_form_button_cancel",
             run: "click",
         },
-        // End
         ...stepUtils.toggleHomeMenu(),
         ...accountTourSteps.goToAccountMenu("Reset back to accounting module"),
         {

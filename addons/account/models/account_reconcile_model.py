@@ -288,18 +288,12 @@ class AccountReconcileModel(models.Model):
         return action
 
     def _get_copy_name(self, name):
-        """Return the unique "<name> (copy)…" a duplicate of ``name`` must carry."""
         candidate = self.env._("%s (copy)", name)
         while self.search_count([("name", "=", candidate)], limit=1):
             candidate = self.env._("%s (copy)", candidate)
         return candidate
 
     def _get_copy_name_rounds(self, original, copied):
-        """Count the "(copy)" markers ``copied`` carries over ``original``.
-
-        Each round makes the string strictly longer, so the walk terminates on its own;
-        overshooting means the two names are unrelated and no rename is re-applied.
-        """
         rounds, name = 0, original
         while name != copied:
             longer = self.env._("%s (copy)", name)

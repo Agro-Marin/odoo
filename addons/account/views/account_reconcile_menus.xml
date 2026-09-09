@@ -1,7 +1,30 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem id="menu_account_reconcile" name="Reconcile" parent="account.menu_account_closing" action="action_move_line_posted_unreconciled" sequence="65" groups="account.group_account_user"/>
-    <menuitem id="account_tag_menu" parent="account.menu_account_accounting" action="account_tag_action" groups="base.group_no_one"/>
-    <menuitem id="menu_account_group" parent="account.menu_account_accounting" action="action_account_group_tree" groups="base.group_no_one"/>
-    <menuitem id="menu_account_fiscal_year" parent="account.menu_account_accounting" action="actions_account_fiscal_year" groups="account.group_fiscal_year"/>
+
+    <menuitem
+        id="menu_account_reconcile"
+        name="Reconcile"
+        parent="account.menu_account_closing"
+        action="action_move_line_posted_unreconciled"
+        sequence="65"
+        groups="account.group_account_user" />
+
+    <menuitem
+        id="account_tag_menu"
+        parent="account.menu_account_accounting"
+        action="account_tag_action"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="menu_account_group"
+        parent="account.menu_account_accounting"
+        action="action_account_group_tree"
+        groups="base.group_no_one" />
+
+    <menuitem
+        id="menu_account_fiscal_year"
+        parent="account.menu_account_accounting"
+        action="actions_account_fiscal_year"
+        groups="account.group_fiscal_year" />
+
 </odoo>

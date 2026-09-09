@@ -126,7 +126,6 @@ registry.category("web_tour.tours").add("account_accountant_bank_rec_widget", {
             content: "Statement line is reconciled",
             trigger: "div[name='reconciled_line_name']",
         },
-        // ensure statement can be added for multiple statement lines at once
         {
             content: "Switch to list view",
             trigger: "button.o_switch_view.o_list",

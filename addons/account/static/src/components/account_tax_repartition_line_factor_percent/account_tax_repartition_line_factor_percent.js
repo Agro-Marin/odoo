@@ -12,9 +12,7 @@ export class AccountTaxRepartitionLineFactorPercent extends FloatField {
         digits: [16, 12],
     };
 
-    /**
-     * @override
-     */
+    /** @override */
     get formattedValue() {
         const value = super.formattedValue;
         const { decimalPoint } = localization;
@@ -30,9 +28,7 @@ export class AccountTaxRepartitionLineFactorPercent extends FloatField {
         return `${integerPart}${decimalPoint}${decimals}`;
     }
 
-    /**
-     * @override
-     */
+    /** @override */
     parse(value) {
         const parsedValue = super.parse(value);
         if (!Number.isFinite(parsedValue)) {

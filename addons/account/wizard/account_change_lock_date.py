@@ -12,8 +12,6 @@ from odoo.addons.account.models.res_company import (
 
 
 class AccountChangeLockDate(models.TransientModel):
-    """Updates a company's fiscal-period lock dates from a single wizard."""
-
     _name = "account.change.lock.date"
     _description = "Change Lock Date"
 

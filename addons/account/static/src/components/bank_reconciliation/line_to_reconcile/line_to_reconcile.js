@@ -44,11 +44,6 @@ export class BankRecLineToReconcile extends Component {
         }
     }
 
-    /**
-     * Opens a `BankRecFormDialog` to edit the current `account.move.line`. On
-     * save, calls `edit_reconcile_line` on the ORM, reloads the statement line
-     * and refreshes the chatter of the related journal entry.
-     */
     toggleEditLine() {
         this.dialogService.add(BankRecFormDialog, {
             title: _t("Edit Line"),
@@ -78,19 +73,12 @@ export class BankRecLineToReconcile extends Component {
         });
     }
 
-    /**
-     * Deletes a line to reconcile via `remove_reconciled_line`, then reloads the
-     * statement line and refreshes the chatter of the related journal entry.
-     */
     async deleteLine() {
         await this.orm.call("account.bank.statement.line", "remove_reconciled_line", [
             this.statementLineData.id,
             this.lineData.id,
         ]);
         if (this.lineData.reconciled_lines_ids.records.length) {
-            // Only update the line count per partner if we delete
-            // a line which is reconciled to another move line
-            // We don't use await here as it could be reloaded asynchronously.
             this.bankReconciliation.computeReconcileLineCountPerPartnerId(
                 this.env.model.root.records,
             );
@@ -125,7 +113,7 @@ export class BankRecLineToReconcile extends Component {
             if (accountIds === "__update__") {
                 continue;
             }
-            const defaultVals = []; // empty if the popup was not opened
+            const defaultVals = [];
             const ids = accountIds.split(",");
 
             for (const id of ids) {
@@ -133,9 +121,6 @@ export class BankRecLineToReconcile extends Component {
                 if (!account) {
                     continue;
                 }
-                // since tags are displayed even though plans might not be retrieved (ie defaultVals is empty)
-                // push the accounts anyway, as order doesn't matter
-                // once the popup is opened, plans are fetched and the analyticAccounts list will be ordered
                 Object.assign(
                     defaultVals.find(
                         (plan) => plan.planId === account.root_plan_id[0],
@@ -162,10 +147,7 @@ export class BankRecLineToReconcile extends Component {
         return roundDecimals(total, 2) === 1;
     }
 
-    /**
-     * Computes the totals for each account, grouped by plan (primarily used in tags)
-     * @returns {Object}
-     */
+    /** @returns {Object} */
     accountTotalsByPlan() {
         const accountTotals = {};
         this.jsonToData.map((line) => {
@@ -216,7 +198,6 @@ export class BankRecLineToReconcile extends Component {
         });
     }
 
-    // ACTION METHODS
     openMove() {
         this.action.doAction({
             type: "ir.actions.act_window",
@@ -262,7 +243,6 @@ export class BankRecLineToReconcile extends Component {
         this.bankReconciliation.reloadChatter();
     }
 
-    // GETTER METHODS
     get statementLineData() {
         return this.props.statementLine.data;
     }

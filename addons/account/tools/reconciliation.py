@@ -27,13 +27,6 @@ def pick_reconciliation_currency(
 
 
 def prepare_partial_amounts(context):
-    """How much of each side one partial settles, in company and foreign currency.
-
-    The two branches are the same question asked at one rate or at two: when the
-    reconciliation currency IS the company currency both sides are already
-    comparable, and when it is not each side has to be brought back through its
-    own rate and the two rounding windows compared.
-    """
     if context["recon_currency"] == context["company_currency"]:
         return _partial_amounts_at_par(context)
     return _partial_amounts_across_rates(context)
@@ -98,9 +91,6 @@ def _partial_amounts_across_rates(context):
     partial_credit_amount = min(credit_range[1], -context["remaining_credit_amount"])
     partial_amount = min(partial_debit_amount, partial_credit_amount)
 
-    # Each side converted at its own rate lands inside the other side's rounding
-    # window, so the two are the same amount seen twice: settle the whole residual
-    # instead of leaving a cent behind as a fake difference.
     if _ranges_overlap(
         company_currency,
         partial_debit_amount,
@@ -142,12 +132,6 @@ def _ranges_overlap(
 
 
 def group_lines_by_matching_number(partial_edges):
-    """Map each connected component of reconciled lines to its oldest partial id.
-
-    ``partial_edges`` yields ``(partial_id, debit_line_id, credit_line_id)``.
-    Two lines belong to the same component when a chain of partials links them,
-    and the component is numbered by the smallest partial id it contains.
-    """
     parent = {}
     component_size = {}
     component_number = {}

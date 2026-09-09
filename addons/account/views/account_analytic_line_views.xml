@@ -15,8 +15,7 @@
                     <field name="product_id" />
                 </xpath>
                 <group name="amount" position="after">
-                    <group/> <!-- put Accounting group under Amount group -->
-                    <group name="accounting" string="Accounting">
+                    <group />                    <group name="accounting" string="Accounting">
                         <field
                             name="move_line_id"
                             options="{'no_create': True}"

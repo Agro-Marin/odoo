@@ -5,8 +5,6 @@ from odoo.exceptions import UserError
 
 
 class AccountReconcileWizard(models.TransientModel):
-    """Reconciles a set of journal items selected by the user, generating write-off lines as needed."""
-
     _name = "account.reconcile.wizard"
     _description = "Account reconciliation wizard"
     _check_company_auto = True

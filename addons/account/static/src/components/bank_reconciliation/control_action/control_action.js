@@ -31,9 +31,6 @@ export class BankRecKanbanControlPanel extends ControlPanel {
         this.bankReconciliation = useBankReconciliation();
     }
 
-    /**
-     * Notify the user that any already-reconciled lines in the selection will stay untouched.
-     */
     sendAlreadyReconciledNotification() {
         if (this.selectedReconciledStatementLines.length) {
             this.notification.add(
@@ -46,7 +43,6 @@ export class BankRecKanbanControlPanel extends ControlPanel {
     }
 
     setPartnerOnReconcileLine() {
-        // Send a notification for reconciled lines present in all the selected lines
         this.sendAlreadyReconciledNotification();
         const selectedLinesIds = this.selectedUnreconciledStatementLinesIds;
         if (!selectedLinesIds.length) {
@@ -71,7 +67,6 @@ export class BankRecKanbanControlPanel extends ControlPanel {
                 let recordsToLoad = [];
                 const partnerNames = this.selectedStatementLinesPartnerName;
                 if (partnerNames) {
-                    // Reload all impacted statement lines if we have a partner_name
                     recordsToLoad.push(
                         ...this.env.model.root.records.filter(
                             (record) =>
@@ -92,7 +87,6 @@ export class BankRecKanbanControlPanel extends ControlPanel {
     }
 
     setAccountOnReconcileLine() {
-        // Send a notification for reconciled lines present in all the selected lines
         this.sendAlreadyReconciledNotification();
         const selectedLinesIds = this.selectedUnreconciledStatementLinesIds;
         if (!selectedLinesIds.length) {
@@ -148,11 +142,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
         });
     }
 
-    /**
-     * Sets the account receivable on the current reconcile line.
-     */
     async setAccountReceivableOnReconcileLines() {
-        // Send a notification for reconciled lines present in all the selected lines
         this.sendAlreadyReconciledNotification();
         const selectedLines = this.selectedUnreconciledStatementLines;
         if (!selectedLines.length) {
@@ -196,11 +186,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
         this.bankReconciliation.reloadChatter();
     }
 
-    /**
-     * Sets the account payable on the current reconcile line.
-     */
     async setAccountPayableOnReconcileLines() {
-        // Send a notification for reconciled lines present in all the selected lines
         this.sendAlreadyReconciledNotification();
         const selectedLines = this.selectedUnreconciledStatementLines;
         if (!selectedLines.length) {
@@ -245,7 +231,6 @@ export class BankRecKanbanControlPanel extends ControlPanel {
     }
 
     async triggerReconciliationModel(reconciliationModelId) {
-        // Send a notification for reconciled lines present in all the selected lines
         this.sendAlreadyReconciledNotification();
         const selectedLinesIds = this.selectedUnreconciledStatementLinesIds;
         if (!selectedLinesIds.length) {

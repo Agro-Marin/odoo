@@ -1,9 +1,7 @@
 /** @odoo-module native */
 import { AccountFileUploader } from "@account/components/account_file_uploader/account_file_uploader";
 
-/**
- * @param {typeof import("@odoo/owl").Component} Base
- */
+/** @param {typeof import("@odoo/owl").Component} Base */
 export const WithAccountFileUploader = (Base) =>
     class extends Base {
         static components = {

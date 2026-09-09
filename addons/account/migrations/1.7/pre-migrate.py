@@ -22,9 +22,6 @@ def migrate(cr, version):
     if not row or row[0] == "integer":
         return
 
-    # the column held a 2-character string; anything a human could type that is
-    # not an ASCII number was never a valid day of the month, so it falls back
-    # to the field default rather than blocking the upgrade
     cr.execute(
         f"""
         ALTER TABLE "{TABLE}"

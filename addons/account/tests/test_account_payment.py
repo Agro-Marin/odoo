@@ -938,18 +938,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         self.assertEqual(payment.move_id.ref, payment.memo)
 
     def test_mandatory_entry_survives_an_ordinary_edit(self):
-        """A payment whose entry is mandatory keeps booking one after any edit.
-
-        `outstanding_account_id` is a stored compute. It used to be written over
-        in `create()`, so the next write that retriggered the compute cleared it,
-        `_generate_journal_entry` filtered the payment out, and the payment posted
-        with no journal items at all -- silently, because `_check_move_id` was
-        conditioned on the same field.
-        """
         journal = self.company_data["default_journal_bank"]
-        # The defect only shows where the channel names no account of its own,
-        # which is what makes the fallback in `_compute_outstanding_account_id`
-        # the sole source of the value.
         (
             journal.inbound_payment_channel_ids | journal.outbound_payment_channel_ids
         ).payment_account_id = False
@@ -991,11 +980,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                 )
 
     def test_mandatory_entry_follows_the_payment_type(self):
-        """The outstanding account is recomputed, not preserved.
-
-        Preserving the value written at create would keep an inbound payment's
-        debit account on a payment the user has since turned outbound.
-        """
         journal = self.company_data["default_journal_bank"]
         (
             journal.inbound_payment_channel_ids | journal.outbound_payment_channel_ids
@@ -1023,12 +1007,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
         )
 
     def test_reconciled_invoices_type_counts_distinct_types(self):
-        """Two credit notes are still credit notes.
-
-        `mapped()` returns a list with duplicates, so testing its length asked
-        "is there exactly one invoice", and a payment against two credit notes
-        labelled its stat button "2 Invoice".
-        """
         refunds = self.env["account.move"]
         for amount in (30.0, 31.0, 32.0):
             refunds |= self.init_invoice(
@@ -1049,7 +1027,6 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
                 self.assertEqual(payment.reconciled_invoices_type, "credit_note")
 
     def test_force_balance_refuses_to_be_discarded(self):
-        """`force_balance` sets the liquidity balance; write-offs derive it."""
         payment = self.env["account.payment"].create(
             {
                 "payment_type": "inbound",

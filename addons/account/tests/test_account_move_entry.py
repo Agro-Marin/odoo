@@ -1725,9 +1725,6 @@ class TestAccountMove(AccountTestInvoicingCommon):
         )
 
     def test_payment_date_compute_search_and_sql_agree(self):
-        # payment_date is spelled three times -- _compute_payment_date (Python),
-        # _search_payment_date (a domain) and _field_to_sql (a CASE). Nothing makes
-        # them agree, so this pins them to each other.
         journal = self.company_data["default_journal_misc"]
         receivable = self.company_data["default_account_receivable"]
         expense = self.company_data["default_account_expense"]

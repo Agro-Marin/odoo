@@ -8,11 +8,6 @@ class MixinFiscalCountryCodes(models.AbstractModel):
     fiscal_country_codes = fields.Char(compute="_compute_fiscal_country_codes")
 
     def _get_fiscal_country_companies(self):
-        """Companies whose fiscal country decides what this record may show.
-
-        A record carrying its own `company_id` answers for that company alone;
-        anything shared answers for whichever companies are active.
-        """
         self.check_singleton()
         return self.env.companies
 

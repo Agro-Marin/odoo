@@ -2,10 +2,6 @@
 <odoo>
 
     <data>
-        <!--
-            Empty override: the web.internal_layout header is a CSS grid
-            (grid-template-columns: 1fr auto 1fr), so no column overrides are needed.
-        -->
         <template
             id="report_statement_internal_layout"
             inherit_id="web.internal_layout"

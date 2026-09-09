@@ -20,10 +20,6 @@ export class BankRecListController extends AttachmentPreviewListController {
         });
     }
 
-    /**
-     * Override
-     * Don't allow bank_rec_form to be restored with previous values since the statement line has changed.
-     */
     async onRecordSaved(record) {
         this.skipKanbanRestore[record.resId] = true;
         return super.onRecordSaved(...arguments);

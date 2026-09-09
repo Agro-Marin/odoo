@@ -64,7 +64,6 @@ export class BankRecButtonList extends Component {
         );
         const recordsToLoad = [];
         if (this.statementLineData.partner_name) {
-            // Reload all impacted statement lines if we have a partner_name
             recordsToLoad.push(
                 ...this.env.model.root.records.filter(
                     (record) =>
@@ -83,9 +82,6 @@ export class BankRecButtonList extends Component {
         this.restoreFocus();
     }
 
-    /**
-     * Displays a search dialog for selecting a `res.partner` record.
-     */
     setPartnerOnReconcileLine() {
         this.addDialog(
             SelectCreateDialog,
@@ -112,9 +108,6 @@ export class BankRecButtonList extends Component {
         );
     }
 
-    /**
-     * Opens a dialog to select an account and assigns it to the current reconcile line.
-     */
     setAccountOnReconcileLine() {
         const context = {
             list_view_ref: "account.view_account_list_bank_rec_widget",
@@ -143,8 +136,6 @@ export class BankRecButtonList extends Component {
                 context: context,
                 resModel: "account.account",
                 onSelected: async (account) => {
-                    // After setting an account on a line, a new reconciliation model may be automatically created. If so,
-                    // we need to reload the records that will use this model to make sure the new model is displayed.
                     const linesToLoad = await this._setAccountOnReconcileLine(
                         this.lastAccountMoveLine.data.id,
                         account[0],
@@ -170,13 +161,10 @@ export class BankRecButtonList extends Component {
     }
 
     /**
-     * Assigns the given account to a specific account move line within the current bank statement line.
-     *
-     * @param {number} amlId - ID of the account move line to update.
-     * @param {number} accountId - ID of the selected account to assign.
-     * @param {Object} context - the context to use for adding default tax of account
-     *
-     * @returns {Promise<list>} - The list of IDs of lines to reload in case of auto-rule creation.
+     * @param {number} amlId
+     * @param {number} accountId
+     * @param {Object} context
+     * @returns {Promise<list>}
      */
     async _setAccountOnReconcileLine(amlId, accountId, context = {}) {
         return await this.orm.call(
@@ -187,9 +175,6 @@ export class BankRecButtonList extends Component {
         );
     }
 
-    /**
-     * Sets the account receivable on the current reconcile line.
-     */
     async setAccountReceivableOnReconcileLine() {
         let accountId;
         if (this.statementLineData.partner_id.property_account_receivable_id.id) {
@@ -214,9 +199,6 @@ export class BankRecButtonList extends Component {
         this.bankReconciliation.reloadChatter();
     }
 
-    /**
-     * Sets the account payable on the current reconcile line.
-     */
     async setAccountPayableOnReconcileLine() {
         let accountId;
         if (this.statementLineData.partner_id.property_account_payable_id.id) {
@@ -241,9 +223,6 @@ export class BankRecButtonList extends Component {
         this.bankReconciliation.reloadChatter();
     }
 
-    /**
-     * Opens a dialog to search and select journal items to reconcile with the current bank statement line.
-     */
     reconcileOnReconcileLine() {
         const context = {
             kanban_view_ref: "account.view_account_move_line_kanban_bank_rec_widget",
@@ -291,8 +270,6 @@ export class BankRecButtonList extends Component {
     }
 
     get availableReconcileLines() {
-        // No need to compute the number of lines that could be reconciled with the statement line
-        // because having a partner will trigger the try_auto_reconcile function and it should be reconciled
         if (this.statementLineData.partner_id) {
             return [];
         }
@@ -325,9 +302,6 @@ export class BankRecButtonList extends Component {
         ];
     }
 
-    /**
-     * Deletes the current bank statement line.
-     */
     async deleteTransaction() {
         this.addDialog(ConfirmationDialog, {
             body: _t("Are you sure you want to delete this statement line?"),
@@ -341,9 +315,6 @@ export class BankRecButtonList extends Component {
         });
     }
 
-    /**
-     * Set the move of the statement line as to check
-     */
     async setStatementLineAsReviewed() {
         await this.orm.call("account.move", "set_moves_checked", [
             this.statementLineData.move_id.id,
@@ -352,12 +323,7 @@ export class BankRecButtonList extends Component {
         this.bankReconciliation.reloadChatter();
     }
 
-    // RECONCILIATION MODEL METHODS
-    /**
-     * Applies a reconciliation model to the current bank statement line.
-     *
-     * @param {number} reconciliationModelId - The ID of the reconciliation model to apply.
-     */
+    /** @param {number} reconciliationModelId */
     async triggerReconciliationModel(reconciliationModelId) {
         await this.orm.call("account.reconcile.model", "trigger_reconciliation_model", [
             reconciliationModelId,
@@ -371,10 +337,8 @@ export class BankRecButtonList extends Component {
     }
 
     /**
-     * Maps a hotkey to its action, guard condition, and target button element.
-     *
-     * @param {string|number} key - The key pressed.
-     * @returns {Object|undefined} An object with the action, condition, and button element, or undefined if the key is unmapped.
+     * @param {string|number} key
+     * @returns {Object|undefined}
      */
     getKeyAction(key) {
         const keyActions = {
@@ -505,9 +469,6 @@ export class BankRecButtonList extends Component {
         return keyActions[key];
     }
 
-    /**
-     * Registers hotkeys for the reconciliation buttons.
-     */
     registerHotkeys() {
         const hotkeyConfigs = [
             { key: "1", trigger: "alt+shift+1" },
@@ -544,19 +505,16 @@ export class BankRecButtonList extends Component {
         });
     }
 
-    // FILE UPLOADER METHODS
     get bankRecFileUploaderRecord() {
         return {
             statementLineId: this.statementLineData.id,
         };
     }
 
-    // ACTION METHODS
     actionViewRecoModels() {
         return this.action.doAction("account.action_account_reconcile_model");
     }
 
-    // GETTER METHODS
     get statementLineData() {
         return this.props.statementLine.data;
     }
@@ -605,8 +563,6 @@ export class BankRecButtonList extends Component {
     }
 
     get isReconcileButtonShown() {
-        // Show the button while the count is still uncomputed (null), or once it
-        // reports at least one reconcilable line
         return this.props.reconcileLineCount === null || this.props.reconcileLineCount;
     }
 
@@ -619,11 +575,7 @@ export class BankRecButtonList extends Component {
         );
     }
 
-    /**
-     * Dynamically builds the list of action buttons to be shown in the reconciliation interface.
-     *
-     * @returns {Object} buttonsToDisplay - A dictionary of buttons to render in the UI.
-     */
+    /** @returns {Object} */
     get buttons() {
         const buttonsToDisplay = {};
         const isMediumScreen = screen.width <= mediaBreakpointLarge.maxWidth;
@@ -675,11 +627,7 @@ export class BankRecButtonList extends Component {
         return buttonsToDisplay;
     }
 
-    /**
-     * Prioritizing which buttons are shown and which one is marked as "primary".
-     *
-     * @returns {Array<Object>} An array of button objects, each with label, action, and optionally `primary`.
-     */
+    /** @returns {Array<Object>} */
     get buttonsToDisplay() {
         const buttons = this.buttons || {};
 
@@ -713,16 +661,12 @@ export class BankRecButtonList extends Component {
         }
         const buttonToDisplayClasses =
             this.buttonsToDisplay.map((button) => button.classes) || [];
-        // Keep whatever buttonsToDisplay did not already take — it holds both the
-        // primary and the secondary buttons, not only the primary ones
         return Object.values(buttons).filter(
             (button) => !buttonToDisplayClasses.includes(button.classes),
         );
     }
 
     get displaySuggestionPill() {
-        // Drives the pill on the dropdown (t-if in button_list.xml); extending
-        // modules widen it, see sale_account_accountant
         return this.availableReconcileLines.length;
     }
 }

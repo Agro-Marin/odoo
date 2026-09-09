@@ -51,9 +51,6 @@ class TestPostContract(AccountTestInvoicingCommon):
         self.assertEqual(posted, moves)
 
     def test_post_entries_is_the_override_point(self):
-        # _post partitions before delegating, so an override placed on _post_entries
-        # sees exactly the moves being posted -- the guarantee the whole contract rests
-        # on, and the one that silently failed while overrides hung off _post.
         seen = []
         AccountMove = type(self.env["account.move"])
         original = AccountMove._post_entries
@@ -99,9 +96,6 @@ class TestPostContract(AccountTestInvoicingCommon):
         self.assertEqual(flagged.state, "draft")
 
     def test_business_rules_run_on_every_document_posting_path(self):
-        # action_post is not the only way a person posts a document: the list-view
-        # "Confirm Entries" action, the confirmation wizard and the auto-post cron
-        # all reach the move without it. Each must apply the same rules.
         calls = []
         AccountMove = type(self.env["account.move"])
         original = AccountMove._post_check_business_rules
@@ -127,8 +121,6 @@ class TestPostContract(AccountTestInvoicingCommon):
 
             auto = self._invoice(today)
             auto.auto_post = "at_date"
-            # _autopost_draft_entries commits through ir.cron._commit_progress, which
-            # a TransactionCase forbids. Neutralise the bookkeeping, not the posting.
             with patch.object(
                 type(self.env["ir.cron"]), "_commit_progress", lambda *a, **kw: None
             ):
@@ -138,9 +130,6 @@ class TestPostContract(AccountTestInvoicingCommon):
             AccountMove._post_check_business_rules = original
 
     def test_business_rules_do_not_run_on_system_generated_postings(self):
-        # _post is also the engine for cancellation reversals, POS invoices,
-        # cash-basis entries and landed costs. Gating it refused to cancel an
-        # invoice for a customer a credit rule had blocked.
         calls = []
         AccountMove = type(self.env["account.move"])
         original = AccountMove._post_check_business_rules
@@ -202,9 +191,6 @@ class TestPostContract(AccountTestInvoicingCommon):
             self.assertTrue(line.name.startswith(bill.name))
 
     def test_payment_bank_account_guard_names_the_payment_it_refuses(self):
-        # The guard loops over self but used to read the method line off the whole
-        # recordset, so batch-confirming payments from two journals raised
-        # "Expected singleton" instead of the message it meant to show.
         AccountPayment = type(self.env["account.payment"])
         original = AccountPayment._get_method_codes_needing_bank_account
         AccountPayment._get_method_codes_needing_bank_account = lambda records: [
@@ -244,9 +230,6 @@ class TestPostContract(AccountTestInvoicingCommon):
             AccountPayment._get_method_codes_needing_bank_account = original
 
     def test_a_move_that_cannot_post_is_not_scheduled(self):
-        # A move that reaches auto_post='at_date' while invalid is picked up by the
-        # cron on every run, fails, and posts a message each time. Validate before
-        # scheduling so it never gets there.
         today = fields.Date.context_today(self.env.user)
         invoice = self._invoice(today + timedelta(days=30))
         invoice.partner_id = False

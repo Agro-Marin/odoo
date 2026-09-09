@@ -9,12 +9,6 @@ class TestAccountTaxSettingsCompany(AccountTestInvoicingCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Deliberately NOT `setup_other_company(country_id=...)`: giving the
-        # second company a country of its own makes the suite require that
-        # country's l10n module, and the whole class is then skipped rather
-        # than run. The two companies share a country; what has to differ is
-        # the *fiscal* country (a plain writable field) and the domestic
-        # fiscal position (a record each).
         cls.company_data_2 = cls.setup_other_company(name="seam_company")
         cls.other_company = cls.company_data_2["company"]
         cls.other_country = cls.env.ref("base.fr")
@@ -58,12 +52,6 @@ class TestAccountTaxSettingsCompany(AccountTestInvoicingCommon):
             }
         )
 
-    # ------------------------------------------------------------------
-    # is_domestic -- no longer stored, because the answer varies by acting
-    # company and a column cannot hold that. Invalidating the cache is what
-    # re-runs it; `add_to_compute` refuses a field with no column. Un-storing
-    # it also removed the create-time defect this test used to work around.
-    # ------------------------------------------------------------------
     def test_is_domestic_follows_the_seam(self):
         tax = self._tax_on_domestic_fp()
         self.assertTrue(
@@ -78,9 +66,6 @@ class TestAccountTaxSettingsCompany(AccountTestInvoicingCommon):
             "_compute_is_domestic must read the seam, not company_id",
         )
 
-    # ------------------------------------------------------------------
-    # display_alternative_taxes_field -- not stored
-    # ------------------------------------------------------------------
     def test_display_alternative_taxes_follows_the_seam(self):
         tax = self._tax_on_domestic_fp()
         self.assertFalse(
@@ -95,17 +80,11 @@ class TestAccountTaxSettingsCompany(AccountTestInvoicingCommon):
             "_compute_display_alternative_taxes_field must read the seam",
         )
 
-    # ------------------------------------------------------------------
-    # account.tax.repartition.line.tag_ids_domain -- reaches the seam
-    # through tax_id, its own company_id being a related of it
-    # ------------------------------------------------------------------
     def test_tag_ids_domain_follows_the_seam(self):
         tax = self._tax_on_domestic_fp()
         rep_line = tax.invoice_repartition_line_ids[0]
 
         def allowed_countries(line):
-            # tag_ids_domain is a list of 3-tuples; the country condition is
-            # the second, and its operand is the allowed-country tuple.
             (field, _operator, countries) = line.tag_ids_domain[1]
             self.assertEqual(field, "country_id")
             return countries

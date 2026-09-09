@@ -7,10 +7,6 @@ from odoo.addons.account.tools.import_file_type import is_pdf
 
 @tagged("post_install", "-at_install")
 class TestImportFileTypeRules(TransactionCase):
-    # `post_install`: every module carrying an `_import_file_type_rules`
-    # override prepends to the list, so an at-install run would read a
-    # shorter chain and pass by seeing less.
-
     def _importers(self):
         mixin = self.env.registry["mixin.account.document.import"]
         return [
@@ -34,7 +30,6 @@ class TestImportFileTypeRules(TransactionCase):
                 self.assertEqual(
                     len(types), len(set(types)), f"duplicated rule: {types}"
                 )
-                # The most generic rule is the last one asked.
                 self.assertEqual(rules[-1], ("pdf", is_pdf))
 
     def test_the_fallback_is_pdf_by_mimetype_or_by_name(self):

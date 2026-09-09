@@ -1,12 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!--
-        Mail templates are declared in a NOUPDATE block
-        so users can freely customize/delete them
-    -->
     <data noupdate="1">
-        <!-- Invoice template -->
         <record id="email_template_edi_invoice" model="mail.template">
             <field name="name">Invoice: Sending</field>
             <field name="model_id" ref="account.model_account_move" />
@@ -109,7 +104,6 @@
                 eval="[Command.link(ref('account.action_report_payment_receipt'))]" />
             <field name="auto_delete" eval="True" />
         </record>
-        <!-- Credit note template -->
         <record id="email_template_edi_credit_note" model="mail.template">
             <field name="name">Credit Note: Sending</field>
             <field name="model_id" ref="account.model_account_move" />
@@ -156,7 +150,6 @@
             <field name="report_template_ids" eval="[]" />
             <field name="auto_delete" eval="True" />
         </record>
-        <!-- Self billing invoice template -->
         <record id="email_template_edi_self_billing_invoice" model="mail.template">
             <field name="name">Self-billing invoice: Sending</field>
             <field name="model_id" ref="account.model_account_move" />
@@ -216,7 +209,6 @@
             <field name="report_template_ids" eval="[]" />
             <field name="auto_delete" eval="True" />
         </record>
-        <!-- Self billing credit note template -->
         <record id="email_template_edi_self_billing_credit_note" model="mail.template">
             <field name="name">Self-billing credit note: Sending</field>
             <field name="model_id" ref="account.model_account_move" />
@@ -263,7 +255,6 @@
             <field name="report_template_ids" eval="[]" />
             <field name="auto_delete" eval="True" />
         </record>
-        <!-- Invoice mail gateway failed -->
         <template id="email_template_mail_gateway_failed">
             <p>
                 Hi,
@@ -315,7 +306,6 @@
                                     cellspacing="0"
                                     width="590"
                                     style="background-color: white; border-collapse:separate;">
-                                    <!-- HEADER -->
                                     <tr>
                                         <td align="center">
                                             <table
@@ -342,7 +332,6 @@
                                             </table>
                                         </td>
                                     </tr>
-                                    <!-- BODY -->
                                     <tr>
                                         <td align="center">
                                             <table
@@ -439,12 +428,6 @@
             <field name="model_id" ref="account.model_account_move" />
             <field
                 name="subject">{{ object.company_id.name }} - New invoice in {{ object.journal_id.display_name or 'Invoices' }} journal</field>
-            <!--
-                Journal-scoped notification sent to subscriber addresses configured on the
-                journal, not a customer-facing document: it must come from the company, like
-                its subject line. Leading with invoice_user_id would disclose the individual
-                accountant's address to every subscriber and misdirect their replies.
-            -->
             <field
                 name="email_from">{{ object.company_id.email_formatted or user.email_formatted }}</field>
             <field name="use_default_to" eval="False" />

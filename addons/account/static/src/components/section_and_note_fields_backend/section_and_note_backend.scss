@@ -1,5 +1,3 @@
-// Styles for section and note lines on sale order and invoice.
-
 table.o_section_and_note_list_view {
     --o-SectionAndNote-border-color: #{o-palette-token(--o-gray-500, $gray-500)};
     $_SectionAndNote-transition: 0.1s ease-in-out;
@@ -14,7 +12,7 @@ table.o_section_and_note_list_view {
             --table-striped-bg: var(--table-bg-type);
 
             .o_list_section_options {
-                width: 1px; // prevent the column from expanding
+                width: 1px;
             }
 
             .o_field_product_label_section_and_note_cell .o_input {
@@ -30,8 +28,6 @@ table.o_section_and_note_list_view {
             font-weight: $font-weight-bolder;
 
             &:where(:not(:empty)) {
-                // When dragging, an empty tr is created we don't want
-                // a border here.
                 border-top-color: var(--o-SectionAndNote-border-color);
             }
 
@@ -47,8 +43,6 @@ table.o_section_and_note_list_view {
             font-weight: $font-weight-bold;
 
             &.o_dragged {
-                // We rely on td borders, when dragged we need to remove
-                // the borders on .o_data_row to avoid double borders
                 --ListRenderer-data-row-border-bottom-width: 0;
             }
 
@@ -61,7 +55,6 @@ table.o_section_and_note_list_view {
             }
         }
 
-        // Check if next sibling is a section to apply a border-color.
         &:where(
             :not(.o_dragged):has(+ .o_is_line_section:not(.o_dragged, .d-table-row))
         ) {
@@ -69,8 +62,6 @@ table.o_section_and_note_list_view {
         }
     }
 
-    // Check if first tr in the table is a section to apply a border-color on
-    // the <th> els.
     &:where(
             :has(tbody > tr:first-child.o_is_line_section:not(.o_dragged, .d-table-row))
         )

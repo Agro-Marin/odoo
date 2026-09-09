@@ -49,11 +49,6 @@ export class AttachmentPreviewListController extends ListController {
     }
 
     setPopout(value) {
-        /**
-         * This function will set the popout value to false or true depending on the situation.
-         * We set popout to True when clicking on a line that has an attachment and then clicking on the popout button.
-         * Once the external page is closed, the popout is set to false again.
-         */
         if (this.attachmentPreviewState.thread?.attachmentsInWebClientView.length) {
             this.popout.active = value;
         }

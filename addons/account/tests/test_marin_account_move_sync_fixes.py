@@ -310,15 +310,6 @@ class TestMarinAccountMoveSyncFixes(AccountTestInvoicingCommon):
         )
 
     def test_zero_valued_needed_entries_are_treated_asymmetrically(self):
-        """A lone zero survives as a journal item; two that cancel do not.
-
-        `_sync_dynamic_line_needed_values` sweeps zero totals only for keys it
-        actually merged, so which of the two rules applies depends on how many
-        contributions happened to land on the key. Whether a 0% installment
-        deserves a schedule row is a product decision that has never been made;
-        this pins what the code does today so that making it is a visible change
-        rather than a silent one.
-        """
         key = self._needed_values_key()
         lone_zero = self.env["account.move"]._sync_dynamic_line_needed_values(
             [{key: {"balance": 0.0, "amount_currency": 0.0}}]

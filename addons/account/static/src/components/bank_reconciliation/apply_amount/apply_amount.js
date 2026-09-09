@@ -59,7 +59,6 @@ class BankRecWidgetApplyAmountHtmlField extends Component {
             });
         } else if (ev.target.attributes.name?.value === "apply_partial_amount") {
             const lines = await fetchStatementLines(["balance", "amount_currency"]);
-            // We have all the lines of the entry, we want the amount of the suspense line
             await root.update({
                 balance: lines.at(-1).balance,
                 amount_currency: lines.at(-1).amount_currency,

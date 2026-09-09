@@ -52,9 +52,7 @@ class TaxGroupComponent extends Component {
         return formatFloat(value, { digits: this.props.currencyPd });
     }
 
-    /**
-     * @param {String} value
-     */
+    /** @param {String} value */
     setState(value) {
         if (["readonly", "edit", "disable"].includes(value)) {
             this.state.value = value;
@@ -107,9 +105,7 @@ export class TaxTotalsComponent extends Component {
         return formatMonetary(value, { currencyId: this.totals.currency_id });
     }
 
-    /**
-     * @param {{subtotal: Object, taxGroup: Object, amount: number}} change
-     */
+    /** @param {{subtotal: Object, taxGroup: Object, amount: number}} change */
     onTaxGroupAmountChanged({ subtotal, taxGroup, amount }) {
         const delta = amount - taxGroup.tax_amount_currency;
         if (!delta) {

@@ -8,7 +8,6 @@ from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tools import float_compare
 
-# read by account_reports.account_deferred_reports, not by this module
 DEFERRED_DATE_MIN = "1900-01-01"
 DEFERRED_DATE_MAX = "9999-12-31"
 

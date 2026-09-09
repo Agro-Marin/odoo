@@ -145,9 +145,6 @@ class AccountTax(models.Model):
         return super().name_search(name, domain, operator, limit)
 
     def _get_used_tax_ids(self, tax_ids):
-        # Modules that hold taxes on their own records extend this. Return the subset
-        # of `tax_ids` this layer can see in use; do NOT modify `tax_ids` itself --
-        # every caller in the chain still needs the full candidate set.
         return set()
 
     @api.depends_context("company")
@@ -594,10 +591,6 @@ class AccountTax(models.Model):
         return "account.action_unmerge_taxes"
 
     def _unmerge_copy_defaults(self):
-        # Deliberately NOT the name: `_constrains_name` refuses two taxes that
-        # share a name and a company, and during a split the copy and the
-        # original briefly share every company. copy() suffixes it;
-        # _unmerge_finalize puts it back once membership has settled.
         return {}
 
     def _unmerge_finalize(self, new_record_by_company):
@@ -605,16 +598,6 @@ class AccountTax(models.Model):
             new_tax.name = self.name
 
     def _unmerge_split_sidecars(self, new_record_by_company):
-        """Send each company's journal items to its own copy's distribution.
-
-        The mixin repoints every reference that names the tax; a journal item
-        also holds `tax_repartition_line_id`, which names a *line* of it, and
-        copy() gave each split tax lines of its own. That column is
-        ondelete="restrict", so leaving them behind is a foreign key error
-        rather than a silent mis-post.
-
-        Positional pairing is sound here because the copies are copies.
-        """
 
         def ordered(tax):
             return tax.repartition_line_ids._sorted_for_positional_pairing()
@@ -662,25 +645,11 @@ class AccountTax(models.Model):
         return self.search(domain, order=",".join(orders), limit=1)
 
     def _merge_method(self, destination, source):
-        # The generic merge cannot know that two taxes with the same rate may
-        # still distribute differently, nor repoint the journal items that hold
-        # a tax_repartition_line_id with ondelete="restrict". account.tax.merge.wizard
-        # does both; send people there rather than half-doing it here.
         raise UserError(self.env._("You cannot merge taxes."))
 
     @api.constrains("company_ids", "country_id")
     def _check_company_ids_country(self):
-        # A shared tax has ONE country by construction, so every company it
-        # serves has to recognise it -- as its own fiscal country, or as one it
-        # is registered for under multi-VAT. This is not "all in one country":
-        # chart_template._instantiate_foreign_taxes legitimately gives a company
-        # taxes of a foreign country, and the allowed set is the same expression
-        # the repartition line's tag domain uses.
         for tax in self:
-            # Only for a SHARED tax. A tax of one company may name any country
-            # it likes -- that was true before this change and narrowing it is
-            # not a schema move's job. What sharing adds is that every member
-            # has to be able to file the thing.
             if len(tax.company_ids) < 2:
                 continue
             for company in tax.company_ids:
@@ -901,10 +870,6 @@ class AccountTax(models.Model):
         include_caba_tags=False,
         rounded=True,
     ):
-        # `rounded` says whether _round_base_lines_tax_details has already run over
-        # `tax_data`. It has to be told: before that pass tax_amount still holds the
-        # foreign-currency figure the computation produced, and the rounded
-        # *_currency keys do not exist at all.
         currency = base_line["currency_id"]
         company_currency = company.currency_id
         amount_prefix = "" if rounded else "raw_"
@@ -945,12 +910,6 @@ class AccountTax(models.Model):
             ("", company_currency),
         ):
             field = f"tax_amount{delta_suffix}"
-            # Round the target before measuring the delta. On the unrounded path it is
-            # a raw figure, and the gap between a value and its own rounding is by
-            # definition under half a unit -- distributing that at unit precision can
-            # only yield 0 or +/-1 unit, so at the exact half it drags a correctly
-            # rounded seed a unit off. Rounded targets are already at this precision,
-            # so this is a no-op for them.
             target_amount = delta_currency.round(tax_data[f"{amount_prefix}{field}"])
             target_factors = [
                 {"factor": tax_rep_data[field], "tax_rep_data": tax_rep_data}
@@ -1246,13 +1205,6 @@ class AccountTaxRepartitionLine(models.Model):
     )
 
     def _sorted_for_positional_pairing(self):
-        """Canonical order for pairing one tax's distribution lines to another's.
-
-        Two sets of repartition lines that describe the same distribution sort
-        identically under this key, so zipping the two sorted results pairs each
-        line with its counterpart. Shared by every caller that relies on this
-        pairing (unmerge, tax merge) so the invariant can't drift between them.
-        """
         return self.sorted(
             lambda line: (
                 line.document_type,

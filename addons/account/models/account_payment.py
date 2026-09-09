@@ -6,56 +6,53 @@ from odoo.exceptions import MissingError, UserError, ValidationError
 from odoo.tools import SQL
 
 _SQL_RECONCILED_INVOICES_PER_PAYMENT = """
-            SELECT
-                payment.id,
-                ARRAY_AGG(DISTINCT invoice.id) AS invoice_ids,
-                invoice.move_type
-            FROM account_payment payment
-            JOIN account_move move ON move.id = payment.move_id
-            JOIN account_move_line line ON line.move_id = move.id
-            JOIN account_partial_reconcile part ON
-                part.debit_move_id = line.id
-                OR
-                part.credit_move_id = line.id
-            JOIN account_move_line counterpart_line ON
-                part.debit_move_id = counterpart_line.id
-                OR
-                part.credit_move_id = counterpart_line.id
-            JOIN account_move invoice ON invoice.id = counterpart_line.move_id
-            JOIN account_account account ON account.id = line.account_id
-            WHERE account.account_type = ANY(%(account_types)s)
-                AND payment.id = ANY(%(payment_ids)s)
-                AND line.id != counterpart_line.id
-                AND invoice.move_type = ANY(%(move_types)s)
-            GROUP BY payment.id, invoice.move_type
+    SELECT
+        payment.id,
+        ARRAY_AGG(DISTINCT invoice.id) AS invoice_ids,
+        invoice.move_type
+    FROM account_payment payment
+    JOIN account_move move ON move.id = payment.move_id
+    JOIN account_move_line line ON line.move_id = move.id
+    JOIN account_partial_reconcile part ON
+        part.debit_move_id = line.id
+        OR
+        part.credit_move_id = line.id
+    JOIN account_move_line counterpart_line ON
+        part.debit_move_id = counterpart_line.id
+        OR
+        part.credit_move_id = counterpart_line.id
+    JOIN account_move invoice ON invoice.id = counterpart_line.move_id
+    JOIN account_account account ON account.id = line.account_id
+    WHERE account.account_type = ANY(%(account_types)s)
+        AND payment.id = ANY(%(payment_ids)s)
+        AND line.id != counterpart_line.id
+        AND invoice.move_type = ANY(%(move_types)s)
+    GROUP BY payment.id, invoice.move_type
 """
 
 _SQL_RECONCILED_STATEMENT_LINES_PER_PAYMENT = """
-            SELECT
-                payment.id,
-                ARRAY_AGG(DISTINCT counterpart_line.statement_line_id) AS statement_line_ids
-            FROM account_payment payment
-            JOIN account_move move ON move.id = payment.move_id
-            JOIN account_move_line line ON line.move_id = move.id
-            JOIN account_account account ON account.id = line.account_id
-            JOIN account_partial_reconcile part ON
-                part.debit_move_id = line.id
-                OR
-                part.credit_move_id = line.id
-            JOIN account_move_line counterpart_line ON
-                part.debit_move_id = counterpart_line.id
-                OR
-                part.credit_move_id = counterpart_line.id
-            WHERE account.id = payment.outstanding_account_id
-                AND payment.id = ANY(%(payment_ids)s)
-                AND line.id != counterpart_line.id
-                AND counterpart_line.statement_line_id IS NOT NULL
-            GROUP BY payment.id
+    SELECT
+        payment.id,
+        ARRAY_AGG(DISTINCT counterpart_line.statement_line_id) AS statement_line_ids
+    FROM account_payment payment
+    JOIN account_move move ON move.id = payment.move_id
+    JOIN account_move_line line ON line.move_id = move.id
+    JOIN account_account account ON account.id = line.account_id
+    JOIN account_partial_reconcile part ON
+        part.debit_move_id = line.id
+        OR
+        part.credit_move_id = line.id
+    JOIN account_move_line counterpart_line ON
+        part.debit_move_id = counterpart_line.id
+        OR
+        part.credit_move_id = counterpart_line.id
+    WHERE account.id = payment.outstanding_account_id
+        AND payment.id = ANY(%(payment_ids)s)
+        AND line.id != counterpart_line.id
+        AND counterpart_line.statement_line_id IS NOT NULL
+    GROUP BY payment.id
 """
 
-# Every account `_seek_for_lines` consults to bucket a move's lines. The three
-# stored computes that call it must all be invalidated by all of them, so the set
-# is written once here rather than restated -- and drifting -- in each @api.depends.
 _SEEK_FOR_LINES_DEPENDS = (
     "move_id.line_ids.account_id",
     "outstanding_account_id",
@@ -78,8 +75,16 @@ class AccountPayment(models.Model):
     _order = "date desc, name desc"
     _check_company_auto = True
 
-    name = fields.Char(string="Number", compute="_compute_name", store=True)
-    date = fields.Date(default=fields.Date.context_today, required=True, tracking=True)
+    name = fields.Char(
+        string="Number",
+        compute="_compute_name",
+        store=True,
+    )
+    date = fields.Date(
+        default=fields.Date.context_today,
+        required=True,
+        tracking=True,
+    )
     move_id = fields.Many2one(
         comodel_name="account.move",
         string="Journal Entry",
@@ -152,7 +157,10 @@ class AccountPayment(models.Model):
         check_company=True,
         ondelete="restrict",
     )
-    qr_code = fields.Html(string="QR Code URL", compute="_compute_qr_code")
+    qr_code = fields.Html(
+        string="QR Code URL",
+        compute="_compute_qr_code",
+    )
     paired_internal_transfer_payment_id = fields.Many2one(
         "account.payment",
         index="btree_not_null",
@@ -212,7 +220,11 @@ class AccountPayment(models.Model):
         tracking=True,
         required=True,
     )
-    memo = fields.Char(string="Memo", tracking=True, inverse="_inverse_memo")
+    memo = fields.Char(
+        string="Memo",
+        tracking=True,
+        inverse="_inverse_memo",
+    )
     payment_reference = fields.Char(
         string="Payment Reference",
         copy=False,
@@ -379,10 +391,6 @@ class AccountPayment(models.Model):
         counterpart = empty.browse(counterpart_ids)
         other = empty.browse(other_ids)
 
-        # An entry booked by hand against an account the channel does not name
-        # still has one line playing each role. With exactly one unclassified
-        # line, adopt it into whichever role is vacant -- liquidity first, and
-        # never into both.
         if len(other) == 1:
             if not liquidity:
                 liquidity, other = other, empty
@@ -404,8 +412,6 @@ class AccountPayment(models.Model):
     def _valid_payment_states(self):
         if self.env["account.move"]._has_full_accounting():
             return ["in_process"]
-        # Without the app there is no `in_payment` for an invoice to sit in, so a
-        # paid payment is as settled as one still in process.
         return ["in_process", "paid"]
 
     def _get_aml_default_display_name_list(self):
@@ -489,10 +495,6 @@ class AccountPayment(models.Model):
         sign = -1 if self.payment_type == "outbound" else 1
         liquidity_amount_currency = sign * self.amount
 
-        # This hook runs before the liquidity balance exists, because the balance
-        # is what its lines reduce. It gets the two values settled by then: the
-        # label every line of the entry carries, and the gross amount in the
-        # payment's own currency. Its siblings below take a balance as well.
         withholding_lines = self._prepare_move_withholding_lines(
             {"name": line_name, "amount_currency": liquidity_amount_currency}
         )
@@ -560,10 +562,6 @@ class AccountPayment(models.Model):
     @api.depends("move_id.name", "state", "company_id", "date")
     def _compute_name(self):
         for payment in self:
-            # Assigning on no branch is deliberate: a draft payment has no number
-            # yet, and a settled one keeps the number it was given. The ORM leaves
-            # an unassigned stored compute at its stored value, which is the two
-            # cases this wants.
             if not payment.id or payment.state not in ("in_process", "paid"):
                 continue
             if payment.name and (
@@ -844,11 +842,6 @@ class AccountPayment(models.Model):
             pay.currency_id = pay.journal_id.currency_id or pay.company_id.currency_id
 
     def _outstanding_account_is_mandatory(self):
-        # Without the Accounting app there is no `in_payment` state for an invoice
-        # to sit in, so a settlement that books no entry is indistinguishable from
-        # one settled outside Odoo -- the entry is mandatory, and the account comes
-        # from the chart when the channel names none. The bank-reconciliation
-        # widget forces the same for a payment it is about to match.
         return (
             bool(self.env.context.get("force_payment_move"))
             or not self.env["account.move"]._has_full_accounting()
@@ -866,9 +859,6 @@ class AccountPayment(models.Model):
                     fallback[key] = pay._get_outstanding_account(pay.payment_type)
                 account = fallback[key]
             if not account and pay.move_id:
-                # The entry already books this settlement against an outstanding
-                # account; clearing the column would orphan it from its own lines,
-                # which `_seek_for_lines` then buckets as an ordinary counterpart.
                 continue
             pay.outstanding_account_id = account
 
@@ -981,12 +971,6 @@ class AccountPayment(models.Model):
         query_res = self._get_reconciled_statement_lines_per_payment(stored_payments)
         sale_types = self.env["account.move"].get_sale_types(True)
 
-        # Every set is resolved in Python before anything is assigned. Writing one
-        # of these fields marks it modified, and `account.move.payment_state`
-        # depends on `reconciled_payment_ids.state`, which the ORM can only invert
-        # by searching -- so each assignment walks back into `account.move` and,
-        # from there, into this compute again. Reading a field back mid-compute to
-        # `|=` it, or to derive another, pays for that walk a second time.
         invoices_by_payment = defaultdict(list)
         bills_by_payment = defaultdict(list)
         for payment_id, invoice_ids, move_type in invoices_per_payment:
@@ -1040,9 +1024,6 @@ class AccountPayment(models.Model):
                 moves = moves.filtered(move_filter)
             return moves.reconciled_payment_ids.ids
 
-        # The dependency walk inverts this field by searching, so it lands here
-        # once per record of every recompute -- an unconditional exists() was half
-        # of this compute's queries. Pay for it only when an id is actually gone.
         moves = self.env["account.move"].browse(value)
         try:
             ids = payment_ids(moves)
@@ -1067,9 +1048,6 @@ class AccountPayment(models.Model):
         if not payments:
             return {}
 
-        # The columns the query compares between the two sides. `state` is not one
-        # of them -- it is read off `duplicate_payment` alone -- but it still has
-        # to reach the database, so the two lists are not the same list.
         matched_fields = (
             "company_id",
             "partner_id",
@@ -1134,10 +1112,6 @@ class AccountPayment(models.Model):
 
     def _inverse_memo(self):
         for payment in self:
-            # Deliberately not guarded on the move's state: a posted entry's ref
-            # follows the memo (test_payment_memo_account_move_ref_inverse) while
-            # its line labels do not, because posted journal items must not change
-            # under an edit. The two diverging is the intended trade.
             payment.move_id.ref = payment.memo
 
     @api.constrains("payment_channel_id")
@@ -1206,9 +1180,6 @@ class AccountPayment(models.Model):
         return payments
 
     def _move_vals_from_related(self, vals):
-        # A related field pointing at the move is written through its inverse by
-        # `super().create()`, when `move_id` is still empty -- so the value is
-        # dropped there and has to be re-applied once the entry exists.
         return {
             fname: value
             for fname, value in vals.items()
@@ -1451,8 +1422,6 @@ class AccountPayment(models.Model):
         self.state = "rejected"
 
     def action_cancel(self):
-        # `self.move_id` is read once, before the unlink: reading it again after
-        # would re-resolve a many2one whose rows have just been deleted.
         moves = self.move_id
         draft_moves = moves.filtered(lambda m: m.state == "draft")
         self.state = "canceled"

@@ -6,7 +6,6 @@
         <field name="model">account.payment.register</field>
         <field name="arch" type="xml">
             <form string="Pay">
-                <!-- Invisible fields -->
                 <field name="line_ids" invisible="1" />
                 <field name="can_edit_wizard" invisible="1" force_save="1" />
                 <field name="can_group_payments" invisible="1" force_save="1" />

@@ -207,19 +207,11 @@ class AccountReportExpression(models.Model):
         return re.sub(r"\s+", " ", formula.strip())
 
     def _strip_formula_vals(self, vals):
-        # subformula too, not only formula. Every consumer of a subformula matches it
-        # from the front -- startswith("cross_report"), startswith("round"), == "count_rows"
-        # in account_reports, and CROSS_REPORT_REGEX here is anchored -- so one leading
-        # space silently turns a valid subformula into an unparseable one.
         for key in ("formula", "subformula"):
             if isinstance(vals.get(key), str):
                 vals[key] = self._strip_formula(vals[key])
 
     def _tax_tag_key(self):
-        # The identity a tax_tags expression and its tag share: the formula with its
-        # leading signs stripped, and the country of the report the expression lives
-        # in. Four call sites used to spell this tuple out, and _get_domain_tax_tags
-        # applies the same lstrip, so the two spellings have to agree.
         self.check_singleton()
         return (
             self.formula.lstrip("-"),
@@ -278,11 +270,6 @@ class AccountReportExpression(models.Model):
             )
 
         if vals.get("engine") and vals["engine"] != "tax_tags":
-            # The expressions are ceasing to name their tags, exactly as deleting them
-            # would, so the tags are released the same way. Leaving them behind is not
-            # a smaller change: _get_matching_tags filters on engine == 'tax_tags', so
-            # from the next line on nothing can reach those tags again -- not even the
-            # unlink hook -- and an active tax tag stays attached to no report.
             tax_tags_expressions._release_tax_tags()
 
         if "formula" not in vals or (
@@ -325,9 +312,6 @@ class AccountReportExpression(models.Model):
         self._release_tax_tags()
 
     def _release_tax_tags(self):
-        # Called both when these expressions are deleted and when their engine moves
-        # off tax_tags: either way they stop naming their tags, and a tag no surviving
-        # expression names is archived if journal items still carry it, deleted if not.
         expressions_tags = self._get_matching_tags().with_context(lang="en_US")
         if not expressions_tags:
             return
@@ -438,9 +422,6 @@ class AccountReportExpression(models.Model):
                 )
             )
 
-        # Both spellings have to end at a report that exists: a dangling id used to be
-        # returned as-is, and env.ref resolves any model, so the aggregation silently
-        # totalled nothing instead of saying the target was wrong.
         cross_report_value = subformula_match.group(1).strip()
         if cross_report_value.isdigit():
             target_report = (

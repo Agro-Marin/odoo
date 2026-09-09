@@ -138,10 +138,6 @@ def test_across_rates_settles_each_side_within_its_own_band_when_bands_dont_over
         "remaining_debit_amount": 300.0,
         "remaining_credit_amount": -300.0,
     }
-    # debit_range = amount_range_after_rate(UNITS, CENTS, 100.0, 1/0.5) = (199.0, 200.0, 201.0)
-    # credit_range = amount_range_after_rate(UNITS, CENTS, 100.0, 1/0.4) = (248.75, 250.0, 251.25)
-    # Neither band contains the other's midpoint, so the ranges don't overlap and
-    # each side settles at its own converted amount rather than the full residual.
     assert _partial_amounts_across_rates(context) == {
         "partial_amount": 200.0,
         "partial_debit_amount_currency": 100.0,
@@ -162,9 +158,6 @@ def test_across_rates_collapses_to_the_full_residual_when_bands_overlap():
         "remaining_debit_amount": 300.0,
         "remaining_credit_amount": -300.0,
     }
-    # Both sides convert to the identical (199.0, 200.0, 201.0) band, so each
-    # amount necessarily falls inside the other's band: settle the whole
-    # residual instead of leaving a rounding-window cent behind.
     assert _partial_amounts_across_rates(context) == {
         "partial_amount": 300.0,
         "partial_debit_amount_currency": 100.0,

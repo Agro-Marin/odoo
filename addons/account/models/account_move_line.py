@@ -604,9 +604,6 @@ class AccountMoveLine(models.Model):
                 else "product"
             )
 
-    # No @api.depends on move_id.partner_id on purpose: account.move's own
-    # _sync_invoice writes the commercial partner down onto the lines when it
-    # changes, and a dependency here would fight that inverse.
     def _compute_partner_id(self):
         for line in self:
             line.partner_id = line.move_id.partner_id.commercial_partner_id
@@ -802,9 +799,6 @@ class AccountMoveLine(models.Model):
                 line.display_type == "product" and line.move_id.is_invoice(True)
             )
         )
-        # Both lookups below are pure in their key and were being repeated once per
-        # line: an invoice that lists the same product, or any two lines sharing a
-        # partner, asked the same question as many times as it had lines.
         accounts_per_key = {}
         partner_account_per_key = {}
         for line in product_lines:
@@ -842,8 +836,6 @@ class AccountMoveLine(models.Model):
             non_accountable = line.display_type in NON_ACCOUNTABLE_DISPLAY_TYPES
             if line.account_id or non_accountable:
                 continue
-            # Two same-typed siblings already agreeing is a strong hint; one is not,
-            # so fall back to the journal rather than copy a single neighbour.
             previous_two_accounts = line.move_id.line_ids.filtered(
                 lambda l, dtype=line.display_type: (
                     l.account_id and l.display_type == dtype
@@ -856,10 +848,6 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def _search_account_lookup_id(self, operator, value):
-        # A drop-in for searching account_id that resolves the sub-domain here and
-        # inlines the ids, so the final query does not join account.account. Worth
-        # it while that table stays small (<10k rows). sudo: account_id carries
-        # bypass_search_access=True, so the ids must not be narrowed by ir.rule.
         if operator in ("in", "not in", "any", "not any") and not isinstance(
             value, (tuple, list, OrderedSet)
         ):
@@ -1006,8 +994,6 @@ class AccountMoveLine(models.Model):
                 or x.account_id.account_type in ("asset_cash", "liability_credit_card")
             )
         )
-        # _origin drops the NewIds, so the query below runs on rows that exist and
-        # the onchange (virtual) records fall through to the zero default.
         stored_lines = need_residual_lines._origin
 
         if stored_lines:
@@ -1254,9 +1240,6 @@ class AccountMoveLine(models.Model):
                 line.discount_allocation_key = False
 
     def _prepare_discount_allocation_amounts(self):
-        # Each discounted product line books its discount twice: off its own account
-        # and onto the allocation account. Lines with no discount, no allocation
-        # account, or an allocation account equal to their own contribute nothing.
         amounts_per_line = {}
         for line in self.move_id.line_ids:
             if line.display_type != "product":
@@ -1598,15 +1581,6 @@ class AccountMoveLine(models.Model):
                 move.no_followup = aml.no_followup
 
     def _search_payment_date(self, operator, value):
-        # `=` means "due by", not "due on". A payment run asks for the items
-        # payable as of a date, so ("payment_date", "=", d) is deliberately
-        # `<= d`; test_account_payment_items depends on exactly that. The
-        # consequence is that `!=` is the complement of `<=`, which is `>` --
-        # NOT true inequality. A line whose payment date is EARLIER than the
-        # value is excluded by `!=`, which surprises anyone reading the domain
-        # as ordinary field equality. Left as it is because the "due by" reading
-        # is the one the field exists for; pinned by
-        # test_payment_date_equality_means_due_by so it cannot drift silently.
         if operator == "in":
             return Domain.OR(self._search_payment_date("=", v) for v in value)
         if operator in Domain.NEGATIVE_OPERATORS:
@@ -1753,12 +1727,6 @@ class AccountMoveLine(models.Model):
         self._reconcile_plan([line + line.reconciled_lines_ids for line in self])
 
     def _check_account_is_usable(self):
-        # Deliberately NOT an @api.constrains: when a move and its lines are written
-        # in the same operation the constraint fires before every write has landed,
-        # which reports a false positive. It is called by hand from write() and from
-        # _post_validate() instead -- create() is exempt on purpose, so that an entry
-        # referencing a since-archived account can still be duplicated and corrected
-        # in draft (47d28b568be).
         for line in self.filtered(
             lambda x: x.display_type not in NON_ACCOUNTABLE_DISPLAY_TYPES
         ):
@@ -1997,10 +1965,6 @@ class AccountMoveLine(models.Model):
                 )
 
     def _is_partially_deductible(self):
-        # The one reading of `deductible_amount` every caller shares. Two decimals
-        # is the convention the constraint below already enforces; comparing the
-        # raw float instead admits a window just under 100 where the sync builds a
-        # "private part" line the vals builder then declines to populate.
         self.check_singleton()
         return float_compare(self.deductible_amount, 100, precision_digits=2) < 0
 
@@ -2031,8 +1995,6 @@ class AccountMoveLine(models.Model):
         ]
 
     def _snapshot_tracked_values(self, vals):
-        # Taken BEFORE super().write(): only the tracked fields this write actually
-        # touches, so _mail_track skips the rest (it ignores names absent here).
         if self.env.context.get("tracking_disable"):
             return {}
         tracked = set(self._get_tracked_fnames()) & set(vals)
@@ -2042,14 +2004,8 @@ class AccountMoveLine(models.Model):
         }
 
     def _log_tracked_change(self, body_for_link, tracked_pair):
-        # `tracked_pair(line, fnames)` answers "which record does mail compare, and
-        # against which values": creation compares the new line against blanks,
-        # deletion compares a blank line against the values it used to hold.
         if self.env.context.get("tracking_disable"):
             return
-        # fields_get() builds a full description per field and is the cost of this
-        # method; on a draft move there is nothing to log, so it is paid only once
-        # the loggable lines are known to exist.
         loggable = {
             move: lines
             for move, lines in self.grouped("move_id").items()
@@ -2412,9 +2368,6 @@ class AccountMoveLine(models.Model):
             if any(field in vals for field in ["account_id", "currency_id"]):
                 self._check_account_is_usable()
 
-            # Deliberately the second call: a line that did not affect the tax
-            # report before the write may affect it after, and only the values
-            # now stored can say so.
             self.browse(tax_lock_check_ids)._check_tax_lock_date()
 
             self._log_tracked_change(
@@ -2658,7 +2611,6 @@ class AccountMoveLine(models.Model):
 
     @api.model
     def _get_reconciliation_accounting_rate(self, aml, currency, shadowed_aml_values):
-        """The rate the line itself was booked at, or None if it carries no rate."""
         balance = aml._get_reconciliation_aml_field_value(
             "balance", shadowed_aml_values
         )
@@ -2675,15 +2627,12 @@ class AccountMoveLine(models.Model):
     def _get_reconciliation_odoo_rate(
         self, aml, other_aml, currency, shadowed_aml_values
     ):
-        """The rate to convert `aml` with when it has none of its own."""
         if forced_rate := self.env.context.get("forced_rate_from_register_payment"):
             return forced_rate
 
         def is_payment(record):
             return record.move_id.origin_payment_id or record.move_id.statement_line_id
 
-        # A payment states the rate the money actually moved at, so it wins over the
-        # rate table when it is the counterpart of a non-payment line.
         if other_aml and not is_payment(aml) and is_payment(other_aml):
             return self._get_reconciliation_accounting_rate(
                 other_aml, currency, shadowed_aml_values
@@ -2836,9 +2785,6 @@ class AccountMoveLine(models.Model):
         )
         context.update(
             {
-                # No usable residual on either side in its OWN currency means the
-                # only thing left to book between these two lines is the exchange
-                # difference, so the rates below must not be applied a second time.
                 "exchange_line_mode": (
                     recon_currency == company_currency
                     and debit_currency == credit_currency
@@ -3341,9 +3287,6 @@ class AccountMoveLine(models.Model):
         batched_aml_ids = set()
         for plan in plan_list:
             plan_amls = plan["amls"]
-            # A matching number can span plans; once a batch has swallowed these
-            # lines, re-batching them would create a second full reconcile for one
-            # reconciliation.
             if not plan_amls or batched_aml_ids.issuperset(plan_amls.ids):
                 continue
             involved_amls = plan_amls._filter_reconciled_by_number(number2lines)
@@ -3370,10 +3313,6 @@ class AccountMoveLine(models.Model):
             if not full_batch["is_fully_reconciled"]:
                 continue
             amls = full_batch["amls"]
-            # A nested plan -- the exchange difference, the cash-basis entry -- re-derives
-            # this same closure and finds it fully reconciled again. Creating a second
-            # account.full.reconcile for it repoints every line at the newcomer and leaves
-            # the first with nothing, which is where orphan rows come from.
             if len(amls.full_reconcile_id) == 1 and all(
                 aml.full_reconcile_id for aml in amls
             ):

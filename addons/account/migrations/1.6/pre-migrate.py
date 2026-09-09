@@ -45,9 +45,6 @@ def migrate(cr, version):
             (new, MODEL, old),
         )
 
-        # user_can_access_ids is also a stock.picking.type field, so a blanket
-        # rewrite would corrupt that model's views. Stay inside account.journal,
-        # and take the dotted form wherever a move-side record walks through it.
         cr.execute(
             f"""
             UPDATE ir_ui_view

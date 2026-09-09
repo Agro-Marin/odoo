@@ -7,7 +7,6 @@
     padding: 0;
     font-size: $o-font-size-base;
 
-    // To show the chatter below the page.
     @include media-breakpoint-between(md, xl) {
         flex-direction: column;
         height: 100dvh;
@@ -130,7 +129,6 @@
         }
     }
 }
-
 
 .o_bank_reconciliation_container {
     .o_kanban_record:not(.o_kanban_ghost) {
