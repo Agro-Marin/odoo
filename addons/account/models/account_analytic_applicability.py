@@ -21,7 +21,10 @@ class AccountAnalyticApplicability(models.Model):
         string="Financial Accounts Prefixes",
         help="Prefix that defines which accounts from the financial accounting this applicability should apply on.",
     )
-    product_categ_id = fields.Many2one("product.category", string="Product Category")
+    product_categ_id = fields.Many2one(
+        "product.category",
+        string="Product Category",
+    )
     display_account_prefix = fields.Boolean(
         compute="_compute_display_account_prefix",
         help="Defines if the field account prefix should be displayed",

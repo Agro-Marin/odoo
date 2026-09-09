@@ -8,6 +8,7 @@ from . import res_partner
 from . import res_partner_bank
 from . import account_account_tag
 from . import mixin_company_split
+from . import account_group
 from . import account_account
 from . import account_journal
 from . import account_lock_exception
@@ -37,7 +38,7 @@ from . import account_bank_statement_line
 from . import chart_template
 from . import account_analytic_account
 from . import account_analytic_distribution_model
-from . import account_analytic_plan
+from . import account_analytic_applicability
 from . import account_analytic_line
 from . import account_journal_dashboard
 from . import account_journal_sample_bill
@@ -70,7 +71,6 @@ from . import account_report_line
 from . import onboarding_onboarding_step
 from . import template_generic_coa
 from . import uom_uom
-from . import account_account_reconcile
 from . import account_bank_statement_line_auto_match
 from . import account_bank_statement_line_chatter
 from . import account_bank_statement_line_early_payment

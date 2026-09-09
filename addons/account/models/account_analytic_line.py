@@ -12,7 +12,9 @@ class AccountAnalyticLine(models.Model):
         check_company=True,
         index="btree_not_null",
     )
-    product_category = fields.Many2one(related="product_id.categ_id")
+    product_category = fields.Many2one(
+        related="product_id.categ_id",
+    )
     general_account_id = fields.Many2one(
         "account.account",
         string="Financial Account",
@@ -48,11 +50,6 @@ class AccountAnalyticLine(models.Model):
         selection_add=[("invoice", "Customer Invoice"), ("vendor_bill", "Vendor Bill")]
     )
 
-    @api.depends("move_line_id")
-    def _compute_general_account_id(self):
-        for line in self:
-            line.general_account_id = line.move_line_id.account_id
-
     @api.constrains("move_line_id", "general_account_id")
     def _check_general_account_id(self):
         for line in self:
@@ -63,6 +60,35 @@ class AccountAnalyticLine(models.Model):
                 raise ValidationError(
                     _("The journal item is not linked to the correct financial account")
                 )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        analytic_lines = super().create(vals_list)
+        analytic_lines.move_line_id._update_analytic_distribution()
+        return analytic_lines
+
+    def write(self, vals):
+        affected_move_lines = self.move_line_id
+        res = super().write(vals)
+        if any(
+            field in vals
+            for field in ["amount", "move_line_id"] + self._get_plan_fnames()
+        ):
+            if "move_line_id" in vals:
+                affected_move_lines |= self.move_line_id
+            affected_move_lines._update_analytic_distribution()
+        return res
+
+    def unlink(self):
+        affected_move_lines = self.move_line_id
+        res = super().unlink()
+        affected_move_lines._update_analytic_distribution()
+        return res
+
+    @api.depends("move_line_id")
+    def _compute_general_account_id(self):
+        for line in self:
+            line.general_account_id = line.move_line_id.account_id
 
     @api.depends("move_line_id.partner_id")
     def _compute_partner_id(self):
@@ -104,27 +130,3 @@ class AccountAnalyticLine(models.Model):
                 .name,
             )
         return super().view_header_get(view_id, view_type)
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        analytic_lines = super().create(vals_list)
-        analytic_lines.move_line_id._update_analytic_distribution()
-        return analytic_lines
-
-    def write(self, vals):
-        affected_move_lines = self.move_line_id
-        res = super().write(vals)
-        if any(
-            field in vals
-            for field in ["amount", "move_line_id"] + self._get_plan_fnames()
-        ):
-            if "move_line_id" in vals:
-                affected_move_lines |= self.move_line_id
-            affected_move_lines._update_analytic_distribution()
-        return res
-
-    def unlink(self):
-        affected_move_lines = self.move_line_id
-        res = super().unlink()
-        affected_move_lines._update_analytic_distribution()
-        return res

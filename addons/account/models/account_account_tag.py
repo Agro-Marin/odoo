@@ -15,6 +15,36 @@ class AccountAccountTag(models.Model):
         compute="_compute_report_expression",
     )
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        tags = super().create(vals_list)
+        if tax_tags := tags.filtered(
+            lambda tag: tag.applicability == "taxes",
+        ):
+            self._translate_tax_tags(tag_ids=tax_tags.ids)
+        return tags
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_master_tags(self):
+        master_xmlids = [
+            "account_tag_operating",
+            "account_tag_financing",
+            "account_tag_investing",
+        ]
+        for master_xmlid in master_xmlids:
+            master_tag = self.env.ref(
+                f"account.{master_xmlid}",
+                raise_if_not_found=False,
+            )
+            if master_tag and master_tag in self:
+                raise UserError(
+                    _(
+                        "You cannot delete this account tag (%s), it is used "
+                        "on the chart of account definition.",
+                        master_tag.name,
+                    )
+                )
+
     @api.depends("applicability", "country_id")
     @api.depends_context("company")
     def _compute_display_name(self):
@@ -90,15 +120,6 @@ class AccountAccountTag(models.Model):
                 )
         return super()._field_to_sql(alias, field_expr, query)
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        tags = super().create(vals_list)
-        if tax_tags := tags.filtered(
-            lambda tag: tag.applicability == "taxes",
-        ):
-            self._translate_tax_tags(tag_ids=tax_tags.ids)
-        return tags
-
     @api.model
     def _get_tax_tags(self, tag_name, country_id):
         domain = self._get_domain_tax_tags(tag_name, country_id)
@@ -122,9 +143,6 @@ class AccountAccountTag(models.Model):
         ]
 
     def _get_related_tax_report_expressions(self):
-        # A formula names its tag with any number of leading signs stripped, the same
-        # rule _get_domain_tax_tags applies, and `name` is translated while `formula`
-        # is not: search en_US, over-match in SQL, then compare stripped formulas here.
         tags = self.with_context(lang="en_US")
         if not tags:
             return self.env["account.report.expression"]
@@ -153,27 +171,6 @@ class AccountAccountTag(models.Model):
                 in keys
             )
         )
-
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_master_tags(self):
-        master_xmlids = [
-            "account_tag_operating",
-            "account_tag_financing",
-            "account_tag_investing",
-        ]
-        for master_xmlid in master_xmlids:
-            master_tag = self.env.ref(
-                f"account.{master_xmlid}",
-                raise_if_not_found=False,
-            )
-            if master_tag and master_tag in self:
-                raise UserError(
-                    _(
-                        "You cannot delete this account tag (%s), it is used "
-                        "on the chart of account definition.",
-                        master_tag.name,
-                    )
-                )
 
     def _translate_tax_tags(self, langs=None, tag_ids=None):
         langs = langs or (

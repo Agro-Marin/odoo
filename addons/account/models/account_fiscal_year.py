@@ -3,8 +3,6 @@ from odoo.exceptions import ValidationError
 
 
 class AccountFiscalYear(models.Model):
-    """Accounting fiscal year, used to validate period dates and detect overlaps."""
-
     _name = "account.fiscal.year"
     _description = "Fiscal Year"
 

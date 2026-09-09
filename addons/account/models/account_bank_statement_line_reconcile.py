@@ -10,8 +10,14 @@ class AccountBankStatementLine(models.Model):
     _inherit = "account.bank.statement.line"
 
     cron_last_check = fields.Datetime()
-    debit = fields.Monetary(compute="_compute_debit_credit", inverse="_inverse_debit")
-    credit = fields.Monetary(compute="_compute_debit_credit", inverse="_inverse_credit")
+    debit = fields.Monetary(
+        compute="_compute_debit_credit",
+        inverse="_inverse_debit",
+    )
+    credit = fields.Monetary(
+        compute="_compute_debit_credit",
+        inverse="_inverse_credit",
+    )
     bank_statement_attachment_ids = fields.One2many(
         "ir.attachment",
         compute="_compute_bank_statement_attachment_ids",

@@ -40,7 +40,10 @@ class AccountAccount(models.Model):
         compute="_compute_group_id",
         help="Account prefixes can determine account groups.",
     )
-    used = fields.Boolean(compute="_compute_used", search="_search_used")
+    used = fields.Boolean(
+        compute="_compute_used",
+        search="_search_used",
+    )
     opening_debit = fields.Monetary(
         string="Opening Debit",
         compute="_compute_opening_debit_credit",
@@ -59,7 +62,9 @@ class AccountAccount(models.Model):
         inverse="_inverse_opening_balance",
         currency_field="company_currency_id",
     )
-    current_balance = fields.Float(compute="_compute_current_balance")
+    current_balance = fields.Float(
+        compute="_compute_current_balance",
+    )
     related_taxes_amount = fields.Integer(
         compute="_compute_related_taxes_amount",
     )
@@ -234,6 +239,152 @@ class AccountAccount(models.Model):
                 )
             )
 
+    @api.model
+    @api.readonly
+    def name_search(self, name="", domain=None, operator="ilike", limit=100):
+        move_type = self.env.context.get("move_type")
+        if not move_type:
+            return super().name_search(name, domain, operator, limit)
+
+        # domain defaults to None, and every Domain.AND below would reject that
+        domain = domain or []
+        partner = self.env.context.get("partner_id")
+        suggested_accounts = (
+            self._order_accounts_by_frequency_for_partner(
+                self.env.company.id,
+                partner,
+                move_type,
+            )
+            if partner
+            else []
+        )
+
+        if not name and suggested_accounts:
+            display_by_id = {
+                record.id: record.display_name
+                for record in self.search_fetch(
+                    Domain.AND([[("id", "in", suggested_accounts)], domain]),
+                    ["display_name"],
+                )
+            }
+            return [
+                (account_id, display_by_id[account_id])
+                for account_id in suggested_accounts
+                if account_id in display_by_id
+            ][:limit]
+
+        digit_in_search_term = any(c.isdigit() for c in name)
+        search_domain = Domain("display_name", "ilike", name) if name else []
+
+        if digit_in_search_term:
+            domain = Domain.AND([search_domain, domain])
+        else:
+            allowed_account_types = self._get_name_search_account_types(move_type)
+            type_domain = (
+                [("account_type", "in", allowed_account_types)]
+                if allowed_account_types
+                else []
+            )
+            domain = Domain.AND([search_domain, type_domain, domain])
+
+        records = self.with_context(
+            preferred_account_ids=suggested_accounts,
+        ).search_fetch(domain, ["display_name"], limit=limit)
+        return [(record.id, record.display_name) for record in records]
+
+    def write(self, vals):
+        if "reconcile" in vals:
+            if vals["reconcile"]:
+                self.filtered(
+                    lambda r: not r.reconcile,
+                )._toggle_reconcile_to_true()
+            else:
+                self.filtered(
+                    lambda r: r.reconcile,
+                )._toggle_reconcile_to_false()
+
+        if vals.get("currency_id") and self.env["account.move.line"].search_count(
+            [
+                ("account_id", "in", self.ids),
+                ("currency_id", "not in", (False, vals["currency_id"])),
+            ],
+            limit=1,
+        ):
+            raise UserError(
+                _(
+                    "You cannot set a currency on this account as it "
+                    "already has some journal entries having a different "
+                    "foreign currency.",
+                )
+            )
+
+        # Deprecating an account is archiving it since `deprecated` was folded into
+        # `active`; the guard kept reading the old key, so the ORM rejected the write
+        # before it could ever be true and this never fired.
+        if vals.get("active") is False and self.env[
+            "account.tax.repartition.line"
+        ].search_count(
+            [("account_id", "in", self.ids)],
+            limit=1,
+        ):
+            raise UserError(
+                _(
+                    "You cannot deprecate an account that is used in a "
+                    "tax distribution.",
+                )
+            )
+
+        return super().write(vals)
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_contains_journal_items(self):
+        if (
+            self.env["account.move.line"]
+            .sudo()
+            .search_count(
+                [("account_id", "in", self.ids)],
+                limit=1,
+            )
+        ):
+            raise UserError(
+                _(
+                    "You cannot perform this action on an account that "
+                    "contains journal items.",
+                )
+            )
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_linked_to_fiscal_position(self):
+        if self.env["account.fiscal.position.account"].search_count(
+            [
+                "|",
+                ("account_src_id", "in", self.ids),
+                ("account_dest_id", "in", self.ids),
+            ],
+            limit=1,
+        ):
+            raise UserError(
+                _(
+                    'You cannot remove/deactivate the accounts "%s" which '
+                    "are set on the account mapping of a fiscal position.",
+                    ", ".join(f"{a.code} - {a.name}" for a in self),
+                )
+            )
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_linked_to_tax_repartition_line(self):
+        if self.env["account.tax.repartition.line"].search_count(
+            [("account_id", "in", self.ids)],
+            limit=1,
+        ):
+            raise UserError(
+                _(
+                    'You cannot remove/deactivate the accounts "%s" which '
+                    "are set on a tax repartition line.",
+                    ", ".join(f"{a.code} - {a.name}" for a in self),
+                )
+            )
+
     @api.depends_context("company")
     def _compute_company_fiscal_country_code(self):
         self.company_fiscal_country_code = (
@@ -282,30 +433,6 @@ class AccountAccount(models.Model):
 
         for account in accounts_with_code:
             account.group_id = group_by_code[account.code]
-
-    def _get_used_account_ids(self, account_ids=None):
-        rows = self.env.execute_query(
-            SQL(
-                """
-                SELECT account.id
-                  FROM account_account account
-                 WHERE EXISTS (
-                           SELECT 1 FROM account_move_line aml
-                            WHERE aml.account_id = account.id
-                       )
-                       %s
-                """,
-                SQL("AND account.id = ANY(%s)", list(account_ids))
-                if account_ids is not None
-                else SQL(),
-            )
-        )
-        return [r[0] for r in rows]
-
-    def _search_used(self, operator, value):
-        if operator not in ("in", "not in"):
-            return NotImplemented
-        return [("id", operator, self._get_used_account_ids())]
 
     def _compute_used(self):
         used = set(self._get_used_account_ids(self.ids))
@@ -430,10 +557,10 @@ class AccountAccount(models.Model):
                     else account.name
                 )
 
-    @api.onchange("account_type")
-    def _onchange_account_type(self):
-        if self.account_type == "off_balance":
-            self.tax_ids = False
+    def _search_used(self, operator, value):
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        return [("id", operator, self._get_used_account_ids())]
 
     def _inverse_opening_debit(self):
         for record in self:
@@ -470,6 +597,11 @@ class AccountAccount(models.Model):
         )
         index = 0 if field == "debit" else 1
         data[self.env.company.id][self.id][index] = amount
+
+    @api.onchange("account_type")
+    def _onchange_account_type(self):
+        if self.account_type == "off_balance":
+            self.tax_ids = False
 
     @api.model
     def _load_precommit_update_opening_move(self):
@@ -542,6 +674,25 @@ class AccountAccount(models.Model):
             WHERE full_reconcile_id IS NULL AND account_id = ANY(%s)
         """
         self.env.cr.execute(query, [list(self.ids)])
+
+    def _get_used_account_ids(self, account_ids=None):
+        rows = self.env.execute_query(
+            SQL(
+                """
+                SELECT account.id
+                  FROM account_account account
+                 WHERE EXISTS (
+                           SELECT 1 FROM account_move_line aml
+                            WHERE aml.account_id = account.id
+                       )
+                       %s
+                """,
+                SQL("AND account.id = ANY(%s)", list(account_ids))
+                if account_ids is not None
+                else SQL(),
+            )
+        )
+        return [r[0] for r in rows]
 
     @api.model
     def _get_most_frequent_accounts_for_partner(
@@ -703,152 +854,6 @@ class AccountAccount(models.Model):
         }
         return move_type_accounts.get(move_type.split("_")[0])
 
-    @api.model
-    @api.readonly
-    def name_search(self, name="", domain=None, operator="ilike", limit=100):
-        move_type = self.env.context.get("move_type")
-        if not move_type:
-            return super().name_search(name, domain, operator, limit)
-
-        # domain defaults to None, and every Domain.AND below would reject that
-        domain = domain or []
-        partner = self.env.context.get("partner_id")
-        suggested_accounts = (
-            self._order_accounts_by_frequency_for_partner(
-                self.env.company.id,
-                partner,
-                move_type,
-            )
-            if partner
-            else []
-        )
-
-        if not name and suggested_accounts:
-            display_by_id = {
-                record.id: record.display_name
-                for record in self.search_fetch(
-                    Domain.AND([[("id", "in", suggested_accounts)], domain]),
-                    ["display_name"],
-                )
-            }
-            return [
-                (account_id, display_by_id[account_id])
-                for account_id in suggested_accounts
-                if account_id in display_by_id
-            ][:limit]
-
-        digit_in_search_term = any(c.isdigit() for c in name)
-        search_domain = Domain("display_name", "ilike", name) if name else []
-
-        if digit_in_search_term:
-            domain = Domain.AND([search_domain, domain])
-        else:
-            allowed_account_types = self._get_name_search_account_types(move_type)
-            type_domain = (
-                [("account_type", "in", allowed_account_types)]
-                if allowed_account_types
-                else []
-            )
-            domain = Domain.AND([search_domain, type_domain, domain])
-
-        records = self.with_context(
-            preferred_account_ids=suggested_accounts,
-        ).search_fetch(domain, ["display_name"], limit=limit)
-        return [(record.id, record.display_name) for record in records]
-
-    def write(self, vals):
-        if "reconcile" in vals:
-            if vals["reconcile"]:
-                self.filtered(
-                    lambda r: not r.reconcile,
-                )._toggle_reconcile_to_true()
-            else:
-                self.filtered(
-                    lambda r: r.reconcile,
-                )._toggle_reconcile_to_false()
-
-        if vals.get("currency_id") and self.env["account.move.line"].search_count(
-            [
-                ("account_id", "in", self.ids),
-                ("currency_id", "not in", (False, vals["currency_id"])),
-            ],
-            limit=1,
-        ):
-            raise UserError(
-                _(
-                    "You cannot set a currency on this account as it "
-                    "already has some journal entries having a different "
-                    "foreign currency.",
-                )
-            )
-
-        # Deprecating an account is archiving it since `deprecated` was folded into
-        # `active`; the guard kept reading the old key, so the ORM rejected the write
-        # before it could ever be true and this never fired.
-        if vals.get("active") is False and self.env[
-            "account.tax.repartition.line"
-        ].search_count(
-            [("account_id", "in", self.ids)],
-            limit=1,
-        ):
-            raise UserError(
-                _(
-                    "You cannot deprecate an account that is used in a "
-                    "tax distribution.",
-                )
-            )
-
-        return super().write(vals)
-
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_contains_journal_items(self):
-        if (
-            self.env["account.move.line"]
-            .sudo()
-            .search_count(
-                [("account_id", "in", self.ids)],
-                limit=1,
-            )
-        ):
-            raise UserError(
-                _(
-                    "You cannot perform this action on an account that "
-                    "contains journal items.",
-                )
-            )
-
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_linked_to_fiscal_position(self):
-        if self.env["account.fiscal.position.account"].search_count(
-            [
-                "|",
-                ("account_src_id", "in", self.ids),
-                ("account_dest_id", "in", self.ids),
-            ],
-            limit=1,
-        ):
-            raise UserError(
-                _(
-                    'You cannot remove/deactivate the accounts "%s" which '
-                    "are set on the account mapping of a fiscal position.",
-                    ", ".join(f"{a.code} - {a.name}" for a in self),
-                )
-            )
-
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_linked_to_tax_repartition_line(self):
-        if self.env["account.tax.repartition.line"].search_count(
-            [("account_id", "in", self.ids)],
-            limit=1,
-        ):
-            raise UserError(
-                _(
-                    'You cannot remove/deactivate the accounts "%s" which '
-                    "are set on a tax repartition line.",
-                    ", ".join(f"{a.code} - {a.name}" for a in self),
-                )
-            )
-
     def action_view_related_taxes(self):
         related_taxes_ids = (
             self.env["account.tax"]
@@ -867,6 +872,12 @@ class AccountAccount(models.Model):
             "domain": [("id", "in", related_taxes_ids)],
         }
 
+    def action_view_reconcile(self):
+        self.check_singleton()
+        return self.env["account.move.line"]._action_view_unreconciled(
+            extra_domain=[("account_id", "=", self.id)],
+        )
+
     @api.model
     def get_import_templates(self):
         return [
@@ -884,205 +895,3 @@ class AccountAccount(models.Model):
 
     def _unmerge_copy_defaults(self):
         return {"name": self.name}
-
-
-class AccountGroup(models.Model):
-    _name = "account.group"
-    _description = "Account Group"
-    _order = "code_prefix_start"
-    _check_company_auto = True
-    _check_company_domain = models.check_company_domain_parent_of
-
-    parent_id = fields.Many2one(
-        "account.group",
-        index=True,
-        ondelete="cascade",
-        readonly=True,
-        check_company=True,
-    )
-    name = fields.Char(required=True, translate=True)
-    code_prefix_start = fields.Char(
-        compute="_compute_code_prefix_start",
-        readonly=False,
-        store=True,
-        precompute=True,
-    )
-    code_prefix_end = fields.Char(
-        compute="_compute_code_prefix_end",
-        readonly=False,
-        store=True,
-        precompute=True,
-    )
-    company_id = fields.Many2one(
-        "res.company",
-        required=True,
-        readonly=True,
-        default=lambda self: self.env.company.root_id,
-    )
-
-    _check_length_prefix = models.Constraint(
-        "CHECK(char_length(COALESCE(code_prefix_start, '')) "
-        "= char_length(COALESCE(code_prefix_end, '')))",
-        "The length of the starting and the ending code prefix must be the same",
-    )
-
-    @api.depends("code_prefix_start")
-    def _compute_code_prefix_end(self):
-        for group in self:
-            if not group.code_prefix_end or (
-                group.code_prefix_start
-                and group.code_prefix_end < group.code_prefix_start
-            ):
-                group.code_prefix_end = group.code_prefix_start
-
-    @api.depends("code_prefix_end")
-    def _compute_code_prefix_start(self):
-        for group in self:
-            if not group.code_prefix_start or (
-                group.code_prefix_end
-                and group.code_prefix_start > group.code_prefix_end
-            ):
-                group.code_prefix_start = group.code_prefix_end
-
-    @api.depends("code_prefix_start", "code_prefix_end")
-    def _compute_display_name(self):
-        for group in self:
-            prefix = group.code_prefix_start and str(group.code_prefix_start)
-            if prefix and group.code_prefix_end != group.code_prefix_start:
-                prefix += "-" + str(group.code_prefix_end)
-            group.display_name = " ".join(
-                filter(None, [prefix, group.name]),
-            )
-
-    @api.model
-    def _search_display_name(self, operator, value):
-        if operator in Domain.NEGATIVE_OPERATORS:
-            return NotImplemented
-        if operator == "in":
-            return [
-                "|",
-                ("code", "in", [(name or "").split(" ")[0] for name in value]),
-                ("name", "in", value),
-            ]
-        if operator == "ilike" and isinstance(value, str):
-            return [
-                "|",
-                ("code_prefix_start", "=ilike", value + "%"),
-                ("name", operator, value),
-            ]
-        return [("name", operator, value)]
-
-    @api.constrains("code_prefix_start", "code_prefix_end")
-    def _constraint_prefix_overlap(self):
-        self.flush_model()
-        query = """
-            SELECT other.id FROM account_group this
-            JOIN account_group other
-              ON char_length(other.code_prefix_start)
-                 = char_length(this.code_prefix_start)
-             AND other.id != this.id
-             AND other.company_id = this.company_id
-             AND (
-                other.code_prefix_start <= this.code_prefix_start
-                AND this.code_prefix_start <= other.code_prefix_end
-                OR
-                other.code_prefix_start >= this.code_prefix_start
-                AND this.code_prefix_end >= other.code_prefix_start
-            )
-            WHERE this.id = ANY(%(ids)s)
-        """
-        self.env.cr.execute(query, {"ids": list(self.ids)})
-        res = self.env.cr.fetchall()
-        if res:
-            raise ValidationError(
-                _("Account Groups with the same granularity can't overlap"),
-            )
-
-    def _sanitize_vals(self, vals):
-        vals = dict(vals)
-        if (
-            vals.get("code_prefix_start")
-            and "code_prefix_end" in vals
-            and not vals["code_prefix_end"]
-        ):
-            del vals["code_prefix_end"]
-        if (
-            vals.get("code_prefix_end")
-            and "code_prefix_start" in vals
-            and not vals["code_prefix_start"]
-        ):
-            del vals["code_prefix_start"]
-        return vals
-
-    @api.constrains("parent_id")
-    def _check_parent_not_circular(self):
-        if self._has_cycle():
-            raise ValidationError(
-                _("You cannot create recursive groups."),
-            )
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        groups = super().create([self._sanitize_vals(vals) for vals in vals_list])
-        groups._adapt_parent_account_group()
-        return groups
-
-    def write(self, vals):
-        res = super().write(self._sanitize_vals(vals))
-        if "code_prefix_start" in vals or "code_prefix_end" in vals:
-            self._adapt_parent_account_group()
-        return res
-
-    def unlink(self):
-        children = self.env["account.group"].search(
-            [("parent_id", "in", self.ids)],
-        )
-        for parent, group_children in children.grouped("parent_id").items():
-            group_children.parent_id = parent.parent_id.id
-        return super().unlink()
-
-    def _adapt_parent_account_group(self, company=None):
-        if self.env.context.get("delay_account_group_sync"):
-            return
-
-        company_ids = company.ids if company else self.company_id.ids
-        if not company_ids:
-            return
-
-        self.flush_model()
-        query = SQL(
-            """
-            WITH relation AS (
-                SELECT DISTINCT ON (child.id)
-                       child.id AS child_id,
-                       parent.id AS parent_id
-                  FROM account_group parent
-            RIGHT JOIN account_group child
-                    ON char_length(parent.code_prefix_start)
-                       < char_length(child.code_prefix_start)
-                   AND parent.code_prefix_start
-                       <= LEFT(child.code_prefix_start,
-                               char_length(parent.code_prefix_start))
-                   AND parent.code_prefix_end
-                       >= LEFT(child.code_prefix_end,
-                               char_length(parent.code_prefix_end))
-                   AND parent.id != child.id
-                   AND parent.company_id = child.company_id
-                 WHERE child.company_id = ANY(%s)
-              ORDER BY child.id,
-                       char_length(parent.code_prefix_start) DESC
-            )
-            UPDATE account_group child
-               SET parent_id = relation.parent_id
-              FROM relation
-             WHERE child.id = relation.child_id
-               AND child.parent_id IS DISTINCT FROM relation.parent_id
-         RETURNING child.id
-        """,
-            list(company_ids),
-        )
-        self.env.cr.execute(query)
-
-        updated_rows = self.env.cr.fetchall()
-        if updated_rows:
-            self.invalidate_model(["parent_id"])
