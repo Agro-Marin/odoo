@@ -24,7 +24,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { ListRenderer } from "@web/views/list/list_renderer";
-import { SUCCESS_SIGNAL } from "@web/webclient/clickbot/clickbot";
+import { FAILURE_SIGNAL, SUCCESS_SIGNAL } from "@web/webclient/clickbot/clickbot";
 
 const RPC_ERROR_MARKER =
     "A RPC in error was detected, maybe it's related to the error dialog : ";
@@ -202,10 +202,10 @@ test("clickbot clickeverywhere test", async () => {
         'Clicking on: filter "Not Bar"',
         'Clicking on: filter "Date"',
         'Clicking on: filter option "October"',
-        "Successfully tested 2 apps",
-        "Successfully tested 2 menus",
-        "Successfully tested 0 modals",
-        "Successfully tested 10 filters",
+        "Tested 2 apps",
+        "Tested 2 menus",
+        "Tested 0 modals",
+        "Tested 10 filters",
         SUCCESS_SIGNAL,
     ]);
 });
@@ -286,12 +286,12 @@ test("only one app", async () => {
         'Clicking on: filter "Not Bar"',
         'Clicking on: filter "Date"',
         'Clicking on: filter option "October"',
-        "Successfully tested 1 apps",
-        "Successfully tested 0 menus",
-        "Successfully tested 0 modals",
-        "Successfully tested 4 filters",
+        "Tested 1 apps",
+        "Tested 0 menus",
+        "Tested 0 modals",
+        "Tested 4 filters",
         SUCCESS_SIGNAL,
-        'savedState: {"light":false,"startedAt":<ts>,"studioCount":0,"testedApps":["app1"],"testedMenus":["app1"],"testedFilters":4,"testedModals":0,"appIndex":0,"menuIndex":0,"subMenuIndex":0,"xmlId":"app1","app":"app1"}',
+        'savedState: {"light":false,"startedAt":<ts>,"studioCount":0,"testedApps":["app1"],"testedMenus":["app1"],"testedFilters":4,"testedModals":0,"errorMenuCount":0,"uncaughtErrorCount":0,"appIndex":0,"menuIndex":0,"subMenuIndex":0,"xmlId":"app1","app":"app1"}',
     ]);
 });
 
@@ -385,10 +385,10 @@ test("clickbot clickeverywhere test (with dropdown menu)", async () => {
         'Clicking on: filter "Not Bar"',
         'Clicking on: filter "Date"',
         'Clicking on: filter option "October"',
-        "Successfully tested 1 apps",
-        "Successfully tested 2 menus",
-        "Successfully tested 0 modals",
-        "Successfully tested 6 filters",
+        "Tested 1 apps",
+        "Tested 2 menus",
+        "Tested 0 modals",
+        "Tested 6 filters",
         SUCCESS_SIGNAL,
     ]);
 });
@@ -463,10 +463,7 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
     patchWithCleanup(browser, {
         console: {
             log: (msg) => {
-                if (msg === "test successful") {
-                    expect.step(msg);
-                    clickEverywhereDef.resolve();
-                }
+                expect.step(msg);
             },
             error: (msg) => {
                 msg = msg.toString().replaceAll(/"id":\d+,/g, `"id":null,`);
@@ -476,13 +473,16 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
                         canonicalJson(msg.slice(RPC_ERROR_MARKER.length));
                 }
                 expect.step(msg);
-                clickEverywhereDef.resolve();
+                if (msg === FAILURE_SIGNAL) {
+                    clickEverywhereDef.resolve();
+                }
             },
         },
     });
     onRpc("web_search_read", () => {
         if (clickBotStarted) {
             if (id === 3) {
+                id++;
                 throw makeServerError({
                     message:
                         "This is a server Error, it should be displayed in an error dialog",
@@ -492,14 +492,6 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
             id++;
         }
     });
-    defineActions([
-        {
-            id: 1,
-            name: "App1",
-            res_model: "foo",
-            views: [[false, "list"]],
-        },
-    ]);
     defineMenus([
         {
             id: 1,
@@ -507,6 +499,13 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
             appID: 1,
             actionID: 1001,
             xmlid: "app1",
+        },
+        {
+            id: 2,
+            name: "App2",
+            appID: 2,
+            actionID: 1002,
+            xmlid: "app2",
         },
     ]);
     const webClient = await mountWebClient();
@@ -594,9 +593,32 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
 
     expect.verifyErrors(["This is a server Error"]);
     expect.verifySteps([
+        "Testing app menu: app1",
+        "Testing menu App1 app1",
+        'Clicking on: menu item "App1"',
+        "Clicking on: search bar menu dropdown",
+        "Testing 2 filters",
+        'Clicking on: filter "Not Bar"',
+        'Clicking on: filter "Date"',
+        'Clicking on: filter option "April"',
         `${RPC_ERROR_MARKER}${canonicalJson(expectedRpcData)}`,
-        "Error while testing App1 app1",
-        `Error: Error dialog detected${expectedModalHtml}`,
+        `Error while testing App1 app1: Error dialog detected${expectedModalHtml}`,
+        "Clicking on: home menu toggle button",
+        "Testing app menu: app2",
+        "Testing menu App2 app2",
+        'Clicking on: menu item "App2"',
+        "Clicking on: search bar menu dropdown",
+        "Testing 2 filters",
+        'Clicking on: filter "Not Bar"',
+        'Clicking on: filter "Date"',
+        'Clicking on: filter option "April"',
+        "Tested 2 apps",
+        "Tested 0 menus",
+        "Error found while testing 1 menus",
+        "Uncaught errors: 1",
+        "Tested 0 modals",
+        "Tested 4 filters",
+        FAILURE_SIGNAL,
     ]);
 });
 
@@ -745,10 +767,10 @@ test("clickbot clickeverywhere menu modal", async () => {
         'Clicking on: menu item "App Modal"',
         "Modal detected: App Modal test.modal",
         "Clicking on: modal close button",
-        "Successfully tested 2 apps",
-        "Successfully tested 0 menus",
-        "Successfully tested 1 modals",
-        "Successfully tested 4 filters",
+        "Tested 2 apps",
+        "Tested 0 menus",
+        "Tested 1 modals",
+        "Tested 4 filters",
         SUCCESS_SIGNAL,
     ]);
 });
