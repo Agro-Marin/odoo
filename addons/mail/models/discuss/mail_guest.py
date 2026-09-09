@@ -28,7 +28,7 @@ class MailGuest(models.Model):
     _cookie_separator = "|"
 
     @api.model
-    def _lang_get(self) -> list[tuple[str, str]]:
+    def _selection_langs(self) -> list[tuple[str, str]]:
         return self.env["res.lang"].get_installed()
 
     name = fields.Char(string="Name", required=True)
@@ -44,7 +44,7 @@ class MailGuest(models.Model):
         string="Country", comodel_name="res.country"
     )
     email = fields.Char()
-    lang = fields.Selection(string="Language", selection=_lang_get)
+    lang = fields.Selection(string="Language", selection=_selection_langs)
     timezone = fields.Selection(string="Timezone", selection=_tz_get)
     channel_ids: DiscussChannel = fields.Many2many(
         string="Channels",

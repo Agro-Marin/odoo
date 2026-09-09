@@ -369,7 +369,7 @@ class MailTemplate(models.Model):
         )
 
     @api.model
-    def _get_module_xmlid_domain(self) -> Domain:
+    def _get_domain_module_xmlid(self) -> Domain:
         return Domain(
             "id",
             "in",
@@ -420,7 +420,7 @@ class MailTemplate(models.Model):
         if operator != "in":
             return NotImplemented
 
-        module_owned = self._get_module_xmlid_domain()
+        module_owned = self._get_domain_module_xmlid()
         domain = Domain.FALSE
 
         if "hidden_template" in value:

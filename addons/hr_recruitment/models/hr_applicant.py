@@ -473,8 +473,8 @@ class HrApplicant(models.Model):
             "date_closed",
         ]
 
-    def _get_rotting_domain(self):
-        return super()._get_rotting_domain() & Domain(
+    def _get_domain_rotting_records(self):
+        return super()._get_domain_rotting_records() & Domain(
             [
                 ("application_status", "=", "ongoing"),
                 ("date_closed", "=", False),

@@ -98,8 +98,8 @@ class MailTestRottingMixin(models.Model):
     def _get_rotting_depends_fields(self):
         return super()._get_rotting_depends_fields() + ["done", "stage_id.no_rot"]
 
-    def _get_rotting_domain(self):
-        return super()._get_rotting_domain() & Domain(
+    def _get_domain_rotting_records(self):
+        return super()._get_domain_rotting_records() & Domain(
             [
                 ("done", "=", False),
                 ("stage_id.no_rot", "=", False),

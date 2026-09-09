@@ -217,7 +217,7 @@ class MixinMailActivity(models.AbstractModel):
                 record._open_activities().mapped("state")
             )
 
-    def _open_activity_domain(
+    def _get_domain_open_activity(
         self,
         subdomain: Domain | Sequence[tuple] = (),
         user_id: int | None = None,
@@ -227,7 +227,7 @@ class MixinMailActivity(models.AbstractModel):
             domain &= Domain("user_id", "=", user_id)
         return Domain("activity_ids", "any", domain)
 
-    def _next_activity_domain(
+    def _get_domain_next_activity(
         self, subdomain: Sequence[tuple], user_id: int | None = None
     ) -> Domain:
         return Domain(
@@ -247,18 +247,18 @@ class MixinMailActivity(models.AbstractModel):
     ) -> Domain | NotImplementedType:
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
-        domain = self._next_activity_domain(
+        domain = self._get_domain_next_activity(
             [(fname, operator, operand)], user_id=user_id
         )
         if operator == "in" and False in operand:
-            domain |= ~self._open_activity_domain(user_id=user_id)
+            domain |= ~self._get_domain_open_activity(user_id=user_id)
         return domain
 
     def _activity_state_domains(self, states: Collection[str]) -> list[Domain]:
         Activity = self.env["mail.activity"]
         moment = datetime.now(UTC)
         overdue = (
-            self._open_activity_domain(Activity._domain_deadline_today("<", moment))
+            self._get_domain_open_activity(Activity._domain_deadline_today("<", moment))
             if not states.isdisjoint(("overdue", "today"))
             else Domain.FALSE
         )
@@ -267,13 +267,15 @@ class MixinMailActivity(models.AbstractModel):
             domains.append(overdue)
         if "today" in states:
             domains.append(
-                self._open_activity_domain(Activity._domain_deadline_today("=", moment))
+                self._get_domain_open_activity(
+                    Activity._domain_deadline_today("=", moment)
+                )
                 & ~overdue
             )
         if "planned" in states:
             domains.append(
-                self._open_activity_domain()
-                & ~self._open_activity_domain(
+                self._get_domain_open_activity()
+                & ~self._get_domain_open_activity(
                     Activity._domain_deadline_today("<=", moment)
                 )
             )
@@ -298,7 +300,7 @@ class MixinMailActivity(models.AbstractModel):
         if not search_states:
             matching = Domain.FALSE
         elif search_states == all_states - {False}:
-            matching = self._open_activity_domain()
+            matching = self._get_domain_open_activity()
         else:
             matching = Domain.OR(self._activity_state_domains(search_states))
 
@@ -316,7 +318,7 @@ class MixinMailActivity(models.AbstractModel):
             return NotImplemented
 
         def open_activities(subdomain: Domain | Sequence[tuple] = ()) -> Domain:
-            return self._open_activity_domain(subdomain, user_id=user_id)
+            return self._get_domain_open_activity(subdomain, user_id=user_id)
 
         if operator in ("<", "<="):
             return open_activities([("date_deadline", operator, operand)])
@@ -353,11 +355,11 @@ class MixinMailActivity(models.AbstractModel):
         bools, values = partition(lambda v: isinstance(v, bool), operand)
         domain = Domain.FALSE
         if True in bools:
-            domain |= self._next_activity_domain([("user_id", "!=", False)])
+            domain |= self._get_domain_next_activity([("user_id", "!=", False)])
         if False in bools:
             domain |= (
-                self._next_activity_domain([("user_id", "=", False)])
-                | ~self._open_activity_domain()
+                self._get_domain_next_activity([("user_id", "=", False)])
+                | ~self._get_domain_open_activity()
             )
         if values:
             domain |= self._search_next_activity_field("user_id", "in", values)
@@ -378,10 +380,10 @@ class MixinMailActivity(models.AbstractModel):
     ) -> Domain | NotImplementedType:
         if operator != "in":
             return NotImplemented
-        danger = self._open_activity_domain(
+        danger = self._get_domain_open_activity(
             [("activity_type_id.decoration_type", "=", "danger")]
         )
-        warning = self._open_activity_domain(
+        warning = self._get_domain_open_activity(
             [("activity_type_id.decoration_type", "=", "warning")]
         )
         domain_by_value = {

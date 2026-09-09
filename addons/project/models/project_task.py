@@ -999,8 +999,8 @@ class ProjectTask(models.Model):
     def _get_rotting_depends_fields(self) -> list[str]:
         return super()._get_rotting_depends_fields() + ["is_closed"]
 
-    def _get_rotting_domain(self) -> list:
-        return super()._get_rotting_domain() & Domain("is_closed", "=", False)
+    def _get_domain_rotting_records(self) -> list:
+        return super()._get_domain_rotting_records() & Domain("is_closed", "=", False)
 
     @property
     def OPEN_STATES(self) -> list[str]:

@@ -308,7 +308,7 @@ class TestMailThreadRottingMixin(MailTrackingDurationMixinCase):
             model.search([("is_rotting", "=", True)])
 
     def test_resource_rotting_search_survives_an_unconditional_domain(self):
-        """``_get_rotting_domain`` may be widened to match everything.
+        """``_get_domain_rotting_records`` may be widened to match everything.
 
         Regression: the search interpolated ``Query.where_clause`` into a
         hand-written statement, so a domain that produced no WHERE terms left a
@@ -316,7 +316,7 @@ class TestMailThreadRottingMixin(MailTrackingDurationMixinCase):
         """
         model = self.env["mail.test.rotting.resource"]
         with patch.object(
-            type(model), "_get_rotting_domain", lambda records: Domain.TRUE
+            type(model), "_get_domain_rotting_records", lambda records: Domain.TRUE
         ):
             model.search([("is_rotting", "=", True)])
 

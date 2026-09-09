@@ -259,7 +259,7 @@ The canonical messaging surface. Grouped by concern.
 
 **`mixin.mail.tracking.duration`** — `_compute_duration_tracking`,
 `_compute_rotting`/`_search_is_rotting`, `_get_duration_from_tracking(trackings)`,
-`_get_rotting_depends_fields()`, `_get_rotting_domain()`, `_is_rotting_feature_enabled()`.
+`_get_rotting_depends_fields()`, `_get_domain_rotting_records()`, `_is_rotting_feature_enabled()`.
 
 **`mixin.template.reset`** — `reset_template()`, `_override_translation_term(...)`, `_load_records_write`.
 

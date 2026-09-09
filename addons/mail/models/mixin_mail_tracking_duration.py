@@ -58,7 +58,7 @@ class MixinMailTrackingDuration(models.AbstractModel):
             f"{self._track_duration_field}.rotting_threshold_days",
         ]
 
-    def _get_rotting_domain(self) -> Domain:
+    def _get_domain_rotting_records(self) -> Domain:
         return Domain(f"{self._track_duration_field}.rotting_threshold_days", ">", 0)
 
     def _is_rotting_feature_enabled(self) -> bool:
@@ -144,7 +144,7 @@ class MixinMailTrackingDuration(models.AbstractModel):
         now = self.env.cr.now()
         window_start = self._get_rotting_window_start(now)
         last_update_field = self._track_duration_last_update_field
-        candidates = self.filtered_domain(self._get_rotting_domain())
+        candidates = self.filtered_domain(self._get_domain_rotting_records())
         for stage, records in candidates.grouped(self._track_duration_field).items():
             threshold = timedelta(days=stage.rotting_threshold_days)
             for record in records:
@@ -200,7 +200,7 @@ class MixinMailTrackingDuration(models.AbstractModel):
         )
         stages.flush_model(["rotting_threshold_days"])
 
-        query = self._search(self._get_rotting_domain())
+        query = self._search(self._get_domain_rotting_records())
         stage_alias = query.left_join(self._table, fname, stages._table, "id", fname)
 
         now = self.env.cr.now()
