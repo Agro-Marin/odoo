@@ -152,7 +152,7 @@ class StockMoveLineQuant(models.Model):
         return tuple(overrides.get(name, self[name]) for name in RESERVATION_KEY_FIELDS)
 
     @api.model
-    def _get_outstanding_reservation_domain(self):
+    def _get_domain_outstanding_reservation(self):
         return Domain(
             [
                 ("state", "not in", ["done", "cancel"]),
@@ -239,7 +239,7 @@ class StockMoveLineQuant(models.Model):
                 -candidate.id,
             )
 
-        domain = self._get_outstanding_reservation_domain()
+        domain = self._get_domain_outstanding_reservation()
         domain &= Domain(
             [(name, "=", self[name].id) for name in RESERVATION_KEY_FIELDS]
         )

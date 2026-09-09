@@ -6,6 +6,6 @@ class StockScheduler(models.AbstractModel):
     _inherit = "stock.scheduler"
 
     @api.model
-    def _get_moves_to_assign_domain(self, company_id):
-        domain = super()._get_moves_to_assign_domain(company_id)
+    def _get_domain_moves_to_assign(self, company_id):
+        domain = super()._get_domain_moves_to_assign(company_id)
         return domain & Domain("is_subcontract", "=", False)

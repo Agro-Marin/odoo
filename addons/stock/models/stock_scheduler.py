@@ -61,7 +61,7 @@ class StockScheduler(models.AbstractModel):
     @api.model
     def _reserve_due_moves(self, use_new_cursor=False, company_id=False):
         moves_to_assign = self.env["stock.move"].search(
-            self._get_moves_to_assign_domain(company_id),
+            self._get_domain_moves_to_assign(company_id),
             order="date_reservation, priority desc, date asc, id asc",
         )
         for moves_chunk in batched(moves_to_assign.ids, 1000, strict=False):
@@ -94,7 +94,7 @@ class StockScheduler(models.AbstractModel):
         return domain
 
     @api.model
-    def _get_moves_to_assign_domain(self, company_id):
+    def _get_domain_moves_to_assign(self, company_id):
         return Domain(
             [
                 ("company_id", "=?", company_id),

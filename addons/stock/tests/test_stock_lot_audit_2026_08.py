@@ -280,7 +280,7 @@ class TestLotQuantityScope(TransactionCase):
 class TestLotHookContracts(TransactionCase):
     def test_the_outgoing_domain_is_a_domain(self):
         self.assertIsInstance(
-            self.env["stock.lot"]._get_outgoing_domain(),
+            self.env["stock.lot"]._get_domain_outgoing_move_lines(),
             Domain,
             "overrides combine it with | and callers with &",
         )

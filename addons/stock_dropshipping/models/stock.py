@@ -117,8 +117,8 @@ class StockLot(models.Model):
             )
         return partners
 
-    def _get_outgoing_domain(self):
-        return super()._get_outgoing_domain() | Domain(
+    def _get_domain_outgoing_move_lines(self):
+        return super()._get_domain_outgoing_move_lines() | Domain(
             [
                 ("location_dest_id.usage", "=", "customer"),
                 ("location_id.usage", "=", "supplier"),

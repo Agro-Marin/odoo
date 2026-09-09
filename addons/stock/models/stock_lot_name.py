@@ -173,7 +173,7 @@ class StockLotName(models.Model):
                     Domain("move_partner_id", operator, value),
                 ]
             )
-        domain &= self._get_outgoing_domain()
+        domain &= self._get_domain_outgoing_move_lines()
         move_lines = self.env["stock.move.line"].search(domain)
 
         if is_no_partner:
@@ -184,7 +184,7 @@ class StockLotName(models.Model):
         return pickings.partner_id
 
     @api.model
-    def _get_outgoing_domain(self) -> Domain:
+    def _get_domain_outgoing_move_lines(self) -> Domain:
         return Domain(
             [
                 "|",
@@ -209,7 +209,7 @@ class StockLotName(models.Model):
                         ("state", "=", "done"),
                     ]
                 )
-                & self._get_outgoing_domain()
+                & self._get_domain_outgoing_move_lines()
             )
 
             queue = []
