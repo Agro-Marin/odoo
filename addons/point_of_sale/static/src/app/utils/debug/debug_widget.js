@@ -116,7 +116,7 @@ export class DebugWidget extends Component {
         }
         return new Blob([contents]);
     }
-    deleteOrders({ paid = true } = {}) {
+    removeOrders({ paid = true } = {}) {
         this.dialog.add(ConfirmationDialog, {
             title: _t("Delete Orders?"),
             body: _t(

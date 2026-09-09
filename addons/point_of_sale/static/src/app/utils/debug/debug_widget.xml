@@ -60,12 +60,12 @@
                         <input t-on-change="importData" type="file" class="d-none" id="import-order-input" />
                     </div>
                     <div data-tooltip="Delete paid orders" data-tooltip-delay="0">
-                        <button class="btn btn-danger btn-sm text-nowrap" t-on-click="() => this.deleteOrders({ paid: true })">
+                        <button class="btn btn-danger btn-sm text-nowrap" t-on-click="() => this.removeOrders({ paid: true })">
                             <i class="fa-solid fa-trash-can" aria-hidden="true" /> Paid
                         </button>
                     </div>
                     <div data-tooltip="Delete unpaid orders" data-tooltip-delay="0">
-                        <button class="btn btn-danger btn-sm text-nowrap" t-on-click="() => this.deleteOrders({ paid: false })">
+                        <button class="btn btn-danger btn-sm text-nowrap" t-on-click="() => this.removeOrders({ paid: false })">
                             <i class="fa-solid fa-trash-can" aria-hidden="true" /> Unpaid
                         </button>
                     </div>

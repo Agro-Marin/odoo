@@ -40,7 +40,7 @@ describe("pos_store.js", () => {
         const order = await getFilledOrder(store);
         const serializedOrder = { ...order.raw };
 
-        await store.deleteOrders([order]);
+        await store.removeOrders([order]);
         serializedOrder.state = "cancel";
         let isListenerCalled = false;
         const listenerCleanup = models["pos.order"].addEventListener(
@@ -368,21 +368,21 @@ describe("pos_store.js", () => {
         expect(actualUuids.sort()).toEqual(expectedUuids.sort());
     });
 
-    test("deleteOrders", async () => {
+    test("removeOrders", async () => {
         const store = await setupPosEnv();
         const order1 = await getFilledOrder(store);
         await store.syncAllOrders();
-        await store.deleteOrders([order1]);
+        await store.removeOrders([order1]);
         expect(store.models["pos.order"].getBy("uuid", order1.uuid)).toBeEmpty();
     });
 
-    test("deleteOrders multiple orders", async () => {
+    test("removeOrders multiple orders", async () => {
         const store = await setupPosEnv();
         await getFilledOrder(store);
         store.addNewOrder();
         let openOrders = store.getOpenOrders();
         expect(openOrders.length).toBe(2);
-        const deletedOrders = await store.deleteOrders(openOrders);
+        const deletedOrders = await store.removeOrders(openOrders);
         expect(deletedOrders).toBe(true);
         openOrders = store.getOpenOrders();
         expect(openOrders.length).toBe(0);

@@ -53,7 +53,7 @@ patch(DevicesSynchronisation.prototype, {
                     this.pos.addPendingOrder([uniqOrder.id]);
                 }
 
-                await this.pos.deleteOrders([...syncedOrder, ...localOrders]);
+                await this.pos.removeOrders([...syncedOrder, ...localOrders]);
             }
         }
     },

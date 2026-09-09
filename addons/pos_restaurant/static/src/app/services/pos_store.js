@@ -272,7 +272,7 @@ patch(PosStore.prototype, {
             }
         }
 
-        await this.deleteOrders([sourceOrder], [], true);
+        await this.removeOrders([sourceOrder], [], true);
         this.syncAllOrders({ orders: [destOrder] });
         return destOrder;
     },

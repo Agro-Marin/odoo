@@ -11,7 +11,7 @@ test("Check GAP", async () => {
     const device = store.device;
     let orderStack = [];
 
-    await store.deleteOrders(store.models["pos.order"].getAll());
+    await store.removeOrders(store.models["pos.order"].getAll());
 
     const createNewOrdersAndCheck = async (nbr) => {
         for (let i = 0; i < nbr; i++) {
@@ -24,7 +24,7 @@ test("Check GAP", async () => {
         const numbers = orderStack.map((order) =>
             parseInt(order.pos_reference.split("-")[2]),
         );
-        await store.deleteOrders(orderStack);
+        await store.removeOrders(orderStack);
         orderStack = [];
         expect(device.data.unsynced_number_stack).not.toBeEmpty();
         expect(device.data.unsynced_number_stack).toMatch(numbers);
@@ -47,7 +47,7 @@ test("Check GAP", async () => {
     expect(device.data.next_number).toBe(16);
 
     const orders = await store.syncAllOrders();
-    await store.deleteOrders(orders);
+    await store.removeOrders(orders);
 
     await createNewOrdersAndCheck(15);
     expect(device.data.next_number).toBe(31);

@@ -566,7 +566,7 @@ export class PosStore extends WithLazyGetterTrap {
                 uuid: line.refunded_orderline_id.uuid,
             }));
 
-        const orderIsDeleted = await this.deleteOrders([order]);
+        const orderIsDeleted = await this.removeOrders([order]);
         if (!orderIsDeleted) {
             return false;
         }
@@ -584,7 +584,7 @@ export class PosStore extends WithLazyGetterTrap {
         }
     }
 
-    async deleteOrders(orders, serverIds = [], ignoreChange = false) {
+    async removeOrders(orders, serverIds = [], ignoreChange = false) {
         const ordersToDelete = [];
         const failedOrders = [];
         let serverIdsFailed = false;
@@ -596,7 +596,7 @@ export class PosStore extends WithLazyGetterTrap {
             });
         };
         for (const order of orders) {
-            if (order && !(await this._onBeforeDeleteOrder(order))) {
+            if (order && !(await this._onBeforeRemoveOrder(order))) {
                 return false;
             }
         }
@@ -629,7 +629,7 @@ export class PosStore extends WithLazyGetterTrap {
                     failedOrders.push(order);
                     logPosMessage(
                         "Store",
-                        "deleteOrders",
+                        "removeOrders",
                         `Failed to cancel order ${order.uuid}`,
                         CONSOLE_COLOR,
                         [error],
@@ -649,7 +649,7 @@ export class PosStore extends WithLazyGetterTrap {
                     serverIdsFailed = true;
                     logPosMessage(
                         "Store",
-                        "deleteOrders",
+                        "removeOrders",
                         "Failed to cancel server-side order ids",
                         CONSOLE_COLOR,
                         [error],
@@ -687,7 +687,7 @@ export class PosStore extends WithLazyGetterTrap {
      * @param {*} order
      * @returns {boolean}
      */
-    async _onBeforeDeleteOrder(order) {
+    async _onBeforeRemoveOrder(order) {
         return true;
     }
 
@@ -1500,7 +1500,7 @@ export class PosStore extends WithLazyGetterTrap {
 
         if (orderIdsToDelete.length > 0) {
             try {
-                await this.deleteOrders([], orderIdsToDelete);
+                await this.removeOrders([], orderIdsToDelete);
             } catch (error) {
                 if (error instanceof ConnectionLostError) {
                     if (options.throw) {

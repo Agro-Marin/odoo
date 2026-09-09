@@ -34,7 +34,7 @@ patch(OrderSummary.prototype, {
     },
     async unbookTable() {
         const order = this.pos.getOrder();
-        await this.pos.deleteOrders([order]);
+        await this.pos.removeOrders([order]);
     },
     showUnbookButton() {
         if (this.pos.selectedTable) {

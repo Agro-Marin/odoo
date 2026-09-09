@@ -7,7 +7,7 @@ import { getFilledOrder, setupPosEnv } from "../utils.js";
 definePosModels();
 
 describe("pos_store.js resilience", () => {
-    describe("deleteOrders", () => {
+    describe("removeOrders", () => {
         test("one failing order does not abort the batch nor throw", async () => {
             const store = await setupPosEnv();
             const order1 = await getFilledOrder(store);
@@ -34,7 +34,7 @@ describe("pos_store.js resilience", () => {
                 },
             };
 
-            const result = await store.deleteOrders([order1, order2, order3]);
+            const result = await store.removeOrders([order1, order2, order3]);
 
             expect(result).toBe(false);
             expect(store.models["pos.order"].getBy("uuid", order1.uuid)).toBeEmpty();
@@ -52,7 +52,7 @@ describe("pos_store.js resilience", () => {
             const order2 = await getFilledOrder(store);
             await store.syncAllOrders({ orders: [order1, order2] });
 
-            expect(await store.deleteOrders([order1, order2])).toBe(true);
+            expect(await store.removeOrders([order1, order2])).toBe(true);
             expect(store.getOpenOrders()).toHaveLength(0);
         });
     });
