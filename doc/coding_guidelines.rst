@@ -1214,7 +1214,7 @@ Section  Population                                                  Count
 §2.4.1   … definitions under those names                               216
 §2.4.2   Single-field ``@api.onchange`` hooks                          383
 §2.4.2   … spelled ``_onchange_<field>``                               277
-§2.4.2   ``@api.ondelete`` hooks                                       168
+§2.4.2   ``@api.ondelete`` hooks                                       169
 §2.4.2   … spelled ``_unlink_except_*``                                109
 §2.4.2   ``@api.constrains`` hooks                                     682
 §2.4.2   … spelled ``_check_*``                                        630
@@ -3191,7 +3191,7 @@ Three consequences, in ascending expense:
    it orphans stored records in every database with no gate, test or import error
    to say so.
 
-**Wearing a dispatch prefix does not make a name a key** ``[review]``. **11**
+**Wearing a dispatch prefix does not make a name a key** ``[review]``. **12**
 definitions begin ``_render_qweb_``; exactly **3** are keys, because ``_render``
 builds its target from ``report_type``, whose Selection offers three values. **The
 set of keys is the enumerable domain of the variable half, never the set of names
