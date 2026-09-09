@@ -583,11 +583,12 @@ class MixinMailThread(models.AbstractModel):
                 and record.alias_id.alias_force_thread_id == 0
             ):
                 alias = record.alias_id
-        if not alias and model and self.env.company.alias_domain_id:
+        parent_model_id = self.env["ir.model"]._get_id(model) if model else None
+        if not alias and parent_model_id and self.env.company.alias_domain_id:
             aliases = self.env["mail.alias"].search(
                 [
                     ("alias_domain_id", "=", self.env.company.alias_domain_id.id),
-                    ("alias_parent_model_id.model", "=", model),
+                    ("alias_parent_model_id", "=", parent_model_id),
                     ("alias_name", "!=", False),
                     ("alias_force_thread_id", "=", False),
                     ("alias_parent_thread_id", "=", False),

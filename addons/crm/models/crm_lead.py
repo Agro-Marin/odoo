@@ -1664,7 +1664,7 @@ class CrmLead(models.Model):
             ("company_id", "in", [self.env.company.id, False]),
             ("alias_id.alias_name", "!=", False),
             ("alias_id.alias_name", "!=", ""),
-            ("alias_id.alias_model_id.model", "=", "crm.lead"),
+            ("alias_id.alias_model_id", "=", self.env["ir.model"]._get_id("crm.lead")),
         ]
         alias_records = (
             self.env["crm.team"]

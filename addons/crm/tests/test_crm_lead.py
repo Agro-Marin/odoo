@@ -1700,3 +1700,28 @@ class TestLeadTeamIsAlive(TestCrmCommon):
                     lead.team_id,
                     "the only team is archived, so the lead gets none",
                 )
+
+
+@tagged("post_install", "-at_install")
+class TestLeadEmptyListHelp(TestCrmCommon):
+    """The pipeline's empty-list help is built for whoever opened the view, and
+    it looks the team alias up by the model that alias creates. Reaching that
+    model through `alias_model_id.model` makes the ORM resolve the condition
+    with an access-checked search on `ir.model`, which no salesman may read.
+    """
+
+    @users("user_sales_salesman")
+    def test_empty_list_help_names_the_team_alias(self):
+        help_html = self.env["crm.lead"].get_empty_list_help("")
+        self.assertIn(
+            self.sales_team_1.alias_email,
+            help_html,
+            "the help offers the lead-creating team's alias, so the lookup ran",
+        )
+
+    @users("user_sales_salesman")
+    def test_empty_list_help_keeps_given_help(self):
+        self.assertEqual(
+            self.env["crm.lead"].get_empty_list_help("<p>Given</p>"),
+            "<p>Given</p>",
+        )
