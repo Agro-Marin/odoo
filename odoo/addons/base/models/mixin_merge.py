@@ -13,6 +13,22 @@ from odoo.tools import SQL, mute_logger
 _logger = logging.getLogger("odoo.addons.base.merge")
 
 
+def _is_searchable_reference_pair(model, field) -> bool:
+    """Whether a Many2oneReference and the model_field naming it can be searched.
+
+    Both halves have to be stored. `_repoint_model_rows` finds the rows with a
+    domain over the model_field, so a stored reference whose model_field is a
+    computed, unstored Char -- `automation.rule.trg_field_ref` is one -- raises
+    "Cannot convert ... to SQL because it is not stored" and takes the whole
+    merge with it. There is no column to search either, so such a pair is
+    unreachable by construction rather than merely awkward.
+    """
+    if not (field.is_many2one_reference and field.store and field.model_field):
+        return False
+    name_field = model._fields.get(field.model_field)
+    return name_field is not None and name_field.store
+
+
 class MixinMerge(models.AbstractModel):
     _name = "mixin.merge"
     _description = "Record Merge Engine"
@@ -289,11 +305,7 @@ class MixinMerge(models.AbstractModel):
             for model in self.env.values()
             if not model._abstract
             for field in model._fields.values()
-            if field.is_many2one_reference
-            and field.store
-            and field.model_field
-            and (name_field := model._fields.get(field.model_field)) is not None
-            and name_field.store
+            if _is_searchable_reference_pair(model, field)
         )
 
     def _repoint_sidecar_rows(
