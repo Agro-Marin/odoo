@@ -95,7 +95,7 @@
                                     <span class="o_approval_card_name">
                                         <field name="name" />
                                     </span>
-                                    <div class="o_approval_card_desc">
+                                    <div class="o_approval_card_desc o_line_clamp">
                                         <field name="description" />
                                     </div>
                                 </div>

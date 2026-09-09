@@ -39,7 +39,7 @@
                                         t-att-alt="record.badge_name.value" />
                                 </div>
                                 <field
-                                    class="mt-1 o_badge_content text-muted"
+                                    class="mt-1 o_line_clamp o_line_clamp_5 text-muted"
                                     name="comment" />
                             </div>
                         </t>

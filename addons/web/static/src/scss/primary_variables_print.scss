@@ -33,7 +33,7 @@ $grid-breakpoints: (
     xxl: 250mm,
 ) !default;
 
-$o-border-color: var(--border-color, #{$o-gray-500}) !default;
+$o-border-color: $o-gray-300 !default;
 
 $o-webclient-background-color: #ffffff !default;
 

@@ -139,10 +139,6 @@
     border-right: $caret-width solid transparent;
     border-top: $caret-width solid $caret-color;
 }
-@mixin o-grab-cursor() {
-    cursor: url(/web/static/img/openhand.cur), grab;
-}
-
 @mixin o-field-pointer() {
     .form-check-input:not(:disabled),
     .form-check-input:not(:disabled) + label {

@@ -74,7 +74,7 @@ $text-muted: $o-main-color-muted !default;
 
 $grid-gutter-width: $o-horizontal-padding * 2 !default;
 
-$border-color: $o-gray-300 !default;
+$border-color: $o-border-color !default;
 
 $border-radius: $o-border-radius !default;
 $border-radius-sm: $o-border-radius-sm !default;
@@ -115,7 +115,7 @@ $table-striped-color: inherit !default;
 $table-striped-bg-factor: 0.01 !default;
 $table-hover-bg-factor: 0.055 !default;
 $table-border-color: o-token(--border-color, $border-color) !default;
-$table-group-separator-color: $gray-200 !default;
+$table-group-separator-color: $o-hairline !default;
 $table-cell-padding-x: 0.75rem !default;
 $table-cell-padding-y: 0.75rem !default;
 $table-cell-padding-x-sm: $o-table-cell-padding-x-sm !default;
@@ -259,7 +259,7 @@ $kbd-box-shadow:
     inset 0px 2px 0px 0px rgba($o-white, 0.8) !default;
 
 $input-bg: $o-input-bg !default;
-$input-border-color: $o-gray-200 !default;
+$input-border-color: $o-hairline !default;
 $input-box-shadow: 0 !default;
 $input-focus-bg: $o-white !default;
 $input-focus-box-shadow: 0 !default;

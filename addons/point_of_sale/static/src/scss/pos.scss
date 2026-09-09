@@ -145,7 +145,7 @@ select {
 }
 
 .drag-handle {
-    cursor: url(/web/static/img/openhand.cur), grab;
+    cursor: grab;
 }
 
 .drag-handle:active {

@@ -60,17 +60,4 @@ export class NotificationItem extends Component {
     onClick(ev) {
         this.props.onClick(this.markAsReadRef.el?.contains(ev.target));
     }
-
-    /**
-     * @param {number} maxLine
-     * @returns {string}
-     */
-    webkitLineClamp(maxLine) {
-        return `
-            display: -webkit-box;
-            overflow: hidden;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: ${maxLine};
-        `;
-    }
 }

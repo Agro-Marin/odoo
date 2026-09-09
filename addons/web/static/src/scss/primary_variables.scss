@@ -125,6 +125,9 @@ $o-component-active-color: $o-black !default;
 $o-component-active-bg: o-round-color(mix($o-action, $o-white, 10%)) !default;
 $o-component-active-border: $o-action !default;
 
+$o-hairline: $o-gray-200 !default;
+$o-border-color: $o-gray-300 !default;
+
 $o-view-background-color: white !default;
 $o-shadow-color: #303030 !default;
 

@@ -9,8 +9,6 @@ $info-border-subtle: $o-dark-info-border-subtle !default;
 $link-shade-percentage: $o-dark-link-shade-percentage !default;
 $link-hover-color: $o-dark-link-hover-color !default;
 
-$border-color: $o-dark-border-color !default;
-
 $box-shadow: $o-dark-box-shadow !default;
 $box-shadow-sm: $o-dark-box-shadow-sm !default;
 $box-shadow-lg: $o-dark-box-shadow-lg !default;
@@ -23,13 +21,11 @@ $mark-color: $o-dark-mark-color !default;
 
 $table-bg: $o-dark-surface-sunken !default;
 $table-border-color: $o-dark-hairline !default;
-$table-group-separator-color: $o-dark-hairline !default;
 $table-bg-scale: $o-dark-table-bg-scale !default;
 $table-striped-bg-factor: $o-dark-table-striped-bg-factor !default;
 $table-hover-bg-factor: $o-dark-table-hover-bg-factor !default;
 $table-active-bg-factor: $o-dark-table-active-bg-factor !default;
 
-$input-border-color: $o-dark-hairline !default;
 $form-check-input-border: var(--border-width) solid #{$o-dark-gray-600} !default;
 $input-placeholder-color: $o-dark-input-placeholder-color !default;
 $input-focus-bg: $o-dark-input-focus-bg !default;

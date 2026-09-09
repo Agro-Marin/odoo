@@ -124,7 +124,7 @@
         >
             <i t-attf-class="{{app.webIcon.iconClass}} position-relative w-auto h-auto" t-attf-style="color: {{app.webIcon.color}};"/>
         </div>
-        <div class="o_caption w-100 text-center mt-2" t-att-title="app.label" t-esc="app.label"/>
+        <div class="o_caption o_line_clamp w-100 text-center mt-2" t-att-title="app.label" t-esc="app.label"/>
         <t t-set="badge" t-value="badgeFor(app)"/>
         <t t-if="!state.editing" t-call="web.AppBadge"/>
         <span t-if="search.query and layout.isHidden(app)" class="small text-muted">Hidden</span>
