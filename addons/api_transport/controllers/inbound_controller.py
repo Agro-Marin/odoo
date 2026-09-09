@@ -20,6 +20,16 @@ class InboundController(BaseCommController):
     def _get_identifier_field(self, endpoint_model: str) -> str:
         return "identifier"
 
+    def _mark_stored(self, result: ValidationResult) -> None:
+        """Close the request's event log as a success; a sync endpoint's retry
+        cron otherwise warns about it on every run until it is garbage-collected."""
+        if result.event_log:
+            result.event_log.sudo().mark_success()
+
+    def _mark_refused(self, result: ValidationResult, reason: str) -> None:
+        if result.event_log:
+            result.event_log.sudo().mark_failed(reason, schedule_retry=False)
+
     def _payload_too_large(self, endpoint: Any) -> ValidationResult:
         _logger.warning(
             "Payload too large for endpoint %s (limit: %d bytes)",
