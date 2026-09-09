@@ -26,7 +26,7 @@
                 <filter
                     string="Review Due"
                     name="review_due"
-                    domain="[('review_date', '&lt;=', context_today().strftime('%Y-%m-%d'))]" />
+                    domain="[('date_review', '&lt;=', context_today().strftime('%Y-%m-%d'))]" />
                 <group>
                     <filter
                         string="Project"
@@ -66,7 +66,7 @@
                             <field
                                 name="accountable_id"
                                 widget="many2one_avatar_user" />
-                            <field name="review_date" />
+                            <field name="date_review" />
                         </group>
                         <group>
                             <field name="target_value" />
@@ -112,7 +112,7 @@
                     name="accountable_id"
                     widget="many2one_avatar_user"
                     optional="show" />
-                <field name="review_date" optional="show" />
+                <field name="date_review" optional="show" />
                 <field
                     name="state"
                     widget="badge"

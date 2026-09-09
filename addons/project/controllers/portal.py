@@ -537,9 +537,9 @@ class ProjectCustomerPortal(CustomerPortal):
                 "order": "priority desc",
                 "sequence": 80,
             },
-            "planned_date_begin asc": {
+            "date_start asc": {
                 "label": _("Planned Date"),
-                "order": "planned_date_begin asc",
+                "order": "date_start asc",
                 "sequence": 75,
             },
             "date_end asc": {

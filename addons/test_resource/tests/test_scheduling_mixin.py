@@ -608,6 +608,31 @@ class TestSchedulingMixin(TransactionCase):
         record.invalidate_recordset(["allocated_hours"])
         self.assertEqual(record.allocated_hours, 0.0)
 
+    def test_manual_estimate_survives_when_no_reservation_is_due(self):
+        # A consumer whose resource provider is not installed is due no
+        # reservation however well dated it is -- project.task without hr, whose
+        # res.users._get_project_task_resource is the empty base implementation.
+        # Its stored allocated_hours is a manual estimate, not a stale sum, so
+        # being dated must not zero it.
+        record = self.Model.create(
+            {
+                "name": "Due no reservation",
+                "date_start": datetime(2025, 1, 6, 8, 0),
+                "date_end": datetime(2025, 1, 6, 17, 0),
+                "resource_id": self.resource.id,
+            }
+        )
+        record.reservation_ids.unlink()
+        record.write({"allocated_hours": 6.0})
+        self.assertTrue(record._is_scheduling_dated())
+
+        with patch.object(
+            type(record), "_get_reservation_vals_list", autospec=True, return_value=[]
+        ):
+            record.invalidate_recordset(["allocated_hours"])
+            self.assertFalse(record.reservation_ids)
+            self.assertEqual(record.allocated_hours, 6.0)
+
     def test_allocated_hours_resets_when_dates_are_cleared(self):
         record = self.Model.create(
             {

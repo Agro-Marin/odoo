@@ -16,14 +16,12 @@ class TestPlannedHours(TestProjectCommon):
         )
 
     def test_the_formula_drives_a_scheduled_task(self) -> None:
-        task = self._task(planned_date_begin=self.START, date_end=self.END)
+        task = self._task(date_start=self.START, date_end=self.END)
         self.assertEqual(task.planned_hours, task.scheduled_hours)
         self.assertFalse(task.planned_hours_manual)
 
     def test_resources_and_units_multiply_the_duration(self) -> None:
-        task = self._task(
-            planned_date_begin=self.START, date_end=self.END, planned_resources=2
-        )
+        task = self._task(date_start=self.START, date_end=self.END, planned_resources=2)
         self.assertEqual(task.planned_hours, task.scheduled_hours * 2)
 
     def test_an_unscheduled_estimate_survives_scheduling(self) -> None:
@@ -31,7 +29,7 @@ class TestPlannedHours(TestProjectCommon):
         self.assertEqual(task.planned_hours, 3.0)
         self.assertTrue(task.planned_hours_manual)
 
-        task.write({"planned_date_begin": self.START, "date_end": self.END})
+        task.write({"date_start": self.START, "date_end": self.END})
 
         self.assertEqual(
             task.planned_hours, 3.0, "scheduling must not discard the estimate"
@@ -39,16 +37,16 @@ class TestPlannedHours(TestProjectCommon):
 
     def test_one_write_and_two_writes_agree(self) -> None:
         one_write = self._task(
-            planned_hours=3.0, planned_date_begin=self.START, date_end=self.END
+            planned_hours=3.0, date_start=self.START, date_end=self.END
         )
         two_writes = self._task(planned_hours=3.0)
-        two_writes.write({"planned_date_begin": self.START, "date_end": self.END})
+        two_writes.write({"date_start": self.START, "date_end": self.END})
 
         self.assertEqual(one_write.planned_hours, two_writes.planned_hours)
         self.assertEqual(one_write.planned_hours, 3.0)
 
     def test_an_override_outlives_a_later_date_change(self) -> None:
-        task = self._task(planned_date_begin=self.START, date_end=self.END)
+        task = self._task(date_start=self.START, date_end=self.END)
         task.write({"planned_hours": 9.0})
         self.assertTrue(task.planned_hours_manual)
 
@@ -59,7 +57,7 @@ class TestPlannedHours(TestProjectCommon):
         )
 
     def test_writing_the_formula_value_back_hands_the_field_over(self) -> None:
-        task = self._task(planned_date_begin=self.START, date_end=self.END)
+        task = self._task(date_start=self.START, date_end=self.END)
         task.write({"planned_hours": 9.0})
         self.assertTrue(task.planned_hours_manual)
 
@@ -74,7 +72,7 @@ class TestPlannedHours(TestProjectCommon):
         )
 
     def test_an_override_against_a_real_formula_is_logged(self) -> None:
-        task = self._task(planned_date_begin=self.START, date_end=self.END)
+        task = self._task(date_start=self.START, date_end=self.END)
         before = len(task.message_ids)
         task.write({"planned_hours": 9.0})
         bodies = task.message_ids[: len(task.message_ids) - before].mapped("body")
@@ -108,7 +106,7 @@ class TestPlannedHours(TestProjectCommon):
                 {
                     "name": f"t{i}",
                     "project_id": self.project_pigs.id,
-                    "planned_date_begin": "2026-08-03 08:00:00",
+                    "date_start": "2026-08-03 08:00:00",
                     "date_end": "2026-08-04 17:00:00",
                 }
                 for i in range(3)

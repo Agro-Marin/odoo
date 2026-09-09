@@ -60,3 +60,37 @@ class TestShareWizardAppliesOnConfirm(TestProjectCommon):
         wizard.action_send_mail()
         wizard.action_send_mail()
         self.assertEqual(len(project.collaborator_ids), 1)
+
+
+@tagged("post_install", "-at_install")
+class TestCollaboratorRulesLetAManagerShare(TestProjectCommon):
+    def test_a_manager_can_share_a_project_they_neither_follow_nor_own(self) -> None:
+        # project.collaborator carries the comp / visibility / manager triad that
+        # project.risk and project.gate carry. The manager member is what makes
+        # the pair work: an ir.rule with no perm_* fields governs create as well
+        # as read, group_project_manager implies group_project_user, and rules of
+        # different groups OR together -- so without an unrestricted manager rule
+        # the read-scoping visibility rule also blocks a manager from CREATING a
+        # collaborator on a project they do not follow. That is every project the
+        # setUpClass of an HttpCase builds, which is how it reached the sharing
+        # tours rather than a unit test.
+        project = (
+            self.env["project.project"]
+            .with_user(self.env.ref("base.user_root"))
+            .create({"name": "Owned by nobody", "privacy_visibility": "portal"})
+        )
+        project.message_unsubscribe(partner_ids=project.message_partner_ids.ids)
+        manager = self.user_projectmanager
+        self.assertNotIn(manager.partner_id, project.message_partner_ids)
+        self.assertNotEqual(project.user_id, manager)
+
+        project.with_user(manager).write(
+            {
+                "collaborator_ids": [
+                    Command.create({"partner_id": self.user_portal.partner_id.id})
+                ]
+            }
+        )
+        self.assertEqual(
+            project.collaborator_ids.partner_id, self.user_portal.partner_id
+        )

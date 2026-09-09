@@ -19,7 +19,7 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
         const projectId = this.meta.context.default_project_id;
         const domain = [
             ["date_end", "=", false],
-            ["planned_date_begin", "=", false],
+            ["date_start", "=", false],
         ];
         if (projectId) {
             domain.push(["project_id", "=", projectId]);
@@ -28,11 +28,11 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
     }
 
     makeContextDefaults(record) {
-        const { default_planned_date_start, ...context } = super.makeContextDefaults(
+        const { default_date_start_effective, ...context } = super.makeContextDefaults(
             record,
         );
-        if (this.planStartsAtCalendarClick(default_planned_date_start, context)) {
-            context.default_planned_date_begin = default_planned_date_start;
+        if (this.planStartsAtCalendarClick(default_date_start_effective, context)) {
+            context.default_date_start = default_date_start_effective;
         }
 
         return { ...context, scale: this.meta.scale };
@@ -109,7 +109,7 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
         }
         const { date_start, date_stop } = this.meta.fieldMapping;
         const fieldsToRemove = [
-            ...new Set([date_start, date_stop, "planned_date_begin", "date_end"]),
+            ...new Set([date_start, date_stop, "date_start", "date_end"]),
         ];
         let domain = Domain.removeDomainLeaves(
             Domain.and([
@@ -134,11 +134,11 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
         const [, end] = this.getAllDayDates(date, date);
         const vals = { date_end: serializeDateTime(end) };
         if (timeSlotSelected) {
-            vals.planned_date_begin = serializeDateTime(date);
+            vals.date_start = serializeDateTime(date);
             vals.date_end = serializeDateTime(date.plus({ hours: 1 }));
         } else if (["day", "week"].includes(this.meta.scale)) {
             const [start, allDayEnd] = this.getAllDayDates(date, date);
-            vals.planned_date_begin = serializeDateTime(start);
+            vals.date_start = serializeDateTime(start);
             vals.date_end = serializeDateTime(allDayEnd);
         }
         return vals;

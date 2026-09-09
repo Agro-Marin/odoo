@@ -21,7 +21,7 @@ class TestProjectUpdate(TestProjectCommon):
             )
         ) as milestone_form:
             milestone_form.name = "Test 1"
-            milestone_form.deadline = fields.Date.today()
+            milestone_form.date_deadline = fields.Date.today()
 
         try:
             with Form(
@@ -74,21 +74,21 @@ class TestProjectUpdate(TestProjectCommon):
             )
         ) as milestone_form:
             milestone_form.name = "Test 1"
-            milestone_form.deadline = fields.Date.today()
+            milestone_form.date_deadline = fields.Date.today()
         with Form(
             self.env["project.milestone"].with_context(
                 {"default_project_id": self.project_pigs.id}
             )
         ) as milestone_form:
             milestone_form.name = "Test 2"
-            milestone_form.deadline = fields.Date.today()
+            milestone_form.date_deadline = fields.Date.today()
         with Form(
             self.env["project.milestone"].with_context(
                 {"default_project_id": self.project_pigs.id}
             )
         ) as milestone_form:
             milestone_form.name = "Test 3"
-            milestone_form.deadline = fields.Date.today() + relativedelta(years=2)
+            milestone_form.date_deadline = fields.Date.today() + relativedelta(years=2)
 
         template_values = self.env["project.update"]._get_template_values(
             self.project_pigs
@@ -137,14 +137,14 @@ class TestProjectUpdate(TestProjectCommon):
             )
         ) as milestone_form:
             milestone_form.name = "Test 1"
-            milestone_form.deadline = fields.Date.today() + relativedelta(years=-1)
+            milestone_form.date_deadline = fields.Date.today() + relativedelta(years=-1)
         with Form(
             self.env["project.milestone"].with_context(
                 {"default_project_id": self.project_pigs.id}
             )
         ) as milestone_form:
             milestone_form.name = "Test 2"
-            milestone_form.deadline = fields.Date.today() + relativedelta(years=-1)
+            milestone_form.date_deadline = fields.Date.today() + relativedelta(years=-1)
             milestone_form.is_reached = True
         with Form(
             self.env["project.milestone"].with_context(
@@ -152,7 +152,7 @@ class TestProjectUpdate(TestProjectCommon):
             )
         ) as milestone_form:
             milestone_form.name = "Test 3"
-            milestone_form.deadline = fields.Date.today() + relativedelta(years=2)
+            milestone_form.date_deadline = fields.Date.today() + relativedelta(years=2)
 
         panel_data = self.project_pigs.get_panel_data()
 

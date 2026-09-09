@@ -77,13 +77,13 @@
                     <field
                         t-if="record.date_end.raw_value"
                         name="date_end"
-                        invisible="planned_date_begin or not date_end or state in ['done', 'canceled']"
+                        invisible="date_start or not date_end or state in ['done', 'canceled']"
                         widget="remaining_days" />
                     <div
-                        invisible="not planned_date_begin"
+                        invisible="not date_start"
                         t-att-class="(luxon.DateTime.fromISO(record.date_end.raw_value) &lt; luxon.DateTime.local() and !['done', 'canceled'].includes(record.state.raw_value)) ? 'text-danger' : ''">
                         <field
-                            name="planned_date_begin"
+                            name="date_start"
                             widget="daterange"
                             options="{'end_date_field': 'date_end'}" />
                     </div>
@@ -301,19 +301,19 @@
                                 invisible="not project_id" />
                             <label
                                 for="date_end"
-                                invisible="planned_date_begin"
+                                invisible="date_start"
                                 decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']" />
                             <label
                                 for="date_end"
                                 string="Planned Date"
-                                invisible="not planned_date_begin"
+                                invisible="not date_start"
                                 decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']" />
-                            <field name="planned_date_begin" invisible="1" />
+                            <field name="date_start" invisible="1" />
                             <field
                                 name="date_end"
                                 nolabel="1"
                                 widget="daterange"
-                                options="{'start_date_field': 'planned_date_begin'}"
+                                options="{'start_date_field': 'date_start'}"
                                 decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']" />
                             <field
                                 name="recurring_task"
@@ -407,11 +407,11 @@
                                     <field
                                         name="date_end"
                                         widget="daterange"
-                                        options="{'start_date_field': 'planned_date_begin'}"
+                                        options="{'start_date_field': 'date_start'}"
                                         decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']"
                                         optional="show" />
                                     <field
-                                        name="planned_date_begin"
+                                        name="date_start"
                                         column_invisible="True" />
                                     <field
                                         name="priority"
@@ -489,11 +489,11 @@
                                     <field
                                         name="date_end"
                                         widget="daterange"
-                                        options="{'start_date_field': 'planned_date_begin'}"
+                                        options="{'start_date_field': 'date_start'}"
                                         decoration-danger="date_end &lt; current_date and state not in ['done', 'canceled']"
                                         optional="show" />
                                     <field
-                                        name="planned_date_begin"
+                                        name="date_start"
                                         column_invisible="True" />
                                     <field
                                         name="priority"

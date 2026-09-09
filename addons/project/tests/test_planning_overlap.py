@@ -4,7 +4,7 @@ from dateutil.relativedelta import relativedelta
 from markupsafe import Markup
 
 from odoo.fields import Command
-from odoo.tests import Form, freeze_time
+from odoo.tests import freeze_time
 
 from odoo.addons.project.tests.test_project_base import TestProjectCommon
 
@@ -17,7 +17,7 @@ class TestPlanningOverlap(TestProjectCommon):
         cls.today = (datetime.now()).replace(hour=0, minute=0, second=0)
         cls.task_1.write(
             {
-                "planned_date_begin": cls.today + relativedelta(hour=8),
+                "date_start": cls.today + relativedelta(hour=8),
                 "date_end": cls.today + relativedelta(hour=10),
                 "allocated_hours": 2,
             }
@@ -27,7 +27,7 @@ class TestPlanningOverlap(TestProjectCommon):
         self.task_2.write(
             {
                 "user_ids": self.user_projectuser,
-                "planned_date_begin": self.today + relativedelta(days=+1, hour=8),
+                "date_start": self.today + relativedelta(days=+1, hour=8),
                 "date_end": self.today + relativedelta(days=+1, hour=10),
                 "allocated_hours": 3,
             }
@@ -45,7 +45,7 @@ class TestPlanningOverlap(TestProjectCommon):
     def test_different_users_overlap(self):
         self.task_2.write(
             {
-                "planned_date_begin": self.today + relativedelta(hour=9),
+                "date_start": self.today + relativedelta(hour=9),
                 "date_end": self.today + relativedelta(hour=11),
                 "allocated_hours": 2,
             }
@@ -85,7 +85,7 @@ class TestPlanningOverlap(TestProjectCommon):
     def test_same_user_overlap(self):
         self.task_2.write(
             {
-                "planned_date_begin": self.today + relativedelta(hour=9),
+                "date_start": self.today + relativedelta(hour=9),
                 "date_end": self.today + relativedelta(hour=11),
                 "allocated_hours": 2,
             }
@@ -114,7 +114,7 @@ class TestPlanningOverlap(TestProjectCommon):
     def test_same_user_overlap_with_allocated_hours_less_than_workable_hours(self):
         self.task_2.write(
             {
-                "planned_date_begin": self.today + relativedelta(hour=9),
+                "date_start": self.today + relativedelta(hour=9),
                 "date_end": self.today + relativedelta(hour=17),
             }
         )
@@ -150,7 +150,7 @@ class TestPlanningOverlap(TestProjectCommon):
             tasks.with_context(mail_auto_subscribe_no_notify=True).write(
                 {
                     "user_ids": self.user_projectuser,
-                    "planned_date_begin": datetime.now() + relativedelta(hours=8),
+                    "date_start": datetime.now() + relativedelta(hours=8),
                     "date_end": datetime.now() + relativedelta(hours=10),
                 }
             )
@@ -168,7 +168,7 @@ class TestPlanningOverlap(TestProjectCommon):
         self.task_2.write(
             {
                 "user_ids": self.user_projectuser,
-                "planned_date_begin": self.today + relativedelta(hour=9),
+                "date_start": self.today + relativedelta(hour=9),
                 "date_end": self.today + relativedelta(hour=11),
                 "allocated_hours": 2,
                 "state": "done",
@@ -187,7 +187,7 @@ class TestPlanningOverlap(TestProjectCommon):
     def test_overlap_for_same_user(self):
         self.task_2.write(
             {
-                "planned_date_begin": self.today + relativedelta(hour=9),
+                "date_start": self.today + relativedelta(hour=9),
                 "date_end": self.today + relativedelta(hour=11),
                 "allocated_hours": 2,
             }
@@ -198,9 +198,11 @@ class TestPlanningOverlap(TestProjectCommon):
             }
         )
 
-        with Form(self.task_2) as task_form:
-            task_form.planned_date_begin = False
-            task_form.date_end = False
+        # Not a Form: date_start is the invisible companion of the date_end
+        # daterange widget (project_task_views.xml, options start_date_field),
+        # so the view offers no direct write on it and Form rightly refuses one.
+        # The subject here is _search_planning_overlap after unscheduling.
+        self.task_2.write({"date_start": False, "date_end": False})
 
         search_result = self.env["project.task"].search(
             [("planning_overlap", "=", True)]

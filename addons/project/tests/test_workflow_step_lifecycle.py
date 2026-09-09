@@ -134,11 +134,11 @@ class TestQuickCreateSeedsAStep(TestProjectCommon):
                 "rating_status_period": "weekly",
             }
         )
-        seeded = step.rating_request_deadline
+        seeded = step.date_rating_request
         self.assertTrue(seeded, "deadline must be seeded when periodic rating on")
-        step.invalidate_recordset(["rating_request_deadline"])
+        step.invalidate_recordset(["date_rating_request"])
         self.assertEqual(
-            step.rating_request_deadline,
+            step.date_rating_request,
             seeded,
             "deadline must survive recompute (no now()-based reset)",
         )
@@ -153,11 +153,11 @@ class TestQuickCreateSeedsAStep(TestProjectCommon):
                 "rating_status_period": "weekly",
             }
         )
-        step.rating_request_deadline = fields.Datetime.now() - timedelta(days=1)
+        step.date_rating_request = fields.Datetime.now() - timedelta(days=1)
         with patch.object(self.env.cr, "commit", lambda: None):
             self.env["project.workflow.step"]._send_rating_all()
         self.assertGreater(
-            step.rating_request_deadline,
+            step.date_rating_request,
             fields.Datetime.now(),
             "cron must advance the deadline of an overdue periodic step",
         )

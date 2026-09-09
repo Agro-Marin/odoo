@@ -392,10 +392,10 @@
                             <group>
                                 <field name="premortem_done" />
                                 <field
-                                    name="premortem_date"
+                                    name="date_premortem"
                                     invisible="not premortem_done" />
                                 <field
-                                    name="premortem_participants"
+                                    name="premortem_participant_ids"
                                     widget="many2many_avatar_user"
                                     invisible="not premortem_done" />
                             </group>

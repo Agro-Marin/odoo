@@ -97,7 +97,7 @@ class ProjectRetrospective(models.Model):
 class ProjectRetrospectiveAction(models.Model):
     _name = "project.retrospective.action"
     _description = "Retrospective Action Item"
-    _order = "state_order, due_date, id"
+    _order = "state_order, date_due, id"
 
     name = fields.Char("Action", required=True)
     retrospective_id = fields.Many2one(
@@ -116,7 +116,7 @@ class ProjectRetrospectiveAction(models.Model):
         string="Owner",
         required=True,
     )
-    due_date = fields.Date("Due Date")
+    date_due = fields.Date("Due Date")
     state = fields.Selection(
         [
             ("open", "Open"),

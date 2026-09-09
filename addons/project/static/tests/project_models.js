@@ -132,12 +132,12 @@ export class ProjectTask extends models.Model {
         ],
     });
     partner_id = fields.Many2one({ string: "Partner", relation: "res.partner" });
-    planned_date_begin = fields.Datetime({ string: "Start Date" });
+    date_start = fields.Datetime({ string: "Start Date" });
     date_end = fields.Datetime({ string: "Stop Date" });
     predecessor_ids = fields.Many2many({ relation: "project.task" });
     closed_predecessor_count = fields.Integer();
     is_closed = fields.Boolean();
-    planned_date_start = fields.Date({ string: "Date Start" });
+    date_start_effective = fields.Date({ string: "Date Start" });
     planning_overlap = fields.Html();
     is_template = fields.Boolean({ string: "Is Template", default: false });
     triage_id = fields.Many2one({ relation: "project.triage" });

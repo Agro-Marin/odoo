@@ -12,7 +12,7 @@ class ProjectMilestone(models.Model):
     _name = "project.milestone"
     _description = "Project Milestone"
     _inherit = ["mixin.mail.thread"]
-    _order = "sequence, deadline, is_reached desc, name"
+    _order = "sequence, date_deadline, is_reached desc, name"
 
     def _default_project_id(self) -> int | bool:
         return self.env.context.get("default_project_id") or self.env.context.get(
@@ -29,15 +29,25 @@ class ProjectMilestone(models.Model):
         index=True,
         ondelete="cascade",
     )
-    deadline = fields.Date(tracking=True, copy=False)
-    is_reached = fields.Boolean(string="Reached", default=False, copy=False)
-    reached_date = fields.Date(
-        compute="_compute_reached_date",
+    date_deadline = fields.Date(
+        tracking=True,
+        copy=False,
+    )
+    is_reached = fields.Boolean(
+        string="Reached",
+        default=False,
+        copy=False,
+    )
+    date_reached = fields.Date(
+        compute="_compute_date_reached",
         store=True,
         export_string_translation=False,
     )
     task_ids = fields.One2many(
-        "project.task", "milestone_id", "Tasks", export_string_translation=False
+        "project.task",
+        "milestone_id",
+        "Tasks",
+        export_string_translation=False,
     )
     project_allow_milestones = fields.Boolean(
         compute="_compute_project_allow_milestones",
@@ -47,10 +57,12 @@ class ProjectMilestone(models.Model):
     )
 
     is_deadline_exceeded = fields.Boolean(
-        compute="_compute_is_deadline_exceeded", export_string_translation=False
+        compute="_compute_is_deadline_exceeded",
+        export_string_translation=False,
     )
     is_deadline_future = fields.Boolean(
-        compute="_compute_is_deadline_future", export_string_translation=False
+        compute="_compute_is_deadline_future",
+        export_string_translation=False,
     )
     task_count = fields.Integer(
         "# of Tasks",
@@ -70,23 +82,23 @@ class ProjectMilestone(models.Model):
     )
 
     @api.depends("is_reached")
-    def _compute_reached_date(self) -> None:
+    def _compute_date_reached(self) -> None:
         for ms in self:
-            ms.reached_date = ms.is_reached and fields.Date.context_today(self)
+            ms.date_reached = ms.is_reached and fields.Date.context_today(self)
 
-    @api.depends("is_reached", "deadline")
+    @api.depends("is_reached", "date_deadline")
     def _compute_is_deadline_exceeded(self) -> None:
         today = fields.Date.context_today(self)
         for ms in self:
             ms.is_deadline_exceeded = (
-                not ms.is_reached and ms.deadline and ms.deadline < today
+                not ms.is_reached and ms.date_deadline and ms.date_deadline < today
             )
 
-    @api.depends("deadline")
+    @api.depends("date_deadline")
     def _compute_is_deadline_future(self) -> None:
         for ms in self:
             ms.is_deadline_future = (
-                ms.deadline and ms.deadline > fields.Date.context_today(self)
+                ms.date_deadline and ms.date_deadline > fields.Date.context_today(self)
             )
 
     @api.depends("task_ids.milestone_id")
@@ -196,9 +208,9 @@ class ProjectMilestone(models.Model):
         return [
             "id",
             "name",
-            "deadline",
+            "date_deadline",
             "is_reached",
-            "reached_date",
+            "date_reached",
             "is_deadline_exceeded",
             "is_deadline_future",
             "can_be_marked_as_done",
@@ -227,5 +239,5 @@ class ProjectMilestone(models.Model):
         if not self.env.context.get("display_milestone_deadline"):
             return
         for milestone in self:
-            if milestone.deadline:
-                milestone.display_name = f"{milestone.display_name} - {format_date(self.env, milestone.deadline)}"
+            if milestone.date_deadline:
+                milestone.display_name = f"{milestone.display_name} - {format_date(self.env, milestone.date_deadline)}"

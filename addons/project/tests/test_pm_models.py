@@ -73,7 +73,7 @@ class TestPmModels(TestProjectCommon):
         line = baseline.line_ids.filtered(lambda ln: ln.task_id == task)
         self.assertEqual(line.task_name, "Snap me")
         self.assertEqual(line.step_id, task.step_id)
-        self.assertEqual(line.planned_end, task.date_end)
+        self.assertEqual(line.date_planned_end, task.date_end)
         with self.assertRaises(UserError):
             baseline.action_capture_snapshot()
 
@@ -400,7 +400,7 @@ class TestPmModelBehaviour(TestProjectCommon):
                 "name": "Cut fuel cost",
                 "project_id": self.project_pigs.id,
                 "accountable_id": self.user_projectmanager.id,
-                "review_date": review,
+                "date_review": review,
                 "state": "tracking",
             }
         )
@@ -433,7 +433,7 @@ class TestPmModelBehaviour(TestProjectCommon):
                 "name": "Reduce cost",
                 "project_id": self.project_pigs.id,
                 "accountable_id": self.user_projectmanager.id,
-                "review_date": today - timedelta(days=5),
+                "date_review": today - timedelta(days=5),
                 "state": "tracking",
             }
         )
@@ -442,7 +442,7 @@ class TestPmModelBehaviour(TestProjectCommon):
             [("res_model", "=", "project.benefit"), ("res_id", "=", benefit.id)]
         )
         self.assertEqual(len(acts), 1, "first run schedules one reminder")
-        self.assertEqual(benefit.review_reminder_date, benefit.review_date)
+        self.assertEqual(benefit.date_review_reminder, benefit.date_review)
         acts.unlink()
         Benefit._cron_check_review_dates()
         self.assertEqual(
@@ -450,16 +450,16 @@ class TestPmModelBehaviour(TestProjectCommon):
                 [("res_model", "=", "project.benefit"), ("res_id", "=", benefit.id)]
             ),
             0,
-            "cron must NOT re-nag for the same review_date after completion",
+            "cron must NOT re-nag for the same date_review after completion",
         )
-        benefit.review_date = today - timedelta(days=1)
+        benefit.date_review = today - timedelta(days=1)
         Benefit._cron_check_review_dates()
         self.assertEqual(
             self.env["mail.activity"].search_count(
                 [("res_model", "=", "project.benefit"), ("res_id", "=", benefit.id)]
             ),
             1,
-            "a new review_date must schedule a fresh reminder",
+            "a new date_review must schedule a fresh reminder",
         )
 
     def test_duplicate_current_baseline(self) -> None:
@@ -479,7 +479,7 @@ class TestPmModelBehaviour(TestProjectCommon):
             {
                 "name": "planned",
                 "project_id": project.id,
-                "planned_date_begin": begin,
+                "date_start": begin,
                 "date_end": begin + timedelta(days=1),
             }
         )
@@ -488,7 +488,7 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
         baseline.action_capture_snapshot()
         line = baseline.line_ids.filtered(lambda line: line.task_id == task)
-        self.assertEqual(line.planned_start, begin)
+        self.assertEqual(line.date_planned_start, begin)
 
     def test_confidential_child_models_not_leaked(self) -> None:
         Risk = self.env["project.risk"]
@@ -587,9 +587,11 @@ class TestPmModelBehaviour(TestProjectCommon):
         )
         self.assertEqual(gate.criteria_total_count, 2)
         self.assertEqual(gate.criteria_met_count, 0)
-        c1.met = True
+        c1.is_met = True
         self.assertEqual(
-            gate.criteria_met_count, 1, "met count must react to criterion.met"
+            gate.criteria_met_count,
+            1,
+            "criteria_met_count must react to criterion.is_met",
         )
 
     def test_gate_criterion_milestone_cross_project_guard(self) -> None:

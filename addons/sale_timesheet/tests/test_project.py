@@ -207,7 +207,7 @@ class TestProject(TestCommonSaleTimesheet):
                 ],
             }
         )
-        self.assertFalse(self.project_global.analytic_account_balance)
+        self.assertFalse(self.project_global.amount_analytic_balance)
 
         self.env["project.task"].create(
             {
@@ -229,7 +229,7 @@ class TestProject(TestCommonSaleTimesheet):
         self.project_global.invalidate_recordset()
         self.project_global.account_id.invalidate_recordset()
         self.assertEqual(
-            self.project_global.analytic_account_balance,
+            self.project_global.amount_analytic_balance,
             expected_analytic_account_balance,
         )
 

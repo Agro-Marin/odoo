@@ -207,7 +207,7 @@ registry.category("web_tour.tours").add("project_update_tour", {
             run: "edit New milestone",
         },
         {
-            trigger: "input[data-field=deadline]",
+            trigger: "input[data-field=date_deadline]",
             run: "edit 12/12/2099",
         },
         {
@@ -223,7 +223,7 @@ registry.category("web_tour.tours").add("project_update_tour", {
             run: "click",
         },
         {
-            trigger: "input[data-field=deadline]",
+            trigger: "input[data-field=date_deadline]",
             run: "edit 12/12/2100 && click body",
         },
         {
@@ -236,7 +236,7 @@ registry.category("web_tour.tours").add("project_update_tour", {
             run: "edit Second milestone",
         },
         {
-            trigger: "input[data-field=deadline]",
+            trigger: "input[data-field=date_deadline]",
             run: "edit 12/12/2022 && click body",
         },
         {

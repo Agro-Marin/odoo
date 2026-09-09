@@ -6909,9 +6909,57 @@ regardless of what training data suggests.
      - ``predecessor_ids``
    * - ``dependent_ids``
      - ``successor_ids``
+   * - ``planned_date_begin``
+     - ``date_start``, so the planned window is the ``date_start`` / ``date_end``
+       pair every other model in the family already spells that way
+   * - ``planned_date_start``
+     - ``date_start_effective`` -- computed, unstored, and NOT the start date. It
+       falls back to ``date_end`` when ``date_start`` is unset, which is what the
+       old name hid by differing from ``planned_date_begin`` in one word.
 
 So ``("stage_id.fold", "=", False)`` becomes ``("step_id.fold", "=", False)``, and
 ``order="date_deadline asc"`` becomes ``order="date_end asc"``.
+
+The rest of the project family moves onto the same ``date_`` / ``is_`` / ``amount_``
+spellings §2.3 prescribes:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Model
+     - Vanilla Odoo
+     - This fork
+   * - ``project.milestone``
+     - ``deadline``
+     - ``date_deadline``
+   * - ``project.milestone``
+     - ``reached_date``
+     - ``date_reached``
+   * - ``project.workflow.step``
+     - ``rating_request_deadline``
+     - ``date_rating_request``
+   * - ``project.project``
+     - ``analytic_account_balance``
+     - ``amount_analytic_balance``
+
+**``date_deadline`` is now a fork name on one model and a vanilla name on
+another, and they point opposite ways.** On ``project.task`` it is the *vanilla*
+spelling and raises -- the fork calls that field ``date_end``. On
+``project.milestone`` it is the *fork* spelling and is correct. The search filter
+``<filter name="deadline">`` on ``project.task`` is a third thing again: a filter
+name grouping by ``date_end``, inherited by name from ``industry_fsm``, and it
+does not move.
+
+These models are the fork's own and were never vanilla, so they are recorded here
+only to keep one list: ``project.task`` gained ``cpm_date_earliest_start`` and
+``cpm_date_latest_start`` (from ``earliest_start`` / ``latest_start``, which sat
+beside ``cpm_date_start`` and ``cpm_date_end`` without the prefix that says they
+are critical-path output); ``project.baseline.line`` ``date_planned_start`` /
+``date_planned_end``; ``project.benefit`` ``date_review`` /
+``date_review_reminder``; ``project.gate`` ``date_review``;
+``project.gate.criterion`` ``is_met``; ``project.retrospective.action``
+``date_due``; and ``project.project`` ``date_premortem`` and
+``premortem_participant_ids``.
 
 ``purchase.order`` and ``purchase.order.line`` rename one field, so the date a
 human committed to has a single name across order types:
@@ -6933,6 +6981,14 @@ unstored* estimate on ``sale.order`` (and on ``sale.order.line`` under
 ``sale_stock``), the scheduling date on ``stock.move`` and ``stock.picking``, the
 key in the procurement ``values`` dicts, and a field on the replenishment wizard.
 None of those were renamed.
+
+``sale.order`` and ``pos.order`` spelled the link to ``stock.reference``
+``stock_reference_ids`` while ``stock.move``, ``stock.picking``, ``purchase.order``,
+``mrp.production`` and ``repair.repair`` all spelled it ``reference_ids``. The two
+outliers moved, so the concept has one name. The relation tables did not:
+``stock_reference_sale_rel`` and ``stock_reference_pos_order_rel`` keep their names
+and columns, so this Many2many rename carries no column migration -- only stored
+expressions, rewritten per model by ``sale_stock`` 1.3 and ``point_of_sale`` 1.0.6.
 
 ``res.partner``: the phone scalars became a related model
 ----------------------------------------------------------

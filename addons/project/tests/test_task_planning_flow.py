@@ -64,7 +64,7 @@ class TestTaskPlanningFlow(TransactionCase):
                     "name": "Fsm task " + str(i),
                     "user_ids": users[i % 3],
                     "project_id": self.project_test.id,
-                    "planned_date_begin": now
+                    "date_start": now
                     + relativedelta(days=i / 2, hour=hour_start[i % 2]),
                     "date_end": now + relativedelta(days=i / 2, hour=hour_end[i % 2]),
                 }
@@ -98,7 +98,7 @@ class TestTaskPlanningFlow(TransactionCase):
                 ),
                 "expected_allocated_hours": 8.0,
                 "dates_message": """
-                    For day and week scale, planned_date_begin and date_end should be the same as the ones selected by the user,
+                    For day and week scale, date_start and date_end should be the same as the ones selected by the user,
                     they should not be modified according to the user calendar.
                 """,
                 "allocated_hours_message": "scheduled_hours is the intersection between the selected dates and the user calendar; allocated_hours is the reservation-derived commitment and is not date-derived in this fork.",
@@ -113,7 +113,7 @@ class TestTaskPlanningFlow(TransactionCase):
                     datetime(2023, 1, 6, 16, 0, 0),
                 ),
                 "expected_allocated_hours": 40.0,
-                "dates_message": "For month and year scale, planned_date_begin and date_end should be modified according to the user calendar.",
+                "dates_message": "For month and year scale, date_start and date_end should be modified according to the user calendar.",
                 "allocated_hours_message": "allocated_hours should be computed according to the modified dates.",
                 "second_date_deadline": datetime(2023, 1, 5, 22, 0, 0),
                 "second_expected_allocated_hours": 32.0,
@@ -125,7 +125,7 @@ class TestTaskPlanningFlow(TransactionCase):
                 with Form(
                     self.env["project.task"].with_context(
                         {
-                            "default_planned_date_begin": datum["dates"][0],
+                            "default_date_start": datum["dates"][0],
                             "default_date_end": datum["dates"][1],
                             "scale": scale,
                         }
@@ -141,7 +141,7 @@ class TestTaskPlanningFlow(TransactionCase):
                         datum["allocated_hours_message"],
                     )
                     self.assertEqual(
-                        (task.planned_date_begin, task.date_end),
+                        (task.date_start, task.date_end),
                         datum["expected_dates"],
                         datum["dates_message"],
                     )
@@ -151,12 +151,20 @@ class TestTaskPlanningFlow(TransactionCase):
                         datum["second_expected_allocated_hours"],
                         "Scheduled hours should be recomputed when the planned dates are modified",
                     )
-                    task.planned_date_begin = False
-                    self.assertEqual(
-                        task.allocated_hours,
-                        0.0,
-                        "Allocated hours should be 0 as there is no planned_date_begin",
-                    )
+                # date_start is the invisible companion of the date_end daterange
+                # widget (options start_date_field), so the view offers no direct
+                # write on it and Form rightly refuses one -- clear it on the saved
+                # record instead. The field that follows the dates is
+                # scheduled_hours; allocated_hours is reservation-derived in this
+                # fork, which is what the message four lines up already says, so
+                # asserting it here was asserting the vanilla semantics.
+                created = task.record
+                created.write({"date_start": False})
+                self.assertEqual(
+                    created.scheduled_hours,
+                    0.0,
+                    "Scheduled hours should be 0 as there is no date_start",
+                )
 
     def test_planning_overlap(self):
         task_A = self.env["project.task"].create(
@@ -164,7 +172,7 @@ class TestTaskPlanningFlow(TransactionCase):
                 "name": "Fsm task 1",
                 "user_ids": self.project_user,
                 "project_id": self.project_test.id,
-                "planned_date_begin": datetime.now(),
+                "date_start": datetime.now(),
                 "date_end": datetime.now() + relativedelta(hours=4),
                 "allocated_hours": 4,
             }
@@ -174,7 +182,7 @@ class TestTaskPlanningFlow(TransactionCase):
                 "name": "Fsm task 2",
                 "user_ids": self.project_user,
                 "project_id": self.project_test.id,
-                "planned_date_begin": datetime.now() + relativedelta(hours=2),
+                "date_start": datetime.now() + relativedelta(hours=2),
                 "date_end": datetime.now() + relativedelta(hours=6),
                 "allocated_hours": 4,
             }
@@ -184,7 +192,7 @@ class TestTaskPlanningFlow(TransactionCase):
                 "name": "Fsm task 2",
                 "user_ids": self.project_user,
                 "project_id": self.project_test.id,
-                "planned_date_begin": datetime.now() + relativedelta(hours=5),
+                "date_start": datetime.now() + relativedelta(hours=5),
                 "date_end": datetime.now() + relativedelta(hours=7),
                 "allocated_hours": 2,
             }
@@ -194,7 +202,7 @@ class TestTaskPlanningFlow(TransactionCase):
                 "name": "Fsm task 2",
                 "user_ids": self.project_user,
                 "project_id": self.project_test.id,
-                "planned_date_begin": datetime.now() + relativedelta(hours=8),
+                "date_start": datetime.now() + relativedelta(hours=8),
                 "date_end": datetime.now() + relativedelta(hours=9),
                 "allocated_hours": 1,
             }
@@ -218,22 +226,22 @@ class TestTaskPlanningFlow(TransactionCase):
                     "name": "Task 1",
                     "user_ids": self.project_user,
                     "project_id": self.project_test.id,
-                    "planned_date_begin": "2021-09-27 06:00:00",
+                    "date_start": "2021-09-27 06:00:00",
                     "date_end": "2021-09-28 15:00:00",
                 }
             ]
         )
 
-        task_1.planned_date_begin = False
+        task_1.date_start = False
         self.assertFalse(
-            task_1.planned_date_begin, "the planned date begin should be set to False"
+            task_1.date_start, "the planned date begin should be set to False"
         )
         self.assertEqual("2021-09-28", task_1.date_end.strftime("%Y-%m-%d"))
 
-        task_1.write({"planned_date_begin": "2021-09-27 06:00:00"})
+        task_1.write({"date_start": "2021-09-27 06:00:00"})
         self.assertEqual(
             "2021-09-27",
-            task_1.planned_date_begin.strftime("%Y-%m-%d"),
+            task_1.date_start.strftime("%Y-%m-%d"),
             "the planned date begin should be set to the new date",
         )
         self.assertEqual(
@@ -244,20 +252,20 @@ class TestTaskPlanningFlow(TransactionCase):
 
         task_1.date_end = False
         self.assertFalse(
-            task_1.planned_date_begin, "the planned date begin should be set to False"
+            task_1.date_start, "the planned date begin should be set to False"
         )
         self.assertFalse(task_1.date_end, "the planned date end should be set to False")
 
         task_1.write({"date_end": "2021-09-27 06:00:00"})
         self.assertFalse(
-            task_1.planned_date_begin, "the planned date begin should not be updated"
+            task_1.date_start, "the planned date begin should not be updated"
         )
         self.assertEqual("2021-09-27", task_1.date_end.strftime("%Y-%m-%d"))
 
     def test_editing_task_planned_date(self):
 
         def get_hours(task):
-            return task.planned_date_begin.hour, task.date_end.hour
+            return task.date_start.hour, task.date_end.hour
 
         self.env.company.resource_calendar_id.tz = "UTC"
         self.project_user.resource_calendar_id = self.env.company.resource_calendar_id
@@ -297,7 +305,7 @@ class TestTaskPlanningFlow(TransactionCase):
                     "name": "Task C - Planned",
                     "user_ids": (self.project_user + self.project_test_user).ids,
                     "project_id": self.project_test.id,
-                    "planned_date_begin": "2024-08-27 05:00:00",
+                    "date_start": "2024-08-27 05:00:00",
                     "date_end": "2024-08-27 10:00:00",
                 },
             ]
@@ -311,7 +319,7 @@ class TestTaskPlanningFlow(TransactionCase):
 
         (task_A + task_C).write(
             {
-                "planned_date_begin": "2024-08-26 00:00:00",
+                "date_start": "2024-08-26 00:00:00",
                 "date_end": "2024-08-26 23:59:59",
             }
         )
@@ -323,7 +331,7 @@ class TestTaskPlanningFlow(TransactionCase):
 
         task_B.write(
             {
-                "planned_date_begin": "2024-08-27 16:00:00",
+                "date_start": "2024-08-27 16:00:00",
                 "date_end": "2024-08-27 21:00:00",
             }
         )
@@ -333,13 +341,13 @@ class TestTaskPlanningFlow(TransactionCase):
 
         tasks.date_end = False
         self.assertFalse(
-            any(task.planned_date_begin for task in tasks),
-            "Removing deadline should also remove planned_date_begin",
+            any(task.date_start for task in tasks),
+            "Removing deadline should also remove date_start",
         )
 
         tasks.write(
             {
-                "planned_date_begin": "2024-08-27 16:00:00",
+                "date_start": "2024-08-27 16:00:00",
                 "date_end": "2024-08-27 22:00:00",
             }
         )
@@ -357,13 +365,13 @@ class TestTaskPlanningFlow(TransactionCase):
         )
         (task_B + task_C).write(
             {
-                "planned_date_begin": "2024-03-24 06:00:00",
+                "date_start": "2024-03-24 06:00:00",
                 "date_end": "2024-03-30 15:00:00",
             }
         )
         self.assertEqual(
             "2024-03-25",
-            task_B.planned_date_begin.strftime("%Y-%m-%d"),
+            task_B.date_start.strftime("%Y-%m-%d"),
             "the planned date begin should be the first working day found according to the resource calendar of the user assigned and the start datetime selected by the user",
         )
         self.assertEqual(
@@ -373,7 +381,7 @@ class TestTaskPlanningFlow(TransactionCase):
         )
         self.assertEqual(
             "2024-03-25",
-            task_C.planned_date_begin.strftime("%Y-%m-%d"),
+            task_C.date_start.strftime("%Y-%m-%d"),
             "the planned date begin should be the first working day found according to the resource calendar of the user assigned and the start datetime selected by the user",
         )
         self.assertEqual(
@@ -384,13 +392,13 @@ class TestTaskPlanningFlow(TransactionCase):
 
         tasks.write(
             {
-                "planned_date_begin": "2024-03-24 06:00:00",
+                "date_start": "2024-03-24 06:00:00",
                 "date_end": "2024-03-30 15:00:00",
             }
         )
         self.assertEqual(
             "2024-03-24",
-            task_A.planned_date_begin.strftime("%Y-%m-%d"),
+            task_A.date_start.strftime("%Y-%m-%d"),
             "the planned date begin should be the one selected by the user",
         )
         self.assertEqual(
@@ -400,7 +408,7 @@ class TestTaskPlanningFlow(TransactionCase):
         )
         self.assertEqual(
             "2024-03-24",
-            task_B.planned_date_begin.strftime("%Y-%m-%d"),
+            task_B.date_start.strftime("%Y-%m-%d"),
             "the planned date begin should be the one selected by the user",
         )
         self.assertEqual(
@@ -410,7 +418,7 @@ class TestTaskPlanningFlow(TransactionCase):
         )
         self.assertEqual(
             "2024-03-24",
-            task_C.planned_date_begin.strftime("%Y-%m-%d"),
+            task_C.date_start.strftime("%Y-%m-%d"),
             "the planned date begin should be the one selected by the user",
         )
         self.assertEqual(
@@ -428,22 +436,22 @@ class TestTaskPlanningFlow(TransactionCase):
             }
         )
         task.state = "canceled"
-        self.assertFalse(task.planned_date_begin, "The begin date should remain unset")
+        self.assertFalse(task.date_start, "The begin date should remain unset")
         self.assertFalse(task.date_end, "The deadline should remain unset")
 
         task.date_end = datetime.now() + relativedelta(hours=4)
         task.state = "canceled"
-        self.assertFalse(task.planned_date_begin, "The begin date should remain unset")
+        self.assertFalse(task.date_start, "The begin date should remain unset")
         self.assertEqual(
             task.date_end,
             datetime.now() + relativedelta(hours=4),
             "The deadline should not have changed",
         )
 
-        task.planned_date_begin = datetime.now() - relativedelta(hours=1)
+        task.date_start = datetime.now() - relativedelta(hours=1)
         task.state = "canceled"
         self.assertEqual(
-            task.planned_date_begin,
+            task.date_start,
             datetime.now() - relativedelta(hours=1),
             "The begin date should not have changed as this is not a future task",
         )
@@ -453,10 +461,10 @@ class TestTaskPlanningFlow(TransactionCase):
             "The deadline should not have changed as this is not a future task",
         )
 
-        task.planned_date_begin = datetime.now() + relativedelta(hours=1)
+        task.date_start = datetime.now() + relativedelta(hours=1)
         task.state = "canceled"
         self.assertFalse(
-            task.planned_date_begin,
+            task.date_start,
             "The begin date should be reset as this is a future task",
         )
         self.assertFalse(
@@ -473,15 +481,15 @@ class TestTaskPlanningFlow(TransactionCase):
             {
                 "name": "Task",
                 "project_id": project.id,
-                "planned_date_begin": "2021-09-23",
+                "date_start": "2021-09-23",
             }
         )
         self.assertFalse(
-            project.copy().task_ids.planned_date_begin,
+            project.copy().task_ids.date_start,
             "The task's date fields shouldn't be copied on project duplication",
         )
         self.assertFalse(
-            task.copy().planned_date_begin,
+            task.copy().date_start,
             "The task's date fields shouldn't be copied on task duplication",
         )
 
@@ -558,12 +566,12 @@ class TestTaskPlanningFlow(TransactionCase):
             )
         )
         vals = {
-            "planned_date_begin": "2021-09-23 11:00:00",
+            "date_start": "2021-09-23 11:00:00",
             "date_end": "2021-09-23 12:00:00",
         }
         task1.plan_task_in_calendar(vals)
         self.assertEqual(
-            fields.Datetime.to_string(task1.planned_date_begin),
+            fields.Datetime.to_string(task1.date_start),
             "2021-09-23 11:00:00",
             "Should be the start date given in the vals",
         )
@@ -573,30 +581,28 @@ class TestTaskPlanningFlow(TransactionCase):
             "Should be the end date given in the vals",
         )
 
-        task1.write({"planned_date_begin": False, "date_end": False})
+        task1.write({"date_start": False, "date_end": False})
         task1.plan_task_in_calendar({"date_end": "2021-09-23 12:00:00"})
-        self.assertFalse(task1.planned_date_begin)
+        self.assertFalse(task1.date_start)
         self.assertEqual(
             fields.Datetime.to_string(task1.date_end),
             "2021-09-23 12:00:00",
             "Should be the end date given in the vals",
         )
-        task1.write(
-            {"planned_date_begin": False, "date_end": False, "allocated_hours": 0}
-        )
+        task1.write({"date_start": False, "date_end": False, "allocated_hours": 0})
         task1.with_context(task_calendar_plan_full_day=True).plan_task_in_calendar(
             {
-                "planned_date_begin": "2021-09-23 07:00:00",
+                "date_start": "2021-09-23 07:00:00",
                 "date_end": "2021-09-23 19:00:00",
             }
         )
-        self.assertEqual(task1.planned_date_begin, datetime(2021, 9, 23, 6, 0, 0))
+        self.assertEqual(task1.date_start, datetime(2021, 9, 23, 6, 0, 0))
         self.assertEqual(task1.date_end, datetime(2021, 9, 23, 15, 0, 0))
         self.assertEqual(task1.scheduled_hours, 8)
 
         task2.plan_task_in_calendar(vals)
         self.assertEqual(
-            fields.Datetime.to_string(task2.planned_date_begin),
+            fields.Datetime.to_string(task2.date_start),
             "2021-09-23 11:00:00",
             "Should be the start date given in the vals",
         )
@@ -606,29 +612,25 @@ class TestTaskPlanningFlow(TransactionCase):
             "Should take into account the allocated hours set on the task and the working calendar of users assigned",
         )
 
-        task2.write(
-            {"planned_date_begin": False, "date_end": False, "allocated_hours": 2}
-        )
+        task2.write({"date_start": False, "date_end": False, "allocated_hours": 2})
         task2.with_context(task_calendar_plan_full_day=True).plan_task_in_calendar(
             {"date_end": "2021-09-03 19:00:00"}
         )
-        self.assertFalse(task2.planned_date_begin)
+        self.assertFalse(task2.date_start)
         self.assertEqual(
             fields.Datetime.to_string(task2.date_end),
             "2021-09-03 19:00:00",
             "Should take into account the allocated hours set on the task and the working calendar of users assigned",
         )
-        task2.write(
-            {"planned_date_begin": False, "date_end": False, "allocated_hours": 2}
-        )
+        task2.write({"date_start": False, "date_end": False, "allocated_hours": 2})
         task2.with_context(task_calendar_plan_full_day=True).plan_task_in_calendar(
             {
-                "planned_date_begin": "2021-09-03 07:00:00",
+                "date_start": "2021-09-03 07:00:00",
                 "date_end": "2021-09-03 19:00:00",
             }
         )
         self.assertEqual(
-            fields.Datetime.to_string(task2.planned_date_begin),
+            fields.Datetime.to_string(task2.date_start),
             "2021-09-03 07:00:00",
             "Should be the start date given in the vals",
         )
@@ -640,7 +642,7 @@ class TestTaskPlanningFlow(TransactionCase):
 
         task3.plan_task_in_calendar(vals)
         self.assertEqual(
-            fields.Datetime.to_string(task3.planned_date_begin),
+            fields.Datetime.to_string(task3.date_start),
             "2021-09-23 11:00:00",
             "Should be the start date given in the vals",
         )
@@ -652,7 +654,7 @@ class TestTaskPlanningFlow(TransactionCase):
 
         task4.plan_task_in_calendar(vals)
         self.assertEqual(
-            fields.Datetime.to_string(task4.planned_date_begin),
+            fields.Datetime.to_string(task4.date_start),
             "2021-09-23 11:00:00",
             "Should be the start date given in the vals",
         )
@@ -661,29 +663,25 @@ class TestTaskPlanningFlow(TransactionCase):
             "2021-09-23 14:00:00",
             "Should take into account the allocated hours set on the task and the working calendar of users assigned",
         )
-        task4.write(
-            {"planned_date_begin": False, "date_end": False, "allocated_hours": 2}
-        )
+        task4.write({"date_start": False, "date_end": False, "allocated_hours": 2})
         task4.with_context(task_calendar_plan_full_day=True).plan_task_in_calendar(
             {"date_end": "2021-09-03 19:00:00"}
         )
-        self.assertFalse(task4.planned_date_begin)
+        self.assertFalse(task4.date_start)
         self.assertEqual(
             fields.Datetime.to_string(task4.date_end),
             "2021-09-03 19:00:00",
             "Should take into account the allocated hours set on the task and the working calendar of users assigned",
         )
-        task4.write(
-            {"planned_date_begin": False, "date_end": False, "allocated_hours": 2}
-        )
+        task4.write({"date_start": False, "date_end": False, "allocated_hours": 2})
         task4.with_context(task_calendar_plan_full_day=True).plan_task_in_calendar(
             {
-                "planned_date_begin": "2021-09-03 07:00:00",
+                "date_start": "2021-09-03 07:00:00",
                 "date_end": "2021-09-03 19:00:00",
             }
         )
         self.assertEqual(
-            fields.Datetime.to_string(task4.planned_date_begin),
+            fields.Datetime.to_string(task4.date_start),
             "2021-09-03 07:00:00",
             "Should be the start date given in the vals",
         )
@@ -695,7 +693,7 @@ class TestTaskPlanningFlow(TransactionCase):
 
         task5.plan_task_in_calendar(vals)
         self.assertEqual(
-            fields.Datetime.to_string(task5.planned_date_begin),
+            fields.Datetime.to_string(task5.date_start),
             "2021-09-23 11:00:00",
             "Should be the start date given in the vals",
         )
@@ -707,7 +705,7 @@ class TestTaskPlanningFlow(TransactionCase):
 
         task6.plan_task_in_calendar(vals)
         self.assertEqual(
-            fields.Datetime.to_string(task6.planned_date_begin),
+            fields.Datetime.to_string(task6.date_start),
             "2021-09-23 11:00:00",
             "Should be the start date given in the vals",
         )

@@ -76,8 +76,8 @@ class ProjectBaseline(models.Model):
                 "baseline_id": self.id,
                 "task_id": task.id,
                 "task_name": task.name,
-                "planned_start": task.planned_date_begin,
-                "planned_end": task.date_end,
+                "date_planned_start": task.date_start,
+                "date_planned_end": task.date_end,
                 "planned_hours": task.planned_hours,
                 "milestone_id": task.milestone_id.id,
                 "step_id": task.step_id.id,
@@ -112,8 +112,8 @@ class ProjectBaselineLine(models.Model):
     )
     task_name = fields.Char("Task Name (snapshot)", required=True)
     sequence = fields.Integer(default=10)
-    planned_start = fields.Datetime("Planned Start (snapshot)")
-    planned_end = fields.Datetime("Planned End (snapshot)")
+    date_planned_start = fields.Datetime("Planned Start (snapshot)")
+    date_planned_end = fields.Datetime("Planned End (snapshot)")
     planned_hours = fields.Float("Planned Hours (snapshot)")
     milestone_id = fields.Many2one(
         "project.milestone",

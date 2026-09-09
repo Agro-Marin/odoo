@@ -19,7 +19,7 @@ const calendarMountParams = {
     type: "calendar",
     arch: `
         <calendar
-            date_start="planned_date_start"
+            date_start="date_start_effective"
             date_stop="date_end"
             event_open_popup="1"
             mode="month"
@@ -36,8 +36,8 @@ test("Drag and drop task to schedule in month scale", async () => {
         <form>
             <field name="id"/>
             <field name="name"/>
-            <field name="planned_date_begin"/>
-            <field name="date_end" widget="daterange" options="{'start_date_field': 'planned_date_begin'}"/>
+            <field name="date_start"/>
+            <field name="date_end" widget="daterange" options="{'start_date_field': 'date_start'}"/>
         </form>
     `;
 

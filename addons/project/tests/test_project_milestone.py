@@ -460,7 +460,7 @@ class TestProjectMilestone(TestProjectCommon):
             }
         )
         self.milestone_goats.write(
-            {"deadline": fields.Date.today() + relativedelta(days=-1)}
+            {"date_deadline": fields.Date.today() + relativedelta(days=-1)}
         )
 
         (self.project_pigs | self.project_goats)._compute_next_milestone_indicators()
@@ -558,12 +558,12 @@ class TestMilestoneCopyAndCompletion(TestProjectCommon):
                 {
                     "name": "LATE",
                     "project_id": project.id,
-                    "deadline": fields.Date.today() - relativedelta(days=5),
+                    "date_deadline": fields.Date.today() - relativedelta(days=5),
                 },
                 {
                     "name": "SOON",
                     "project_id": project.id,
-                    "deadline": fields.Date.today() + relativedelta(days=5),
+                    "date_deadline": fields.Date.today() + relativedelta(days=5),
                 },
             ]
         )
@@ -582,12 +582,12 @@ class TestMilestoneCopyAndCompletion(TestProjectCommon):
             {
                 "name": "M",
                 "project_id": project.id,
-                "deadline": fields.Date.today() + relativedelta(days=5),
+                "date_deadline": fields.Date.today() + relativedelta(days=5),
             }
         )
         task = self.env["project.task"].create(
             {"name": "t", "project_id": project.id, "milestone_id": milestone.id}
         )
         self.assertFalse(task.has_late_and_unreached_milestone)
-        milestone.deadline = fields.Date.today() - relativedelta(days=1)
+        milestone.date_deadline = fields.Date.today() - relativedelta(days=1)
         self.assertTrue(task.has_late_and_unreached_milestone)

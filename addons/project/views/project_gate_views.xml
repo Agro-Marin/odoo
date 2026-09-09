@@ -23,7 +23,7 @@
                             <field name="sequence" />
                         </group>
                         <group>
-                            <field name="review_date" />
+                            <field name="date_review" />
                             <field name="reviewer_ids" widget="many2many_avatar_user" />
                             <field name="criteria_met_count" />
                             <field name="criteria_total_count" />
@@ -35,7 +35,7 @@
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle" />
                                     <field name="name" />
-                                    <field name="met" />
+                                    <field name="is_met" />
                                     <field name="evidence" optional="show" />
                                 </list>
                             </field>
@@ -66,7 +66,7 @@
                 <field name="name" />
                 <field name="project_id" />
                 <field name="milestone_id" />
-                <field name="review_date" />
+                <field name="date_review" />
                 <field name="criteria_met_count" />
                 <field name="criteria_total_count" />
                 <field

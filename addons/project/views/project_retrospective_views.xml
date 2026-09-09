@@ -88,7 +88,7 @@
                                         name="owner_id"
                                         widget="many2one_avatar_user" />
                                     <field name="category" optional="show" />
-                                    <field name="due_date" />
+                                    <field name="date_due" />
                                     <field name="state" />
                                     <field name="carried_from_id" optional="hide" />
                                     <field name="resolution_note" optional="hide" />
@@ -200,7 +200,7 @@
                 <field name="retrospective_id" />
                 <field name="owner_id" widget="many2one_avatar_user" />
                 <field name="category" optional="show" />
-                <field name="due_date" />
+                <field name="date_due" />
                 <field name="state" />
                 <field name="resolution_note" optional="hide" />
             </list>

@@ -25,10 +25,10 @@ export class ProjectMilestone extends Component {
     }
 
     get deadline() {
-        if (!this.milestone.deadline) {
+        if (!this.milestone.date_deadline) {
             return "";
         }
-        return formatDate(DateTime.fromISO(this.milestone.deadline));
+        return formatDate(DateTime.fromISO(this.milestone.date_deadline));
     }
 
     get colorClass() {

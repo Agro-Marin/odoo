@@ -38,7 +38,7 @@ class ProjectGate(models.Model):
         required=True,
         tracking=True,
     )
-    review_date = fields.Date("Review Date", tracking=True)
+    date_review = fields.Date("Review Date", tracking=True)
     reviewer_ids = fields.Many2many(
         "res.users",
         string="Reviewers",
@@ -59,10 +59,10 @@ class ProjectGate(models.Model):
         export_string_translation=False,
     )
 
-    @api.depends("criterion_ids.met")
+    @api.depends("criterion_ids.is_met")
     def _compute_criteria_met_count(self) -> None:
         for gate in self:
-            gate.criteria_met_count = len(gate.criterion_ids.filtered("met"))
+            gate.criteria_met_count = len(gate.criterion_ids.filtered("is_met"))
 
     @api.constrains("milestone_id", "project_id")
     def _check_milestone_project(self) -> None:
@@ -91,5 +91,5 @@ class ProjectGateCriterion(models.Model):
     )
     name = fields.Char("Criterion", required=True)
     sequence = fields.Integer(default=10)
-    met = fields.Boolean("Met", default=False)
+    is_met = fields.Boolean("Met", default=False)
     evidence = fields.Text("Evidence")

@@ -35,7 +35,7 @@
                         <group name="main_details">
                             <field name="project_id" invisible="1" />
                             <field name="name" placeholder="e.g: Product Launch" />
-                            <field name="deadline" />
+                            <field name="date_deadline" />
                             <field name="is_reached" />
                         </group>
                     </group>
@@ -54,10 +54,10 @@
                 decoration-muted="is_reached"
                 editable="bottom"
                 sample="1"
-                default_order="sequence, deadline, is_reached desc, name">
+                default_order="sequence, date_deadline, is_reached desc, name">
                 <field name="sequence" widget="handle" />
                 <field name="name" />
-                <field name="deadline" optional="show" />
+                <field name="date_deadline" optional="show" />
                 <field name="project_id" column_invisible="1" />
                 <field name="is_reached" optional="show" />
                 <button
@@ -96,8 +96,8 @@
                                     t-set="badge"
                                     t-value="'text-danger'"
                                     t-if="record.is_deadline_exceeded.raw_value" />
-                                <t t-if="record.deadline.raw_value">
-                                    - <span t-attf-class="{{ badge }}"><field name="deadline" /></span>
+                                <t t-if="record.date_deadline.raw_value">
+                                    - <span t-attf-class="{{ badge }}"><field name="date_deadline" /></span>
                                 </t>
                             </strong>
                         </div>

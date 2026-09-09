@@ -51,6 +51,12 @@ class MixinResourceAllocation(models.AbstractModel):
                 record.allocated_hours = sum(
                     reservations.filtered("active").mapped("allocated_hours")
                 )
-            elif record._is_scheduling_dated():
-                # Has its own start/end but no matching reservation: stale, not a manual estimate.
+            elif record._is_scheduling_dated() and record._get_reservation_vals_list():
+                # Stale means a reservation was DUE and is missing, which is what
+                # _get_reservation_vals_list answers -- the same question the sync
+                # asks, so the two can never disagree. Being dated is not enough:
+                # a consumer whose resource provider is not installed (project.task
+                # without hr, where res.users._get_project_task_resource is the
+                # empty base implementation) is due none, and its stored value is a
+                # manual estimate rather than a stale sum.
                 record.allocated_hours = 0.0

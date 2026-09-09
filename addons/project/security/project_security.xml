@@ -235,6 +235,14 @@
         ]</field>
             <field name="groups" eval="[(4,ref('project.group_project_user'))]" />
         </record>
+        <record id="collaborator_manager_rule" model="ir.rule">
+            <field name="name">Project/project.collaborator: manager full access</field>
+            <field name="model_id" ref="project.model_project_collaborator" />
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field
+                name="groups"
+                eval="[(4,ref('project.group_project_manager'))]" />
+        </record>
         <record id="project_task_rule_portal" model="ir.rule">
             <field
                 name="name">Project/Task: portal users: can only see a task if he's a collaborator of the project and a follower of the task</field>

@@ -29,7 +29,7 @@ class TestCpmFieldOwnership(TestProjectCommon):
                 "name": "scheduled",
                 "project_id": project.id,
                 "step_id": step.id,
-                "planned_date_begin": "2026-08-03 08:00:00",
+                "date_start": "2026-08-03 08:00:00",
                 "date_end": "2026-08-07 17:00:00",
             }
         )
@@ -37,13 +37,13 @@ class TestCpmFieldOwnership(TestProjectCommon):
             {"name": "succ", "project_id": project.id, "step_id": step.id}
         )
         successor.predecessor_ids = task
-        before = (task.planned_date_begin, task.date_end, task.scheduled_hours)
+        before = (task.date_start, task.date_end, task.scheduled_hours)
 
         project.action_compute_critical_path()
         task.invalidate_recordset()
 
         self.assertEqual(
-            (task.planned_date_begin, task.date_end, task.scheduled_hours),
+            (task.date_start, task.date_end, task.scheduled_hours),
             before,
             "CPM must write only its own fields",
         )
@@ -124,7 +124,7 @@ class TestCpmFieldOwnership(TestProjectCommon):
                 "name": "one working week",
                 "project_id": project.id,
                 "step_id": step.id,
-                "planned_date_begin": "2026-08-03 08:00:00",
+                "date_start": "2026-08-03 08:00:00",
                 "date_end": "2026-08-07 17:00:00",
             }
         )

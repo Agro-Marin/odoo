@@ -46,16 +46,16 @@ class ProjectBenefit(models.Model):
         tracking=True,
         help="Business owner responsible for realizing and measuring this benefit.",
     )
-    review_date = fields.Date(
+    date_review = fields.Date(
         "Next Review Date",
         help="When this benefit should next be reviewed for progress.",
     )
-    review_reminder_date = fields.Date(
+    date_review_reminder = fields.Date(
         "Reminder Scheduled For",
         copy=False,
-        help="Internal: the review_date for which a reminder activity was last "
+        help="Internal: the date_review for which a reminder activity was last "
         "scheduled by the cron. Prevents re-nagging every day once a reminder "
-        "has been raised; a new reminder is only scheduled when review_date moves.",
+        "has been raised; a new reminder is only scheduled when date_review moves.",
     )
     state = fields.Selection(
         [
@@ -76,12 +76,12 @@ class ProjectBenefit(models.Model):
         today = fields.Date.context_today(self)
         benefits = self.search(
             [
-                ("review_date", "<=", today),
+                ("date_review", "<=", today),
                 ("state", "in", ("expected", "tracking")),
                 ("accountable_id", "!=", False),
             ]
         )
-        benefits = benefits.filtered(lambda b: b.review_reminder_date != b.review_date)
+        benefits = benefits.filtered(lambda b: b.date_review_reminder != b.date_review)
         if not benefits:
             return
 
@@ -97,11 +97,11 @@ class ProjectBenefit(models.Model):
         for benefit in benefits:
             benefit.activity_schedule(
                 "mail.mail_activity_data_todo",
-                date_deadline=benefit.review_date,
+                date_deadline=benefit.date_review,
                 summary=self.env._("Benefit review: %s", benefit.name),
                 user_id=benefit.accountable_id.id,
             )
-            benefit.review_reminder_date = benefit.review_date
+            benefit.date_review_reminder = benefit.date_review
             scheduled += 1
         _logger.info("Benefit review cron: scheduled %d activities", scheduled)
 

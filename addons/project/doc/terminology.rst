@@ -179,16 +179,17 @@ Critical Path
     whole project. Computed on demand via forward/backward pass CPM
     using all four dependency types (FS/SS/FF/SF) with lag support.
 
-Planned Start / Planned End (``planned_date_start``, ``planned_date_end``)
+CPM Start / CPM End (``cpm_date_start``, ``cpm_date_end``)
     Calendar-aware start and end dates computed by CPM. Distinct from
-    ``date_end`` (user-entered target) and ``date_end`` (actual
+    ``date_end`` (user-entered target) and ``date_closed`` (actual
     completion). Accounts for the project's resource calendar (working
     hours, weekends, holidays).
 
 Total Float (``total_float``)
     The amount of scheduling slack (in hours) a task has before it
-    delays the project. ``latest_start - earliest_start``. Zero float
-    means the task is on the critical path.
+    delays the project. ``cpm_date_latest_start -
+    cpm_date_earliest_start``. Zero float means the task is on the
+    critical path.
 
 Resource Leveling
     A heuristic that adjusts planned dates of non-critical tasks to

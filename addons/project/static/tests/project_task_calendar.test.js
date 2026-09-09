@@ -18,7 +18,7 @@ beforeEach(() => {
             <field name="id"/>
             <field name="name"/>
             <field name="date_end"/>
-            <field name="planned_date_begin"/>
+            <field name="date_start"/>
         </form>
     `;
 
@@ -236,7 +236,7 @@ test("planned dates used in search domain should not be taken into account in Ta
         domain: [
             ["is_closed", "=", false],
             ["date_end", "!=", false],
-            ["planned_date_begin", "!=", false],
+            ["date_start", "!=", false],
         ],
     });
     expect(".o_calendar_view").toHaveCount(1);

@@ -80,7 +80,7 @@ class ProjectWorkflowStep(models.Model):
             "as stale. Set to 0 to disable."
         ),
     )
-    rating_request_deadline = fields.Datetime(
+    date_rating_request = fields.Datetime(
         export_string_translation=False,
         help=(
             "Next scheduled periodic rating request. Seeded when periodic "
@@ -174,9 +174,9 @@ class ProjectWorkflowStep(models.Model):
             if (
                 step.rating_active
                 and step.rating_status == "periodic"
-                and not step.rating_request_deadline
+                and not step.date_rating_request
             ):
-                step.rating_request_deadline = step._get_next_rating_deadline()
+                step.date_rating_request = step._get_next_rating_deadline()
 
     @api.model
     def _send_rating_all(self) -> None:
@@ -184,12 +184,12 @@ class ProjectWorkflowStep(models.Model):
             [
                 ("rating_active", "=", True),
                 ("rating_status", "=", "periodic"),
-                ("rating_request_deadline", "<=", fields.Datetime.now()),
+                ("date_rating_request", "<=", fields.Datetime.now()),
             ]
         )
         for step in steps:
             step._get_rating_tasks()._send_task_rating_mail()
-            step.rating_request_deadline = step._get_next_rating_deadline()
+            step.date_rating_request = step._get_next_rating_deadline()
             self.env.cr.commit()
 
     def _get_rating_tasks(self):

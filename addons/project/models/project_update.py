@@ -190,11 +190,11 @@ class ProjectUpdate(models.Model):
                 ("project_id", "=", project.id),
                 "|",
                 (
-                    "deadline",
+                    "date_deadline",
                     "<",
                     fields.Date.context_today(self) + relativedelta(years=1),
                 ),
-                ("deadline", "=", False),
+                ("date_deadline", "=", False),
             ]
         )._get_export_values_list()
         updated_milestones = self._get_last_updated_milestone(project)
@@ -217,16 +217,16 @@ class ProjectUpdate(models.Model):
     def _get_last_updated_milestone(self, project: Any) -> list[dict]:
         query = """
             SELECT DISTINCT pm.id as milestone_id,
-                            pm.deadline as deadline,
+                            pm.date_deadline as date_deadline,
                             FIRST_VALUE(old_value_datetime::date) OVER w_partition as old_value,
-                            pm.deadline as new_value
+                            pm.date_deadline as new_value
                        FROM mail_message mm
                  INNER JOIN mail_tracking_value mtv
                          ON mm.id = mtv.mail_message_id
                  INNER JOIN ir_model_fields imf
                          ON mtv.field_id = imf.id
                         AND imf.model = 'project.milestone'
-                        AND imf.name = 'deadline'
+                        AND imf.name = 'date_deadline'
                  INNER JOIN project_milestone pm
                          ON mm.res_id = pm.id
                       WHERE mm.model = 'project.milestone'
@@ -240,7 +240,7 @@ class ProjectUpdate(models.Model):
                              PARTITION BY pm.id
                              ORDER BY mm.date ASC
                             )
-                   ORDER BY pm.deadline ASC;
+                   ORDER BY pm.date_deadline ASC;
         """
         query_params = {"project_id": project.id}
         if project.last_update_id.create_date:

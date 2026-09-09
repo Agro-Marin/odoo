@@ -135,7 +135,7 @@ class TestTaskLevelMetrics(TestProjectCommon):
 
     def test_is_overallocated_is_false_without_reservations(self) -> None:
         task = self._task(
-            planned_date_begin=datetime(2026, 9, 1, 8, 0),
+            date_start=datetime(2026, 9, 1, 8, 0),
             date_end=datetime(2026, 9, 1, 12, 0),
         )
         self.assertFalse(task.reservation_ids)
@@ -159,7 +159,7 @@ class TestResourceReport(TestProjectCommon):
                 "name": "closed",
                 "project_id": self.project_pigs.id,
                 "state": "done",
-                "planned_date_begin": fields.Datetime.now(),
+                "date_start": fields.Datetime.now(),
                 "date_end": fields.Datetime.now() + timedelta(hours=2),
             }
         )

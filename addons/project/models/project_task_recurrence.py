@@ -35,7 +35,7 @@ class ProjectTaskRecurrence(models.Model):
     def _get_recurring_fields_to_postpone(self) -> list[str]:
         return [
             "date_end",
-            "planned_date_begin",
+            "date_start",
         ]
 
     def _get_last_task_id_per_recurrence_id(self) -> dict[int, int]:

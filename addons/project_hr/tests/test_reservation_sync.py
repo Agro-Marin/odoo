@@ -94,7 +94,7 @@ class TestReservationSync(TransactionCase):
             {"name": "Test Project", "company_id": cls.company_home.id}
         )
         cls.scheduled_vals = {
-            "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+            "date_start": datetime(2026, 5, 4, 8, 0),
             "date_end": datetime(2026, 5, 4, 17, 0),
         }
 
@@ -171,7 +171,7 @@ class TestReservationSync(TransactionCase):
         new_start = datetime(2026, 6, 1, 8, 0)
         new_end = datetime(2026, 6, 1, 17, 0)
 
-        task.write({"planned_date_begin": new_start, "date_end": new_end})
+        task.write({"date_start": new_start, "date_end": new_end})
 
         self.assertEqual(reservation.date_start, new_start)
         self.assertEqual(reservation.date_end, new_end)
@@ -208,7 +208,7 @@ class TestReservationSync(TransactionCase):
         )
         self.assertEqual(len(task.reservation_ids), 1)
 
-        task.write({"planned_date_begin": False, "date_end": False})
+        task.write({"date_start": False, "date_end": False})
 
         self.assertFalse(task.reservation_ids)
 
@@ -429,7 +429,7 @@ class TestReservationSync(TransactionCase):
                 {
                     "name": "Planned default",
                     "project_id": self.project.id,
-                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_start": datetime(2026, 5, 4, 8, 0),
                     "date_end": datetime(2026, 5, 4, 17, 0),
                 }
             )
@@ -444,7 +444,7 @@ class TestReservationSync(TransactionCase):
                 {
                     "name": "Planned override",
                     "project_id": self.project.id,
-                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_start": datetime(2026, 5, 4, 8, 0),
                     "date_end": datetime(2026, 5, 4, 17, 0),
                     "planned_hours": 20.0,
                 }
@@ -479,7 +479,7 @@ class TestReservationSync(TransactionCase):
                 "name": "Half day single user",
                 "project_id": self.project.id,
                 "employee_ids": [Command.link(self.employee.id)],
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                "date_start": datetime(2026, 5, 4, 8, 0),
                 "date_end": datetime(2026, 5, 4, 17, 0),
             }
         )
@@ -498,7 +498,7 @@ class TestReservationSync(TransactionCase):
                     "employee_ids": [
                         Command.set([self.employee.id, second_employee.id])
                     ],
-                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_start": datetime(2026, 5, 4, 8, 0),
                     "date_end": datetime(2026, 5, 4, 17, 0),
                 }
             )
@@ -514,7 +514,7 @@ class TestReservationSync(TransactionCase):
                 {
                     "name": "No assignee",
                     "project_id": self.project.id,
-                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_start": datetime(2026, 5, 4, 8, 0),
                     "date_end": datetime(2026, 5, 4, 17, 0),
                 }
             )
@@ -530,7 +530,7 @@ class TestReservationSync(TransactionCase):
                 "name": "50%",
                 "project_id": self.project.id,
                 "employee_ids": [Command.link(self.employee.id)],
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                "date_start": datetime(2026, 5, 4, 8, 0),
                 "date_end": datetime(2026, 5, 4, 17, 0),
                 "allocated_percentage": 50.0,
             }
@@ -543,7 +543,7 @@ class TestReservationSync(TransactionCase):
                 "name": "Half-time plan",
                 "project_id": self.project.id,
                 "employee_ids": [Command.link(self.employee.id)],
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                "date_start": datetime(2026, 5, 4, 8, 0),
                 "date_end": datetime(2026, 5, 4, 17, 0),
                 "allocated_percentage": 50.0,
             }
@@ -562,7 +562,7 @@ class TestReservationSync(TransactionCase):
                 {
                     "name": "Default resources",
                     "project_id": self.project.id,
-                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_start": datetime(2026, 5, 4, 8, 0),
                     "date_end": datetime(2026, 5, 4, 17, 0),
                 }
             )
@@ -579,7 +579,7 @@ class TestReservationSync(TransactionCase):
                 {
                     "name": "Two resources",
                     "project_id": self.project.id,
-                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_start": datetime(2026, 5, 4, 8, 0),
                     "date_end": datetime(2026, 5, 4, 17, 0),
                     "planned_resources": 2,
                 }
@@ -620,7 +620,7 @@ class TestReservationSync(TransactionCase):
             {
                 "name": "Override case",
                 "project_id": self.project.id,
-                "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                "date_start": datetime(2026, 5, 4, 8, 0),
                 "date_end": datetime(2026, 5, 4, 17, 0),
             }
         )
@@ -672,7 +672,7 @@ class TestReservationSync(TransactionCase):
                 {
                     "name": "Not assigned",
                     "project_id": self.project.id,
-                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_start": datetime(2026, 5, 4, 8, 0),
                     "date_end": datetime(2026, 5, 4, 17, 0),
                 }
             )
@@ -690,7 +690,7 @@ class TestReservationSync(TransactionCase):
                     "name": "Allocated",
                     "project_id": self.project.id,
                     "employee_ids": [Command.link(self.employee.id)],
-                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_start": datetime(2026, 5, 4, 8, 0),
                     "date_end": datetime(2026, 5, 4, 17, 0),
                 }
             )
@@ -709,7 +709,7 @@ class TestReservationSync(TransactionCase):
                     "project_id": self.project.id,
                     "planned_resources": 2,
                     "employee_ids": [Command.link(self.employee.id)],
-                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_start": datetime(2026, 5, 4, 8, 0),
                     "date_end": datetime(2026, 5, 4, 17, 0),
                 }
             )
@@ -730,7 +730,7 @@ class TestReservationSync(TransactionCase):
                     "employee_ids": [
                         Command.set([self.employee.id, second_employee.id])
                     ],
-                    "planned_date_begin": datetime(2026, 5, 4, 8, 0),
+                    "date_start": datetime(2026, 5, 4, 8, 0),
                     "date_end": datetime(2026, 5, 4, 17, 0),
                 }
             )

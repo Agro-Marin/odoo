@@ -93,7 +93,7 @@ PROJECT_TASK_WRITABLE_FIELDS = {
     "name",
     "description",
     "partner_id",
-    "planned_date_begin",
+    "date_start",
     "date_end",
     "tag_ids",
     "sequence",
@@ -294,7 +294,7 @@ class ProjectTask(models.Model):
         readonly=True,
         help="Date on which this task was last assigned (or unassigned). Based on this, you can get statistics on the time it usually takes to assign tasks.",
     )
-    planned_date_begin = fields.Datetime(
+    date_start = fields.Datetime(
         "Start date",
         tracking=True,
         copy=False,
@@ -306,13 +306,13 @@ class ProjectTask(models.Model):
         copy=False,
     )
     _planned_dates_check = models.Constraint(
-        "CHECK ((planned_date_begin <= date_end))",
+        "CHECK ((date_start <= date_end))",
         "The planned start date must be before the planned end date.",
     )
-    planned_date_start = fields.Datetime(
-        compute="_compute_planned_date_start",
-        inverse="_inverse_planned_date_start",
-        search="_search_planned_date_start",
+    date_start_effective = fields.Datetime(
+        compute="_compute_date_start_effective",
+        inverse="_inverse_date_start_effective",
+        search="_search_date_start_effective",
     )
     planning_overlap = fields.Html(
         compute="_compute_planning_overlap",
@@ -627,13 +627,13 @@ class ProjectTask(models.Model):
         export_string_translation=False,
     )
 
-    earliest_start = fields.Datetime(
+    cpm_date_earliest_start = fields.Datetime(
         "Earliest Start",
         copy=False,
         help="Computed by critical path analysis (forward pass).",
         export_string_translation=False,
     )
-    latest_start = fields.Datetime(
+    cpm_date_latest_start = fields.Datetime(
         "Latest Start",
         copy=False,
         help="Computed by critical path analysis (backward pass).",
@@ -655,7 +655,7 @@ class ProjectTask(models.Model):
         "CPM Start",
         copy=False,
         help="Calendar-aware start date computed by critical path analysis. "
-        "Distinct from planned_date_begin (the user-entered scheduled start).",
+        "Distinct from date_start (the user-entered scheduled start).",
         export_string_translation=False,
     )
     cpm_date_end = fields.Datetime(
@@ -1071,12 +1071,12 @@ class ProjectTask(models.Model):
         self.filtered(
             lambda task: (
                 task.state == "canceled"
-                and task.planned_date_begin
-                and task.planned_date_begin > fields.Datetime.now()
+                and task.date_start
+                and task.date_start > fields.Datetime.now()
             )
         ).write(
             {
-                "planned_date_begin": False,
+                "date_start": False,
                 "date_end": False,
             }
         )
@@ -1525,7 +1525,7 @@ class ProjectTask(models.Model):
             task.subtask_planned_hours = sum(task.child_ids.mapped("planned_hours"))
 
     @api.depends(
-        "planned_date_begin",
+        "date_start",
         "date_end",
         "company_id",
     )
@@ -1533,7 +1533,7 @@ class ProjectTask(models.Model):
         for task in self:
             task.scheduled_hours = round(
                 task._scheduling_get_work_hours(
-                    task.planned_date_begin,
+                    task.date_start,
                     task.date_end,
                     compute_leaves=True,
                 ),
@@ -2108,16 +2108,16 @@ class ProjectTask(models.Model):
                 vals["tag_ids"] = [Command.set(parent.tag_ids.ids)]
 
         if self.env.context.get("scale") in ("month", "year"):
-            planned_date_begin = vals.get(
-                "planned_date_begin", self.env.context.get("planned_date_begin", False)
+            date_start = vals.get(
+                "date_start", self.env.context.get("date_start", False)
             )
             date_end = vals.get("date_end", self.env.context.get("date_end", False))
-            if planned_date_begin and date_end:
+            if date_start and date_end:
                 user_ids = self.env.context.get("user_ids", [])
-                planned_date_begin, date_end = self._get_planned_dates(
-                    planned_date_begin, date_end, user_ids
+                date_start, date_end = self._get_planned_dates(
+                    date_start, date_end, user_ids
                 )
-                vals.update(planned_date_begin=planned_date_begin, date_end=date_end)
+                vals.update(date_start=date_start, date_end=date_end)
 
         return vals
 
@@ -2294,11 +2294,9 @@ class ProjectTask(models.Model):
     def _write_split_by_default_planned_dates(
         self, vals: dict[str, Any]
     ) -> bool | None:
-        if len(self) < 2 or not (
-            vals.get("planned_date_begin") and vals.get("date_end")
-        ):
+        if len(self) < 2 or not (vals.get("date_start") and vals.get("date_end")):
             return None
-        if any(task.planned_date_begin or task.date_end for task in self):
+        if any(task.date_start or task.date_end for task in self):
             return None
 
         scoped = self.with_context(skip_default_planned_dates=True)
@@ -2307,11 +2305,11 @@ class ProjectTask(models.Model):
             self.sudo()._get_tasks_by_resource_calendar_dict().items()
         ):
             date_start, date_stop = self._get_planned_dates(
-                vals["planned_date_begin"], vals["date_end"], calendar=calendar
+                vals["date_start"], vals["date_end"], calendar=calendar
             )
             result = (
                 scoped.browse(tasks.ids).write(
-                    {**vals, "planned_date_begin": date_start, "date_end": date_stop}
+                    {**vals, "date_start": date_start, "date_end": date_stop}
                 )
                 and result
             )
@@ -2319,7 +2317,7 @@ class ProjectTask(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         if "date_end" in vals and not vals["date_end"]:
-            vals = {**vals, "planned_date_begin": False}
+            vals = {**vals, "date_start": False}
 
         if not self.env.context.get("skip_default_planned_dates"):
             split = self._write_split_by_default_planned_dates(vals)
@@ -2732,7 +2730,7 @@ class ProjectTask(models.Model):
         return super().unlink()
 
     def _get_fields_reservation_date(self):
-        return ("planned_date_begin", "date_end")
+        return ("date_start", "date_end")
 
     def _get_reservation_vals_list(self):
         self.check_singleton()
@@ -2770,15 +2768,15 @@ class ProjectTask(models.Model):
         triggers |= {"user_ids", "allocated_percentage", "name"}
         return triggers
 
-    @api.onchange("date_end", "planned_date_begin")
+    @api.onchange("date_end", "date_start")
     def _onchange_planned_dates(self):
         if not self.date_end:
-            self.planned_date_begin = False
+            self.date_start = False
 
     def action_unschedule_task(self):
         self.write(
             {
-                "planned_date_begin": False,
+                "date_start": False,
                 "date_end": False,
             }
         )
@@ -2952,7 +2950,7 @@ class ProjectTask(models.Model):
         "allow_milestones",
         "milestone_id",
         "milestone_id.is_reached",
-        "milestone_id.deadline",
+        "milestone_id.date_deadline",
     )
     def _compute_has_late_and_unreached_milestone(self) -> None:
         if all(not task.allow_milestones for task in self):
@@ -2965,7 +2963,7 @@ class ProjectTask(models.Model):
                 [
                     ("id", "in", self.milestone_id.ids),
                     ("is_reached", "=", False),
-                    ("deadline", "<", fields.Date.today()),
+                    ("date_deadline", "<", fields.Date.today()),
                 ]
             )
         )
@@ -2986,7 +2984,7 @@ class ProjectTask(models.Model):
                 "any",
                 [
                     ("is_reached", "=", False),
-                    ("deadline", "<", fields.Date.today()),
+                    ("date_deadline", "<", fields.Date.today()),
                 ],
             ),
         ]
@@ -3696,17 +3694,17 @@ class ProjectTask(models.Model):
 
     def plan_task_in_calendar(self, vals: dict[str, Any]) -> bool:
         self.check_singleton()
-        if planned_date_begin := vals.get("planned_date_begin"):
+        if date_start := vals.get("date_start"):
             tz_info = self.env.context.get("tz") or self.env.user.tz or "UTC"
-            planned_date_begin = datetime.strptime(
-                planned_date_begin, "%Y-%m-%d %H:%M:%S"
-            ).astimezone(timezone(tz_info))
+            date_start = datetime.strptime(date_start, "%Y-%m-%d %H:%M:%S").astimezone(
+                timezone(tz_info)
+            )
             if self.allocated_hours:
-                max_date_end = planned_date_begin + relativedelta(
+                max_date_end = date_start + relativedelta(
                     days=self.allocated_hours / 8, months=1
                 )
                 available_work_intervals = self._get_users_available_work_intervals(
-                    planned_date_begin, max_date_end
+                    date_start, max_date_end
                 )
                 hours_to_plan = self.allocated_hours
                 compute_date_end = None
@@ -3721,7 +3719,7 @@ class ProjectTask(models.Model):
                     if not compute_date_end:
                         compute_date_end = available_work_intervals._items[-1][1]
                     if self.env.context.get("task_calendar_plan_full_day"):
-                        vals["planned_date_begin"] = (
+                        vals["date_start"] = (
                             available_work_intervals._items[0][0]
                             .astimezone(UTC)
                             .replace(tzinfo=None)
@@ -3731,9 +3729,7 @@ class ProjectTask(models.Model):
                         tzinfo=None
                     )
             elif self.env.context.get("task_calendar_plan_full_day"):
-                planned_date_begin += relativedelta(
-                    hour=0, minute=0, second=0, microsecond=0
-                )
+                date_start += relativedelta(hour=0, minute=0, second=0, microsecond=0)
                 planned_date_end = datetime.strptime(
                     vals["date_end"], "%Y-%m-%d %H:%M:%S"
                 ).astimezone(timezone(tz_info))
@@ -3741,10 +3737,10 @@ class ProjectTask(models.Model):
                     hour=23, minute=59, second=59, microsecond=59
                 )
                 available_work_intervals = self._get_users_available_work_intervals(
-                    planned_date_begin, planned_date_end
+                    date_start, planned_date_end
                 )
                 if available_work_intervals:
-                    vals["planned_date_begin"] = (
+                    vals["date_start"] = (
                         available_work_intervals._items[0][0]
                         .astimezone(UTC)
                         .replace(tzinfo=None)
@@ -3760,7 +3756,7 @@ class ProjectTask(models.Model):
     def _get_template_default_context_whitelist(self) -> list[str]:
         return [
             "parent_id",
-            "planned_date_begin",
+            "date_start",
             "date_end",
         ]
 
@@ -4017,7 +4013,7 @@ class ProjectTask(models.Model):
             [
                 ("active", "=", True),
                 ("is_closed", "=", False),
-                ("planned_date_begin", "!=", False),
+                ("date_start", "!=", False),
                 ("date_end", "!=", False),
                 ("date_end", ">", fields.Datetime.now()),
                 ("project_id", "!=", False),
@@ -4039,9 +4035,9 @@ class ProjectTask(models.Model):
                 "%s != %s AND (%s::TIMESTAMP, %s::TIMESTAMP) OVERLAPS (%s::TIMESTAMP, %s::TIMESTAMP)",
                 SQL.identifier(task1, "id"),
                 SQL.identifier(task2, "id"),
-                SQL.identifier(task1, "planned_date_begin"),
+                SQL.identifier(task1, "date_start"),
                 SQL.identifier(task1, "date_end"),
-                SQL.identifier(task2, "planned_date_begin"),
+                SQL.identifier(task2, "date_start"),
                 SQL.identifier(task2, "date_end"),
             ),
         )
@@ -4077,10 +4073,10 @@ class ProjectTask(models.Model):
 
         sql = query.select(
             SQL.identifier(task1, "id"),
-            SQL.identifier(task1, "planned_date_begin"),
+            SQL.identifier(task1, "date_start"),
             SQL.identifier(task1, "date_end"),
             SQL("ARRAY_AGG(%s) AS task_ids", SQL.identifier(task2, "id")),
-            SQL("MIN(%s)", SQL.identifier(task2, "planned_date_begin")),
+            SQL("MIN(%s)", SQL.identifier(task2, "date_start")),
             SQL("MAX(%s)", SQL.identifier(task2, "date_end")),
             SQL("%s AS user_id", SQL.identifier(task1_user, "id")),
             SQL("%s AS partner_name", task1_partner_name),
@@ -4095,7 +4091,7 @@ class ProjectTask(models.Model):
         self.flush_model(
             [
                 "active",
-                "planned_date_begin",
+                "date_start",
                 "date_end",
                 "user_ids",
                 "project_id",
@@ -4109,12 +4105,12 @@ class ProjectTask(models.Model):
                 "partner_name": row["partner_name"],
                 "overlapping_tasks_ids": row["task_ids"],
                 "sum_allocated_hours": row["sum"] + row["allocated_hours"],
-                "min_planned_date_begin": min(row["min"], row["planned_date_begin"]),
-                "max_date_deadline": max(row["max"], row["date_end"]),
+                "min_date_start": min(row["min"], row["date_start"]),
+                "max_date_end": max(row["max"], row["date_end"]),
             }
         return res
 
-    @api.depends("planned_date_begin", "date_end", "user_ids", "allocated_hours")
+    @api.depends("date_start", "date_end", "user_ids", "allocated_hours")
     def _compute_planning_overlap(self):
         overlap_mapping = self._get_planning_overlap_per_task()
         if not overlap_mapping:
@@ -4122,8 +4118,8 @@ class ProjectTask(models.Model):
             return overlap_mapping
         user_ids = set()
         absolute_min_start = (
-            self[0].planned_date_begin.replace(tzinfo=UTC)
-            if self[0].planned_date_begin
+            self[0].date_start.replace(tzinfo=UTC)
+            if self[0].date_start
             else datetime.now(UTC)
         )
         absolute_max_end = (
@@ -4135,11 +4131,11 @@ class ProjectTask(models.Model):
             for user_id, task_mapping in overlap_mapping.get(task.id, {}).items():
                 absolute_min_start = min(
                     absolute_min_start,
-                    task_mapping["min_planned_date_begin"].replace(tzinfo=UTC),
+                    task_mapping["min_date_start"].replace(tzinfo=UTC),
                 )
                 absolute_max_end = max(
                     absolute_max_end,
-                    task_mapping["max_date_deadline"].replace(tzinfo=UTC),
+                    task_mapping["max_date_end"].replace(tzinfo=UTC),
                 )
                 user_ids.add(user_id)
         users = self.env["res.users"].browse(list(user_ids))
@@ -4182,12 +4178,10 @@ class ProjectTask(models.Model):
         for task in self:
             overlap_messages = []
             for user_id, task_mapping in overlap_mapping.get(task.id, {}).items():
-                task_intervals_start = task_mapping["min_planned_date_begin"].replace(
+                task_intervals_start = task_mapping["min_date_start"].replace(
                     tzinfo=UTC
                 )
-                task_intervals_end = task_mapping["max_date_deadline"].replace(
-                    tzinfo=UTC
-                )
+                task_intervals_end = task_mapping["max_date_end"].replace(tzinfo=UTC)
                 task_intervals = Intervals(
                     [
                         (
@@ -4236,15 +4230,15 @@ class ProjectTask(models.Model):
             INNER JOIN project_task_user_rel U2 ON T2.id = U2.task_id
                 AND U1.user_id = U2.user_id
             WHERE
-                T1.planned_date_begin < T2.date_end
-                AND T1.date_end > T2.planned_date_begin
-                AND T1.planned_date_begin IS NOT NULL
+                T1.date_start < T2.date_end
+                AND T1.date_end > T2.date_start
+                AND T1.date_start IS NOT NULL
                 AND T1.date_end IS NOT NULL
                 AND T1.date_end > NOW() AT TIME ZONE 'UTC'
                 AND T1.active = 't'
                 AND T1.state NOT IN ('done', 'canceled')
                 AND T1.project_id IS NOT NULL
-                AND T2.planned_date_begin IS NOT NULL
+                AND T2.date_start IS NOT NULL
                 AND T2.date_end IS NOT NULL
                 AND T2.date_end > NOW() AT TIME ZONE 'UTC'
                 AND T2.project_id IS NOT NULL
@@ -4275,7 +4269,7 @@ class ProjectTask(models.Model):
 
         return tasks_by_resource_calendar_dict
 
-    @api.depends("planned_date_begin", "predecessor_ids.date_end")
+    @api.depends("date_start", "predecessor_ids.date_end")
     def _compute_dependency_warning(self):
         if not (
             self._origin
@@ -4285,7 +4279,7 @@ class ProjectTask(models.Model):
             return
 
         (self - tasks_with_task_dependencies).dependency_warning = False
-        self.flush_model(["planned_date_begin", "date_end"])
+        self.flush_model(["date_start", "date_end"])
         query = """
             SELECT t1.id,
                    ARRAY_AGG(t2.name) as depends_on_names
@@ -4295,9 +4289,9 @@ class ProjectTask(models.Model):
               JOIN project_task t2
                 ON d.depends_on_id = t2.id
              WHERE t1.id = ANY(%s)
-               AND t1.planned_date_begin IS NOT NULL
+               AND t1.date_start IS NOT NULL
                AND t2.date_end IS NOT NULL
-               AND t2.date_end > t1.planned_date_begin
+               AND t2.date_end > t1.date_start
           GROUP BY t1.id
         """
         self.env.cr.execute(query, (list(tasks_with_task_dependencies.ids),))
@@ -4326,36 +4320,36 @@ class ProjectTask(models.Model):
                 ON d.task_id = t1.id
               JOIN project_task t2
                 ON d.depends_on_id = t2.id
-             WHERE t1.planned_date_begin IS NOT NULL
+             WHERE t1.date_start IS NOT NULL
                AND t2.date_end IS NOT NULL
-               AND t2.date_end > t1.planned_date_begin
+               AND t2.date_end > t1.date_start
         """)
         if True in value and False in value:
             return Domain.TRUE
         operator_new = "in" if any(value) else "not in"
         return [("id", operator_new, sql)]
 
-    @api.depends("planned_date_begin", "date_end")
-    def _compute_planned_date_start(self):
+    @api.depends("date_start", "date_end")
+    def _compute_date_start_effective(self):
         for task in self:
-            task.planned_date_start = task.planned_date_begin or task.date_end
+            task.date_start_effective = task.date_start or task.date_end
 
-    def _inverse_planned_date_start(self):
+    def _inverse_date_start_effective(self):
         for task in self:
-            if task.planned_date_begin:
-                task.planned_date_begin = task.planned_date_start
+            if task.date_start:
+                task.date_start = task.date_start_effective
             else:
-                task.date_end = task.planned_date_start
+                task.date_end = task.date_start_effective
 
-    def _search_planned_date_start(self, operator, value):
+    def _search_date_start_effective(self, operator, value):
         return [
             "|",
             "&",
-            ("planned_date_begin", "!=", False),
-            ("planned_date_begin", operator, value),
+            ("date_start", "!=", False),
+            ("date_start", operator, value),
             "&",
             "&",
-            ("planned_date_begin", "=", False),
+            ("date_start", "=", False),
             ("date_end", "!=", False),
             ("date_end", operator, value),
         ]
@@ -4428,7 +4422,7 @@ class ProjectTask(models.Model):
             tz_info = calendar.tz or tz_info
 
         date_start = datetime.strptime(
-            vals["planned_date_begin"], "%Y-%m-%d %H:%M:%S"
+            vals["date_start"], "%Y-%m-%d %H:%M:%S"
         ).astimezone(timezone(tz_info))
         fetch_date_end = max_date_start.astimezone(timezone(tz_info))
         end_loop = date_start + relativedelta(day=31, month=12, years=1)
@@ -4606,11 +4600,11 @@ class ProjectTask(models.Model):
 
         for task in tasks_to_write:
             old_vals_per_task_id[task.id] = {
-                "planned_date_begin": task.planned_date_begin,
+                "date_start": task.date_start,
                 "date_end": task.date_end,
             }
             task_vals = {
-                "planned_date_begin": tasks_to_write[task]["start"],
+                "date_start": tasks_to_write[task]["start"],
                 "date_end": tasks_to_write[task]["end"],
             }
             if user_to_assign:
@@ -4711,7 +4705,7 @@ class ProjectTask(models.Model):
         domain = [
             ("user_ids", "in", user_ids),
             ("date_end", ">=", date_begin.replace(tzinfo=None)),
-            ("planned_date_begin", "<=", date_end.replace(tzinfo=None)),
+            ("date_start", "<=", date_end.replace(tzinfo=None)),
         ]
 
         if tasks_to_exclude_ids:
@@ -4723,7 +4717,7 @@ class ProjectTask(models.Model):
         unavailable_intervals_per_user_id = defaultdict(list)
         for task in already_planned_tasks:
             interval_vals = (
-                task.planned_date_begin.astimezone(UTC),
+                task.date_start.astimezone(UTC),
                 task.date_end.astimezone(UTC),
                 task,
             )
@@ -4825,11 +4819,11 @@ class ProjectTask(models.Model):
                         ]
                     )
                     interval_task_intersection = interval_as_Interval & Intervals(
-                        [(task.planned_date_begin, task.date_end, set())]
+                        [(task.date_start, task.date_end, set())]
                     )
                     interval_duration = sum_intervals(interval_task_intersection)
                     task_total_duration = (
-                        task.date_end - task.planned_date_begin
+                        task.date_end - task.date_start
                     ).total_seconds() / 3600
                     rate = interval_duration / task_total_duration
                     interval_allocated_hours = (
@@ -4932,7 +4926,7 @@ class ProjectTask(models.Model):
                 "context": {
                     "fsm_mode": False,
                     "task_nameget_with_hours": False,
-                    "initialDate": self.planned_date_begin,
+                    "initialDate": self.date_start,
                     "search_default_conflict_task": True,
                 },
             }

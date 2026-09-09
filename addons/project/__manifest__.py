@@ -1,6 +1,6 @@
 {
     "name": "Project",
-    "version": "1.23",
+    "version": "1.24",
     "category": "Services/Project",
     "sequence": 45,
     "summary": "Organize and plan your projects",
@@ -138,6 +138,14 @@
             "web/static/src/webclient/icons.scss",
             "web/static/src/views/**/*.js",
             "web/static/src/views/*.xml",
+            # webclient/**/* below pulls in the mobile pivot renderer, and
+            # views/**/*.js already carries the pivot view's own JS, but
+            # views/*.xml -- one star -- leaves web.PivotRenderer out, so the
+            # extension had no parent and every project-sharing page logged
+            # "Missing (extension) parent templates". Supply the parent beside
+            # the JS that is already here; dropping the extension instead moves
+            # @web/core/utils/macro into another chunk and breaks web_tour.
+            "web/static/src/views/pivot/*.xml",
             "web/static/src/views/settings/**/*",
             "web/static/src/views/*.scss",
             "web/static/src/fields/**/*",
@@ -214,6 +222,20 @@
         "secondary_import_map_includes": {
             "project.webclient": [
                 "web.assets_tests",
+            ],
+        },
+        # web_tour hangs its three lazy bundles off web.assets_web,
+        # web.assets_frontend and web.assets_unit_tests_setup, and cannot name a
+        # page bundle it does not own. project.webclient is one, and carries
+        # web_tour/static/src/js/**/* itself, so without this the lazy
+        # web_tour.automatic has no owning page bundle on a sharing page and
+        # dies on "@web/core/utils/macro is not registered: the bundle importing
+        # it must load after the page bundle that owns it".
+        "dynamic_children": {
+            "project.webclient": [
+                "web_tour.automatic",
+                "web_tour.interactive",
+                "web_tour.recorder",
             ],
         },
     },

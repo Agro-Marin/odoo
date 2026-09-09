@@ -87,7 +87,7 @@ class ProjectProject(models.Model):
         domain="['|', ('company_id', '=', False), ('company_id', '=?', company_id)]",
         ondelete="set null",
     )
-    analytic_account_balance = fields.Monetary(
+    amount_analytic_balance = fields.Monetary(
         related="account_id.balance",
     )
     partner_id = fields.Many2one(
@@ -423,8 +423,8 @@ class ProjectProject(models.Model):
         "Pre-Mortem Conducted",
         help="Was a pre-mortem exercise conducted at project kickoff?",
     )
-    premortem_date = fields.Date("Pre-Mortem Date")
-    premortem_participants = fields.Many2many(
+    date_premortem = fields.Date("Pre-Mortem Date")
+    premortem_participant_ids = fields.Many2many(
         "res.users",
         "project_premortem_participants_rel",
         "project_id",
@@ -559,7 +559,9 @@ class ProjectProject(models.Model):
                 .id
             )
 
-    @api.depends("milestone_ids", "milestone_ids.is_reached", "milestone_ids.deadline")
+    @api.depends(
+        "milestone_ids", "milestone_ids.is_reached", "milestone_ids.date_deadline"
+    )
     def _compute_next_milestone_indicators(self) -> None:
         milestones_per_project_id = {
             project.id: milestones
@@ -824,8 +826,8 @@ class ProjectProject(models.Model):
             total_fl = ls_h - es_h
             cpm_start = hours_to_datetime(es_h)
             vals = {
-                "earliest_start": cpm_start,
-                "latest_start": hours_to_datetime(ls_h),
+                "cpm_date_earliest_start": cpm_start,
+                "cpm_date_latest_start": hours_to_datetime(ls_h),
                 "total_float": total_fl,
                 "is_critical_path": abs(total_fl) < 0.01,
                 "cpm_date_start": cpm_start,
@@ -1024,7 +1026,7 @@ class ProjectProject(models.Model):
             ]
         )
         self.env["project.milestone"].flush_model(
-            ["project_id", "is_reached", "deadline"]
+            ["project_id", "is_reached", "date_deadline"]
         )
         self.env["project.risk"].flush_model(["project_id", "risk_score", "active"])
 
@@ -1085,8 +1087,8 @@ class ProjectProject(models.Model):
                         WHEN COUNT(*) = 0 THEN 100.0
                         ELSE 100.0 * COUNT(*) FILTER (
                             WHERE is_reached
-                               OR deadline IS NULL
-                               OR deadline >= %(today)s
+                               OR date_deadline IS NULL
+                               OR date_deadline >= %(today)s
                         ) / COUNT(*)
                     END AS milestone_score
                 FROM project_milestone
@@ -1366,7 +1368,7 @@ class ProjectProject(models.Model):
     @api.depends(
         "milestone_ids",
         "milestone_ids.is_reached",
-        "milestone_ids.deadline",
+        "milestone_ids.date_deadline",
         "allow_milestones",
     )
     def _compute_is_milestone_exceeded(self) -> None:
@@ -1375,7 +1377,7 @@ class ProjectProject(models.Model):
             [
                 ("project_id", "in", self.filtered("allow_milestones").ids),
                 ("is_reached", "=", False),
-                ("deadline", "<=", today),
+                ("date_deadline", "<=", today),
             ],
             ["project_id"],
             ["__count"],
@@ -1402,7 +1404,7 @@ class ProjectProject(models.Model):
          LEFT JOIN project_milestone M ON P.id = M.project_id
              WHERE M.is_reached IS false
                AND P.allow_milestones IS true
-               AND M.deadline <= CAST(now() AS date)
+               AND M.date_deadline <= CAST(now() AS date)
         )""")
         return [("id", "any", sql)]
 
@@ -2880,9 +2882,9 @@ class ProjectProject(models.Model):
                 project.date + timedelta(days=1), time.min
             )
             for original_task, copied_task in self._pair_template_tasks(project):
-                if original_task.planned_date_begin:
+                if original_task.date_start:
                     first_possible_date_per_task[copied_task.id] = (
-                        original_task.planned_date_begin + delta
+                        original_task.date_start + delta
                     )
                     tasks_to_schedule += copied_task
         else:
@@ -2891,11 +2893,11 @@ class ProjectProject(models.Model):
             )
             project_end_datetime = project_start_datetime + timedelta(days=365)
             for original_task, copied_task in self._pair_template_tasks(project):
-                if original_task.planned_date_begin:
+                if original_task.date_start:
                     tasks_to_schedule += copied_task
         tasks_to_schedule._scheduling(
             {
-                "planned_date_begin": datetime.strftime(
+                "date_start": datetime.strftime(
                     project_start_datetime, "%Y-%m-%d %H:%M:%S"
                 ),
                 "date_end": datetime.strftime(
