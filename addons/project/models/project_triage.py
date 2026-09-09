@@ -55,11 +55,11 @@ class ProjectTriage(models.Model):
                         "Create a replacement bucket before deleting the selected ones."
                     )
                 )
-            user_buckets_to_unlink._prepare_triage_deletion(
+            user_buckets_to_unlink._update_task_triages_to_replacement(
                 user_remaining, triage_to_update
             )
 
-    def _prepare_triage_deletion(
+    def _update_task_triages_to_replacement(
         self, remaining_buckets: list[dict], triage_to_update
     ) -> None:
         buckets_to_delete = sorted(

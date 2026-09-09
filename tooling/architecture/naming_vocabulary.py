@@ -79,6 +79,112 @@ RESERVED = {
 }
 
 
+# `RESERVED` was read by the census and by nothing that could fail: `measure()`
+# consulted only `classify()`, and `classify()` returns None for every verb in
+# it. So a reserved verb worn by a method that does not do the reserved thing
+# was the one shape this gate defined and never enforced.
+#
+# Two of the seven state their reservation as a fact about the BODY rather than
+# about the caller's intent, and only those two are enforced. `drop` is SQL DDL
+# and `insert` is SQL DML or `list.insert`, both of which a reader can settle
+# from the definition. The other five cannot be: nothing in an AST separates
+# "one string in, one typed value out" from a `_read_` of a file, a keyed
+# encoding from a format, a key→member mapping from a search index, a stack
+# from any other append, or `set.discard` from a raise. A gate guessing at those
+# would report `_parse_date` wrong for doing exactly what its verb reserves, so
+# they stay documentation. Enforcing two is not a claim that five are fine — it
+# is the whole checkable half, and §2.4.3's table owns the rest.
+SQL_RESERVED: dict[str, str] = {"insert": "_add_", "drop": "_remove_"}
+
+_SQL_CURSOR_METHODS = frozenset({"execute", "executemany"})
+# `list.insert` is the other reservation the verb carries, and the caller-given
+# index is what distinguishes it. A method that computes its own position is
+# being asked to ADD a member, not to place one: `project`'s `_add_view_mode(
+# xmlids, view_type, before=None)` derives the index from `before` and pairs
+# with `_remove_view_mode`, so it was renamed out of `insert`;
+# `ir.asset.paths.insert_paths(paths, bundle, index)` takes the position from
+# its caller and is the idiom, which is why it keeps the verb.
+_POSITION_PARAMS = frozenset({"index", "position", "pos"})
+_DDL_DML = re.compile(
+    r"\b(?:INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET"
+    r"|DROP\s+(?:TABLE|INDEX|COLUMN|CONSTRAINT|SEQUENCE|VIEW|FUNCTION|TRIGGER))\b",
+    re.IGNORECASE,
+)
+
+
+def _emits_sql(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    # The annotation is here because the statement is often assembled by the
+    # caller: `_insert_xmlids_extra_columns` returns `dict[str, SQL]` of columns
+    # for an INSERT it never runs, and naming it for that statement is right.
+    if node.returns is not None and "SQL" in ast.unparse(node.returns):
+        return True
+    for inner in ast.walk(node):
+        if isinstance(inner, ast.Call):
+            func = inner.func
+            if (
+                isinstance(func, ast.Attribute) and func.attr in _SQL_CURSOR_METHODS
+            ) or (isinstance(func, ast.Name) and func.id == "SQL"):
+                return True
+        if (
+            isinstance(inner, ast.Constant)
+            and isinstance(inner.value, str)
+            and _DDL_DML.search(inner.value)
+        ):
+            return True
+    return False
+
+
+def _takes_a_position(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    args = node.args
+    return any(
+        arg.arg in _POSITION_PARAMS
+        for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs)
+    )
+
+
+def _delegates_to_same_verb(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """Whether the body hands the operation to a sibling of the same verb.
+
+    The measured tree has no instance of this: every `_drop_*` that survives
+    `_emits_sql` runs its own DDL. It is here for the shape the discriminator
+    would otherwise get wrong -- a `_drop_indexes` looping over `_drop_index`,
+    where the statement is one frame down and the outer name is still honest.
+    Same verb only, so it cannot be used to launder `_drop_stale` into calling
+    an unrelated helper. The callee must also carry an OBJECT: `modes.insert(1,
+    mode)` is `list.insert`, the builtin the verb is reserved FOR, and reading a
+    bare `.insert` as delegation exempted `_add_view_mode` from the rule that
+    renamed it.
+    """
+    verb = node.name.lstrip("_").partition("_")[0]
+
+    def is_sibling(name: str) -> bool:
+        callee_verb, _, rest = name.lstrip("_").partition("_")
+        return bool(rest) and callee_verb == verb and name != node.name
+
+    return any(
+        isinstance(inner, ast.Call)
+        and isinstance(inner.func, ast.Attribute)
+        and is_sibling(inner.func.attr)
+        for inner in ast.walk(node)
+    )
+
+
+def reserved_misuse(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str | None:
+    """The canonical for a name wearing a reserved verb its body does not earn."""
+    stem = node.name.lstrip("_")
+    verb, _, rest = stem.partition("_")
+    canonical = SQL_RESERVED.get(verb)
+    if canonical is None or not rest:
+        return None
+    if (
+        _emits_sql(node)
+        or _delegates_to_same_verb(node)
+        or (verb == "insert" and _takes_a_position(node))
+    ):
+        return None
+    return canonical
+
+
 @dataclass(frozen=True)
 class Violation:
     path: str
@@ -482,9 +588,15 @@ def census(roots: tuple[Path, ...] | None = None) -> Census:
         tree = _ast_cache.parse_file(path)
         parts = set(path.parts)
         if {"models", "wizard", "wizards"} & parts and "addons" in parts:
-            module_level_helpers += sum(
-                isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef) for n in tree.body
-            )
+            # The same scope hole `_module_scope_defs` closes in
+            # `governed_definitions`, declared a second time here because the
+            # census does not go through it. Reads 354 either way today -- no
+            # addon `models/` or `wizard/` file currently declares a function
+            # inside a `try` / `if` / `with` -- so closing it while it is free
+            # costs no row. Left as `tree.body`, the first import shim added
+            # under one of those directories would move a published figure and
+            # read as drift.
+            module_level_helpers += len(_module_scope_defs(tree))
             for top in tree.body:
                 if isinstance(top, ast.ClassDef) and not is_model_class(top):
                     helper_classes += 1
@@ -700,6 +812,47 @@ def governs_module_helpers(path: Path) -> bool:
     )
 
 
+def _module_scope_defs(
+    tree: ast.Module,
+) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Every function whose nearest enclosing scope is the module.
+
+    `for node in tree.body` was statement-correct and the question is
+    scope-correct: a `def` at module scope but inside a compound statement lives
+    in `tree.body[i].body`, so a `try` / `if` / `with` hid it from that loop --
+    and from the closure walk below, which starts from functions and these are
+    inside none. The shape that found it is the import shim, where the same name
+    is defined twice under `try` and `except ImportError` and neither definition
+    was in any gate's population:
+
+        try:
+            def _make_linestring_wkt(coords): ...
+        except ImportError:
+            def _make_linestring_wkt(coords): raise ...
+
+    Measured when this landed: 0 newly reported in odoo, enterprise and
+    design-themes, and 0 in agromarin -- the two it found there were renamed in
+    agromarin `125a5ceec` first, so the widened scan met a tree that already
+    satisfied it. `agromarin` is a §9.4 hard zero and a contract rather than a
+    floor, which is why the order mattered.
+    """
+    found: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
+
+    def walk(node: ast.AST, inside_a_scope: bool) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+                if not inside_a_scope:
+                    found.append(child)
+                walk(child, True)
+            elif isinstance(child, ast.ClassDef):
+                walk(child, True)
+            else:
+                walk(child, inside_a_scope)
+
+    walk(tree, False)
+    return found
+
+
 def governed_definitions(
     path: Path, tree: ast.Module
 ) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
@@ -719,9 +872,8 @@ def governed_definitions(
                 if isinstance(item, ast.FunctionDef | ast.AsyncFunctionDef):
                     take(item)
     if widened:
-        for node in tree.body:
-            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-                take(node)
+        for node in _module_scope_defs(tree):
+            take(node)
         # A `def` at any depth inside any other one. Walking from every function
         # rather than from the module reaches a closure inside a closure, and
         # `take` is what keeps the deeper ones from being counted once per
@@ -750,9 +902,14 @@ def measure(roots: list[Path] | None = None) -> list[Violation]:
     for path in files:
         tree = _ast_cache.parse_file(path)
         for item in governed_definitions(path, tree):
-            hit = classify(item.name)
-            if hit is None or _overrides_same_name(item):
+            if _overrides_same_name(item):
                 continue
+            hit = classify(item.name)
+            if hit is None:
+                canonical = reserved_misuse(item)
+                if canonical is None:
+                    continue
+                hit = (item.name.lstrip("_").partition("_")[0], canonical)
             out.append(
                 Violation(
                     path=_sources.display(path, ROOT),

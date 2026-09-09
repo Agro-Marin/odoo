@@ -8,6 +8,7 @@ from naming_vocabulary import (
     RESERVED,
     ROOT,
     SCAN_ROOTS,
+    SQL_RESERVED,
     Violation,
     _python_files,
     classify,
@@ -16,6 +17,7 @@ from naming_vocabulary import (
     governs_module_helpers,
     is_model_class,
     measure,
+    reserved_misuse,
 )
 
 
@@ -46,9 +48,112 @@ def test_abolished_verbs_are_flagged(name, canonical):
 
 
 @pytest.mark.parametrize("verb", sorted(RESERVED))
-def test_reserved_verbs_are_never_flagged(verb):
+def test_a_reserved_verb_is_not_an_abolished_one(verb):
     assert classify(f"_{verb}_table") is None
     assert verb not in ABOLISHED
+
+
+def test_only_the_checkable_reservations_are_enforced():
+    """The five whose reservation no AST can settle stay documentation."""
+    assert set(SQL_RESERVED) < set(RESERVED)
+    assert set(RESERVED) - set(SQL_RESERVED) == {
+        "parse",
+        "decode",
+        "index",
+        "push",
+        "discard",
+    }
+
+
+def _fn(src: str) -> ast.FunctionDef:
+    return next(
+        n
+        for n in ast.walk(ast.parse(textwrap.dedent(src)))
+        if isinstance(n, ast.FunctionDef)
+    )
+
+
+@pytest.mark.parametrize(
+    ("src", "canonical"),
+    [
+        (
+            "def _insert_view_mode(self, xmlids, mode):\n    modes.insert(1, mode)",
+            "_add_",
+        ),
+        ("def _drop_stale_rows(self, rows):\n    rows.unlink()", "_remove_"),
+        ("def insert_tag(self, tag):\n    self.tags.append(tag)", "_add_"),
+    ],
+)
+def test_a_reserved_verb_is_flagged_when_the_body_does_not_earn_it(src, canonical):
+    assert reserved_misuse(_fn(src)) == canonical
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        # runs the statement
+        "def _insert_row(self, vals):\n    self.env.cr.execute('INSERT INTO t VALUES (1)')",
+        "def _drop_table(self, name):\n    self.env.cr.execute(SQL('DROP TABLE %s', name))",
+        # assembles a fragment of it for a caller that runs it
+        "def _insert_extra_columns(self) -> dict[str, SQL]:\n    return {}",
+        # the SQL is a bare literal handed on
+        "def _drop_index(self, name):\n    return 'DROP INDEX %s'",
+        # list.insert: the caller supplies the position
+        "def insert_paths(self, paths, bundle, index):\n    self.list[index:index] = paths",
+        "def insert_step(self, step, *, position):\n    self.steps.insert(position, step)",
+        # no object -- the bare verb is out of this gate, as for ABOLISHED
+        "def insert(self, row):\n    self.rows.append(row)",
+        # a position parameter does not rescue `drop`, which has no list idiom
+        "def _drop_at(self, index):\n    del self.rows[index]",
+    ],
+)
+def test_a_reserved_verb_the_body_earns_is_quiet(src):
+    node = _fn(src)
+    assert (reserved_misuse(node) is None) is not node.name.startswith("_drop_at")
+
+
+def test_delegating_to_a_sibling_of_the_same_verb_keeps_the_verb():
+    node = _fn(
+        "def _drop_indexes(self, names):\n"
+        "    for name in names:\n"
+        "        self._drop_index(name)"
+    )
+    assert reserved_misuse(node) is None
+
+
+@pytest.mark.parametrize(
+    "src",
+    [
+        # a DIFFERENT verb is not delegation -- this is the laundering case
+        "def _drop_stale(self, rows):\n    self._remove_rows(rows)",
+        # recursing on itself is not delegation either
+        "def _drop_tree(self, node):\n    self._drop_tree(node.child)",
+    ],
+)
+def test_delegation_does_not_launder_an_unearned_verb(src):
+    assert reserved_misuse(_fn(src)) == "_remove_"
+
+
+def test_the_reserved_rule_reaches_measure(tmp_path):
+    (tmp_path / "__manifest__.py").write_text("{}")
+    models = tmp_path / "models"
+    models.mkdir()
+    (models / "a.py").write_text(
+        textwrap.dedent("""
+            class Thing(models.Model):
+                _name = "thing"
+
+                def _insert_view_mode(self, mode):
+                    self.modes.insert(1, mode)
+
+                def _insert_row(self, vals):
+                    self.env.cr.execute("INSERT INTO t VALUES (1)")
+        """)
+    )
+    found = measure([tmp_path])
+    assert [(v.name, v.verb, v.canonical) for v in found] == [
+        ("_insert_view_mode", "insert", "_add_")
+    ]
 
 
 @pytest.mark.parametrize(
@@ -121,8 +226,8 @@ def test_measure_finds_a_planted_violation(tmp_path):
                 def _validate_amount(self):
                     pass
 
-                def _drop_table(self):
-                    pass
+                def _parse_amount(self, text):
+                    return float(text)
         """)
     )
     found = measure([tmp_path])
@@ -337,6 +442,114 @@ def test_all_three_uncounted_populations_are_measured(tmp_path):
         "§2.4.13 governs a module-level function, a plain-class method and a "
         f"nested def in an addon models/ file; measured {sorted(found)}"
     )
+
+
+def test_the_census_counts_module_helpers_by_scope_not_by_statement(tmp_path):
+    """The same hole, declared a second time in `census()`.
+
+    Free to close today (354 either way) and only free until somebody adds an
+    import shim under an addon's `models/`, so it is pinned rather than trusted.
+    """
+    import ast
+
+    from naming_vocabulary import _module_scope_defs
+
+    tree = ast.parse(
+        textwrap.dedent("""
+            def plain():
+                pass
+
+            try:
+                def shimmed():
+                    pass
+            except ImportError:
+                def shimmed():
+                    pass
+        """)
+    )
+    by_statement = sum(
+        isinstance(n, ast.FunctionDef | ast.AsyncFunctionDef) for n in tree.body
+    )
+    assert by_statement == 1
+    assert len(_module_scope_defs(tree)) == 3
+
+
+@pytest.mark.parametrize(
+    "wrapper",
+    [
+        "try:\n{body}\nexcept ImportError:\n    pass",
+        "if CONDITION:\n{body}",
+        "with ctx():\n{body}",
+    ],
+)
+def test_a_module_scope_def_inside_a_compound_statement_is_governed(tmp_path, wrapper):
+    """`for node in tree.body` was statement-correct; the question is scope."""
+    (tmp_path / "__manifest__.py").write_text("{}")
+    models = tmp_path / "models"
+    models.mkdir()
+    (models / "a.py").write_text(
+        wrapper.format(body="    def _make_thing():\n        return 1") + "\n"
+    )
+    assert [v.name for v in measure([tmp_path])] == ["_make_thing"]
+
+
+def test_the_import_shim_reports_both_definitions(tmp_path):
+    """The shape that found the hole: one name defined twice, neither seen."""
+    (tmp_path / "__manifest__.py").write_text("{}")
+    models = tmp_path / "models"
+    models.mkdir()
+    (models / "a.py").write_text(
+        textwrap.dedent("""
+            try:
+                def _make_linestring_wkt(coords):
+                    return shapely.wkt(coords)
+            except ImportError:
+                def _make_linestring_wkt(coords):
+                    raise NotImplementedError
+        """)
+    )
+    assert [v.name for v in measure([tmp_path])] == [
+        "_make_linestring_wkt",
+        "_make_linestring_wkt",
+    ]
+
+
+def test_a_def_inside_a_function_inside_a_try_is_still_a_closure(tmp_path):
+    """Scope-correct, not depth-correct."""
+    (tmp_path / "__manifest__.py").write_text("{}")
+    models = tmp_path / "models"
+    models.mkdir()
+    (models / "a.py").write_text(
+        textwrap.dedent("""
+            try:
+                def outer():
+                    def _make_inner():
+                        return 1
+                    return _make_inner
+            except ImportError:
+                pass
+        """)
+    )
+    assert sorted(v.name for v in measure([tmp_path])) == ["_make_inner"]
+
+
+def test_a_method_on_a_class_inside_a_try_is_reached_once(tmp_path):
+    (tmp_path / "__manifest__.py").write_text("{}")
+    models = tmp_path / "models"
+    models.mkdir()
+    (models / "a.py").write_text(
+        textwrap.dedent("""
+            try:
+                class Thing(models.Model):
+                    _name = "thing"
+
+                    def _make_vals(self):
+                        return {}
+            except ImportError:
+                pass
+        """)
+    )
+    assert [v.name for v in measure([tmp_path])] == ["_make_vals"]
 
 
 def test_a_definition_is_counted_once_however_deeply_nested(tmp_path):

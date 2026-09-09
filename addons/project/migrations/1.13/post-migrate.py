@@ -16,7 +16,7 @@ def _drop_step_owner(cr) -> None:
     _logger.info("project_workflow_step.user_id dropped (vestigial since 1.4)")
 
 
-def _seed_missing_steps(cr) -> None:
+def _create_missing_steps(cr) -> None:
     cr.execute("""
         WITH stepless AS (
             SELECT p.id
@@ -81,6 +81,6 @@ def migrate(cr, version) -> None:
     if not version:
         return
     _drop_step_owner(cr)
-    _seed_missing_steps(cr)
+    _create_missing_steps(cr)
     _adopt_stepless_tasks(cr)
     _clear_cancelled_deadline_met(cr)

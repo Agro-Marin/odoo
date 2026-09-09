@@ -2895,7 +2895,7 @@ class ProjectProject(models.Model):
             for original_task, copied_task in self._pair_template_tasks(project):
                 if original_task.date_start:
                     tasks_to_schedule += copied_task
-        tasks_to_schedule._scheduling(
+        tasks_to_schedule._schedule_tasks(
             {
                 "date_start": datetime.strftime(
                     project_start_datetime, "%Y-%m-%d %H:%M:%S"
@@ -2940,7 +2940,7 @@ class ProjectProject(models.Model):
                 yield original, copy
                 yield from pair(original.child_ids, copy.child_ids)
 
-        def top(tasks):
+        def get_root_tasks(tasks):
             return tasks.filtered(lambda task: not task.parent_id)
 
-        yield from pair(top(self.task_ids), top(project.task_ids))
+        yield from pair(get_root_tasks(self.task_ids), get_root_tasks(project.task_ids))

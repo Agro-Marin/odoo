@@ -327,7 +327,7 @@ class IrModelData(models.Model):
         )
 
         _logger.info("ir.model.data could not be deleted (%s)", undeletable_ids)
-        self._drop_uninstalled_xmlids(module_data, undeletable_ids)
+        self._remove_uninstalled_xmlids(module_data, undeletable_ids)
 
     @staticmethod
     def _partition_module_data(
@@ -393,7 +393,7 @@ class IrModelData(models.Model):
             return
 
         if records._name == "ir.model.fields":
-            records = self._drop_undeletable_fields(records, ref_data)
+            records = self._remove_undeletable_fields(records, ref_data)
 
         _logger.info("Deleting %s", records)
         try:
@@ -412,7 +412,7 @@ class IrModelData(models.Model):
                     records[half_size:], module_data, undeletable_ids
                 )
 
-    def _drop_undeletable_fields(
+    def _remove_undeletable_fields(
         self, records: models.BaseModel, ref_data: models.BaseModel
     ) -> models.BaseModel:
         missing = records - records.exists()
@@ -433,7 +433,7 @@ class IrModelData(models.Model):
         )
         return records
 
-    def _drop_uninstalled_xmlids(
+    def _remove_uninstalled_xmlids(
         self, module_data: models.BaseModel, undeletable_ids: list[int]
     ) -> None:
         for data in self.browse(undeletable_ids).exists():

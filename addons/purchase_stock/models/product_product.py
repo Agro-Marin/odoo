@@ -159,12 +159,12 @@ class ProductProduct(models.Model):
             self.env.context.get("suggest_domain") or [("type", "=", "consu")]
         )
 
-        def drop_self_reference(condition):
+        def remove_self_reference(condition):
             if condition.field_expr == "suggested_qty":
                 return Domain.TRUE
             return condition
 
-        safe_search_domain = search_domain.map_conditions(drop_self_reference)
+        safe_search_domain = search_domain.map_conditions(remove_self_reference)
         products = self.search_fetch(safe_search_domain, ["suggested_qty"])
 
         compare = _SUGGESTED_QTY_OPERATORS[operator]

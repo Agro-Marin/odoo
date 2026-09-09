@@ -21,7 +21,7 @@ class IrActionsAct_Window(models.Model):
     _inherit = "ir.actions.act_window"
 
     @api.model
-    def _insert_view_mode(self, xmlids, view_type, before=None):
+    def _add_view_mode(self, xmlids, view_type, before=None):
         for xmlid in xmlids:
             action = self.env.ref(xmlid, raise_if_not_found=False)
             if not action:
@@ -34,12 +34,12 @@ class IrActionsAct_Window(models.Model):
             action.view_mode = ",".join(modes)
 
     @api.model
-    def _insert_task_view_mode(self, view_type, before=None):
-        self._insert_view_mode(TASK_ACTIONS_WITH_ALL_VIEWS, view_type, before)
+    def _add_task_view_mode(self, view_type, before=None):
+        self._add_view_mode(TASK_ACTIONS_WITH_ALL_VIEWS, view_type, before)
 
     @api.model
-    def _insert_project_view_mode(self, view_type, before=None):
-        self._insert_view_mode(PROJECT_ACTIONS_WITH_ALL_VIEWS, view_type, before)
+    def _add_project_view_mode(self, view_type, before=None):
+        self._add_view_mode(PROJECT_ACTIONS_WITH_ALL_VIEWS, view_type, before)
 
     @api.model
     def _remove_view_mode(self, xmlids, view_type):

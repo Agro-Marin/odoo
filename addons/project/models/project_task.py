@@ -1975,7 +1975,7 @@ class ProjectTask(models.Model):
         if not originals:
             return
 
-        def mapped(task_id):
+        def get_copied_id(task_id):
             copied = task_mapping.get(task_id)
             return copied.id if copied else task_id
 
@@ -1983,7 +1983,10 @@ class ProjectTask(models.Model):
         for dependency in originals:
             if dependency.dependency_type == "fs" and not dependency.lag_hours:
                 continue
-            key = (mapped(dependency.task_id.id), mapped(dependency.depends_on_id.id))
+            key = (
+                get_copied_id(dependency.task_id.id),
+                get_copied_id(dependency.depends_on_id.id),
+            )
             wanted[key] = (dependency.dependency_type, dependency.lag_hours)
         if not wanted:
             return
@@ -2211,7 +2214,7 @@ class ProjectTask(models.Model):
         self_ctx.browse().check_access("create")
         default_stage = {}
         for vals, additional_vals in zip(vals_list, additional_vals_list, strict=True):
-            self_ctx._prepare_create_vals(
+            self_ctx._update_create_vals(
                 vals,
                 additional_vals,
                 default_project_id=default_project_id,
@@ -2400,7 +2403,7 @@ class ProjectTask(models.Model):
         self._write_notify_transfer(partner_ids, project_link_per_task_id)
         return result
 
-    def _prepare_create_vals(
+    def _update_create_vals(
         self,
         vals: dict[str, Any],
         additional_vals: dict[str, Any],
@@ -4391,7 +4394,7 @@ class ProjectTask(models.Model):
             for task in self
         }
 
-    def _scheduling(self, vals, max_date_start, first_possible_date_per_task=None):
+    def _schedule_tasks(self, vals, max_date_start, first_possible_date_per_task=None):
         if first_possible_date_per_task is None:
             first_possible_date_per_task = {}
 

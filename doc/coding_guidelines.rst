@@ -1388,6 +1388,88 @@ sequence, and an addition that lands at its end. ``naming_vocabulary.py`` keeps
 ``append`` in ``ABOLISHED`` unconditionally -- it reads a name, not a receiver --
 so the reservation is ``[review]`` and widens no gate.
 
+**Two of these rows are gated; the other five are not, and the split is about
+what an AST can settle** ``[gate naming]``. ``RESERVED`` was declared in
+``naming_vocabulary.py`` from the start and ``measure()`` consulted none of it --
+it fed the census and nothing that could fail -- so *a reserved verb worn by a
+method that does not do the reserved thing* was the one shape this section
+defined and no gate enforced. ``_drop_`` and ``_insert_`` now are, because their
+rows are claims about the **body**: SQL DDL, and SQL DML or ordered insertion. A
+definition earns the verb by running the statement (``cr.execute``, an ``SQL()``
+call, a DDL/DML literal) or by assembling a fragment of one for a caller that
+runs it -- ``ir.model.data._insert_xmlids_extra_columns`` returns
+``dict[str, SQL]`` for an ``INSERT`` it never issues, and is named for that
+statement correctly, so a return annotation naming ``SQL`` earns it too.
+``_insert_`` additionally earns it from a **caller-given position**, which is the
+ordered-insertion half: ``ir.asset.paths.insert_paths(paths, bundle, index)``
+places a member where its caller says, while ``project``'s ``_add_view_mode(
+xmlids, view_type, before=None)`` computed its own index and was being asked to
+*add* one.
+
+The other five rows stay ``[review]`` because no reading of a function body
+separates them from their ordinary counterpart: *one string in, one typed value
+out* from a ``_read_`` of a file, a keyed encoding from a format, a key-to-member
+mapping from a search index, a stack from any other addition, or
+``set.discard``'s contract from a raise. **Enforcing two is not a finding that
+five are clean** -- it is the whole checkable half of *this* dict, and a gate
+that guessed at the rest would report ``_parse_date`` wrong for doing exactly
+what its verb reserves.
+
+**Nor is it a claim that the gate is now complete**, and the nearest
+counter-example is one section down: §2.4.13 records that
+``ADDON_HELPER_DIRS`` is ``{models, wizard, wizards}``, so an addon's
+``controllers/`` is in **this** gate's population at no scope. That is a hole in
+the **population**; this was a hole in the **rule**, and they compose -- a
+reserved verb misused in a controller is reached by neither -- so read the two
+together and neither as a completeness claim.
+
+**Say which gate, though.** ``naming_core_vocabulary.py``'s ``scan_files`` is
+``rglob("*.py")`` minus ``SKIP_DIRS`` and the test suites, with no helper-dirs
+filter at all, so a tree in its ``GOVERNED_ADDONS`` has its ``controllers/``
+read for free -- which is how ``sale``'s ``_determine_is_down_payment``, in
+``sale/controllers/portal.py``, was reported. Written as *no gate reaches
+controllers*, the sentence would take the repair with it: §2.4.13's fix for an
+absent scope is to onboard the tree to the gate whose population is already
+right, one element of a tuple and a hard zero from that moment, rather than to
+widen the gate whose population is wrong and pay for it in every repository.
+
+What the enforcement cost, measured on landing: **17** definitions across the
+four repositories, all but one of them private, and every one contained in its
+own file except two: ``agromarin``'s ``_remove_already_stored``, declared once
+per model in ``remote_mobile``, and the ``view_mode`` family, which is three
+methods in ``project`` reached from two ``<function>`` records in ``enterprise``
+(§2.4.14) and mirrored by one more in each of ``project_gantt`` and
+``project_map``. All four scopes returned to the floors they already
+held -- ``naming`` 0, ``naming_enterprise`` 213, ``naming_agromarin`` 0,
+``naming_design-themes`` 0 -- which is the re-derivable half of this paragraph
+and the reason the tightening banks no increase. **Not all in one commit,
+though**: one of the seventeen,
+``stock_move_done._remove_unpicked_lines_and_cancel_empty``, was carried into
+another session's sweep of the same file, because a pathspec commit takes the
+WORKING-TREE content of the paths it names and §12's index discipline does
+nothing about a peer's dirty tree inside your own paths. Nothing was lost and
+the branch holds the rename; the lesson is that *the rule and the renames it
+forced need not end up in one commit even when one session made all of them*,
+so the count above is a property of the tree and not of any commit -- read it
+that way, and check the floors rather than the log. The **17** is
+a *frozen* reading (§1.4): it is what the rule cost at landing, and the tree no
+longer holds it. It was taken in a shared checkout several sessions were
+renaming in, which §2.4.3 says is the wrong place to take a figure -- so it was
+checked the one way that works for a set this small rather than re-taken in a
+worktree: every one of the 17 names was confirmed present at ``HEAD``, at the
+same occurrence count, with ``git show HEAD:<path>``. The figure describes the
+branch and not anybody's uncommitted work. **Choose the instrument by the size
+of the set**: a per-name ``git show HEAD:`` needs no worktree and settles 17
+enumerated names in one command, while §2.4.13's 61 -- a population nobody can
+list -- needs the detached worktree, and got one, because the shared checkout
+read 63 for the same scope the same afternoon. Do that, or measure at a commit;
+a count of this shape read off a dirty checkout and left unchecked is the
+failure §2.4.3 opens with. The family is the argument for the rule: ``project`` had
+``_insert_view_mode`` beside ``_remove_view_mode`` and ``project_gantt`` and
+``project_map`` each had their own ``_insert_*_view_mode``, so one operation was
+spelled with the removal's non-pair in four modules at once, and §2.4.3's own
+Addition row had said ``_add_*`` the whole time.
+
 **The reservation binds public names too**, and three are left as found because
 renaming them is owed a public-surface weighing and one change across every
 repository:
