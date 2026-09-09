@@ -1036,9 +1036,7 @@ class Survey(http.Controller):
             if not next_page:
                 if (
                     survey_sudo.users_can_go_back
-                    and answer_sudo.user_input_line_ids.filtered(
-                        lambda a: a.skipped and a.question_id.constr_mandatory
-                    )
+                    and answer_sudo._get_skipped_questions()
                 ):
                     answer_sudo.write(
                         {

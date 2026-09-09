@@ -1,3 +1,4 @@
+from odoo.fields import Command
 from odoo.tests import tagged
 
 from odoo.addons.survey.tests import common
@@ -145,3 +146,162 @@ class TestConditionalValueTriggers(common.TestSurveyCommon):
         inactive = answer._get_inactive_conditional_questions()
         self.assertIn(hidden, inactive)
         self.assertNotIn(shown, inactive)
+
+
+@tagged("post_install", "-at_install")
+class TestSkippedFlowConditionals(common.TestSurveyCommon):
+    """Conditionals a participant turns on *while* replaying skipped questions.
+
+    In roaming mode the survey comes back to the mandatory questions that were
+    left blank. Answering one of them can switch a conditional question on, and
+    the participant has by definition never been offered that question yet, so
+    the replay has to pick it up.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.form = cls.env["survey.survey"].create(
+            {
+                "title": "Roaming survey",
+                "access_mode": "public",
+                "users_login_required": False,
+                "questions_layout": "page_per_question",
+                "users_can_go_back": True,
+            }
+        )
+        cls.colour = cls.env["survey.question"].create(
+            {
+                "title": "Your favourite colour",
+                "survey_id": cls.form.id,
+                "question_type": "simple_choice",
+                "sequence": 1,
+                "constr_mandatory": True,
+                "suggested_answer_ids": [
+                    Command.create({"value": "Blue"}),
+                    Command.create({"value": "Red"}),
+                ],
+            }
+        )
+        cls.blue = cls.colour.suggested_answer_ids[0]
+        cls.age = cls.env["survey.question"].create(
+            {
+                "title": "Your age",
+                "survey_id": cls.form.id,
+                "question_type": "numerical_box",
+                "sequence": 2,
+                "constr_mandatory": True,
+            }
+        )
+        cls.city = cls.env["survey.question"].create(
+            {
+                "title": "Your city",
+                "survey_id": cls.form.id,
+                "question_type": "char_box",
+                "sequence": 3,
+            }
+        )
+        # Triggered by a chosen answer -- the only shape upstream knows about.
+        cls.why_blue = cls.env["survey.question"].create(
+            {
+                "title": "Why blue?",
+                "survey_id": cls.form.id,
+                "question_type": "char_box",
+                "sequence": 4,
+                "triggering_answer_ids": [Command.link(cls.blue.id)],
+            }
+        )
+        # Triggered by the *value* of another answer -- our own extension.
+        cls.pension = cls.env["survey.question"].create(
+            {
+                "title": "Are you retired?",
+                "survey_id": cls.form.id,
+                "question_type": "char_box",
+                "sequence": 5,
+                "triggering_question_id": cls.age.id,
+                "triggering_operator": "gte",
+                "triggering_value": "65",
+            }
+        )
+
+    def _answer(self):
+        return self.env["survey.user_input"].create({"survey_id": self.form.id})
+
+    def _skip(self, answer, question):
+        return self.env["survey.user_input.line"].create(
+            {
+                "user_input_id": answer.id,
+                "question_id": question.id,
+                "answer_type": None,
+                "skipped": True,
+            }
+        )
+
+    def _reply(self, line, **values):
+        line.write(dict(values, skipped=False))
+
+    def test_answer_trigger_reached_from_the_skipped_flow(self):
+        answer = self._answer()
+        skipped_colour = self._skip(answer, self.colour)
+        self._skip(answer, self.age)
+
+        self.assertEqual(
+            answer._get_skipped_questions(),
+            self.colour | self.age,
+            "both mandatory questions were left blank",
+        )
+
+        # The participant comes back and picks Blue, which turns "Why blue?" on.
+        self._reply(
+            skipped_colour, answer_type="suggestion", suggested_answer_id=self.blue.id
+        )
+        answer.last_displayed_page_id = self.colour
+
+        self.assertEqual(
+            answer._get_skipped_questions(),
+            self.age | self.why_blue,
+            "the freshly triggered question joins the questions still to answer",
+        )
+        self.assertEqual(answer._get_next_skipped_page_or_question(), self.age)
+
+    def test_value_trigger_reached_from_the_skipped_flow(self):
+        answer = self._answer()
+        skipped_age = self._skip(answer, self.age)
+
+        # Answering 70 turns "Are you retired?" on through a value trigger, which
+        # carries no `triggering_answer_ids` at all.
+        self._reply(skipped_age, answer_type="numerical_box", value_numerical_box=70.0)
+        answer.last_displayed_page_id = self.age
+
+        self.assertEqual(answer._get_skipped_questions(), self.pension)
+        self.assertEqual(answer._get_next_skipped_page_or_question(), self.pension)
+
+    def test_untriggered_conditionals_stay_out_of_the_skipped_flow(self):
+        answer = self._answer()
+        skipped_colour = self._skip(answer, self.colour)
+        skipped_age = self._skip(answer, self.age)
+
+        self._reply(
+            skipped_colour,
+            answer_type="suggestion",
+            suggested_answer_id=self.colour.suggested_answer_ids[1].id,
+        )
+        self._reply(skipped_age, answer_type="numerical_box", value_numerical_box=30.0)
+
+        self.assertFalse(
+            answer._get_skipped_questions(),
+            "Red and 30 trigger nothing, so the replay is over",
+        )
+        self.assertFalse(answer._get_next_skipped_page_or_question())
+
+    def test_a_conditional_already_shown_is_not_replayed(self):
+        answer = self._answer()
+        skipped_colour = self._skip(answer, self.colour)
+        self._reply(
+            skipped_colour, answer_type="suggestion", suggested_answer_id=self.blue.id
+        )
+        # The participant was offered "Why blue?" and skipped it: it is not
+        # mandatory, so it must not come back a second time.
+        self._skip(answer, self.why_blue)
+
+        self.assertFalse(answer._get_skipped_questions())

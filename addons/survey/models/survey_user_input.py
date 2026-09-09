@@ -1229,39 +1229,56 @@ class SurveyUser_Input(models.Model):
 
     def _get_next_skipped_page_or_question(self) -> Any:
         self.check_singleton()
-        skipped_mandatory_answer_ids = self.user_input_line_ids.filtered(
-            lambda answer: answer.skipped and answer.question_id.constr_mandatory
-        )
+        skipped_questions = self._get_skipped_questions()
 
-        if not skipped_mandatory_answer_ids:
+        if not skipped_questions:
             return self.env["survey.question"]
 
-        page_or_question_key = (
-            "page_id"
-            if self.survey_id.questions_layout_effective == "page_per_section"
-            else "question_id"
-        )
-        page_or_question_ids = skipped_mandatory_answer_ids.mapped(
-            page_or_question_key
-        ).sorted()
+        pages_or_questions = skipped_questions
+        if self.survey_id.questions_layout_effective == "page_per_section":
+            pages_or_questions = skipped_questions.page_id.sorted("sequence")
 
-        if (
-            self.last_displayed_page_id not in page_or_question_ids
-            or self.last_displayed_page_id == page_or_question_ids[-1]
-        ):
-            return page_or_question_ids[0]
+        # Loop back to the first one once the last has been displayed.
+        if self.last_displayed_page_id == pages_or_questions[-1]:
+            return pages_or_questions[0]
 
-        current_page_index = page_or_question_ids.ids.index(
-            self.last_displayed_page_id.id
+        # Next one by sequence, rather than by position. Answering a question is
+        # what takes it out of the set, so `last_displayed_page_id` is routinely
+        # no longer in it, and looking up its index would send the participant
+        # back to the first one instead of forward.
+        return next(
+            (
+                page_or_question
+                for page_or_question in pages_or_questions
+                if page_or_question.sequence > self.last_displayed_page_id.sequence
+            ),
+            pages_or_questions[0],
         )
-        return page_or_question_ids[current_page_index + 1]
 
     def _get_skipped_questions(self) -> Any:
         self.check_singleton()
 
-        return self.user_input_line_ids.filtered(
+        # Mandatory questions the participant left blank on the way through.
+        skipped_questions = self.user_input_line_ids.filtered(
             lambda answer: answer.skipped and answer.question_id.constr_mandatory
         ).question_id
+
+        # Conditional questions that an answer given since has switched on: the
+        # participant was never offered them, so they belong in the replay. Taking
+        # the complement of the inactive set keeps our value triggers in scope,
+        # not only the ones keyed on a chosen answer.
+        conditional_questions = self.sudo().survey_id.question_ids.filtered(
+            lambda question: (
+                question.triggering_answer_ids or question.triggering_question_id
+            )
+        )
+        skipped_questions |= (
+            conditional_questions
+            - self._get_inactive_conditional_questions()
+            - self.user_input_line_ids.question_id
+        )
+
+        return skipped_questions.sorted("sequence")
 
     def _is_last_skipped_page_or_question(self, page_or_question: Any) -> bool:
         if self.survey_id.questions_layout_effective == "one_page":
