@@ -543,11 +543,11 @@
                             <field
                                 name="industry_ids"
                                 widget="many2many_tags"
-                                invisible="not is_company"
+                                invisible="parent_id"
                                 options="{'no_create': True}" />
                             <field
                                 name="primary_industry_id"
-                                invisible="not is_company or not industry_ids"
+                                invisible="parent_id or not industry_ids"
                                 domain="[('id', 'in', industry_ids)]"
                                 options="{'no_create': True}" />
                             <field
