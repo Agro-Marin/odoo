@@ -25,7 +25,14 @@ class IrActionsAct_Window(models.Model):
     _inherit = "ir.actions.act_window"
 
     @api.model
-    def _insert_view_mode(self, xmlids, view_type, after=None):
+    def _insert_view_mode(self, xmlids, view_type, before=None):
+        """Insert ``view_type`` into each action's ``view_mode``, before ``before``.
+
+        Never at position 0, so the action's default view is whatever it already
+        was. ``view_mode`` order decides the switcher's button order and nothing
+        else, and the orders this replaces were hand-written per action and
+        inconsistent with each other, so no single rule reproduces all of them.
+        """
         for xmlid in xmlids:
             action = self.env.ref(xmlid, raise_if_not_found=False)
             if not action:
@@ -33,19 +40,19 @@ class IrActionsAct_Window(models.Model):
             modes = action.view_mode.split(",")
             if view_type in modes:
                 continue
-            index = modes.index(after) + 1 if after in modes else len(modes)
-            modes.insert(index, view_type)
+            index = modes.index(before) if before in modes else len(modes)
+            modes.insert(max(index, 1), view_type)
             action.view_mode = ",".join(modes)
 
     @api.model
-    def _insert_task_view_mode(self, view_type, after=None):
+    def _insert_task_view_mode(self, view_type, before=None):
         """Add ``view_type`` to every task action that offers the full view set."""
-        self._insert_view_mode(TASK_ACTIONS_WITH_ALL_VIEWS, view_type, after)
+        self._insert_view_mode(TASK_ACTIONS_WITH_ALL_VIEWS, view_type, before)
 
     @api.model
-    def _insert_project_view_mode(self, view_type, after=None):
+    def _insert_project_view_mode(self, view_type, before=None):
         """Add ``view_type`` to every project action that offers the full view set."""
-        self._insert_view_mode(PROJECT_ACTIONS_WITH_ALL_VIEWS, view_type, after)
+        self._insert_view_mode(PROJECT_ACTIONS_WITH_ALL_VIEWS, view_type, before)
 
     @api.model
     def _remove_view_mode(self, xmlids, view_type):

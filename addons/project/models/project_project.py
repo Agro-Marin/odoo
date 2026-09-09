@@ -2935,9 +2935,17 @@ class ProjectProject(models.Model):
             copy_per_name = {}
             for copy in copies:
                 if copy.name in copy_per_name:
-                    raise ValueError(
-                        f"copy {project.id} has two sibling tasks named "
-                        f"{copy.name!r}, so the template pairing is ambiguous"
+                    # The one case a user can reach and fix, so it gets a dialog
+                    # rather than a traceback: names are the pairing key, and two
+                    # siblings sharing one is ambiguous rather than wrong.
+                    raise UserError(
+                        self.env._(
+                            "Two tasks of template %(template)s are both named "
+                            "%(task)s. Rename one: task names are what carry the "
+                            "planned dates across to the new project.",
+                            template=self.display_name,
+                            task=copy.name,
+                        )
                     )
                 copy_per_name[copy.name] = copy
             for original in originals:
