@@ -108,7 +108,7 @@
                                                     </div>
                                                 </t>
                                                 <t
-                                                    t-elif="answer_line.survey_id.scoring_type != 'no_scoring' and question.question_type in ['numerical_box', 'date', 'datetime'] and question['answer_%s' % question.question_type]">
+                                                    t-elif="scoring_display_correction and question.question_type in ['numerical_box', 'date', 'datetime'] and question['answer_%s' % question.question_type]">
                                                     <div class="row g-0">
                                                         <div
                                                             t-attf-class="col-12 col-md-6 col-lg-4 rounded ps-4 #{'bg-success' if answer_line.answer_is_correct else 'bg-danger'}">
@@ -145,7 +145,7 @@
                                                         t-call="survey.question_datetime" />
                                                 </t>
                                                 <t
-                                                    t-if="answer_lines.survey_id.scoring_type != 'no_scoring'                                                     and question.question_type in ['numerical_box', 'date', 'datetime']                                                     and question['answer_%s' % question.question_type]                                                     and not answer_line.answer_is_correct">
+                                                    t-if="scoring_display_correction                                                     and question.question_type in ['numerical_box', 'date', 'datetime']                                                     and question['answer_%s' % question.question_type]                                                     and not answer_line.answer_is_correct">
                                                     <div class="row g-0">
                                                         <t
                                                             t-set="correct_answer"

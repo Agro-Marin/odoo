@@ -56,3 +56,75 @@ class TestSurveyStartRoutes(HttpCase):
         self.assertIn(f"/survey/{self.survey.access_token}/", res.url)
         test_answers = self._answers().filtered("test_entry")
         self.assertTrue(test_answers)
+
+
+@tagged("post_install", "-at_install")
+class TestSurveyPrintRoutes(HttpCase):
+    """`/survey/print` on a survey scored without answers.
+
+    The participant's own answers and the *correct* answers are two different
+    things: the scoring type hides the latter, never the former.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.survey = cls.env["survey.survey"].create(
+            {
+                "title": "Print survey",
+                "access_mode": "public",
+                "users_login_required": False,
+                "scoring_type": "scoring_without_answers",
+            }
+        )
+        cls.char_question = cls.env["survey.question"].create(
+            {
+                "title": "Your favourite colour",
+                "survey_id": cls.survey.id,
+                "question_type": "char_box",
+                "sequence": 1,
+            }
+        )
+        cls.numerical_question = cls.env["survey.question"].create(
+            {
+                "title": "How many legs has a spider",
+                "survey_id": cls.survey.id,
+                "question_type": "numerical_box",
+                "sequence": 2,
+                "answer_numerical_box": 8.0,
+                "answer_score": 5.0,
+            }
+        )
+        cls.answer = cls.env["survey.user_input"].create({"survey_id": cls.survey.id})
+        cls.env["survey.user_input.line"].create(
+            [
+                {
+                    "user_input_id": cls.answer.id,
+                    "question_id": cls.char_question.id,
+                    "answer_type": "char_box",
+                    "value_char_box": "Cerulean",
+                },
+                {
+                    "user_input_id": cls.answer.id,
+                    "question_id": cls.numerical_question.id,
+                    "answer_type": "numerical_box",
+                    "value_numerical_box": 6.0,
+                },
+            ]
+        )
+
+    def _print(self):
+        res = self.url_open(
+            f"/survey/print/{self.survey.access_token}"
+            f"?answer_token={self.answer.access_token}"
+        )
+        self.assertEqual(res.status_code, 200)
+        return res.text
+
+    def test_print_shows_the_participant_own_answers(self):
+        self.assertIn("Cerulean", self._print())
+
+    def test_print_hides_the_correct_answer(self):
+        body = self._print()
+        self.assertNotIn("The correct answer was", body)
+        self.assertNotIn("bg-danger", body)
