@@ -45,9 +45,19 @@ class IotCommonTest(HttpCase):
         super().setUp()
         original_send_message = IotChannel.send_message
 
+        # A box answers an action by calling `/iot/box/send_websocket` back, and
+        # that answer has to name the session, the box and the device it belongs
+        # to. `iot.channel.send_message` constrains no shape, so not every action
+        # carries them: `pos_blackbox_be._send_order_to_blackbox` sends one with
+        # no `session_id` at all. Answering on the device's behalf is only
+        # possible for the ones that do, and the rest are recorded and passed
+        # through -- reading the key unconditionally raised `KeyError` and took
+        # the whole self-order service down with it.
+        answerable = {"session_id", "iot_identifiers", "device_identifiers"}
+
         def mock_send_message(iot_channel_record, message, message_type="iot_action"):
             self.iot_websocket_messages.append({message_type: message})
-            if message_type == "iot_action":
+            if message_type == "iot_action" and answerable <= message.keys():
                 # call the websocket response controller to simulate the response from the IoT Box
                 return self.url_open(
                     "/iot/box/send_websocket",

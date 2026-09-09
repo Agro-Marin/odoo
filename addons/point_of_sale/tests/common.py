@@ -15,9 +15,18 @@ _logger = logging.getLogger(__name__)
 
 
 def archive_products(env):
+    """Archive every POS product a configuration does not reserve.
+
+    `product.template._check_is_special_product` refuses to archive a product any
+    `pos.config` names as special, and modules add to that set through
+    `pos.config._get_special_products` -- `pos_discount`, `pos_sale`,
+    `pos_self_order`, `pos_settle_due`, `pos_tyro` and `pos_blackbox_be` all do.
+    Naming the tip here instead duplicated that extension point with a fixed
+    list of one, so this raised as soon as any of them was installed.
+    """
     all_pos_product = env["product.template"].search([("available_in_pos", "=", True)])
-    tip = env.ref("point_of_sale.product_product_tip").product_tmpl_id
-    (all_pos_product - tip).write({"active": False})
+    reserved = all_pos_product._filtered_pos_special_products()
+    (all_pos_product - reserved).write({"active": False})
 
 
 class CommonPosTest(ValuationReconciliationTestCommon):
