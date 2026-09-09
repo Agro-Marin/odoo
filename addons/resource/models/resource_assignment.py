@@ -66,6 +66,7 @@ class ResourceAssignment(models.Model):
     _resource_period_idx = models.Index("(resource_id, date_start, date_end)")
 
     @api.depends("resource_id.name", "assignee_id.name", "role")
+    @api.depends_context("lang")
     def _compute_name(self):
         roles = dict(self._fields["role"]._description_selection(self.env))
         for record in self:

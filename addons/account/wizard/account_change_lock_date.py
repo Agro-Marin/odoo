@@ -182,7 +182,7 @@ class AccountChangeLockDate(models.TransientModel):
                 wizard[field] = wizard.company_id[field]
 
     @api.depends("company_id")
-    @api.depends_context("user", "company")
+    @api.depends_context("uid", "company")
     def _compute_lock_date_exceptions(self):
         for wizard in self:
             exceptions = self.env["account.lock_exception"].search(

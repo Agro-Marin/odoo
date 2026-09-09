@@ -315,6 +315,7 @@ class StockPickingBatch(models.Model):
         return [("picking_ids.move_line_ids", operator, value)]
 
     @api.depends("state", "move_ids", "picking_type_id")
+    @api.depends_context("uid")
     def _compute_show_allocation(self):
         self.show_allocation = False
         if not self.env.user.has_group("stock.group_reception_report"):

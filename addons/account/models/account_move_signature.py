@@ -15,6 +15,7 @@ class AccountMove(models.Model):
     signature = fields.Binary(compute="_compute_signature_area")
 
     @api.depends("state", "move_type", "invoice_user_id", "company_id.signing_user")
+    @api.depends_context("uid")
     def _compute_signing_user(self):
         unsigned = self.filtered(
             lambda move: not move.is_sale_document() or move.state != "posted"
@@ -42,6 +43,7 @@ class AccountMove(models.Model):
     @api.depends(
         "state", "signing_user", "company_id.sign_invoice", "invoice_pdf_report_id"
     )
+    @api.depends_context("uid")
     def _compute_signature_area(self):
         is_portal_user = self.env.user.has_group("base.group_portal")
         moves_not_to_sign = self.filtered(
