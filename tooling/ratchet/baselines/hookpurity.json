@@ -1,6 +1,6 @@
 {
-  "count": 12,
-  "measured_at": "8f4a84e81517082ea9f85bce41f01c5a7dc36aaa",
+  "count": 13,
+  "measured_at": "c807bb11e413e2aeb308b8b0260ee4679c595a33",
   "measured_root": "",
-  "note": "Rebase onto origin/19.0-marin resolved this floor to the replayed branch's side, 16, when origin had already banked 12 at 3cfc16542e7 and the merged tree measures 12. field_hook_purity.py --count reads 12 on a clean tree at this commit, and test_field_hook_purity::test_the_repository_measures_at_or_under_its_floor was red at 16 until this. The four offenders origin closed are origin's work, not this branch's; the branch moves this gate by nothing. gates.md and coding_guidelines.rst state the same 12 as prose figures, re-derived in the parent commit."
+  "note": "account_accountant folded into account. +1: account.change.lock.date._compute_lock_date_exceptions, at addons/account/wizard/account_change_lock_date.py, serves compute= and is called on self once in production code. The method moved unchanged from enterprise, where this gate does not reach; it is pre-existing debt that became visible, not a new impurity.\n\nPREVIOUS NOTE, kept because a floor that loses its history costs more than the stamp gains:\n\nRebase onto origin/19.0-marin resolved this floor to the replayed branch's side, 16, when origin had already banked 12 at 3cfc16542e7 and the merged tree measures 12. field_hook_purity.py --count reads 12 on a clean tree at this commit, and test_field_hook_purity::test_the_repository_measures_at_or_under_its_floor was red at 16 until this. The four offenders origin closed are origin's work, not this branch's; the branch moves this gate by nothing. gates.md and coding_guidelines.rst state the same 12 as prose figures, re-derived in the parent commit."
 }

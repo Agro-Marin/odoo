@@ -1208,18 +1208,18 @@ rots. The rule that works is checkable by the person it binds:
 =======  =========================================================  ======
 Section  Population                                                  Count
 =======  =========================================================  ======
-§2.4.1   Field hooks the declaring model also calls on ``self``         12
+§2.4.1   Field hooks the declaring model also calls on ``self``         13
 §2.4.1   Field hooks exempt from the dedication test                     0
 §2.4.1   Names wearing a hook prefix with no binding                   151
 §2.4.1   … definitions under those names                               216
-§2.4.2   Single-field ``@api.onchange`` hooks                          383
-§2.4.2   … spelled ``_onchange_<field>``                               277
+§2.4.2   Single-field ``@api.onchange`` hooks                          386
+§2.4.2   … spelled ``_onchange_<field>``                               280
 §2.4.2   ``@api.ondelete`` hooks                                       169
 §2.4.2   … spelled ``_unlink_except_*``                                109
-§2.4.2   ``@api.constrains`` hooks                                     682
-§2.4.2   … spelled ``_check_*``                                        630
+§2.4.2   ``@api.constrains`` hooks                                     686
+§2.4.2   … spelled ``_check_*``                                        634
 §2.4.2   … with a first token carrying no rule                          47
-§2.4.2   … binding exactly one field                                   315
+§2.4.2   … binding exactly one field                                   316
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
 §2.4.3   Non-test methods declared on a model class                 25,917
@@ -1243,7 +1243,7 @@ Section  Population                                                  Count
 §2.4.8   ``_check_*`` definitions                                    1,187
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
-§2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     177
+§2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     179
 §2.4.10  ``_raise_*`` model methods                                     17
 §2.4.10  … raising unconditionally                                      10
 §2.4.11  ``_find_*`` methods                                            26
@@ -1262,10 +1262,10 @@ Section  Population                                                  Count
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      354
 §2.4.13  Methods on plain classes in model files                       414
 §2.4.13  … such classes                                                166
-§2.4.13  Functions nested inside model methods                         581
-§2.4.14  Private method names reached from stored Python               114
-§2.4.14  … code blocks reaching them                                   123
-§2.4.14  … shipped data files holding those blocks                      71
+§2.4.13  Functions nested inside model methods                         590
+§2.4.14  Private method names reached from stored Python               115
+§2.4.14  … code blocks reaching them                                   124
+§2.4.14  … shipped data files holding those blocks                      72
 §2.4.14  Classes implementing ``_get_report_values``                    19
 §2.4.14  … ``get_values``                                               12
 §2.4.14  … ``set_values``                                               21
