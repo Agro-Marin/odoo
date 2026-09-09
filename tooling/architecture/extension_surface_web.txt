@@ -329,7 +329,7 @@ Many2XAutocomplete.searchSpecification  odoo  :triage
 Many2XAutocomplete.setup  odoo  :triage
 Many2XAutocomplete.slowCreate  odoo  :triage
 Model.getSampleRelatedModels  enterprise  :keep
-Model.hasData  enterprise  :keep
+Model.hasData  odoo enterprise  :keep
 Model.load  odoo enterprise  :keep
 Model.notify  odoo  :triage
 Model.services  odoo enterprise  :keep
