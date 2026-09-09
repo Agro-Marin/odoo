@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
 
 from odoo import fields
+from odoo.exceptions import AccessError
 from odoo.tests import tagged
 
+from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.website.tests.test_website_visitor import WebsiteVisitorTestsCommon
 from odoo.addons.website_event.tests.common import TestEventOnlineCommon
 
@@ -25,6 +27,29 @@ class TestEventVisitor(TestEventOnlineCommon, WebsiteVisitorTestsCommon):
         )
 
         self._test_unlink_old_visitors(self.env["website.visitor"], active_visitors)
+
+    def test_registration_desk_ir_rule_scoping(self):
+        """Round-1 fix WEM-04: a registration-desk user must only read
+        visitors linked to an event registration, not every visitor."""
+        desk_user = mail_new_test_user(
+            self.env,
+            login="user_registration_desk",
+            groups="event.group_event_registration_desk",
+        )
+        registered_visitor, unregistered_visitor = self.env["website.visitor"].create(
+            [
+                {
+                    "access_token": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+                    "event_registration_ids": [(0, 0, {"event_id": self.event_0.id})],
+                },
+                {"access_token": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"},
+            ]
+        )
+
+        registered_visitor.with_user(desk_user).read(["id"])
+
+        with self.assertRaises(AccessError):
+            unregistered_visitor.with_user(desk_user).read(["id"])
 
     def test_link_to_visitor_event(self):
         """Same as parent's 'test_link_to_visitor' except we also test that event

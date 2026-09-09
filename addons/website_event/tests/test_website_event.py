@@ -69,6 +69,53 @@ class TestEventRegisterUTM(HttpCase, TestEventOnlineCommon):
         )
 
 
+class TestEventListFilters(HttpCase, TestEventOnlineCommon):
+    def test_malformed_type_and_country_query_params(self):
+        """A malformed 'type'/'country' query param on the event list must
+        not crash the controller with an unhandled ValueError."""
+        for param in ("type", "country"):
+            resp = self.url_open(f"/event?{param}=abc")
+            self.assertEqual(
+                resp.status_code,
+                200,
+                f"A non-numeric '{param}' query param must not crash /event.",
+            )
+
+    def test_event_page_exact_slug_match(self):
+        """A page lookup must match the view key exactly, not via SQL ilike
+        wildcards ('%'/'_') smuggled through the requested slug."""
+        self.event_0.write({"website_menu": True, "is_published": True})
+        page_view = self.event_0.introduction_menu_ids.view_id.copy(
+            {"key": "website_event.testXsecret"}
+        )
+        self.env["website.event.menu"].create(
+            {
+                "event_id": self.event_0.id,
+                "view_id": page_view.id,
+                "menu_type": "other",
+            }
+        )
+
+        resp = self.url_open(f"/event/{self.event_0.id}/page/test_secret")
+        self.assertEqual(
+            resp.status_code,
+            404,
+            "A slug containing a literal '_' must not ilike-match an "
+            "unrelated page key that merely differs by one character.",
+        )
+
+    def test_event_tags_page_non_slug_tag(self):
+        """A single, non-comma tag on /event/tags/<slug> stays a GET (no
+        redirect) and must not crash the search when the tag doesn't parse
+        as a slug (e.g. no trailing '-<id>')."""
+        resp = self.url_open("/event/tags/abc")
+        self.assertEqual(
+            resp.status_code,
+            200,
+            "A bare non-slug tag must not crash /event/tags/<slug_tags>.",
+        )
+
+
 @tagged("post_install", "-at_install")
 class TestUi(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
     def test_website_event_tour_admin(self):
@@ -106,6 +153,37 @@ class TestUi(HttpCaseWithUserDemo, HttpCaseWithUserPortal):
         specific_view = website.with_context(website_id=website.id).viewref(view_key)
         self.assertEqual(specific_view.website_meta_title, "Hello, world!")
         self.assertEqual(event.website_meta_title, False)
+
+    def test_s_events_snippet_real_render(self):
+        """The s_events dynamic snippet must render real event data through
+        the actual /website/snippet/filters controller - not just wire up
+        correctly against a hand-written mock, as the hoot unit test for
+        this snippet does."""
+        event = self.env["event.event"].create(
+            {
+                "name": "Snippet Test Event",
+                "date_begin": fields.Datetime.now() + relativedelta(days=10),
+                "date_end": fields.Datetime.now() + relativedelta(days=13),
+                "website_published": True,
+            }
+        )
+        result = self.call_jsonrpc(
+            "/website/snippet/filters",
+            params={
+                "filter_id": self.env.ref(
+                    "website_event.website_snippet_filter_event_list"
+                ).id,
+                "template_key": (
+                    "website_event.dynamic_filter_template_event_event_picture"
+                ),
+                "limit": 4,
+            },
+        )
+        self.assertTrue(
+            any(event.name in card_html for card_html in result),
+            "The real controller must render the actual event name, not a "
+            "mocked/sample placeholder.",
+        )
 
     def test_website_event_questions(self):
         """Will execute the tour that fills up two tickets with a few questions answers
@@ -483,7 +561,7 @@ class TestWebsiteAccess(HttpCaseWithUserDemo, OnlineEventCase):
         )
         result = ret["search_extra"](self.env, "Turlock")[0][-1].get_result_ids()
         self.assertEqual(
-            *result, self.events[0].id, "Event should exist for the searched term"
+            result, [self.events[0].id], "Event should exist for the searched term"
         )
 
         with self.assertRaises(AccessError):

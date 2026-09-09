@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.tests.common import HttpCase, users
@@ -12,18 +13,7 @@ class TestEventMenus(OnlineEventCase, HttpCase):
         """Test that the content of the introduction(Home) menu is
         correctly copied when duplicating an event"""
 
-        event = self.env["event.event"].create(
-            {
-                "name": "TestEvent",
-                "date_begin": fields.Datetime.to_string(
-                    datetime.today() + timedelta(days=1)
-                ),
-                "date_end": fields.Datetime.to_string(
-                    datetime.today() + timedelta(days=15)
-                ),
-                "website_menu": True,
-            }
-        )
+        event = self._create_default_event(name="TestEvent", website_menu=True)
         self.assertTrue(event.website_menu)
         self.assertTrue(event.introduction_menu)
         self.env["ir.ui.view"].create(
@@ -76,18 +66,7 @@ class TestEventMenus(OnlineEventCase, HttpCase):
         'unlink' on the matching website.event.menu and avoid calling the super unlink of
         website.menu on them (it causes a 'Missing Record' cache error)."""
 
-        event = self.env["event.event"].create(
-            {
-                "name": "TestEvent",
-                "date_begin": fields.Datetime.to_string(
-                    datetime.today() + timedelta(days=1)
-                ),
-                "date_end": fields.Datetime.to_string(
-                    datetime.today() + timedelta(days=15)
-                ),
-                "website_menu": True,
-            }
-        )
+        event = self._create_default_event(name="TestEvent", website_menu=True)
 
         new_page_url = f"{event.website_url}/newpage"
 
@@ -117,20 +96,101 @@ class TestEventMenus(OnlineEventCase, HttpCase):
             bool(self.env["website.menu"].search([("id", "=", website_menu_id)]))
         )
 
+    @users("admin")
+    def test_new_page_section_outside_wrap(self):
+        """new_page() must not crash when the event's base layout template
+        contains a <section> outside the #wrap container (WEM-02): the
+        section-relocation logic must only look at sections that are direct
+        children of #wrap, not any <section> anywhere in the document."""
+        event = self._create_default_event(name="TestEvent", website_menu=True)
+        new_page_url = f"{event.website_url}/newpage-section"
+        website_menu = self.env["website.menu"].create(
+            {
+                "name": "New Menu With Section",
+                "url": new_page_url,
+                "parent_id": event.introduction_menu_ids[0].menu_id.parent_id.id,
+            }
+        )
+        self.env["website.event.menu"].create(
+            {
+                "event_id": event.id,
+                "menu_id": website_menu.id,
+                "menu_type": "community",
+            }
+        )
+
+        layout_view = self.env.ref("website_event.layout")
+        layout_view.arch = layout_view.arch.replace(
+            "</t>", '<section id="o_outside_wrap_section"/></t>', 1
+        )
+
+        new_page = self.env["website"].new_page(
+            new_page_url.lstrip("/"), sections_arch="<section>Injected</section>"
+        )
+        self.assertTrue(new_page.get("view_id"))
+
+    @users("admin")
+    def test_create_menu_skip_when_nothing_changed(self):
+        """Round-1 fix WEM-05: when a website.menu parent group has no
+        new (string-id) menu among its children, WebsiteMenu.save() must
+        skip straight to the next group instead of still querying
+        website.event.menu for it - materializing new_menus to a list so
+        the `if not new_menus` check actually short-circuits (a `filter`
+        object is always truthy and never would)."""
+        event = self._create_default_event(name="TestEvent", website_menu=True)
+        home_menu = event.introduction_menu_ids.menu_id
+        data = {
+            "data": [
+                {
+                    "id": home_menu.id,
+                    "name": home_menu.name,
+                    "url": home_menu.url,
+                    "new_window": False,
+                    "sequence": home_menu.sequence,
+                    "parent_id": home_menu.parent_id.id,
+                },
+                # An unrelated, genuinely new top-level menu so save()'s
+                # outer has_new_menus gate is True - home_menu's own group
+                # (the one under test) has no new menu of its own.
+                {
+                    "id": "new-1",
+                    "name": "Unrelated New Menu",
+                    "url": "/unrelated-new-menu",
+                    "new_window": False,
+                    "sequence": 100,
+                    "parent_id": self.env.ref("website.main_menu").id,
+                },
+            ],
+        }
+
+        WebsiteEventMenu = type(self.env["website.event.menu"])
+        original_search = WebsiteEventMenu.search
+        search_domains = []
+
+        def counting_search(self_, domain, *args, **kwargs):
+            search_domains.append(domain)
+            return original_search(self_, domain, *args, **kwargs)
+
+        with patch.object(WebsiteEventMenu, "search", counting_search):
+            self.env["website.menu"].save(
+                self.env.ref("website.default_website").id, data
+            )
+
+        home_menu_parent_searches = [
+            domain
+            for domain in search_domains
+            if domain == [("menu_id.parent_id", "=", home_menu.parent_id.id)]
+        ]
+        self.assertFalse(
+            home_menu_parent_searches,
+            "A group with no new menu must never trigger a "
+            "website.event.menu search for it.",
+        )
+
     @users("user_eventmanager")
     def test_menu_management(self):
-        event = self.env["event.event"].create(
-            {
-                "name": "TestEvent",
-                "date_begin": fields.Datetime.to_string(
-                    datetime.today() + timedelta(days=1)
-                ),
-                "date_end": fields.Datetime.to_string(
-                    datetime.today() + timedelta(days=15)
-                ),
-                "website_menu": True,
-                "community_menu": False,
-            }
+        event = self._create_default_event(
+            name="TestEvent", website_menu=True, community_menu=False
         )
         self.assertTrue(event.website_menu)
         self.assertTrue(event.introduction_menu)
@@ -142,18 +202,7 @@ class TestEventMenus(OnlineEventCase, HttpCase):
         self._assert_website_menus(event, ["Home", "Rooms", "Practical"])
 
         # test create without any requested menus
-        event = self.env["event.event"].create(
-            {
-                "name": "TestEvent",
-                "date_begin": fields.Datetime.to_string(
-                    datetime.today() + timedelta(days=1)
-                ),
-                "date_end": fields.Datetime.to_string(
-                    datetime.today() + timedelta(days=15)
-                ),
-                "website_menu": False,
-            }
-        )
+        event = self._create_default_event(name="TestEvent", website_menu=False)
         self.assertFalse(event.website_menu)
         self.assertFalse(event.introduction_menu)
         self.assertFalse(event.register_menu)
@@ -166,18 +215,8 @@ class TestEventMenus(OnlineEventCase, HttpCase):
 
     @users("user_event_web_manager")
     def test_menu_management_frontend(self):
-        event = self.env["event.event"].create(
-            {
-                "name": "TestEvent",
-                "date_begin": fields.Datetime.to_string(
-                    datetime.today() + timedelta(days=1)
-                ),
-                "date_end": fields.Datetime.to_string(
-                    datetime.today() + timedelta(days=15)
-                ),
-                "website_menu": True,
-                "community_menu": False,
-            }
+        event = self._create_default_event(
+            name="TestEvent", website_menu=True, community_menu=False
         )
         self._assert_website_menus(event, ["Home", "Practical"], menus_out=["Rooms"])
 
