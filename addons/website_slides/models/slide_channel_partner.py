@@ -203,6 +203,9 @@ class SlideChannelPartner(models.Model):
         Remove attendee from a channel, then also remove slide.slide.partner related to.
         """
         if self:
+            self.filtered(
+                lambda membership: membership.member_status == "completed"
+            )._post_completion_update_hook(completed=False)
             # One clause per (channel, partners) pair rather than per record,
             # and the channel side expressed as a relation instead of an
             # inlined list of slide ids: unlinking 1000 members of a 500-slide
