@@ -44,7 +44,7 @@ def _head_commit(root: str = "") -> str:
             timeout=10,
             check=False,
         )
-    except OSError, subprocess.SubprocessError:
+    except (OSError, subprocess.SubprocessError):
         return ""
     return out.stdout.strip() if out.returncode == 0 else ""
 
@@ -66,7 +66,7 @@ def _dirty_paths(root: str = "") -> list[str] | None:
             timeout=30,
             check=False,
         )
-    except OSError, subprocess.SubprocessError:
+    except (OSError, subprocess.SubprocessError):
         return None
     if out.returncode != 0:
         return None
@@ -101,7 +101,7 @@ def _is_ancestor_of_head(commit: str, root: str = "") -> bool | None:
             timeout=10,
             check=False,
         )
-    except OSError, subprocess.SubprocessError:
+    except (OSError, subprocess.SubprocessError):
         return None
     if out.returncode == 0:
         return True
