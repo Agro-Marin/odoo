@@ -1259,7 +1259,7 @@ Section  Population                                                  Count
 §2.4.12  ``_sync_*`` definitions                                        76
 §2.4.12  ``_synchronize_*`` definitions                                  7
 §2.4.12  ``_post_*`` definitions                                       137
-§2.4.13  Module-level functions under ``models/`` and ``wizard/``      353
+§2.4.13  Module-level functions under ``models/`` and ``wizard/``      354
 §2.4.13  Methods on plain classes in model files                       414
 §2.4.13  … such classes                                                166
 §2.4.13  Functions nested inside model methods                         581
