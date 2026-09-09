@@ -17,7 +17,12 @@ export class Chart extends Interaction {
     }
 
     start() {
-        const data = JSON.parse(this.el.dataset.data);
+        let data;
+        try {
+            data = JSON.parse(this.el.dataset.data);
+        } catch {
+            return;
+        }
         data.datasets.forEach((el) => {
             el.backgroundColor = this.convertToCSS(el.backgroundColor);
             el.borderColor = this.convertToCSS(el.borderColor);
