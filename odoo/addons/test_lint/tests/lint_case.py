@@ -184,6 +184,7 @@ _SERVED_BUNDLES: dict[frozenset[str], tuple[str, ...]] = {}
 def _compute_served_bundle_names(installed: frozenset[str], env) -> tuple[str, ...]:
     names = set()
     included = set()
+    built = set()
     for manifest in Manifest.all_addon_manifests():
         if manifest.name not in installed:
             continue
@@ -197,6 +198,9 @@ def _compute_served_bundle_names(installed: frozenset[str], env) -> tuple[str, .
                     and entry[0] == "include"
                 ):
                     included.add(entry[1])
+        esm = manifest.get("esm") or {}
+        built.update(esm.get("bundles") or ())
+        built.update(esm.get("standalone_bundles") or ())
 
     env.cr.execute("SELECT arch_db::text FROM ir_ui_view WHERE arch_db IS NOT NULL")
     linked = {
@@ -204,9 +208,14 @@ def _compute_served_bundle_names(installed: frozenset[str], env) -> tuple[str, .
         for (arch,) in env.cr.fetchall()
         for name in _T_CALL_ASSETS_RE.findall(arch)
     }
-    return tuple(
-        sorted(name for name in (names - included) | (names & linked) if "." in name)
-    )
+    # Subtracting every included bundle assumes an included one is only ever
+    # reached through its host. A bundle named under `esm.bundles` or
+    # `esm.standalone_bundles` is also built on its own, so a host-relative
+    # directive inside it fails there and nowhere else -- which is how
+    # `im_livechat.assets_embed_core` carried a `remove` of a file only its
+    # hosts supply, and assembled for neither the gate nor anyone reading it.
+    served = (names - included) | (names & linked) | (names & built)
+    return tuple(sorted(name for name in served if "." in name))
 
 
 def iter_registry_methods(registry=None):

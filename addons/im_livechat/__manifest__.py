@@ -83,6 +83,10 @@ Help your customers with this chat, and analyse their feedback.
                 "include",
                 "im_livechat.assets_embed_core",
             ),
+            (
+                "remove",
+                "web/static/src/core/browser/title_service.js",
+            ),
             "im_livechat/static/src/embed/frontend/**/*",
         ],
         "web.assets_backend": [
@@ -111,10 +115,6 @@ Help your customers with this chat, and analyse their feedback.
             "im_livechat/static/tests/tours/**/*",
         ],
         "im_livechat.assets_embed_core": [
-            (
-                "remove",
-                "web/static/src/core/browser/title_service.js",
-            ),
             (
                 "include",
                 "html_editor._assets_editor",
@@ -193,6 +193,10 @@ Help your customers with this chat, and analyse their feedback.
             (
                 "include",
                 "im_livechat.assets_embed_core",
+            ),
+            (
+                "remove",
+                "web/static/src/core/browser/title_service.js",
             ),
             "im_livechat/static/src/embed/external/**/*",
         ],
