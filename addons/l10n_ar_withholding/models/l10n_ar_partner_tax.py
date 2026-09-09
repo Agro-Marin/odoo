@@ -12,7 +12,10 @@ class L10n_ArPartnerTax(models.Model):
     _description = "Argentinean Partner Taxes"
     _order = "to_date desc, from_date desc, tax_id"
     _check_company_auto = True
-    _check_company_domain = models.check_company_domain_parent_of
+    # The company of this model is `company_ids`, related from the tax, so the
+    # plural contract is the one that matches it. The singular helper emitted
+    # `company_id` against a model that declares no such field.
+    _check_company_domain = models.check_companies_domain_parent_of
 
     partner_id = fields.Many2one(
         "res.partner",

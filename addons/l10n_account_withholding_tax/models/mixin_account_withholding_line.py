@@ -496,7 +496,12 @@ class MixinAccountWithholdingLine(models.AbstractModel):
     @api.model
     def _get_withholding_tax_domain(self, company, payment_type):
         """Construct and return a domain that will filter withholding taxes available for this company and payment type."""
-        filter_domain = models.check_company_domain_parent_of(self, company)
+        # The domain filters account.tax, so account.tax is what must build its
+        # company clause: this fork gives it `company_ids` and the plural
+        # `check_companies_domain_parent_of`, while this mixin is single-company.
+        # Building it from `self` emitted `company_id` against a model that has
+        # no such field.
+        filter_domain = self.env["account.tax"]._check_company_domain(company)
         payment_type = "purchase" if payment_type == "outbound" else "sale"
         return Domain.AND(
             [

@@ -130,31 +130,15 @@ class AccountPayment(models.Model):
         for pay in withholding_payments:
             liquidity_lines, counterpart_lines, write_off_lines = pay._seek_for_lines()
 
-            # Reset/update the liquidity/counterpart lines.
+            # `_prepare_move_lines_per_type` calls `_prepare_move_withholding_lines`
+            # below and has already reduced the liquidity and counterpart lines by
+            # what it returned, so the three arrive balanced and in that order.
             line_vals_list = pay._prepare_move_line_default_vals()
             liquidity_line_values = line_vals_list[0]
             counterpart_line_values = line_vals_list[1]
-
-            # Generate the new withholding lines.
-            liquidity_line_balance = (
-                liquidity_line_values["debit"] - liquidity_line_values["credit"]
-            )
-            liquidity_line_amount_currency = liquidity_line_values["amount_currency"]
-            withholding_line_values_list = (
-                pay.withholding_line_ids._prepare_withholding_amls_create_values()
-            )
-            write_off_line_ids_commands = []
-            for line_values in withholding_line_values_list:
-                write_off_line_ids_commands.append(Command.create(line_values))
-                liquidity_line_balance -= line_values["balance"]
-                liquidity_line_amount_currency -= line_values["amount_currency"]
-            if liquidity_line_balance > 0.0:
-                liquidity_line_values["debit"] = liquidity_line_balance
-                liquidity_line_values["credit"] = 0.0
-            else:
-                liquidity_line_values["debit"] = 0.0
-                liquidity_line_values["credit"] = -liquidity_line_balance
-            liquidity_line_values["amount_currency"] = liquidity_line_amount_currency
+            write_off_line_ids_commands = [
+                Command.create(line_values) for line_values in line_vals_list[2:]
+            ]
 
             line_ids_commands = (
                 [
@@ -186,36 +170,9 @@ class AccountPayment(models.Model):
             changed_fields
         )
 
-    def _generate_move_vals(
-        self, write_off_line_vals=None, force_balance=None, line_ids=None
-    ):
-        """Ensure that the generated payment entry takes into account the withholding lines."""
+    def _prepare_move_withholding_lines(self, default_values):
+        """Feed the withholding lines to the balance `account` computes for them."""
         # EXTEND account
-        move_vals = super()._generate_move_vals(
-            write_off_line_vals=write_off_line_vals,
-            force_balance=force_balance,
-            line_ids=line_ids,
-        )
         if not self.withholding_line_ids or not self.should_withhold_tax:
-            return move_vals
-
-        liquidity_line_values = move_vals["line_ids"][0][2]
-        liquidity_line_balance = (
-            liquidity_line_values["debit"] - liquidity_line_values["credit"]
-        )
-        liquidity_line_amount_currency = liquidity_line_values["amount_currency"]
-        withholding_line_values_list = (
-            self.withholding_line_ids._prepare_withholding_amls_create_values()
-        )
-        for line_values in withholding_line_values_list:
-            move_vals["line_ids"].append(Command.create(line_values))
-            liquidity_line_balance -= line_values["balance"]
-            liquidity_line_amount_currency -= line_values["amount_currency"]
-        liquidity_line_values["amount_currency"] = liquidity_line_amount_currency
-        if liquidity_line_balance > 0.0:
-            liquidity_line_values["debit"] = liquidity_line_balance
-            liquidity_line_values["credit"] = 0.0
-        else:
-            liquidity_line_values["debit"] = 0.0
-            liquidity_line_values["credit"] = -liquidity_line_balance
-        return move_vals
+            return super()._prepare_move_withholding_lines(default_values)
+        return self.withholding_line_ids._prepare_withholding_amls_create_values()

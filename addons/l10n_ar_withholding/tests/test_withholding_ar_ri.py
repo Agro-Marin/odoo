@@ -538,7 +538,6 @@ class TestL10nArWithholdingArRi(TestAr):
         self.env["l10n_ar.partner.tax"].create(
             {
                 "partner_id": self.res_partner_adhoc.id,
-                "company_id": invoice.company_id.id,
                 "tax_id": self.tax_wth_earnings_incurred_scale_test_5.id,
             }
         )
@@ -571,7 +570,6 @@ class TestL10nArWithholdingArRi(TestAr):
         self.env["l10n_ar.partner.tax"].create(
             {
                 "partner_id": self.res_partner_adhoc.id,
-                "company_id": invoice.company_id.id,
                 "tax_id": self.tax_wth_earnings_incurred_test_6.id,
             }
         )
@@ -604,7 +602,6 @@ class TestL10nArWithholdingArRi(TestAr):
         self.env["l10n_ar.partner.tax"].create(
             {
                 "partner_id": self.res_partner_adhoc.id,
-                "company_id": invoice.company_id.id,
                 "tax_id": self.tax_wth_earnings_incurred_scale_test_5.id,
             }
         )
@@ -630,7 +627,6 @@ class TestL10nArWithholdingArRi(TestAr):
         self.env["l10n_ar.partner.tax"].create(
             {
                 "partner_id": self.res_partner_adhoc.id,
-                "company_id": invoice.company_id.id,
                 "tax_id": self.tax_wth_earnings_incurred_scale_test_5.id,
             }
         )
@@ -838,7 +834,6 @@ class TestL10nArWithholdingArRi(TestAr):
         self.env["l10n_ar.partner.tax"].create(
             {
                 "partner_id": self.res_partner_adhoc.id,
-                "company_id": invoice.company_id.id,
                 "tax_id": self.tax_wth_earnings_incurred_scale_test_5.id,
             }
         )
