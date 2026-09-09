@@ -430,6 +430,10 @@ def xml_term_adapter(term_en: str) -> Callable[[str], str | None]:
             return None
         try:
             for orig_n, new_n in same_struct_iter(orig_node, new_node):
+                # The exclusion below has been swept away twice by commits
+                # about something else (fb3c3c9bdbb, 28d2ccec482), each time
+                # letting a source `style` overwrite the translation's.
+                # `test_sync_xml_inline_modifiers` is what catches the third.
                 for k in [k for k in new_n.attrib if k in MODIFIER_ATTRS]:
                     del new_n.attrib[k]
                 # A translator-addable attribute belongs to the translation, so
