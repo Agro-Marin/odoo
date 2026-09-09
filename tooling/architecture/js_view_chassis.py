@@ -62,7 +62,10 @@ STATIC_TEMPLATE = re.compile(r"""static\s+template\s*=\s*["'`](?P<name>[^"'`]+)[
 # View types whose controller template still hand-rolls the chassis, each with
 # why. Shrink-only: a type that takes ViewLayout leaves this mapping in the same
 # commit. **A reason is a classification, not a queue position.** "not yet
-# converted" is debt; the other two are decisions and may stay forever --
+# converted" is debt; "blocked by QWeb inheritance" is a cost to pay elsewhere
+# first, since a controller template that others `t-inherit` and xpath into is a
+# second extension surface -- one `js_extension_surface` cannot see, because it
+# reads JS. The remaining two are decisions and may stay forever --
 # `ViewLayout` is the multi-record control panel and a form's is a different
 # thing, and gantt's chassis is already complete, so converting it would delete
 # working slots and restore nothing.
@@ -73,11 +76,23 @@ PINNED_HANDROLLED: dict[str, str] = {
         "its five hand-rolled slots include the buttonTemplate call every gantt "
         "subclass hangs its toolbar on (web_gantt's owner, 2026-09-08)"
     ),
-    "calendar": "not yet converted",
+    "calendar": (
+        "blocked by QWeb inheritance: 3 templates t-inherit web.CalendarController "
+        "and all 3 xpath //Layout, which the conversion renames "
+        "(calendar, hr_holidays, enterprise/knowledge)"
+    ),
+    "kanban": (
+        "blocked by QWeb inheritance: 14 templates t-inherit web.KanbanView, "
+        "4 of them xpath //Layout (document, enterprise/sign, enterprise/social, "
+        "enterprise/account_accountant)"
+    ),
+    "list": (
+        "blocked by QWeb inheritance: 18 templates t-inherit web.ListView, "
+        "4 of them xpath //Layout (document, enterprise/sign, "
+        "enterprise/hr_payroll, enterprise/account_accountant)"
+    ),
     "grid": "not yet converted",
     "hierarchy": "not yet converted",
-    "kanban": "not yet converted",
-    "list": "not yet converted",
 }
 
 
