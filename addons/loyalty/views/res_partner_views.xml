@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="priority" eval="11" />
         <field name="arch" type="xml">
-            <div name="button_box" position="inside">
+            <xpath expr="//div[@name='anchor_buttons_commercial']" position="before">
                 <button
                     name="action_view_loyalty_cards"
                     type="object"
@@ -20,7 +20,7 @@
                         name="loyalty_card_count"
                         widget="statinfo" />
                 </button>
-            </div>
+            </xpath>
         </field>
     </record>
 

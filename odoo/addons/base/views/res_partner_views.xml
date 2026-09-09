@@ -370,6 +370,17 @@
                                 string="Duplicates"
                                 widget="statinfo" />
                         </button>
+                        <!-- Stat-button slots. Add a button with
+                             position="before" on the slot for its subject, so
+                             the box groups by subject instead of by module load
+                             order. Slots are invisible: the form compiler drops
+                             them, they cost nothing to render, and nothing may
+                             be inserted "inside" one. -->
+                        <div name="anchor_buttons_commercial" invisible="1" />
+                        <div name="anchor_buttons_financial" invisible="1" />
+                        <div name="anchor_buttons_operations" invisible="1" />
+                        <div name="anchor_buttons_relations" invisible="1" />
+                        <div name="anchor_buttons_misc" invisible="1" />
                     </div>
                     <widget
                         name="web_ribbon"
@@ -377,13 +388,15 @@
                         bg_color="text-bg-danger"
                         invisible="active" />
                     <div name="div_top" class="mb8">
-                        <div class="d-flex gap-3">
+                        <div name="partner_header" class="d-flex gap-3">
                             <field
                                 name="image_1920"
                                 widget="contact_image"
                                 options="{'preview_image': 'avatar_128', 'size': [130,130], 'img_class': 'rounded border'}" />
                             <field name="avatar_128" invisible="1" />
-                            <div class="d-flex flex-column flex-grow-1">
+                            <div
+                                name="partner_identity"
+                                class="d-flex flex-column flex-grow-1">
                                 <field
                                     name="is_company"
                                     string="Company"
@@ -408,7 +421,9 @@
                                         class="text-break d-block"
                                         invisible="is_company" />
                                 </h1>
-                                <div class="d-flex align-items-baseline w-md-50">
+                                <div
+                                    name="partner_email_row"
+                                    class="d-flex align-items-baseline w-md-50">
                                     <i
                                         class="fa-solid fa-envelope me-1 text-primary"
                                         title="Email" />
@@ -419,7 +434,9 @@
                                         required="user_ids"
                                         class="w-100" />
                                 </div>
-                                <div class="d-flex align-items-baseline w-md-50">
+                                <div
+                                    name="partner_phone_row"
+                                    class="d-flex align-items-baseline w-md-50">
                                     <i
                                         class="fa-solid fa-phone me-1 text-primary"
                                         title="Phone" />
@@ -429,9 +446,16 @@
                                         widget="many2many_tags"
                                         class="w-100" />
                                 </div>
+                                <!-- Extra contact rows (messaging handles,
+                                     alternate channels) go before this slot. -->
+                                <div name="anchor_contact_rows" invisible="1" />
                             </div>
                         </div>
                     </div>
+                    <!-- Row of partner-role flags (customer, supplier,
+                         manufacturer, ...). One <span> per flag, added
+                         position="inside"; the field belongs to the module that
+                         defines the role. -->
                     <div name="options" />
                     <group name="main">
                         <group name="left_col">
@@ -451,7 +475,7 @@
                                     class="fw-bold" />
                                 <span invisible="not is_company">Address</span>
                             </span>
-                            <div class="o_address_format">
+                            <div name="partner_address" class="o_address_format">
                                 <field
                                     name="street"
                                     placeholder="Street..."
@@ -717,13 +741,13 @@
                         </page>
                         <page name="sales_purchases" string="Sales &amp; Purchase">
                             <group name="container_row_2">
-                                <group string="Sales" name="sale" priority="1">
+                                <group string="Sales" name="sale">
                                     <field
                                         name="user_id"
                                         widget="many2one_avatar_user"
                                         domain="[('share', '=', False)]" />
                                 </group>
-                                <group string="Purchase" name="purchase" priority="2">
+                                <group string="Purchase" name="purchase">
                                 </group>
                                 <group name="misc" string="Misc">
                                     <field name="ref" string="Reference" />
@@ -738,6 +762,25 @@
                                 </group>
                             </group>
                         </page>
+                        <!-- Page slots. A module adds its page with
+                             position="before" on the slot that matches its
+                             subject, never position="inside" a slot and never
+                             on //notebook, which appends in module load order
+                             and is why this notebook used to end on a random
+                             page. Slots are invisible, so the form compiler
+                             drops them and they render nothing.
+
+                             commercial   sales, purchase, point of sale, loyalty
+                             financial    invoicing, credit, payment, banking
+                             compliance   tax, EDI, localisation
+                             operations   logistics, agronomy, geolocation
+                             intelligence scoring, relationships, network
+                             governance   approvals, branding, documents
+                             personal     private and HR information
+
+                             Contacts stays first and Notes stays last. -->
+                        <page name="anchor_commercial" invisible="1" />
+                        <page name="anchor_financial" invisible="1" />
                         <page
                             name="identifiers"
                             string="Identifiers"
@@ -752,9 +795,16 @@
                                 </list>
                             </field>
                         </page>
+                        <page name="anchor_compliance" invisible="1" />
+                        <page name="anchor_operations" invisible="1" />
+                        <page name="anchor_intelligence" invisible="1" />
+                        <page name="anchor_governance" invisible="1" />
+                        <page name="anchor_personal" invisible="1" />
+                        <page name="partner_warnings" string="Warnings">
+                            <group name="warnings" />
+                        </page>
                         <page name="internal_notes" string="Notes">
                             <field name="comment" placeholder="Internal notes..." />
-                            <group name="warnings" />
                         </page>
                     </notebook>
                 </sheet>

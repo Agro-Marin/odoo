@@ -6,7 +6,9 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='email']" position="before">
+            <xpath
+                expr="//div[@name='partner_email_row']/field[@name='email']"
+                position="before">
                 <field name="is_blacklisted" invisible="1" />
                 <button
                     name="mail_action_blacklist_remove"

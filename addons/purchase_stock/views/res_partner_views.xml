@@ -6,7 +6,7 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="purchase.view_partner_property_form" />
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='purchase_order_count']/.." position="after">
+            <xpath expr="//button[@id='button_purchase_orders']" position="after">
                 <button
                     name="%(action_purchase_vendor_delay_report)d"
                     type="action"

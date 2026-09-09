@@ -6,7 +6,7 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="arch" type="xml">
-            <xpath expr="//page[@name='internal_notes']" position="before">
+            <xpath expr="//page[@name='anchor_intelligence']" position="before">
                 <page name="partner_scoring" string="Scoring">
                     <field name="commercial_partner_id" invisible="1" />
                     <div

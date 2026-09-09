@@ -6,7 +6,7 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="arch" type="xml">
-            <div name="button_box" position="inside">
+            <xpath expr="//div[@name='anchor_buttons_relations']" position="before">
                 <button
                     name="action_view_relations"
                     type="object"
@@ -40,8 +40,8 @@
                         <span class="o_stat_text">Network</span>
                     </div>
                 </button>
-            </div>
-            <notebook position="inside">
+            </xpath>
+            <xpath expr="//page[@name='anchor_intelligence']" position="before">
                 <page string="Relationships" name="relationships">
                     <div class="d-flex gap-2 mb-3">
                         <button
@@ -70,7 +70,7 @@
                     invisible="count_relation == 0">
                     <widget name="partner_network" />
                 </page>
-            </notebook>
+            </xpath>
         </field>
     </record>
 

@@ -69,8 +69,9 @@
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="priority" eval="9" />
         <field name="arch" type="xml">
-            <div name="button_box" position="inside">
+            <xpath expr="//div[@name='anchor_buttons_commercial']" position="before">
                 <button
+                    id="button_purchase_orders"
                     class="oe_stat_button"
                     name="%(purchase.act_res_partner_2_purchase_order)d"
                     type="action"
@@ -81,7 +82,10 @@
                         name="purchase_order_count"
                         widget="statinfo" />
                 </button>
-            </div>
+            </xpath>
+            <page name="partner_warnings" position="attributes">
+                <attribute name="groups" add="purchase.group_warning_purchase" separator="," />
+            </page>
             <group name="warnings" position="inside">
                 <group groups="purchase.group_warning_purchase" col="2">
                     <separator

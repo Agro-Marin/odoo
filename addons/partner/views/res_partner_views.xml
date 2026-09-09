@@ -6,7 +6,7 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="arch" type="xml">
-            <page name="internal_notes" position="before">
+            <xpath expr="//page[@name='anchor_personal']" position="before">
                 <page
                     name="personal_information_page"
                     string="Private Information"
@@ -23,7 +23,7 @@
                         </group>
                     </group>
                 </page>
-            </page>
+            </xpath>
         </field>
     </record>
 

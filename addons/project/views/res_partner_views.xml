@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="priority" eval="8" />
         <field name="arch" type="xml">
-            <div name="button_box" position="inside">
+            <xpath expr="//div[@name='anchor_buttons_operations']" position="before">
                 <button
                     class="oe_stat_button"
                     type="object"
@@ -16,7 +16,7 @@
                     icon="fa-tasks">
                     <field string="Tasks" name="task_count" widget="statinfo" />
                 </button>
-            </div>
+            </xpath>
         </field>
     </record>
 

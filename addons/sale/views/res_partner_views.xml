@@ -23,7 +23,7 @@
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="priority" eval="3" />
         <field name="arch" type="xml">
-            <div name="button_box" position="inside">
+            <xpath expr="//div[@name='anchor_buttons_commercial']" position="before">
                 <button
                     name="sale.act_res_partner_2_sale_order"
                     type="action"
@@ -32,7 +32,10 @@
                     groups="sales_team.group_sale_salesman">
                     <field string="Sales" name="sale_order_count" widget="statinfo" />
                 </button>
-            </div>
+            </xpath>
+            <page name="partner_warnings" position="attributes">
+                <attribute name="groups" add="sale.group_warning_sale" separator="," />
+            </page>
             <group name="warnings" position="inside">
                 <group groups="sale.group_warning_sale" col="2">
                     <separator
@@ -55,7 +58,7 @@
             name="inherit_id"
             ref="payment.view_partners_form_payment_defaultcreditcard" />
         <field name="arch" type="xml">
-            <button name="%(payment.action_payment_token)d" position="attributes">
+            <button id="button_payment_tokens" position="attributes">
                 <attribute
                     name="groups"
                     add="sales_team.group_sale_salesman"
