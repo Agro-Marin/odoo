@@ -1150,7 +1150,7 @@ Section  Population                                                  Count
 §2.4.4   Other heads: definitions spelled tail-first                   157
 §2.4.5   ``X_to_Y`` converter definitions                               97
 §2.4.5   … distinct names                                               55
-§2.4.7   ``_get_*`` definitions                                      5,959
+§2.4.7   ``_get_*`` definitions                                      5,961
 §2.4.7   Abolished payload verbs, the four between them                 16
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  7
@@ -1968,8 +1968,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **365** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **262**
+**A ``bool`` return does not make a predicate** ``[review]``. **362** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **265**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
