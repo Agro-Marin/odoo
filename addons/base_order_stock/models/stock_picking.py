@@ -18,8 +18,14 @@ class StockPicking(models.Model):
                 picking._get_source_order_date() or fields.Datetime.now()
             )
 
+    def _get_fields_linking_orders(self):
+        return []
+
     def _get_source_order_date(self):
         self.check_singleton()
+        for field in self._get_fields_linking_orders():
+            if date_order := self[field].date_order:
+                return date_order
         return False
 
     @api.model
@@ -31,7 +37,7 @@ class StockPicking(models.Model):
 
     @api.model
     def _get_source_order_date_paths(self):
-        return []
+        return [f"{field}.date_order" for field in self._get_fields_linking_orders()]
 
     def _effective_transfer_domain(self):
         return Domain([("state", "=", "done"), ("date_done", "!=", False)])
@@ -43,3 +49,23 @@ class StockPicking(models.Model):
 
     def _search_effective_transfer_date(self, operator, value, domain):
         return Domain.AND([domain, Domain("date_done", operator, value)])
+
+    def _get_action_transfer_matching(self, name, res_model, list_view_xmlid):
+        self.check_singleton()
+        return {
+            "type": "ir.actions.act_window",
+            "name": name,
+            "res_model": res_model,
+            "views": [(self.env.ref(list_view_xmlid).id, "list")],
+            "domain": [
+                ("company_id", "in", self.env.companies.ids),
+                (
+                    "partner_id",
+                    "in",
+                    (self.partner_id | self.partner_id.commercial_partner_id).ids,
+                ),
+                "|",
+                ("picking_id", "=", self.id),
+                ("picking_id", "=", False),
+            ],
+        }

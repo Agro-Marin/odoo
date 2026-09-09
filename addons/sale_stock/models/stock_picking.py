@@ -20,6 +20,9 @@ class StockPicking(models.Model):
         copy=False,
     )
 
+    def _get_fields_linking_orders(self):
+        return ["sale_id", *super()._get_fields_linking_orders()]
+
     def _auto_init(self):
         if not column_exists(self.env.cr, "stock_picking", "sale_id"):
             create_column(self.env.cr, "stock_picking", "sale_id", "int4")
@@ -61,9 +64,6 @@ class StockPicking(models.Model):
             self._days_to_deliver_domain(),
         )
 
-    def _get_source_order_date(self):
-        return self.sale_id.date_order or super()._get_source_order_date()
-
     def _is_on_manufacturing_route(self):
         self.check_singleton()
         return False
@@ -98,10 +98,6 @@ class StockPicking(models.Model):
             self._days_to_deliver_domain(),
         )
 
-    @api.model
-    def _get_source_order_date_paths(self):
-        return [*super()._get_source_order_date_paths(), "sale_id.date_order"]
-
     def _log_less_quantities_than_expected(self, moves):
         def _keys_in_groupby(sale_line):
             return (sale_line.order_id, sale_line.order_id.user_id)
@@ -132,23 +128,8 @@ class StockPicking(models.Model):
         return super()._log_less_quantities_than_expected(moves)
 
     def action_sale_matching(self):
-        self.check_singleton()
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Sales Matching"),
-            "res_model": "sale.delivery.line.match",
-            "views": [
-                (self.env.ref("sale_stock.sale_delivery_line_match_list").id, "list"),
-            ],
-            "domain": [
-                ("company_id", "in", self.env.companies.ids),
-                (
-                    "partner_id",
-                    "in",
-                    (self.partner_id | self.partner_id.commercial_partner_id).ids,
-                ),
-                "|",
-                ("picking_id", "=", self.id),
-                ("picking_id", "=", False),
-            ],
-        }
+        return self._get_action_transfer_matching(
+            _("Sales Matching"),
+            "sale.delivery.line.match",
+            "sale_stock.sale_delivery_line_match_list",
+        )
