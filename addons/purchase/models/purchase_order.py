@@ -288,7 +288,7 @@ class PurchaseOrder(models.Model):
     def onchange(self, values, field_names, fields_spec):
         result = super().onchange(values, field_names, fields_spec)
         if (
-            any(self._must_delete_date_commitment(field) for field in field_names)
+            any(self._is_date_commitment_removed_by(field) for field in field_names)
             and "value" in result
         ):
             for line in result["value"].get("line_ids", []):
@@ -809,7 +809,7 @@ class PurchaseOrder(models.Model):
         }
 
     @api.model
-    def prepare_dashboard(self):
+    def get_dashboard_data(self):
         if not self.env.user._is_internal():
             raise AccessDenied
 
@@ -1135,5 +1135,5 @@ class PurchaseOrder(models.Model):
                 ),
             )
 
-    def _must_delete_date_commitment(self, field_name):
+    def _is_date_commitment_removed_by(self, field_name):
         return field_name == "line_ids"

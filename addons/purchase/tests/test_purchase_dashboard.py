@@ -97,7 +97,7 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
         self.assertTrue(rfqs[1].sent)
 
         rfqs.action_confirm()
-        dashboard_result = rfqs.with_user(self.user_a).prepare_dashboard()
+        dashboard_result = rfqs.with_user(self.user_a).get_dashboard_data()
 
         self.assertFalse(dashboard_result["global"]["sent"]["all"])
         self.assertFalse(dashboard_result["my"]["late"]["all"])
@@ -108,7 +108,7 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
 
         self.assertTrue(dashboard_result["multiuser"])
 
-    def test_prepare_dashboard_multiuser_flag_single_user(self):
+    def test_get_dashboard_data_multiuser_flag_single_user(self):
         self.env["purchase.order"].with_user(self.user_a).create(
             {
                 "partner_id": self.partner_a.id,
@@ -116,7 +116,7 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
                 "currency_id": self.user_a.company_id.currency_id.id,
             }
         )
-        result = self.env["purchase.order"].with_user(self.user_a).prepare_dashboard()
+        result = self.env["purchase.order"].with_user(self.user_a).get_dashboard_data()
         self.assertIn("multiuser", result)
         self.assertFalse(result["multiuser"])
 
@@ -133,8 +133,8 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
         self.assertEqual(result.get("toast_type"), "warning")
         self.assertTrue(result.get("toast_message"))
 
-    def test_prepare_dashboard_days_to_order_is_numeric(self):
-        result = self.env["purchase.order"].with_user(self.user_a).prepare_dashboard()
+    def test_get_dashboard_data_days_to_order_is_numeric(self):
+        result = self.env["purchase.order"].with_user(self.user_a).get_dashboard_data()
         for scope in ("global", "my"):
             self.assertIsInstance(
                 result[scope]["days_to_order"],

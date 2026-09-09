@@ -82,7 +82,7 @@ export class PurchaseDashBoard extends Component {
     async updateDashboardState() {
         try {
             this.state.data = await this.keepLast.add(
-                this.orm.call("purchase.order", "prepare_dashboard"),
+                this.orm.call("purchase.order", "get_dashboard_data"),
             );
         } catch (error) {
             this.state.data = null;

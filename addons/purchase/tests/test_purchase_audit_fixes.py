@@ -218,7 +218,7 @@ class TestPurchaseAuditFixes(AccountTestInvoicingCommon):
             .with_user(buyer)
             .with_context(allowed_company_ids=[self.env.company.id])
         )
-        result = scoped.prepare_dashboard()
+        result = scoped.get_dashboard_data()
 
         readable = scoped.search(
             [("state", "=", "done"), ("date_confirmed", "!=", False)],
@@ -262,7 +262,7 @@ class TestPurchaseAuditFixes(AccountTestInvoicingCommon):
         self.env.flush_all()
 
         purchase_order = self.env["purchase.order"].with_user(buyer)
-        result = purchase_order.prepare_dashboard()
+        result = purchase_order.get_dashboard_data()
         for key, domain in purchase_order._get_dashboard_count_domains().items():
             self.assertEqual(
                 result["global"][key]["all"],

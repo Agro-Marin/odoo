@@ -1190,13 +1190,14 @@ class SaleOrderLine(models.Model):
         section_lines = self._get_section_lines()
         return sum(section_lines.mapped(totals_field))
 
-    def _invoiced_on_transferred(self):
+    def _is_invoiced_on_transferred(self):
         return self.product_id.invoice_policy == "transferred"
 
     def _is_upsell_opportunity(self):
         self.check_singleton()
         return (
-            self._invoiced_on_transferred() and self.qty_transferred > self.product_qty
+            self._is_invoiced_on_transferred()
+            and self.qty_transferred > self.product_qty
         )
 
     def _prepare_aml_vals(self, **optional_values):

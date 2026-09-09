@@ -521,8 +521,8 @@ class PurchaseOrder(models.Model):
         )
 
     @api.model
-    def prepare_dashboard(self):
-        result = super().prepare_dashboard()
+    def get_dashboard_data(self):
+        result = super().get_dashboard_data()
         three_months_ago = fields.Datetime.to_string(
             fields.Datetime.now() - relativedelta(months=3),
         )

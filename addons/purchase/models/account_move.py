@@ -414,7 +414,7 @@ class AccountMove(models.Model):
         if not any(line.purchase_line_ids.order_id for line in self.line_ids):
             self.invoice_origin = False
 
-    def _find_matching_po_and_inv_lines(self, po_lines, inv_lines, timeout):
+    def _get_matching_po_and_inv_lines(self, po_lines, inv_lines, timeout):
         invoice_lines = sorted(
             inv_lines,
             key=lambda line: (line.price_unit, line.quantity),
@@ -468,14 +468,14 @@ class AccountMove(models.Model):
             _logger.warning("Timed out during search of matching purchase order lines")
             return ([], [])
 
-    def _find_matching_subset_po_lines(self, po_lines_with_amount, goal_total, timeout):
-        def find_matching_subset_po_lines(lines, goal):
+    def _get_matching_subset_po_lines(self, po_lines_with_amount, goal_total, timeout):
+        def get_matching_subsets(lines, goal):
             if time.time() - start_time > timeout:
                 raise TimeoutError
             solutions = []
             for i, line in enumerate(lines):
                 if line["amount_to_invoice"] < goal - const.BILLING_MATCH_TOLERANCE:
-                    sub_solutions = find_matching_subset_po_lines(
+                    sub_solutions = get_matching_subsets(
                         lines[i + 1 :],
                         goal - line["amount_to_invoice"],
                     )
@@ -494,7 +494,7 @@ class AccountMove(models.Model):
 
         start_time = time.time()
         try:
-            subsets = find_matching_subset_po_lines(
+            subsets = get_matching_subsets(
                 sorted(
                     po_lines_with_amount,
                     key=lambda line: line["amount_to_invoice"],
@@ -560,7 +560,7 @@ class AccountMove(models.Model):
                     return "total_match", matching_purchase_orders.line_ids, None
 
                 if from_ocr:
-                    matching_po_lines = self._find_matching_subset_po_lines(
+                    matching_po_lines = self._get_matching_subset_po_lines(
                         po_lines_with_amount,
                         amount_total,
                         timeout,
@@ -574,7 +574,7 @@ class AccountMove(models.Model):
                     return "po_match", matching_purchase_orders.line_ids, None
 
                 matching_po_lines, matching_inv_lines = (
-                    self._find_matching_po_and_inv_lines(
+                    self._get_matching_po_and_inv_lines(
                         po_lines,
                         self.invoice_line_ids,
                         timeout,

@@ -36,7 +36,7 @@ function dashboardData() {
 }
 
 async function mountDashboard() {
-    onRpc("purchase.order", "prepare_dashboard", () => dashboardData());
+    onRpc("purchase.order", "get_dashboard_data", () => dashboardData());
     const toggled = [];
     const searchModel = {
         query: [{ searchItemId: 99 }],
@@ -90,8 +90,8 @@ test("every dashboard card names at least one filter", async () => {
     }
 });
 
-test("a failing prepare_dashboard degrades to a hidden strip", async () => {
-    onRpc("purchase.order", "prepare_dashboard", () => {
+test("a failing get_dashboard_data degrades to a hidden strip", async () => {
+    onRpc("purchase.order", "get_dashboard_data", () => {
         throw new Error("AccessDenied");
     });
     const env = await makeMockEnv({ searchModel: { query: [], context: {} } });

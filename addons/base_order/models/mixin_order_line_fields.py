@@ -606,11 +606,11 @@ class MixinOrderLineFields(models.AbstractModel):
                 transferred_qties[line] = 0.0
         return transferred_qties
 
-    def _invoiced_on_transferred(self):
+    def _is_invoiced_on_transferred(self):
         return False
 
     def _assert_transferred_uom_convertible(self):
-        for line in self.filtered(lambda l: l._invoiced_on_transferred()):
+        for line in self.filtered(lambda l: l._is_invoiced_on_transferred()):
             try:
                 line.with_context(uom_reconcile_strict=True)._prepare_qty_transferred()
             except UserError as error:

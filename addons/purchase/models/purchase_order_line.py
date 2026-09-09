@@ -240,7 +240,7 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             if not line.product_id:
                 continue
-            line._set_product_description()
+            line._update_product_description()
 
     def _get_line_description_lang(self):
         return self.partner_id.lang
@@ -327,8 +327,8 @@ class PurchaseOrderLine(models.Model):
             return
 
         invoice_lines = self._get_posted_invoice_lines()
-        invoiced = self._sum_invoiced_amounts(invoice_lines)
-        qty_invoiced = self._sum_invoiced_qty(self._get_open_invoice_lines())
+        invoiced = self._get_invoiced_amounts(invoice_lines)
+        qty_invoiced = self._get_invoiced_qty(self._get_open_invoice_lines())
 
         self.qty_invoiced = qty_invoiced
         self.amount_taxexc_invoiced = invoiced["amount_taxexc"]
@@ -345,7 +345,9 @@ class PurchaseOrderLine(models.Model):
         price_subtotal = self._get_billable_subtotal(qty_to_consider)
 
         if self._has_discount_differences(invoice_lines):
-            amount_invoiced = self._sum_invoiced_with_discount_adjustment(invoice_lines)
+            amount_invoiced = self._get_invoiced_amount_with_discount_adjustment(
+                invoice_lines
+            )
             self.amount_taxexc_to_invoice = max(price_subtotal - amount_invoiced, 0.0)
         else:
             self.amount_taxexc_to_invoice = max(
@@ -552,7 +554,7 @@ class PurchaseOrderLine(models.Model):
     def _get_invoice_line_link_field(self):
         return "purchase_line_ids"
 
-    def _invoiced_on_transferred(self):
+    def _is_invoiced_on_transferred(self):
         return self.product_id.bill_policy == "transferred"
 
     def _prepare_aml_vals(self, **optional_values):
@@ -718,7 +720,7 @@ class PurchaseOrderLine(models.Model):
         self.amount_taxinc_to_invoice = 0.0
         self.qty_to_invoice = 0.0
 
-    def _set_product_description(self):
+    def _update_product_description(self):
         self.check_singleton()
 
         lang = get_lang(self.env, self.partner_id.lang).code
@@ -787,7 +789,7 @@ class PurchaseOrderLine(models.Model):
             round=round,
         )
 
-    def _sum_invoiced_qty(self, invoice_lines):
+    def _get_invoiced_qty(self, invoice_lines):
         return sum(
             inv_line.move_id.direction_sign
             * inv_line.product_uom_id._compute_quantity_reconcile(
@@ -797,8 +799,8 @@ class PurchaseOrderLine(models.Model):
             for inv_line in invoice_lines
         )
 
-    def _sum_invoiced_amounts(self, invoice_lines):
-        qty = self._sum_invoiced_qty(invoice_lines)
+    def _get_invoiced_amounts(self, invoice_lines):
+        qty = self._get_invoiced_qty(invoice_lines)
         amount_taxexc = 0.0
         amount_taxinc = 0.0
 
@@ -818,7 +820,7 @@ class PurchaseOrderLine(models.Model):
             "amount_taxinc": amount_taxinc,
         }
 
-    def _sum_invoiced_with_discount_adjustment(self, invoice_lines):
+    def _get_invoiced_amount_with_discount_adjustment(self, invoice_lines):
         total = 0.0
 
         for inv_line in invoice_lines:
