@@ -9,11 +9,8 @@ import re
 import textwrap
 import zipfile
 
-import werkzeug
-from werkzeug.exceptions import NotFound
-
 from odoo import http
-from odoo.http import Response, Stream, request
+from odoo.http import NotFound, Response, Stream, Unauthorized, request
 from odoo.modules import get_module_path
 from odoo.modules.module import Manifest
 from odoo.tools.misc import str2bool
@@ -75,7 +72,7 @@ class IoTController(IoTBoxLookup, http.Controller):
     def get_handlers(self, identifier, auto):
         box = self._search_box(identifier)
         if not box or (auto == "True" and not box.drivers_auto_update):
-            raise werkzeug.exceptions.Unauthorized(
+            raise Unauthorized(
                 description="No IoT box found with identifier '%s' or auto update disabled on the box."
                 % identifier
             )
