@@ -6,7 +6,7 @@
  * @param {number} [maxDepth=2]
  * @returns {Object|Array}
  */
-function buildRepresentativeObject(obj, depth = 0, maxDepth = 2) {
+function getRepresentativeObject(obj, depth = 0, maxDepth = 2) {
     if (depth > maxDepth || obj === null || typeof obj !== "object") {
         return obj;
     }
@@ -16,7 +16,7 @@ function buildRepresentativeObject(obj, depth = 0, maxDepth = 2) {
             try {
                 const value = obj[key];
                 if (typeof value === "object" && value !== null) {
-                    result[key] = buildRepresentativeObject(value, depth + 1, maxDepth);
+                    result[key] = getRepresentativeObject(value, depth + 1, maxDepth);
                 } else {
                     result[key] = value;
                 }
@@ -34,7 +34,7 @@ function buildRepresentativeObject(obj, depth = 0, maxDepth = 2) {
  * @param {number} [maxDepth=2]
  */
 function log(obj, depth = 0, maxDepth = 2) {
-    return console.log(buildRepresentativeObject(obj, depth, maxDepth));
+    return console.log(getRepresentativeObject(obj, depth, maxDepth));
 }
 
 /**
@@ -78,11 +78,11 @@ function compareObjects(obj1, obj2, visited = new Map(), depth = 0, maxDepth = 1
             }
         }
     });
-    return buildRepresentativeObject(differences);
+    return getRepresentativeObject(differences);
 }
 
 export const debug = {
     compareObjects,
-    buildRepresentativeObject,
+    getRepresentativeObject,
     log,
 };

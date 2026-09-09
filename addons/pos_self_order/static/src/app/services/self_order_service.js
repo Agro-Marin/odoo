@@ -5,8 +5,8 @@ import { initLNA } from "@point_of_sale/app/utils/init_lna";
 import { EpsonPrinter } from "@point_of_sale/app/utils/printer/epson_printer";
 import { HWPrinter } from "@point_of_sale/app/utils/printer/hw_printer";
 import {
-    constructFullProductName,
     deduceUrl,
+    getFullProductName,
     orderUsageUTCtoLocalUtil,
     random5Chars,
 } from "@point_of_sale/utils";
@@ -298,7 +298,7 @@ export class SelfOrder extends SignalStore {
             comboValues,
         );
         const newLine = this.models["pos.order.line"].create(values);
-        newLine.full_product_name = constructFullProductName(
+        newLine.full_product_name = getFullProductName(
             newLine,
             this.models["product.template.attribute.value"].getAllBy("id"),
             product.name,

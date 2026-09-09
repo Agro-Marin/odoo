@@ -257,7 +257,7 @@ export default class OrderPaymentValidation {
 
     handleValidationError(error) {
         if (error instanceof ConnectionLostError) {
-            this.pos.data.synchronizeLocalDataInIndexedDB();
+            this.pos.data.syncLocalDataInIndexedDB();
             this.afterOrderValidation();
             showLimitedFunctionalityWarning(this.pos);
             return error;

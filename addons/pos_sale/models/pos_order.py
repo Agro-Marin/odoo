@@ -21,8 +21,8 @@ class PosOrder(models.Model):
             order.sale_order_count = len(order.lines.mapped("sale_order_origin_id"))
 
     @api.model
-    def _complete_values_from_session(self, session, values):
-        values = super()._complete_values_from_session(session, values)
+    def _update_values_from_session(self, session, values):
+        values = super()._update_values_from_session(session, values)
         values["crm_team_id"] = (
             values["crm_team_id"]
             if values.get("crm_team_id")

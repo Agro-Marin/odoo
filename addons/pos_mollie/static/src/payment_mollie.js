@@ -67,7 +67,7 @@ export class PaymentMollie extends PaymentInterface {
             }
 
             paymentLine.transaction_id = data.id;
-            await this.pos.data.synchronizeLocalDataInIndexedDB();
+            await this.pos.data.syncLocalDataInIndexedDB();
 
             const { promise, resolve } = Promise.withResolvers();
             this.paymentLineResolvers[paymentLine.uuid] = resolve;

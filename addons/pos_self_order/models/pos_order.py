@@ -118,7 +118,7 @@ class PosOrder(models.Model):
             )
         email_values = {"email_to": email}
         if self.state == "paid" and ticket_image:
-            email_values["attachment_ids"] = self._get_mail_attachments(
+            email_values["attachment_ids"] = self._create_mail_attachments(
                 self.name, ticket_image, basic_image
             )
         mail_template.send_mail(self.id, force_send=True, email_values=email_values)

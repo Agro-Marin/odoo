@@ -43,7 +43,7 @@ export class PosData extends SignalStore {
         this.opts = new DataServiceOptions();
         this.channels = [];
         this.debouncedSynchronizeLocalDataInIndexedDB = debounce(
-            this.synchronizeLocalDataInIndexedDB.bind(this),
+            this.syncLocalDataInIndexedDB.bind(this),
             300,
         );
 
@@ -162,7 +162,7 @@ export class PosData extends SignalStore {
         });
     }
 
-    async synchronizeLocalDataInIndexedDB() {
+    async syncLocalDataInIndexedDB() {
         return this.indexedDBMutex.exec(() => this._synchronizeLocalDataInIndexedDB());
     }
 
@@ -213,7 +213,7 @@ export class PosData extends SignalStore {
                     } else {
                         logPosMessage(
                             "DataService",
-                            "synchronizeLocalDataInIndexedDB",
+                            "syncLocalDataInIndexedDB",
                             `Paid order ${trackedUuid} is flagged unsynced but not confirmed durable (written=${!!written}, writeOk=${writeSucceeded}) — keeping data-loss guard`,
                             CONSOLE_COLOR,
                         );
@@ -225,7 +225,7 @@ export class PosData extends SignalStore {
         return data;
     }
 
-    async synchronizeServerDataInIndexedDB(serverData = {}) {
+    async syncServerDataInIndexedDB(serverData = {}) {
         try {
             const clone = JSON.parse(JSON.stringify(serverData));
             for (const [model, data] of Object.entries(clone)) {
@@ -234,7 +234,7 @@ export class PosData extends SignalStore {
                 } catch {
                     logPosMessage(
                         "DataService",
-                        "synchronizeServerDataInIndexedDB",
+                        "syncServerDataInIndexedDB",
                         `Error while updating ${model} in indexedDB.`,
                         CONSOLE_COLOR,
                     );
@@ -243,7 +243,7 @@ export class PosData extends SignalStore {
         } catch {
             logPosMessage(
                 "DataService",
-                "synchronizeServerDataInIndexedDB",
+                "syncServerDataInIndexedDB",
                 "Error while synchronizing server data in indexedDB.",
                 CONSOLE_COLOR,
             );
@@ -373,7 +373,7 @@ export class PosData extends SignalStore {
                     }
                 }
 
-                this.synchronizeServerDataInIndexedDB(localData);
+                this.syncServerDataInIndexedDB(localData);
             } catch (error) {
                 let message = _t(
                     "An error occurred while loading the Point of Sale: \n",
@@ -535,7 +535,7 @@ export class PosData extends SignalStore {
                 if (!record) {
                     return;
                 }
-                this.synchronizeServerDataInIndexedDB({ [model]: [record] });
+                this.syncServerDataInIndexedDB({ [model]: [record] });
             });
         }
     }
@@ -634,7 +634,7 @@ export class PosData extends SignalStore {
                         record.update(values, { omitUnknownField: true });
                     }
                 }
-                this.synchronizeServerDataInIndexedDB({
+                this.syncServerDataInIndexedDB({
                     [model]: records.map((record) => record.raw),
                 });
             }
@@ -684,7 +684,7 @@ export class PosData extends SignalStore {
         });
         const data = await this.missingRecursive({ [model]: identified });
         const results = this.models.connectNewData(data);
-        this.synchronizeServerDataInIndexedDB(
+        this.syncServerDataInIndexedDB(
             Object.fromEntries(
                 Object.entries(results).map(([name, records]) => [
                     name,
@@ -1084,7 +1084,7 @@ export class PosData extends SignalStore {
         if (data) {
             this.deviceSync?.dispatch && this.deviceSync.dispatch(data);
             const result = this.models.connectNewData(data);
-            this.synchronizeServerDataInIndexedDB(data);
+            this.syncServerDataInIndexedDB(data);
             return result;
         }
         return false;

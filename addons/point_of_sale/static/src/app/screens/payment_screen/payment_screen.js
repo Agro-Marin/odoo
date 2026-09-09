@@ -199,7 +199,7 @@ export class PaymentScreen extends Component {
             this.showMaxValueError();
         }
         if (amount === null) {
-            this.deletePaymentLine(this.selectedPaymentLine.uuid);
+            this.removePaymentLine(this.selectedPaymentLine.uuid);
         } else {
             this.selectedPaymentLine.setAmount(amount);
         }
@@ -268,7 +268,7 @@ export class PaymentScreen extends Component {
             this.currentOrder.setShippingDate(false);
         }
     }
-    async deletePaymentLine(uuid) {
+    async removePaymentLine(uuid) {
         const line = this.paymentLines.find((line) => line.uuid === uuid);
         if (line.payment_method_id.payment_method_type === "qr_code") {
             this.currentOrder.removePaymentline(line);

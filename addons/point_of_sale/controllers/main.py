@@ -299,7 +299,7 @@ class PosController(PortalAccount):
                 additional_invoice_fields, "invoice_", kwargs
             )
             form_values["extra_field_values"].update(prefixed_invoice_values)
-            missing_fields, error_messages = self._validate_extra_form_details(
+            missing_fields, error_messages = self._get_missing_fields_and_errors(
                 partner_values | invoice_values,
                 additional_partner_fields + additional_invoice_fields,
             )
@@ -385,7 +385,7 @@ class PosController(PortalAccount):
         values.update(country_id=partner.country_id.id, state_id=partner.state_id.id)
         return values
 
-    def _validate_extra_form_details(
+    def _get_missing_fields_and_errors(
         self, additional_form_values, additional_required_fields
     ):
         missing_fields = set()

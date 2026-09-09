@@ -10,7 +10,7 @@
  </div>
  <PaymentScreenPaymentLines
  paymentLines="paymentLines"
- deleteLine.bind="deletePaymentLine"
+ deleteLine.bind="removePaymentLine"
  sendForceDone.bind="sendForceDone"
  sendPaymentReverse.bind="sendPaymentReverse"
  sendPaymentCancel.bind="sendPaymentCancel"
@@ -48,7 +48,7 @@
  <div t-if="paymentLines.length" class="payment-summary d-flex flex-grow-1 flex-column gap-1 overflow-y-auto py-3">
  <PaymentScreenPaymentLines
  paymentLines="paymentLines"
- deleteLine.bind="deletePaymentLine"
+ deleteLine.bind="removePaymentLine"
  sendForceDone.bind="sendForceDone"
  sendPaymentReverse.bind="sendPaymentReverse"
  sendPaymentCancel.bind="sendPaymentCancel"

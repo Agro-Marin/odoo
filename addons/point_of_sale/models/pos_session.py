@@ -758,9 +758,7 @@ class PosSession(models.Model):
                     pass
             except UserError:
                 self.env.cr.rollback()
-                return self._prepare_action_force_close(
-                    balance, bank_payment_method_diffs
-                )
+                return self._open_force_close_wizard(balance, bank_payment_method_diffs)
 
             self.sudo()._post_statement_difference(cash_difference_before_statements)
             if record.move_id.line_ids:
@@ -849,7 +847,7 @@ class PosSession(models.Model):
                     body=_("Related Session: %(link)s", link=self._get_html_link())
                 )
 
-    def _prepare_action_force_close(
+    def _open_force_close_wizard(
         self, amount_to_balance, bank_payment_method_diffs=None
     ):
         default_account = self._get_balancing_account()

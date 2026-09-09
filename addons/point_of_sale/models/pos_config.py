@@ -1056,7 +1056,7 @@ class PosConfig(models.Model):
                     payment_methods
                 )
         pos_configs._create_sequences()
-        pos_configs.sudo()._check_modules_to_install()
+        pos_configs.sudo()._install_missing_modules()
         pos_configs._update_preparation_printers_menuitem_visibility()
         return pos_configs
 
@@ -1228,7 +1228,7 @@ class PosConfig(models.Model):
             ).use_fast_payment = False
         self.sudo()._update_fiscal_position_ids(vals)
         if any(k.startswith(("module_", "group_")) for k in vals):
-            self.sudo()._check_modules_to_install()
+            self.sudo()._install_missing_modules()
         if "is_order_printer" in vals:
             self._update_preparation_printers_menuitem_visibility()
         return result
@@ -1296,7 +1296,7 @@ class PosConfig(models.Model):
                     Command.link(config.default_fiscal_position_id.id)
                 ]
 
-    def _check_modules_to_install(self):
+    def _install_missing_modules(self):
         expected = [
             fname[7:]
             for fname in self._fields
@@ -1314,11 +1314,14 @@ class PosConfig(models.Model):
                 return True
         return False
 
-    def _prepare_action_open_ui(self):
+    def _get_or_create_current_session(self):
         if not self.current_session_id:
             self.env["pos.session"].create(
                 {"user_id": self.env.uid, "config_id": self.id}
             )
+        return self.current_session_id
+
+    def _prepare_action_open_ui(self):
         pos_url = "/pos/ui/%d?from_backend=True" % self.id
         debug = request and request.session.debug
         if debug:
@@ -1364,6 +1367,7 @@ class PosConfig(models.Model):
         self._check_fields(self._fields)
 
         self._check_company_has_fiscal_country()
+        self._get_or_create_current_session()
         return self._prepare_action_open_ui()
 
     def close_ui(self):

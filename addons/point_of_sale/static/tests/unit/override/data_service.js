@@ -21,7 +21,7 @@ patch(PosData.prototype, {
     initListeners() {
         return true;
     },
-    synchronizeLocalDataInIndexedDB() {
+    syncLocalDataInIndexedDB() {
         return true;
     },
     async getCachedServerDataFromIndexedDB() {

@@ -45,7 +45,7 @@ export function deduceUrl(url) {
     return url;
 }
 
-export function constructAttributeString(line) {
+export function getAttributeString(line) {
     let attributeString = "";
 
     if (line.attribute_value_ids && line.attribute_value_ids.length > 0) {
@@ -77,8 +77,8 @@ export function constructAttributeString(line) {
     return attributeString;
 }
 
-export function constructFullProductName(line) {
-    const attributeString = constructAttributeString(line);
+export function getFullProductName(line) {
+    const attributeString = getAttributeString(line);
     return attributeString
         ? `${line?.product_id?.name} (${attributeString})`
         : `${line?.product_id?.name}`;

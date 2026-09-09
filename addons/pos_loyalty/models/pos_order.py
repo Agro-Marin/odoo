@@ -351,8 +351,8 @@ class PosOrder(models.Model):
         for item in items_to_remove:
             coupon_data.pop(item)
 
-    def _get_mail_attachments(self, name, ticket, basic_ticket):
-        attachment = super()._get_mail_attachments(name, ticket, basic_ticket)
+    def _create_mail_attachments(self, name, ticket, basic_ticket):
+        attachment = super()._create_mail_attachments(name, ticket, basic_ticket)
         gift_card_programs = self.config_id._get_program_ids().filtered(
             lambda p: p.program_type == "gift_card" and p.pos_report_print_id
         )

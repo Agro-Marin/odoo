@@ -868,7 +868,7 @@ class PosOrder(models.Model):
             if not vals.get("session_id"):
                 raise UserError(_("A point of sale order must belong to a session."))
             session = self.env["pos.session"].browse(vals["session_id"])
-            self._complete_values_from_session(session, vals)
+            self._update_values_from_session(session, vals)
         return super().create(vals_list)
 
     def _update_sequence_number(self, session, values):
@@ -879,7 +879,7 @@ class PosOrder(models.Model):
         )
 
     @api.model
-    def _complete_values_from_session(self, session, values):
+    def _update_values_from_session(self, session, values):
         values.setdefault("pricelist_id", session.config_id.pricelist_id.id)
         values.setdefault(
             "fiscal_position_id", session.config_id.default_fiscal_position_id.id
@@ -2085,13 +2085,13 @@ class PosOrder(models.Model):
             force_send=True,
             email_values={
                 "email_to": email,
-                "attachment_ids": self._get_mail_attachments(
+                "attachment_ids": self._create_mail_attachments(
                     self.name, ticket_image, basic_image
                 ),
             },
         )
 
-    def _get_mail_attachments(self, name, ticket, basic_ticket):
+    def _create_mail_attachments(self, name, ticket, basic_ticket):
         attachments = []
         receipt = self.env["ir.attachment"].create(
             {

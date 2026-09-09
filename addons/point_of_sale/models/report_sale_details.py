@@ -32,7 +32,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         )
         currency = self._get_report_currency(configs)
 
-        sales = self._accumulate_products_and_taxes(orders, currency)
+        sales = self._get_sales_totals(orders, currency)
         payments = self._get_counted_payments(orders, sessions)
 
         return {
@@ -156,7 +156,7 @@ class ReportPoint_Of_SaleReport_Saledetails(models.AbstractModel):
         currencies = configs.currency_id
         return currencies if len(currencies) == 1 else self.env.company.currency_id
 
-    def _accumulate_products_and_taxes(self, orders, report_currency):
+    def _get_sales_totals(self, orders, report_currency):
         total = 0.0
         sold = self._prepare_sales_accumulator()
         refunded = self._prepare_sales_accumulator()

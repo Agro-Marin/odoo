@@ -583,7 +583,7 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
         current_session.update_closing_cash_details(total_cash_payment)
 
-        action = current_session._prepare_action_force_close(1.0)
+        action = current_session._open_force_close_wizard(1.0)
         wizard = self.env["pos.close.session.wizard"].browse(action["res_id"])
         wizard.with_context(action["context"]).action_close_session()
 

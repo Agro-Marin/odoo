@@ -124,7 +124,7 @@ class TestPosSessionClosingGuards(TestPoSCommon):
         session = self._start_pos_session(self.cash_pm1 | self.bank_split_pm1, 0)
         diffs = {self.bank_split_pm1.id: 3.0}
 
-        action = session._prepare_action_force_close(1.0, diffs)
+        action = session._open_force_close_wizard(1.0, diffs)
 
         self.assertEqual(action["context"]["bank_payment_method_diffs"], diffs)
 
@@ -142,7 +142,7 @@ class TestPosSessionClosingGuards(TestPoSCommon):
             forwarded.append(bank_payment_method_diffs)
             return True
 
-        action = session._prepare_action_force_close(1.0, diffs)
+        action = session._open_force_close_wizard(1.0, diffs)
         wizard = self.env["pos.close.session.wizard"].browse(action["res_id"])
         self.patch(type(session), "action_pos_session_closing_control", spy)
 
@@ -167,7 +167,7 @@ class TestPosSessionClosingGuards(TestPoSCommon):
             forwarded.append(bank_payment_method_diffs)
             return True
 
-        action = session._prepare_action_force_close(1.0, {})
+        action = session._open_force_close_wizard(1.0, {})
         wizard = self.env["pos.close.session.wizard"].browse(action["res_id"])
         self.patch(type(session), "action_pos_session_closing_control", spy)
 

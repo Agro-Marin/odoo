@@ -1,8 +1,5 @@
 /** @odoo-module native */
-import {
-    constructAttributeString,
-    constructFullProductName,
-} from "@point_of_sale/utils";
+import { getAttributeString, getFullProductName } from "@point_of_sale/utils";
 import { localization as l10n } from "@web/core/l10n/localization";
 import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
@@ -35,7 +32,7 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setFullProductName() {
-        this.full_product_name = constructFullProductName(this);
+        this.full_product_name = getFullProductName(this);
     }
 
     setOptions(options) {
@@ -518,7 +515,7 @@ export class PosOrderline extends PosOrderlineAccounting {
     get orderDisplayProductName() {
         return {
             name: this.product_id?.name,
-            attributeString: constructAttributeString(this),
+            attributeString: getAttributeString(this),
         };
     }
     isSelected() {

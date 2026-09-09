@@ -79,7 +79,7 @@ export default class DevicesSynchronisation {
     }
 
     async readDataFromServer() {
-        const { domain, recordIds } = this.constructOrdersDomain();
+        const { domain, recordIds } = this.getOrdersDomain();
         let response;
         try {
             response = await this.pos.data.call(
@@ -169,7 +169,7 @@ export default class DevicesSynchronisation {
     /**
      * @returns {Array}
      */
-    constructOrdersDomain() {
+    getOrdersDomain() {
         const databaseTable = this.pos.data.opts.databaseTable;
         const recordsToCheck = Array.from(this.dynamicModels).reduce((acc, model) => {
             const collection = this.models[model];

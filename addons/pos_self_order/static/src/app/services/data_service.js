@@ -57,12 +57,12 @@ export const unpatchSelf = patch(PosData.prototype, {
         }
         return isSelfOrderMobile() ? super.initListeners(...arguments) : true;
     },
-    synchronizeLocalDataInIndexedDB() {
+    syncLocalDataInIndexedDB() {
         if (!isSelfOrder()) {
-            return super.synchronizeLocalDataInIndexedDB(...arguments);
+            return super.syncLocalDataInIndexedDB(...arguments);
         }
         return isSelfOrderMobile()
-            ? super.synchronizeLocalDataInIndexedDB(...arguments)
+            ? super.syncLocalDataInIndexedDB(...arguments)
             : true;
     },
     async getCachedServerDataFromIndexedDB() {

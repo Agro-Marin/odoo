@@ -139,9 +139,7 @@ CORE = ROOT / "odoo"
 # holding them back -- `opening control`, `closing control` and `cash control`
 # are the POS domain's own nouns for the session's open and close steps, and
 # `scan_via_proxy` is a barcode scanner. Ten candidates, zero defects, which is
-# what §2.4.4 means by a candidate list. Its row is NOT in the tuple yet and the
-# paragraph above is written for the commit that adds it -- see the rule below,
-# which is why.
+# what §2.4.4 means by a candidate list.
 #
 # `purchase` is the fifth and is the cheapest row here, because the sweep that
 # earned it was done for another reason: nine renames across `purchase_order.py`,
@@ -171,7 +169,7 @@ CORE = ROOT / "odoo"
 # somebody re-measuring in that worktree, and by nothing else -- every session
 # had correctly read every scope as 0 in the shared checkout, where everyone's
 # uncommitted renames are present and the gate will never run.
-GOVERNED_ADDONS = ("core", "stock", "web", "sale", "purchase")
+GOVERNED_ADDONS = ("core", "stock", "web", "sale", "purchase", "point_of_sale")
 
 # `addons/mail` was swept against every rule that travels and is NOT here yet,
 # and one kind is the whole reason. Everything else the rules reach was renamed

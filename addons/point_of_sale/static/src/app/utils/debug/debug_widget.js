@@ -158,7 +158,7 @@ export class DebugWidget extends Component {
     }
 
     async exportData() {
-        const data = await this.pos.data.synchronizeLocalDataInIndexedDB();
+        const data = await this.pos.data.syncLocalDataInIndexedDB();
         const blob = this._createBlob(data);
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
