@@ -1118,7 +1118,10 @@ class DomainCondition(Domain):
             if positive_operator != "in":
                 op = "in" if positive_operator == op else "not in"
                 positive_operator = "in"
-            value = set(value.get_result_ids())
+            # Run it on the environment of the records being filtered: a rule
+            # domain is cached across requests, so a Query inside it may still
+            # point at the closed cursor of the request that built it.
+            value = set(value.get_result_ids(records.env))
             return DomainCondition(field_expr, op, value)._as_predicate(records)
 
         field = self._field(records)

@@ -8,10 +8,15 @@ if TYPE_CHECKING:
     from odoo.api import Environment
 
 
+class _StubCursor:
+    """Stands in for a database cursor: only its identity matters here."""
+
+
 class _StubEnv:
-    def __init__(self, rows=((1,), (2,), (3,))):
+    def __init__(self, rows=((1,), (2,), (3,)), cr=None):
         self.rows = list(rows)
         self.queries = []
+        self.cr = cr if cr is not None else _StubCursor()
 
     def execute_query(self, sql):
         self.queries.append(sql)
@@ -145,3 +150,71 @@ class TestQueryMemoInvalidation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestQueryForeignEnvironment(unittest.TestCase):
+    """A query outliving its request must run on the caller's cursor.
+
+    A record rule domain is cached across requests, and the queries inside it
+    come along, holding an environment whose cursor is closed by then. Running
+    the query there raises `InterfaceError: cursor already closed`.
+    """
+
+    def _query(self, rows=((1,), (2,), (3,))):
+        env = _StubEnv(rows)
+        return Query(cast("Environment", env), "res_partner"), env
+
+    def test_runs_on_the_environment_it_is_given(self):
+        query, stale_env = self._query()
+        live_env = _StubEnv(((7,), (8,)))
+
+        result = query.get_result_ids(cast("Environment", live_env))
+
+        self.assertEqual(result, (7, 8))
+        self.assertEqual(
+            stale_env.queries, [], "the stale environment must not be used"
+        )
+        self.assertEqual(len(live_env.queries), 1)
+
+    def test_own_environment_is_used_when_none_is_given(self):
+        query, own_env = self._query()
+
+        self.assertEqual(query.get_result_ids(), (1, 2, 3))
+        self.assertEqual(len(own_env.queries), 1)
+
+    def test_memo_is_kept_for_the_environment_that_built_it(self):
+        query, own_env = self._query()
+
+        query.get_result_ids()
+        query.get_result_ids()
+
+        self.assertEqual(len(own_env.queries), 1, "the second call must reuse the memo")
+
+    def test_a_foreign_result_does_not_poison_the_memo(self):
+        query, _own_env = self._query()
+        live_env = _StubEnv(((7,), (8,)))
+
+        query.get_result_ids(cast("Environment", live_env))
+
+        self.assertIsNone(
+            query._ids, "a result read in another transaction is not the memo"
+        )
+        self.assertEqual(query.get_result_ids(), (1, 2, 3))
+
+    def test_an_environment_sharing_the_cursor_uses_the_memo(self):
+        query, own_env = self._query()
+        sibling = _StubEnv(((7,), (8,)), cr=own_env.cr)
+
+        query.get_result_ids()
+        result = query.get_result_ids(cast("Environment", sibling))
+
+        self.assertEqual(result, (1, 2, 3))
+        self.assertEqual(sibling.queries, [], "same cursor, so the memo still applies")
+
+    def test_a_query_empty_by_construction_runs_nothing(self):
+        query, _own_env = self._query()
+        query.set_result_ids([])
+        live_env = _StubEnv(((7,), (8,)))
+
+        self.assertEqual(query.get_result_ids(cast("Environment", live_env)), ())
+        self.assertEqual(live_env.queries, [])
