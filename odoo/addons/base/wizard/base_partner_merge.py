@@ -268,8 +268,8 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             )
 
         deferred_values = {}
-        self._merge_phone_numbers(src_partners, dst_partner)
         if self._is_source_absorbed_on_merge():
+            self._merge_phone_numbers(src_partners, dst_partner)
             self._merge_bank_accounts(src_partners, dst_partner)
         self._merge_identifiers(src_partners, dst_partner)
 

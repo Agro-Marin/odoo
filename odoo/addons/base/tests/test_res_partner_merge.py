@@ -754,6 +754,49 @@ class TestMergePartnerIdentifiers(TransactionCase):
             "destination already holds is dropped",
         )
 
+    def test_phone_numbers_are_not_absorbed_when_values_are_not(self):
+        Partner = self.env["res.partner"]
+        src = Partner.create(
+            {
+                "name": "Phone Src NA",
+                "phone_ids": [Command.create({"number": "555-9001", "type": "mobile"})],
+            }
+        )
+        dst = Partner.create({"name": "Phone Dst NA"})
+
+        wizard = self.env["base.partner.merge.automatic.wizard"].create(
+            {"absorb_source_values": False}
+        )
+        wizard._merge([src.id, dst.id], dst)
+        self.env.invalidate_all()
+
+        self.assertFalse(src.exists())
+        self.assertFalse(
+            dst.phone_ids,
+            "a catch-all destination must not accumulate the numbers of every "
+            "contact merged into it -- `_merge_phone_numbers` ran unconditionally "
+            "while the bank-account merge beside it was gated",
+        )
+
+    def test_a_reference_pair_with_an_unstored_model_field_is_skipped(self):
+        # `automation.rule.trg_field_ref` is stored while the model_field it
+        # names, `trg_field_ref_model_name`, is computed and unstored. Since
+        # the pair is found with a domain over that model_field, including it
+        # raised "Cannot convert ... to SQL because it is not stored" and took
+        # every partner merge on a database carrying `automation` with it.
+        wizard = self.env["base.partner.merge.automatic.wizard"].create({})
+        for (
+            model_name,
+            model_field,
+            _field_name,
+        ) in wizard._get_sidecar_reference_fields():
+            model = self.env[model_name]
+            self.assertTrue(
+                model._fields[model_field].store,
+                f"{model_name}.{model_field} names the model of a reference "
+                "pair and must be stored, or the pair cannot be searched",
+            )
+
     def test_identifier_survives_a_merge_that_does_not_absorb_source_values(self):
         Partner = self.env["res.partner"]
         Identifier = self.env["res.partner.identifier"]

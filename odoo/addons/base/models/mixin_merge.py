@@ -289,7 +289,11 @@ class MixinMerge(models.AbstractModel):
             for model in self.env.values()
             if not model._abstract
             for field in model._fields.values()
-            if field.is_many2one_reference and field.store and field.model_field
+            if field.is_many2one_reference
+            and field.store
+            and field.model_field
+            and (name_field := model._fields.get(field.model_field)) is not None
+            and name_field.store
         )
 
     def _repoint_sidecar_rows(
