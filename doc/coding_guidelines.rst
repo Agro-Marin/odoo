@@ -1222,19 +1222,19 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   316
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 26,246
+§2.4.3   Non-test methods declared on a model class                 26,252
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               100
 §2.4.4   Model methods with an abolished verb behind a noun            132
-§2.4.4   ``fields`` family: definitions spelled head-first             212
-§2.4.4   ``fields`` family: distinct names spelled head-first           98
+§2.4.4   ``fields`` family: definitions spelled head-first             217
+§2.4.4   ``fields`` family: distinct names spelled head-first           99
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
 §2.4.4   Other heads: definitions spelled head-first                   131
-§2.4.4   Other heads: definitions spelled tail-first                   173
+§2.4.4   Other heads: definitions spelled tail-first                   174
 §2.4.5   ``X_to_Y`` converter definitions                               96
 §2.4.5   … distinct names                                               54
-§2.4.7   ``_get_*`` definitions                                      6,121
+§2.4.7   ``_get_*`` definitions                                      6,125
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   136
 §2.4.7   ``_calculate_*`` model methods                                  6
@@ -1259,7 +1259,7 @@ Section  Population                                                  Count
 §2.4.12  ``_sync_*`` definitions                                        76
 §2.4.12  ``_synchronize_*`` definitions                                  7
 §2.4.12  ``_post_*`` definitions                                       143
-§2.4.13  Module-level functions under ``models/`` and ``wizard/``      354
+§2.4.13  Module-level functions under ``models/`` and ``wizard/``      355
 §2.4.13  Methods on plain classes in model files                       414
 §2.4.13  … such classes                                                166
 §2.4.13  Functions nested inside model methods                         590
