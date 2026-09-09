@@ -14,7 +14,6 @@ import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { INPUT_DEBOUNCE_DELAY, useDebounced } from "@web/core/utils/timing";
-import { utils } from "@web/ui/viewport";
 
 const collator = new Intl.Collator();
 
@@ -243,7 +242,7 @@ export class SelectMenu extends Component {
     }
 
     get isBottomSheet() {
-        return utils.isSmall() && hasTouch();
+        return hasTouch();
     }
 
     get canDeselect() {

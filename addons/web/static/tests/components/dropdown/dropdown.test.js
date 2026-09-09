@@ -13,7 +13,7 @@ import {
     queryOne,
     resize,
 } from "@odoo/hoot-dom";
-import { animationFrame, Deferred, runAllTimers, tick } from "@odoo/hoot-mock";
+import { animationFrame, Deferred, mockTouch, runAllTimers, tick } from "@odoo/hoot-mock";
 import { Component, onMounted, onPatched, useRef, useState, xml } from "@odoo/owl";
 import { getPickerCell } from "@web/../tests/components/datetime/datetime_test_helpers";
 import {
@@ -1618,6 +1618,24 @@ test("multi-level dropdown: unsubscribe all keynav when root destroyed", async (
 test.tags("mobile");
 test("dropdown: no BottomSheet", async () => {
     await mountWithCleanup(NoBottomSheetDropdown);
+    await click(DROPDOWN_TOGGLE);
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(1);
+    expect(".o_bottom_sheet").toHaveCount(0);
+});
+
+test.tags("desktop");
+test("dropdown: BottomSheet on a wide touch screen", async () => {
+    mockTouch(true);
+    await mountWithCleanup(SimpleDropdown);
+    await click(DROPDOWN_TOGGLE);
+    await animationFrame();
+    expect(".o_bottom_sheet").toHaveCount(1);
+});
+
+test.tags("desktop");
+test("dropdown: no BottomSheet on a wide screen without touch", async () => {
+    await mountWithCleanup(SimpleDropdown);
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);

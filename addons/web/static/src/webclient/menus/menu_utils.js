@@ -20,7 +20,10 @@ function traverseMenuTree(tree, cb, parents = []) {
  * @returns {string}
  */
 export function menuHref(menu) {
-    return `/odoo/${menu.actionPath || `action-${menu.actionID}`}`;
+    const url = `/odoo/${menu.actionPath || `action-${menu.actionID}`}`;
+    // Middle-click and ctrl+click leave the webclient entirely, so the debug
+    // flag has to travel in the href: the new window boots from the URL alone.
+    return odoo.debug ? `${url}?debug=${odoo.debug}` : url;
 }
 
 /**

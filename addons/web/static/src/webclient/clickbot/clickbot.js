@@ -16,6 +16,7 @@ import {
 /** @typedef {import("@web/core/network/rpc").RpcEventDetail} RpcEventDetail */
 
 export const SUCCESS_SIGNAL = "clickbot test succeeded";
+export const FAILURE_SIGNAL = "clickbot test failed";
 
 const MOUSE_EVENTS = ["mouseover", "mouseenter", "mousedown", "mouseup", "click"];
 const STUDIO_SYSTRAY_ICON_SELECTOR = ".o_web_studio_navbar_item:not(.o_disabled) i";
@@ -115,6 +116,8 @@ class ClickBot {
                 testedMenus: [],
                 testedFilters: 0,
                 testedModals: 0,
+                errorMenuCount: 0,
+                uncaughtErrorCount: 0,
                 appIndex: 0,
                 menuIndex: 0,
                 subMenuIndex: 0,
@@ -122,6 +125,7 @@ class ClickBot {
             () => this.persist(),
         );
 
+        this.onUncaughtError = () => this.state.uncaughtErrorCount++;
         this.onUiUpdate = () => this.actionCount++;
         this.onActionSettled = () => this.settledCount++;
         this.onRPCRequest = (event) => {
@@ -179,6 +183,11 @@ class ClickBot {
         );
         rpcBus.addEventListener(RpcEvent.REQUEST, this.onRPCRequest);
         rpcBus.addEventListener(RpcEvent.RESPONSE, this.onRPCResponse);
+        // An app that breaks without opening an error dialog still reaches the
+        // console through the error service; count it here so the run can
+        // report it at the end instead of the browser settling on it.
+        browser.addEventListener("error", this.onUncaughtError);
+        browser.addEventListener("unhandledrejection", this.onUncaughtError);
 
         this.persistNow();
     }
@@ -196,6 +205,8 @@ class ClickBot {
         );
         rpcBus.removeEventListener(RpcEvent.REQUEST, this.onRPCRequest);
         rpcBus.removeEventListener(RpcEvent.RESPONSE, this.onRPCResponse);
+        browser.removeEventListener("error", this.onUncaughtError);
+        browser.removeEventListener("unhandledrejection", this.onUncaughtError);
         document.getElementById("stop-clickbot")?.remove();
     }
 
@@ -479,8 +490,13 @@ class ClickBot {
                 await this.testViews();
             }
         } catch (err) {
-            browser.console.error(`Error while testing ${menuDescription}`);
-            throw err;
+            if (this._stopped) {
+                throw err;
+            }
+            this.state.errorMenuCount++;
+            browser.console.error(
+                `Error while testing ${menuDescription}: ${err?.message || err}`,
+            );
         }
     }
 
@@ -512,16 +528,27 @@ class ClickBot {
     }
 
     report() {
-        const { testedApps, testedMenus, testedModals, testedFilters, studioCount } =
-            this.state;
-        browser.console.log(`Successfully tested ${testedApps.length} apps`);
-        browser.console.log(
-            `Successfully tested ${testedMenus.length - testedApps.length} menus`,
-        );
-        browser.console.log(`Successfully tested ${testedModals} modals`);
-        browser.console.log(`Successfully tested ${testedFilters} filters`);
+        const {
+            testedApps,
+            testedMenus,
+            testedModals,
+            testedFilters,
+            studioCount,
+            errorMenuCount,
+            uncaughtErrorCount,
+        } = this.state;
+        browser.console.log(`Tested ${testedApps.length} apps`);
+        browser.console.log(`Tested ${testedMenus.length - testedApps.length} menus`);
+        if (errorMenuCount > 0) {
+            browser.console.log(`Error found while testing ${errorMenuCount} menus`);
+        }
+        if (uncaughtErrorCount > 0) {
+            browser.console.log(`Uncaught errors: ${uncaughtErrorCount}`);
+        }
+        browser.console.log(`Tested ${testedModals} modals`);
+        browser.console.log(`Tested ${testedFilters} filters`);
         if (studioCount > 0) {
-            browser.console.log(`Successfully tested ${studioCount} views in Studio`);
+            browser.console.log(`Tested ${studioCount} views in Studio`);
         }
     }
 
@@ -550,10 +577,15 @@ class ClickBot {
             }
             console.log(`Test took ${(performance.now() - startTime) / 1000} seconds`);
             this.report();
-            browser.console.log(SUCCESS_SIGNAL);
+            if (this.state.errorMenuCount + this.state.uncaughtErrorCount === 0) {
+                browser.console.log(SUCCESS_SIGNAL);
+            } else {
+                browser.console.error(FAILURE_SIGNAL);
+            }
         } catch (err) {
             console.log(`Test took ${(performance.now() - startTime) / 1000} seconds`);
             browser.console.error(err || "test failed");
+            browser.console.error(FAILURE_SIGNAL);
         } finally {
             this.stop();
         }

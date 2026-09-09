@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { animationFrame } from "@odoo/hoot-dom";
+import { animationFrame, queryOne } from "@odoo/hoot-dom";
 import { Component, useState, xml } from "@odoo/owl";
 import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { ColorList } from "@web/components/colorlist/colorlist";
@@ -151,4 +151,42 @@ test("a list that arrives expanded does not take focus from the page", async () 
     await contains(".o_colorlist_item_color_1").click();
     await contains(".o_colorlist_toggler").click();
     expect(".o_colorlist_item_color_1").toBeFocused();
+});
+
+class BottomSheetParent extends Component {
+    static components = { ColorList };
+    static template = xml`
+        <div class="o_bottom_sheet">
+            <div class="o_bottom_sheet_body">
+                <ColorList colors="props.colors" forceExpanded="true" onColorSelected="() => {}"/>
+            </div>
+        </div>
+    `;
+    static props = ["*"];
+}
+
+/** @returns {string[]} */
+function gridColumns() {
+    return getComputedStyle(queryOne(".o_colorlist")).gridTemplateColumns.split(" ");
+}
+
+test.tags("desktop");
+test("colorlist in a bottom sheet lays out on one row on a wide screen", async () => {
+    await mountWithCleanup(BottomSheetParent, {
+        props: { colors: [...Array(12).keys()] },
+    });
+
+    expect(".o_colorlist button").toHaveCount(12);
+    expect(gridColumns()).toHaveLength(12, {
+        message: "the 12 colors fit in a single row of a wide bottom sheet",
+    });
+});
+
+test.tags("mobile");
+test("colorlist in a bottom sheet stays on two rows on a narrow screen", async () => {
+    await mountWithCleanup(BottomSheetParent, {
+        props: { colors: [...Array(12).keys()] },
+    });
+
+    expect(gridColumns()).toHaveLength(6);
 });

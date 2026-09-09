@@ -612,9 +612,9 @@ test("User can move the main (first) embedded action", async () => {
     await mountWebClient();
     await getService("action").doAction(1);
     await contains(".o_control_panel_navigation > button > i.fa-sliders").click();
-    await waitFor(".o_popover.dropdown-menu");
+    await waitFor(".o_bottom_sheet_sheet");
     await contains(
-        ".o_popover.dropdown-menu .dropdown-item > div > span:contains('Embedded Action 2')",
+        ".o_bottom_sheet_sheet .dropdown-item > div > span:contains('Embedded Action 2')",
     ).click();
     await contains(".o_embedded_actions > button:first-child").dragAndDrop(
         ".o_embedded_actions > button:nth-child(2)",

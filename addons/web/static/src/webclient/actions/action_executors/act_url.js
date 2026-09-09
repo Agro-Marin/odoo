@@ -31,9 +31,11 @@ export function openURL(url, am) {
  * @param {ActionManager} am
  */
 export function openActionInNewWindow(action, state, am) {
+    // The new window boots from the URL, so the debug flag has to be in it.
+    const nextState = odoo.debug ? { ...state, debug: odoo.debug } : state;
     actionStorage.withTemporaryEntry(
-        { serializedAction: action._originalAction, state },
-        () => openURL(am.router.stateToUrl(state), am),
+        { serializedAction: action._originalAction, state: nextState },
+        () => openURL(am.router.stateToUrl(nextState), am),
     );
 }
 

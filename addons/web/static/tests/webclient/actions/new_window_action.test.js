@@ -10,6 +10,7 @@ import {
     models,
     mountWebClient,
     patchWithCleanup,
+    serverState,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
@@ -80,6 +81,13 @@ test("can execute act_window actions from db ID in a new window", async () => {
     await mountWebClient();
     await getService("action").doAction(1, { newWindow: true });
     expect.verifySteps(["open: /odoo/action-1"]);
+});
+
+test("opening in a new window carries the debug flag", async () => {
+    serverState.debug = "assets";
+    await mountWebClient();
+    await getService("action").doAction(1, { newWindow: true });
+    expect.verifySteps(["open: /odoo/action-1?debug=assets"]);
 });
 
 test("'CLEAR-UNCOMMITTED-CHANGES' is not triggered for window action", async () => {

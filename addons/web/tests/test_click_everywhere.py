@@ -10,6 +10,24 @@ from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 _logger = logging.getLogger(__name__)
 
+CLICKBOT_SUCCESS_SIGNAL = "clickbot test succeeded"
+CLICKBOT_FAILURE_SIGNAL = "clickbot test failed"
+
+
+def _clickbot_error_checker(message):
+    """Let the clickbot deliver its own verdict.
+
+    The bot logs every broken menu and keeps going, then ends the run with
+    either the success signal or the failure one. Settling on the first
+    console error -- the error service's traceback, which arrives before the
+    bot has even seen the error dialog -- would stop the run at the first
+    broken app and leave every other one untested, which is the whole point of
+    letting it continue. The bot counts uncaught errors too, so nothing a
+    console error would have caught is lost: it comes back as the failure
+    signal at the end, with all of them named above it.
+    """
+    return CLICKBOT_FAILURE_SIGNAL in message
+
 
 @odoo.tests.tagged("click_all", "post_install", "-at_install", "-standard")
 class TestMenusAdmin(odoo.tests.HttpCase):
@@ -38,7 +56,8 @@ class TestMenusAdmin(odoo.tests.HttpCase):
                     "odoo.isReady === true",
                     login="admin",
                     timeout=1200,
-                    success_signal="clickbot test succeeded",
+                    success_signal=CLICKBOT_SUCCESS_SIGNAL,
+                    error_checker=_clickbot_error_checker,
                 )
 
 
@@ -57,7 +76,8 @@ class TestMenusDemo(HttpCaseWithUserDemo):
                     "odoo.isReady === true",
                     login="demo",
                     timeout=1200,
-                    success_signal="clickbot test succeeded",
+                    success_signal=CLICKBOT_SUCCESS_SIGNAL,
+                    error_checker=_clickbot_error_checker,
                 )
 
 
@@ -97,7 +117,8 @@ class TestMenusAdminLight(odoo.tests.HttpCase):
             "odoo.isReady === true",
             login="admin",
             timeout=120,
-            success_signal="clickbot test succeeded",
+            success_signal=CLICKBOT_SUCCESS_SIGNAL,
+            error_checker=_clickbot_error_checker,
         )
 
 
@@ -119,5 +140,6 @@ class TestMenusDemoLight(HttpCaseWithUserDemo):
             "odoo.isReady === true",
             login="demo",
             timeout=120,
-            success_signal="clickbot test succeeded",
+            success_signal=CLICKBOT_SUCCESS_SIGNAL,
+            error_checker=_clickbot_error_checker,
         )

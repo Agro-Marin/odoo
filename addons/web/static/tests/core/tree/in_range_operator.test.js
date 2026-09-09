@@ -8,6 +8,7 @@ import { condition, connector, expression } from "@web/core/tree/condition_tree"
 import { constructDomainFromTree } from "@web/core/tree/construct_domain_from_tree";
 import {
     eliminateVirtualOperators,
+    getInRangeDates,
     introduceVirtualOperators,
 } from "@web/core/tree/virtual_operators";
 
@@ -1489,4 +1490,20 @@ test(`"in range" operator: introduction/elimination for date fields`, async () =
             domain || [],
         );
     }
+});
+
+test(`"in range" operator: the displayed dates come from the deltas the domain is built from`, async () => {
+    mockDate("2025-07-03 16:20:00");
+    await makeMockEnv();
+
+    // The domain is `>= lower and < upper`, so the last day a range matches is
+    // the day before its upper bound.
+    expect(getInRangeDates("today")).toEqual(["2025-07-03", "2025-07-03"]);
+    expect(getInRangeDates("last 7 days")).toEqual(["2025-06-26", "2025-07-02"]);
+    expect(getInRangeDates("last 30 days")).toEqual(["2025-06-03", "2025-07-02"]);
+    expect(getInRangeDates("month to date")).toEqual(["2025-07-01", "2025-07-03"]);
+    expect(getInRangeDates("last month")).toEqual(["2025-06-01", "2025-06-30"]);
+    expect(getInRangeDates("year to date")).toEqual(["2025-01-01", "2025-07-03"]);
+    expect(getInRangeDates("last 12 months")).toEqual(["2024-07-01", "2025-06-30"]);
+    expect(getInRangeDates("custom range")).toBe(null);
 });

@@ -10,7 +10,7 @@ import {
     queryOne,
     queryValue,
 } from "@odoo/hoot-dom";
-import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
+import { animationFrame, mockTouch, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
     contains,
@@ -1331,6 +1331,24 @@ test("Fetch choices", async () => {
     await open();
     await editInput("test");
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["test"]);
+});
+
+test.tags("desktop");
+test("SelectMenu opens as a BottomSheet on a wide touch screen", async () => {
+    mockTouch(true);
+    await mountSingleApp(Parent);
+    await click(".o_select_menu_toggler");
+    await animationFrame();
+    expect(".o_bottom_sheet").toHaveCount(1);
+});
+
+test.tags("desktop");
+test("SelectMenu opens as a dropdown on a wide screen without touch", async () => {
+    await mountSingleApp(Parent);
+    await click(".o_select_menu_toggler");
+    await animationFrame();
+    expect(".o_bottom_sheet").toHaveCount(0);
+    expect(".o_select_menu_menu").toHaveCount(1);
 });
 
 test.tags("mobile");

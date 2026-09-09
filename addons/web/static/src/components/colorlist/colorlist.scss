@@ -11,6 +11,13 @@
         --ColorListField-Entry-fontSize: 1.4em;
 
         grid-template-columns: repeat(var(--ColorListField-columns, 6), 1fr);
+
+        // After the unconditional rule, not before: sass emits the @media
+        // block where the include sits, and a later rule of equal specificity
+        // would win over it.
+        @include media-breakpoint-up(md) {
+            grid-template-columns: repeat(var(--ColorListField-columns, 12), 1fr);
+        }
     }
 
     #{$-entry} {
