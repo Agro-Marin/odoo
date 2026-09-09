@@ -1068,11 +1068,11 @@ export class HierarchyModel extends Model {
      */
     async updateParentNode(nodeId, { parentNodeId, parentResId }) {
         const node = this.root.nodePerNodeId[nodeId];
-        const resId = node.resId;
         // Validation.
         if (!node) {
             return;
         }
+        const resId = node.resId;
         const parentNode = parentNodeId ? this.root.nodePerNodeId[parentNodeId] : null;
         parentResId = parentResId || parentNode?.resId || false;
         const oldParentNode = node.parentNode;
