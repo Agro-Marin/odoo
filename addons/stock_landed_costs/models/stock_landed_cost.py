@@ -1,7 +1,10 @@
+import logging
 from collections import defaultdict
 
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 SPLIT_METHOD = [
     ("equal", "Equal"),
@@ -33,13 +36,6 @@ class StockLandedCost(models.Model):
         copy=False,
         required=True,
         tracking=True,
-    )
-    target_model = fields.Selection(
-        [("picking", "Transfers")],
-        string="Apply On",
-        required=True,
-        default="picking",
-        copy=False,
     )
     picking_ids = fields.Many2many("stock.picking", string="Transfers", copy=False)
     cost_lines = fields.One2many(
@@ -94,11 +90,6 @@ class StockLandedCost(models.Model):
     def _compute_total_amount(self):
         for cost in self:
             cost.amount_total = sum(line.price_unit for line in cost.cost_lines)
-
-    @api.onchange("target_model")
-    def _onchange_target_model(self):
-        if self.target_model != "picking":
-            self.picking_ids = False
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -195,13 +186,9 @@ class StockLandedCost(models.Model):
             lines.append(vals)
 
         if not lines:
-            target_model_descriptions = dict(
-                self._fields["target_model"]._description_selection(self.env)
-            )
             raise UserError(
                 _(
-                    "You cannot apply landed costs on the chosen %s(s). Landed costs can only be applied for products with FIFO or average costing method.",
-                    target_model_descriptions[self.target_model],
+                    "You cannot apply landed costs on the chosen Transfer(s). Landed costs can only be applied for products with FIFO or average costing method."
                 )
             )
         return lines
@@ -257,6 +244,15 @@ class StockLandedCost(models.Model):
                             per_unit = line.price_unit / total_cost
                             value = valuation.former_cost * per_unit
                         else:
+                            if line.split_method != "equal":
+                                _logger.warning(
+                                    "Landed cost %s: split method %r could not be "
+                                    "applied on cost line %s (its total was zero); "
+                                    "falling back to an equal split.",
+                                    cost.id,
+                                    line.split_method,
+                                    line.id,
+                                )
                             value = line.price_unit / total_line
 
                         if rounding:
@@ -286,13 +282,9 @@ class StockLandedCost(models.Model):
             raise UserError(_("Only draft landed costs can be validated"))
         for cost in self:
             if not cost._get_targeted_move_ids():
-                target_model_descriptions = dict(
-                    self._fields["target_model"]._description_selection(self.env)
-                )
                 raise UserError(
                     _(
-                        "Please define %s on which those additional costs should apply.",
-                        target_model_descriptions[cost.target_model],
+                        "Please define Transfer(s) on which those additional costs should apply."
                     )
                 )
 
@@ -372,7 +364,7 @@ class StockValuationAdjustmentLines(models.Model):
         index=True,
     )
     cost_line_id = fields.Many2one(
-        "stock.landed.cost.lines", "Cost Line", readonly=True
+        "stock.landed.cost.lines", "Cost Line", readonly=True, ondelete="cascade"
     )
     move_id = fields.Many2one("stock.move", "Stock Move", readonly=True)
     product_id = fields.Many2one("product.product", "Product", required=True)
@@ -410,6 +402,14 @@ class StockValuationAdjustmentLines(models.Model):
             self.cost_line_id.account_id.id
             or cost_product._get_product_accounts()["expense"].id
         )
+
+        if not debit_account_id:
+            raise UserError(
+                _(
+                    "Please configure Stock Valuation Account for product: %s.",
+                    self.product_id.name,
+                )
+            )
 
         if not credit_account_id:
             raise UserError(

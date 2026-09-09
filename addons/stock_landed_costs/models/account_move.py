@@ -21,6 +21,8 @@ class AccountMove(models.Model):
 
     def button_create_landed_costs(self):
         self.check_singleton()
+        if self.landed_costs_ids:
+            return self.action_view_landed_costs()
         landed_costs_lines = self.line_ids.filtered(
             lambda line: line.is_landed_costs_line
         )
@@ -39,9 +41,11 @@ class AccountMove(models.Model):
                             {
                                 "product_id": l.product_id.id,
                                 "name": l.product_id.name,
-                                "account_id": l.product_id.product_tmpl_id._get_product_accounts()[
-                                    "stock_valuation"
-                                ].id,
+                                "account_id": l.product_id.product_tmpl_id.with_company(
+                                    self.company_id
+                                )
+                                ._get_product_accounts()["stock_valuation"]
+                                .id,
                                 "price_unit": sign
                                 * l.currency_id._convert(
                                     l.price_subtotal,
