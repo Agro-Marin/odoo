@@ -23,8 +23,7 @@ from odoo.tools import (
     get_lang,
     html2plaintext,
 )
-from odoo.tools.formatting import ROUNDING_UNIT_MAPPING
-from odoo.tools.misc import format_date, formatLang
+from odoo.tools.misc import format_date
 
 from odoo.addons.account.models.account_report import (
     ACCOUNT_CODES_ENGINE_SPLIT_REGEX,
@@ -1025,25 +1024,6 @@ class AccountReport(models.Model):
 
         return dict(rounding_unit_names)
 
-    def _filter_out_0_lines(self, lines):
-        """Returns a list containing all lines that are not zero or that are parent to non-zero lines.
-        Can be used to ensure printed report does not include 0 lines, when hide_0_lines is toggled.
-        """
-        lines_to_hide = set()  # contain line ids to remove from lines
-        has_visible_children = set()  # contain parent line ids
-        # Traverse lines in reverse to keep track of visible parent lines required by children lines
-        for line in reversed(lines):
-            is_zero_line = all(
-                col.get("figure_type") not in NUMBER_FIGURE_TYPES
-                or col.get("is_zero", True)
-                for col in line["columns"]
-            )
-            if is_zero_line and line["id"] not in has_visible_children:
-                lines_to_hide.add(line["id"])
-            if line.get("parent_id") and line["id"] not in lines_to_hide:
-                has_visible_children.add(line["parent_id"])
-        return list(filter(lambda x: x["id"] not in lines_to_hide, lines))
-
     ####################################################
     # OPTIONS: COLUMN HEADERS
     ####################################################
@@ -1093,14 +1073,6 @@ class AccountReport(models.Model):
             return rslt
         else:
             return [previous_levels_group_vals]
-
-    def _get_dict_hashable_key_tuple(self, dict_to_convert):
-        rslt = []
-        for key, value in sorted(dict_to_convert.items()):
-            if isinstance(value, dict):
-                value = self._get_dict_hashable_key_tuple(value)
-            rslt.append((key, value))
-        return tuple(rslt)
 
     ####################################################
     # OPTIONS: BUTTONS
@@ -1276,16 +1248,6 @@ class AccountReport(models.Model):
         return self._prepare_line_id(parent_id_list + [(markup, model_name, value)])
 
     @api.model
-    def _get_model_info_from_id(self, line_id):
-        """Parse the provided generic report line id.
-
-        :param line_id: the report line id (i.e. markup~model~value|markup2~model2~value2 where | is the LINE_ID_HIERARCHY_DELIMITER)
-        :return: tuple(model, id) of the report line. Each of those values can be None if the id contains no information about them.
-        """
-        last_id_tuple = self._parse_line_id(line_id)[-1]
-        return last_id_tuple[-2:]
-
-    @api.model
     def _prepare_parent_line_id(self, current):
         """Build the parent_line id based on the current position in the report.
 
@@ -1402,11 +1364,6 @@ class AccountReport(models.Model):
 
         return result
 
-    @api.model
-    def _get_markup(self, line_id):
-        """Directly returns the markup associated with the provided line_id."""
-        return self._parse_line_id(line_id)[-1][0] if line_id else None
-
     def _prepare_subline_id(self, parent_line_id, subline_id_postfix):
         """Creates a new subline id by concatanating parent_line_id with the provided id postfix."""
         return f"{parent_line_id}{LINE_ID_HIERARCHY_DELIMITER}{subline_id_postfix}"
@@ -1428,32 +1385,6 @@ class AccountReport(models.Model):
             or self.root_report_id.custom_handler_model_name
             or None
         )
-
-    def _get_custom_report_function(self, function_name, prefix):
-        """Returns a report function from its name, first checking it to ensure it's private (and raising if it isn't).
-        This helper is used by custom report fields containing function names.
-        The function will be called on the report's custom handler if it exists, or on the report itself otherwise.
-        """
-        self.check_singleton()
-        function_name_prefix = f"_report_{prefix}_"
-        if not function_name.startswith(function_name_prefix):
-            raise UserError(
-                _(
-                    "Method '%(method_name)s' must start with the '%(prefix)s' prefix.",
-                    method_name=function_name,
-                    prefix=function_name_prefix,
-                )
-            )
-
-        if self.custom_handler_model_id:
-            handler = self.env[self.custom_handler_model_name]
-            if hasattr(handler, function_name):
-                return getattr(handler, function_name)
-
-        if not hasattr(self, function_name):
-            raise UserError(_("Invalid method “%s”", function_name))
-        # function_name was already validated to start with the private prefix above.
-        return getattr(self, function_name)
 
     def _generate_common_warnings(self, options, warnings):
         # Display a warning if we're displaying only the data of the current company, but it's also part of a tax unit
@@ -1490,49 +1421,6 @@ class AccountReport(models.Model):
                 )
             if self.env["account.move"].search_count(domain, limit=1):
                 warnings["account.common_warning_draft_in_period"] = {}
-
-    def _fully_unfold_lines_if_needed(self, lines, options):
-        def line_need_expansion(line_dict):
-            return line_dict.get("unfolded") and line_dict.get("expand_function")
-
-        custom_unfold_all_batch_data = None
-
-        # If it's possible to batch unfold and we're unfolding all lines, compute the batch, so that individual expansions are more efficient
-        if options["unfold_all"] and self.custom_handler_model_id:
-            lines_to_expand_by_function = {}
-            for line_dict in lines:
-                if line_need_expansion(line_dict):
-                    lines_to_expand_by_function.setdefault(
-                        line_dict["expand_function"], []
-                    ).append(line_dict)
-
-            custom_unfold_all_batch_data = self.env[
-                self.custom_handler_model_name
-            ]._custom_unfold_all_batch_data_generator(
-                self, options, lines_to_expand_by_function
-            )
-
-        i = 0
-        while i < len(lines):
-            # We iterate in such a way that if the lines added by an expansion need expansion, they will get it as well
-            line_dict = lines[i]
-            if line_need_expansion(line_dict):
-                groupby = line_dict.get("groupby")
-                progress = line_dict.get("progress")
-                to_insert = self._expand_unfoldable_line(
-                    line_dict["expand_function"],
-                    line_dict["id"],
-                    groupby,
-                    options,
-                    progress,
-                    0,
-                    line_dict.get("horizontal_split_side"),
-                    unfold_all_batch_data=custom_unfold_all_batch_data,
-                )
-                lines = lines[: i + 1] + to_insert + lines[i + 1 :]
-            i += 1
-
-        return lines
 
     def _add_account_status_on_lines(self, lines, options):
         if not options["audit"]["id"]:
@@ -1587,104 +1475,6 @@ class AccountReport(models.Model):
             "page_break": False,  # If the section's line possesses a page break, we don't want the total to have it.
         }
 
-    def _get_static_line_dict(
-        self, options, line, all_column_groups_expression_totals, parent_id=None
-    ):
-        line_id = self._get_generic_line_id(
-            "account.report.line", line.id, parent_line_id=parent_id
-        )
-        columns = self._prepare_static_line_columns(
-            line, options, all_column_groups_expression_totals
-        )
-        groupby = line._get_groupby(options)
-        has_children = (
-            groupby and any(col["has_sublines"] for col in columns)
-        ) or bool(line.children_ids)
-
-        rslt = {
-            "id": line_id,
-            "name": line.name,
-            "groupby": groupby,
-            "unfoldable": line.foldable and has_children,
-            "unfolded": (not line.foldable and (groupby or has_children))
-            or line_id in options["unfolded_lines"]
-            or (has_children and options["unfold_all"]),
-            "columns": columns,
-            "level": line.hierarchy_level,
-            "page_break": line.print_on_new_page,
-            "action_id": line.action_id.id,
-            "expand_function": (
-                groupby and "_report_expand_unfoldable_line_with_groupby"
-            )
-            or None,
-        }
-
-        if line.horizontal_split_side:
-            rslt["horizontal_split_side"] = line.horizontal_split_side
-
-        if parent_id:
-            rslt["parent_id"] = parent_id
-
-        if options["export_mode"] == "file":
-            rslt["code"] = line.code
-
-        if options["show_debug_column"]:
-            first_group_key = next(iter(options["column_groups"].keys()))
-            column_group_totals = all_column_groups_expression_totals[first_group_key]
-            # Only consider the first column group, as show_debug_column is only true if there is but one.
-
-            engine_selection_labels = dict(
-                self.env["account.report.expression"]
-                ._fields["engine"]
-                ._description_selection(self.env)
-            )
-            expressions_detail = defaultdict(list)
-            col_expression_to_figure_type = {
-                column.get("expression_label"): column.get("figure_type")
-                for column in options["columns"]
-            }
-            for expression in line.expression_ids.filtered(
-                lambda x: not x.label.startswith("_default")
-            ):
-                engine_label = engine_selection_labels[expression.engine]
-                figure_type = (
-                    expression.figure_type
-                    or col_expression_to_figure_type.get(expression.label)
-                    or "none"
-                )
-                value = self.format_value(
-                    options, column_group_totals[expression]["value"], figure_type
-                )
-                if not isinstance(value, (str, int, float, bool, type(None))):
-                    # figure_type "none" returns the value unformatted, so anything the
-                    # engine produced reaches json.dumps as-is. Stringify it here rather
-                    # than let the dump fail: by then the offending expression is no
-                    # longer identifiable.
-                    value = str(value)
-                expressions_detail[engine_label].append(
-                    (
-                        expression.label,
-                        {
-                            "formula": expression.formula,
-                            "subformula": expression.subformula,
-                            "value": value,
-                        },
-                    )
-                )
-
-            # Sort results so that they can be rendered nicely in the UI
-            for details in expressions_detail.values():
-                details.sort(key=lambda x: x[0])
-            sorted_expressions_detail = sorted(
-                expressions_detail.items(), key=lambda x: x[0]
-            )
-
-            if sorted_expressions_detail:
-                rslt["debug_popup_data"] = json.dumps(
-                    {"expressions_detail": sorted_expressions_detail}
-                )
-        return rslt
-
     def _inject_account_names_for_consolidation(self, lines):
         """When grouping by account_code, in order to make the consolidation clearer, we add the account name in the context
         of the current company next to the account_code.
@@ -1715,35 +1505,6 @@ class AccountReport(models.Model):
                 account_name = account_code_to_account_name_dict.get(account_code)
                 if account_code and account_name:
                     line["name"] = f"{account_code} {account_name}"
-
-    def _get_dynamic_lines(
-        self, options, all_column_groups_expression_totals, warnings=None
-    ):
-        if self.custom_handler_model_id:
-            rslt = self.env[self.custom_handler_model_name]._dynamic_lines_generator(
-                self, options, all_column_groups_expression_totals, warnings=warnings
-            )
-            self._apply_integer_rounding_to_dynamic_lines(
-                options, (line for _sequence, line in rslt)
-            )
-            return rslt
-        return []
-
-    def _apply_integer_rounding_to_dynamic_lines(self, options, dynamic_lines):
-        if options.get("integer_rounding_enabled"):
-            for line in dynamic_lines:
-                for column_dict in line.get("columns", []):
-                    if (
-                        "name" not in column_dict
-                        and column_dict.get("figure_type") == "monetary"
-                        and column_dict.get("no_format")
-                    ):
-                        # If 'name' is already in it, no need to round the amount ; it is forced by the custom report already
-                        column_dict["no_format"] = float_round(
-                            column_dict["no_format"],
-                            precision_digits=0,
-                            rounding_method=options["integer_rounding"],
-                        )
 
     def _standardize_date_scope_for_date_range(self, date_scope):
         """Return the canonical date_scope to use for this report.
@@ -2786,246 +2547,6 @@ class AccountReport(models.Model):
             offset,
             horizontal_split_side,
         )
-
-    def _add_totals_below_sections(self, lines, options):
-        """Returns a new list, corresponding to lines with the required total lines added as sublines of the sections it contains."""
-        if not self.env.company.totals_below_sections or options.get(
-            "ignore_totals_below_sections"
-        ):
-            return lines
-
-        # Gather the lines needing the totals
-        lines_needing_total_below = set()
-        for line_dict in lines:
-            line_markup = self._get_markup(line_dict["id"])
-
-            if line_markup != "total":
-                # If we are on the first level of an expandable line, we arelady generate its total
-                if line_dict.get("unfoldable") or (
-                    line_dict.get("unfolded") and line_dict.get("expand_function")
-                ):
-                    lines_needing_total_below.add(line_dict["id"])
-
-                # All lines that are parent of other lines need to receive a total
-                line_parent_id = line_dict.get("parent_id")
-                if line_parent_id:
-                    lines_needing_total_below.add(line_parent_id)
-
-        # Inject the totals
-        if lines_needing_total_below:
-            lines_with_totals_below = []
-            totals_below_stack = []
-            for line_dict in lines:
-                while totals_below_stack and not line_dict["id"].startswith(
-                    totals_below_stack[-1]["parent_id"] + LINE_ID_HIERARCHY_DELIMITER
-                ):
-                    lines_with_totals_below.append(totals_below_stack.pop())
-
-                lines_with_totals_below.append(line_dict)
-
-                if line_dict["id"] in lines_needing_total_below and any(
-                    col.get("no_format") is not None for col in line_dict["columns"]
-                ):
-                    totals_below_stack.append(
-                        self._generate_total_below_section_line(line_dict)
-                    )
-
-            while totals_below_stack:
-                lines_with_totals_below.append(totals_below_stack.pop())
-
-            return lines_with_totals_below
-
-        return lines
-
-    def _cleanup_empty_sections(self, lines):
-        """Resets the fold state for parents left without visible children, and removes their orphaned total lines.
-        The total line removal only applies when called after _add_totals_below_sections.
-        """
-        # Collect parent IDs that still have at least one non-total child visible.
-        # Total lines are generated from the parent itself and don't count as expandable children.
-        parents_with_non_total_child = set()
-        markups = {}
-        for line in lines:
-            markup = self._get_markup(line["id"])
-            markups[line["id"]] = markup
-            parent_id = line.get("parent_id")
-            if parent_id is not None and markup != "total":
-                parents_with_non_total_child.add(parent_id)
-
-        result = []
-        for line in lines:
-            # Lines with an expand_function load their children on demand, so hide_if_zero doesn't affect them.
-            if line.get("expand_function"):
-                result.append(line)
-            elif markups[line["id"]] == "total":
-                # Keep report-level totals (no parent), and keep section totals only if
-                # their parent still has non-total children.
-                if (
-                    line.get("parent_id") is None
-                    or line.get("parent_id") in parents_with_non_total_child
-                ):
-                    result.append(line)
-            elif line["id"] in parents_with_non_total_child:
-                result.append(line)
-            else:
-                line["unfoldable"] = False
-                line["unfolded"] = False
-                result.append(line)
-
-        return result
-
-    @api.model
-    def _get_load_more_line(
-        self, offset, parent_line_id, expand_function_name, groupby, progress, options
-    ):
-        """Returns a 'Load more' line allowing to reach the subsequent elements of an unfolded line with an expand function if the maximum
-        limit of sublines is reached (we load them by batch, using the load_more_limit field's value).
-
-        :param offset: The offset to be passed to the expand function to generate the next results, when clicking on this 'load more' line.
-
-        :param parent_line_id: The generic id of the line this load more line is created for.
-
-        :param expand_function_name: The name of the expand function this load_more is created for (so, the one of its parent).
-
-        :param progress: A json-formatted dict(column_group_key, value) containing the progress value for each column group, as it was
-                         returned by the expand function. This is for example used by reports such as the general ledger, whose lines display a
-                         cumulative sum of their balance and the one of all the previous lines under the same parent. In this case, progress
-                         will be the total sum of all the previous lines before the load_more line, that the subsequent lines will need to use as
-                         base for their own cumulative sum.
-
-        :param options: The options dict corresponding to this report's state.
-        """
-        return {
-            "id": self._get_generic_line_id(
-                None, None, parent_line_id=parent_line_id, markup="load_more"
-            ),
-            "name": _("Load more..."),
-            "parent_id": parent_line_id,
-            "expand_function": expand_function_name,
-            "columns": [{} for col in options["columns"]],
-            "unfoldable": False,
-            "unfolded": False,
-            "offset": offset,
-            "groupby": groupby,  # We keep the groupby value from the parent, so that it can be propagated through js
-            "progress": progress,
-        }
-
-    @api.model
-    def _get_prefix_groups_matched_prefix_from_line_id(self, line_dict_id):
-        matched_prefix = ""
-        for markup, _model, _record_id in self._parse_line_id(line_dict_id):
-            if markup and isinstance(markup, dict) and "groupby_prefix_group" in markup:
-                prefix_piece = markup["groupby_prefix_group"]
-                matched_prefix += prefix_piece.upper()
-            else:
-                # Might happen if a groupby is grouped by prefix, then a subgroupby is grouped by another subprefix.
-                # In this case, we want to reset the prefix group to only consider the one used in the subgroupby.
-                matched_prefix = ""
-
-        return matched_prefix
-
-    @api.model
-    def format_value(self, options, value, figure_type, format_params=None):
-        if format_params is None:
-            format_params = {}
-
-        return self._format_value(
-            options=options,
-            value=value,
-            figure_type=figure_type,
-            format_params=format_params,
-        )
-
-    def _format_value(self, options, value, figure_type, format_params=None):
-        """Formats a value for display in a report (not especially numerical). figure_type provides the type of formatting we want."""
-        if value is None:
-            return ""
-
-        if figure_type == "none":
-            return value
-
-        if isinstance(value, str) or figure_type == "string":
-            return str(value)
-
-        if format_params is None:
-            format_params = {}
-
-        formatLang_params = {
-            "rounding_method": "HALF-UP",
-            "rounding_unit": options.get("rounding_unit") or "decimals",
-        }
-
-        if figure_type == "monetary":
-            currency = (
-                self.env["res.currency"].browse(format_params["currency_id"])
-                if "currency_id" in format_params
-                else self.env.company.currency_id
-            )
-            if options.get("multi_currency"):
-                formatLang_params["currency_obj"] = currency
-            else:
-                formatLang_params["digits"] = currency.decimal_places
-
-        elif figure_type == "integer":
-            formatLang_params["digits"] = 0
-
-        elif figure_type == "boolean":
-            return _("Yes") if bool(value) else _("No")
-
-        elif figure_type in ("date", "datetime"):
-            return format_date(self.env, value)
-
-        else:
-            formatLang_params["digits"] = format_params.get("digits", 1)
-
-        if self._is_value_zero(
-            value, figure_type, format_params, formatLang_params["rounding_unit"]
-        ):
-            # Make sure -0.0 becomes 0.0
-            value = abs(value)
-
-        if self.env.context.get("no_format"):
-            return value
-
-        formatted_amount = formatLang(self.env, value, **formatLang_params)
-
-        if figure_type == "percentage":
-            return f"{formatted_amount}%"
-
-        return formatted_amount
-
-    @api.model
-    def _is_value_zero(
-        self, amount, figure_type, format_params, rounding_unit="decimals"
-    ):
-        """Tell whether a value renders as zero, at the precision it is rendered with.
-
-        The caller must pass the same rounding_unit that reaches _format_value: formatLang
-        divides by the unit and drops every decimal, so at any unit other than "decimals"
-        a value is displayed as 0 long before the currency would call it zero. Answering
-        this from format_params alone makes a report shown in millions render -400,000 as
-        "-0", and makes hide_0_lines keep rows whose every cell reads 0.
-        """
-        if amount is None:
-            return True
-
-        if figure_type not in NUMBER_FIGURE_TYPES:
-            return False
-
-        if rounding_unit and rounding_unit != "decimals":
-            return float_is_zero(
-                amount / ROUNDING_UNIT_MAPPING[rounding_unit], precision_digits=0
-            )
-
-        if figure_type == "monetary":
-            currency = (
-                self.env["res.currency"].browse(format_params["currency_id"])
-                if "currency_id" in format_params
-                else self.env.company.currency_id
-            )
-            return currency.is_zero(amount)
-
-        return float_is_zero(amount, precision_digits=format_params.get("digits", 1))
 
     def format_date(self, options, dt_filter="date"):
         date_from = fields.Date.from_string(options[dt_filter]["date_from"])
