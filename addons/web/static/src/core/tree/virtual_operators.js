@@ -15,6 +15,7 @@ import {
     rewriteNConsecutiveChildren,
     TRUE_TREE,
 } from "./condition_tree.js";
+import { evaluateExpr } from "@web/core/py_js/py";
 
 /** @param {Value} path */
 function splitPath(path) {
@@ -195,13 +196,25 @@ const makeStrictBetween = (path, value1, value2) =>
     makeRange(path, value1, value2, "<");
 
 /** @param {string} delta */
+function boundDateValue(delta) {
+    return delta ? `(context_today() + relativedelta(${delta}))` : `context_today()`;
+}
+
+/**
+ * The two quotings differ on purpose: these strings are compared verbatim
+ * against the ones stored in saved domains.
+ *
+ * @param {string} delta
+ */
+function boundDateExpr(delta) {
+    return delta
+        ? `${boundDateValue(delta)}.strftime('%Y-%m-%d')`
+        : `${boundDateValue(delta)}.strftime("%Y-%m-%d")`;
+}
+
+/** @param {string} delta */
 function boundDate(delta) {
-    if (!delta) {
-        return expression(`context_today().strftime("%Y-%m-%d")`);
-    }
-    return expression(
-        `(context_today() + relativedelta(${delta})).strftime('%Y-%m-%d')`,
-    );
+    return expression(boundDateExpr(delta));
 }
 
 /** @param {string} delta */
@@ -235,6 +248,31 @@ const DELTAS = [
     ["last 12 months", "day = 1, months = -12", "day = 1"],
 ];
 const BOUNDS_DATE = DELTAS.map(([k, l, r]) => [k, boundDate(l), boundDate(r)]);
+
+/**
+ * The local dates an "in range" value type actually covers, evaluated from the
+ * very deltas the domain is built from -- there is no second table to drift.
+ *
+ * The domain is `>= lower and < upper`, so the last day it matches is the day
+ * before the upper bound; that is what is returned, so the pair reads as an
+ * inclusive range.
+ *
+ * @param {string} valueType
+ * @returns {[string, string] | null} `["YYYY-MM-DD", "YYYY-MM-DD"]`
+ */
+export function getInRangeDates(valueType) {
+    const delta = DELTAS.find(([k]) => k === valueType);
+    if (!delta) {
+        return null;
+    }
+    const [, lower, upper] = delta;
+    return [
+        evaluateExpr(boundDateExpr(lower)),
+        evaluateExpr(
+            `(${boundDateValue(upper)} + relativedelta(days = -1)).strftime('%Y-%m-%d')`,
+        ),
+    ];
+}
 const BOUNDS_DATETIME = DELTAS.map(([k, l, r]) => [
     k,
     boundDatetime(l),

@@ -20,6 +20,7 @@ import {
     deserializeDateTime,
     serializeDate,
     serializeDateTime,
+    toLocaleDateString,
 } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
@@ -31,6 +32,7 @@ import {
     isTree,
 } from "@web/core/tree/condition_tree";
 import { getInRangeProviderOptions } from "@web/core/tree/in_range_providers";
+import { getInRangeDates } from "@web/core/tree/virtual_operators";
 import { disambiguate, getResModel, isId } from "@web/core/tree/utils";
 import { unique } from "@web/core/utils/collections/arrays";
 import { isObject } from "@web/core/utils/collections/objects";
@@ -224,6 +226,26 @@ function makeBetweenEditor(fieldDef, params) {
 }
 
 /**
+ * The dates an "in range" value type covers, ready to hang off an option as a
+ * tooltip. Derived from the same deltas the domain is built from, so the label
+ * and the domain can never disagree.
+ *
+ * @param {string} valueType
+ * @returns {string | undefined}
+ */
+function inRangeDatesTitle(valueType) {
+    const dates = getInRangeDates(valueType);
+    if (!dates) {
+        return undefined;
+    }
+    const [start, end] = dates.map(deserializeDate);
+    if (start.hasSame(end, "day")) {
+        return toLocaleDateString(start);
+    }
+    return `${toLocaleDateString(start)} \u2192 ${toLocaleDateString(end)}`;
+}
+
+/**
  * @param {Object} fieldDef
  * @param {Object} params
  * @returns {PartialValueEditorInfo}
@@ -235,9 +257,17 @@ function makeInRangeEditor(fieldDef, params) {
     for (const { id, group } of providerOptions) {
         optionGroups[JSON.stringify(id)] = group;
     }
-    /** @type {Array<[any, string | import("@web/core/translation").TranslatedString]>} */
-    const valueTypeOptions = [
-        ...InRange.options,
+    // Built per render, not once here: the dates would otherwise be the ones of
+    // the day the editor was opened and would lie past midnight.
+    const valueTypeOptions = () => [
+        ...InRange.options.map(
+            ([id, label]) =>
+                /** @type {[any, string, string | undefined]} */ ([
+                    id,
+                    label,
+                    inRangeDatesTitle(id),
+                ]),
+        ),
         ...providerOptions.map(
             ({ id, label }) => /** @type {[any, string]} */ ([id, label]),
         ),
@@ -247,7 +277,7 @@ function makeInRangeEditor(fieldDef, params) {
         extractProps: ({ value, update }) => ({
             value,
             update,
-            valueTypeEditorInfo: makeSelectEditor(valueTypeOptions, {
+            valueTypeEditorInfo: makeSelectEditor(valueTypeOptions(), {
                 ...params,
                 optionGroups,
             }),

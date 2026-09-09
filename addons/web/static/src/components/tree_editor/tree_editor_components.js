@@ -46,6 +46,14 @@ export class Select extends Component {
     };
     static template = "web.TreeEditor.Select";
 
+    /** @returns {string | false} The folded select shows the same tooltip. */
+    get selectedTitle() {
+        return (
+            this.props.options.find(([value]) => value === this.props.value)?.[2] ||
+            false
+        );
+    }
+
     /** @returns {{ungrouped: any[], groups: Array<[string, any[]]>}} */
     get renderedOptions() {
         const groups = new Map();

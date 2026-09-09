@@ -1,7 +1,9 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { makeMockEnv } from "@web/../tests/web_test_helpers";
+import { mockDate } from "@odoo/hoot-mock";
+import { makeMockEnv, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { InRange } from "@web/components/tree_editor/tree_editor_components";
 import { getDomainDisplayedOperators } from "@web/components/domain_selector/domain_selector_operator_editor";
 import { getExpressionDisplayedOperators } from "@web/components/expression_editor/expression_editor_operator_editor";
 import { getDefaultValue, getValueEditorInfo } from "@web/components/tree_editor";
@@ -124,4 +126,62 @@ test("`between` resets a pair whose ends the element editor rejects", async () =
     const info = getValueEditorInfo(fieldDef("date"), "between");
     expect(info.shouldResetValue?.(["2019-03-11", "2019-03-12"])).toBe(false);
     expect(info.shouldResetValue?.(["2019-03-11", 42])).toBe(true);
+});
+
+/**
+ * @param {string} valueType
+ * @returns {any}
+ */
+function inRangeOptions(valueType) {
+    const info = getValueEditorInfo(fieldDef("date"), "in range", {});
+    return info
+        .extractProps({ value: ["date", valueType, false, false], update: () => {} })
+        .valueTypeEditorInfo.extractProps({ value: valueType, update: () => {} }).options;
+}
+
+test("`in range` value types carry the dates they actually cover", async () => {
+    mockDate("2025-07-03 16:20:00");
+    await makeMockEnv();
+
+    const titles = Object.fromEntries(
+        inRangeOptions("today").map(([id, , title]) => [id, title]),
+    );
+    expect(titles["today"]).toBe("Jul 3");
+    expect(titles["last 7 days"]).toBe("Jun 26 \u2192 Jul 2");
+    expect(titles["last month"]).toBe("Jun 1 \u2192 Jun 30");
+    expect(titles["last 12 months"]).toBe("Jul 1, 2024 \u2192 Jun 30");
+    expect(titles["custom range"]).toBe(undefined);
+});
+
+test("`in range` dates follow the clock, they do not freeze when the editor is built", async () => {
+    mockDate("2025-07-03 16:20:00");
+    await makeMockEnv();
+    const info = getValueEditorInfo(fieldDef("date"), "in range", {});
+    const todayTitle = () =>
+        info
+            .extractProps({ value: ["date", "today", false, false], update: () => {} })
+            .valueTypeEditorInfo.extractProps({ value: "today", update: () => {} })
+            .options.find(([id]) => id === "today")[2];
+
+    expect(todayTitle()).toBe("Jul 3");
+    mockDate("2025-07-04 16:20:00");
+    expect(todayTitle()).toBe("Jul 4");
+});
+
+test.tags("desktop");
+test("`in range` renders the dates as a tooltip, open and folded", async () => {
+    mockDate("2025-07-03 16:20:00");
+    await makeMockEnv();
+    const info = getValueEditorInfo(fieldDef("date"), "in range", {});
+    await mountWithCleanup(InRange, {
+        props: info.extractProps({
+            value: ["date", "last 7 days", false, false],
+            update: () => {},
+        }),
+    });
+
+    expect(`option[value='"last 7 days"']`).toHaveAttribute("title", "Jun 26 \u2192 Jul 2");
+    expect(`option[value='"today"']`).toHaveAttribute("title", "Jul 3");
+    expect(`option[value='"custom range"']`).not.toHaveAttribute("title");
+    expect("select").toHaveAttribute("title", "Jun 26 \u2192 Jul 2");
 });
