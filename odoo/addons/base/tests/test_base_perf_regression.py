@@ -67,7 +67,7 @@ class TestBasePerfRegression(TransactionCase):
     def test_check_path_batch(self):
         actions = self.window_actions
         self.env.invalidate_all()
-        with self.assertQueryCount(2):
+        with self.assertQueryCount(1):
             actions._check_path()
 
     @warmup
@@ -81,7 +81,7 @@ class TestBasePerfRegression(TransactionCase):
     def test_compute_show_code_history(self):
         actions = self.server_actions
         self.env.invalidate_all()
-        with self.assertQueryCount(9):
+        with self.assertQueryCount(3):
             actions._compute_show_code_history()
 
     @warmup
@@ -89,35 +89,35 @@ class TestBasePerfRegression(TransactionCase):
         Actions = self.env["ir.actions.actions"]
         self.registry.clear_all_caches()
         self.env.invalidate_all()
-        with self.assertQueryCount(10):
+        with self.assertQueryCount(8):
             Actions._get_bindings("res.partner")
 
     @warmup
     def test_compute_partner_share(self):
         partners = self.partners
         self.env.invalidate_all()
-        with self.assertQueryCount(4):
+        with self.assertQueryCount(3):
             partners._compute_partner_share()
 
     @warmup
     def test_compute_is_public(self):
         partners = self.partners
         self.env.invalidate_all()
-        with self.assertQueryCount(6):
+        with self.assertQueryCount(4):
             partners._compute_is_public()
 
     @warmup
     def test_compute_main_user_id(self):
         partners = self.partners
         self.env.invalidate_all()
-        with self.assertQueryCount(5):
+        with self.assertQueryCount(3):
             partners._compute_main_user_id()
 
     @warmup
     def test_compute_same_vat(self):
         partners = self.vat_partners
         self.env.invalidate_all()
-        with self.assertQueryCount(10):
+        with self.assertQueryCount(5):
             partners._compute_same_identifier_partners()
 
     @warmup
@@ -139,7 +139,7 @@ class TestBasePerfRegression(TransactionCase):
     def test_ir_model_inherited_models(self):
         ir_models = self.env["ir.model"].search([], limit=20)
         self.env.invalidate_all()
-        with self.assertQueryCount(5):
+        with self.assertQueryCount(2):
             ir_models._compute_inherited_model_ids()
 
     @warmup
