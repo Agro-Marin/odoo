@@ -1222,23 +1222,23 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   315
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 25,912
+§2.4.3   Non-test methods declared on a model class                 25,917
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               100
-§2.4.4   Model methods with an abolished verb behind a noun            135
+§2.4.4   Model methods with an abolished verb behind a noun            132
 §2.4.4   ``fields`` family: definitions spelled head-first             208
 §2.4.4   ``fields`` family: distinct names spelled head-first           97
 §2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
-§2.4.4   Other heads: definitions spelled head-first                   131
+§2.4.4   Other heads: definitions spelled head-first                   130
 §2.4.4   Other heads: definitions spelled tail-first                   171
 §2.4.5   ``X_to_Y`` converter definitions                               95
 §2.4.5   … distinct names                                               54
-§2.4.7   ``_get_*`` definitions                                      6,058
+§2.4.7   ``_get_*`` definitions                                      6,039
 §2.4.7   Abolished payload verbs, the four between them                  0
-§2.4.7   ``_generate_*`` definitions                                   136
+§2.4.7   ``_generate_*`` definitions                                   135
 §2.4.7   ``_calculate_*`` model methods                                  6
-§2.4.7   ``_prepare_*`` definitions                                    844
+§2.4.7   ``_prepare_*`` definitions                                    845
 §2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            38
 §2.4.8   ``_check_*`` definitions                                    1,187
 §2.4.8   ``_validate_*`` definitions                                     0
@@ -1253,7 +1253,7 @@ Section  Population                                                  Count
 §2.4.11  ``_get_or_create_*`` methods                                   32
 §2.4.11  ``_resolve_*`` definitions                                     30
 §2.4.12  ``_set_*`` definitions                                        124
-§2.4.12  ``_update_*`` definitions                                     362
+§2.4.12  ``_update_*`` definitions                                     364
 §2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             249
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
 §2.4.12  ``_sync_*`` definitions                                        76
@@ -1911,12 +1911,12 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 23.4 % of every method in this repository's
+**``_get_`` is not a default.** It is 23.3 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 679
+deriving and computing. The split that matters is against ``_prepare_``: 678
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 844 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 845 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
