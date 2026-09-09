@@ -22,7 +22,7 @@
                                 <span>for</span>
                                 <field
                                     name="new_period"
-                                    style="width: 3rem; !important"
+                                    style="width: 3rem !important;"
                                     class="ms-1 mb-0" />
                                 <span>days after publication.</span>
                             </div>
