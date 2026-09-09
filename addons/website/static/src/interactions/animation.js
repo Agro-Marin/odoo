@@ -4,6 +4,21 @@ import { getScrollingElement, isScrollableY } from "@web/core/utils/dom/scrollin
 import { isVisible } from "@web/core/utils/dom/ui";
 import { Interaction } from "@web/public/interaction";
 
+// Several `.o_animate` elements can finish their animation within the same
+// frame; coalesce their "animationend" reaction into a single global resize
+// dispatch per frame instead of one per element.
+let resizeDispatchScheduled = false;
+function scheduleGlobalResizeDispatch() {
+    if (resizeDispatchScheduled) {
+        return;
+    }
+    resizeDispatchScheduled = true;
+    window.requestAnimationFrame(() => {
+        resizeDispatchScheduled = false;
+        window.dispatchEvent(new Event("resize"));
+    });
+}
+
 export class Animation extends Interaction {
     static selector = ".o_animate";
     dynamicSelectors = {
@@ -113,7 +128,7 @@ export class Animation extends Interaction {
                     () => {
                         this.isAnimating = false;
                         this.isAnimated = true;
-                        window.dispatchEvent(new Event("resize"));
+                        scheduleGlobalResizeDispatch();
                     },
                     { once: true },
                 );
