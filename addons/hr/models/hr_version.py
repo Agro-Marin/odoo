@@ -19,6 +19,41 @@ def format_date_abbr(env, date):
     return format_date(date, date_format, locale=locale)
 
 
+# `check_company=True` states that a value must belong to the record's company.
+# Copying carries those values verbatim, so a copy into another company is born
+# holding the SOURCE company's department, job, work address or working hours --
+# data this model then rejects (`_check_department_company`) or silently repairs
+# (`_compute_resource_calendar_id`, which a copied value defeats by supplying one
+# explicitly). Dropping them here refuses nothing a user wrote: an explicit
+# `default` is the caller's intent and is left alone, and a dropped value falls
+# back to the field's own default or compute, which is where the policy for "no
+# value yet, in this company" already lives.
+def drop_values_from_other_companies(records, vals_list, default):
+    given = set(default or ())
+    companies = records.env["res.company"]
+    for record, vals in zip(records, vals_list, strict=False):
+        if not vals:
+            continue
+        company = (
+            companies.browse(vals["company_id"])
+            if vals.get("company_id")
+            else record.company_id
+        )
+        for name, field in record._fields.items():
+            if name in given or name not in vals:
+                continue
+            if field.type != "many2one" or not (
+                field.check_company or field.base_field.check_company
+            ):
+                continue
+            corecord = record[name]
+            if "company_id" not in corecord._fields:
+                continue
+            corecord_company = corecord.company_id
+            if corecord_company and corecord_company != company:
+                del vals[name]
+
+
 class HrVersion(models.Model):
     _name = "hr.version"
     _description = "Version"
@@ -361,13 +396,40 @@ class HrVersion(models.Model):
     def _is_day_in_period(start, end, day):
         return HrVersion._has_period_overlap(start, end, day, day)
 
+    # The field half of the two company constraints' guard: to-compute or
+    # protected both mean the value is not final yet.
+    #
+    # `is_protected` looks removable once `_is_version_in_force` exists, and it
+    # is NOT. Removing it does close a real hole -- the calendar constraint
+    # cannot otherwise judge a direct write, because writing the field protects
+    # it for the whole write including the `_check_fields` that ends it -- but it
+    # then breaks the legitimate transfer in
+    # `TestHrDepartment.test_moving_to_another_company_requires_settling_the_department_first`,
+    # where the constraint judges the version before
+    # `hr.employee.write` has moved the calendar to the new company.
+    #
+    # That regression survived a four-case probe AND a 624-test `/resource,/hr`
+    # run before a targeted re-run of that one class caught it. Do not re-derive
+    # the removal; if you try, run `--test-tags '/hr:TestHrDepartment'` alone.
+    def _is_unsettled(self, fname):
+        field = self._fields[fname]
+        return self.env.is_to_compute(field, self) or self.env.is_protected(field, self)
+
+    # The other half. A version that is not the one in force is either history
+    # or, during `hr.employee.copy()`, a row still carrying the SOURCE employee's
+    # `employee_id` while `hr.employee._create` has yet to repair it. `company_id`
+    # is derived from the employee's CURRENT company, so judging such a version
+    # compares a value already resolved for the new company against a company the
+    # version never had -- which is what made the copy error read backwards.
+    def _is_version_in_force(self):
+        return self.employee_id.version_id == self
+
     @api.constrains("resource_calendar_id", "company_id")
     def _check_resource_calendar_company(self):
-        calendar_field = self._fields["resource_calendar_id"]
         for version in self:
-            if self.env.is_to_compute(calendar_field, version) or self.env.is_protected(
-                calendar_field, version
-            ):
+            if version._is_unsettled("resource_calendar_id"):
+                continue
+            if not version._is_version_in_force():
                 continue
             calendar_company = version.resource_calendar_id.company_id
             if (
@@ -388,17 +450,10 @@ class HrVersion(models.Model):
 
     @api.constrains("department_id", "company_id")
     def _check_department_company(self):
-        department_field = self._fields["department_id"]
         for version in self:
-            if self.env.is_to_compute(
-                department_field, version
-            ) or self.env.is_protected(department_field, version):
+            if version._is_unsettled("department_id"):
                 continue
-            # Only the version in force. `company_id` here is derived from the
-            # employee's CURRENT company, so a historical version holding the
-            # department the person had while in another company would be judged
-            # by a company it never had -- that is history, not a violation.
-            if version.employee_id.version_id != version:
+            if not version._is_version_in_force():
                 continue
             department_company = version.department_id.company_id
             if (
@@ -566,6 +621,11 @@ class HrVersion(models.Model):
                 calendar.company_id and calendar.company_id != version.company_id
             ):
                 version.resource_calendar_id = version.company_id.resource_calendar_id
+
+    def copy_data(self, default=None):
+        vals_list = super().copy_data(default=default)
+        drop_values_from_other_companies(self, vals_list, default)
+        return vals_list
 
     def write(self, vals):
         self._check_employee_keeps_a_version(vals)

@@ -14,7 +14,10 @@ from odoo.libs.datetime import localize_standard, timezone
 from odoo.libs.numbers import float_is_zero
 from odoo.tools import SQL, Query, convert, email_normalize, format_time
 
-from odoo.addons.hr.models.hr_version import format_date_abbr
+from odoo.addons.hr.models.hr_version import (
+    drop_values_from_other_companies,
+    format_date_abbr,
+)
 from odoo.addons.mail.tools.discuss import Store
 
 _ALLOW_READ_HR_EMPLOYEE = object()
@@ -96,6 +99,11 @@ class HrEmployee(models.Model):
         store=True,
         readonly=False,
         tracking=True,
+        # A related field defaults to copy=False, and this one is stored, so it
+        # is the employee's own column rather than a read through to the
+        # partner. Without this, `copy()` writes no name at all and the copied
+        # partner dies on `res_partner_check_name`.
+        copy=True,
     )
     active = fields.Boolean(
         "Active",
@@ -901,6 +909,21 @@ class HrEmployee(models.Model):
                 if field.compute and field.store:
                     self.env.remove_to_compute(field, version)
         return result
+
+    def copy_data(self, default=None):
+        vals_list = super().copy_data(default=default)
+        for vals in vals_list:
+            # `employee_id` is hr.version's back-pointer, delegated onto this
+            # model, so copying an employee copies a pointer to the SOURCE
+            # employee. `_create` repairs it once the row exists, but everything
+            # computed before that repair reads it -- and `company_id` is
+            # `employee_id.company_id`, so a copy into another company resolved
+            # its calendar, and was then judged, against the company it came
+            # from. Nothing can want the source's id here.
+            if vals:
+                vals.pop("employee_id", None)
+        drop_values_from_other_companies(self, vals_list, default)
+        return vals_list
 
     def write(self, vals):
         vals = dict(vals)

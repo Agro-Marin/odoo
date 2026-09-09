@@ -205,10 +205,22 @@ class ResourceResource(models.Model):
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
-        return [
-            dict(vals, name=self.env._("%s (copy)", resource.name))
-            for resource, vals in zip(self, vals_list, strict=True)
-        ]
+        given = set(default or ())
+        copies = []
+        for resource, vals in zip(self, vals_list, strict=True):
+            vals = dict(vals, name=self.env._("%s (copy)", resource.name))
+            company = self.env["res.company"].browse(
+                vals.get("company_id") or resource.company_id.id
+            )
+            calendar_company = resource.calendar_id.company_id
+            if (
+                "calendar_id" not in given
+                and calendar_company
+                and calendar_company != company
+            ):
+                vals["calendar_id"] = company.resource_calendar_id.id
+            copies.append(vals)
+        return copies
 
     def write(self, vals: ValuesType) -> bool:
         if self.env.context.get("check_idempotence") and len(self) == 1:
