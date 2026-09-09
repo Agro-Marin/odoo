@@ -36,6 +36,7 @@ _ANCHOR_AGGREGATE = "internal_index:max"
 
 class AccountBankStatementLine(models.Model):
     _name = "account.bank.statement.line"
+    _inherit = ["mixin.mail.thread.main.attachment"]
     _inherits = {"account.move": "move_id"}
     _description = "Bank Statement Line"
     _order = "internal_index desc"

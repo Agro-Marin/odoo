@@ -23601,3 +23601,1039 @@ msgstr ""
 
 #~ msgid "with a pdf of an invoice as attachment."
 #~ msgstr "med en PDF af faktura som vedhæftelse."
+
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "%(display_name_html)s will be entirely paid by the transaction."
+msgstr "%(display_name_html)s betales fuldt ud med denne transaktion."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "%(display_name_html)s will be fully reconciled by the transaction."
+msgstr "%(display_name_html)s afstemmes fuldt ud med denne transaktion."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "%(display_name_html)s will be reduced by %(amount)s."
+msgstr "%(display_name_html)s reduceres med %(amount)s."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_create_statement_form_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_form_bank_rec_widget
+msgid ") doesn't match the specified ending balance."
+msgstr ") matcher ikke den angivne slutbalance."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_form
+msgid "-> Reconcile"
+msgstr "-> Udlign"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_0
+msgid "<b class=\"tip_title\">Tip: Bulk update journal items</b>"
+msgstr "</b>Tip: Masse-opdatér posteringslinjer</b>"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid ""
+"<b class=\"tip_title\">Tip: Find an Accountant or register your Accounting "
+"Firm</b>"
+msgstr ""
+"<b class=\"tip_title\">Tip: Find en Revisor eller registrer dit "
+"Revisionsfirma </b>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "<i>Lock transactions up to specific dates, inclusive</i>"
+msgstr "<i>Lås transaktioner op til bestemte datoer, inklusive</i>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
+msgid "<span class=\"o_stat_text\">1 Bank Transaction</span>"
+msgstr "<span class=\"o_stat_text\">1 Banktransaktion</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
+msgid "<span class=\"o_stat_text\">Bank Statement</span>"
+msgstr "<span class=\"o_stat_text\">Bankudtog</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+msgid ""
+"<span class=\"oe_inline o_form_label mx-3\" invisible=\"reco_currency_id == "
+"company_currency_id\"> in </span>"
+msgstr ""
+"<span class=\"oe_inline o_form_label mx-3\" invisible=\"reco_currency_id == "
+"company_currency_id\"> i </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+msgid ""
+"<span class=\"oe_inline o_form_label mx-3\" "
+"invisible=\"single_currency_mode\"> in </span>"
+msgstr ""
+"<span class=\"oe_inline o_form_label mx-3\" "
+"invisible=\"single_currency_mode\"> i </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-danger o_form_label\" invisible=\"hard_lock_date == "
+"current_hard_lock_date\">\n"
+"                                            <i>This change is irreversible</"
+"i>\n"
+"                                        </span>"
+msgstr ""
+"<span class=\"text-danger o_form_label\" invisible=\"hard_lock_date == "
+"current_hard_lock_date\">\n"
+"                                            <i>Denne ændrig kan ikke "
+"fortrydes</i>\n"
+"                                        </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_fiscalyear_lock_date_exception_for_me_id                                                  "
+"or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_fiscalyear_lock_date_exception_for_me_id                                                  "
+"or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_purchase_lock_date_exception_for_me_id                                                  "
+"or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_purchase_lock_date_exception_for_me_id                                                  "
+"or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_sale_lock_date_exception_for_me_id                                                  "
+"or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_sale_lock_date_exception_for_me_id                                                  "
+"or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_tax_lock_date_exception_for_me_id                                                  "
+"or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_tax_lock_date_exception_for_me_id                                                  "
+"or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid "<span class=\"tip_button_text\">Find an Accountant</span>"
+msgstr "<span class=\"tip_button_text\">Find en Revisor</span>"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid "<span class=\"tip_button_text\">Register your Accounting Firm</span>"
+msgstr "<span class=\"tip_button_text\">Registrer dit Revisionsfirma</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+msgid "<span> (</span>"
+msgstr "<span> (</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+msgid "<span>)</span>"
+msgstr "<span>)</span>"
+
+#. module: account_accountant
+#: model_terms:web_tour.tour,rainbow_man_message:account.account_accountant_tour
+msgid ""
+"<span><strong><b>Good job!</b> You went through all steps of this tour.</"
+"strong>\n"
+"            <br>See how to manage your customer invoices in the <b>Customers/"
+"Invoices</b> menu\n"
+"        </span>"
+msgstr ""
+"<span><strong><b>Godt klaret!</b> Du har gennemført alle trin i "
+"rundvisningen.</strong>\n"
+"            <br>Se, hvordan du administrerer dine kundefakturaer via menuen "
+"<b>Kunder/Fakturaer</b>\n"
+"        </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "<span>Exception</span>"
+msgstr "<span>Undtagelse</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"A posted tax return closing entry exists after this tax lock date. You might "
+"want to reset the related tax return to non-submitted."
+msgstr ""
+"Der er foretaget en afsluttende bogføring af selvangivelsen efter denne "
+"skattefrist. Det anbefales at nulstille den tilhørende selvangivelse til "
+"\"ikke indsendt\"."
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__transfer_from_account_id
+msgid "Account Transfer From"
+msgstr "Kontooverførselsformular"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_auto_reconcile_wizard
+msgid "Account automatic reconciliation wizard"
+msgstr "Kontoassistent til automatisk afstemning"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_reconcile_wizard
+msgid "Account reconciliation wizard"
+msgstr "Kontoassistent til afstemning"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_res_config_settings__deferred_expense_account_id
+msgid "Account used for deferred expenses"
+msgstr "Konto brugt til udskudte udgifter"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_res_config_settings__deferred_revenue_account_id
+msgid "Account used for deferred revenues"
+msgstr "Konto brugt til periodiserede udgifter"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/quick_create/quick_create.xml:0
+msgid "Add & Close"
+msgstr "Tilføj og luk"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/quick_create/quick_create.xml:0
+msgid "Add & New"
+msgstr "Tilføj & Ny"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.account_tag_action
+msgid "Add a new tag"
+msgstr "Tilføj et nyt tag"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid ""
+"After the data extraction, check and validate the bill. If no vendor has "
+"been found, add one before validating."
+msgstr ""
+"Kontrollér og validér regningen efter ekstraktion af data. Hvis ingen "
+"leverandør er blevet fundet, bedes du tilføje en, inden du validerer."
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__reco_model_autocomplete_ids
+msgid "All reconciliation models"
+msgstr "Alle afstemningsmodeller"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__allow_partials
+msgid "Allow partials"
+msgstr "Tillad delvis afstemning"
+
+#. module: account_accountant
+#: model:res.groups,name:account.group_fiscal_year
+msgid "Allow to define fiscal years of more or less than a year"
+msgstr "Gør det muligt at definere regnskabsår på mere eller mindre end et år"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__amount
+msgid "Amount in company currency"
+msgstr "Beløb i virksomhedens valuta"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_reconcile_wizard.py:0
+msgid ""
+"An entry will transfer %(amount)s from %(from_account)s to %(to_account)s."
+msgstr ""
+"En postering overfører %(amount)s fra %(from_account)s til %(to_account)s."
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_analytic_mixin
+msgid "Analytic Mixin"
+msgstr "Omkostningsberegning-Mixin"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__use_anglo_saxon
+msgid "Anglo-Saxon Accounting"
+msgstr "Anglo-Saxon Accounting"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.js:0
+msgid "Are you sure you want to delete this statement line?"
+msgstr "Er du sikker på, du vil slette denne kontoudtogslinje?"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__sign_invoice
+msgid "Authorized Signatory on invoice"
+msgstr "Autoriseret underskriver på faktura"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.report_invoice_document
+msgid "Authorized signatory"
+msgstr "Autoriseret underskriver"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/move_line_list_reconcile/move_line_list_reconcile.xml:0
+msgid "Auto-reconcile"
+msgstr "Automatisk afstemning"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_auto_reconcile_wizard.py:0
+msgid "Automatically Reconciled Entries"
+msgstr "Automatisk afstemte posteringer"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/search_dialog/search_dialog_list.xml:0
+msgid "Balance:"
+msgstr "Saldo:"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_digest_digest__kpi_account_bank_cash
+msgid "Bank & Cash Moves"
+msgstr "Bank & kontakthævninger"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+#: model:ir.actions.act_window,name:account.action_bank_statement_line_transactions
+#: model:ir.actions.act_window,name:account.action_bank_statement_line_transactions_kanban
+msgid "Bank Matching"
+msgstr "Bankafstemning"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+msgid "Bank Statement %s.pdf"
+msgstr "Kontoudtog %s.pdf"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__bank_statement_attachment_ids
+msgid "Bank Statement Attachment"
+msgstr "Kontoudtogsvedhæftning"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+msgid "Bank Statement.pdf"
+msgstr "Kontoudtog.pdf"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Based on"
+msgstr "Baseret på"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Card"
+msgstr "Kort"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_change_lock_date
+msgid "Change Lock Date"
+msgstr "Skift låsedato"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/kanban_controller.xml:0
+msgid "Chatter"
+msgstr "Chatter"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_reconcile_wizard__to_check
+msgid "Check if you are not certain of all the information of the counterpart."
+msgstr ""
+"Markér dette felt, hvis du ikke er sikker på alle oplysninger om modparten."
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/attachment_preview_list_view/attachment_preview_list_view.xml:0
+msgid "Choose a line to preview its attachments."
+msgstr "Vælg en linje for at forhåndsvise dens vedhæftelser."
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_auto_reconcile_wizard__search_mode__zero_balance
+msgid "Clear Account"
+msgstr "Ryd konto"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.actions_account_fiscal_year
+msgid "Click here to create a new fiscal year."
+msgstr "Klik her for at oprette et nyt regnskabsår."
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid ""
+"Click here to find an accountant or if you want to list out your accounting "
+"services on Odoo"
+msgstr ""
+"Klik her for at finde en revisor, eller hvis du ønsker en liste over dine "
+"regnskabstjenester på Odoo"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__company_currency_id
+msgid "Company currency"
+msgstr "Virksomhedens valuta"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Confirm the transaction."
+msgstr "Bekræft transaktionen."
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Connect your bank and get your latest transactions."
+msgstr "Forbind til din bank og hent dine seneste transaktioner."
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid ""
+"Connect your bank and payment gateways (Paypal, Stripe, ...) or record your "
+"transactions manually"
+msgstr ""
+"Forbind din bank og betalingsgateways (PayPal, Stripe osv), eller postér "
+"dine transaktioner manuelt"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Connect your credit card accounts and manage your payouts"
+msgstr "Forbind dit kreditkortkonto, og styr dine udbetalinger"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_bank_statement_form_bank_rec_widget
+msgid "Create Statement"
+msgstr "Opret kontoudtog"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.action_account_group_tree
+msgid "Create a new account group"
+msgstr "Opret en ny kontogruppe"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Create a new transaction."
+msgstr "Opret en ny transaktion."
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Create a separate journal for specific sales activities"
+msgstr "Opret en separat journal for specifikke salgsaktiviteter"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Create a separate journal to organize vendor bills"
+msgstr "Opret en separat journal til at organisere leverandørfakturaer"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid ""
+"Create your first vendor bill.<br/><br/><i>Tip: If you don’t have one on "
+"hand, use our sample bill.</i>"
+msgstr ""
+"Opret din første leverandørfaktura.<br/><br/><i>Råd: Hvis du ikke har en ved "
+"hånden, kan du bruge vores test faktura.</i>"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_model__created_automatically
+#: model_terms:ir.ui.view,arch_db:account.account_accountant_view_account_reconcile_model_search
+msgid "Created Automatically"
+msgstr "Oprettet automatisk"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_accountant_view_account_reconcile_model_search
+msgid "Created by User"
+msgstr "Oprettet af bruger"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__cron_last_check
+msgid "Cron Last Check"
+msgstr "Sidste cron-kontrol"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__reco_currency_id
+msgid "Currency to use for reconciliation"
+msgstr "Valuta, der skal anvendes til afstemning"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__current_hard_lock_date
+msgid "Current Hard Lock"
+msgstr "Nuværende endelige låsedato"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_move_line__deferred_end_date
+msgid "Date at which the deferred expense/revenue ends"
+msgstr "Dato, hvor den udskudte udgift eller indtægt ophører"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_move_line__deferred_start_date
+msgid "Date at which the deferred expense/revenue starts"
+msgstr "Dato, hvor den udskudte udgift eller indtægt begynder"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "Deferral of %s"
+msgstr "Afgrænsning af %s"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__deferred_move_ids
+#: model:ir.model.fields,field_description:account.field_account_move__deferred_move_ids
+msgid "Deferred Entries"
+msgstr "Udskudte posteringer"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__deferred_entry_type
+#: model:ir.model.fields,field_description:account.field_account_move__deferred_entry_type
+msgid "Deferred Entry Type"
+msgstr "Udskudt posteringstype"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_move__deferred_entry_type__expense
+msgid "Deferred Expense"
+msgstr "Udskudte udgifter"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_expense_account_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_expense_account_id
+msgid "Deferred Expense Account"
+msgstr "Udskudt udgift konto"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_expense_amount_computation_method
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_expense_amount_computation_method
+msgid "Deferred Expense Based on"
+msgstr "Udskudt udgift baseret på"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_expense_journal_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_expense_journal_id
+msgid "Deferred Expense Journal"
+msgstr "Udskudt udgiftsjournal"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_revenue_account_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_revenue_account_id
+msgid "Deferred Revenue Account"
+msgstr "Konto for udskudt omsætning"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_revenue_amount_computation_method
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_revenue_amount_computation_method
+msgid "Deferred Revenue Based on"
+msgstr "Periodiseret udgift baseret på"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_revenue_journal_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_revenue_journal_id
+msgid "Deferred Revenue Journal"
+msgstr "Periodiseret udgiftsjournal"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred expense"
+msgstr "Udskudt udgift"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred expense entries:"
+msgstr "Udskudte udgiftsposteringer:"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred revenue"
+msgstr "Udskudt indtægt"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred revenue entries:"
+msgstr "Periodiseret udgiftsposteringer:"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Define fiscal years of more or less than one year"
+msgstr "Definer finansår på mere eller mindre end ét år"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.xml:0
+msgid "Delete Transaction"
+msgstr "Slet transaktion"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Deposits"
+msgstr "Deposita"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__display_allow_partials
+msgid "Display Allow Partials"
+msgstr "Vis \"Tillad delvis afstemning\""
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__sign_invoice
+msgid "Display signing field on invoices"
+msgstr "Vis underskriftsfelt på fakturaer"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/line_to_reconcile/line_to_reconcile.js:0
+msgid "Edit Line"
+msgstr "Redigér linje"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__edit_mode
+msgid "Edit Mode"
+msgstr "Redigér tilstand"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__edit_mode_amount
+msgid "Edit Mode Amount"
+msgstr "Beløb i redigeringstilstand"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__edit_mode_reco_currency_id
+msgid "Edit Mode Reco Currency"
+msgstr "Valuta i redigeringstilstand"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__edit_mode_amount_currency
+msgid "Edit mode amount"
+msgstr "Beløb i redigeringstilstand"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_fiscal_year__date_to
+msgid "Ending Date, included in the fiscal year."
+msgstr "Slut dato, inkluderet i regnskabsåret."
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_res_company__invoicing_switch_threshold
+#: model:ir.model.fields,help:account.field_res_config_settings__invoicing_switch_threshold
+msgid ""
+"Every payment and invoice before this date will receive the 'From Invoicing' "
+"status, hiding all the accounting entries related to it. Use this option "
+"after installing Accounting if you were using only Invoicing before, before "
+"importing all your actual accounting data in to Odoo."
+msgstr ""
+"Alle betalinger og faktura før denne dato vil få \"Fra Fakturering\" "
+"statussen, som skjuler alle regnskabsposteringer relateret til den. Brug "
+"denne mulighed efter installering af Regnskab, hvis du før kun brugte "
+"Fakturering, inden du importere alle dine aktuelle konto data til Odoo."
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__exception_duration
+msgid "Exception Duration"
+msgstr "Undtagelsesvarighed"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__exception_needed_fields
+msgid "Exception Needed Fields"
+msgstr "Felter, der kræver undtagelse"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__exception_reason
+msgid "Exception Reason"
+msgstr "Undtagelsesårsag"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__exception_applies_to
+msgid "Exception applies"
+msgstr "Undtagelse gælder"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_fiscal_year
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Fiscal Year"
+msgstr "Regnskabsår"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.action_account_fiscal_year_form
+msgid "Fiscal Year 2018"
+msgstr "Regnskabsår 2018"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.actions_account_fiscal_year
+#: model:ir.model.fields,field_description:account.field_res_config_settings__group_fiscal_year
+#: model:ir.ui.menu,name:account.menu_account_fiscal_year
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Fiscal Years"
+msgstr "Regnskabsår"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "For everyone:"
+msgstr "For alle:"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "For me:"
+msgstr "For mig:"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__force_partials
+msgid "Force Partials"
+msgstr "Tving delvis afstemning"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_0
+msgid ""
+"From any list view, select multiple records and the list becomes editable. "
+"If you update a cell, selected records are updated all at once. Use this "
+"feature to update multiple journal entries from the General Ledger, or any "
+"Journal view."
+msgstr ""
+"Fra enhver listevisning kan du vælge flere datasæt, hvorpå listen blive "
+"redigerbar. Hvis du opdatere en celle, bliver valgte datasæt alle opdateret "
+"samtidigt. Brug denne funktion til at opdatere flere journalposteringer fra "
+"Hovedbogen, eller enhver Journalvisning."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Generate Entries"
+msgstr "Dan posteringer"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__hard_lock_date
+msgid "Hard Lock"
+msgstr "Total spærring"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_search_bank_rec_widget
+msgid "Incoming"
+msgstr "Indkommende"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__invoicing_switch_threshold
+#: model:ir.model.fields,field_description:account.field_res_config_settings__invoicing_switch_threshold
+msgid "Invoicing Switch Threshold"
+msgstr "Fakturering Skift Grænse"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_move_line_posted_unreconciled
+msgid "Journal Items to reconcile"
+msgstr "Journalposter, der skal afstemmes"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_digest_digest__kpi_account_bank_cash_value
+msgid "Kpi Account Bank Cash Value"
+msgstr "KPI for bankkonto kontantværdi"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Last Day"
+msgstr "Sidste dag"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Let’s go back to the dashboard."
+msgstr "Lad os gå tilbage til kontrolpanelet."
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__fiscalyear_lock_date
+msgid "Lock Everything"
+msgstr "Lås alle posteringer"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__fiscalyear_lock_date_for_everyone
+msgid "Lock Everything For Everyone"
+msgstr "Lås alle posteringer for alle"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__fiscalyear_lock_date_for_me
+msgid "Lock Everything For Me"
+msgstr "Låse alle posteringer for mig"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_view_account_change_lock_date
+msgid "Lock Journal Entries"
+msgstr "Luk regnskabs perioder"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__purchase_lock_date
+msgid "Lock Purchases"
+msgstr "Lås indkøb"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__purchase_lock_date_for_everyone
+msgid "Lock Purchases For Everyone"
+msgstr "Lås indkøb for alle"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__purchase_lock_date_for_me
+msgid "Lock Purchases For Me"
+msgstr "Lås indkøb for mig"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__sale_lock_date
+msgid "Lock Sales"
+msgstr "Lås salg"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__sale_lock_date_for_everyone
+msgid "Lock Sales For Everyone"
+msgstr "Lås salg for alle"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__sale_lock_date_for_me
+msgid "Lock Sales For Me"
+msgstr "Lås salg for mig"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__tax_lock_date
+msgid "Lock Tax Return"
+msgstr "Lås momsperiode"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__tax_lock_date_for_everyone
+msgid "Lock Tax Return For Everyone"
+msgstr "Lås momsperioder for alle"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__tax_lock_date_for_me
+msgid "Lock Tax Return For Me"
+msgstr "Lås momsperioder for mig"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_ir_ui_menu
+msgid "Menu"
+msgstr "Menu"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_expense_amount_computation_method__month
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_revenue_amount_computation_method__month
+msgid "Months"
+msgstr "Måneder"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_move_line__move_attachment_ids
+msgid "Move Attachment"
+msgstr "Flyt vedhæftning"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_bank_statement_line_form_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_quick_create_form_bank_rec_widget
+msgid "New Transaction"
+msgstr "Ny Transaktion"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/attachment_preview_list_view/attachment_preview_list_view.xml:0
+msgid "No attachments linked."
+msgstr "Ingen forbundne vedhæftelser."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_change_lock_date.py:0
+msgid "Only Billing Administrators are allowed to change lock dates!"
+msgstr ""
+"Kun Fakturerings Administratorer har tilladelse til at ændre låse datoer!"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/search_dialog/search_dialog_list.xml:0
+msgid "Open in form view"
+msgstr "Åbn i formularvisning"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_search_bank_rec_widget
+msgid "Outgoing"
+msgstr "Udgående"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_payment_form_inherit_account_accountant
+msgid "Payment Matching"
+msgstr "Betalings matching"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__payment_state_before_switch
+#: model:ir.model.fields,field_description:account.field_account_move__payment_state_before_switch
+msgid "Payment State Before Switch"
+msgstr "Betalingstilstand Før skift"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_journal_dashboard_kanban_view
+msgid "Payments Matching"
+msgstr "Matchende betalinger"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.js:0
+#: model:ir.model.fields,field_description:account.field_account_auto_reconcile_wizard__search_mode
+#: model:ir.ui.menu,name:account.menu_account_reconcile
+#: model_terms:ir.ui.view,arch_db:account.view_account_auto_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_account_list_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_payment_tree
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_reconcile_tree
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_tree
+msgid "Reconcile"
+msgstr "Udlign"
+
+#. module: account_accountant
+#: model:ir.actions.server,name:account.model_account_statement_line_button_draft
+msgid "Reset to draft"
+msgstr "Nulstil til kladde"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Sales Journal"
+msgstr "Salgs journal"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+msgid "Save & Close"
+msgstr "Gem & Luk"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+msgid "Save & New"
+msgstr "Gem & ny"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__module_sign
+msgid "Sign"
+msgstr "Underskriv"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__signature
+#: model:ir.model.fields,field_description:account.field_account_move__signature
+msgid "Signature"
+msgstr "Signatur"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_fiscal_year__date_from
+#: model:ir.model.fields,field_description:account.field_account_move_line__deferred_start_date
+msgid "Start Date"
+msgstr "Start dato"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_fiscal_year__date_from
+msgid "Start Date, included in the fiscal year."
+msgstr "Startdato, inkluderet i regnskabsåret."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_fiscal_year.py:0
+msgid "The ending date must not be prior to the starting date."
+msgstr "Slutdatoen må ikke være før startdatoen."
+
+#. module: account_accountant
+#: model:digest.tip,name:account.digest_tip_account_accountant_0
+msgid "Tip: Bulk update journal items"
+msgstr "Tip: Masse-opdatér posteringslinjer"
+
+#. module: account_accountant
+#: model:digest.tip,name:account.digest_tip_account_accountant_1
+msgid "Tip: Find an Accountant or register your Accounting Firm"
+msgstr "Tip: Find en Revisor eller registrer dit Revisionsfirma"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__to_check
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "To Check"
+msgstr "At tjekke"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Transaction"
+msgstr "Transaktion"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_reconcile_wizard.py:0
+msgid "Write-Off"
+msgstr "Afskrivning"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_fiscal_year.py:0
+msgid ""
+"You can not have an overlap between two fiscal years, please correct the "
+"start and/or end dates of your fiscal years."
+msgstr ""
+"Du kan ikke have et overlap mellem to regnskabsår, ret venligst start og/"
+"eller slut datoer for dine regnskabsår."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid ""
+"You cannot reset to draft an invoice that is grouped in deferral entry. You "
+"can create a credit note instead."
+msgstr ""
+"Du kan ikke nulstille en faktura til kladde, der er grupperet i en "
+"udsættelsespostering. Du kan i stedet oprette en kreditnota."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid ""
+"You might want to set the invoice as %(btn_start)sfully paid%(btn_end)s."
+msgstr ""
+"Du vil måske markere fakturaen som %(btn_start)sfuldt betalt%(btn_end)s."
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__forever
+msgid "forever"
+msgstr "for altid"

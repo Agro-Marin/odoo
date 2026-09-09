@@ -21749,3 +21749,574 @@ msgstr ""
 
 #~ msgid "with a pdf of an invoice as attachment."
 #~ msgstr "sa pdf-om računa  kao prilogom."
+
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_form
+msgid "-> Reconcile"
+msgstr "-> Zatvori"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "<i>Lock transactions up to specific dates, inclusive</i>"
+msgstr "<i>Zaključavanje transakcija do određenih datuma, uključujući</i>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+msgid ""
+"<span class=\"oe_inline o_form_label mx-3\" invisible=\"reco_currency_id == "
+"company_currency_id\"> in </span>"
+msgstr ""
+"<span class=\"oe_inline o_form_label mx-3\" invisible=\"reco_currency_id == "
+"company_currency_id\"> u </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+msgid ""
+"<span class=\"oe_inline o_form_label mx-3\" "
+"invisible=\"single_currency_mode\"> in </span>"
+msgstr ""
+"<span class=\"oe_inline o_form_label mx-3\" "
+"invisible=\"single_currency_mode\"> u </span>"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/quick_create/quick_create.xml:0
+msgid "Add & Close"
+msgstr "Dodaj & zatvori"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/quick_create/quick_create.xml:0
+msgid "Add & New"
+msgstr "Dodaj & novo"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.account_tag_action
+msgid "Add a new tag"
+msgstr "Dodaj novu oznaku"
+
+#. module: account_accountant
+#: model:res.groups,name:account.group_fiscal_year
+msgid "Allow to define fiscal years of more or less than a year"
+msgstr ""
+"Omogućuje definiranje fiskalne godine manje ili veće od kalendarske godine"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__amount
+msgid "Amount in company currency"
+msgstr "Iznos u valuti tvrtke"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_analytic_mixin
+msgid "Analytic Mixin"
+msgstr "Mixin Analitike"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__use_anglo_saxon
+msgid "Anglo-Saxon Accounting"
+msgstr "Anglo-Saksonsko računovodstvo"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__sign_invoice
+msgid "Authorized Signatory on invoice"
+msgstr "Ovlaštena osoba za potpis na računu"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/move_line_list_reconcile/move_line_list_reconcile.xml:0
+msgid "Auto-reconcile"
+msgstr "Automatsko zatvaranje"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_auto_reconcile_wizard.py:0
+msgid "Automatically Reconciled Entries"
+msgstr "Automatski zatvorene stavke"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/search_dialog/search_dialog_list.xml:0
+msgid "Balance:"
+msgstr "Saldo"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_digest_digest__kpi_account_bank_cash
+msgid "Bank & Cash Moves"
+msgstr "Knjiženja Banke i gotovine"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+msgid "Bank Statement %s.pdf"
+msgstr "Izvod banke %s.pdf"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+msgid "Bank Statement.pdf"
+msgstr "IzvodBanke.pdf"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Based on"
+msgstr "Bazirano na"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_change_lock_date
+msgid "Change Lock Date"
+msgstr "Promijeni datum zaključavanja"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/attachment_preview_list_view/attachment_preview_list_view.xml:0
+msgid "Choose a line to preview its attachments."
+msgstr "Odaberi liniju kako bi pregledao njen privitak."
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.actions_account_fiscal_year
+msgid "Click here to create a new fiscal year."
+msgstr "Kliknite za kreiranje nove fiskalne godine."
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.action_account_group_tree
+msgid "Create a new account group"
+msgstr "Kreiranje nove grupe konta"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_accountant_view_account_reconcile_model_search
+msgid "Created by User"
+msgstr "Kreirao korisnik"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_move__deferred_entry_type__expense
+msgid "Deferred Expense"
+msgstr "Odgođeni trošak"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_expense_account_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_expense_account_id
+msgid "Deferred Expense Account"
+msgstr "Konto troška amortizacije"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_revenue_account_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_revenue_account_id
+msgid "Deferred Revenue Account"
+msgstr "Konto odgođenog prihoda"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_revenue_amount_computation_method
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_revenue_amount_computation_method
+msgid "Deferred Revenue Based on"
+msgstr "Odgođeni prihodi temeljeni na"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_revenue_journal_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_revenue_journal_id
+msgid "Deferred Revenue Journal"
+msgstr "Dnevnik odgođenih prihoda"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred expense"
+msgstr "Odgođeni trošak"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred expense entries:"
+msgstr "Odgođeni troškovi:"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred revenue"
+msgstr "Odgođeni prihodi"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred revenue entries:"
+msgstr "Odgođeni prihodi:"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__sign_invoice
+msgid "Display signing field on invoices"
+msgstr "Prikaži polje za potpis na računima"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_fiscal_year
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Fiscal Year"
+msgstr "Fiskalna godina"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.action_account_fiscal_year_form
+msgid "Fiscal Year 2018"
+msgstr "Fiskalna godina 2018"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.actions_account_fiscal_year
+#: model:ir.model.fields,field_description:account.field_res_config_settings__group_fiscal_year
+#: model:ir.ui.menu,name:account.menu_account_fiscal_year
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Fiscal Years"
+msgstr "Fiskalne godine"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "For me:"
+msgstr "Za mene:"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Generate Entries"
+msgstr "Kreiraj stavke"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__hard_lock_date
+msgid "Hard Lock"
+msgstr "Nepovratno zaključaj"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_search_bank_rec_widget
+msgid "Incoming"
+msgstr "Ulazna"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__invoicing_switch_threshold
+#: model:ir.model.fields,field_description:account.field_res_config_settings__invoicing_switch_threshold
+msgid "Invoicing Switch Threshold"
+msgstr "Prag za prelazak na fakturiranje"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_move_line_posted_unreconciled
+msgid "Journal Items to reconcile"
+msgstr "Stavke dnevnika za zatvaranje"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Last Day"
+msgstr "Zadnji dan"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__fiscalyear_lock_date
+msgid "Lock Everything"
+msgstr "Zaključaj sve"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__fiscalyear_lock_date_for_everyone
+msgid "Lock Everything For Everyone"
+msgstr "Zaključaj sve za sve"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__fiscalyear_lock_date_for_me
+msgid "Lock Everything For Me"
+msgstr "Zaključaj sve za mene"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_view_account_change_lock_date
+msgid "Lock Journal Entries"
+msgstr "Zaključavanje knjiženja"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__purchase_lock_date
+msgid "Lock Purchases"
+msgstr "Zaključaj nabavu"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__purchase_lock_date_for_everyone
+msgid "Lock Purchases For Everyone"
+msgstr "Zaključaj nabavu za sve"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__purchase_lock_date_for_me
+msgid "Lock Purchases For Me"
+msgstr "Zaključaj nabavu za mene"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__sale_lock_date
+msgid "Lock Sales"
+msgstr "Zaključaj prodaju"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__sale_lock_date_for_everyone
+msgid "Lock Sales For Everyone"
+msgstr "Zaključaj prodaju za sve"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__sale_lock_date_for_me
+msgid "Lock Sales For Me"
+msgstr "Zaključaj prodaju za mene"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__tax_lock_date
+msgid "Lock Tax Return"
+msgstr "Zaključaj poreze"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__tax_lock_date_for_everyone
+msgid "Lock Tax Return For Everyone"
+msgstr "Zaključaj poreze za sve"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__tax_lock_date_for_me
+msgid "Lock Tax Return For Me"
+msgstr "Zaključaj poreze za mene"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_expense_entries_method__manual
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_revenue_entries_method__manual
+msgid "Manually & Grouped"
+msgstr "Ručno i grupirano"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Matched"
+msgstr "Povezano"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_ir_ui_menu
+msgid "Menu"
+msgstr "Izbornik"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_expense_amount_computation_method__month
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_revenue_amount_computation_method__month
+msgid "Months"
+msgstr "Mjeseci"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "Need an irreversible lock to ensure inalterability, for all users?"
+msgstr ""
+"Je li potrebno nepovratno zaključavanje radi osiguranja nepromjenjivosti za "
+"sve korisnike?"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_bank_statement_line_form_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_quick_create_form_bank_rec_widget
+msgid "New Transaction"
+msgstr "Nova transakcija"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.action_bank_statement_line_transactions
+#: model_terms:ir.actions.act_window,help:account.action_bank_statement_line_transactions_kanban
+msgid "No transactions matching your filters were found."
+msgstr "Nema nađenih transakcija za vaše filtere."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Not Matched"
+msgstr "Nije povezano"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "Not locked"
+msgstr "Nije zaključano"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.action_bank_statement_line_transactions
+#: model_terms:ir.actions.act_window,help:account.action_bank_statement_line_transactions_kanban
+msgid "Nothing to do here!"
+msgstr "Ništa za napraviti ovdje!"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_expense_entries_method__on_validation
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_revenue_entries_method__on_validation
+msgid "On bill validation"
+msgstr "Pri ovjeri računa"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_change_lock_date.py:0
+msgid "Only Billing Administrators are allowed to change lock dates!"
+msgstr "Samo Administrator Računovodstva može promijeniti datum zaključavanja!"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__deferred_original_move_ids
+#: model:ir.model.fields,field_description:account.field_account_move__deferred_original_move_ids
+msgid "Original Invoices"
+msgstr "Izvorni računi"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_search_bank_rec_widget
+msgid "Outgoing"
+msgstr "Odlazno"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_payment_form_inherit_account_accountant
+msgid "Payment Matching"
+msgstr "Zatvaranje stavaka"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__payment_state_before_switch
+#: model:ir.model.fields,field_description:account.field_account_move__payment_state_before_switch
+msgid "Payment State Before Switch"
+msgstr "Stanje plaćanja prije promjene"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_journal_dashboard_kanban_view
+msgid "Payments Matching"
+msgstr "Usklađivanje plaćanja"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Predict vendor bill product"
+msgstr "Predvidi proizvod na računu dobavljača"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.js:0
+#: model:ir.model.fields,field_description:account.field_account_auto_reconcile_wizard__search_mode
+#: model:ir.ui.menu,name:account.menu_account_reconcile
+#: model_terms:ir.ui.view,arch_db:account.view_account_auto_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_account_list_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_payment_tree
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_reconcile_tree
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_tree
+msgid "Reconcile"
+msgstr "Zatvori"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Sales Journal"
+msgstr "Dnevnik prodaje"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+msgid "Save & Close"
+msgstr "Spremi i zatvori"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+msgid "Save & New"
+msgstr "Spremi i novi"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_reconcile_search
+msgid "Search Journal Items to Reconcile"
+msgstr "Pretraži stavke dnevnika za zatvaranje"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__module_sign
+msgid "Sign"
+msgstr "Potpiši"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__signature
+#: model:ir.model.fields,field_description:account.field_account_move__signature
+msgid "Signature"
+msgstr "Potpis"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__signing_user
+#: model:ir.model.fields,field_description:account.field_account_move__signing_user
+msgid "Signer"
+msgstr "Potpisnik"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__signing_user
+msgid "Signing User"
+msgstr "Potpisnik"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_fiscal_year__date_from
+#: model:ir.model.fields,field_description:account.field_account_move_line__deferred_start_date
+msgid "Start Date"
+msgstr "Početni datum"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_fiscal_year__date_from
+msgid "Start Date, included in the fiscal year."
+msgstr "Početni datum uključen u fiskalnu godinu."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_fiscal_year.py:0
+msgid "The ending date must not be prior to the starting date."
+msgstr "Početni datum mora biti prije završnog."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid ""
+"The invoices before this date will not be taken into account as accounting "
+"entries"
+msgstr ""
+"Računi prije ovog datuma neće se uzimati u obzir kao knjigovodstveni unosi"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid ""
+"The system will try to predict the product on vendor bill lines based on the "
+"label of the line"
+msgstr ""
+"Sustav će pokušati predvidjeti proizvod na stavkama računa dobavljača na "
+"temelju oznake stavke"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"There are still draft entries in the period you want to lock.\n"
+"                                You should either post or delete them."
+msgstr ""
+"U razdoblju koje želite zaključati još uvijek postoje stavke u nacrtu.\n"
+"                                Morate ih proknjižiti ili izbrisati."
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__to_check
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "To Check"
+msgstr "Za provjeru"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "To enhance authenticity, add a signature to your invoices"
+msgstr "Za bolju autentičnost dodajte potpis na svoje račune"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Transaction"
+msgstr "Transakcija"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_reconcile_wizard.py:0
+msgid "Write-Off"
+msgstr "Otpis"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__1h
+msgid "for 1 hour"
+msgstr "na 1 sat"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__15min
+msgid "for 15 minutes"
+msgstr "na 15 minuta"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__24h
+msgid "for 24 hours"
+msgstr "na 24 sata"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__5min
+msgid "for 5 minutes"
+msgstr "na 5 minuta"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_applies_to__everyone
+msgid "for everyone"
+msgstr "za sve"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__forever
+msgid "forever"
+msgstr "zauvijek"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_journal_dashboard_kanban_view
+msgid "to reconcile"
+msgstr "Zatvori stavke"

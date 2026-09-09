@@ -1,6 +1,6 @@
 {
     "name": "Invoicing",
-    "version": "1.14",
+    "version": "1.15",
     "category": "Accounting/Accounting",
     "sequence": 10,
     "summary": "Invoices & Payments",
@@ -20,6 +20,7 @@ You could use this simplified accounting in case you work with an (external) acc
         "onboarding",
         "analytic",
         "digest",
+        "web_tour",
     ],
     "external_dependencies": {
         "python": [
@@ -103,9 +104,29 @@ You could use this simplified accounting in case you work with an (external) acc
         "wizard/account_tax_merge_wizard_views.xml",
         "data/ir_config_parameter_data.xml",
         "views/account_menus.xml",
+        "data/account_reconcile_cron.xml",
+        "data/digest_bank_cash_data.xml",
+        "data/account_reconcile_tour.xml",
+        "data/account_reconcile_config_parameters.xml",
+        "views/account_account_reconcile_views.xml",
+        "views/account_fiscal_year_views.xml",
+        "views/account_journal_dashboard_reconcile_views.xml",
+        "views/account_move_reconcile_views.xml",
+        "views/account_payment_reconcile_views.xml",
+        "views/account_reconcile_views.xml",
+        "views/digest_bank_cash_views.xml",
+        "views/res_config_settings_reconcile_views.xml",
+        "views/product_reconcile_views.xml",
+        "views/bank_rec_widget_views.xml",
+        "views/report_invoice_signature.xml",
+        "wizard/account_change_lock_date_views.xml",
+        "wizard/account_auto_reconcile_wizard_views.xml",
+        "wizard/account_reconcile_wizard_views.xml",
+        "views/account_reconcile_menus.xml",
     ],
     "demo": [
         "demo/account_demo.xml",
+        "demo/account_reconcile_demo.xml",
     ],
     "assets": {
         "web._assets_primary_variables": [
@@ -131,6 +152,13 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/js/tours/*",
             "account/static/src/js/search/search_bar/search_bar.js",
             "account/static/src/helpers/*.js",
+            "account/static/src/components/bank_reconciliation/**/*",
+            "account/static/src/components/attachment_preview_list_view/**/*",
+            "account/static/src/components/export_data_dialog/**/*",
+            "account/static/src/components/journal_create_wizard/**/*",
+            "account/static/src/components/matching_link_widget/**/*",
+            "account/static/src/components/move_line_list/**/*",
+            "account/static/src/components/move_line_list_reconcile/**/*",
         ],
         "web.assets_unit_tests": [
             "account/static/src/interactions/**/*",
@@ -147,6 +175,7 @@ You could use this simplified accounting in case you work with an (external) acc
         ],
         "web.assets_tests": [
             "account/static/src/js/tours/tour_utils.js",
+            "account/static/src/js/tours/account_reconcile.js",
             "account/static/src/js/tours/account.js",
             "account/static/tests/tours/**/*",
         ],

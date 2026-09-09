@@ -22799,3 +22799,503 @@ msgstr ""
 
 #~ msgid "with a pdf of an invoice as attachment."
 #~ msgstr "нэхэмжлэлийн PDF хувилбарыг хавсаргах."
+
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_form
+msgid "-> Reconcile"
+msgstr "-> Тулгах"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_0
+msgid "<b class=\"tip_title\">Tip: Bulk update journal items</b>"
+msgstr ""
+"<b class=\"tip_title\">Заавар: Журналын бичилтүүдийг бөөнөөр нь засварлах</b>"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid ""
+"<b class=\"tip_title\">Tip: Find an Accountant or register your Accounting "
+"Firm</b>"
+msgstr ""
+"<b class=\"tip_title\">Зөвлөмж: Нягтлантай болох эсвэл нягтлан бодох "
+"бүртгэлийн үйлчилгээнд бүртгүүлээрэй</b>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
+msgid "<span class=\"o_stat_text\">1 Bank Transaction</span>"
+msgstr "<span class=\"o_stat_text\">1 Банкны гүйлгээ</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
+msgid "<span class=\"o_stat_text\">Bank Statement</span>"
+msgstr "<span class=\"o_stat_text\">Банкны хуулга</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+msgid ""
+"<span class=\"oe_inline o_form_label mx-3\" "
+"invisible=\"single_currency_mode\"> in </span>"
+msgstr ""
+"<span class=\"oe_inline o_form_label mx-3\" "
+"invisible=\"single_currency_mode\"> дотор </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-danger o_form_label\" invisible=\"hard_lock_date == "
+"current_hard_lock_date\">\n"
+"                                            <i>This change is irreversible</"
+"i>\n"
+"                                        </span>"
+msgstr ""
+"<span class=\"text-danger o_form_label\" invisible=\"hard_lock_date == "
+"current_hard_lock_date\">\n"
+"                                            <i>Энэ өөрчлөлтийг буцаах "
+"аргагүй</i>\n"
+"                                        </span>"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid "<span class=\"tip_button_text\">Find an Accountant</span>"
+msgstr "<span class=\"tip_button_text\">Нягтлан олох</span>"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid "<span class=\"tip_button_text\">Register your Accounting Firm</span>"
+msgstr ""
+"<span class=\"tip_button_text\">Нягтлан бодох бүртгэлийн үйлчилгээнд "
+"бүртгүүлэх</span>"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__transfer_from_account_id
+msgid "Account Transfer From"
+msgstr "Шилжүүлэг гарах данс"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/quick_create/quick_create.xml:0
+msgid "Add & Close"
+msgstr "Нэмэх & Хаах"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/quick_create/quick_create.xml:0
+msgid "Add & New"
+msgstr "Нэмэх & Шинэ"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.account_tag_action
+msgid "Add a new tag"
+msgstr "Шинэ пайз нэмэх"
+
+#. module: account_accountant
+#: model:res.groups,name:account.group_fiscal_year
+msgid "Allow to define fiscal years of more or less than a year"
+msgstr "Календарийн жилээс ялгаатайгаар санхүүгийн жил тодорхойлох"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__amount
+msgid "Amount in company currency"
+msgstr "Компаны валютаарх дүн"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__use_anglo_saxon
+msgid "Anglo-Saxon Accounting"
+msgstr "Anglo-Saxon санхүү"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/move_line_list_reconcile/move_line_list_reconcile.xml:0
+msgid "Auto-reconcile"
+msgstr "Автомат тулгах"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_auto_reconcile_wizard.py:0
+msgid "Automatically Reconciled Entries"
+msgstr "Автомат тулгагдсан бичилтүүд"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/search_dialog/search_dialog_list.xml:0
+msgid "Balance:"
+msgstr "Үлдэгдэл:"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_digest_digest__kpi_account_bank_cash
+msgid "Bank & Cash Moves"
+msgstr "Банк & Касс гүйлгээ"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+msgid "Bank Statement %s.pdf"
+msgstr "Банкны хуулга %s.pdf"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+msgid "Bank Statement.pdf"
+msgstr "Банкны хуулга.pdf"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Based on"
+msgstr "Суурилах"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Card"
+msgstr "Карт"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_change_lock_date
+msgid "Change Lock Date"
+msgstr "Түгжих огноо солих"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/attachment_preview_list_view/attachment_preview_list_view.xml:0
+msgid "Choose a line to preview its attachments."
+msgstr "Хавсралт файлуудыг шалгах мөрийг сонгоно уу."
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.actions_account_fiscal_year
+msgid "Click here to create a new fiscal year."
+msgstr "Энд дарж шинэ санхүүгийн жил үүсгэнэ."
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid ""
+"Click here to find an accountant or if you want to list out your accounting "
+"services on Odoo"
+msgstr ""
+"Энд дарж нягтлан хөлсөлж авах эсвэл Odoo санал болгож буй нягтлан бодох "
+"бүртгэлийг үйлчилгээг сонирхоорой"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Connect your bank and get your latest transactions."
+msgstr ""
+"Банкны системтэй холбогдож өөрийн банкны дансанд хийгдсэн гүйлгээнүүдийг "
+"татаж аваарай."
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_bank_statement_form_bank_rec_widget
+msgid "Create Statement"
+msgstr "Хуулгын багц үүсгэх"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.action_account_group_tree
+msgid "Create a new account group"
+msgstr "Шинэ дансны бүлэг үүсгэх"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid ""
+"Create your first vendor bill.<br/><br/><i>Tip: If you don’t have one on "
+"hand, use our sample bill.</i>"
+msgstr ""
+"Анхны төлбөрийн нэхэмжлэлээ бүртгэнэ үү.<br/><br/><i>Зөвлөмж: Хэрэв танд "
+"ямар нэг нэхэмжлэл байхгүй бол, бэлэн загваруудаас сонгож хэрэглээрэй.</i>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_accountant_view_account_reconcile_model_search
+msgid "Created by User"
+msgstr "Үүсгэсэн Хэрэглэгч"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__cron_last_check
+msgid "Cron Last Check"
+msgstr "Төлөвлөгч сүүлд ажилласан"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_move__deferred_entry_type__expense
+msgid "Deferred Expense"
+msgstr "Хойшлуулсан зардал"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_expense_account_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_expense_account_id
+msgid "Deferred Expense Account"
+msgstr "Хойшлуулсан зардлын данс"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_revenue_account_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_revenue_account_id
+msgid "Deferred Revenue Account"
+msgstr "Хойшлуулсан орлогын данс"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred expense"
+msgstr "Хойшлуулсан зардал"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred revenue"
+msgstr "Хойшлуулсан орлого"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Define fiscal years of more or less than one year"
+msgstr "Нэг жилээс урт эсвэл богино хугацаа бүхий санхүүгийн жил тодорхойлох"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.xml:0
+msgid "Delete Transaction"
+msgstr "Гүйлгээ устгах"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Deposits"
+msgstr "Орлого"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_fiscal_year__date_to
+msgid "Ending Date, included in the fiscal year."
+msgstr "Санхүүгийн жилийн дуусах огноо."
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_res_company__invoicing_switch_threshold
+#: model:ir.model.fields,help:account.field_res_config_settings__invoicing_switch_threshold
+msgid ""
+"Every payment and invoice before this date will receive the 'From Invoicing' "
+"status, hiding all the accounting entries related to it. Use this option "
+"after installing Accounting if you were using only Invoicing before, before "
+"importing all your actual accounting data in to Odoo."
+msgstr ""
+"Энэ хугацаанаас өмнө бүртгэгдсэн байсан төлбөр болон нэхэмжлэлүүд бүгд "
+"'Нэхэмжлэл модулиас' гэх төлөвт шилжих бөгөөд, тэдгээртэй холбоотой ажил "
+"гүйлгээнүүд харагдахгүй. Хэрэв та өмнө нь зөвхөн Нэхэмжлэл модулыг ашиглаж "
+"байгаад одоо Санхүү модулыг идэвхижүүлэх гэж байгаа бол тайлангийнхаа эхний "
+"үлдэгдлийг импортлож оруулахаасаа өмнө энэхүү боломжыг ашиглаж өмнө "
+"бүртгэгдсэн нэхэмжлэлүүдийг тайланд холбогдолгүй болгож хувиргаарай."
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_fiscal_year
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Fiscal Year"
+msgstr "Санхүүгийн жил"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.action_account_fiscal_year_form
+msgid "Fiscal Year 2018"
+msgstr "Санхүүгийн жил 2018"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.actions_account_fiscal_year
+#: model:ir.model.fields,field_description:account.field_res_config_settings__group_fiscal_year
+#: model:ir.ui.menu,name:account.menu_account_fiscal_year
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Fiscal Years"
+msgstr "Санхүүгийн жил"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Generate Entries"
+msgstr "Гүйлгээ бүртгэх"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_search_bank_rec_widget
+msgid "Incoming"
+msgstr "Ирж буй"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Invalid statements"
+msgstr "Буруу хуулга"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_move_line_posted_unreconciled
+msgid "Journal Items to reconcile"
+msgstr "Тулгах журнал бичилтүүд"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_digest_digest__kpi_account_bank_cash_value
+msgid "Kpi Account Bank Cash Value"
+msgstr "KPI Банк кассын дансны утга"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Last Day"
+msgstr "Сүүлийн өдөр"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.xml:0
+msgid "Manage Models"
+msgstr "Загвар удирдах"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Matched"
+msgstr "Тулгагдсан"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_ir_ui_menu
+msgid "Menu"
+msgstr "Цэс"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_expense_amount_computation_method__month
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_revenue_amount_computation_method__month
+msgid "Months"
+msgstr "Сар"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__move_line_ids
+msgid "Move lines to reconcile"
+msgstr "Тулгах бичилтүүд"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_bank_statement_line_form_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_quick_create_form_bank_rec_widget
+msgid "New Transaction"
+msgstr "Шинэ гүйлгээ"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Not Matched"
+msgstr "Тулгагдаагүй"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_auto_reconcile_wizard.py:0
+msgid "Nothing to reconcile."
+msgstr "Тулгах зүйл алга."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_change_lock_date.py:0
+msgid "Only Billing Administrators are allowed to change lock dates!"
+msgstr ""
+"Зөвхөн Санхүүгийн админ төвшний хэрэглэгч түгжих огноог өөрчлөх боломжтой!"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_search_bank_rec_widget
+msgid "Outgoing"
+msgstr "Гарч буй"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_payment_form_inherit_account_accountant
+msgid "Payment Matching"
+msgstr "Төлбөр харгалзуулалт"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_journal_dashboard_kanban_view
+msgid "Payments Matching"
+msgstr "Төлбөрийн харгалзаа"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.js:0
+#: model:ir.model.fields,field_description:account.field_account_auto_reconcile_wizard__search_mode
+#: model:ir.ui.menu,name:account.menu_account_reconcile
+#: model_terms:ir.ui.view,arch_db:account.view_account_auto_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_account_list_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_payment_tree
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_reconcile_tree
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_tree
+msgid "Reconcile"
+msgstr "Тулгах"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_open_auto_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_account_auto_reconcile_wizard
+msgid "Reconcile automatically"
+msgstr "Автомат тулгах"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Sales Journal"
+msgstr "Борлуулалтын журнал"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+msgid "Save & Close"
+msgstr "Хадгалах & Хаах"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+msgid "Save & New"
+msgstr "Хадгалах & Шинэ"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_reconcile_search
+msgid "Search Journal Items to Reconcile"
+msgstr "Тулгах журнал бичилтүүдийг хайх"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.js:0
+msgid "Set Account"
+msgstr "Данс оноох"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__module_sign
+msgid "Sign"
+msgstr "Гарын үсэг зурах"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__signature
+#: model:ir.model.fields,field_description:account.field_account_move__signature
+msgid "Signature"
+msgstr "Гарын үсэг"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_fiscal_year__date_from
+#: model:ir.model.fields,field_description:account.field_account_move_line__deferred_start_date
+msgid "Start Date"
+msgstr "Эхлэх огноо"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_fiscal_year__date_from
+msgid "Start Date, included in the fiscal year."
+msgstr "Эхлэх огноо, санхүүгийн жилд багтана."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_fiscal_year.py:0
+msgid "The ending date must not be prior to the starting date."
+msgstr "Дуусах огноо нь эхлэх огнооноос эрт байж болохгүй."
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__to_check
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "To Check"
+msgstr "Шалгах"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Transaction"
+msgstr "Гүйлгээ"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_reconcile_wizard.py:0
+msgid "Write-Off"
+msgstr "Зөрүү хаах"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_fiscal_year.py:0
+msgid ""
+"You can not have an overlap between two fiscal years, please correct the "
+"start and/or end dates of your fiscal years."
+msgstr ""
+"Хоёр санхүүгийн жил огтолцож болохгүй, та тэдгээрийн эхлэх болон дуусах "
+"огноог давхацуулахгүйгээр тааруулна уу."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_journal_dashboard_kanban_view
+msgid "to reconcile"
+msgstr "тулгах"

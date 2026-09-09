@@ -14567,3 +14567,9 @@ msgstr ""
 #: model:mail.template,subject:account.mail_template_data_payment_receipt
 msgid "{{ object.company_id.name }} Payment Receipt (Ref {{ object.name or 'n/a' }})"
 msgstr ""
+
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_bank_rec_widget_line__wizard_id
+msgid "Wizard"
+msgstr "Assistent"

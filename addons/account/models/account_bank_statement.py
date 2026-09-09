@@ -12,6 +12,7 @@ _RUNNING_BALANCE_TRIGGERS = frozenset(
 
 class AccountBankStatement(models.Model):
     _name = "account.bank.statement"
+    _inherit = ["mixin.mail.thread.main.attachment"]
     _description = "Bank Statement"
     _order = "first_line_index desc"
     _check_company_auto = True

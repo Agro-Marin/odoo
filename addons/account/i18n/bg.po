@@ -21979,3 +21979,908 @@ msgstr ""
 
 #~ msgid "to check"
 #~ msgstr "за проверка"
+
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+#, fuzzy
+msgid " - %(reconcile_model_name)s"
+msgstr " - %(reconcile_model_name)s"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "%(display_name_html)s will be entirely paid by the transaction."
+msgstr "%(display_name_html)s ще бъде изцяло разплатено от транзакцията."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "%(display_name_html)s will be fully reconciled by the transaction."
+msgstr "%(display_name_html)s ще бъде напълно съгласувано чрез транзакцията."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "%(display_name_html)s will be reduced by %(amount)s."
+msgstr "%(display_name_html)s ще бъдат намалени с %(amount)s."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_create_statement_form_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_form_bank_rec_widget
+msgid ") doesn't match the specified ending balance."
+msgstr ") не съответства на посоченото крайно салдо."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_form
+msgid "-> Reconcile"
+msgstr "-> Обединете"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_0
+msgid "<b class=\"tip_title\">Tip: Bulk update journal items</b>"
+msgstr ""
+"<b class=\"tip_title\">Съвет: Групово актуализиране на елементи от дневника</"
+"b>"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid ""
+"<b class=\"tip_title\">Tip: Find an Accountant or register your Accounting "
+"Firm</b>"
+msgstr ""
+"<b class=\"tip_title\">Съвет: Намерете Счетоводител или регистрирайте Ваша "
+"счетоводна фирма</b>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "<i>Lock transactions up to specific dates, inclusive</i>"
+msgstr "<i>Заключване на транзакциите до определени дати, включително</i>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
+msgid "<span class=\"o_stat_text\">1 Bank Transaction</span>"
+msgstr "<span class=\"o_stat_text\">1 Банкова транзакция</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
+msgid "<span class=\"o_stat_text\">Bank Statement</span>"
+msgstr "<span class=\"o_stat_text\">Банково извлечение</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+msgid ""
+"<span class=\"oe_inline o_form_label mx-3\" invisible=\"reco_currency_id == "
+"company_currency_id\"> in </span>"
+msgstr ""
+"<span class=\"oe_inline o_form_label mx-3\" invisible=\"reco_currency_id == "
+"company_currency_id\"> в </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+msgid ""
+"<span class=\"oe_inline o_form_label mx-3\" "
+"invisible=\"single_currency_mode\"> in </span>"
+msgstr ""
+"<span class=\"oe_inline o_form_label mx-3\" "
+"invisible=\"single_currency_mode\"> в </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-danger o_form_label\" invisible=\"hard_lock_date == "
+"current_hard_lock_date\">\n"
+"                                            <i>This change is irreversible</"
+"i>\n"
+"                                        </span>"
+msgstr ""
+"<span class=\"text-danger o_form_label\" invisible=\"hard_lock_date == "
+"current_hard_lock_date\">\n"
+"                                            <i>Тази промяна е необратима</"
+"i>\n"
+"                                        </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_fiscalyear_lock_date_exception_for_me_id                                                  "
+"or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_fiscalyear_lock_date_exception_for_me_id                                                  "
+"or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_purchase_lock_date_exception_for_me_id                                                  "
+"or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_purchase_lock_date_exception_for_me_id                                                  "
+"or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_sale_lock_date_exception_for_me_id                                                  "
+"or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_sale_lock_date_exception_for_me_id                                                  "
+"or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_tax_lock_date_exception_for_me_id                                                  "
+"or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_tax_lock_date_exception_for_me_id                                                  "
+"or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                      <span style=\"white-space: pre\">; </"
+"span>\n"
+"                                </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-muted\" "
+"invisible=\"min_fiscalyear_lock_date_exception_for_me_id or "
+"min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                    <i class=\"ms-2\">but allow exceptions</"
+"i>\n"
+"                                </span>"
+msgstr ""
+"<span class=\"text-muted\" "
+"invisible=\"min_fiscalyear_lock_date_exception_for_me_id or "
+"min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                    <i class=\"ms-2\">но допуска изключения</"
+"i>\n"
+"                                </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"<span class=\"text-muted\" invisible=\"min_tax_lock_date_exception_for_me_id "
+"or min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                    <i class=\"ms-2\">after a tax closing</"
+"i>\n"
+"                                </span>"
+msgstr ""
+"<span class=\"text-muted\" invisible=\"min_tax_lock_date_exception_for_me_id "
+"or min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                    <i class=\"ms-2\">след данъчно "
+"приключване</i>\n"
+"                                </span>"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid "<span class=\"tip_button_text\">Find an Accountant</span>"
+msgstr "<span class=\"tip_button_text\">Намерете Счетоводител</span>"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid "<span class=\"tip_button_text\">Register your Accounting Firm</span>"
+msgstr "<span class=\"tip_button_text\">Регистрирайте Счетоводна Фирма</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+#, fuzzy
+msgid "<span> (</span>"
+msgstr "<span> (</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+#, fuzzy
+msgid "<span>)</span>"
+msgstr "<span>)</span>"
+
+#. module: account_accountant
+#: model_terms:web_tour.tour,rainbow_man_message:account.account_accountant_tour
+msgid ""
+"<span><strong><b>Good job!</b> You went through all steps of this tour.</"
+"strong>\n"
+"            <br>See how to manage your customer invoices in the <b>Customers/"
+"Invoices</b> menu\n"
+"        </span>"
+msgstr ""
+"<span><strong><b>Браво!</b> Преминахте през всички стъпки на тази обиколка.</"
+"strong>\n"
+"            <br>Вижте как да управлявате фактурите на клиентите си в менюто "
+"<b>Клиентски/Фактури</b>\n"
+"        </span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "<span>Exception</span>"
+msgstr "<span>Изключение</span>"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_payment.py:0
+msgid ""
+"A payment with entry was created for an invoice previously linked to this "
+"payment: %(link)s.\n"
+"Its amount was deducted from this payment."
+msgstr ""
+"Създадено е плащане с въвеждане за фактура, която преди това е била свързана "
+"с това плащане: %(link)s.\n"
+"Сумата му беше приспадната от това плащане."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_payment.py:0
+msgid ""
+"A payment with entry was created for the related invoice during its "
+"reconciliation, replacing this one: %(link)s."
+msgstr ""
+"По време на съгласуването за свързаната фактура е създадено плащане със "
+"запис, което замества това: %(link)s."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid ""
+"A posted tax return closing entry exists after this tax lock date. You might "
+"want to reset the related tax return to non-submitted."
+msgstr ""
+"Съществува запис за приключване на данъчна декларация след тази дата на "
+"данъчно заключване. Може да искате да нулирате свързаната данъчна декларация "
+"като неподадена."
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.account_tag_action
+msgid "Add a new tag"
+msgstr "Добавете нов етикет"
+
+#. module: account_accountant
+#: model:res.groups,name:account.group_fiscal_year
+msgid "Allow to define fiscal years of more or less than a year"
+msgstr ""
+"Позволете задаване на фискална година по-дълга или по-кратка от една "
+"календарна година"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__amount
+msgid "Amount in company currency"
+msgstr "Сума във фирмена валута"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_reconcile_wizard.py:0
+msgid ""
+"An entry will transfer %(amount)s from %(from_account)s to %(to_account)s."
+msgstr ""
+"Записът ще прехвърли %(amount)s от %(from_account)s към %(to_account)s."
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__use_anglo_saxon
+msgid "Anglo-Saxon Accounting"
+msgstr "Англо-саксонско Счетоводство"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.js:0
+msgid "Are you sure you want to delete this statement line?"
+msgstr "Сигурни ли сте, че искате да изтриете този ред с извлечение?"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__sign_invoice
+msgid "Authorized Signatory on invoice"
+msgstr "Лице, оторизирано да подписва фактури"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.report_invoice_document
+msgid "Authorized signatory"
+msgstr "Лице, оторизирано да подписва"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/move_line_list_reconcile/move_line_list_reconcile.xml:0
+msgid "Auto-reconcile"
+msgstr "Автоматично съгласуване"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_auto_reconcile_wizard.py:0
+msgid "Automatically Reconciled Entries"
+msgstr "Автоматично съгласувани записи"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/search_dialog/search_dialog_list.xml:0
+msgid "Balance:"
+msgstr "Салдо:"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_digest_digest__kpi_account_bank_cash
+msgid "Bank & Cash Moves"
+msgstr "Движения по банка & брой"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+#: model:ir.actions.act_window,name:account.action_bank_statement_line_transactions
+#: model:ir.actions.act_window,name:account.action_bank_statement_line_transactions_kanban
+msgid "Bank Matching"
+msgstr "Осчетоводяване на Банка"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+msgid "Bank Statement %s.pdf"
+msgstr "Банково извлечение %s.pdf"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__bank_statement_attachment_ids
+msgid "Bank Statement Attachment"
+msgstr "Прикачено Банково Извлечение"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+msgid "Bank Statement.pdf"
+msgstr "Банково извлечение.pdf"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Based on"
+msgstr "Основан на"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Card"
+msgstr "Карта"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_change_lock_date
+msgid "Change Lock Date"
+msgstr "Промяна на датата на заключване"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_reconcile_wizard__to_check
+msgid "Check if you are not certain of all the information of the counterpart."
+msgstr "Провеврка ако няма сигурност за цялата информация на контрагента."
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/attachment_preview_list_view/attachment_preview_list_view.xml:0
+msgid "Choose a line to preview its attachments."
+msgstr "Изберете ред за да видите прикачения към него файл."
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_auto_reconcile_wizard__search_mode__zero_balance
+msgid "Clear Account"
+msgstr "Изчистване на сметка"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.actions_account_fiscal_year
+msgid "Click here to create a new fiscal year."
+msgstr "Натиснете тук, за да създадете нов фискална година."
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid ""
+"Click here to find an accountant or if you want to list out your accounting "
+"services on Odoo"
+msgstr ""
+"Натиснете тук, за да намерите счетоводител, или за да публикувате вашите "
+"счетоводни услуги в Odoo"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__company_currency_id
+msgid "Company currency"
+msgstr "Фирмена валута"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Confirm the transaction."
+msgstr "Потвърдете транзакцията."
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Connect your bank and get your latest transactions."
+msgstr ""
+"Свържете се към вашата банка, за да получите последните банкови извлечения."
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_bank_statement_form_bank_rec_widget
+msgid "Create Statement"
+msgstr "Създаване на извлечение"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.action_account_group_tree
+msgid "Create a new account group"
+msgstr "Създайте нова група сметки"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Create a new transaction."
+msgstr "Създайте нова транзакция."
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid ""
+"Create your first vendor bill.<br/><br/><i>Tip: If you don’t have one on "
+"hand, use our sample bill.</i>"
+msgstr ""
+"Въведете Вашата първа фактура за покупка.<br/><br/><i>Съвет: Ако в момента "
+"не разполагате с фактура използвайте образеца.</i>"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_model__created_automatically
+#: model_terms:ir.ui.view,arch_db:account.account_accountant_view_account_reconcile_model_search
+msgid "Created Automatically"
+msgstr "Създадено Автоматично"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_accountant_view_account_reconcile_model_search
+msgid "Created by User"
+msgstr "Създадено от потребител"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__cron_last_check
+msgid "Cron Last Check"
+msgstr "Последна проверка на Cron"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__reco_currency_id
+msgid "Currency to use for reconciliation"
+msgstr "Валута, която да се използва за съгласуване"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_change_lock_date__current_hard_lock_date
+msgid "Current Hard Lock"
+msgstr "Текущо твърдо заключване"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_move_line__deferred_end_date
+msgid "Date at which the deferred expense/revenue ends"
+msgstr "Дата на приключване на отложения разход/приход"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_move_line__deferred_start_date
+msgid "Date at which the deferred expense/revenue starts"
+msgstr "Дата на начало на отложения разход/приход"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "Deferral of %s"
+msgstr "Отлагане на %s"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__deferred_move_ids
+#: model:ir.model.fields,field_description:account.field_account_move__deferred_move_ids
+msgid "Deferred Entries"
+msgstr "Отложени записи"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_move__deferred_entry_type__expense
+msgid "Deferred Expense"
+msgstr "Отложен разход"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_revenue_account_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_revenue_account_id
+msgid "Deferred Revenue Account"
+msgstr "Отчет разсрочен приход"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Define fiscal years of more or less than one year"
+msgstr ""
+"Задаване на фискална година по-дълга или по-кратка от една календарна година"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Deposits"
+msgstr "Аванси"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__edit_mode
+msgid "Edit Mode"
+msgstr "Режим Чернова"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__edit_mode_amount
+msgid "Edit Mode Amount"
+msgstr "Сума в режим Чернова"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__edit_mode_amount_currency
+msgid "Edit mode amount"
+msgstr "Сума в режим Чернова"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_fiscal_year__date_to
+msgid "Ending Date, included in the fiscal year."
+msgstr "Крайна дата, включена във фискалната година."
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_fiscal_year
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Fiscal Year"
+msgstr "Фискална Година"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.action_account_fiscal_year_form
+msgid "Fiscal Year 2018"
+msgstr "Фискална Година 2018"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.actions_account_fiscal_year
+#: model:ir.model.fields,field_description:account.field_res_config_settings__group_fiscal_year
+#: model:ir.ui.menu,name:account.menu_account_fiscal_year
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Fiscal Years"
+msgstr "Фискални Години"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "For everyone:"
+msgstr "За всички:"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
+msgid "For me:"
+msgstr "За мен:"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_expense_amount_computation_method__full_months
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_revenue_amount_computation_method__full_months
+msgid "Full Months"
+msgstr "Пълни месеци"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Generate Entries"
+msgstr "Генериране на влизания"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_search_bank_rec_widget
+msgid "Incoming"
+msgstr "Входящ"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Invalid statements"
+msgstr "Невалидни извлечения"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Last Day"
+msgstr "Последен Ден"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_journal_dashboard_kanban_view
+msgid "Latest Statement"
+msgstr "Последно извлечение"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Let’s go back to the dashboard."
+msgstr "Връщане към таблото."
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_expense_entries_method__manual
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_revenue_entries_method__manual
+msgid "Manually & Grouped"
+msgstr "Ръчни & Групирани"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Matched"
+msgstr "Съгласувано"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_ir_ui_menu
+msgid "Menu"
+msgstr "Меню"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_expense_amount_computation_method__month
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_revenue_amount_computation_method__month
+msgid "Months"
+msgstr "Месеци"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_move_line__move_attachment_ids
+msgid "Move Attachment"
+msgstr "Премести Приложения Файл"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/attachment_preview_list_view/attachment_preview_list_view.xml:0
+msgid "No attachments linked."
+msgstr "Няма Свързани Приложени Файлове."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "No statement"
+msgstr "Няма извлечение"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.action_bank_statement_line_transactions
+#: model_terms:ir.actions.act_window,help:account.action_bank_statement_line_transactions_kanban
+msgid "No transactions matching your filters were found."
+msgstr "Не са открити транзакции, отговарящи на филтрите."
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Not Matched"
+msgstr "Несъгласувано"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Now, we'll create your first invoice (accountant)"
+msgstr "Сега ще създадем вашата първа фактура (счетоводител)"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_expense_entries_method__on_validation
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_revenue_entries_method__on_validation
+msgid "On bill validation"
+msgstr "При валидиране на сметката"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_change_lock_date.py:0
+msgid "Only Billing Administrators are allowed to change lock dates!"
+msgstr "Само администраторите имат прави да променят датите на приключване!"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/attachment_preview_list_view/attachment_preview_list_view.xml:0
+msgid "Open attachment in pop out"
+msgstr "Отваряне на прикачения файл в изскачащ прозорец"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__deferred_original_move_ids
+#: model:ir.model.fields,field_description:account.field_account_move__deferred_original_move_ids
+msgid "Original Invoices"
+msgstr "Оригинални фактури"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_search_bank_rec_widget
+msgid "Outgoing"
+msgstr "Изходящ"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_payment_form_inherit_account_accountant
+msgid "Payment Matching"
+msgstr "Съответствие на Плащането"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_journal_dashboard_kanban_view
+msgid "Payments Matching"
+msgstr "Съответствие на плащанията"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_auto_reconcile_wizard__search_mode__one_to_one
+msgid "Perfect Match"
+msgstr "Пълно съответствие"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "Please set the deferred accounts in the accounting settings."
+msgstr "Моля, задайте отложените сметки в счетоводните настройки."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "Please set the deferred journal in the accounting settings."
+msgstr "Моля, задайте отложения журнал в счетоводните настройки."
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.js:0
+#: model:ir.model.fields,field_description:account.field_account_auto_reconcile_wizard__search_mode
+#: model:ir.ui.menu,name:account.menu_account_reconcile
+#: model_terms:ir.ui.view,arch_db:account.view_account_auto_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_account_list_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_payment_tree
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_reconcile_tree
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_tree
+msgid "Reconcile"
+msgstr "Равнете"
+
+#. module: account_accountant
+#: model:ir.actions.server,name:account.model_account_statement_line_button_draft
+msgid "Reset to draft"
+msgstr "Нулиране към чернова"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Sales Journal"
+msgstr "Дневник на продажбите"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+msgid "Save & Close"
+msgstr "Запазаете и Затворете"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+msgid "Save & New"
+msgstr "Запазете & Ново"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__show_signature_area
+#: model:ir.model.fields,field_description:account.field_account_move__show_signature_area
+msgid "Show Signature Area"
+msgstr "Показване зоната за подписване"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__module_sign
+msgid "Sign"
+msgstr "Подпишете"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__signature
+#: model:ir.model.fields,field_description:account.field_account_move__signature
+msgid "Signature"
+msgstr "Подпис"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__signing_user
+msgid "Signature used to sign all the invoice"
+msgstr "Подпис, използван за подписване на всички фактури"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_fiscal_year__date_from
+#: model:ir.model.fields,field_description:account.field_account_move_line__deferred_start_date
+msgid "Start Date"
+msgstr "Начална Дата"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_fiscal_year__date_from
+msgid "Start Date, included in the fiscal year."
+msgstr "Начална Дата, включена във фискалната година."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_fiscal_year.py:0
+msgid "The ending date must not be prior to the starting date."
+msgstr "Крайната дата не може да бъде преди началната дата."
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__to_check
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "To Check"
+msgstr "За Проверка"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Transaction"
+msgstr "Транзакция"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_reconcile_wizard.py:0
+msgid "Write-Off"
+msgstr "Отписване"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_fiscal_year.py:0
+msgid ""
+"You can not have an overlap between two fiscal years, please correct the "
+"start and/or end dates of your fiscal years."
+msgstr ""
+"Две отделни фискални години не могат да бъдат застъпени, моля коригирайте "
+"начлната и/или крайна дата на фискалните години."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "You might want to %(btn_start)sfully reconcile%(btn_end)s the document."
+msgstr "Може би искате %(btn_start)s да равните напълно %(btn_end)s документа."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid ""
+"You might want to make a %(btn_start)spartial reconciliation%(btn_end)s "
+"instead."
+msgstr "Може би искате %(btn_start)s да равните %(btn_end)s частично."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "You might want to record a %(btn_start)spartial payment%(btn_end)s."
+msgstr "Може би искате да запишете %(btn_start)s частично плащане %(btn_end)s."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid ""
+"You might want to set the invoice as %(btn_start)sfully paid%(btn_end)s."
+msgstr ""
+"Може би искате да отбележите фактурата като %(btn_start)s напълно платена %"
+"(btn_end)s."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_change_lock_date.py:0
+msgid "You need to select a duration for the exception."
+msgstr "Избиране продължителност за изключението."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_change_lock_date.py:0
+msgid "You need to select who the exception applies to."
+msgstr "Избиране за кого се отнася изключението."
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__1h
+msgid "for 1 hour"
+msgstr "за 1 час"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__15min
+msgid "for 15 minutes"
+msgstr "за 15 минути"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__24h
+msgid "for 24 hours"
+msgstr "за 24 часа"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__5min
+msgid "for 5 minutes"
+msgstr "за 5 минути"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_applies_to__everyone
+msgid "for everyone"
+msgstr "за всички"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_applies_to__me
+msgid "for me"
+msgstr "за мен"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__forever
+msgid "forever"
+msgstr "завинаги"

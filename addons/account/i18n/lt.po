@@ -21777,3 +21777,604 @@ msgstr ""
 
 #~ msgid "to check"
 #~ msgstr "patikrinti"
+
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_form
+msgid "-> Reconcile"
+msgstr "-> Sudengti"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_0
+msgid "<b class=\"tip_title\">Tip: Bulk update journal items</b>"
+msgstr "<b class=\"tip_title\">Patarimas: Urmu atnaujinkite DK eilutes</b>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
+msgid "<span class=\"o_stat_text\">1 Bank Transaction</span>"
+msgstr "<span class=\"o_stat_text\">1 banko operacija</span>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
+msgid "<span class=\"o_stat_text\">Bank Statement</span>"
+msgstr "<span class=\"o_stat_text\">Banko Išrašas</span>"
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid "<span class=\"tip_button_text\">Find an Accountant</span>"
+msgstr "<span class=\"tip_button_text\">Surasti buhalterį</span>"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_res_config_settings__deferred_expense_account_id
+msgid "Account used for deferred expenses"
+msgstr "Atein.laikotarpių sąnauudų sąskaita"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_res_config_settings__deferred_revenue_account_id
+msgid "Account used for deferred revenues"
+msgstr "Atein.laikotarpių pajamų sąskaita"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.account_tag_action
+msgid "Add a new tag"
+msgstr "Pridėti naują žymą"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__reco_model_autocomplete_ids
+msgid "All reconciliation models"
+msgstr "Visi sudengimo modeliai"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__allow_partials
+msgid "Allow partials"
+msgstr "Leisti dalinius"
+
+#. module: account_accountant
+#: model:res.groups,name:account.group_fiscal_year
+msgid "Allow to define fiscal years of more or less than a year"
+msgstr ""
+"Leisti nustatyti finansinius metus kaip ilgesnius ar trumpesnius nei metai"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__amount
+msgid "Amount in company currency"
+msgstr "Suma įmonės valiuta"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_analytic_mixin
+msgid "Analytic Mixin"
+msgstr "Analitinė papildymo dalis"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__use_anglo_saxon
+msgid "Anglo-Saxon Accounting"
+msgstr "Anglo-Saxon apskaita"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.report_invoice_document
+msgid "Authorized signatory"
+msgstr "Įgaliotasis pasirašantis asmuo"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/move_line_list_reconcile/move_line_list_reconcile.xml:0
+msgid "Auto-reconcile"
+msgstr "Auto-sudengimas"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_auto_reconcile_wizard.py:0
+msgid "Automatically Reconciled Entries"
+msgstr "Automatiškai sudengti įrašai"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/search_dialog/search_dialog_list.xml:0
+msgid "Balance:"
+msgstr "Balansas:"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_digest_digest__kpi_account_bank_cash
+msgid "Bank & Cash Moves"
+msgstr "Pinigų srautų ataskaita"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+msgid "Bank Statement %s.pdf"
+msgstr "Banko išrašas %s.pdf"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_bank_statement.py:0
+msgid "Bank Statement.pdf"
+msgstr "Banko išrašas.pdf"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Based on"
+msgstr "Paremta"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Card"
+msgstr "Kortelė"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_change_lock_date
+msgid "Change Lock Date"
+msgstr "Keisti užrakinimo datą"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/kanban_controller.xml:0
+msgid "Chatter"
+msgstr "Pasišnekėjimukas"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/attachment_preview_list_view/attachment_preview_list_view.xml:0
+msgid "Choose a line to preview its attachments."
+msgstr "Pasirinkite eilutę, kad pamatytumėte prioe jos prisegtą dokumentą."
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.actions_account_fiscal_year
+msgid "Click here to create a new fiscal year."
+msgstr "Norėdami sukurti naujus finansinius metu, paspauskite."
+
+#. module: account_accountant
+#: model_terms:digest.tip,tip_description:account.digest_tip_account_accountant_1
+msgid ""
+"Click here to find an accountant or if you want to list out your accounting "
+"services on Odoo"
+msgstr ""
+"Spustelėkite čia, kad surastumėte buhalterį arba jei norite išvardyti savo "
+"apskaitos paslaugas Odoo"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__company_currency_id
+msgid "Company currency"
+msgstr "Įmonės valiuta"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Connect your bank and get your latest transactions."
+msgstr "Prijunkite savo banką ir gaukite naujausias operacijas."
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_bank_statement_form_bank_rec_widget
+msgid "Create Statement"
+msgstr "Sukurti išrašą"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.action_account_group_tree
+msgid "Create a new account group"
+msgstr "Sukurkite naują sąskaitų grupę"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid ""
+"Create your first vendor bill.<br/><br/><i>Tip: If you don’t have one on "
+"hand, use our sample bill.</i>"
+msgstr ""
+"Sukurkite naują tiekėjo faktūrą. <br/><br/><i> Patarimas: jei neturite nei "
+"vienos po ranka, naudokite mūsų pavyzdį.</i>"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_accountant_view_account_reconcile_model_search
+msgid "Created by User"
+msgstr "Sukurta vartotojo"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__reco_currency_id
+msgid "Currency to use for reconciliation"
+msgstr "Sudengimui naudojama valiuta"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_move_line__deferred_end_date
+msgid "Date at which the deferred expense/revenue ends"
+msgstr "Ateinančių laikotarpių pajamų/sąnaudų pabaigos data"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_move_line__deferred_start_date
+msgid "Date at which the deferred expense/revenue starts"
+msgstr "Ateinančių laikotarpių pajamų/sąnaudų pradžios data"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__deferred_move_ids
+#: model:ir.model.fields,field_description:account.field_account_move__deferred_move_ids
+msgid "Deferred Entries"
+msgstr "Ateinančių laikotarpių įrašai"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__deferred_entry_type
+#: model:ir.model.fields,field_description:account.field_account_move__deferred_entry_type
+msgid "Deferred Entry Type"
+msgstr "Ateinančių laikotarpių įrašų tipas"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__account_move__deferred_entry_type__expense
+msgid "Deferred Expense"
+msgstr "Atein.laikotarpių sąnaudos"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_expense_account_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_expense_account_id
+msgid "Deferred Expense Account"
+msgstr "Ateinančių laikotarpių sąnaudų sąskaita"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__deferred_revenue_account_id
+#: model:ir.model.fields,field_description:account.field_res_config_settings__deferred_revenue_account_id
+msgid "Deferred Revenue Account"
+msgstr "Būs.laikotarpių pajamų sąskaita"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred expense"
+msgstr "Būs.laikotarpių sąnaudos"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Deferred revenue"
+msgstr "Būs.laikotarpių pajamos"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Define fiscal years of more or less than one year"
+msgstr ""
+"Nustatykite finansinius metus, kurie nesutampa su kalendoriniais metais"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_fiscal_year__date_to
+msgid "Ending Date, included in the fiscal year."
+msgstr "Pabaigos data, įtraukta į finansinius metus."
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_account_fiscal_year
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Fiscal Year"
+msgstr "Finansiniai metai"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.action_account_fiscal_year_form
+msgid "Fiscal Year 2018"
+msgstr "Finansiniai metai 2018"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.actions_account_fiscal_year
+#: model:ir.model.fields,field_description:account.field_res_config_settings__group_fiscal_year
+#: model:ir.ui.menu,name:account.menu_account_fiscal_year
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Fiscal Years"
+msgstr "Finansiniai metai"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_expense_amount_computation_method__full_months
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_revenue_amount_computation_method__full_months
+msgid "Full Months"
+msgstr "Pilni mėnesiai"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Generate Entries"
+msgstr "Generuoti įrašus"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_search_bank_rec_widget
+msgid "Incoming"
+msgstr "Atvykstanys"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Invalid statements"
+msgstr "Nekorektiškas išrašas"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_move_line_posted_unreconciled
+msgid "Journal Items to reconcile"
+msgstr "Žurnalo įrašai sudengimui"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_res_config_settings__deferred_expense_journal_id
+#: model:ir.model.fields,help:account.field_res_config_settings__deferred_revenue_journal_id
+msgid "Journal used for deferred entries"
+msgstr "Žurnalas naudojamas atein.laikotarpių įrašams"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_digest_digest__kpi_account_bank_cash_value
+msgid "Kpi Account Bank Cash Value"
+msgstr "Banko sąskaitos vertės rodikliai"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Last Day"
+msgstr "Paskutinė diena"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_journal_dashboard_kanban_view
+msgid "Latest Statement"
+msgstr "Paskutinis išrašas"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/js/tours/account.js:0
+msgid "Let’s go back to the dashboard."
+msgstr "Grįžkime į apžvalgą"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_expense_entries_method__manual
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_revenue_entries_method__manual
+msgid "Manually & Grouped"
+msgstr "Sugupuota rankiniu būdu"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Matched"
+msgstr "Sudengta"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_ir_ui_menu
+msgid "Menu"
+msgstr "Meniu"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_res_config_settings__deferred_expense_amount_computation_method
+#: model:ir.model.fields,help:account.field_res_config_settings__deferred_revenue_amount_computation_method
+msgid "Method used to compute the amount of deferred entries"
+msgstr "Metodas, naudojamas atidėtųjų įrašų sumai apskaičiuoti"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_expense_amount_computation_method__month
+#: model:ir.model.fields.selection,name:account.selection__res_company__deferred_revenue_amount_computation_method__month
+msgid "Months"
+msgstr "Mėnesiai"
+
+#. module: account_accountant
+#: model:ir.actions.act_window,name:account.action_bank_statement_line_form_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_quick_create_form_bank_rec_widget
+msgid "New Transaction"
+msgstr "Nauja operacija"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/attachment_preview_list_view/attachment_preview_list_view.xml:0
+msgid "No attachments linked."
+msgstr "Nėra prisegtukų"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "No statement"
+msgstr "Nėra jokių išrašų"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.action_bank_statement_line_transactions
+#: model_terms:ir.actions.act_window,help:account.action_bank_statement_line_transactions_kanban
+msgid "No transactions matching your filters were found."
+msgstr "Nėra operacijų, atitinkančių Jūsų filtrus"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Not Matched"
+msgstr "Neatitinka"
+
+#. module: account_accountant
+#: model_terms:ir.actions.act_window,help:account.action_bank_statement_line_transactions
+#: model_terms:ir.actions.act_window,help:account.action_bank_statement_line_transactions_kanban
+msgid "Nothing to do here!"
+msgstr "Nieko nereikia daryti!"
+
+#. module: account_accountant
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_expense_entries_method__on_validation
+#: model:ir.model.fields.selection,name:account.selection__res_company__generate_deferred_revenue_entries_method__on_validation
+msgid "On bill validation"
+msgstr "Faktūros patvirtinimo metu"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_change_lock_date.py:0
+msgid "Only Billing Administrators are allowed to change lock dates!"
+msgstr "Tik apskaitos administratoriui leidžiama pakeisti užrakinimo datas!"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_move_line_search_bank_rec_widget
+msgid "Outgoing"
+msgstr "Išeinantys"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_payment_form_inherit_account_accountant
+msgid "Payment Matching"
+msgstr "Mokėjimų susiejimas"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.account_journal_dashboard_kanban_view
+msgid "Payments Matching"
+msgstr "Mokėjimų susiejimas"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "Please set the deferred accounts in the accounting settings."
+msgstr "Prašau nustatyti atein.laikotarpių sąskaitą apskaitos nustatymuose"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "Please set the deferred journal in the accounting settings."
+msgstr "Prašau nustatyti atein.laikotarpių žurnalą apskaitos nustatymuose"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_company__predict_bill_product
+#: model:ir.model.fields,field_description:account.field_res_config_settings__predict_bill_product
+msgid "Predict Bill Product"
+msgstr "Numatyti sąskaitos produktą"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
+msgid "Predict vendor bill product"
+msgstr "numatyto tiekėjo faktūros produktą"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/button_list/button_list.js:0
+#: model:ir.model.fields,field_description:account.field_account_auto_reconcile_wizard__search_mode
+#: model:ir.ui.menu,name:account.menu_account_reconcile
+#: model_terms:ir.ui.view,arch_db:account.view_account_auto_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_account_list_bank_rec_widget
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_payment_tree
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_reconcile_tree
+#: model_terms:ir.ui.view,arch_db:account.view_move_line_tree
+msgid "Reconcile"
+msgstr "Sudengti"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_wizard
+msgid "Reconcile & open"
+msgstr "Sudengti & atidaryti"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__reco_account_id
+msgid "Reconcile Account"
+msgstr "Sudengimo sąskaita"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__reco_model_id
+msgid "Reconciliation model"
+msgstr "Sudengimo modelis"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
+msgid "Related Purchase(s)"
+msgstr "Susijęs pirkimas(ai)"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
+msgid "Related Sale(s)"
+msgstr "Susijęs pardavimas(ai)"
+
+#. module: account_accountant
+#: model:ir.actions.server,name:account.model_account_statement_line_button_draft
+msgid "Reset to draft"
+msgstr "Atkurti kaip juodraštį"
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/journal_create_wizard/journal_create_wizard.js:0
+msgid "Sales Journal"
+msgstr "Pardavimų žurnalas"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+msgid "Save & Close"
+msgstr "Išsaugoti ir uždaryti"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_form_bank_rec_widget
+msgid "Save & New"
+msgstr "Įrašyti ir kurti naują"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_res_config_settings__module_sign
+msgid "Sign"
+msgstr "Pasirašymas"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_bank_statement_line__signature
+#: model:ir.model.fields,field_description:account.field_account_move__signature
+msgid "Signature"
+msgstr "Parašas"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_fiscal_year__date_from
+#: model:ir.model.fields,field_description:account.field_account_move_line__deferred_start_date
+msgid "Start Date"
+msgstr "Darbo pradžios data"
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_fiscal_year__date_from
+msgid "Start Date, included in the fiscal year."
+msgstr "Pradžios data, įtraukta į finansinius metus."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_fiscal_year.py:0
+msgid "The ending date must not be prior to the starting date."
+msgstr "Pabaigos data turi būti ne prieš pabaigos datą."
+
+#. module: account_accountant
+#: model:ir.model.fields,help:account.field_account_bank_statement_line__deferred_original_move_ids
+#: model:ir.model.fields,help:account.field_account_move__deferred_original_move_ids
+msgid "The original invoices that created the deferred entries"
+msgstr "Sąskaita faktūra, iš kurios susikūrė atein.laikotarpių įrašai"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__to_check
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "To Check"
+msgstr "Patikrinti"
+
+#. module: account_accountant
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "Transaction"
+msgstr "Operacija"
+
+#. module: account_accountant
+#: model:ir.actions.server,name:account.auto_reconcile_bank_statement_line_ir_actions_server
+msgid "Try to reconcile automatically your statement lines"
+msgstr "Bandykite automatiškai sudengti išrašo eilutes"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/res_company.py:0
+msgid "Unreconciled statements lines"
+msgstr "Nesudemgtos išrašų eilutės"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_reconcile_wizard.py:0
+msgid "Write-Off"
+msgstr "Nurašymas"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_reconcile_wizard.py:0
+msgid "Write-Off Entry"
+msgstr "Nurašymo įrašas"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_fiscal_year.py:0
+msgid ""
+"You can not have an overlap between two fiscal years, please correct the "
+"start and/or end dates of your fiscal years."
+msgstr ""
+"Negalite turėti persidengimo tarp dviejų mokestinių metų, pakoreguokite "
+"pradžios ir/ar pabaigos datas."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/wizard/account_reconcile_wizard.py:0
+msgid "You can only reconcile entries with up to two different accounts: %s"
+msgstr "Jūs galite sudengti įrašus tik su dviem skirtingomis sąskaitomis: %s"
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid "You cannot create a deferred entry with a start date but no end date."
+msgstr "Negalima sukurti ateinančių laikotarpių įrašų be pabaigos datos."
+
+#. module: account_accountant
+#. odoo-python
+#: code:addons/account/models/account_move.py:0
+msgid ""
+"You cannot create a deferred entry with a start date later than the end date."
+msgstr ""
+"Negalima sukurti ateinančių laikotarpių įrašų, kurių pradžios data vėlesnė "
+"nei pabaigos data."

@@ -1,0 +1,64 @@
+from requests import PreparedRequest, Response, Session
+
+from odoo.tests import HttpCase, tagged
+
+from .common_reconcile import TestBankRecWidgetCommon
+
+
+@tagged("post_install", "-at_install")
+class TestAccountBankStatementTour(TestBankRecWidgetCommon, HttpCase):
+    @classmethod
+    def _request_handler(cls, s: Session, r: PreparedRequest, /, **kw):
+        if "proxy/v2/get_dashboard_institutions" in r.url:
+            r = Response()
+            r.status_code = 200
+            r.json = list
+            return r
+        return super()._request_handler(s, r, **kw)
+
+    def test_tour_bank_rec_widget(self):
+        self.partner_a.name = "AAAA"
+        self._create_invoice_line(
+            "out_invoice",
+            partner_id=self.partner_a.id,
+            invoice_line_ids=[{"price_unit": 100.0}],
+        )
+        self._create_invoice_line(
+            "out_invoice",
+            partner_id=self.partner_a.id,
+            invoice_line_ids=[{"price_unit": 150.0}],
+        )
+        self.env["account.bank.statement"].create(
+            {
+                "name": "Test Statement",
+                "journal_id": self.company_data["default_journal_bank"].id,
+                "date": "2019-01-01",
+            }
+        )
+        self.start_tour(
+            "/odoo", "account_accountant_bank_rec_widget", login=self.env.user.login
+        )
+
+    def test_tour_bank_reconciliation_widget_reload_activities_when_add_a_new_one(self):
+        self._create_st_line(amount=100.0)
+
+        self.start_tour(
+            "/odoo",
+            "account_accountant_bank_reconciliation_widget_reload_activies_when_add_a_new_one",
+            login=self.env.user.login,
+        )
+
+    def test_tour_set_partner_with_child_contact(self):
+        partner = self.env["res.partner"].create(
+            {"name": "test child contact", "parent_id": self.partner_a.id}
+        )
+        self._create_invoice_line(
+            "out_invoice",
+            partner_id=partner.id,
+            invoice_line_ids=[{"price_unit": 100.0}],
+        )
+        self.start_tour(
+            "/odoo",
+            "account_accountant_set_partner_with_child_contact",
+            login=self.env.user.login,
+        )

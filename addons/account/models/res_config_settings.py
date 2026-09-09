@@ -100,7 +100,6 @@ class ResConfigSettings(models.TransientModel):
         ],
         help="Intermediary account used when moving from a liquidity account to another.",
     )
-    module_account_accountant = fields.Boolean(string="Accounting")
     group_cash_rounding = fields.Boolean(
         string="Cash Rounding",
         implied_group="account.group_cash_rounding",
@@ -350,11 +349,6 @@ class ResConfigSettings(models.TransientModel):
     def _compute_accounting_presence(self):
         self.has_chart_of_accounts = bool(self.company_id.chart_template)
         self.has_accounting_entries = self.company_id.root_id._existing_accounting()
-
-    @api.onchange("group_analytic_accounting")
-    def _onchange_analytic_accounting(self):
-        if self.group_analytic_accounting:
-            self.module_account_accountant = True
 
     @api.onchange("module_account_budget")
     def _onchange_module_account_budget(self):

@@ -20931,3 +20931,21 @@ msgstr ""
 #~ "%(tax_account)s (%(account_name)s) دەبێت ئەکاونتێک بێت لە جۆری \"%"
 #~ "(receivable)s ''یان''%(payable)s\" بە هەردوو بژاردەکە \" %"
 #~ "(allow_reconciliation)s ''و \"%(non_trade)s\" چالاک کراوە."
+
+
+#. module: account_accountant
+#. odoo-javascript
+#: code:addons/account/static/src/components/bank_reconciliation/search_dialog/search_dialog_list.xml:0
+msgid "Balance:"
+msgstr "هاوسەنگی:"
+
+#. module: account_accountant
+#: model:ir.model,name:account.model_ir_ui_menu
+msgid "Menu"
+msgstr "مێنۆ"
+
+#. module: account_accountant
+#: model:ir.model.fields,field_description:account.field_account_reconcile_wizard__to_check
+#: model_terms:ir.ui.view,arch_db:account.view_bank_statement_line_search_bank_rec_widget
+msgid "To Check"
+msgstr "بۆ پشکنین"

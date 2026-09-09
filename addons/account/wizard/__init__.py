@@ -13,3 +13,10 @@ from . import accrued_orders
 from . import base_partner_merge
 from . import account_merge_wizard
 from . import account_tax_merge_wizard
+from . import account_auto_reconcile_wizard
+from . import account_change_lock_date
+from . import account_reconcile_wizard
+from . import account_reconcile_wizard_amounts
+from . import account_reconcile_wizard_suggestion
+from . import account_reconcile_wizard_transfer
+from . import account_reconcile_wizard_write_off

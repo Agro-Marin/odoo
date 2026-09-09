@@ -30,7 +30,6 @@
             // >>> derived: addon aliases -- do not hand-edit.
             // Rewrite with: python tooling/typecheck/tsconfig_paths.py --update
             "@account/*": ["addons/account/static/src/*"],
-            "@account_accountant/*": ["../enterprise/account_accountant/static/src/*"],
             "@account_accountant_batch_payment/*": ["../enterprise/account_accountant_batch_payment/static/src/*"],
             "@account_asset/*": ["../enterprise/account_asset/static/src/*"],
             "@account_bank_statement_import/*": ["../enterprise/account_bank_statement_import/static/src/*"],
