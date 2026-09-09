@@ -305,7 +305,7 @@ class StockWarehouse(models.Model):
                 location = warehouse[field_name]
                 if not location:
                     continue
-                if not self._location_is_inside(location, view_location):
+                if not self._is_location_inside(location, view_location):
                     raise ValidationError(
                         _(
                             "%(location)s is not inside warehouse %(warehouse)s, so it "

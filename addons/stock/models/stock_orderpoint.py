@@ -628,7 +628,7 @@ class StockWarehouseOrderpoint(models.Model):
         "company_id.horizon_days",
     )
     def _compute_qty_to_order_computed(self):
-        canonical = self._canonical()
+        canonical = self._with_canonical_horizon()
         suggestions = canonical._get_qty_to_order_map()
         for orderpoint in canonical:
             orderpoint.qty_to_order_computed = suggestions[orderpoint.id]
@@ -637,7 +637,7 @@ class StockWarehouseOrderpoint(models.Model):
         pass
 
     def _inverse_qty_to_order(self):
-        suggestions = self._canonical()._get_qty_to_order_map()
+        suggestions = self._with_canonical_horizon()._get_qty_to_order_map()
         overridden = self.browse()
         for orderpoint in self:
             if orderpoint.trigger != "auto" and orderpoint.product_uom_id.compare(

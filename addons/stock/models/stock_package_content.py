@@ -195,7 +195,7 @@ class StockPackageContent(models.Model):
         else:
             return [("id", "=", False)]
 
-    def _packages_of_move_lines(self, domain):
+    def _get_packages_of_move_lines(self, domain):
         move_lines = self.env["stock.move.line"].search_fetch(
             domain=Domain("state", "not in", ["done", "cancel"]) & Domain(domain),
             field_names=["result_package_id"],
@@ -205,8 +205,8 @@ class StockPackageContent(models.Model):
     def _search_location_dest_id(self, operator, value):
         if operator != "in":
             return NotImplemented
-        here = self._packages_of_move_lines(Domain("location_dest_id", "in", value))
-        elsewhere = self._packages_of_move_lines(
+        here = self._get_packages_of_move_lines(Domain("location_dest_id", "in", value))
+        elsewhere = self._get_packages_of_move_lines(
             Domain("location_dest_id", "not in", value)
         )
         return [("id", "in", list(set(here) - set(elsewhere)))]
@@ -222,9 +222,13 @@ class StockPackageContent(models.Model):
         if isinstance(value, Iterable) and not isinstance(value, str):
             value = list(value)
         if isinstance(value, list) and value == [False]:
-            return [("id", "not in", self._packages_of_move_lines(Domain.TRUE))]
+            return [("id", "not in", self._get_packages_of_move_lines(Domain.TRUE))]
         return [
-            ("id", "in", self._packages_of_move_lines(Domain("id", operator, value)))
+            (
+                "id",
+                "in",
+                self._get_packages_of_move_lines(Domain("id", operator, value)),
+            )
         ]
 
     def _search_owner_id(self, operator, value):
@@ -239,7 +243,7 @@ class StockPackageContent(models.Model):
             (
                 "id",
                 "in",
-                self._packages_of_move_lines(Domain("picking_id", "in", value)),
+                self._get_packages_of_move_lines(Domain("picking_id", "in", value)),
             )
         ]
 

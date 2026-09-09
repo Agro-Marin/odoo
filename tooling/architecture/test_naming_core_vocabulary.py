@@ -842,6 +842,99 @@ class TestTheModelNounRuleReadsTheClass(unittest.TestCase):
         self.assertIsNotNone(ncv.classify_definition(node, cls))
         self.assertIsNone(ncv.classify_definition(node, cls, namespaces))
 
+    def test_a_two_token_run_used_behind_a_verb_is_a_namespace(self):
+        # §2.4.4's other sentence: for a leading run of two or more tokens, ask
+        # whether those tokens name something that exists in the system. Three
+        # methods naming the *project sharing* feature behind their own verbs
+        # are that evidence, and they are why
+        # `project_sharing_toggle_is_follower` is a namespace at the head rather
+        # than `project.task`'s own noun leaking into first position.
+        import ast
+        import textwrap
+
+        source = textwrap.dedent(
+            """
+            class ProjectTask(models.Model):
+                _name = "project.task"
+
+                def project_sharing_toggle_is_follower(self):
+                    return True
+
+                def _get_project_sharing_company(self):
+                    return self.company_id
+
+                def _is_project_sharing_accessible(self):
+                    return True
+            """
+        )
+        path = Path(__file__).with_name("__planted_sharing__.py")
+        path.write_text(source, encoding="utf-8")
+        try:
+            namespaces = ncv.protocol_namespaces([path])
+        finally:
+            path.unlink()
+        self.assertIn(("project", "sharing"), namespaces)
+        node, cls = next(
+            (node, cls)
+            for node, cls in ncv.definitions(ast.parse(source))
+            if node.name == "project_sharing_toggle_is_follower"
+        )
+        self.assertIsNotNone(ncv.classify_definition(node, cls))
+        self.assertIsNone(ncv.classify_definition(node, cls, namespaces))
+
+    def test_the_same_wrong_prefix_twice_is_not_a_namespace(self):
+        # The narrowing that makes the pair rule a rule. Without the verb-head
+        # requirement `_channel_type_policies` and `_channel_type_policy` exempt
+        # each other -- one wrong prefix, written twice -- and `channel_join`
+        # is exempted by `discuss_channel_join`, which is a concatenation and
+        # not a concept. Both must stay findings.
+        import ast
+        import textwrap
+
+        source = textwrap.dedent(
+            """
+            class DiscussChannel(models.Model):
+                _name = "discuss.channel"
+
+                def _channel_type_policies(self):
+                    return {}
+
+                def _channel_type_policy(self):
+                    return {}
+
+                def channel_join(self):
+                    return True
+
+                def discuss_channel_join(self):
+                    return True
+            """
+        )
+        path = Path(__file__).with_name("__planted_channel__.py")
+        path.write_text(source, encoding="utf-8")
+        try:
+            namespaces = ncv.protocol_namespaces([path])
+        finally:
+            path.unlink()
+        self.assertNotIn(("channel", "type"), namespaces)
+        self.assertNotIn(("channel", "join"), namespaces)
+        reported = {
+            node.name
+            for node, cls in ncv.definitions(ast.parse(source))
+            if ncv.classify_definition(node, cls, namespaces)
+        }
+        # `discuss_channel_join` is in the set for the same reason and not by
+        # accident: `discuss` is the model's noun too, so the witness that
+        # would have exempted `channel_join` is itself a finding.
+        self.assertEqual(
+            reported,
+            {
+                "_channel_type_policies",
+                "_channel_type_policy",
+                "channel_join",
+                "discuss_channel_join",
+            },
+        )
+
     def test_the_rule_is_held_back_in_core_and_printed_instead(self):
         # Core's 19 are mostly wizards whose model name IS the operation, and
         # nobody has read them. A rule that is neither blocking nor printed has

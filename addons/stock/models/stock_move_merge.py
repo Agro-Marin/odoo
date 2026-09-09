@@ -268,7 +268,7 @@ class StockMoveMerge(models.Model):
         if self.product_uom_id._is_zero_stored(qty, self.product_id.uom_id):
             return []
 
-        uom_qty = self._uom_quantity_if_faithful(qty, self.product_uom_id)
+        uom_qty = self._get_uom_quantity_if_faithful(qty, self.product_uom_id)
         if uom_qty is not None:
             defaults = self._prepare_move_split_vals(uom_qty)
         else:
@@ -312,7 +312,7 @@ class StockMoveMerge(models.Model):
             vals["product_uom_id"] = force_uom_id
         return vals
 
-    def _uom_quantity_if_faithful(self, quantity, to_uom):
+    def _get_uom_quantity_if_faithful(self, quantity, to_uom):
         self.check_singleton()
         product_uom = self.product_id.uom_id
         uom_quantity = product_uom.round(

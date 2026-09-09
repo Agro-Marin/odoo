@@ -416,7 +416,8 @@ class StockWarehouseRoute(models.Model):
             changed = {
                 name: value
                 for name, value in rule_vals.items()
-                if name not in identity and self._rule_value_differs(rule, name, value)
+                if name not in identity
+                and self._is_rule_value_different(rule, name, value)
             }
             if changed:
                 rule.write(changed)
@@ -424,7 +425,7 @@ class StockWarehouseRoute(models.Model):
             Rule.create(to_create)
 
     @api.model
-    def _rule_value_differs(self, rule, field_name, value):
+    def _is_rule_value_different(self, rule, field_name, value):
         current = rule[field_name]
         if isinstance(current, models.BaseModel):
             return current.id != (value or False)

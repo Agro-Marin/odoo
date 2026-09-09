@@ -60,7 +60,7 @@ class TestReportStockRule(TransactionCase):
             for n in ("A", "B", "C")
         )
         edges = [(a, b), (b, c), (c, a)]
-        rank = self.report._topological_rank(a | b | c, edges)
+        rank = self.report._get_topological_rank(a | b | c, edges)
         self.assertEqual(sorted(rank), sorted((a | b | c).ids))
         self.assertEqual(len(set(rank.values())), 3)
 

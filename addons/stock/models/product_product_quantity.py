@@ -319,13 +319,13 @@ class ProductProductQuantity(models.Model):
         return sorted(product_ids)
 
     @api.model
-    def _names_a_day(self, value):
+    def _is_day_value(self, value):
         return (isinstance(value, date) and not isinstance(value, datetime)) or (
             isinstance(value, str) and len(value) == 10
         )
 
     @api.model
-    def _day_edge_in_reader_tz(self, day, edge):
+    def _get_day_edge_in_reader_tz(self, day, edge):
         return (
             datetime.combine(day, edge)
             .replace(tzinfo=self.env.tz)
@@ -338,15 +338,15 @@ class ProductProductQuantity(models.Model):
         if not from_date:
             return from_date
         value = fields.Datetime.to_datetime(from_date)
-        if self._names_a_day(from_date):
-            return self._day_edge_in_reader_tz(value.date(), time.min)
+        if self._is_day_value(from_date):
+            return self._get_day_edge_in_reader_tz(value.date(), time.min)
         return value
 
     @api.model
     def _normalize_quantities_to_date(self, to_date):
         value = fields.Datetime.to_datetime(to_date)
-        if self._names_a_day(to_date):
-            value = self._day_edge_in_reader_tz(value.date(), time.max)
+        if self._is_day_value(to_date):
+            value = self._get_day_edge_in_reader_tz(value.date(), time.max)
         return value, bool(value and value < fields.Datetime.now())
 
     def _narrow_quantity_domains(self, quant, move_in, move_out, filters):

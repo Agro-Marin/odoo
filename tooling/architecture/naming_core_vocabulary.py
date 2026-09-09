@@ -76,6 +76,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import itertools
 import json
 import re
 import sys
@@ -1118,8 +1119,37 @@ def model_class_nouns(cls: ast.ClassDef | None) -> frozenset[str]:
     )
 
 
-def protocol_namespaces(files: list[Path]) -> frozenset[str]:
-    """Leading tokens a model that is NOT named for them also declares.
+def protocol_namespaces(files: list[Path]) -> frozenset[str | tuple[str, str]]:
+    """The leading nouns a scope licenses -- single tokens, and token PAIRS.
+
+    Two witnesses, in one set because `model_noun_first` asks one question of it.
+    The single tokens are the original test and are described below. The pairs
+    are §2.4.4's other sentence: "a leading noun that names a thing is a
+    namespace; a stack of adjectives is a qualifier", which it puts as a test for
+    "a leading run of two or more tokens -- ask whether those tokens name
+    something that exists in the system".
+
+    A pair earns its place by appearing BEHIND A VERB HEAD somewhere else in the
+    scope, and both halves of that are load-bearing. Appearing elsewhere at all
+    is not enough: `_channel_type_policies` and `_channel_type_policy` are the
+    same wrong prefix twice and would exempt each other, and `channel_join`
+    would be exempted by `discuss_channel_join`, which is a concatenation rather
+    than a concept. Behind a verb, the run is being USED as a noun by a method
+    that already has its verb -- `_get_project_sharing_company`,
+    `_is_project_sharing_accessible`, `_check_exists_collaborators_for_project_sharing`
+    are three methods naming the *project sharing* feature, which is what makes
+    `project_sharing_toggle_is_follower` a namespace at the head rather than
+    `project.task`'s own noun leaking into first position.
+
+    Measured when it landed: it exempts exactly two populations and moves no
+    governed scope -- `project` 1 -> 0 and `account`'s two `_currency_table_*`
+    (`_create_currency_table` and `_check_currency_table_monocurrency` are the
+    witnesses), while core stays at 3 and `mail`'s ten stay findings. Session
+    odoo-f2 found the case by hand in `addons/project` and argued it as an
+    allowlist entry; a class of name belongs in the rule instead.
+
+    THE SINGLE-TOKEN HALF: leading tokens a model that is NOT named for them
+    also declares.
 
     §2.4.4 licenses a noun-first prefix "only where it names a protocol several
     models implement (`_message_*`, `_notify_*`, `_track_*`, `_portal_*`), never
@@ -1154,7 +1184,7 @@ def protocol_namespaces(files: list[Path]) -> frozenset[str]:
       implementor in the scope; the first is a name a reader can still find and
       the second is a false positive in a gate, so the trade goes this way.
     """
-    elsewhere: set[str] = set()
+    licensed: set[str | tuple[str, str]] = set()
     for path in files:
         tree = _ast_cache.parse_file(path)
         for node in ast.walk(tree):
@@ -1166,22 +1196,28 @@ def protocol_namespaces(files: list[Path]) -> frozenset[str]:
                     continue
                 if member.name.startswith("__"):
                     continue
-                token = leading_token(member.name)
-                if token not in own:
-                    elsewhere.add(token)
-    return frozenset(elsewhere)
+                tokens = member.name.lstrip("_").split("_")
+                if tokens[0] not in own:
+                    licensed.add(tokens[0])
+                if tokens[0] not in _MODEL_NOUN_VERBS:
+                    continue
+                licensed.update(itertools.pairwise(tokens[1:]))
+    return frozenset(licensed)
 
 
 def model_noun_first(
     name: str,
     cls: ast.ClassDef | None,
-    namespaces: frozenset[str] = frozenset(),
+    namespaces: frozenset[str | tuple[str, str]] = frozenset(),
 ) -> str | None:
     """The model's own noun standing where the verb belongs."""
     if _CONVERTER_IDIOM.fullmatch(name):
         return None
-    first = leading_token(name)
+    tokens = name.lstrip("_").split("_")
+    first = tokens[0]
     if first in _MODEL_NOUN_VERBS or first in namespaces:
+        return None
+    if len(tokens) > 1 and (first, tokens[1]) in namespaces:
         return None
     return first if first in model_class_nouns(cls) else None
 
@@ -1264,7 +1300,7 @@ def infix_synonym(name: str) -> str | None:
 def classify_definition(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
     cls: ast.ClassDef | None = None,
-    namespaces: frozenset[str] = frozenset(),
+    namespaces: frozenset[str | tuple[str, str]] = frozenset(),
 ) -> tuple[str, str] | None:
     """Return (kind, why) for a definition the vocabulary refuses, else None.
 

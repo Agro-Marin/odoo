@@ -77,7 +77,7 @@ class StockMoveLot(models.Model):
                     quantity + nb_of_exceed * minimal_quantity,
                 )
         else:
-            quantity += self._extra_lot_reservable_quantity(
+            quantity += self._get_extra_lot_reservable_quantity(
                 extra_lot_names,
                 quant_domain,
                 base_location,
@@ -86,7 +86,7 @@ class StockMoveLot(models.Model):
                 minimal_quantity,
             )
         self.update({"quantity": quantity})
-        return self._misplaced_serial_warning(quant_domain, base_location)
+        return self._get_misplaced_serial_warning(quant_domain, base_location)
 
     def _survey_lot_lines(self, new_lot_names):
         assigned_quantity = 0
@@ -127,7 +127,7 @@ class StockMoveLot(models.Model):
             ],
         )
 
-    def _extra_lot_reservable_quantity(
+    def _get_extra_lot_reservable_quantity(
         self,
         extra_lot_names,
         quant_domain,
@@ -137,7 +137,7 @@ class StockMoveLot(models.Model):
         minimal_quantity,
     ):
         uom = self.product_uom_id
-        available_quantity_by_lot_name = self._available_quantity_by_lot_name(
+        available_quantity_by_lot_name = self._get_available_quantity_by_lot_name(
             quant_domain,
             base_location,
         )
@@ -158,7 +158,7 @@ class StockMoveLot(models.Model):
                 qty_free -= extra_qty
         return max(0, new_assigned_quantity - assignable_quantity)
 
-    def _available_quantity_by_lot_name(self, quant_domain, base_location):
+    def _get_available_quantity_by_lot_name(self, quant_domain, base_location):
         quant_by_lot = (
             self.env["stock.quant"]
             .sudo()
@@ -180,7 +180,7 @@ class StockMoveLot(models.Model):
             )
         return available_quantity_by_lot_name
 
-    def _misplaced_serial_warning(self, quant_domain, base_location):
+    def _get_misplaced_serial_warning(self, quant_domain, base_location):
         if self.product_id.tracking != "serial":
             return None
         problematic_quants = (
@@ -436,17 +436,17 @@ class StockMoveLot(models.Model):
     def _add_serial_move_line_to_vals_list(self, reserved_quant, quantity):
         return [
             self._prepare_move_line_vals(quantity=1, reserved_quant=reserved_quant)
-            for _i in range(self._serial_line_count(quantity))
+            for _i in range(self._get_serial_line_count(quantity))
         ]
 
-    def _serial_line_count(self, quantity):
+    def _get_serial_line_count(self, quantity):
         return max(int(self.product_id.uom_id.round(quantity)), 0)
 
     def _prefill_serial_count(self):
         self.check_singleton()
         if self.next_serial_count:
             return 0
-        return self._serial_line_count(self.product_qty)
+        return self._get_serial_line_count(self.product_qty)
 
     def _update_move_lines_for_lots(self):
         self.check_singleton()

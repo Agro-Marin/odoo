@@ -173,7 +173,7 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         "company_id.horizon_days",
     )
     def _compute_deadline_date(self):
-        canonical = self._canonical()
+        canonical = self._with_canonical_horizon()
         critical_orderpoints = canonical.filtered(
             lambda o: o.product_uom_id.compare(o.qty_on_hand, o.product_min_qty) < 0,
         )

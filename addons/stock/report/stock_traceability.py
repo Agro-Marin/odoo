@@ -98,7 +98,7 @@ class StockTraceabilityReport(models.TransientModel):
                 move_lines = record.move_finished_ids.move_line_ids.filtered(
                     lambda m: m.state == "done"
                 )
-        vals = self._lines(
+        vals = self._get_final_vals(
             line_id, model_id=rec_id, model=model, level=level, move_lines=move_lines
         )
         vals.sort(key=lambda v: v["date"], reverse=True)
@@ -232,7 +232,7 @@ class StockTraceabilityReport(models.TransientModel):
         return False, False
 
     @api.model
-    def _lines(
+    def _get_final_vals(
         self, line_id=False, model_id=False, model=False, level=0, move_lines=None
     ):
         final_vals = []

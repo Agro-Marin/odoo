@@ -235,7 +235,7 @@ class StockMoveForecast(models.Model):
     def _get_availability_state(self, comparison_date):
         return self._get_availability(comparison_date)[0]
 
-    def _match_searched_availability(self, operator, value, comparison_date):
+    def _is_availability_matching_search(self, operator, value, comparison_date):
         if not value:
             raise UserError(_("Search not supported without a value."))
         if operator not in ("=", "!=", "in", "not in"):

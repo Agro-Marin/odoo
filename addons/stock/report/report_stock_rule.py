@@ -138,7 +138,7 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
             if rl["source"] and rl["destination"]
         ]
 
-        topo_rank = self._topological_rank(all_locations, edges)
+        topo_rank = self._get_topological_rank(all_locations, edges)
         warehouse_rank = {wh.id: idx for idx, wh in enumerate(warehouses)}
 
         def get_usage_rank(location):
@@ -156,7 +156,7 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
         )
 
     @api.model
-    def _topological_rank(self, locations, edges):
+    def _get_topological_rank(self, locations, edges):
         location_ids = set(locations.ids)
         successors = defaultdict(set)
         indegree = dict.fromkeys(location_ids, 0)

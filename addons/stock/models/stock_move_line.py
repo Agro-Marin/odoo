@@ -319,7 +319,7 @@ class StockMoveLine(models.Model):
     )
 
     @api.model
-    def _negative_quantity_message(self):
+    def _get_negative_quantity_message(self):
         return _("You can not enter negative quantities.")
 
     @api.constrains("lot_id", "product_id")
@@ -337,7 +337,7 @@ class StockMoveLine(models.Model):
     @api.constrains("quantity", "product_uom_id")
     def _check_positive_quantity(self):
         if any(ml.product_uom_id.compare(ml.quantity, 0) < 0 for ml in self):
-            raise ValidationError(self._negative_quantity_message())
+            raise ValidationError(self._get_negative_quantity_message())
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -612,13 +612,13 @@ class StockMoveLine(models.Model):
         if not self.quantity:
             self.quantity = 1
 
-        serial = self._serial_name()
+        serial = self._get_serial_name()
         if not serial:
             return res
 
         message = None
         siblings = self._get_similar_move_lines()
-        if any(line._serial_name() == serial for line in siblings):
+        if any(line._get_serial_name() == serial for line in siblings):
             message = _(
                 "You cannot use the same serial number twice. Please correct the serial numbers encoded."
             )
@@ -665,7 +665,7 @@ class StockMoveLine(models.Model):
             res["warning"] = {"title": _("Warning"), "message": message}
         return res
 
-    def _serial_name(self):
+    def _get_serial_name(self):
         self.check_singleton()
         return self.lot_id.name or self.lot_name
 
@@ -724,7 +724,7 @@ class StockMoveLine(models.Model):
         for ml in self:
             qty_done_float_compared = ml.product_uom_id.compare(ml.quantity, 0)
             if qty_done_float_compared < 0:
-                raise UserError(self._negative_quantity_message())
+                raise UserError(self._get_negative_quantity_message())
             if qty_done_float_compared == 0:
                 if not ml.is_inventory:
                     ml_ids_to_delete.add(ml.id)

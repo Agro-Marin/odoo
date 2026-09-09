@@ -69,13 +69,15 @@ class StockForecasted_Product_Product(models.AbstractModel):
             )
         return res
 
-    def _needs_free_stock_lines(self, product, free_stock, lines, wh_location_ids):
-        if super()._needs_free_stock_lines(product, free_stock, lines, wh_location_ids):
+    def _should_add_free_stock_lines(self, product, free_stock, lines, wh_location_ids):
+        if super()._should_add_free_stock_lines(
+            product, free_stock, lines, wh_location_ids
+        ):
             return True
         if not product.use_expiration_date:
             return False
         # The expired and dated-removal lines are built inside
-        # `_free_stock_lines`, and so is the compensation for stock reserved
+        # `_get_free_stock_lines`, and so is the compensation for stock reserved
         # from expired quants. A product whose free stock nets to zero would
         # otherwise report neither.
         return bool(
@@ -84,7 +86,9 @@ class StockForecasted_Product_Product(models.AbstractModel):
             )
         )
 
-    def _free_stock_lines(self, product, free_stock, moves_data, wh_location_ids, read):
+    def _get_free_stock_lines(
+        self, product, free_stock, moves_data, wh_location_ids, read
+    ):
         res = []
         if product.use_expiration_date:
             expired_qty, reserved_expired = self.env["stock.quant"]._read_group(
@@ -130,6 +134,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 # Everything free is accounted for by the lines above; an
                 # undivided line here would be a bare "Free Stock 0.00" row.
                 return res
-        return res + super()._free_stock_lines(
+        return res + super()._get_free_stock_lines(
             product, free_stock, moves_data, wh_location_ids, read
         )

@@ -793,11 +793,11 @@ class StockMove(models.Model):
             if move.scrap_id:
                 move.reference = move.scrap_id.name
             elif move.is_inventory:
-                move.reference = move.inventory_name or move._inventory_reference()
+                move.reference = move.inventory_name or move._get_inventory_reference()
             else:
                 move.reference = move.picking_id.name
 
-    def _inventory_reference(self):
+    def _get_inventory_reference(self):
         self.check_singleton()
         label = (
             INVENTORY_REFERENCE_CONFIRMED
@@ -1240,7 +1240,9 @@ class StockMove(models.Model):
             "company_id": self.company_id.id,
         }
         if quantity:
-            uom_quantity = self._uom_quantity_if_faithful(quantity, self.product_uom_id)
+            uom_quantity = self._get_uom_quantity_if_faithful(
+                quantity, self.product_uom_id
+            )
             if uom_quantity is not None:
                 vals = dict(vals, quantity=uom_quantity)
             else:

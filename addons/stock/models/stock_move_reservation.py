@@ -205,7 +205,7 @@ class StockMoveReservation(models.Model):
                 or self.picking_type_id.use_existing_lots
             )
         ):
-            for _i in range(self._serial_line_count(missing_reserved_quantity)):
+            for _i in range(self._get_serial_line_count(missing_reserved_quantity)):
                 ledger.add_move_line_vals(
                     [
                         self._prepare_move_line_vals(quantity=1),
@@ -670,7 +670,7 @@ class StockMoveReservation(models.Model):
             vals["quantity"] = self._convert_to_move_uom(qty)
             res.append(Command.create(vals))
             return
-        for _i in range(self._serial_line_count(qty)):
+        for _i in range(self._get_serial_line_count(qty)):
             vals = self._prepare_move_line_vals(quantity=0)
             vals["quantity"] = 1
             vals["product_uom_id"] = self.product_id.uom_id.id
@@ -738,7 +738,7 @@ class StockMoveReservation(models.Model):
             )
         )
 
-        candidate_lines = self._candidate_lines_by_place()
+        candidate_lines = self._get_candidate_lines_by_place()
         taken_quantity = 0
         move_line_vals = []
         for reserved_quant, quantity in self._group_quants_by_place(quants):
@@ -750,7 +750,7 @@ class StockMoveReservation(models.Model):
             )
         return move_line_vals, taken_quantity
 
-    def _candidate_lines_by_place(self):
+    def _get_candidate_lines_by_place(self):
         self.check_singleton()
         return {
             (line.location_id, line.lot_id, line.package_id, line.owner_id): line
@@ -778,7 +778,7 @@ class StockMoveReservation(models.Model):
         )
         uom_quantity = None
         if to_update:
-            uom_quantity = self._uom_quantity_if_faithful(
+            uom_quantity = self._get_uom_quantity_if_faithful(
                 quantity,
                 to_update.product_uom_id,
             )

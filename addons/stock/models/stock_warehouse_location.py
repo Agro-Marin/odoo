@@ -250,7 +250,7 @@ class StockWarehouseLocation(models.Model):
         )._update_stock_property_locations(transit_location)
 
     @api.model
-    def _location_is_inside(self, location, ancestor):
+    def _is_location_inside(self, location, ancestor):
         root, path = ancestor.parent_path, location.parent_path
         if root and path:
             return path.startswith(root)

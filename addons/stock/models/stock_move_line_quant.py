@@ -278,7 +278,7 @@ class StockMoveLineQuant(models.Model):
             if "quantity" in vals or "product_uom_id" in vals:
                 new_reserved_qty = ml._get_new_quantity_product_uom(vals, updates)
                 if ml.product_id.uom_id.compare(new_reserved_qty, 0) < 0:
-                    raise UserError(self._negative_quantity_message())
+                    raise UserError(self._get_negative_quantity_message())
             else:
                 new_reserved_qty = ml.quantity_product_uom
 

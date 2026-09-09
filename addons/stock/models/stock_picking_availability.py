@@ -207,7 +207,7 @@ class StockPickingAvailability(models.Model):
         deciding_moves._fields["forecast_availability"].compute_value(deciding_moves)
         matched = self.browse()
         for picking, moves in deciding_moves.grouped("picking_id").items():
-            if moves._match_searched_availability(
+            if moves._is_availability_matching_search(
                 operator,
                 value,
                 picking.date_planned,
