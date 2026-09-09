@@ -43,18 +43,29 @@ _logger = logging.getLogger("odoo.domains")
 
 def _parse_prefix_domain(arg, internal: bool) -> Domain:
     stack: list[Domain] = []
+    items = list(reversed(arg))
+    total = len(items)
+    index = 0
     try:
-        for item in reversed(arg):
+        while index < total:
+            item = items[index]
             if isinstance(item, (tuple, list)) and len(item) == 3:
                 stack.append(_leaf_to_domain(item, internal))
-            elif item == DomainAnd.OPERATOR:
-                stack.append(stack.pop() & stack.pop())
-            elif item == DomainOr.OPERATOR:
-                stack.append(stack.pop() | stack.pop())
+                index += 1
+            elif item in (DomainAnd.OPERATOR, DomainOr.OPERATOR):
+                cls = DomainAnd if item == DomainAnd.OPERATOR else DomainOr
+                run = index
+                while run < total and items[run] == item:
+                    run += 1
+                operands = [stack.pop() for _ in range(run - index + 1)]
+                stack.append(cls.apply(operands))
+                index = run
             elif item == DomainNot.OPERATOR:
                 stack.append(~stack.pop())
+                index += 1
             elif isinstance(item, Domain):
                 stack.append(item)
+                index += 1
             else:
                 raise ValueError(f"Domain() invalid item in domain: {item!r}")
         if len(stack) == 1:
