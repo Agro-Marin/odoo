@@ -5,7 +5,9 @@
             <attribute name="t-if">user._get_mfa_type() == 'totp'</attribute>
         </xpath>
         <xpath expr="//form/div[1]" position="after">
-            <div t-if="user._get_mfa_type() == 'totp_mail'" class="mb-2 mt-2 text-muted">
+            <div
+                t-if="user._get_mfa_type() == 'totp_mail'"
+                class="mb-2 mt-2 text-muted">
                 <i class="fa-regular fa-envelope" />
                 To login, enter below the six-digit authentication code just sent via email to <t t-out="user.email" />.
                 <br />
