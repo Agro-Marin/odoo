@@ -1201,41 +1201,41 @@ Section  Population                                                  Count
 §2.4.2   … binding exactly one field                                   315
 §2.4.2   … of those, spelled ``_check_<field>``                        141
 §2.4.2   Multi-field constraints named for one trigger                  60
-§2.4.3   Non-test methods declared on a model class                 25,911
+§2.4.3   Non-test methods declared on a model class                 25,912
 §2.4.3   Stems spelled with two or more verbs of one family              1
 §2.4.3   Groups of methods sharing a byte-identical body               100
 §2.4.4   Model methods with an abolished verb behind a noun            135
 §2.4.4   ``fields`` family: definitions spelled head-first             208
 §2.4.4   ``fields`` family: distinct names spelled head-first           97
-§2.4.4   ``fields`` family: definitions spelled tail-first              30
+§2.4.4   ``fields`` family: definitions spelled tail-first              32
 §2.4.4   Other collection heads the census searches                     19
-§2.4.4   Other heads: definitions spelled head-first                   130
-§2.4.4   Other heads: definitions spelled tail-first                   161
-§2.4.5   ``X_to_Y`` converter definitions                               97
-§2.4.5   … distinct names                                               55
-§2.4.7   ``_get_*`` definitions                                      5,992
+§2.4.4   Other heads: definitions spelled head-first                   131
+§2.4.4   Other heads: definitions spelled tail-first                   167
+§2.4.5   ``X_to_Y`` converter definitions                               95
+§2.4.5   … distinct names                                               54
+§2.4.7   ``_get_*`` definitions                                      6,051
 §2.4.7   Abolished payload verbs, the four between them                  0
 §2.4.7   ``_generate_*`` definitions                                   136
-§2.4.7   ``_calculate_*`` model methods                                  7
-§2.4.7   ``_prepare_*`` definitions                                    845
-§2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            39
-§2.4.8   ``_check_*`` definitions                                    1,191
+§2.4.7   ``_calculate_*`` model methods                                  6
+§2.4.7   ``_prepare_*`` definitions                                    844
+§2.4.7   … calling ``create()``, ``write()`` or ``unlink()``            38
+§2.4.8   ``_check_*`` definitions                                    1,187
 §2.4.8   ``_validate_*`` definitions                                     0
 §2.4.8   ``_verify_``, ``_ensure_`` and ``_control_`` together           0
 §2.4.9   Execution-verb definitions, ``_do_`` through ``_handle_``     177
 §2.4.10  ``_raise_*`` model methods                                     17
 §2.4.10  … raising unconditionally                                      10
-§2.4.11  ``_find_*`` methods                                            27
-§2.4.11  … performing an ORM read                                        4
+§2.4.11  ``_find_*`` methods                                            26
+§2.4.11  … performing an ORM read                                        3
 §2.4.11  … doing something else entirely                                22
 §2.4.11  ``_find_or_create_*`` methods                                   1
-§2.4.11  ``_get_or_create_*`` methods                                   31
-§2.4.11  ``_resolve_*`` definitions                                     40
+§2.4.11  ``_get_or_create_*`` methods                                   32
+§2.4.11  ``_resolve_*`` definitions                                     35
 §2.4.12  ``_set_*`` definitions                                        124
-§2.4.12  ``_update_*`` definitions                                     361
+§2.4.12  ``_update_*`` definitions                                     362
 §2.4.12  ``inverse=`` targets spelled ``_inverse_<field>``             249
 §2.4.12  ``inverse=`` targets spelled ``_set_*``                         1
-§2.4.12  ``_sync_*`` definitions                                        75
+§2.4.12  ``_sync_*`` definitions                                        76
 §2.4.12  ``_synchronize_*`` definitions                                  7
 §2.4.12  ``_post_*`` definitions                                       137
 §2.4.13  Module-level functions under ``models/`` and ``wizard/``      353
@@ -1890,12 +1890,12 @@ running the other way.
 2.4.7 Payload against read
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**``_get_`` is not a default.** It is 23.1 % of every method in this repository's
+**``_get_`` is not a default.** It is 23.4 % of every method in this repository's
 model layer (the census table has the count), having absorbed reading, building,
-deriving and computing. The split that matters is against ``_prepare_``: 678
+deriving and computing. The split that matters is against ``_prepare_``: 679
 definitions are payload builders -- they end in ``_vals``, ``_values``, ``_data``,
 ``_dict``, ``_context``, ``_defaults``, ``_list``, ``_args`` or ``_params`` -- yet
-are spelled ``get_*``, against 845 already spelled ``_prepare_*``.
+are spelled ``get_*``, against 844 already spelled ``_prepare_*``.
 
 **Resolve it on the consumer, always** ``[review]``. Where the return value goes
 is visible at the call site; whether a value was "already there" is a question
@@ -2058,8 +2058,8 @@ model was what refreshed it. Name the write: it is ``_sync_module_list``
 2.4.8 Predicates and validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**A ``bool`` return does not make a predicate** ``[review]``. **361** functions in
-this repository are annotated ``-> bool`` and are not predicates, against **266**
+**A ``bool`` return does not make a predicate** ``[review]``. **360** functions in
+this repository are annotated ``-> bool`` and are not predicates, against **267**
 that are: ``write`` and ``unlink`` return ``True`` by ORM convention, and
 ``_coerce_bool(value, default)`` is a converter. Ask what the boolean *is* -- an
 **answer** to a question about the subject is a predicate, a **converted value**
