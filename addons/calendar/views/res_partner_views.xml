@@ -9,7 +9,7 @@
         <field name="priority" eval="7" />
         <field name="arch" type="xml">
             <data>
-                <xpath expr="//div[@name='anchor_buttons_relations']" position="before">
+                <xpath expr="//div[@name='anchor_buttons_meetings']" position="before">
                     <button
                         class="oe_stat_button"
                         type="object"

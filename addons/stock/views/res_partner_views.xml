@@ -39,7 +39,7 @@
                         colspan="2" />
                 </group>
             </group>
-            <xpath expr="//div[@name='anchor_buttons_operations']" position="before">
+            <xpath expr="//div[@name='anchor_buttons_inventory']" position="before">
                 <button
                     type="object"
                     name="action_view_stock_serial"

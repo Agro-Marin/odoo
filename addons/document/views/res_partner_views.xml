@@ -6,7 +6,7 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="arch" type="xml">
-            <xpath expr="//div[@name='anchor_buttons_misc']" position="before">
+            <xpath expr="//div[@name='anchor_buttons_documents']" position="before">
                 <button
                     groups="document.group_documents_user"
                     name="action_see_documents"

@@ -370,16 +370,36 @@
                                 string="Duplicates"
                                 widget="statinfo" />
                         </button>
-                        <!-- Stat-button slots. Add a button with
-                             position="before" on the slot for its subject, so
-                             the box groups by subject instead of by module load
-                             order. Slots are invisible: the form compiler drops
-                             them, they cost nothing to render, and nothing may
-                             be inserted "inside" one. -->
-                        <div name="anchor_buttons_commercial" invisible="1" />
-                        <div name="anchor_buttons_financial" invisible="1" />
-                        <div name="anchor_buttons_operations" invisible="1" />
-                        <div name="anchor_buttons_relations" invisible="1" />
+                        <!-- Stat-button slots, in the order the buttons are
+                             meant to read: what the contact buys and sells
+                             first, then what it owes, then what is being done
+                             for it, then who it knows. Add a button with
+                             position="before" on the slot for its subject.
+                             Later modules then stack after earlier ones inside
+                             the same slot, so the order is declared here and
+                             not decided by module load order.
+
+                             Slots are invisible: the form compiler drops a
+                             button-box child whose invisible modifier is
+                             static, so a slot renders nothing. Never insert
+                             "inside" one. -->
+                        <div name="anchor_buttons_sales" invisible="1" />
+                        <div name="anchor_buttons_pos" invisible="1" />
+                        <div name="anchor_buttons_purchase" invisible="1" />
+                        <div name="anchor_buttons_loyalty" invisible="1" />
+                        <div name="anchor_buttons_invoicing" invisible="1" />
+                        <div name="anchor_buttons_collections" invisible="1" />
+                        <div name="anchor_buttons_payments" invisible="1" />
+                        <div name="anchor_buttons_projects" invisible="1" />
+                        <div name="anchor_buttons_inventory" invisible="1" />
+                        <div name="anchor_buttons_events" invisible="1" />
+                        <div name="anchor_buttons_meetings" invisible="1" />
+                        <div name="anchor_buttons_people" invisible="1" />
+                        <div name="anchor_buttons_relationships" invisible="1" />
+                        <div name="anchor_buttons_learning" invisible="1" />
+                        <div name="anchor_buttons_documents" invisible="1" />
+                        <div name="anchor_buttons_signatures" invisible="1" />
+                        <div name="anchor_buttons_publishing" invisible="1" />
                         <div name="anchor_buttons_misc" invisible="1" />
                     </div>
                     <widget

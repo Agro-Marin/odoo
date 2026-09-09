@@ -8,7 +8,7 @@
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="priority" eval="15" />
         <field name="arch" type="xml">
-            <xpath expr="//div[@name='anchor_buttons_financial']" position="before">
+            <xpath expr="//div[@name='anchor_buttons_payments']" position="before">
                 <button
                     id="button_payment_tokens"
                     type="action"

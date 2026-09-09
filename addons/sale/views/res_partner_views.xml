@@ -23,7 +23,7 @@
         <field name="inherit_id" ref="base.view_partner_form" />
         <field name="priority" eval="3" />
         <field name="arch" type="xml">
-            <xpath expr="//div[@name='anchor_buttons_commercial']" position="before">
+            <xpath expr="//div[@name='anchor_buttons_sales']" position="before">
                 <button
                     name="sale.act_res_partner_2_sale_order"
                     type="action"
