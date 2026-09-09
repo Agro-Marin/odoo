@@ -1,3 +1,5 @@
+from odoo import Command
+
 from odoo.addons.mail.tests.common import MailCase, mail_new_test_user
 
 
@@ -61,7 +63,9 @@ class SlidesCase(MailCase):
             {
                 "country_id": cls.env.ref("base.be").id,
                 "email": "customer@customer.example.com",
-                "phone": "0456001122",
+                "phone_ids": [
+                    Command.create({"number": "0456001122", "type": "landline"})
+                ],
                 "name": "Caroline Customer",
             }
         )
