@@ -127,6 +127,7 @@ class StockQuant(models.Model):
         help="This is the owner of the quant",
     )
     quantity = fields.Float(
+        digits="Product Unit",
         min_display_digits="Product Unit",
         string="Quantity",
         required=True,
@@ -135,6 +136,7 @@ class StockQuant(models.Model):
         help="Quantity of products in this quant, in the default unit of measure of the product",
     )
     reserved_quantity = fields.Float(
+        digits="Product Unit",
         min_display_digits="Product Unit",
         string="Reserved Quantity",
         required=True,
@@ -143,6 +145,7 @@ class StockQuant(models.Model):
         help="Quantity of reserved products in this quant, in the default unit of measure of the product",
     )
     available_quantity = fields.Float(
+        digits="Product Unit",
         min_display_digits="Product Unit",
         string="Available Quantity",
         compute="_compute_available_quantity",

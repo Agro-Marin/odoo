@@ -61,8 +61,7 @@
                             <field
                                 name="inventory_quantity"
                                 string="Counted Quantity"
-                                decoration-muted="inventory_quantity == 0"
-                                readonly="0" />
+                                decoration-muted="inventory_quantity == 0" />
                             <field
                                 name="inventory_diff_quantity"
                                 string="Difference"

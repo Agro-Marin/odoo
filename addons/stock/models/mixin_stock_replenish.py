@@ -19,9 +19,9 @@ class MixinStockReplenish(models.AbstractModel):
 
     @api.depends("product_id", "product_tmpl_id")
     def _compute_allowed_route_ids(self):
-        domain = self._get_allowed_route_domain()
-        route_ids = self.env["stock.route"].search(domain)
-        self.allowed_route_ids = route_ids
+        for record in self:
+            domain = record._get_allowed_route_domain()
+            record.allowed_route_ids = self.env["stock.route"].search(domain)
 
     def _get_allowed_route_domain(self):
         inter_company_location = self.env.ref(
