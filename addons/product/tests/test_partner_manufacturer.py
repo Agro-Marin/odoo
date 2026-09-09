@@ -7,10 +7,10 @@ class TestResPartnerManufacturer(TransactionCase):
         super().setUpClass()
         cls.env = cls.env(context=dict(cls.env.context, tracking_disable=True))
         cls.manufacturer = cls.env["res.partner"].create(
-            {"name": "Manufacturer With Products", "manufacturer": True}
+            {"name": "Manufacturer With Products", "is_manufacturer": True}
         )
         cls.other_partner = cls.env["res.partner"].create(
-            {"name": "Plain Partner", "manufacturer": False}
+            {"name": "Plain Partner", "is_manufacturer": False}
         )
         cls.template_a = cls.env["product.template"].create(
             {"name": "Template A", "manufacturer_id": cls.manufacturer.id}
@@ -19,32 +19,35 @@ class TestResPartnerManufacturer(TransactionCase):
             {"name": "Template B", "manufacturer_id": cls.manufacturer.id}
         )
 
-    def test_product_count_matches_live_templates(self):
-        self.assertEqual(self.manufacturer.product_count, 2)
+    def test_the_count_matches_live_templates(self):
+        self.assertEqual(self.manufacturer.count_manufactured_products, 2)
 
-    def test_product_count_drops_when_a_template_is_archived(self):
+    def test_the_count_drops_when_a_template_is_archived(self):
         self.template_a.active = False
-        self.manufacturer.invalidate_recordset(["product_count"])
-        self.assertEqual(self.manufacturer.product_count, 1)
+        self.manufacturer.invalidate_recordset(["count_manufactured_products"])
+        self.assertEqual(self.manufacturer.count_manufactured_products, 1)
 
-    def test_product_count_refreshes_after_an_archive_in_the_same_cursor(self):
+    def test_the_count_refreshes_after_an_archive_in_the_same_cursor(self):
         # reading the count first is what makes this a test of the dependency:
         # with a cold cache the post-archive read is correct even when nothing
         # watches `active`.
-        self.assertEqual(self.manufacturer.product_count, 2)
+        self.assertEqual(self.manufacturer.count_manufactured_products, 2)
         self.template_a.action_archive()
-        self.assertEqual(self.manufacturer.product_count, 1)
+        self.assertEqual(self.manufacturer.count_manufactured_products, 1)
 
-    def test_product_count_is_keyed_by_active_test(self):
+    def test_the_count_is_keyed_by_active_test(self):
         self.template_a.active = False
         self.env.invalidate_all()
-        self.assertEqual(self.manufacturer.product_count, 1)
+        self.assertEqual(self.manufacturer.count_manufactured_products, 1)
         self.assertEqual(
-            self.manufacturer.with_context(active_test=False).product_count, 2
+            self.manufacturer.with_context(
+                active_test=False
+            ).count_manufactured_products,
+            2,
         )
 
-    def test_product_count_is_zero_without_products(self):
-        self.assertEqual(self.other_partner.product_count, 0)
+    def test_the_count_is_zero_without_products(self):
+        self.assertEqual(self.other_partner.count_manufactured_products, 0)
 
     def test_manufactured_product_ids_holds_the_templates(self):
         self.assertEqual(

@@ -206,11 +206,6 @@ class TestProductManufacturer(TransactionCase):
 
 @tagged("-at_install", "post_install")
 class TestManufacturerInlineCreate(TransactionCase):
-    """The `manufacturer_id` views must create a partner their own domain
-    accepts, and must not rank it as a vendor. `account` declares
-    `supplier_rank` and stamps it from `res_partner_search_mode`, and it
-    installs after `product`, so this runs post_install."""
-
     VIEWS = (
         ("product.view_product_template_form", "product.template"),
         ("product.view_product_product_form_easy_edit", "product.product"),
@@ -224,12 +219,9 @@ class TestManufacturerInlineCreate(TransactionCase):
         return ast.literal_eval(node.get("context"))
 
     def test_the_view_context_defaults_the_manufacturer_flag(self):
-        # read the field node's own context rather than the whole arch: these
-        # are the base product forms now, and post_install they carry vendor
-        # fields whose context legitimately names `res_partner_search_mode`.
         for xmlid, model in self.VIEWS:
             context = self._field_context(xmlid, model)
-            self.assertTrue(context["default_manufacturer"])
+            self.assertTrue(context["default_is_manufacturer"])
             self.assertNotIn("res_partner_search_mode", context)
 
     def test_an_inline_created_partner_satisfies_the_field_domain(self):
@@ -240,14 +232,11 @@ class TestManufacturerInlineCreate(TransactionCase):
                 .with_context(**context)
                 .create({"name": f"Inline Manufacturer {model}"})
             )
-            self.assertTrue(partner.manufacturer)
-            # `supplier_rank` is declared by `account`, which `product` does not
-            # depend on, so the rank half of the claim only applies where the
-            # field exists.
+            self.assertTrue(partner.is_manufacturer)
             if "supplier_rank" in partner._fields:
                 self.assertEqual(partner.supplier_rank, 0)
             self.assertTrue(
                 self.env["res.partner"].search_count(
-                    [("id", "=", partner.id), ("manufacturer", "=", True)]
+                    [("id", "=", partner.id), ("is_manufacturer", "=", True)]
                 )
             )

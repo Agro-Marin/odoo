@@ -29,7 +29,7 @@ class TestManufacturerBackfill(TransactionCase):
         cls.env = cls.env(context=dict(cls.env.context, tracking_disable=True))
         cls.migration = _load_migration()
         cls.manufacturer = cls.env["res.partner"].create(
-            {"name": "Migration Manufacturer", "manufacturer": True}
+            {"name": "Migration Manufacturer", "is_manufacturer": True}
         )
 
     def _template(self, name, **vals):

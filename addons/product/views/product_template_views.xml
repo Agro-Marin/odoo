@@ -489,8 +489,8 @@
                                 <group>
                                     <field
                                         name="manufacturer_id"
-                                        context="{'default_manufacturer': True}"
-                                        domain="[('manufacturer', '=', True)]" />
+                                        context="{'default_is_manufacturer': True}"
+                                        domain="[('is_manufacturer', '=', True)]" />
                                     <field name="manufacturer_pname" />
                                 </group>
                                 <group>

@@ -22,8 +22,8 @@
         <field name="arch" type="xml">
             <xpath expr="//div[@name='options']" position="inside">
                 <span id="manufacturer_span" class="d-inline-flex">
-                    <field name="manufacturer" />
-                    <label for="manufacturer" />
+                    <field name="is_manufacturer" />
+                    <label for="is_manufacturer" />
                 </span>
             </xpath>
         </field>
@@ -50,7 +50,7 @@
         <field name="arch" type="xml">
             <list string="Manufacturers">
                 <field name="name" />
-                <field name="product_count" string="Products" />
+                <field name="count_manufactured_products" string="Products" />
             </list>
         </field>
     </record>
@@ -87,7 +87,7 @@
                                 type="object"
                                 name="action_view_manufacturer_products"
                                 class="mt-2 text-black">
-                                <field name="product_count" /> PRODUCTS
+                                <field name="count_manufactured_products" /> PRODUCTS
                             </a>
                         </main>
                     </t>
@@ -108,9 +108,9 @@
                             type="object"
                             icon="fa-cubes"
                             class="oe_stat_button"
-                            invisible="product_count == 0">
+                            invisible="count_manufactured_products == 0">
                             <field
-                                name="product_count"
+                                name="count_manufactured_products"
                                 widget="statinfo"
                                 string="Products" />
                         </button>
@@ -134,8 +134,8 @@
         <field name="res_model">res.partner</field>
         <field name="view_mode">kanban,list,form</field>
         <field name="search_view_id" ref="view_partner_manufacturer_search" />
-        <field name="domain">[('manufacturer', '=', True)]</field>
-        <field name="context">{'default_manufacturer': 1}</field>
+        <field name="domain">[('is_manufacturer', '=', True)]</field>
+        <field name="context">{'default_is_manufacturer': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create a new manufacturer

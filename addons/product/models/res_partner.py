@@ -19,13 +19,17 @@ class ResPartner(models.Model):
         company_dependent=True,
     )
 
-    manufacturer = fields.Boolean()
+    is_manufacturer = fields.Boolean(string="Manufacturer")
     manufactured_product_ids = fields.One2many(
         comodel_name="product.template",
         inverse_name="manufacturer_id",
         string="Manufactured Products",
     )
-    product_count = fields.Count("manufactured_product_ids", readonly=True)
+    count_manufactured_products = fields.Count(
+        "manufactured_product_ids",
+        string="Product Count",
+        readonly=True,
+    )
 
     @api.depends_context("company", "country_code")
     @api.depends("country_id", "specific_property_product_pricelist")

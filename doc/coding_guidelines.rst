@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 6.27
-:Date: 2026-09-08
+:Version: 6.28
+:Date: 2026-09-09
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -7023,6 +7023,43 @@ and `partner_group_restricted` had already followed the rename in its editable
 whitelist, which is the tell that the module was updated and its tests were not.
 Neither is a phone defect; both are this appendix's absence.
 
+``res.partner``: the two manufacturer flags
+--------------------------------------------
+
+Neither name was ever vanilla. Both arrived with ``product_manufacturer``, an OCA
+port that carried them under the OCA original's spellings, and both were renamed
+onto §2.3 when that module was dissolved into ``product``. They are recorded here
+because code written against ``product_manufacturer`` -- or against the OCA
+module it came from -- uses the old ones.
+
+.. list-table::
+   :header-rows: 1
+
+   * - ``product_manufacturer``
+     - This fork
+   * - ``manufacturer``
+     - ``is_manufacturer`` (Boolean). The label stays ``Manufacturer``, so the
+       rename is invisible in the UI and in every catalogue
+   * - ``product_count``
+     - ``count_manufactured_products`` -- a ``fields.Count`` over
+       ``manufactured_product_ids``, computed and unstored, so it has no column.
+       The old name also collided in meaning with ``product.category.product_count``
+       in the same module
+
+So ``partner.manufacturer`` raises, and a view domain reading
+``[('manufacturer', '=', True)]`` on ``res.partner`` raises when the dropdown or
+action is opened rather than when the view loads. Three other models keep a
+``manufacturer`` field of their own and are untouched: ``iot.device``,
+``remote.config`` and, as a plain Char, nothing else.
+
+**``count_manufactured_products`` is deliberately against the grain of the tree.**
+§2.3's table prescribes the ``count_`` prefix, and the tree does not follow it:
+477 field declarations end in ``_count`` against 48 that begin with ``count_``,
+measured over ``odoo/addons`` and ``odoo/odoo/addons`` excluding tests. A new name
+landing with a fold is the cheap moment to be canonical; a mass rename of an
+existing family in one module is not, and is why ``project``'s counters were left
+alone.
+
 Order lines: ``product_qty`` and ``product_uom_qty`` swapped meanings
 ---------------------------------------------------------------------
 
@@ -7179,6 +7216,15 @@ One row per change, one clause. The argument lives in the section it moved.
    * - Version
      - Date
      - Summary
+   * - 6.28
+     - 2026-09-09
+     - Appendix A gains the two ``res.partner`` manufacturer flags, renamed onto
+       §2.3 when ``product_manufacturer`` dissolved into ``product``:
+       ``manufacturer`` to ``is_manufacturer`` and ``product_count`` to
+       ``count_manufactured_products``. The second is against the tree's grain --
+       477 ``_count`` suffixes to 48 ``count_`` prefixes -- and the entry says so,
+       because the guideline is the tiebreak for a NEW name while a mass rename of
+       an existing family is the move it does not license.
    * - 6.27
      - 2026-09-08
      - §2.4.2: ``selection=`` is a sixth field-declaration keyword and the §2.4
