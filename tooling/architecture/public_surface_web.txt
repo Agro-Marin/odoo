@@ -220,7 +220,6 @@
 @web/views/view_components  odoo enterprise
 @web/views/view_dialogs  odoo enterprise agromarin
 @web/views/view_hook  odoo enterprise
-@web/views/view_layout  enterprise
 @web/views/view_measurements  enterprise
 @web/views/view_utils  odoo enterprise agromarin
 @web/views/widgets  odoo enterprise

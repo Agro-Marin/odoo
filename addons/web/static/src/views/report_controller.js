@@ -9,7 +9,7 @@ import { Layout } from "@web/search/layout";
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { ActionHelper } from "@web/views/action_helper";
 import { standardViewProps } from "@web/views/standard_view_props";
-import { useViewChassis } from "@web/views/view_layout";
+import { useViewChassis } from "@web/views/view_components";
 import { computeModelOptions } from "@web/views/view_utils";
 
 export class ReportController extends Component {

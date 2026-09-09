@@ -225,7 +225,7 @@ record to learn what `ir.attachment`'s dual storage costs.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **234 specifiers**
+the surface can only shrink. It stands at **235 specifiers**
 (`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 
@@ -248,7 +248,8 @@ mean:
 | the flow editor published for `automation` | **230** | `automation`'s workflow canvas is the first consumer of `@web/core/flow_editor/flow_editor`, the node-graph editor backported from the enterprise call-flow builder; one specifier, entered at the component's own module rather than at the geometry and store beneath it |
 | the html expander and section renderer moved into `web` | **233** | `form_with_html_expander` and the section list renderer lived in `resource`, which has no coupling to either: the expander is reached by `project`, `project_todo` and enterprise's `helpdesk` and by nothing in `resource`. Three specifiers change module rather than appear -- the same files under `@web/`, with no `@resource/` entry surviving in either pin |
 | `three.js` behind a library facade in `agromarin` | **234** | agromarin's `95586d8fa` moved its three.js facade under `static/src/lib` and loads it through `@web/core/lib/lazy_lib` rather than a second loader, which is one new specifier; the same sync dropped `agromarin` from `@web/core/currency`'s scopes, a change of who reaches a specifier and not of how many there are |
-| **today** | **234 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
+| `ReportController` published for the view chassis | **235** | `642771ff15e` gave the control-panel chassis a component of its own, and `web_cohort` is the first view type outside `web` to extend `ReportController` rather than retype it. `ViewLayout` and `useViewChassis` are reached through the existing `@web/views/view_components` face and add nothing: the component sits in the directory that face covers, which is where a shared view component belongs and what keeps one conversion from costing two specifiers |
+| **today** | **235 specifiers** | the rows above are the moves that were written down, not the whole path; this row is the pin's size on disk, and saying `specifiers` is what puts it under `test_the_public_surface_pin_size_is_measured` rather than beside it. A table of moves that stops short of the figure the prose states is two records of one number, which is the thing this register says not to keep |
 
 **A scope is not a specifier.** Recording that `agromarin`'s `geoengine` also
 enters at `@web/views/widgets` added a third scope tag to a line already pinned
