@@ -1662,7 +1662,20 @@ tree (``_get_last_sequence_domain`` ×10, ``_get_product_catalog_domain`` ×7,
 ``_get_l10n_latam_documents_domain`` ×6). Measured before proposing, as two head
 tuples over **one fixed tree**, so what it establishes is the delta rather than
 either absolute: the change moves head-first 131 → 273 and tail-first 177 →
-**355**, declaring **186** new backlog items and reclassifying 328 names. **The seven are a caveat
+**355**, declaring **186** new backlog items and reclassifying 328 names.
+
+**Those two "before" figures are UNANCHORABLE, not merely unlabelled**, which is
+why they are given as a delta and must not be "corrected" to a frozen reading
+later. Walked with absolute SHAs, ``heads_tail_first`` reads 173 at the tip and
+171-175 across the preceding 110 commits -- and never **177**, on any of them or
+on the dirty checkout. The asymmetry is the tell: the head-first **131** matches
+the tree exactly while the tail-first **177** matches nothing, and a pair taken
+from one tree would be stale together or fresh together. So the scan differed
+between the two halves -- §4's scan-moved-under-a-fixed-tree, occurring *inside*
+a measurement whose whole subject is a scan change. The delta survives because
+both halves were taken the same way; the absolutes have no commit to name.
+
+**The seven are a caveat
 about how to READ the number, never a correction to bank** -- banking 170 would
 require the scan change, and the scan change asserts a 186-item claim about a
 shipped convention that nobody has argued. ``domain`` is absent from the tuple
