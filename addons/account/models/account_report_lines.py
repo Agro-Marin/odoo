@@ -7,6 +7,7 @@ from functools import cmp_to_key
 from odoo import _, api, models
 from odoo.exceptions import UserError
 from odoo.libs.numbers import float_is_zero, float_round
+from odoo.tools import get_lang
 from odoo.tools.formatting import ROUNDING_UNIT_MAPPING
 from odoo.tools.misc import format_date, formatLang
 
@@ -1761,3 +1762,225 @@ class AccountReportLines(models.Model):
         return [
             parse_segment(key) for key in line_id.split(LINE_ID_HIERARCHY_DELIMITER)
         ]
+
+    def _generate_columns_group_vals_recursively(
+        self, next_levels_headers, previous_levels_group_vals
+    ):
+        if next_levels_headers:
+            rslt = []
+
+            # Separate headers into those with "no_subheader_division" and those without
+            headers_with_no_subdivision = [
+                header
+                for header in next_levels_headers[0]
+                if "no_subheader_division" in header.get("forced_options", {})
+            ]
+            valid_next_level_headers = [
+                header
+                for header in next_levels_headers[0]
+                if "no_subheader_division" not in header.get("forced_options", {})
+            ]
+
+            # Process headers without "no_subheader_division"
+            for header_element in valid_next_level_headers:
+                current_level_group_vals = {
+                    key: {
+                        **previous_levels_group_vals.get(key, {}),
+                        **header_element.get(key, {}),
+                    }
+                    for key in previous_levels_group_vals
+                }
+                rslt += self._generate_columns_group_vals_recursively(
+                    next_levels_headers[1:], current_level_group_vals
+                )
+
+            # Process headers with "no_subheader_division" as standalone groups
+            for header_element in headers_with_no_subdivision:
+                current_level_group_vals = {
+                    key: {
+                        **previous_levels_group_vals.get(key, {}),
+                        **header_element.get(key, {}),
+                    }
+                    for key in previous_levels_group_vals
+                }
+                rslt.append(current_level_group_vals)
+
+            return rslt
+        else:
+            return [previous_levels_group_vals]
+
+    @api.model
+    def _prepare_parent_line_id(self, current):
+        """Build the parent_line id based on the current position in the report.
+
+        For instance, if current is [('markup1', 'account.account', 5), ('markup2', 'res.partner', 8)], it will return
+        markup1~account.account~5
+        :param current (list<tuple>): list of tuple(markup, model, value)
+        """
+        to_process = [
+            (json.dumps(markup) if isinstance(markup, dict) else markup, model, value)
+            for markup, model, value in current[:-1]
+        ]
+        return self._prepare_line_id(to_process)
+
+    @api.model
+    def _get_unfolded_lines(self, lines, parent_line_id):
+        """Return a list of all children lines for specified parent_line_id.
+        NB: It will return the parent_line itself!
+
+        For instance if parent_line_ids is '~account.report.line~84|{"groupby": "currency_id"}~res.currency~174'
+        (where | is the LINE_ID_HIERARCHY_DELIMITER), it will return every subline for this currency.
+        :param lines: list of report lines
+        :param parent_line_id: id of a specified line
+        :return: A list of all children lines for a specified parent_line_id
+        """
+        return [line for line in lines if line["id"].startswith(parent_line_id)]
+
+    @api.model
+    def _get_res_id_from_line_id(self, line_id, target_model_name):
+        """Parses the provided generic line id and returns the most local (i.e. the furthest on the right) record id it contains which
+        corresponds to the provided model name. If line_id does not contain anything related to target_model_name, None will be returned.
+
+        For example, parsing ~account.move~1|~res.partner~2|~account.move~3 (where | is the LINE_ID_HIERARCHY_DELIMITER)
+        with target_model_name='account.move' will return 3.
+        """
+        dict_result = self._get_res_ids_from_line_id(line_id, [target_model_name])
+        return dict_result[target_model_name] if dict_result else None
+
+    @api.model
+    def _get_res_ids_from_line_id(self, line_id, target_model_names):
+        """Parses the provided generic line id and returns the most local (i.e. the furthest on the right) record ids it contains which
+        correspond to the provided model names, in the form {model_name: res_id}. If a model is not present in line_id, its model will be absent
+        from the resulting dict.
+
+        For example, parsing ~account.move~1|~res.partner~2|~account.move~3 with target_model_names=['account.move', 'res.partner'] will return
+        {'account.move': 3, 'res.partner': 2}.
+        """
+        result = {}
+        models_to_find = set(target_model_names)
+        for _markup, model, value in reversed(self._parse_line_id(line_id)):
+            if model in models_to_find:
+                result[model] = value
+                models_to_find.remove(model)
+
+        return result
+
+    def _prepare_subline_id(self, parent_line_id, subline_id_postfix):
+        """Creates a new subline id by concatanating parent_line_id with the provided id postfix."""
+        return f"{parent_line_id}{LINE_ID_HIERARCHY_DELIMITER}{subline_id_postfix}"
+
+    def _generate_total_below_section_line(self, section_line_dict):
+        return {
+            **section_line_dict,
+            "id": self._get_generic_line_id(
+                None, None, parent_line_id=section_line_dict["id"], markup="total"
+            ),
+            "level": section_line_dict["level"]
+            if section_line_dict["level"] != 0
+            else 1,  # Total line should not be level 0
+            "name": _("Total %s", section_line_dict["name"]),
+            "parent_id": section_line_dict["id"],
+            "unfoldable": False,
+            "unfolded": False,
+            "caret_options": None,
+            "action_id": None,
+            # A total is not expandable, so it must not carry the section's expansion
+            # handles: they were shipped to the client on every total line of every
+            # render, and get_expanded_lines aimed at one raises IndexError.
+            "expand_function": None,
+            "groupby": None,
+            "page_break": False,  # If the section's line possesses a page break, we don't want the total to have it.
+        }
+
+    def _split_options_per_column_group(self, options):
+        """Get a specific option dict per column group, each enforcing the comparison and horizontal grouping associated
+        with the column group. Each of these options dict will contain a new key 'owner_column_group', with the column group key of the
+        group it was generated for.
+
+        :param options: The report options upon which the returned options be be based.
+
+        :return:        A dict(column_group_key, options_dict), where column_group_key is the string identifying each column group (the keys
+                        of options['column_groups'], and options_dict the generated options for this group.
+        """
+        options_per_group = {}
+        for group_key in options["column_groups"]:
+            group_options = self._get_column_group_options(options, group_key)
+            options_per_group[group_key] = group_options
+
+        return options_per_group
+
+    def _convert_json_friendly_column_group_totals(
+        self,
+        json_friendly_column_group_totals,
+        expressions_to_exclude=None,
+        col_groups_to_exclude=None,
+    ):
+        """json_friendly_column_group_totals contains ids instead of expressions (because it comes from js) ; this function is used
+        to convert them back to records.
+        """
+        all_column_groups_expression_totals = {}
+        for (
+            column_group_key,
+            expression_totals,
+        ) in json_friendly_column_group_totals.items():
+            if col_groups_to_exclude and column_group_key in col_groups_to_exclude:
+                continue
+
+            all_column_groups_expression_totals[column_group_key] = {}
+            for expr_id, expr_totals in expression_totals.items():
+                expression = self.env["account.report.expression"].browse(
+                    int(expr_id)
+                )  # Should already be in cache, so acceptable
+                if (
+                    not expressions_to_exclude
+                    or expression not in expressions_to_exclude
+                ):
+                    all_column_groups_expression_totals[column_group_key][
+                        expression
+                    ] = expr_totals
+
+        return all_column_groups_expression_totals
+
+    def _get_json_friendly_column_group_totals(
+        self, all_column_groups_expression_totals
+    ):
+        # Convert all_column_groups_expression_totals to a json-friendly form (its keys are records)
+        json_friendly_column_group_totals = {}
+        for (
+            column_group_key,
+            expressions_totals,
+        ) in all_column_groups_expression_totals.items():
+            json_friendly_column_group_totals[column_group_key] = {
+                expression.id: totals
+                for expression, totals in expressions_totals.items()
+            }
+        return json_friendly_column_group_totals
+
+    def _filter_out_folded_children(self, lines):
+        """Returns a list containing all the lines of the provided list that need to be displayed when printing,
+        hence removing the children whose parent is folded (especially useful to remove total lines).
+        """
+        rslt = []
+        folded_lines = set()
+        for line in lines:
+            if line.get("unfoldable") and not line.get("unfolded"):
+                folded_lines.add(line["id"])
+
+            if "parent_id" not in line or line["parent_id"] not in folded_lines:
+                rslt.append(line)
+        return rslt
+
+    def _get_cell_type_value(self, cell):
+        if "date" not in cell.get("class", "") or not cell.get("name"):
+            # cell is not a date
+            return ("text", cell.get("name", ""))
+        if isinstance(cell["name"], (float, datetime.date, datetime.datetime)):
+            # the date is xlsx compatible
+            return ("date", cell["name"])
+        try:
+            # the date is parsable to a xlsx compatible date
+            lg = get_lang(self.env, self.env.user.lang)
+            return ("date", datetime.datetime.strptime(cell["name"], lg.date_format))
+        except:  # noqa: E722
+            # the date is not parsable thus is returned as text
+            return ("text", cell["name"])
