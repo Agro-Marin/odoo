@@ -60,9 +60,7 @@ class TestExpenseReinvoiceLines(TransactionCase):
 
     def _reinvoice(self, lines, order):
         mapping = dict.fromkeys(lines.ids, order)
-        with patch.object(
-            type(lines), "_sale_determine_order", lambda records: mapping
-        ):
+        with patch.object(type(lines), "_sale_get_order_map", lambda records: mapping):
             return lines._sale_create_reinvoice_sale_line()
 
     def test_cost_becomes_an_expense_line_on_the_order(self):
@@ -80,7 +78,7 @@ class TestExpenseReinvoiceLines(TransactionCase):
 
     def test_cost_mapped_to_nothing_is_not_charged(self):
         line = self._cost_line()
-        with patch.object(type(line), "_sale_determine_order", lambda records: {}):
+        with patch.object(type(line), "_sale_get_order_map", lambda records: {}):
             result = line._sale_create_reinvoice_sale_line()
         self.assertFalse(result)
 

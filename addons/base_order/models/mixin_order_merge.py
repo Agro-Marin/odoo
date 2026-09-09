@@ -22,10 +22,10 @@ class MixinOrderMerge(models.AbstractModel):
                 len(excluded),
                 ", ".join(excluded.mapped("name")),
             )
-        self._merge_validate_selection(orders_to_merge)
+        self._merge_check_selection(orders_to_merge)
 
         groups = self._merge_group_orders(orders_to_merge)
-        self._merge_validate_groups(groups)
+        self._merge_check_groups(groups)
 
         merged_ids = []
         for orders in groups:
@@ -38,13 +38,13 @@ class MixinOrderMerge(models.AbstractModel):
     def _merge_get_eligible_orders(self):
         return self.filtered(lambda r: r.state == "draft")
 
-    def _merge_validate_selection(self, orders):
+    def _merge_check_selection(self, orders):
         if len(orders) < 2:
             raise UserError(
                 _("Please select at least two orders to merge."),
             )
 
-    def _merge_validate_groups(self, groups):
+    def _merge_check_groups(self, groups):
         if not groups:
             raise UserError(
                 _(

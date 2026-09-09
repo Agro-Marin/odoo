@@ -1184,10 +1184,10 @@ class MixinOrder(models.AbstractModel):
         if not self:
             return groups
         self.check_singleton()
-        self._tweak_notify_recipient_groups(groups)
+        self._update_notify_recipient_groups(groups)
         return groups
 
-    def _tweak_notify_recipient_groups(self, groups):
+    def _update_notify_recipient_groups(self, groups):
         return
 
     def _track_subtype(self, init_values):
@@ -1287,7 +1287,7 @@ class MixinOrder(models.AbstractModel):
         **kwargs,
     ):
         self.check_singleton()
-        self._prepare_catalog_update()
+        self._update_catalog_context()
         line = self.line_ids.filtered(
             lambda l: (
                 l.product_id.id == product_id
@@ -1321,7 +1321,7 @@ class MixinOrder(models.AbstractModel):
             return self._get_catalog_removed_line_price(product, **kwargs)
         return self._get_catalog_line_price(line)
 
-    def _prepare_catalog_update(self):
+    def _update_catalog_context(self):
         return
 
     def _get_catalog_editable_states(self):

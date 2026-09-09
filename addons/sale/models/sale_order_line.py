@@ -482,7 +482,7 @@ class SaleOrderLine(models.Model):
                     display_price = line_with_company._get_price_display()
                 else:
                     pricelist_price = line_with_company._get_pricelist_price()
-                    if line.pricelist_item_id._show_discount():
+                    if line.pricelist_item_id._is_discount_shown():
                         base_price = (
                             line_with_company._get_pricelist_price_before_discount()
                         )
@@ -532,7 +532,7 @@ class SaleOrderLine(models.Model):
                 continue
 
             auto_discount = 0.0
-            if line.pricelist_item_id._show_discount():
+            if line.pricelist_item_id._is_discount_shown():
                 if not pricelist_price:
                     line_with_company = line.with_company(line.company_id)
                     pricelist_price = line_with_company._get_pricelist_price()
@@ -1096,7 +1096,7 @@ class SaleOrderLine(models.Model):
         if pricelist_price is None:
             pricelist_price = self._get_pricelist_price()
 
-        if not self.pricelist_item_id._show_discount():
+        if not self.pricelist_item_id._is_discount_shown():
             return pricelist_price
 
         if base_price is None:
@@ -1437,7 +1437,7 @@ class SaleOrderLine(models.Model):
             return True
         return super()._price_update_blocked()
 
-    def _lines_to_check_analytic_distribution(self):
+    def _filtered_to_check_analytic_distribution(self):
         return self.filtered(
             lambda line: not line.display_type and line.state == "draft",
         )

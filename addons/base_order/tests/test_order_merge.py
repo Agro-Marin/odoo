@@ -26,13 +26,13 @@ class TestOrderMergeMixin(TransactionCase):
     def test_validate_selection_requires_at_least_two(self):
         one = self._order(self.partner_a)
         with self.assertRaises(UserError):
-            self.SaleOrder._merge_validate_selection(one)
-        self.SaleOrder._merge_validate_selection(one + self._order(self.partner_a))
+            self.SaleOrder._merge_check_selection(one)
+        self.SaleOrder._merge_check_selection(one + self._order(self.partner_a))
 
     def test_validate_groups_requires_a_group(self):
         with self.assertRaises(UserError):
-            self.SaleOrder._merge_validate_groups([])
-        self.SaleOrder._merge_validate_groups([self._order(self.partner_a)])
+            self.SaleOrder._merge_check_groups([])
+        self.SaleOrder._merge_check_groups([self._order(self.partner_a)])
 
     def test_group_orders_groups_by_partner(self):
         same = self._order(self.partner_a) + self._order(self.partner_a)

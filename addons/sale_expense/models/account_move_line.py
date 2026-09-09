@@ -22,8 +22,8 @@ class AccountMoveLine(models.Model):
             )
         return mapping_from_expense
 
-    def _sale_determine_order(self):
-        mapping_from_invoice = super()._sale_determine_order()
+    def _sale_get_order_map(self):
+        mapping_from_invoice = super()._sale_get_order_map()
         mapping_from_invoice.update(self._get_so_mapping_from_expense())
         return mapping_from_invoice
 

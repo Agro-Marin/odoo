@@ -372,7 +372,7 @@ class PurchaseOrder(models.Model):
             )
         return super().action_unlock()
 
-    def _merge_validate_selection(self, orders):
+    def _merge_check_selection(self, orders):
         if len(orders) < 2:
             raise UserError(
                 _("Please select at least two RFQs to merge."),
@@ -472,7 +472,7 @@ class PurchaseOrder(models.Model):
         activity.note = note
         return activity
 
-    def _tweak_notify_recipient_groups(self, groups):
+    def _update_notify_recipient_groups(self, groups):
         try:
             customer_portal_group = next(
                 group for group in groups if group[0] == "portal_customer"

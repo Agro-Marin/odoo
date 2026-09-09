@@ -78,7 +78,7 @@ class PaymentTransaction(models.Model):
 
         for authorized_tx in self.filtered(lambda tx: tx.state == "authorized"):
             super(PaymentTransaction, authorized_tx)._post_process()
-            confirmed_orders = authorized_tx._check_amount_and_confirm_order()
+            confirmed_orders = authorized_tx._confirm_orders_if_amount_reached()
             if authorized_tx.operation == "validation":
                 continue
             if remaining_orders := (authorized_tx.sale_order_ids - confirmed_orders):
@@ -99,7 +99,7 @@ class PaymentTransaction(models.Model):
         )
         for done_tx in done_txs:
             if done_tx.operation != "validation":
-                confirmed_orders = done_tx._check_amount_and_confirm_order()
+                confirmed_orders = done_tx._confirm_orders_if_amount_reached()
                 (
                     done_tx.sale_order_ids - confirmed_orders
                 )._send_mail_order_payment_succeeded()
@@ -116,7 +116,7 @@ class PaymentTransaction(models.Model):
                 else:
                     self._send_invoice()
 
-    def _check_amount_and_confirm_order(self):
+    def _confirm_orders_if_amount_reached(self):
         confirmed_orders = self.env["sale.order"]
         for tx in self:
             if len(tx.sale_order_ids) == 1:

@@ -124,7 +124,7 @@ class SaleOrderDiscount(models.TransientModel):
 
         return so_line_values_list
 
-    def _get_discount_product(self):
+    def _get_or_create_discount_product(self):
         self.check_singleton()
         company = self.company_id
         discount_product = company.sale_discount_product_id
@@ -154,7 +154,7 @@ class SaleOrderDiscount(models.TransientModel):
         self.check_singleton()
         self = self.with_context(lang=self.sale_order_id._get_lang())
 
-        discount_product = self._get_discount_product()
+        discount_product = self._get_or_create_discount_product()
 
         if self.discount_type == "so_discount":
             amount_type = "percent"

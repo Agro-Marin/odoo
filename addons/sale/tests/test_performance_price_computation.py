@@ -320,7 +320,7 @@ class TestPriceComputationCorrectness(PriceComputationPerformanceBase):
             "product.pricelist.item"
         ]._is_discount_feature_enabled()
 
-        if discount_enabled and line.pricelist_item_id._show_discount():
+        if discount_enabled and line.pricelist_item_id._is_discount_shown():
             self.assertAlmostEqual(
                 line.discount,
                 10.0,

@@ -168,10 +168,10 @@ class MixinOrderInvoice(models.AbstractModel):
         if billed:
             return "done"
         if outstanding:
-            return self._resolve_invoice_state_to_do(states)
+            return self._get_outstanding_invoice_state(states)
         return "no"
 
-    def _resolve_invoice_state_to_do(self, states):
+    def _get_outstanding_invoice_state(self, states):
         self.check_singleton()
         return "to do"
 

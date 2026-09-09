@@ -10,7 +10,7 @@ class ProductPricelistItem(models.Model):
             "sale.group_discount_per_so_line",
         )
 
-    def _show_discount(self):
+    def _is_discount_shown(self):
         if not self:
             return False
 

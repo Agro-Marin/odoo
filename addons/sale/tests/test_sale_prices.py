@@ -1318,7 +1318,7 @@ class TestSalePrices(SaleCommon):
             order.amount_total, order.tax_totals.get("total_amount_currency")
         )
 
-    def test_show_discount(self):
+    def test_is_discount_shown(self):
         test_product_discount = self.env["product.product"].create(
             {
                 "name": "Test Product",

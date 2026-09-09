@@ -40,29 +40,25 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
     def test_is_down_payment_when_prepayment_amount_is_less_than_order_total(self):
         self.sale_order.prepayment_percent = 0.5
         self.assertTrue(
-            CustomerPortal()._determine_is_down_payment(
-                self.sale_order, "whatever", None
-            )
+            CustomerPortal()._is_down_payment(self.sale_order, "whatever", None)
         )
 
     def test_is_not_down_payment_when_prepayment_amount_equals_order_total(self):
         self.sale_order.prepayment_percent = 1.0
         self.assertFalse(
-            CustomerPortal()._determine_is_down_payment(
-                self.sale_order, "whatever", None
-            )
+            CustomerPortal()._is_down_payment(self.sale_order, "whatever", None)
         )
 
     def test_is_down_payment_when_link_amount_is_less_than_order_total(self):
         self.assertTrue(
-            CustomerPortal()._determine_is_down_payment(
+            CustomerPortal()._is_down_payment(
                 self.sale_order, "whatever", self.sale_order.amount_total * 0.5
             )
         )
 
     def test_is_not_down_payment_when_link_amount_equals_order_total(self):
         self.assertFalse(
-            CustomerPortal()._determine_is_down_payment(
+            CustomerPortal()._is_down_payment(
                 self.sale_order, "whatever", self.sale_order.amount_total
             )
         )
@@ -288,7 +284,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"
         )
 
-        confirmed_orders = tx._check_amount_and_confirm_order()
+        confirmed_orders = tx._confirm_orders_if_amount_reached()
 
         self.assertFalse(confirmed_orders)
         self.assertEqual(self.sale_order.state, "draft")

@@ -134,7 +134,7 @@ class SaleOrderLine(models.Model):
     def _get_price_display(self, pricelist_price=None, base_price=None):
         if self.event_booth_pending_ids and self.event_id:
             company = self.event_id.company_id or self.env.company
-            if not self.pricelist_item_id._show_discount():
+            if not self.pricelist_item_id._is_discount_shown():
                 event_booths = self.event_booth_pending_ids.with_context(
                     **self._get_pricelist_price_context()
                 )

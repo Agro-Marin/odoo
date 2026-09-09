@@ -95,7 +95,7 @@ class AccountMoveLine(models.Model):
         return lines
 
     def _sale_create_reinvoice_sale_line(self):
-        sale_order_map = self._sale_determine_order()
+        sale_order_map = self._sale_get_order_map()
         sale_line_values_to_create = []
         pending_slot_by_key = {}
         existing_line_by_key = {}
@@ -199,7 +199,7 @@ class AccountMoveLine(models.Model):
                 ),
             )
 
-    def _sale_determine_order(self):
+    def _sale_get_order_map(self):
         return {}
 
     def _sale_prepare_sale_line_values(self, order, price, sequence=None):

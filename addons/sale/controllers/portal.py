@@ -209,7 +209,7 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
             values.update(
                 self._get_payment_values(
                     order_sudo,
-                    is_down_payment=self._determine_is_down_payment(
+                    is_down_payment=self._is_down_payment(
                         order_sudo, amount_selection, payment_amount
                     ),
                     payment_amount=payment_amount,
@@ -228,7 +228,7 @@ class CustomerPortal(payment_portal.PaymentPortal, OrderPortalMixin):
 
         return request.render("sale.sale_order_portal_template", values)
 
-    def _determine_is_down_payment(self, order_sudo, amount_selection, payment_amount):
+    def _is_down_payment(self, order_sudo, amount_selection, payment_amount):
         if amount_selection == "down_payment":
             is_down_payment = True
         elif amount_selection == "full_amount":

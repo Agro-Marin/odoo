@@ -894,7 +894,7 @@ class SaleOrder(models.Model):
             "target": "new",
         }
 
-    def _merge_validate_selection(self, quotations):
+    def _merge_check_selection(self, quotations):
         if len(quotations) < 2:
             raise UserError(
                 _("Please select at least two quotations to merge."),
@@ -1011,7 +1011,7 @@ class SaleOrder(models.Model):
     def _get_additional_base_lines(self):
         return self._add_base_lines_for_early_payment_discount()
 
-    def _resolve_invoice_state_to_do(self, states):
+    def _get_outstanding_invoice_state(self, states):
         self.check_singleton()
         if "no" in states:
             invoiceable_lines = self.line_ids.filtered_domain(
@@ -1030,7 +1030,7 @@ class SaleOrder(models.Model):
         context.pop("default_user_id", None)
         return context
 
-    def _tweak_notify_recipient_groups(self, groups):
+    def _update_notify_recipient_groups(self, groups):
         if self.env.context.get("proforma"):
             for group in [
                 g
@@ -1424,7 +1424,7 @@ class SaleOrder(models.Model):
             catalog_data[product.id] = product_data
         return catalog_data
 
-    def _prepare_catalog_update(self):
+    def _update_catalog_context(self):
         request.update_context(catalog_skip_tracking=True)
 
     def _get_catalog_removed_line_price(self, product, **kwargs):

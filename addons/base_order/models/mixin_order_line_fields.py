@@ -634,12 +634,12 @@ class MixinOrderLineFields(models.AbstractModel):
         accrual_date = fields.Date.from_string(self.env.context["accrual_entry_date"])
         return bool(accrual_date) and accrual_date < fields.Date.today()
 
-    def _lines_to_check_analytic_distribution(self):
+    def _filtered_to_check_analytic_distribution(self):
         return self.filtered(lambda line: not line.display_type)
 
     def _check_analytic_distribution(self):
         business_domain = self._analytic_business_domain
-        for line in self._lines_to_check_analytic_distribution():
+        for line in self._filtered_to_check_analytic_distribution():
             line._check_distribution(
                 product=line.product_id.id,
                 business_domain=business_domain,
