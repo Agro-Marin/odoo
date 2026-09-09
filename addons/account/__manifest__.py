@@ -152,13 +152,6 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/js/tours/*",
             "account/static/src/js/search/search_bar/search_bar.js",
             "account/static/src/helpers/*.js",
-            "account/static/src/components/bank_reconciliation/**/*",
-            "account/static/src/components/attachment_preview_list_view/**/*",
-            "account/static/src/components/export_data_dialog/**/*",
-            "account/static/src/components/journal_create_wizard/**/*",
-            "account/static/src/components/matching_link_widget/**/*",
-            "account/static/src/components/move_line_list/**/*",
-            "account/static/src/components/move_line_list_reconcile/**/*",
         ],
         "web.assets_unit_tests": [
             "account/static/src/interactions/**/*",
@@ -175,7 +168,6 @@ You could use this simplified accounting in case you work with an (external) acc
         ],
         "web.assets_tests": [
             "account/static/src/js/tours/tour_utils.js",
-            "account/static/src/js/tours/account_reconcile.js",
             "account/static/src/js/tours/account.js",
             "account/static/tests/tours/**/*",
         ],
