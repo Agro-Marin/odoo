@@ -137,7 +137,13 @@ class TestSalesControllers(HttpCase, SaleCommon):
         """After online signature acceptance, _confirm_order() must be
         called with sale_include_signature=True so the confirmation email's
         PDF shows the signature (F21)."""
-        self.sale_order.company_id.portal_confirmation_sign = True
+        # `_has_to_be_signed()` reads the order's own `require_signature`.
+        # Setting the company flag only changes what a *new* order computes --
+        # `_compute_require_signature` depends on `company_id`, which is not
+        # changing here -- so this order would keep whatever it was created
+        # with, and the test would pass or fail on the fixture's default rather
+        # than on the behaviour it is about.
+        self.sale_order.require_signature = True
         self.sale_order._portal_ensure_token()
 
         seen_contexts = []
@@ -149,7 +155,7 @@ class TestSalesControllers(HttpCase, SaleCommon):
 
         self.authenticate(None, None)
         with patch.object(type(self.sale_order), "_confirm_order", _spy_confirm_order):
-            result = self.make_jsonrpc_request(
+            result = self.call_jsonrpc(
                 f"/my/orders/{self.sale_order.id}/accept",
                 {
                     "access_token": self.sale_order.access_token,

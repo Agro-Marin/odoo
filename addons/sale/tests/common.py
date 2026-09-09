@@ -29,9 +29,11 @@ class SaleCommon(
             [
                 {
                     "partner_id": cls.partner.id,
+                    "require_signature": False,
                 },
                 {
                     "partner_id": cls.partner.id,
+                    "require_signature": False,
                     "line_ids": [
                         Command.create(
                             {
@@ -66,6 +68,7 @@ class SaleCommon(
                     }
                 ),
             ],
+            "require_signature": False,
             **values,
         }
         return self.env["sale.order"].create(default_values)
