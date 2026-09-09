@@ -292,7 +292,7 @@ export class WebsiteSale extends Interaction {
             if (
                 !ev.target
                     .closest(".js_product")
-                    .classList.contains(".css_not_available")
+                    .classList.contains("css_not_available")
             ) {
                 return this._addToCart(el);
             }
