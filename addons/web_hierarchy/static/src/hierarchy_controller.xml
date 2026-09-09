@@ -2,7 +2,7 @@
 <templates>
     <t t-name="web_hierarchy.HierarchyButtons">
         <div class="d-flex o_grid_buttons">
-            <div class="me-2" t-if="props.archInfo.activeActions.create and (!props.archInfo.createInline or displayNoContent)">
+            <div class="me-2" t-if="props.archInfo.activeActions.create">
                 <button class="btn btn-primary o_hierarchy_button_add"
                         type="button"
                         t-on-click="props.createRecord">

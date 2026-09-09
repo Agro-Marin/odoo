@@ -20,7 +20,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { WebClient } from "@web/webclient/webclient";
-import { HierarchyModel } from "@web_hierarchy/hierarchy_model";
+import { HierarchyModel, HierarchyNode } from "@web_hierarchy/hierarchy_model";
 import "./hierarchy_mock_server.js";
 
 async function enableFilters(filterNames = []) {
@@ -94,6 +94,19 @@ class Employee extends models.Model {
 defineModels([Employee]);
 
 describe.current.tags("desktop");
+
+test("ancestorNode resolves to the topmost ancestor", () => {
+    const grandParent = Object.create(HierarchyNode.prototype);
+    grandParent.parentNode = null;
+    const parent = Object.create(HierarchyNode.prototype);
+    parent.parentNode = grandParent;
+    const child = Object.create(HierarchyNode.prototype);
+    child.parentNode = parent;
+
+    expect(child.ancestorNode).toBe(grandParent);
+    expect(parent.ancestorNode).toBe(grandParent);
+    expect(grandParent.ancestorNode).toBe(grandParent);
+});
 
 test("load hierarchy view", async () => {
     await mountView({
@@ -647,6 +660,28 @@ test("drag and drop record at an invalid position", async () => {
                 "The view should not have been modified since the position is invalid",
         },
     );
+});
+
+test("updateParentNode does not throw for a nodeId that no longer resolves", async () => {
+    let model;
+    patchWithCleanup(HierarchyModel.prototype, {
+        setup(...args) {
+            super.setup(...args);
+            model = this;
+        },
+    });
+    await mountView({
+        type: "hierarchy",
+        resModel: "hr.employee",
+    });
+
+    let error;
+    try {
+        await model.updateParentNode(-1, {});
+    } catch (e) {
+        error = e;
+    }
+    expect(error).toBe(undefined);
 });
 
 test("drag and drop record on sibling node", async () => {
