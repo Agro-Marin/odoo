@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -33,18 +34,31 @@ class TestTheXmlIdRule:
         )
 
 
+def _module(root, name, category=None, xml=None):
+    """A module directory, and the manifest that declares whatever it ships.
+
+    The XML has to be NAMED in the manifest's `data`: the gate reads the files a
+    manifest loads, not every file in the tree, because a category record in a
+    file nothing loads declares nothing.
+    """
+    module = root / name
+    module.mkdir(parents=True)
+    manifest = {"name": name}
+    if category is not None:
+        manifest["category"] = category
+    if xml is not None:
+        (module / "categories.xml").write_text(xml, encoding="utf-8")
+        manifest["data"] = ["categories.xml"]
+    (module / "__manifest__.py").write_text(repr(manifest), encoding="utf-8")
+    return module
+
+
 class TestRootDeclared:
     def _tree(self, tmp_path, monkeypatch, manifests, declared_xml):
         root = tmp_path / "addons"
         for name, category in manifests.items():
-            module = root / name
-            module.mkdir(parents=True)
-            (module / "__manifest__.py").write_text(
-                '{"name": "x", "category": %r}' % category, encoding="utf-8"
-            )
-        data = root / "base_like" / "data"
-        data.mkdir(parents=True)
-        (data / "categories.xml").write_text(declared_xml, encoding="utf-8")
+            _module(root, name, category)
+        _module(root, "base_like", xml=declared_xml)
         monkeypatch.setattr(gate, "scan_roots", lambda: [root])
         return root
 
@@ -82,12 +96,7 @@ class TestRootDeclared:
 class TestPathImpliesParent:
     def _declared(self, tmp_path, monkeypatch, xml):
         root = tmp_path / "addons"
-        module = root / "any"
-        module.mkdir(parents=True)
-        (module / "__manifest__.py").write_text(
-            '{"name": "x", "category": "Services/Project"}', encoding="utf-8"
-        )
-        (module / "categories.xml").write_text(xml, encoding="utf-8")
+        _module(root, "any", category="Services/Project", xml=xml)
         monkeypatch.setattr(gate, "scan_roots", lambda: [root])
 
     PARENTLESS = """<odoo>
@@ -153,6 +162,73 @@ class TestPathImpliesParent:
         assert [v.rule for v in gate.measure()] == ["path-implies-parent"]
 
 
+class TestOnlyDeclaredDataIsRead:
+    DECLARED = """<odoo>
+        <record id="module_category_sales" model="ir.module.category">
+            <field name="name">Sales</field>
+        </record>
+    </odoo>"""
+
+    def test_an_xml_file_no_manifest_loads_declares_nothing(
+        self, tmp_path, monkeypatch
+    ):
+        # The file is in the tree and holds a well-formed category record, and
+        # the gate must not see it: Odoo loads a module's data list, not its
+        # directory, so a record in an unlisted file is loaded by nothing.
+        root = tmp_path / "addons"
+        _module(root, "declarer", xml=self.DECLARED)
+        stray = root / "declarer" / "unlisted.xml"
+        stray.write_text(
+            self.DECLARED.replace("module_category_sales", "module_category_fleet"),
+            encoding="utf-8",
+        )
+        _module(root, "fleet_x", category="Fleet")
+        monkeypatch.setattr(gate, "scan_roots", lambda: [root])
+        assert [v.rule for v in gate.measure()] == ["root-declared"]
+
+    def test_an_unreadable_data_file_raises_rather_than_being_skipped(
+        self, tmp_path, monkeypatch
+    ):
+        # A gate that cannot read a file has not measured it. Skipping one here
+        # would drop a declaration, and the whole `tests/` tree ships XML broken
+        # on purpose -- which is why the scan follows the manifest rather than
+        # walking the directory.
+        root = tmp_path / "addons"
+        _module(root, "declarer", xml=self.DECLARED)
+        _module(root, "broken", xml="<odoo><record></odoo>")
+        monkeypatch.setattr(gate, "scan_roots", lambda: [root])
+        with pytest.raises(gate.SourceUnreadable, match=re.escape("categories.xml")):
+            gate.measure()
+
+    def test_an_unreadable_manifest_raises_rather_than_being_skipped(
+        self, tmp_path, monkeypatch
+    ):
+        root = tmp_path / "addons"
+        _module(root, "declarer", xml=self.DECLARED)
+        (root / "broken").mkdir()
+        (root / "broken" / "__manifest__.py").write_text("{", encoding="utf-8")
+        monkeypatch.setattr(gate, "scan_roots", lambda: [root])
+        with pytest.raises(gate.SourceUnreadable, match=re.escape("__manifest__.py")):
+            gate.measure()
+
+    def test_a_manifest_naming_a_file_it_does_not_ship_is_skipped(
+        self, tmp_path, monkeypatch
+    ):
+        # Deliberately not an error. That is an install failure and another
+        # gate's subject, and the silence runs in the safe direction: a missed
+        # declaration can only make this gate report more violations.
+        root = tmp_path / "addons"
+        _module(root, "declarer", xml=self.DECLARED)
+        ghost = root / "ghost"
+        ghost.mkdir()
+        (ghost / "__manifest__.py").write_text(
+            repr({"name": "ghost", "data": ["nowhere.xml"]}), encoding="utf-8"
+        )
+        _module(root, "sale", category="Sales/Sales")
+        monkeypatch.setattr(gate, "scan_roots", lambda: [root])
+        assert gate.measure() == []
+
+
 class TestRefusals:
     def test_a_tree_with_no_manifest_refuses_rather_than_passing(
         self, tmp_path, monkeypatch
@@ -165,10 +241,7 @@ class TestRefusals:
 
     def test_a_tree_with_no_declared_category_refuses(self, tmp_path, monkeypatch):
         root = tmp_path / "addons"
-        (root / "sale").mkdir(parents=True)
-        (root / "sale" / "__manifest__.py").write_text(
-            '{"name": "x", "category": "Sales/Sales"}', encoding="utf-8"
-        )
+        _module(root, "sale", category="Sales/Sales")
         monkeypatch.setattr(gate, "scan_roots", lambda: [root])
         with pytest.raises(RuntimeError):
             gate.measure()
