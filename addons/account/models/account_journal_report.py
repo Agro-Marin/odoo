@@ -903,7 +903,7 @@ class AccountJournalReportHandler(models.AbstractModel):
                 start_align_right += 1
                 columns.append(_("Country"))
 
-            columns += [_("Grid"), _("+"), _("-"), _("Impact On Grid")]
+            columns += [_("Grid"), "+", "-", _("Impact On Grid")]
 
             # Draw Tax Applied Table
             # Write tax applied columns and header
