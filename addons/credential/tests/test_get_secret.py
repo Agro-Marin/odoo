@@ -56,3 +56,24 @@ class TestGetSecret(EncryptionKeyCase, TransactionCase):
             self.env.ref("credential.credential_category_custom"),
         )
         self.assertFalse(credential._get_secret())
+
+    def test_form_save_keeps_the_key_beside_empty_siblings(self):
+        # The form sends every accessor and the JSON blob on one save: the key,
+        # eight empty siblings and ``credential_data == "{}"``. None of the
+        # empties may erase the key written in the same create().
+        empties = {
+            name: False
+            for name in self.env["credential.credential"]._JSON_ACCESSOR_FIELDS
+            if name != "api_key"
+        }
+        credential = self._create(
+            "form save",
+            self.api_key_category,
+            api_key="KEYED",
+            credential_data="{}",
+            credential_value=False,
+            **empties,
+        )
+        credential.invalidate_recordset()
+        self.assertTrue(credential.credential_value_encrypted)
+        self.assertEqual(credential._get_secret(prefer="api_key"), "KEYED")
