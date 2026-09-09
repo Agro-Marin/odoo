@@ -724,16 +724,16 @@ test("many2many list (editable): edition", async () => {
     });
 
     expect(".o_list_renderer td.o_list_number").toHaveCount(2);
-    expect(".o_list_renderer tbody td:eq(0)").toHaveText("gold", {
+    expect(".o_list_renderer tbody .o_data_cell:eq(0)").toHaveText("gold", {
         message: "name of first subrecord should be the one in DB",
     });
     expect(".o_list_record_remove").toHaveCount(2);
     expect("td.o_list_record_remove button").toHaveClass("fa-solid fa-xmark");
     expect(".o_field_x2many_list_row_add").toHaveCount(1);
 
-    await contains(".o_list_renderer tbody td:eq(0)").click();
+    await contains(".o_list_renderer tbody .o_data_cell:eq(0)").click();
     expect(".modal").toHaveCount(0);
-    expect(".o_list_renderer tbody tr:eq(0)").toHaveClass("o_selected_row");
+    expect(".o_list_renderer tbody .o_data_row:eq(0)").toHaveClass("o_selected_row");
     await contains(".o_selected_row div[name=name] input").edit("new name", {
         confirm: false,
     });
@@ -742,8 +742,8 @@ test("many2many list (editable): edition", async () => {
         message: "edited field should still have the focus",
     });
     await contains(".o_form_view").click();
-    expect(".o_list_renderer tbody tr:eq(0)").not.toHaveClass("o_selected_row");
-    expect(".o_list_renderer tbody td:eq(0)").toHaveText("new name", {
+    expect(".o_list_renderer tbody .o_data_row:eq(0)").not.toHaveClass("o_selected_row");
+    expect(".o_list_renderer tbody .o_data_cell:eq(0)").toHaveText("new name", {
         message: "value of subrecord should have been updated",
     });
     expect.verifySteps(["get_views", "web_read"]);
