@@ -8,13 +8,13 @@
             name="Onboardings"
             parent="base.menu_user_interface"
             action="action_view_onboarding_onboarding"
-            sequence="1" />
+            sequence="2" />
         <menuitem
             id="menu_onboarding_step"
             name="Onboardings Steps"
             parent="base.menu_user_interface"
             action="action_view_onboarding_step"
-            sequence="1" />
+            sequence="3" />
     </data>
 
 </odoo>

@@ -43,7 +43,7 @@
         name="Coins/Bills"
         parent="menu_point_config_product"
         action="action_pos_bill"
-        sequence="4"
+        sequence="9"
         groups="group_pos_manager" />
 
 </odoo>

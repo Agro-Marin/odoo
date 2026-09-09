@@ -378,7 +378,7 @@
         name="Websites"
         parent="menu_website_global_configuration"
         action="action_website_list"
-        sequence="10"
+        sequence="15"
         groups="base.group_no_one" />
 
     <menuitem

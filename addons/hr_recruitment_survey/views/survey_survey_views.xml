@@ -86,7 +86,7 @@
         name="Interviews"
         parent="hr_recruitment.menu_hr_recruitment_configuration"
         action="survey_survey_action_recruitment"
-        sequence="50"
+        sequence="60"
         groups="hr_recruitment.group_hr_recruitment_manager" />
 
 </odoo>

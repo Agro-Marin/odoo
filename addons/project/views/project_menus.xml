@@ -17,9 +17,9 @@
             id="menu_projects_group_stage"
             name="Projects"
             action="open_view_project_all_group_stage"
-            sequence="1"
+            sequence="2"
             groups="project.group_project_stages" />
-        <menuitem id="menu_project_management" name="Tasks" sequence="2">
+        <menuitem id="menu_project_management" name="Tasks" sequence="12">
             <menuitem
                 id="menu_project_management_my_tasks"
                 name="My Tasks"
@@ -114,7 +114,7 @@
                 id="menu_projects_config"
                 name="Projects"
                 action="open_view_project_all_config"
-                sequence="5" />
+                sequence="7" />
             <menuitem
                 id="menu_project_config_project_stage"
                 name="Project Phases"
@@ -130,22 +130,27 @@
             <menuitem
                 id="menu_project_tags_act"
                 name="Tags"
+                sequence="20"
                 action="project_tags_action" />
             <menuitem
                 id="menu_project_task_lost_reason_act"
                 name="Lost Reasons"
+                sequence="70"
                 action="project_task_lost_reason_action" />
             <menuitem
                 id="menu_project_config_roles"
                 name="Project Roles"
+                sequence="40"
                 action="resource.resource_role_action" />
             <menuitem
                 id="menu_project_config_activity_type"
                 name="Activity Types"
+                sequence="50"
                 action="mail_activity_type_action_config_project_types" />
             <menuitem
                 id="menu_project_config_activity_plan"
                 name="Activity Plans"
+                sequence="60"
                 action="mail_activity_plan_action_config_project_task_plan" />
         </menuitem>
     </menuitem>

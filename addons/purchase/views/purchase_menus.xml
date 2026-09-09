@@ -5,7 +5,7 @@
     <menuitem
         id="menu_purchase_root"
         name="Purchase"
-        sequence="135"
+        sequence="137"
         groups="group_purchase_manager,group_purchase_user,group_purchase_readonly"
         web_icon="purchase,static/description/icon.png"
         web_keywords="vendor, supplier, purchase order, request for quotation, rfq, procurement, reordering" />

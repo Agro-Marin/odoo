@@ -62,6 +62,7 @@
             <menuitem
                 id="product_catalog_product_ribbons"
                 name="Product Ribbons"
+                sequence="11"
                 action="website_sale.product_ribbon_action" />
         </menuitem>
     </menuitem>

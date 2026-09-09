@@ -72,7 +72,7 @@
     </record>
 
     <!-- Menus -->
-    <menuitem id="iap_root_menu" name="IAP" parent="base.menu_custom" sequence="5" />
+    <menuitem id="iap_root_menu" name="IAP" parent="base.menu_custom" sequence="7" />
 
     <menuitem
         id="iap_account_menu"
