@@ -29,8 +29,14 @@ function mockHierarchyRead(params) {
     // Through `mockRpc`, not `_mockWebSearchReadUnity`: the helpers are marked
     // private, and the registry's contract is that a mock runs with the sample
     // server as `this` and reaches it the same way a route would.
+    // Only what that route reads, rather than a spread of ours: `_mockRead`
+    // below it does take `params.args`, and `hierarchy_read`'s args are
+    // `[domain, specification, ...]` where a read's are `[ids, fieldNames]`.
+    // It is handed a fresh object at every call site today, so a spread would
+    // be inert -- but inert by luck, and one call site away from silently
+    // reading our arguments as someone else's.
     const { records } = this.mockRpc({
-        ...params,
+        model: params.model,
         method: "web_search_read",
         specification,
     });
