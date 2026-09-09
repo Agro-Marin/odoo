@@ -91,7 +91,7 @@ class AccountJournal(models.Model):
     def get_total_journal_amount(self):
         balance = ""
         if self.exists() and any(
-            company in self.company_id._accessible_branches()
+            company in self.company_id._get_accessible_branches()
             for company in self.env.companies
         ):
             balance = formatLang(
